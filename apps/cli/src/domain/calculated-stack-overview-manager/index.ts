@@ -84,6 +84,7 @@ import { resolveRedisClusters } from './resource-resolvers/redis-clusters';
 import { resolveSnsTopics } from './resource-resolvers/sns-topics';
 import { resolveSqsQueues } from './resource-resolvers/sqs-queues';
 import { resolveStateMachines } from './resource-resolvers/state-machines';
+import { resolveSyntheticTests } from './resource-resolvers/synthetic-tests';
 import { resolveTracingInfrastructure } from './resource-resolvers/tracing';
 import { resolveUpstashRedisDatabases } from './resource-resolvers/upstash-redis';
 import { resolveUptimeChecks } from './resource-resolvers/uptime-checks';
@@ -191,6 +192,7 @@ export class CalculatedStackOverviewManager {
       resolveRedisClusters,
       resolveUpstashRedisDatabases,
       resolveUptimeChecks,
+      resolveSyntheticTests,
       resolveTracingInfrastructure,
       resolveEdgeLambdaFunctions,
       resolveBudget,

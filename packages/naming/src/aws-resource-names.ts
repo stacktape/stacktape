@@ -720,6 +720,19 @@ export const awsResourceNames = {
       lengthLimit: 64
     });
   },
+  syntheticCanaryRole(stackName: string, region: string, testName: string) {
+    return buildResourceName({
+      proposedResourceName: `${stackName}-${testName}-canary-${region}`,
+      lengthLimit: 64
+    });
+  },
+  // Canary names must match ^[0-9a-z_\-]{1,255}$ (no uppercase, no dots); a name change replaces the canary.
+  syntheticCanary(stackName: string, testName: string) {
+    return buildResourceName({
+      proposedResourceName: `${stackName}-${testName}`.toLowerCase(),
+      lengthLimit: 255
+    });
+  },
   // limit 255 https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-cw-alarm.html#cfn-cloudwatch-alarms-alarmname
   cloudwatchAlarm(stackName: string, alarmName: string) {
     return buildResourceName({

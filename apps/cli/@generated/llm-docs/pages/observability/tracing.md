@@ -68,9 +68,13 @@ resources:
 
 Stacktape attaches the AWS-managed OpenTelemetry Lambda layer and activates it through environment variables — no code changes and no agents to run. Instrumentation for AWS SDK and HTTP calls is on by default.
 
-Supported runtimes: Node.js 18–22, Python 3.10–3.13, Java 11/17/21, and .NET 8. A traced function on any other runtime is skipped with a deploy-time warning instead of failing the deployment. A function is also skipped when it already uses a conflicting `AWS_LAMBDA_EXEC_WRAPPER` or a manually attached OpenTelemetry layer.
+Supported runtimes: Node.js 18–24, Python 3.10–3.13, Java 11/17/21, and .NET 8. A traced function on any other runtime is skipped with a deploy-time warning instead of failing the deployment. A function is also skipped when it already uses a conflicting `AWS_LAMBDA_EXEC_WRAPPER` or a manually attached OpenTelemetry layer.
 
-Container services are not instrumented yet; support is planned.
+### Container services
+
+For a traced [web service](/resources/compute/web-service), private service, worker service, or multi-container workload, Stacktape adds an OpenTelemetry collector as an extra container in the task and points every container's OpenTelemetry SDK at it (`http://localhost:4318`) through standard `OTEL_*` environment variables. The application needs the OpenTelemetry SDK — any language works, and spans the SDK emits reach the collector without further configuration. Automatic zero-code instrumentation for containers is planned.
+
+The collector is non-essential, hard-capped at 256 MB of the task's memory, and given a low CPU weight (128 shares): if it fails or exceeds its memory limit, it is killed and the application keeps running with tracing degraded. Small tasks (512 MB) get noticeably tighter with tracing enabled — consider one memory size up. EC2-based workloads (with `instanceTypes`) are not supported — their bridge networking cannot reach a sidecar on localhost — and are skipped with a warning.
 
 ### Environment variables
 
@@ -94,7 +98,6 @@ Because the `aws/spans` log group mixes spans from every project in the account,
 
 ## Limits
 
-- Lambda functions only, for now.
 - Tracing is skipped in [dev mode](/local-development/dev-mode-overview).
 - AWS Lambda allows at most 5 layers per function; the tracing layer counts toward that limit.
 - Very recent traces can take a minute or two to appear after the request runs.

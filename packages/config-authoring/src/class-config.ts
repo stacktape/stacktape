@@ -345,6 +345,14 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES = [
     canConnectTo: []
   },
   {
+    className: 'SyntheticTest',
+    resourceType: 'synthetic-test',
+    propsType: 'SyntheticTestProps',
+    interfaceName: 'SyntheticTest',
+    sourceFile: 'synthetic-tests.d.ts',
+    canConnectTo: []
+  },
+  {
     className: 'SqsQueue',
     resourceType: 'sqs-queue',
     propsType: 'SqsQueueProps',

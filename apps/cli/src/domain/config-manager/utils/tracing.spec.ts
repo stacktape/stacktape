@@ -88,7 +88,7 @@ describe('getLambdaTracingInstrumentation', () => {
   });
 
   test('skips runtimes the AWS-managed layers do not support, including newer versions', () => {
-    for (const runtime of ['go1.x', 'provided.al2023', 'nodejs24.x', 'python3.14', 'java25', 'dotnet10']) {
+    for (const runtime of ['go1.x', 'provided.al2023', 'python3.14', 'java25', 'dotnet10']) {
       const { instrumentation, skippedReason } = getLambdaTracingInstrumentation(instrumentationInput({ runtime }));
       expect(instrumentation).toBeUndefined();
       expect(skippedReason).toContain(runtime);

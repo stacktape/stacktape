@@ -733,6 +733,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `enableRemoteSessions` | no | `boolean` | - |
 | `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | - |
 | `scaling` | no | `ContainerWorkloadScaling` | - |
+| `tracing` | no | `TracingOptions \| option-2` | - |
 | `usePrivateSubnetsWithNAT` | no | `boolean` | `false` |
 
 

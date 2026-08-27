@@ -5,7 +5,7 @@ Resource type: `private-service`
 ## TypeScript definition
 
 ```typescript
-import type { ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, PrivateServiceLoadBalancing, SecretEnvironmentVar, ServiceHelperContainer, StpBuildpackCwImagePackaging, StpIamRoleStatement } from 'stacktape';
+import type { ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, PrivateServiceLoadBalancing, SecretEnvironmentVar, ServiceHelperContainer, StpBuildpackCwImagePackaging, StpIamRoleStatement, TracingOptions } from 'stacktape';
 
 type PrivateServiceProps = {
   /** Configures the container image for the service. */
@@ -48,6 +48,8 @@ secrets: {
   sideContainers?: Array<ServiceHelperContainer>;
   /** Seconds to wait for graceful shutdown before force-killing the container. */
   stopTimeout?: number;
+  /** Distributed tracing for this service. */
+  tracing?: PrivateServiceTracing;
   /** Deploy in private subnets with a static outbound IP via NAT Gateway. */
   usePrivateSubnetsWithNAT?: boolean;
   /** Persistent EFS volumes shared across containers and restarts. */
@@ -61,6 +63,10 @@ type PrivateServicePackaging =
   | ExternalBuildpackCwImagePackaging
   | NixpacksCwImagePackaging
   | StpBuildpackCwImagePackaging;
+
+type PrivateServiceTracing =
+  | TracingOptions
+  | "option-2";
 ```
 
 ## Property: `packaging`
@@ -796,6 +802,64 @@ export default defineConfig(() => {
   });
 
   return { resources: { api } };
+});
+```
+
+## Property: `tracing`
+
+- Required: no
+- Type: `TracingOptions | option-2`
+
+Distributed tracing for this service.
+
+Overrides the stack-wide `stackConfig.tracing` setting: `false` opts this service out, `true`
+opts it in with the stack-wide sampling, an object opts it in with its own settings.
+
+When enabled, Stacktape runs an OpenTelemetry collector as a sidecar container and points the
+service's OpenTelemetry SDK at it (`http://localhost:4318`) through standard `OTEL_*`
+environment variables. The service needs the OpenTelemetry SDK in the application (any
+language) — spans it emits are picked up without further configuration.
+
+Traces are stored in your AWS account via X-Ray Transaction Search; see `stackConfig.tracing`
+for the account-level effects.
+
+Choices:
+- `TracingOptions` (`TracingOptions`). Properties: `enabled?: boolean`, `samplingRate?: number`.
+- `option-2`
+
+### Example 1 (yaml)
+
+```yaml
+stackConfig:
+  tracing:
+    enabled: true
+resources:
+  api:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/server.ts
+      resources:
+        cpu: 0.5
+        memory: 1024
+      tracing:
+        samplingRate: 0.5
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { WebService, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: 'src/server.ts' } },
+    resources: { cpu: 0.5, memory: 1024 },
+    tracing: { samplingRate: 0.5 }
+  });
+  return { stackConfig: { tracing: { enabled: true } }, resources: { api } };
 });
 ```
 

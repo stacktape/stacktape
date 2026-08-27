@@ -2,6 +2,7 @@ import type { EnvironmentVar, ResourceAccessProps, ResourceOverrides, SecretEnvi
 import type { ContainerWorkloadContainerPackaging } from './deployment-artifacts';
 import type { ContainerWorkloadHttpApiIntegration, ContainerWorkloadInternalIntegration, ContainerWorkloadLoadBalancerIntegration, ContainerWorkloadNetworkLoadBalancerIntegration, ContainerWorkloadServiceConnectIntegration } from './events';
 import type { LogForwardingBase } from './log-forwarding';
+import type { ResourceTracingConfig } from './tracing';
 /**
  * #### Run multiple containers together as a single unit with shared compute resources.
  *
@@ -343,6 +344,69 @@ export interface ContainerWorkloadProps extends ResourceAccessProps {
    * @default false
    */
   usePrivateSubnetsWithNAT?: boolean;
+  /**
+   * #### Distributed tracing for this workload.
+   *
+   * ---
+   *
+   * Overrides the stack-wide `stackConfig.tracing` setting: `false` opts this workload out, `true`
+   * opts it in with the stack-wide sampling, an object opts it in with its own settings.
+   *
+   * When enabled, Stacktape runs an OpenTelemetry collector as an additional container in the task
+   * and points every container's OpenTelemetry SDK at it (`http://localhost:4318`) through standard
+   * `OTEL_*` environment variables. The containers need the OpenTelemetry SDK in the application (any
+   * language) — spans they emit are picked up without further configuration.
+   *
+   * Traces are stored in your AWS account via X-Ray Transaction Search; see `stackConfig.tracing`
+   * for the account-level effects.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * stackConfig:
+   *   tracing:
+   *     enabled: true
+   * resources:
+   *   workers:
+   *     type: multi-container-workload
+   *     properties:
+   *       resources:
+   *         cpu: 0.5
+   *         memory: 1024
+   *       # stp-focus
+   *       tracing: true
+   *       # stp-end-focus
+   *       containers:
+   *         - name: worker
+   *           packaging:
+   *             type: stacktape-image-buildpack
+   *             properties:
+   *               entryfilePath: src/worker.ts
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { MultiContainerWorkload, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const workers = new MultiContainerWorkload({
+   *     resources: { cpu: 0.5, memory: 1024 },
+   *     // stp-focus
+   *     tracing: true,
+   *     // stp-end-focus
+   *     containers: [
+   *       {
+   *         name: 'worker',
+   *         packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: 'src/worker.ts' } }
+   *       }
+   *     ]
+   *   });
+   *   return { stackConfig: { tracing: { enabled: true } }, resources: { workers } };
+   * });
+   * ```
+   */
+  tracing?: ResourceTracingConfig;
 }
 
 

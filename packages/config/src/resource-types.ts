@@ -47,6 +47,7 @@ export const STACKTAPE_RESOURCE_TYPES = [
   'sqs-queue',
   'state-machine',
   'sveltekit-web',
+  'synthetic-test',
   'tanstack-web',
   'upstash-redis',
   'uptime-check',

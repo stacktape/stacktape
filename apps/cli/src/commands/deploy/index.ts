@@ -185,12 +185,26 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     tui.info(`Uptime checks: ${uptimeChecks.length} configured (probing from ${probeRegions}).`);
   }
 
+  const syntheticTests = config.syntheticTests;
+  if (syntheticTests.length) {
+    tui.info(
+      `Synthetic tests: ${syntheticTests.length} configured (CloudWatch Synthetics charges per run — see the resource docs for cost guidance).`
+    );
+  }
+
   const tracingInstrumentations = config.lambdaTracingInstrumentations;
   const instrumentedCount = tracingInstrumentations.filter(({ instrumentation }) => instrumentation).length;
   const skippedTracingCount = tracingInstrumentations.length - instrumentedCount;
-  if (instrumentedCount) {
+  const instrumentedWorkloadCount = config.instrumentedContainerWorkloads.length;
+  if (instrumentedCount || instrumentedWorkloadCount) {
+    const tracedParts = [
+      ...(instrumentedCount ? [`${instrumentedCount} function${instrumentedCount === 1 ? '' : 's'}`] : []),
+      ...(instrumentedWorkloadCount
+        ? [`${instrumentedWorkloadCount} container service${instrumentedWorkloadCount === 1 ? '' : 's'}`]
+        : [])
+    ];
     tui.info(
-      `Tracing: enabled for ${instrumentedCount} function${instrumentedCount === 1 ? '' : 's'}${
+      `Tracing: enabled for ${tracedParts.join(' and ')}${
         skippedTracingCount ? ` (${skippedTracingCount} skipped, see warnings)` : ''
       } (spans stored in this account via X-Ray Transaction Search).`
     );

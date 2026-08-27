@@ -69,7 +69,7 @@ export const resolveAlarmsForResource = ({ resource }: { resource: StpAlarmEnabl
   });
 };
 
-const addSharedAlarmNotificationPermission = () => {
+export const addSharedAlarmNotificationPermission = () => {
   const cfLogicalName = cfLogicalNames.cloudwatchAlarmSharedEventBusNotificationRuleLambdaPermission();
 
   if (templateManager.template.Resources[cfLogicalName]) {

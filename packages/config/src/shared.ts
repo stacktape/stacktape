@@ -38,8 +38,9 @@ import type { SolidStartWeb } from './solidstart-web';
 import type { SqsQueue } from './sqs-queues';
 import type { StateMachine } from './state-machines';
 import type { SvelteKitWeb } from './sveltekit-web';
+import type { SyntheticTest } from './synthetic-tests';
 import type { TanStackWeb } from './tanstack-web';
-import type { TracingOptions } from './tracing';
+import type { ResourceTracingConfig, TracingOptions } from './tracing';
 import type { UpstashRedis } from './upstash-redis';
 import type { UptimeCheck } from './uptime-checks';
 import type { UserAuthPool } from './user-pools';
@@ -76,6 +77,7 @@ export type StacktapeResourceDefinition =
   | CustomResourceDefinition
   | UpstashRedis
   | UptimeCheck
+  | SyntheticTest
   | DeploymentScript
   | AwsCdkConstruct
   | SqsQueue
@@ -1637,11 +1639,28 @@ export interface LocalScriptProps extends ScriptEnvProps {
    */
   cwd?: string;
   /**
+   * #### Standard I/O Mode
+   *
+   * ---
+   *
+   * Controls how Stacktape connects the script process to the terminal.
+   *
+   * - `capture` streams stdout and stderr through Stacktape's progress UI and does not give the script terminal input.
+   * - `inherit` temporarily hands the terminal to the script, including stdin. Use this for interactive programs.
+   * - `ignore` suppresses all script standard I/O.
+   *
+   * `inherit` temporarily hides the dashboard and restores it after the script exits.
+   *
+   * @default capture
+   */
+  stdioMode?: 'capture' | 'inherit' | 'ignore';
+  /**
    * #### Pipe Stdio
    *
    * ---
    *
-   * If `true`, pipes the standard input/output (stdio) of the hook process to the main process. This allows you to see logs from your hook and interact with prompts.
+   * If `true`, captures the script's stdout and stderr in Stacktape's progress output. If `false`, ignores them.
+   * Use `stdioMode: inherit` for scripts that need interactive terminal input.
    *
    *
    * **Example (YAML):**
@@ -1681,6 +1700,7 @@ export interface LocalScriptProps extends ScriptEnvProps {
    * ```
    *
    * @default true
+   * @deprecated Use `stdioMode`.
    */
   pipeStdio?: boolean;
 }
@@ -4069,6 +4089,63 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    * @default false
    */
   usePrivateSubnetsWithNAT?: boolean;
+  /**
+   * #### Distributed tracing for this service.
+   *
+   * ---
+   *
+   * Overrides the stack-wide `stackConfig.tracing` setting: `false` opts this service out, `true`
+   * opts it in with the stack-wide sampling, an object opts it in with its own settings.
+   *
+   * When enabled, Stacktape runs an OpenTelemetry collector as a sidecar container and points the
+   * service's OpenTelemetry SDK at it (`http://localhost:4318`) through standard `OTEL_*`
+   * environment variables. The service needs the OpenTelemetry SDK in the application (any
+   * language) — spans it emits are picked up without further configuration.
+   *
+   * Traces are stored in your AWS account via X-Ray Transaction Search; see `stackConfig.tracing`
+   * for the account-level effects.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * stackConfig:
+   *   tracing:
+   *     enabled: true
+   * resources:
+   *   api:
+   *     type: web-service
+   *     properties:
+   *       packaging:
+   *         type: stacktape-image-buildpack
+   *         properties:
+   *           entryfilePath: src/server.ts
+   *       resources:
+   *         cpu: 0.5
+   *         memory: 1024
+   *       # stp-focus
+   *       tracing:
+   *         samplingRate: 0.5
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { WebService, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const api = new WebService({
+   *     packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: 'src/server.ts' } },
+   *     resources: { cpu: 0.5, memory: 1024 },
+   *     // stp-focus
+   *     tracing: { samplingRate: 0.5 }
+   *     // stp-end-focus
+   *   });
+   *   return { stackConfig: { tracing: { enabled: true } }, resources: { api } };
+   * });
+   * ```
+   */
+  tracing?: ResourceTracingConfig;
 }
 
 

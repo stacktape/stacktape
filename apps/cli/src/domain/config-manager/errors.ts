@@ -785,6 +785,43 @@ export const configErrors = {
       message: `Invalid tracing configuration in ${source}: ${inlineCode('samplingRate')} must be a number between 0 and 1 (got ${actual}).`
     });
   },
+  syntheticTestScheduleInvalid({
+    testName,
+    scheduleRate,
+    reason
+  }: {
+    testName: string;
+    scheduleRate: string;
+    reason: string;
+  }): CliError {
+    return new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_SYNTHETIC_TEST_SCHEDULE_INVALID',
+      message: `Invalid ${inlineCode('scheduleRate')} \`${scheduleRate}\` on synthetic test \`${testName}\`: ${reason}.`
+    });
+  },
+  syntheticTestPropertyInvalid({
+    testName,
+    property,
+    reason
+  }: {
+    testName: string;
+    property: string;
+    reason: string;
+  }): CliError {
+    return new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_SYNTHETIC_TEST_PROPERTY_INVALID',
+      message: `Invalid ${inlineCode(property)} on synthetic test \`${testName}\`: ${reason}.`
+    });
+  },
+  syntheticTestScriptInvalid({ testName, reason }: { testName: string; reason: string }): CliError {
+    return new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_SYNTHETIC_TEST_SCRIPT_INVALID',
+      message: `The script of synthetic test \`${testName}\` cannot be used: ${reason}`
+    });
+  },
   uptimeChecksLimitExceeded({ count, limit }: { count: number; limit: number }): CliError {
     return new CliError({
       category: 'CONFIG_VALIDATION',

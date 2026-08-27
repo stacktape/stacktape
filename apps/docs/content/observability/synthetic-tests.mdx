@@ -1,0 +1,103 @@
+---
+title: 'Synthetic Tests'
+order: 103
+seoTitle: 'Synthetic Monitoring with CloudWatch Synthetics | Stacktape Docs'
+seoDescription: 'Run scripted browser and API tests on a schedule from your own AWS account. Playwright-based synthetic tests with screenshots, per-step timing, and failure alerts.'
+---
+
+# Synthetic Tests
+
+A synthetic test runs your script on a schedule from AWS CloudWatch Synthetics in your own account and alerts you when a run fails. Where an [uptime check](/observability/uptime-checks) asks "does the endpoint respond?", a synthetic test verifies a whole flow: sign-in, checkout, a multi-step API sequence with assertions.
+
+## When to use
+
+Write a synthetic test for the handful of flows whose breakage costs you customers — typically sign-up, sign-in, and payment. One browser test per critical flow in production is the sweet spot; each additional test adds real monthly cost (see below).
+
+## When NOT to use
+
+- **"Is it up?"** — an [uptime check](/observability/uptime-checks) answers that for a fraction of the cost.
+- **Pre-deploy verification** — synthetic tests monitor continuously; they don't gate deployments.
+- **Load testing** — one run at a time, on a schedule.
+
+## Configuration
+
+```yaml
+resources:
+  checkoutFlow:
+    type: synthetic-test
+    properties:
+      test:
+        type: browser
+        properties:
+          scriptPath: ./e2e/checkout.canary.ts
+      scheduleRate: rate(15 minutes) # default rate(5 minutes)
+      timeoutSeconds: 60 # default 60
+      memory: 1024 # default 1024
+      environment:
+        - name: BASE_URL
+          value: https://app.example.com
+      notificationChannels:
+        - type: console-channel
+          properties:
+            channelName: on-call-slack
+```
+
+`test.type` is `browser` (drives a real Chromium browser with [Playwright](https://playwright.dev)) or `api` (HTTP calls with per-step timing; no browser, so runs are faster and cheaper).
+
+## Writing the script
+
+TypeScript works out of the box — Stacktape bundles the script at deploy time. Imports of your own helper files are allowed; npm packages are not, except the ones the Synthetics runtime provides.
+
+A browser test exports a `handler` and gets the browser from the runtime's `synthetics` helper:
+
+```ts
+import { synthetics } from '@aws/synthetics-playwright';
+import { expect } from '@playwright/test';
+
+export const handler = async () => {
+  try {
+    const browser = await synthetics.launch();
+    const page = await synthetics.newPage(browser);
+    await page.goto(process.env.BASE_URL, { timeout: 30000 });
+    await page.getByRole('link', { name: 'Sign in' }).click();
+    await page.screenshot({ path: '/tmp/signin.png' });
+    expect(await page.title()).toContain('Sign in');
+  } finally {
+    await synthetics.close();
+  }
+};
+```
+
+A run fails when the handler throws (including failed `expect` assertions). Screenshots written to `/tmp` are stored with the run's results in your deployment bucket. `retentionDays` (default 31) controls how long the pass/fail run history is kept; the S3 artifacts themselves and the canary's logs are not auto-deleted by AWS.
+
+An `api` test uses `executeHttpStep` so every step gets its own timing and success metrics:
+
+```ts
+const synthetics = require('Synthetics');
+
+exports.handler = async () => {
+  await synthetics.executeHttpStep('health', {
+    hostname: 'api.example.com',
+    method: 'GET',
+    path: '/health',
+    protocol: 'https:'
+  });
+};
+```
+
+## Failure alerts
+
+Stacktape creates a CloudWatch alarm on the test's success rate. One failed run trips it; recovery resolves it. With `notificationChannels` configured, both events are delivered like [alarm](/observability/alarms) notifications — including `console-channel` references — and appear in the Console's alert history. For `rate(...)` schedules, a stopped or broken canary also trips the alarm (missing data counts as breaching), so a dead monitor cannot masquerade as a healthy flow; `cron(...)` schedules run irregularly, so only actual failing runs alarm there.
+
+## Cost
+
+CloudWatch Synthetics charges ~$0.0012 per run (first 100 runs each month are free), plus the underlying Lambda, S3 and CloudWatch Logs usage. A browser test at `rate(5 minutes)` runs ~8,900 times a month — roughly $11 in run charges and $15–20 all-in. An `api` test runs shorter and lands closer to $11–13. Slower schedules cost proportionally less: `rate(15 minutes)` is about a third of that.
+
+## Limits
+
+- Schedules between `rate(1 minute)` and `rate(1 hour)`, or a six-field `cron(...)` expression. For cron schedules, AWS rejects a timeout longer than the gap between runs.
+- Run timeout between 3 and 840 seconds, never above the schedule interval.
+- The bundled script must stay under 250 KB — it ships inside the CloudFormation template.
+- Memory between 960 and 3008 MB (multiples of 64).
+- Synthetic tests are skipped in [dev mode](/local-development/dev-mode-overview).
+- Renaming a synthetic test replaces its canary, and the run history starts over.

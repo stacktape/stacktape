@@ -112,6 +112,7 @@
 /observability/metrics
 /observability/notifications
 /observability/overview
+/observability/synthetic-tests
 /observability/tracing
 /observability/uptime-checks
 /packaging/containers/custom-dockerfile

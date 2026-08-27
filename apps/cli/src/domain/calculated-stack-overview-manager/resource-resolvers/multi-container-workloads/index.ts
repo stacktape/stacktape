@@ -56,8 +56,16 @@ import {
   getEcsTaskDefinition,
   getEcsTaskRole,
   getSchedulerRoleForScheduledInstanceRefresh,
-  getSchedulerRuleForScheduledInstanceRefresh
+  getSchedulerRuleForScheduledInstanceRefresh,
+  getWorkloadTracing
 } from './utils';
+import {
+  OTEL_COLLECTOR_CONTAINER_NAME,
+  getEcsTaskTracingRoleStatements
+} from '@domain-services/config-manager/utils/container-tracing';
+import { tuiManager } from '@application-services/tui-manager';
+import { CliError } from '@utils/errors';
+import { isDevCommand } from '../../../../commands/dev/dev-mode-utils';
 
 export const resolveContainerWorkloads = () => {
   const containerWorkloads = filterResourcesForDevMode(configManager.containerWorkloads);
@@ -89,6 +97,35 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
 
   const isBlueGreen = !!definition.deployment;
   const { nameChain } = definition;
+  const workloadTracing = getWorkloadTracing(definition);
+  if (
+    !isDevCommand() &&
+    definition.resources.instanceTypes &&
+    configManager.tracedContainerWorkloads.some(({ name }) => name === definition.name)
+  ) {
+    tuiManager.warn(
+      `Tracing skipped for \`${definition.name}\`: EC2-based workloads run in bridge network mode, where containers cannot reach the collector sidecar on localhost.`
+    );
+  }
+  if (workloadTracing) {
+    // The collector occupies one of ECS's 10 container slots and a reserved name.
+    if (definition.containers.some(({ name }) => name === OTEL_COLLECTOR_CONTAINER_NAME)) {
+      throw new CliError({
+        category: 'CONFIG_VALIDATION',
+        code: 'CONFIG_TRACING_CONTAINER_NAME_RESERVED',
+        message: `Container name \`${OTEL_COLLECTOR_CONTAINER_NAME}\` in \`${definition.name}\` is reserved for the tracing collector.`,
+        hints: 'Rename the container, or disable tracing for this workload.'
+      });
+    }
+    if (definition.containers.length + 1 > 10) {
+      throw new CliError({
+        category: 'CONFIG_VALIDATION',
+        code: 'CONFIG_TRACING_CONTAINER_LIMIT_EXCEEDED',
+        message: `Workload \`${definition.name}\` has ${definition.containers.length} containers; with tracing enabled the collector exceeds the ECS limit of 10 containers per task.`,
+        hints: 'Reduce the container count, or disable tracing for this workload.'
+      });
+    }
+  }
   if (definition.scaling) {
     const { scalingPolicy } = definition.scaling;
     calculatedStackOverviewManager.addCfChildResource({
@@ -220,9 +257,17 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
     }),
     nameChain
   });
+  const ecsServiceResource = getEcsService({ workload: definition, blueGreen: isBlueGreen });
+  if (workloadTracing) {
+    // First-deploy ordering: tasks must not start exporting spans before Transaction Search accepts them.
+    ecsServiceResource.DependsOn = [
+      ...(Array.isArray(ecsServiceResource.DependsOn) ? ecsServiceResource.DependsOn : []),
+      cfLogicalNames.customResourceTransactionSearch()
+    ];
+  }
   calculatedStackOverviewManager.addCfChildResource({
     cfLogicalName: cfLogicalNames.ecsService(definition.name, isBlueGreen),
-    resource: getEcsService({ workload: definition, blueGreen: isBlueGreen }),
+    resource: ecsServiceResource,
     nameChain
   });
 
@@ -246,6 +291,18 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
       getAtt(cfLogicalNames.ecsService(definition.name, isBlueGreen), 'Name')
     )
   });
+  if (workloadTracing) {
+    calculatedStackOverviewManager.addCfChildResource({
+      cfLogicalName: cfLogicalNames.ecsLogGroup(definition.name, OTEL_COLLECTOR_CONTAINER_NAME),
+      resource: getEcsLogGroup({
+        workloadName: definition.name,
+        stackName: calculatedStackOverviewManager.context.stackName,
+        containerName: OTEL_COLLECTOR_CONTAINER_NAME,
+        retentionDays: defaultLogRetentionDays.containerWorkload
+      }),
+      nameChain
+    });
+  }
   definition.containers.forEach(({ name: containerName, logging, volumeMounts, packaging: containerPackaging }) => {
     if (!logging?.disabled) {
       calculatedStackOverviewManager.addCfChildResource({
@@ -375,7 +432,9 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
     cfLogicalName: roleCfLogicalName,
     resource: getEcsTaskRole({
       workloadName: definition.name,
-      iamRoleStatements: definition.iamRoleStatements,
+      iamRoleStatements: (definition.iamRoleStatements || []).concat(
+        workloadTracing ? getEcsTaskTracingRoleStatements() : []
+      ),
       accessToResourcesRequiringRoleChanges,
       accessToAwsServices,
       enableRemoteSessions: definition.enableRemoteSessions,
@@ -428,8 +487,9 @@ export const getTaskDefinitionTemplateOverrideFns = ({
         if (imageUrl) {
           containerDef.Image = imageUrl;
         }
-        if (hotSwapDeploy) {
-          // we also substitute log group name with actual name
+        if (hotSwapDeploy && containerDef.LogConfiguration) {
+          // we also substitute log group name with actual name; containers without awslogs
+          // (disabled logging) have nothing to substitute
           (containerDef.LogConfiguration as LogConfiguration).Options['awslogs-group'] =
             awsResourceNames.containerLogGroup({
               stackName: calculatedStackOverviewManager.context.stackName,
@@ -450,6 +510,11 @@ export const getTaskDefinitionTemplateOverrideFns = ({
       });
 
       (templateResourceProps.ContainerDefinitions as ContainerDefinition[]).forEach((containerDef) => {
+        // The Stacktape-managed collector must not receive connectTo variables — they can carry
+        // database credentials. Exact match: user containers may legitimately use similar names.
+        if (containerDef.Name === OTEL_COLLECTOR_CONTAINER_NAME) {
+          return;
+        }
         const currentVars = (containerDef.Environment || []) as KeyValuePair[];
         containerDef.Environment = mergeConnectToEnvironmentVariables(currentVars, variablesToInject);
       });

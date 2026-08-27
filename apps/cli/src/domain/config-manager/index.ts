@@ -87,6 +87,7 @@ import {
 } from './utils/lambdas';
 import { mergeStacktapeDefaults } from './utils/misc';
 import { getLambdaTracingInstrumentation, resolveEffectiveTracing } from './utils/tracing';
+import { validateSyntheticTest } from './utils/synthetic-tests';
 import { MAX_UPTIME_CHECKS_PER_STACK, resolveUptimeCheckRegions, validateUptimeCheck } from './utils/uptime-checks';
 import { buildNextjsWebNestedResources } from './utils/nextjs-webs';
 import { buildSsrWebNestedResources } from './utils/ssr-webs';
@@ -789,6 +790,34 @@ export class ConfigManager {
     return this.lambdaTracingInstrumentations.filter(({ instrumentation }) => instrumentation);
   }
 
+  /** Container workloads (incl. the ones nested in web/private/worker services) with tracing enabled. */
+  get tracedContainerWorkloads() {
+    return this.allContainerWorkloads.flatMap((workload) => {
+      const effectiveTracing = resolveEffectiveTracing({
+        stackDefault: this.stackTracingDefault,
+        resourceOverride: workload.tracing,
+        resourceName: workload.name
+      });
+      return effectiveTracing.enabled ? [{ ...workload, effectiveTracing }] : [];
+    });
+  }
+
+  /**
+   * Traced workloads that actually receive the collector sidecar. EC2 launch-type tasks run in
+   * bridge network mode, where containers do not share localhost, so the sidecar cannot be reached
+   * and those workloads are skipped (with a warning at resolve time).
+   */
+  get instrumentedContainerWorkloads() {
+    return this.tracedContainerWorkloads.filter(({ resources }) => !resources.instanceTypes);
+  }
+
+  get syntheticTests() {
+    return this.getResourcesFromConfig('synthetic-test').map((test) => {
+      validateSyntheticTest({ test });
+      return test;
+    });
+  }
+
   get uptimeChecks() {
     const configuredChecks = this.getResourcesFromConfig('uptime-check');
     if (configuredChecks.length > MAX_UPTIME_CHECKS_PER_STACK) {
@@ -1016,6 +1045,7 @@ export class ConfigManager {
         volumeMounts,
         sideContainers,
         usePrivateSubnetsWithNAT,
+        tracing,
         overrides: _overrides,
         ...restProps
       } = serviceDefinition;
@@ -1031,6 +1061,7 @@ export class ConfigManager {
             nameChain: [...nameChain, containerWorkloadIdentifier],
             enableRemoteSessions,
             usePrivateSubnetsWithNAT,
+            tracing,
             containers: [
               {
                 name: getSimpleServiceDefaultContainerName(),
@@ -1227,6 +1258,7 @@ export class ConfigManager {
         volumeMounts,
         sideContainers,
         usePrivateSubnetsWithNAT,
+        tracing,
         overrides: _overrides,
         ...restProps
       } = serviceDefinition;
@@ -1241,6 +1273,7 @@ export class ConfigManager {
             nameChain: [...nameChain, containerWorkloadIdentifier],
             enableRemoteSessions,
             usePrivateSubnetsWithNAT,
+            tracing,
             containers: [
               {
                 name: getSimpleServiceDefaultContainerName(),
@@ -1353,6 +1386,7 @@ export class ConfigManager {
         volumeMounts,
         sideContainers,
         usePrivateSubnetsWithNAT,
+        tracing,
         overrides: _overrides,
         ...restProps
       } = serviceDefinition;
@@ -1366,6 +1400,7 @@ export class ConfigManager {
             nameChain: [...nameChain, containerWorkloadIdentifier],
             enableRemoteSessions,
             usePrivateSubnetsWithNAT,
+            tracing,
             containers: [
               {
                 name: getSimpleServiceDefaultContainerName(),
@@ -2086,7 +2121,9 @@ export class ConfigManager {
       ...this.agentCoreMemories,
       ...this.agentCoreGateways,
       ...this.agentCoreBrowsers,
-      ...this.agentCoreCodeInterpreters
+      ...this.agentCoreCodeInterpreters,
+      ...this.uptimeChecks,
+      ...this.syntheticTests
     ];
   }
 
@@ -2213,7 +2250,9 @@ export class ConfigManager {
         ...getStacktapeServiceLambdaTracingStatements({
           // Dev stacks skip both the instrumentation and the Transaction Search custom resource, so
           // the service lambda must not carry the unused account-level permissions there either.
-          tracingEnabled: this.instrumentedLambdaFunctions.length > 0 && !isDevCommand(),
+          tracingEnabled:
+            (this.instrumentedLambdaFunctions.length > 0 || this.instrumentedContainerWorkloads.length > 0) &&
+            !isDevCommand(),
           region: this.stackContext.region
         })
       ]

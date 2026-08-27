@@ -33,8 +33,18 @@ import {
   DEFAULT_TEST_LISTENER_PORT,
   resolveReferenceToApplicationLoadBalancer
 } from '@domain-services/config-manager/utils/application-load-balancers';
+import {
+  OTEL_COLLECTOR_CONTAINER_NAME,
+  OTEL_COLLECTOR_CPU_UNITS,
+  OTEL_COLLECTOR_IMAGE,
+  OTEL_COLLECTOR_MEMORY_MB,
+  buildOtelCollectorConfigYaml,
+  getContainerTracingEnvironment
+} from '@domain-services/config-manager/utils/container-tracing';
 import { resolveReferenceToHttpApiGateway } from '@domain-services/config-manager/utils/http-api-gateways';
 import { resolveReferenceToLambdaFunction } from '@domain-services/config-manager/utils/lambdas';
+import { tuiManager } from '@application-services/tui-manager';
+import { isDevCommand } from '../../../../commands/dev/dev-mode-utils';
 import { resolveReferenceToNetworkLoadBalancer } from '@domain-services/config-manager/utils/network-load-balancers';
 import { ec2Manager } from '@domain-services/ec2-manager';
 import { packagingManager } from '@domain-services/packaging-manager';
@@ -293,8 +303,44 @@ const getEfsVolumeName = (efsFilesystemName: string, rootDirectory?: string): st
   return `efs-${efsFilesystemName}-${normalizedRootDir}`;
 };
 
+/**
+ * The workload's effective tracing, when it actually gets the collector sidecar. Pure lookup — the
+ * bridge-mode warning is emitted once, in the resolver entry point.
+ */
+export const getWorkloadTracing = (workload: StpContainerWorkload) => {
+  if (isDevCommand() || workload.resources.instanceTypes) {
+    return undefined;
+  }
+  return configManager.tracedContainerWorkloads.find(({ name }) => name === workload.name)?.effectiveTracing;
+};
+
+const getOtelCollectorSidecarDefinition = (workload: StpContainerWorkload): ContainerDefinition => {
+  const { region } = calculatedStackOverviewManager.context;
+  return {
+    Name: OTEL_COLLECTOR_CONTAINER_NAME,
+    Image: OTEL_COLLECTOR_IMAGE,
+    // Non-essential and hard-bounded: a failing or leaking collector is killed at its own limits
+    // and the application keeps running with tracing degraded.
+    Essential: false,
+    Cpu: OTEL_COLLECTOR_CPU_UNITS,
+    Memory: OTEL_COLLECTOR_MEMORY_MB,
+    Environment: [{ Name: 'AOT_CONFIG_CONTENT', Value: buildOtelCollectorConfigYaml({ region }) }],
+    HealthCheck: { Command: ['CMD', '/healthcheck'], Interval: 5, Timeout: 6, Retries: 5, StartPeriod: 1 },
+    StopTimeout: 2,
+    LogConfiguration: {
+      LogDriver: 'awslogs',
+      Options: {
+        'awslogs-region': region,
+        'awslogs-group': ref(cfLogicalNames.ecsLogGroup(workload.name, OTEL_COLLECTOR_CONTAINER_NAME)),
+        'awslogs-stream-prefix': 'ecs'
+      }
+    }
+  };
+};
+
 const getContainerWorkloadContainerDefinitions = (workload: StpContainerWorkload): ContainerDefinition[] => {
   const { region } = calculatedStackOverviewManager.context;
+  const workloadTracing = getWorkloadTracing(workload);
 
   return workload.containers.map((container) => {
     const repositoryCredentialsSecretArn = (container.packaging.properties as PrebuiltImageCwPackagingProps)
@@ -316,13 +362,40 @@ const getContainerWorkloadContainerDefinitions = (workload: StpContainerWorkload
     const nodeVersion = languageSpecificConfig?.nodeVersion || DEFAULT_CONTAINER_NODE_VERSION;
 
     // Augment environment with source maps and experimental flags for JS/TS workloads
-    const augmentedEnvironment = getAugmentedEnvironment({
+    let augmentedEnvironment = getAugmentedEnvironment({
       environment: container.environment,
       workloadType: workload.configParentResourceType,
       packagingType,
       entryfilePath,
       nodeVersion
     });
+    if (workloadTracing) {
+      const { environmentDefaults, environmentOverrides, warnings } = getContainerTracingEnvironment({
+        // A multi-container workload distinguishes its containers by name in trace views; a simple
+        // service is one logical service.
+        serviceName:
+          workload.configParentResourceType === 'multi-container-workload'
+            ? `${workload.name}-${container.name}`
+            : workload.name,
+        samplingRate: workloadTracing.samplingRate,
+        userEnvironment: Object.fromEntries(
+          (container.environment || []).map(({ name: varName, value }) => [varName, value])
+        ),
+        projectName: calculatedStackOverviewManager.context.projectName,
+        stage: calculatedStackOverviewManager.context.stage
+      });
+      warnings.forEach((warning) =>
+        tuiManager.warn(`Tracing for \`${workload.name}\` container \`${container.name}\`: ${warning}.`)
+      );
+      const presentNames = new Set(augmentedEnvironment.map(({ name: varName }) => varName));
+      augmentedEnvironment = [
+        ...augmentedEnvironment.filter(({ name: varName }) => !(varName in environmentOverrides)),
+        ...Object.entries(environmentDefaults)
+          .filter(([varName]) => !presentNames.has(varName))
+          .map(([varName, varValue]) => ({ name: varName, value: varValue })),
+        ...Object.entries(environmentOverrides).map(([varName, varValue]) => ({ name: varName, value: varValue }))
+      ];
+    }
     const secrets = (container.secrets || []).map(({ name, valueFrom }) => ({
       Name: name,
       ValueFrom: getContainerSecretValueFrom(parseContainerSecretReference(valueFrom)!)
@@ -1211,6 +1284,7 @@ export const getEcsTaskDefinition = (
       }
     });
   });
+  const workloadTracing = getWorkloadTracing(workload);
   const cpuArchitecture =
     packagingManager.getTargetCpuArchitectureForContainer(workload.resources) === 'linux/arm64' ? 'ARM64' : 'X86_64';
   return cfnResource('AWS::ECS::TaskDefinition', {
@@ -1221,7 +1295,10 @@ export const getEcsTaskDefinition = (
     Memory: memory.toString(),
     ExecutionRoleArn: getAtt(cfLogicalNames.ecsExecutionRole(), 'Arn'),
     TaskRoleArn: getAtt(cfLogicalNames.ecsTaskRole(workload.name), 'Arn'),
-    ContainerDefinitions: getContainerWorkloadContainerDefinitions(workload),
+    ContainerDefinitions: [
+      ...getContainerWorkloadContainerDefinitions(workload),
+      ...(workloadTracing ? [getOtelCollectorSidecarDefinition(workload)] : [])
+    ],
     Volumes: volumes.length > 0 ? volumes : undefined,
     RuntimePlatform: {
       OperatingSystemFamily: 'LINUX',

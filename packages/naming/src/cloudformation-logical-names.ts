@@ -1480,6 +1480,19 @@ export const cfLogicalNames = {
       suffix: { cloudformationResourceType: 'AWS::CloudFormation::CustomResource' }
     });
   },
+  syntheticCanary(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      suffix: { cloudformationResourceType: 'AWS::Synthetics::Canary' }
+    });
+  },
+  syntheticCanaryRole(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      specifier: { type: 'CanaryExecution' },
+      suffix: { cloudformationResourceType: 'AWS::IAM::Role' }
+    });
+  },
   customResourceEdgeLambda(stpResourceName: string) {
     return buildCfLogicalName({
       stpResourceName,

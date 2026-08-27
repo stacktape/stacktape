@@ -9636,6 +9636,7 @@
         "enableRemoteSessions",
         "iamRoleStatements",
         "scaling",
+        "tracing",
         "usePrivateSubnetsWithNAT",
         "multi-container-workload"
       ],
@@ -9663,9 +9664,12 @@
         "config-reference:ContainerWorkloadProps#property-scaling",
         "config-reference:ContainerWorkloadProps#example-1-yaml-7",
         "config-reference:ContainerWorkloadProps#example-2-typescript-7",
-        "config-reference:ContainerWorkloadProps#property-useprivatesubnetswithnat",
+        "config-reference:ContainerWorkloadProps#property-tracing",
         "config-reference:ContainerWorkloadProps#example-1-yaml-8",
-        "config-reference:ContainerWorkloadProps#example-2-typescript-8"
+        "config-reference:ContainerWorkloadProps#example-2-typescript-8",
+        "config-reference:ContainerWorkloadProps#property-useprivatesubnetswithnat",
+        "config-reference:ContainerWorkloadProps#example-1-yaml-9",
+        "config-reference:ContainerWorkloadProps#example-2-typescript-9"
       ]
     },
     {
@@ -10514,6 +10518,7 @@
         "secrets",
         "sideContainers",
         "stopTimeout",
+        "tracing",
         "usePrivateSubnetsWithNAT",
         "volumeMounts",
         "private-service"
@@ -10562,12 +10567,15 @@
         "config-reference:PrivateServiceProps#property-stoptimeout",
         "config-reference:PrivateServiceProps#example-1-yaml-13",
         "config-reference:PrivateServiceProps#example-2-typescript-13",
-        "config-reference:PrivateServiceProps#property-useprivatesubnetswithnat",
+        "config-reference:PrivateServiceProps#property-tracing",
         "config-reference:PrivateServiceProps#example-1-yaml-14",
         "config-reference:PrivateServiceProps#example-2-typescript-14",
-        "config-reference:PrivateServiceProps#property-volumemounts",
+        "config-reference:PrivateServiceProps#property-useprivatesubnetswithnat",
         "config-reference:PrivateServiceProps#example-1-yaml-15",
-        "config-reference:PrivateServiceProps#example-2-typescript-15"
+        "config-reference:PrivateServiceProps#example-2-typescript-15",
+        "config-reference:PrivateServiceProps#property-volumemounts",
+        "config-reference:PrivateServiceProps#example-1-yaml-16",
+        "config-reference:PrivateServiceProps#example-2-typescript-16"
       ]
     },
     {
@@ -12672,6 +12680,156 @@
       ]
     },
     {
+      "id": "config-reference:SyntheticApiTest",
+      "title": "SyntheticApiTest API Reference",
+      "route": "/config-reference/synthetic-tests",
+      "sourcePath": "packages/config/src/synthetic-tests.ts",
+      "outputPath": "config-reference/synthetic-tests/syntheticapitest.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "SyntheticApiTest"
+      ],
+      "tags": [
+        "config-reference",
+        "SyntheticApiTest",
+        "properties"
+      ],
+      "chunks": [
+        "config-reference:SyntheticApiTest#syntheticapitest-api-reference",
+        "config-reference:SyntheticApiTest#typescript-definition",
+        "config-reference:SyntheticApiTest#property-properties"
+      ]
+    },
+    {
+      "id": "config-reference:SyntheticApiTestProps",
+      "title": "SyntheticApiTestProps API Reference",
+      "route": "/config-reference/synthetic-tests",
+      "sourcePath": "packages/config/src/synthetic-tests.ts",
+      "outputPath": "config-reference/synthetic-tests/syntheticapitestprops.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "SyntheticApiTestProps"
+      ],
+      "tags": [
+        "config-reference",
+        "SyntheticApiTestProps",
+        "scriptPath"
+      ],
+      "chunks": [
+        "config-reference:SyntheticApiTestProps#syntheticapitestprops-api-reference",
+        "config-reference:SyntheticApiTestProps#typescript-definition",
+        "config-reference:SyntheticApiTestProps#property-scriptpath"
+      ]
+    },
+    {
+      "id": "config-reference:SyntheticBrowserTest",
+      "title": "SyntheticBrowserTest API Reference",
+      "route": "/config-reference/synthetic-tests",
+      "sourcePath": "packages/config/src/synthetic-tests.ts",
+      "outputPath": "config-reference/synthetic-tests/syntheticbrowsertest.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "SyntheticBrowserTest"
+      ],
+      "tags": [
+        "config-reference",
+        "SyntheticBrowserTest",
+        "properties"
+      ],
+      "chunks": [
+        "config-reference:SyntheticBrowserTest#syntheticbrowsertest-api-reference",
+        "config-reference:SyntheticBrowserTest#typescript-definition",
+        "config-reference:SyntheticBrowserTest#property-properties"
+      ]
+    },
+    {
+      "id": "config-reference:SyntheticBrowserTestProps",
+      "title": "SyntheticBrowserTestProps API Reference",
+      "route": "/config-reference/synthetic-tests",
+      "sourcePath": "packages/config/src/synthetic-tests.ts",
+      "outputPath": "config-reference/synthetic-tests/syntheticbrowsertestprops.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "SyntheticBrowserTestProps"
+      ],
+      "tags": [
+        "config-reference",
+        "SyntheticBrowserTestProps",
+        "scriptPath"
+      ],
+      "chunks": [
+        "config-reference:SyntheticBrowserTestProps#syntheticbrowsertestprops-api-reference",
+        "config-reference:SyntheticBrowserTestProps#typescript-definition",
+        "config-reference:SyntheticBrowserTestProps#property-scriptpath"
+      ]
+    },
+    {
+      "id": "config-reference:SyntheticTest",
+      "title": "SyntheticTest API Reference",
+      "route": "/config-reference/synthetic-tests",
+      "sourcePath": "packages/config/src/synthetic-tests.ts",
+      "outputPath": "config-reference/synthetic-tests/synthetictest.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "SyntheticTest"
+      ],
+      "tags": [
+        "config-reference",
+        "SyntheticTest",
+        "properties",
+        "overrides"
+      ],
+      "chunks": [
+        "config-reference:SyntheticTest#synthetictest-api-reference",
+        "config-reference:SyntheticTest#typescript-definition",
+        "config-reference:SyntheticTest#property-properties",
+        "config-reference:SyntheticTest#property-overrides",
+        "config-reference:SyntheticTest#example-1-yaml",
+        "config-reference:SyntheticTest#example-2-typescript"
+      ]
+    },
+    {
+      "id": "config-reference:SyntheticTestProps",
+      "title": "SyntheticTestProps API Reference",
+      "route": "/config-reference/synthetic-tests",
+      "sourcePath": "packages/config/src/synthetic-tests.ts",
+      "outputPath": "config-reference/synthetic-tests/synthetictestprops.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "SyntheticTestProps"
+      ],
+      "tags": [
+        "config-reference",
+        "SyntheticTestProps",
+        "test",
+        "environment",
+        "memory",
+        "notificationChannels",
+        "retentionDays",
+        "scheduleRate",
+        "timeoutSeconds"
+      ],
+      "chunks": [
+        "config-reference:SyntheticTestProps#synthetictestprops-api-reference",
+        "config-reference:SyntheticTestProps#typescript-definition",
+        "config-reference:SyntheticTestProps#property-test",
+        "config-reference:SyntheticTestProps#example-1-yaml",
+        "config-reference:SyntheticTestProps#example-2-typescript",
+        "config-reference:SyntheticTestProps#property-environment",
+        "config-reference:SyntheticTestProps#example-1-yaml-2",
+        "config-reference:SyntheticTestProps#example-2-typescript-2",
+        "config-reference:SyntheticTestProps#property-memory",
+        "config-reference:SyntheticTestProps#property-notificationchannels",
+        "config-reference:SyntheticTestProps#example-1-yaml-3",
+        "config-reference:SyntheticTestProps#example-2-typescript-3",
+        "config-reference:SyntheticTestProps#property-retentiondays",
+        "config-reference:SyntheticTestProps#property-schedulerate",
+        "config-reference:SyntheticTestProps#example-1-yaml-4",
+        "config-reference:SyntheticTestProps#example-2-typescript-4",
+        "config-reference:SyntheticTestProps#property-timeoutseconds"
+      ]
+    },
+    {
       "id": "config-reference:TanStackWeb",
       "title": "TanStackWeb API Reference",
       "route": "/config-reference/tanstack-web",
@@ -14469,6 +14627,7 @@
         "secrets",
         "sideContainers",
         "stopTimeout",
+        "tracing",
         "useFirewall",
         "usePrivateSubnetsWithNAT",
         "volumeMounts",
@@ -14530,15 +14689,18 @@
         "config-reference:WebServiceProps#property-stoptimeout",
         "config-reference:WebServiceProps#example-1-yaml-17",
         "config-reference:WebServiceProps#example-2-typescript-17",
-        "config-reference:WebServiceProps#property-usefirewall",
+        "config-reference:WebServiceProps#property-tracing",
         "config-reference:WebServiceProps#example-1-yaml-18",
         "config-reference:WebServiceProps#example-2-typescript-18",
-        "config-reference:WebServiceProps#property-useprivatesubnetswithnat",
+        "config-reference:WebServiceProps#property-usefirewall",
         "config-reference:WebServiceProps#example-1-yaml-19",
         "config-reference:WebServiceProps#example-2-typescript-19",
-        "config-reference:WebServiceProps#property-volumemounts",
+        "config-reference:WebServiceProps#property-useprivatesubnetswithnat",
         "config-reference:WebServiceProps#example-1-yaml-20",
-        "config-reference:WebServiceProps#example-2-typescript-20"
+        "config-reference:WebServiceProps#example-2-typescript-20",
+        "config-reference:WebServiceProps#property-volumemounts",
+        "config-reference:WebServiceProps#example-1-yaml-21",
+        "config-reference:WebServiceProps#example-2-typescript-21"
       ]
     },
     {
@@ -14675,6 +14837,7 @@
         "secrets",
         "sideContainers",
         "stopTimeout",
+        "tracing",
         "usePrivateSubnetsWithNAT",
         "volumeMounts",
         "worker-service"
@@ -14714,12 +14877,15 @@
         "config-reference:WorkerServiceProps#property-stoptimeout",
         "config-reference:WorkerServiceProps#example-1-yaml-10",
         "config-reference:WorkerServiceProps#example-2-typescript-10",
-        "config-reference:WorkerServiceProps#property-useprivatesubnetswithnat",
+        "config-reference:WorkerServiceProps#property-tracing",
         "config-reference:WorkerServiceProps#example-1-yaml-11",
         "config-reference:WorkerServiceProps#example-2-typescript-11",
-        "config-reference:WorkerServiceProps#property-volumemounts",
+        "config-reference:WorkerServiceProps#property-useprivatesubnetswithnat",
         "config-reference:WorkerServiceProps#example-1-yaml-12",
-        "config-reference:WorkerServiceProps#example-2-typescript-12"
+        "config-reference:WorkerServiceProps#example-2-typescript-12",
+        "config-reference:WorkerServiceProps#property-volumemounts",
+        "config-reference:WorkerServiceProps#example-1-yaml-13",
+        "config-reference:WorkerServiceProps#example-2-typescript-13"
       ]
     },
     {
@@ -18475,6 +18641,29 @@
       ]
     },
     {
+      "id": "page:/observability/synthetic-tests",
+      "title": "Synthetic Tests",
+      "route": "/observability/synthetic-tests",
+      "sourcePath": "apps/docs/content/observability/synthetic-tests.mdx",
+      "outputPath": "pages/observability/synthetic-tests.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "observability",
+        "synthetic-tests"
+      ],
+      "chunks": [
+        "page:/observability/synthetic-tests#synthetic-tests",
+        "page:/observability/synthetic-tests#when-to-use",
+        "page:/observability/synthetic-tests#when-not-to-use",
+        "page:/observability/synthetic-tests#configuration",
+        "page:/observability/synthetic-tests#writing-the-script",
+        "page:/observability/synthetic-tests#failure-alerts",
+        "page:/observability/synthetic-tests#cost",
+        "page:/observability/synthetic-tests#limits"
+      ]
+    },
+    {
       "id": "page:/observability/tracing",
       "title": "Tracing",
       "route": "/observability/tracing",
@@ -18493,6 +18682,7 @@
         "page:/observability/tracing#configuration",
         "page:/observability/tracing#sampling",
         "page:/observability/tracing#what-gets-instrumented",
+        "page:/observability/tracing#container-services",
         "page:/observability/tracing#environment-variables",
         "page:/observability/tracing#account-level-effects",
         "page:/observability/tracing#viewing-traces",

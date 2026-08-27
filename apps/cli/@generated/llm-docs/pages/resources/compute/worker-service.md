@@ -485,6 +485,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `secrets` | no | `Array<SecretEnvironmentVar>` | - |
 | `sideContainers` | no | `Array<ServiceHelperContainer>` | - |
 | `stopTimeout` | no | `number` | `2` |
+| `tracing` | no | `TracingOptions \| option-2` | - |
 | `usePrivateSubnetsWithNAT` | no | `boolean` | `false` |
 | `volumeMounts` | no | `Array<ContainerEfsMount>` | - |
 

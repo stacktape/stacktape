@@ -5,7 +5,7 @@ Resource type: `multi-container-workload`
 ## TypeScript definition
 
 ```typescript
-import type { ContainerWorkloadContainer, ContainerWorkloadDeploymentConfig, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, StpIamRoleStatement } from 'stacktape';
+import type { ContainerWorkloadContainer, ContainerWorkloadDeploymentConfig, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, StpIamRoleStatement, TracingOptions } from 'stacktape';
 
 type ContainerWorkloadProps = {
   /** Containers in this workload. They share compute resources and scale together. */
@@ -22,9 +22,16 @@ type ContainerWorkloadProps = {
   iamRoleStatements?: Array<StpIamRoleStatement>;
   /** Auto-scaling: how many instances and when to add/remove them. */
   scaling?: ContainerWorkloadScaling;
+  /** Distributed tracing for this workload. */
+  tracing?: ContainerWorkloadTracing;
   /** Run in private subnets with a NAT Gateway for outbound internet. Gives you a static public IP. */
   usePrivateSubnetsWithNAT?: boolean;
 };
+
+/** Union choices used by the properties above. */
+type ContainerWorkloadTracing =
+  | TracingOptions
+  | "option-2";
 ```
 
 ## Property: `containers`
@@ -434,6 +441,70 @@ export default defineConfig(() => {
     }
   });
   return { resources: { app } };
+});
+```
+
+## Property: `tracing`
+
+- Required: no
+- Type: `TracingOptions | option-2`
+
+Distributed tracing for this workload.
+
+Overrides the stack-wide `stackConfig.tracing` setting: `false` opts this workload out, `true`
+opts it in with the stack-wide sampling, an object opts it in with its own settings.
+
+When enabled, Stacktape runs an OpenTelemetry collector as an additional container in the task
+and points every container's OpenTelemetry SDK at it (`http://localhost:4318`) through standard
+`OTEL_*` environment variables. The containers need the OpenTelemetry SDK in the application (any
+language) — spans they emit are picked up without further configuration.
+
+Traces are stored in your AWS account via X-Ray Transaction Search; see `stackConfig.tracing`
+for the account-level effects.
+
+Choices:
+- `TracingOptions` (`TracingOptions`). Properties: `enabled?: boolean`, `samplingRate?: number`.
+- `option-2`
+
+### Example 1 (yaml)
+
+```yaml
+stackConfig:
+  tracing:
+    enabled: true
+resources:
+  workers:
+    type: multi-container-workload
+    properties:
+      resources:
+        cpu: 0.5
+        memory: 1024
+      tracing: true
+      containers:
+        - name: worker
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/worker.ts
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { MultiContainerWorkload, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const workers = new MultiContainerWorkload({
+    resources: { cpu: 0.5, memory: 1024 },
+    tracing: true,
+    containers: [
+      {
+        name: 'worker',
+        packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: 'src/worker.ts' } }
+      }
+    ]
+  });
+  return { stackConfig: { tracing: { enabled: true } }, resources: { workers } };
 });
 ```
 

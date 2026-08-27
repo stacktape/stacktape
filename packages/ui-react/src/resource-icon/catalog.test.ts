@@ -11,6 +11,7 @@ test('every authored Stacktape resource has one shared visual assignment', () =>
     'convex',
     'custom-resource-definition',
     'custom-resource-instance',
+    'synthetic-test',
     'uptime-check'
   ]);
 });

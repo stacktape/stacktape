@@ -11,10 +11,13 @@ import { getStpServiceCustomResource } from '../_utils/custom-resource';
  * X-Ray Transaction Search so exported spans land in the `aws/spans` log group.
  */
 export const resolveTracingInfrastructure = async () => {
-  // Keyed off functions that actually receive instrumentation: when every traced function was
-  // skipped (unsupported runtime, wrapper collision), flipping the permanent account-level
-  // Transaction Search setting would only cost money without producing a single span.
-  if (!configManager.instrumentedLambdaFunctions.length || isDevCommand()) {
+  // Keyed off workloads that actually receive instrumentation: when every traced function or
+  // container was skipped (unsupported runtime, wrapper collision, bridge networking), flipping the
+  // permanent account-level Transaction Search setting would only cost money without producing a
+  // single span.
+  const anyInstrumented =
+    configManager.instrumentedLambdaFunctions.length > 0 || configManager.instrumentedContainerWorkloads.length > 0;
+  if (!anyInstrumented || isDevCommand()) {
     return;
   }
   calculatedStackOverviewManager.addCfChildResource({

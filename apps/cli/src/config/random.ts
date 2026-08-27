@@ -250,6 +250,12 @@ export const RESOURCE_DEFAULTS = {
       consecutiveSuccesses: 2
     }
   },
+  'synthetic-test': {
+    scheduleRate: 'rate(5 minutes)',
+    timeoutSeconds: 60,
+    memory: 1024,
+    retentionDays: 31
+  },
   convex: {},
   'agentcore-runtime': {},
   'agentcore-memory': {},

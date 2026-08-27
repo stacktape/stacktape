@@ -131,6 +131,7 @@ Use the concise index below to locate the canonical documentation page for a tas
 - [Metrics](/observability/metrics) - source: apps/docs/content/observability/metrics.mdx
 - [Notifications](/observability/notifications) - source: apps/docs/content/observability/notifications.mdx
 - [Observability Overview](/observability/overview) - source: apps/docs/content/observability/overview.mdx
+- [Synthetic Tests](/observability/synthetic-tests) - source: apps/docs/content/observability/synthetic-tests.mdx
 - [Tracing](/observability/tracing) - source: apps/docs/content/observability/tracing.mdx
 - [Uptime Checks](/observability/uptime-checks) - source: apps/docs/content/observability/uptime-checks.mdx
 - [Custom Dockerfile](/packaging/containers/custom-dockerfile) - source: apps/docs/content/packaging/containers/custom-dockerfile.mdx

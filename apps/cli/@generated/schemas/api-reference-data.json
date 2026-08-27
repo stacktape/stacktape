@@ -19309,6 +19309,83 @@
         ]
       },
       {
+        "name": "tracing",
+        "required": false,
+        "shortDescription": "<p> Distributed tracing for this workload.</p>",
+        "longDescription": "<p>Overrides the stack-wide <code>stackConfig.tracing</code> setting: <code>false</code> opts this workload out, <code>true</code>\nopts it in with the stack-wide sampling, an object opts it in with its own settings.</p>\n<p>When enabled, Stacktape runs an OpenTelemetry collector as an additional container in the task\nand points every container&#39;s OpenTelemetry SDK at it (<code>http://localhost:4318</code>) through standard\n<code>OTEL_*</code> environment variables. The containers need the OpenTelemetry SDK in the application (any\nlanguage) — spans they emit are picked up without further configuration.</p>\n<p>Traces are stored in your AWS account via X-Ray Transaction Search; see <code>stackConfig.tracing</code>\nfor the account-level effects.</p>",
+        "typeInfo": {
+          "kind": "union",
+          "discriminator": null,
+          "branches": [
+            {
+              "label": "TracingOptions",
+              "typeName": "TracingOptions",
+              "properties": [
+                {
+                  "name": "enabled",
+                  "required": false,
+                  "shortDescription": "<p> Turn distributed tracing on or off.</p>",
+                  "longDescription": "<p>When enabled, Stacktape instruments supported resources with OpenTelemetry automatically: every\nrequest produces a trace — a timeline of the work it caused (handler execution, SQL queries,\nHTTP calls to other services) — viewable in the Console. Traces are stored in your AWS account\nusing X-Ray Transaction Search, priced at ~$0.35 per GB of span data.</p>\n<p>Enabling tracing in any stack turns on X-Ray Transaction Search for the <strong>whole AWS account and\nregion</strong>: spans from all X-Ray-instrumented workloads (Stacktape-managed or not) are then stored\nin the <code>aws/spans</code> CloudWatch Logs log group. When Stacktape itself performs this switch, it caps\nthe log group&#39;s retention at 90 days; an already-enabled setup is left exactly as found. Deleting\nthe stack does not switch Transaction Search back off, because other workloads may rely on it.</p>\n<p>Lambda functions are instrumented with the AWS-managed OpenTelemetry layer. Supported runtimes:\nNode.js 18–24, Python 3.10–3.13, Java 11/17/21 and .NET 8; functions on other runtimes are\nskipped with a warning. Container services run an OpenTelemetry collector sidecar (256 MB hard\nmemory cap and a low CPU weight within the task&#39;s allocation); the application itself needs the\nOpenTelemetry SDK — spans it emits reach the collector without further configuration. The\n<code>OTEL_TRACES_SAMPLER</code>, <code>OTEL_TRACES_SAMPLER_ARG</code> and the <code>stacktape.*</code> keys of\n<code>OTEL_RESOURCE_ATTRIBUTES</code> environment variables are managed by Stacktape; other OpenTelemetry\nvariables (like <code>OTEL_SERVICE_NAME</code>) can be overridden per resource.</p>",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "boolean"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "stackConfig:\n  tracing:\n    # [!code focus-start]\n    enabled: true\n    # [!code focus-end]\nresources:\n  api:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/api.ts"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new LambdaFunction({\n    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } }\n  });\n  return {\n    // [!code focus-start]\n    stackConfig: { tracing: { enabled: true } },\n    // [!code focus-end]\n    resources: { api }\n  };\n});"
+                    }
+                  ]
+                },
+                {
+                  "name": "samplingRate",
+                  "required": false,
+                  "shortDescription": "<p> Fraction of requests to trace, between 0 and 1.</p>",
+                  "longDescription": "<p><code>1</code> records every request — ideal while traffic is small, because the interesting request is\nalways captured. Lower it as traffic grows to control span-storage cost (~$0.35/GB). Sampling\nis parent-based: once a request is sampled, every service it touches records its part of the\ntrace, so distributed traces stay complete.</p>",
+                  "defaultValue": "1",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "number"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "stackConfig:\n  tracing:\n    enabled: true\n    # [!code focus-start]\n    samplingRate: 0.2\n    # [!code focus-end]\nresources:\n  api:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/api.ts"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new LambdaFunction({\n    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } }\n  });\n  return {\n    // [!code focus-start]\n    stackConfig: { tracing: { enabled: true, samplingRate: 0.2 } },\n    // [!code focus-end]\n    resources: { api }\n  };\n});"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "label": "option-2",
+              "properties": []
+            }
+          ]
+        },
+        "examples": [
+          {
+            "lang": "yaml",
+            "code": "stackConfig:\n  tracing:\n    enabled: true\nresources:\n  workers:\n    type: multi-container-workload\n    properties:\n      resources:\n        cpu: 0.5\n        memory: 1024\n      # [!code focus-start]\n      tracing: true\n      # [!code focus-end]\n      containers:\n        - name: worker\n          packaging:\n            type: stacktape-image-buildpack\n            properties:\n              entryfilePath: src/worker.ts"
+          },
+          {
+            "lang": "typescript",
+            "code": "import { MultiContainerWorkload, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const workers = new MultiContainerWorkload({\n    resources: { cpu: 0.5, memory: 1024 },\n    // [!code focus-start]\n    tracing: true,\n    // [!code focus-end]\n    containers: [\n      {\n        name: 'worker',\n        packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: 'src/worker.ts' } }\n      }\n    ]\n  });\n  return { stackConfig: { tracing: { enabled: true } }, resources: { workers } };\n});"
+          }
+        ]
+      },
+      {
         "name": "usePrivateSubnetsWithNAT",
         "required": false,
         "shortDescription": "<p> Run in private subnets with a NAT Gateway for outbound internet. Gives you a static public IP.</p>",
@@ -19334,9 +19411,9 @@
     ],
     "stats": {
       "requiredCount": 2,
-      "optionalCount": 6
+      "optionalCount": 7
     },
-    "typeDeclaration": "import type { ContainerWorkloadContainer, ContainerWorkloadDeploymentConfig, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype ContainerWorkloadProps = {\n  /** Containers in this workload. They share compute resources and scale together. */\n  containers: Array<ContainerWorkloadContainer>;\n  /** CPU, memory, and compute engine (Fargate or EC2). */\n  resources: ContainerWorkloadResourcesConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Gradual traffic shifting (canary/linear) for safe deployments. Requires an ALB integration. */\n  deployment?: ContainerWorkloadDeploymentConfig;\n  /** Enable `stacktape container:session` for interactive shell access to running containers. */\n  enableRemoteSessions?: boolean;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Auto-scaling: how many instances and when to add/remove them. */\n  scaling?: ContainerWorkloadScaling;\n  /** Run in private subnets with a NAT Gateway for outbound internet. Gives you a static public IP. */\n  usePrivateSubnetsWithNAT?: boolean;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { ContainerWorkloadContainer, ContainerWorkloadDeploymentConfig, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, StpIamRoleStatement, TracingOptions } from 'stacktape';\n\n// [!code focus-start]\ntype ContainerWorkloadProps = {\n  /** Containers in this workload. They share compute resources and scale together. */\n  containers: Array<ContainerWorkloadContainer>;\n  /** CPU, memory, and compute engine (Fargate or EC2). */\n  resources: ContainerWorkloadResourcesConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Gradual traffic shifting (canary/linear) for safe deployments. Requires an ALB integration. */\n  deployment?: ContainerWorkloadDeploymentConfig;\n  /** Enable `stacktape container:session` for interactive shell access to running containers. */\n  enableRemoteSessions?: boolean;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Auto-scaling: how many instances and when to add/remove them. */\n  scaling?: ContainerWorkloadScaling;\n  /** Distributed tracing for this workload. */\n  tracing?: ContainerWorkloadTracing;\n  /** Run in private subnets with a NAT Gateway for outbound internet. Gives you a static public IP. */\n  usePrivateSubnetsWithNAT?: boolean;\n};\n\n/** Union choices used by the properties above. */\ntype ContainerWorkloadTracing =\n  | TracingOptions\n  | \"option-2\";\n// [!code focus-end]"
   },
   "ContainerWorkloadResourcesConfig": {
     "definitionName": "ContainerWorkloadResourcesConfig",
@@ -38470,7 +38547,7 @@
                   "name": "enabled",
                   "required": false,
                   "shortDescription": "<p> Turn distributed tracing on or off.</p>",
-                  "longDescription": "<p>When enabled, Stacktape instruments supported resources with OpenTelemetry automatically: every\nrequest produces a trace — a timeline of the work it caused (handler execution, SQL queries,\nHTTP calls to other services) — viewable in the Console. Traces are stored in your AWS account\nusing X-Ray Transaction Search, priced at ~$0.35 per GB of span data.</p>\n<p>Enabling tracing in any stack turns on X-Ray Transaction Search for the <strong>whole AWS account and\nregion</strong>: spans from all X-Ray-instrumented workloads (Stacktape-managed or not) are then stored\nin the <code>aws/spans</code> CloudWatch Logs log group. When Stacktape itself performs this switch, it caps\nthe log group&#39;s retention at 90 days; an already-enabled setup is left exactly as found. Deleting\nthe stack does not switch Transaction Search back off, because other workloads may rely on it.</p>\n<p>Lambda functions are instrumented with the AWS-managed OpenTelemetry layer. Supported runtimes:\nNode.js 18–22, Python 3.10–3.13, Java 11/17/21 and .NET 8; functions on other runtimes are\nskipped with a warning. The <code>OTEL_TRACES_SAMPLER</code>, <code>OTEL_TRACES_SAMPLER_ARG</code> and the\n<code>stacktape.*</code> keys of <code>OTEL_RESOURCE_ATTRIBUTES</code> environment variables are managed by Stacktape;\nother OpenTelemetry variables (like <code>OTEL_SERVICE_NAME</code>) can be overridden per function.</p>",
+                  "longDescription": "<p>When enabled, Stacktape instruments supported resources with OpenTelemetry automatically: every\nrequest produces a trace — a timeline of the work it caused (handler execution, SQL queries,\nHTTP calls to other services) — viewable in the Console. Traces are stored in your AWS account\nusing X-Ray Transaction Search, priced at ~$0.35 per GB of span data.</p>\n<p>Enabling tracing in any stack turns on X-Ray Transaction Search for the <strong>whole AWS account and\nregion</strong>: spans from all X-Ray-instrumented workloads (Stacktape-managed or not) are then stored\nin the <code>aws/spans</code> CloudWatch Logs log group. When Stacktape itself performs this switch, it caps\nthe log group&#39;s retention at 90 days; an already-enabled setup is left exactly as found. Deleting\nthe stack does not switch Transaction Search back off, because other workloads may rely on it.</p>\n<p>Lambda functions are instrumented with the AWS-managed OpenTelemetry layer. Supported runtimes:\nNode.js 18–24, Python 3.10–3.13, Java 11/17/21 and .NET 8; functions on other runtimes are\nskipped with a warning. Container services run an OpenTelemetry collector sidecar (256 MB hard\nmemory cap and a low CPU weight within the task&#39;s allocation); the application itself needs the\nOpenTelemetry SDK — spans it emits reach the collector without further configuration. The\n<code>OTEL_TRACES_SAMPLER</code>, <code>OTEL_TRACES_SAMPLER_ARG</code> and the <code>stacktape.*</code> keys of\n<code>OTEL_RESOURCE_ATTRIBUTES</code> environment variables are managed by Stacktape; other OpenTelemetry\nvariables (like <code>OTEL_SERVICE_NAME</code>) can be overridden per resource.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -47092,6 +47169,83 @@
         ]
       },
       {
+        "name": "tracing",
+        "required": false,
+        "shortDescription": "<p> Distributed tracing for this service.</p>",
+        "longDescription": "<p>Overrides the stack-wide <code>stackConfig.tracing</code> setting: <code>false</code> opts this service out, <code>true</code>\nopts it in with the stack-wide sampling, an object opts it in with its own settings.</p>\n<p>When enabled, Stacktape runs an OpenTelemetry collector as a sidecar container and points the\nservice&#39;s OpenTelemetry SDK at it (<code>http://localhost:4318</code>) through standard <code>OTEL_*</code>\nenvironment variables. The service needs the OpenTelemetry SDK in the application (any\nlanguage) — spans it emits are picked up without further configuration.</p>\n<p>Traces are stored in your AWS account via X-Ray Transaction Search; see <code>stackConfig.tracing</code>\nfor the account-level effects.</p>",
+        "typeInfo": {
+          "kind": "union",
+          "discriminator": null,
+          "branches": [
+            {
+              "label": "TracingOptions",
+              "typeName": "TracingOptions",
+              "properties": [
+                {
+                  "name": "enabled",
+                  "required": false,
+                  "shortDescription": "<p> Turn distributed tracing on or off.</p>",
+                  "longDescription": "<p>When enabled, Stacktape instruments supported resources with OpenTelemetry automatically: every\nrequest produces a trace — a timeline of the work it caused (handler execution, SQL queries,\nHTTP calls to other services) — viewable in the Console. Traces are stored in your AWS account\nusing X-Ray Transaction Search, priced at ~$0.35 per GB of span data.</p>\n<p>Enabling tracing in any stack turns on X-Ray Transaction Search for the <strong>whole AWS account and\nregion</strong>: spans from all X-Ray-instrumented workloads (Stacktape-managed or not) are then stored\nin the <code>aws/spans</code> CloudWatch Logs log group. When Stacktape itself performs this switch, it caps\nthe log group&#39;s retention at 90 days; an already-enabled setup is left exactly as found. Deleting\nthe stack does not switch Transaction Search back off, because other workloads may rely on it.</p>\n<p>Lambda functions are instrumented with the AWS-managed OpenTelemetry layer. Supported runtimes:\nNode.js 18–24, Python 3.10–3.13, Java 11/17/21 and .NET 8; functions on other runtimes are\nskipped with a warning. Container services run an OpenTelemetry collector sidecar (256 MB hard\nmemory cap and a low CPU weight within the task&#39;s allocation); the application itself needs the\nOpenTelemetry SDK — spans it emits reach the collector without further configuration. The\n<code>OTEL_TRACES_SAMPLER</code>, <code>OTEL_TRACES_SAMPLER_ARG</code> and the <code>stacktape.*</code> keys of\n<code>OTEL_RESOURCE_ATTRIBUTES</code> environment variables are managed by Stacktape; other OpenTelemetry\nvariables (like <code>OTEL_SERVICE_NAME</code>) can be overridden per resource.</p>",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "boolean"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "stackConfig:\n  tracing:\n    # [!code focus-start]\n    enabled: true\n    # [!code focus-end]\nresources:\n  api:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/api.ts"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new LambdaFunction({\n    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } }\n  });\n  return {\n    // [!code focus-start]\n    stackConfig: { tracing: { enabled: true } },\n    // [!code focus-end]\n    resources: { api }\n  };\n});"
+                    }
+                  ]
+                },
+                {
+                  "name": "samplingRate",
+                  "required": false,
+                  "shortDescription": "<p> Fraction of requests to trace, between 0 and 1.</p>",
+                  "longDescription": "<p><code>1</code> records every request — ideal while traffic is small, because the interesting request is\nalways captured. Lower it as traffic grows to control span-storage cost (~$0.35/GB). Sampling\nis parent-based: once a request is sampled, every service it touches records its part of the\ntrace, so distributed traces stay complete.</p>",
+                  "defaultValue": "1",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "number"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "stackConfig:\n  tracing:\n    enabled: true\n    # [!code focus-start]\n    samplingRate: 0.2\n    # [!code focus-end]\nresources:\n  api:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/api.ts"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new LambdaFunction({\n    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } }\n  });\n  return {\n    // [!code focus-start]\n    stackConfig: { tracing: { enabled: true, samplingRate: 0.2 } },\n    // [!code focus-end]\n    resources: { api }\n  };\n});"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "label": "option-2",
+              "properties": []
+            }
+          ]
+        },
+        "examples": [
+          {
+            "lang": "yaml",
+            "code": "stackConfig:\n  tracing:\n    enabled: true\nresources:\n  api:\n    type: web-service\n    properties:\n      packaging:\n        type: stacktape-image-buildpack\n        properties:\n          entryfilePath: src/server.ts\n      resources:\n        cpu: 0.5\n        memory: 1024\n      # [!code focus-start]\n      tracing:\n        samplingRate: 0.5\n      # [!code focus-end]"
+          },
+          {
+            "lang": "typescript",
+            "code": "import { WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new WebService({\n    packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: 'src/server.ts' } },\n    resources: { cpu: 0.5, memory: 1024 },\n    // [!code focus-start]\n    tracing: { samplingRate: 0.5 }\n    // [!code focus-end]\n  });\n  return { stackConfig: { tracing: { enabled: true } }, resources: { api } };\n});"
+          }
+        ]
+      },
+      {
         "name": "usePrivateSubnetsWithNAT",
         "required": false,
         "shortDescription": "<p> Deploy in private subnets with a static outbound IP via NAT Gateway.</p>",
@@ -47140,9 +47294,9 @@
     ],
     "stats": {
       "requiredCount": 2,
-      "optionalCount": 15
+      "optionalCount": 16
     },
-    "typeDeclaration": "import type { ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, PrivateServiceLoadBalancing, SecretEnvironmentVar, ServiceHelperContainer, StpBuildpackCwImagePackaging, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype PrivateServiceProps = {\n  /** Configures the container image for the service. */\n  packaging: PrivateServicePackaging;\n  /** CPU, memory, and compute engine for the container. */\n  resources: ContainerWorkloadResourcesConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Allow SSH-like access to running containers for debugging. */\n  enableRemoteSessions?: boolean;\n  /** Environment variables injected into the container at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Health check that auto-replaces unhealthy containers. */\n  internalHealthCheck?: ContainerHealthCheck;\n  /** How traffic reaches this service from other resources. */\n  loadBalancing?: PrivateServiceLoadBalancing;\n  /** Logging configuration. */\n  logging?: ContainerWorkloadContainerLogging;\n  /** Port this service listens on. Injected as the `PORT` env var. */\n  port?: number;\n  /** Protocol for metrics collection. Set to enable protocol-specific metrics (e.g., HTTP 5xx tracking). */\n  protocol?: \"grpc\" | \"http\" | \"http2\";\n  /** Auto-scaling: add/remove container instances based on demand. */\n  scaling?: ContainerWorkloadScaling;\n  /** Sensitive environment variables fetched by the container runtime.\n\nValues must be exact `$SsmParam(...)` or `$Secret(...)` directives. Prefer a SecureString SSM parameter for\nsecrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features\nare useful.\n\n**Example (TypeScript):**\nsecrets: {\n  DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),\n  ROTATING_API_KEY: $Secret('rotating-api-key')\n} */\n  secrets?: Array<SecretEnvironmentVar>;\n  /** Helper containers that run alongside the main container. */\n  sideContainers?: Array<ServiceHelperContainer>;\n  /** Seconds to wait for graceful shutdown before force-killing the container. */\n  stopTimeout?: number;\n  /** Deploy in private subnets with a static outbound IP via NAT Gateway. */\n  usePrivateSubnetsWithNAT?: boolean;\n  /** Persistent EFS volumes shared across containers and restarts. */\n  volumeMounts?: Array<ContainerEfsMount>;\n};\n\n/** Union choices used by the properties above. */\ntype PrivateServicePackaging =\n  | PrebuiltCwImagePackaging\n  | CustomDockerfileCwImagePackaging\n  | ExternalBuildpackCwImagePackaging\n  | NixpacksCwImagePackaging\n  | StpBuildpackCwImagePackaging;\n// [!code focus-end]"
+    "typeDeclaration": "import type { ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, PrivateServiceLoadBalancing, SecretEnvironmentVar, ServiceHelperContainer, StpBuildpackCwImagePackaging, StpIamRoleStatement, TracingOptions } from 'stacktape';\n\n// [!code focus-start]\ntype PrivateServiceProps = {\n  /** Configures the container image for the service. */\n  packaging: PrivateServicePackaging;\n  /** CPU, memory, and compute engine for the container. */\n  resources: ContainerWorkloadResourcesConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Allow SSH-like access to running containers for debugging. */\n  enableRemoteSessions?: boolean;\n  /** Environment variables injected into the container at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Health check that auto-replaces unhealthy containers. */\n  internalHealthCheck?: ContainerHealthCheck;\n  /** How traffic reaches this service from other resources. */\n  loadBalancing?: PrivateServiceLoadBalancing;\n  /** Logging configuration. */\n  logging?: ContainerWorkloadContainerLogging;\n  /** Port this service listens on. Injected as the `PORT` env var. */\n  port?: number;\n  /** Protocol for metrics collection. Set to enable protocol-specific metrics (e.g., HTTP 5xx tracking). */\n  protocol?: \"grpc\" | \"http\" | \"http2\";\n  /** Auto-scaling: add/remove container instances based on demand. */\n  scaling?: ContainerWorkloadScaling;\n  /** Sensitive environment variables fetched by the container runtime.\n\nValues must be exact `$SsmParam(...)` or `$Secret(...)` directives. Prefer a SecureString SSM parameter for\nsecrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features\nare useful.\n\n**Example (TypeScript):**\nsecrets: {\n  DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),\n  ROTATING_API_KEY: $Secret('rotating-api-key')\n} */\n  secrets?: Array<SecretEnvironmentVar>;\n  /** Helper containers that run alongside the main container. */\n  sideContainers?: Array<ServiceHelperContainer>;\n  /** Seconds to wait for graceful shutdown before force-killing the container. */\n  stopTimeout?: number;\n  /** Distributed tracing for this service. */\n  tracing?: PrivateServiceTracing;\n  /** Deploy in private subnets with a static outbound IP via NAT Gateway. */\n  usePrivateSubnetsWithNAT?: boolean;\n  /** Persistent EFS volumes shared across containers and restarts. */\n  volumeMounts?: Array<ContainerEfsMount>;\n};\n\n/** Union choices used by the properties above. */\ntype PrivateServicePackaging =\n  | PrebuiltCwImagePackaging\n  | CustomDockerfileCwImagePackaging\n  | ExternalBuildpackCwImagePackaging\n  | NixpacksCwImagePackaging\n  | StpBuildpackCwImagePackaging;\n\ntype PrivateServiceTracing =\n  | TracingOptions\n  | \"option-2\";\n// [!code focus-end]"
   },
   "PyLanguageSpecificConfig": {
     "definitionName": "PyLanguageSpecificConfig",
@@ -59652,6 +59806,561 @@
     },
     "typeDeclaration": "import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, SsrWebCdnConfig, SsrWebDevConfig, SsrWebServerLambdaConfig, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype SvelteKitWebProps = {\n  /** Directory containing your `svelte.config.js`. For monorepos, point to the SvelteKit workspace. */\n  appDirectory?: string;\n  /** Override the default `vite build` command. */\n  buildCommand?: string;\n  /** CDN cache controls for SSR routes and specific path patterns. */\n  cdn?: SsrWebCdnConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Attach custom domains with auto-managed DNS records and TLS certificates. */\n  customDomains?: Array<DomainConfiguration>;\n  /** Dev server config for `stacktape dev`. Defaults to `vite dev`. */\n  dev?: SsrWebDevConfig;\n  /** Environment variables for the SSR function. Use `$ResourceParam()` or `$Secret()` for dynamic values. */\n  environment?: Array<EnvironmentVar>;\n  /** Set custom headers (e.g., `Cache-Control`) for static files matching a pattern. */\n  fileOptions?: Array<DirectoryUploadFilter>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */\n  serverLambda?: SsrWebServerLambdaConfig;\n  /** Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`. */\n  useFirewall?: string;\n};\n// [!code focus-end]"
   },
+  "SyntheticApiTest": {
+    "definitionName": "SyntheticApiTest",
+    "properties": [
+      {
+        "name": "properties",
+        "required": true,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "reference",
+          "typeName": "SyntheticApiTestProps"
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 0
+    },
+    "typeDeclaration": "import type { SyntheticApiTestProps } from 'stacktape';\n\n// [!code focus-start]\ntype SyntheticApiTest = {\n  properties: SyntheticApiTestProps;\n};\n// [!code focus-end]"
+  },
+  "SyntheticApiTestProps": {
+    "definitionName": "SyntheticApiTestProps",
+    "properties": [
+      {
+        "name": "scriptPath",
+        "required": true,
+        "shortDescription": "<p> Path to the test script, relative to the current working directory.</p>",
+        "longDescription": "<p>The script makes HTTP calls with per-step timing; no browser starts. TypeScript works out of\nthe box — Stacktape bundles the script at deploy time.</p>\n<p>Export a <code>handler</code> function; use <code>executeHttpStep</code> from the runtime&#39;s <code>synthetics</code> helper so\neach step gets its own timing and success metrics:</p>\n<pre><code class=\"language-ts\">const synthetics = require(&#39;Synthetics&#39;);\n\nexports.handler = async () =&gt; {\n  await synthetics.executeHttpStep(&#39;health&#39;, {\n    hostname: &#39;api.example.com&#39;,\n    method: &#39;GET&#39;,\n    path: &#39;/health&#39;,\n    protocol: &#39;https:&#39;\n  });\n  await synthetics.executeHttpStep(&#39;create-order&#39;, {\n    hostname: &#39;api.example.com&#39;,\n    method: &#39;POST&#39;,\n    path: &#39;/orders&#39;,\n    protocol: &#39;https:&#39;,\n    headers: { &#39;Content-Type&#39;: &#39;application/json&#39; }\n  });\n};\n</code></pre>\n<p>A run fails when the handler throws or a step&#39;s response is not a success.</p>",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 0
+    },
+    "typeDeclaration": "// [!code focus-start]\ntype SyntheticApiTestProps = {\n  /** Path to the test script, relative to the current working directory. */\n  scriptPath: string;\n};\n// [!code focus-end]"
+  },
+  "SyntheticBrowserTest": {
+    "definitionName": "SyntheticBrowserTest",
+    "properties": [
+      {
+        "name": "properties",
+        "required": true,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "reference",
+          "typeName": "SyntheticBrowserTestProps"
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 0
+    },
+    "typeDeclaration": "import type { SyntheticBrowserTestProps } from 'stacktape';\n\n// [!code focus-start]\ntype SyntheticBrowserTest = {\n  properties: SyntheticBrowserTestProps;\n};\n// [!code focus-end]"
+  },
+  "SyntheticBrowserTestProps": {
+    "definitionName": "SyntheticBrowserTestProps",
+    "properties": [
+      {
+        "name": "scriptPath",
+        "required": true,
+        "shortDescription": "<p> Path to the test script, relative to the current working directory.</p>",
+        "longDescription": "<p>The script drives a real browser with <a href=\"https://playwright.dev\">Playwright</a> and runs on the\nAWS-managed Playwright runtime. TypeScript works out of the box — Stacktape bundles the script\nat deploy time (imports of your own helper files are allowed; npm packages are not, except the\nones the runtime provides).</p>\n<p>Export a <code>handler</code> function; get the browser from the runtime&#39;s <code>synthetics</code> helper:</p>\n<pre><code class=\"language-ts\">import { synthetics } from &#39;@aws/synthetics-playwright&#39;;\nimport { expect } from &#39;@playwright/test&#39;;\n\nexport const handler = async () =&gt; {\n  try {\n    const browser = await synthetics.launch();\n    const page = await synthetics.newPage(browser);\n    await page.goto(process.env.BASE_URL, { timeout: 30000 });\n    await page.screenshot({ path: &#39;/tmp/home.png&#39; });\n    expect(await page.title()).toContain(&#39;Example&#39;);\n  } finally {\n    await synthetics.close();\n  }\n};\n</code></pre>\n<p>A run fails when the handler throws (including failed <code>expect</code> assertions). Screenshots written\nto <code>/tmp</code> are stored with the run&#39;s results.</p>",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 0
+    },
+    "typeDeclaration": "// [!code focus-start]\ntype SyntheticBrowserTestProps = {\n  /** Path to the test script, relative to the current working directory. */\n  scriptPath: string;\n};\n// [!code focus-end]"
+  },
+  "SyntheticTest": {
+    "definitionName": "SyntheticTest",
+    "properties": [
+      {
+        "name": "properties",
+        "required": true,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "reference",
+          "typeName": "SyntheticTestProps"
+        }
+      },
+      {
+        "name": "overrides",
+        "required": false,
+        "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
+        "typeInfo": {
+          "kind": "unknown"
+        },
+        "examples": [
+          {
+            "lang": "yaml",
+            "code": "resources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    # [!code focus-start]\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n    # [!code focus-end]"
+          },
+          {
+            "lang": "typescript",
+            "code": "import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    // [!code focus-start]\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n    // [!code focus-end]\n  });\n\n  return { resources: { mainDb } };\n});"
+          }
+        ]
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 1
+    },
+    "typeDeclaration": "import type { SyntheticTestProps } from 'stacktape';\n\n// [!code focus-start]\ntype SyntheticTest = {\n  properties: SyntheticTestProps;\n  /** Escape hatch to modify the underlying CloudFormation resources Stacktape creates. */\n  overrides?: unknown;\n};\n// [!code focus-end]"
+  },
+  "SyntheticTestProps": {
+    "definitionName": "SyntheticTestProps",
+    "properties": [
+      {
+        "name": "test",
+        "required": true,
+        "shortDescription": "<p> What the test does: drive a real browser, or call APIs directly.</p>",
+        "longDescription": "<p>A synthetic test runs your script on a schedule from AWS CloudWatch Synthetics in your own\naccount, and alerts you when a run fails. Use it to continuously verify flows a simple uptime\ncheck cannot: sign-in, checkout, a multi-step API sequence with assertions.</p>\n<ul>\n<li><code>browser</code> — the script drives a real Chromium browser with\n<a href=\"https://playwright.dev\">Playwright</a>. Screenshots taken during the run are stored with each\nrun&#39;s results.</li>\n<li><code>api</code> — the script makes HTTP calls with per-step timing and assertions; no browser starts,\nso runs are faster and cheaper.</li>\n</ul>",
+        "typeInfo": {
+          "kind": "union",
+          "discriminator": "type",
+          "branches": [
+            {
+              "label": "browser",
+              "typeName": "SyntheticBrowserTest",
+              "properties": [
+                {
+                  "name": "scriptPath",
+                  "required": true,
+                  "shortDescription": "<p> Path to the test script, relative to the current working directory.</p>",
+                  "longDescription": "<p>The script drives a real browser with <a href=\"https://playwright.dev\">Playwright</a> and runs on the\nAWS-managed Playwright runtime. TypeScript works out of the box — Stacktape bundles the script\nat deploy time (imports of your own helper files are allowed; npm packages are not, except the\nones the runtime provides).</p>\n<p>Export a <code>handler</code> function; get the browser from the runtime&#39;s <code>synthetics</code> helper:</p>\n<pre><code class=\"language-ts\">import { synthetics } from &#39;@aws/synthetics-playwright&#39;;\nimport { expect } from &#39;@playwright/test&#39;;\n\nexport const handler = async () =&gt; {\n  try {\n    const browser = await synthetics.launch();\n    const page = await synthetics.newPage(browser);\n    await page.goto(process.env.BASE_URL, { timeout: 30000 });\n    await page.screenshot({ path: &#39;/tmp/home.png&#39; });\n    expect(await page.title()).toContain(&#39;Example&#39;);\n  } finally {\n    await synthetics.close();\n  }\n};\n</code></pre>\n<p>A run fails when the handler throws (including failed <code>expect</code> assertions). Screenshots written\nto <code>/tmp</code> are stored with the run&#39;s results.</p>",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "label": "api",
+              "typeName": "SyntheticApiTest",
+              "properties": [
+                {
+                  "name": "scriptPath",
+                  "required": true,
+                  "shortDescription": "<p> Path to the test script, relative to the current working directory.</p>",
+                  "longDescription": "<p>The script makes HTTP calls with per-step timing; no browser starts. TypeScript works out of\nthe box — Stacktape bundles the script at deploy time.</p>\n<p>Export a <code>handler</code> function; use <code>executeHttpStep</code> from the runtime&#39;s <code>synthetics</code> helper so\neach step gets its own timing and success metrics:</p>\n<pre><code class=\"language-ts\">const synthetics = require(&#39;Synthetics&#39;);\n\nexports.handler = async () =&gt; {\n  await synthetics.executeHttpStep(&#39;health&#39;, {\n    hostname: &#39;api.example.com&#39;,\n    method: &#39;GET&#39;,\n    path: &#39;/health&#39;,\n    protocol: &#39;https:&#39;\n  });\n  await synthetics.executeHttpStep(&#39;create-order&#39;, {\n    hostname: &#39;api.example.com&#39;,\n    method: &#39;POST&#39;,\n    path: &#39;/orders&#39;,\n    protocol: &#39;https:&#39;,\n    headers: { &#39;Content-Type&#39;: &#39;application/json&#39; }\n  });\n};\n</code></pre>\n<p>A run fails when the handler throws or a step&#39;s response is not a success.</p>",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "examples": [
+          {
+            "lang": "yaml",
+            "code": "resources:\n  checkoutFlow:\n    type: synthetic-test\n    properties:\n      # [!code focus-start]\n      test:\n        type: browser\n        properties:\n          scriptPath: ./e2e/checkout.canary.ts\n      # [!code focus-end]"
+          },
+          {
+            "lang": "typescript",
+            "code": "import { SyntheticTest, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const checkoutFlow = new SyntheticTest({\n    // [!code focus-start]\n    test: { type: 'browser', properties: { scriptPath: './e2e/checkout.canary.ts' } }\n    // [!code focus-end]\n  });\n  return { resources: { checkoutFlow } };\n});"
+          }
+        ]
+      },
+      {
+        "name": "environment",
+        "required": false,
+        "shortDescription": "<p> Environment variables available to the test script.</p>",
+        "longDescription": "<p>Available via <code>process.env</code> in the script. Values are limited to 4 KB in total and are not\nencrypted — put secrets in <a href=\"https://docs.stacktape.com/resources/secrets/\">Stacktape secrets</a>\nand reference them with <code>$Secret()</code> instead of pasting them here.</p>",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "reference",
+            "typeName": "EnvironmentVar"
+          }
+        },
+        "examples": [
+          {
+            "lang": "yaml",
+            "code": "resources:\n  checkoutFlow:\n    type: synthetic-test\n    properties:\n      test:\n        type: browser\n        properties:\n          scriptPath: ./e2e/checkout.canary.ts\n      # [!code focus-start]\n      environment:\n        - name: BASE_URL\n          value: https://app.example.com\n        - name: TEST_USER_PASSWORD\n          value: $Secret('synthetic-test-user.password')\n      # [!code focus-end]"
+          },
+          {
+            "lang": "typescript",
+            "code": "import { SyntheticTest, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const checkoutFlow = new SyntheticTest({\n    test: { type: 'browser', properties: { scriptPath: './e2e/checkout.canary.ts' } },\n    // [!code focus-start]\n    environment: [\n      { name: 'BASE_URL', value: 'https://app.example.com' },\n      { name: 'TEST_USER_PASSWORD', value: \"$Secret('synthetic-test-user.password')\" }\n    ]\n    // [!code focus-end]\n  });\n  return { resources: { checkoutFlow } };\n});"
+          }
+        ]
+      },
+      {
+        "name": "memory",
+        "required": false,
+        "shortDescription": "<p> Memory available to the test run, in MB.</p>",
+        "longDescription": "<p>Between 960 and 3008, in multiples of 64. Browser tests are memory-hungry; raise this if runs\ndie without a script error.</p>",
+        "defaultValue": "1024",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "number"
+          ]
+        }
+      },
+      {
+        "name": "notificationChannels",
+        "required": false,
+        "shortDescription": "<p> Where to send an alert when the test starts failing (and when it recovers).</p>",
+        "longDescription": "<p>Accepts the same channels as alarms and uptime checks: inline <code>slack</code>, <code>ms-teams</code>, <code>discord</code>,\n<code>email</code> or <code>webhook</code> definitions, or <code>console-channel</code> references to channels managed in the\nStacktape Console. Without a channel, failures are still visible in the Console.</p>",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "union",
+            "discriminator": "type",
+            "branches": [
+              {
+                "label": "slack",
+                "typeName": "SlackIntegration",
+                "properties": [
+                  {
+                    "name": "conversationId",
+                    "required": true,
+                    "shortDescription": "<p> The Slack channel or DM ID to send notifications to.</p>",
+                    "longDescription": "<p>To find the ID: open the channel, click its name, and look at the bottom of the <strong>About</strong> tab.</p>",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    },
+                    "examples": [
+                      {
+                        "lang": "yaml",
+                        "code": "resources:\n  workerFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/worker.ts\n      memory: 512\n      timeout: 30\n      alarms:\n        - trigger:\n            type: lambda-error-rate\n            properties:\n              thresholdPercent: 5\n          description: Worker error rate is too high\n          notificationChannels:\n            - type: slack\n              properties:\n                # [!code focus-start]\n                conversationId: C0123456789\n                # [!code focus-end]\n                accessToken: $Secret('slack-bot-token')"
+                      },
+                      {
+                        "lang": "typescript",
+                        "code": "import { LambdaFunction, defineConfig, $Secret } from 'stacktape';\n\nexport default defineConfig(() => {\n  const workerFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: { entryfilePath: 'src/worker.ts' }\n    },\n    memory: 512,\n    timeout: 30,\n    alarms: [\n      {\n        trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 5 } },\n        description: 'Worker error rate is too high',\n        notificationChannels: [\n          {\n            type: 'slack',\n            properties: {\n              // [!code focus-start]\n              conversationId: 'C0123456789',\n              // [!code focus-end]\n              accessToken: $Secret('slack-bot-token')\n            }\n          }\n        ]\n      }\n    ]\n  });\n  return { resources: { workerFunction } };\n});"
+                      }
+                    ]
+                  },
+                  {
+                    "name": "accessToken",
+                    "required": true,
+                    "shortDescription": "<p> Bot User OAuth Token for your Slack app. Store as <code>$Secret()</code> for security.</p>",
+                    "longDescription": "<p>Create a Slack app, add the <code>chat:write</code> scope, install it to your workspace, then copy the Bot User OAuth Token.</p>",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    },
+                    "examples": [
+                      {
+                        "lang": "yaml",
+                        "code": "resources:\n  workerFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/worker.ts\n      memory: 512\n      timeout: 30\n      alarms:\n        - trigger:\n            type: lambda-error-rate\n            properties:\n              thresholdPercent: 5\n          description: Worker error rate is too high\n          notificationChannels:\n            - type: slack\n              properties:\n                conversationId: C0123456789\n                # [!code focus-start]\n                accessToken: $Secret('slack-bot-token')\n                # [!code focus-end]"
+                      },
+                      {
+                        "lang": "typescript",
+                        "code": "import { LambdaFunction, defineConfig, $Secret } from 'stacktape';\n\nexport default defineConfig(() => {\n  const workerFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: { entryfilePath: 'src/worker.ts' }\n    },\n    memory: 512,\n    timeout: 30,\n    alarms: [\n      {\n        trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 5 } },\n        description: 'Worker error rate is too high',\n        notificationChannels: [\n          {\n            type: 'slack',\n            properties: {\n              conversationId: 'C0123456789',\n              // [!code focus-start]\n              accessToken: $Secret('slack-bot-token')\n              // [!code focus-end]\n            }\n          }\n        ]\n      }\n    ]\n  });\n  return { resources: { workerFunction } };\n});"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "label": "ms-teams",
+                "typeName": "MsTeamsIntegration",
+                "properties": [
+                  {
+                    "name": "webhookUrl",
+                    "required": true,
+                    "shortDescription": "<p> Incoming Webhook URL for the MS Teams channel. Store as <code>$Secret()</code> for security.</p>",
+                    "longDescription": "<p>Create an Incoming Webhook connector in your Teams channel settings to get this URL.</p>",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    },
+                    "examples": [
+                      {
+                        "lang": "yaml",
+                        "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/api.ts\n      memory: 1024\n      timeout: 15\n      alarms:\n        - trigger:\n            type: lambda-duration\n            properties:\n              thresholdMilliseconds: 5000\n          description: API function is running slow\n          notificationChannels:\n            - type: ms-teams\n              properties:\n                # [!code focus-start]\n                webhookUrl: $Secret('ms-teams-webhook-url')\n                # [!code focus-end]"
+                      },
+                      {
+                        "lang": "typescript",
+                        "code": "import { LambdaFunction, defineConfig, $Secret } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: { entryfilePath: 'src/api.ts' }\n    },\n    memory: 1024,\n    timeout: 15,\n    alarms: [\n      {\n        trigger: { type: 'lambda-duration', properties: { thresholdMilliseconds: 5000 } },\n        description: 'API function is running slow',\n        notificationChannels: [\n          {\n            type: 'ms-teams',\n            properties: {\n              // [!code focus-start]\n              webhookUrl: $Secret('ms-teams-webhook-url')\n              // [!code focus-end]\n            }\n          }\n        ]\n      }\n    ]\n  });\n  return { resources: { apiFunction } };\n});"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "label": "email",
+                "typeName": "EmailIntegration",
+                "properties": [
+                  {
+                    "name": "sender",
+                    "required": true,
+                    "shortDescription": "<p> The email address of the sender.</p>",
+                    "longDescription": "",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    },
+                    "examples": [
+                      {
+                        "lang": "yaml",
+                        "code": "resources:\n  paymentsFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/payments.ts\n      memory: 512\n      timeout: 30\n      alarms:\n        - trigger:\n            type: lambda-error-rate\n            properties:\n              thresholdPercent: 1\n          description: Payment processing failures detected\n          notificationChannels:\n            - type: email\n              properties:\n                # [!code focus-start]\n                sender: alerts@mycompany.com\n                # [!code focus-end]\n                recipient: oncall@mycompany.com"
+                      },
+                      {
+                        "lang": "typescript",
+                        "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const paymentsFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: { entryfilePath: 'src/payments.ts' }\n    },\n    memory: 512,\n    timeout: 30,\n    alarms: [\n      {\n        trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 1 } },\n        description: 'Payment processing failures detected',\n        notificationChannels: [\n          {\n            type: 'email',\n            properties: {\n              // [!code focus-start]\n              sender: 'alerts@mycompany.com',\n              // [!code focus-end]\n              recipient: 'oncall@mycompany.com'\n            }\n          }\n        ]\n      }\n    ]\n  });\n  return { resources: { paymentsFunction } };\n});"
+                      }
+                    ]
+                  },
+                  {
+                    "name": "recipient",
+                    "required": true,
+                    "shortDescription": "<p> The email address of the recipient.</p>",
+                    "longDescription": "",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    },
+                    "examples": [
+                      {
+                        "lang": "yaml",
+                        "code": "resources:\n  paymentsFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/payments.ts\n      memory: 512\n      timeout: 30\n      alarms:\n        - trigger:\n            type: lambda-error-rate\n            properties:\n              thresholdPercent: 1\n          description: Payment processing failures detected\n          notificationChannels:\n            - type: email\n              properties:\n                sender: alerts@mycompany.com\n                # [!code focus-start]\n                recipient: oncall@mycompany.com\n                # [!code focus-end]"
+                      },
+                      {
+                        "lang": "typescript",
+                        "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const paymentsFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: { entryfilePath: 'src/payments.ts' }\n    },\n    memory: 512,\n    timeout: 30,\n    alarms: [\n      {\n        trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 1 } },\n        description: 'Payment processing failures detected',\n        notificationChannels: [\n          {\n            type: 'email',\n            properties: {\n              sender: 'alerts@mycompany.com',\n              // [!code focus-start]\n              recipient: 'oncall@mycompany.com'\n              // [!code focus-end]\n            }\n          }\n        ]\n      }\n    ]\n  });\n  return { resources: { paymentsFunction } };\n});"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "label": "discord",
+                "typeName": "DiscordIntegration",
+                "properties": [
+                  {
+                    "name": "webhookUrl",
+                    "required": true,
+                    "shortDescription": "<p> Discord Webhook URL for the channel. Store as <code>$Secret()</code> for security.</p>",
+                    "longDescription": "<p>Create a webhook in your Discord channel settings (Edit Channel → Integrations → Webhooks).</p>",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    },
+                    "examples": [
+                      {
+                        "lang": "yaml",
+                        "code": "resources:\n  ingestFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/ingest.ts\n      memory: 256\n      timeout: 60\n      alarms:\n        - trigger:\n            type: lambda-duration\n            properties:\n              thresholdMilliseconds: 30000\n          description: Ingest job is taking too long\n          notificationChannels:\n            - type: discord\n              properties:\n                # [!code focus-start]\n                webhookUrl: $Secret('discord-webhook-url')\n                # [!code focus-end]"
+                      },
+                      {
+                        "lang": "typescript",
+                        "code": "import { LambdaFunction, defineConfig, $Secret } from 'stacktape';\n\nexport default defineConfig(() => {\n  const ingestFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: { entryfilePath: 'src/ingest.ts' }\n    },\n    memory: 256,\n    timeout: 60,\n    alarms: [\n      {\n        trigger: { type: 'lambda-duration', properties: { thresholdMilliseconds: 30000 } },\n        description: 'Ingest job is taking too long',\n        notificationChannels: [\n          {\n            type: 'discord',\n            properties: {\n              // [!code focus-start]\n              webhookUrl: $Secret('discord-webhook-url')\n              // [!code focus-end]\n            }\n          }\n        ]\n      }\n    ]\n  });\n  return { resources: { ingestFunction } };\n});"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "label": "webhook",
+                "typeName": "WebhookIntegration",
+                "properties": [
+                  {
+                    "name": "url",
+                    "required": true,
+                    "shortDescription": "<p> The URL to send webhook POST requests to.</p>",
+                    "longDescription": "",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    },
+                    "examples": [
+                      {
+                        "lang": "yaml",
+                        "code": "resources:\n  schedulerFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/scheduler.ts\n      memory: 256\n      timeout: 30\n      alarms:\n        - trigger:\n            type: lambda-error-rate\n            properties:\n              thresholdPercent: 10\n          description: Scheduler errors detected\n          notificationChannels:\n            - type: webhook\n              properties:\n                # [!code focus-start]\n                url: https://ops.mycompany.com/hooks/stacktape-alarms\n                # [!code focus-end]\n                secret: $Secret('webhook-signing-secret')"
+                      },
+                      {
+                        "lang": "typescript",
+                        "code": "import { LambdaFunction, defineConfig, $Secret } from 'stacktape';\n\nexport default defineConfig(() => {\n  const schedulerFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: { entryfilePath: 'src/scheduler.ts' }\n    },\n    memory: 256,\n    timeout: 30,\n    alarms: [\n      {\n        trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 10 } },\n        description: 'Scheduler errors detected',\n        notificationChannels: [\n          {\n            type: 'webhook',\n            properties: {\n              // [!code focus-start]\n              url: 'https://ops.mycompany.com/hooks/stacktape-alarms',\n              // [!code focus-end]\n              secret: $Secret('webhook-signing-secret')\n            }\n          }\n        ]\n      }\n    ]\n  });\n  return { resources: { schedulerFunction } };\n});"
+                      }
+                    ]
+                  },
+                  {
+                    "name": "secret",
+                    "required": false,
+                    "shortDescription": "<p> Optional signing secret for HMAC-SHA256 payload verification.</p>",
+                    "longDescription": "<p>If provided, each request includes an <code>X-Stacktape-Signature</code> header.</p>",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    },
+                    "examples": [
+                      {
+                        "lang": "yaml",
+                        "code": "resources:\n  schedulerFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/scheduler.ts\n      memory: 256\n      timeout: 30\n      alarms:\n        - trigger:\n            type: lambda-error-rate\n            properties:\n              thresholdPercent: 10\n          description: Scheduler errors detected\n          notificationChannels:\n            - type: webhook\n              properties:\n                url: https://ops.mycompany.com/hooks/stacktape-alarms\n                # [!code focus-start]\n                secret: $Secret('webhook-signing-secret')\n                # [!code focus-end]"
+                      },
+                      {
+                        "lang": "typescript",
+                        "code": "import { LambdaFunction, defineConfig, $Secret } from 'stacktape';\n\nexport default defineConfig(() => {\n  const schedulerFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: { entryfilePath: 'src/scheduler.ts' }\n    },\n    memory: 256,\n    timeout: 30,\n    alarms: [\n      {\n        trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 10 } },\n        description: 'Scheduler errors detected',\n        notificationChannels: [\n          {\n            type: 'webhook',\n            properties: {\n              url: 'https://ops.mycompany.com/hooks/stacktape-alarms',\n              // [!code focus-start]\n              secret: $Secret('webhook-signing-secret')\n              // [!code focus-end]\n            }\n          }\n        ]\n      }\n    ]\n  });\n  return { resources: { schedulerFunction } };\n});"
+                      }
+                    ]
+                  },
+                  {
+                    "name": "headers",
+                    "required": false,
+                    "shortDescription": "<p> Optional custom headers to include in each request.</p>",
+                    "longDescription": "",
+                    "typeInfo": {
+                      "kind": "reference",
+                      "typeName": "Record<string,string>"
+                    },
+                    "examples": [
+                      {
+                        "lang": "yaml",
+                        "code": "resources:\n  schedulerFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/scheduler.ts\n      memory: 256\n      timeout: 30\n      alarms:\n        - trigger:\n            type: lambda-error-rate\n            properties:\n              thresholdPercent: 10\n          description: Scheduler errors detected\n          notificationChannels:\n            - type: webhook\n              properties:\n                url: https://ops.mycompany.com/hooks/stacktape-alarms\n                secret: $Secret('webhook-signing-secret')\n                # [!code focus-start]\n                headers:\n                  X-Environment: production\n                  Authorization: $Secret('webhook-auth-header')\n                # [!code focus-end]"
+                      },
+                      {
+                        "lang": "typescript",
+                        "code": "import { LambdaFunction, defineConfig, $Secret } from 'stacktape';\n\nexport default defineConfig(() => {\n  const schedulerFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: { entryfilePath: 'src/scheduler.ts' }\n    },\n    memory: 256,\n    timeout: 30,\n    alarms: [\n      {\n        trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 10 } },\n        description: 'Scheduler errors detected',\n        notificationChannels: [\n          {\n            type: 'webhook',\n            properties: {\n              url: 'https://ops.mycompany.com/hooks/stacktape-alarms',\n              secret: $Secret('webhook-signing-secret'),\n              // [!code focus-start]\n              headers: {\n                'X-Environment': 'production',\n                Authorization: $Secret('webhook-auth-header')\n              }\n              // [!code focus-end]\n            }\n          }\n        ]\n      }\n    ]\n  });\n  return { resources: { schedulerFunction } };\n});"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "label": "console-channel",
+                "typeName": "ConsoleChannelIntegration",
+                "properties": [
+                  {
+                    "name": "channelName",
+                    "required": true,
+                    "shortDescription": "<p> Name of a notification channel configured in the Stacktape Console.</p>",
+                    "longDescription": "<p>Channels are created once per organization in the Console (<strong>Monitoring</strong> → <strong>Channels</strong>) and hold the\ndelivery credentials (Slack tokens, webhook URLs, ...). Referencing a channel by name lets many alarms and\nuptime checks share one destination without repeating credentials in the config.</p>\n<p>The referenced channel must exist in your organization — the deployment fails with a clear error if it\ndoesn&#39;t. Delivery happens through the Stacktape Console, so events routed to a console channel always\nappear in the alert history.</p>",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    },
+                    "examples": [
+                      {
+                        "lang": "yaml",
+                        "code": "resources:\n  apiHealth:\n    type: uptime-check\n    properties:\n      url: https://api.example.com/health\n      notificationChannels:\n        - type: console-channel\n          properties:\n            # [!code focus-start]\n            channelName: engineering-slack\n            # [!code focus-end]"
+                      },
+                      {
+                        "lang": "typescript",
+                        "code": "import { UptimeCheck, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiHealth = new UptimeCheck({\n    url: 'https://api.example.com/health',\n    notificationChannels: [\n      {\n        type: 'console-channel',\n        properties: {\n          // [!code focus-start]\n          channelName: 'engineering-slack'\n          // [!code focus-end]\n        }\n      }\n    ]\n  });\n  return { resources: { apiHealth } };\n});"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "examples": [
+          {
+            "lang": "yaml",
+            "code": "resources:\n  checkoutFlow:\n    type: synthetic-test\n    properties:\n      test:\n        type: browser\n        properties:\n          scriptPath: ./e2e/checkout.canary.ts\n      # [!code focus-start]\n      notificationChannels:\n        - type: console-channel\n          properties:\n            channelName: on-call-slack\n      # [!code focus-end]"
+          },
+          {
+            "lang": "typescript",
+            "code": "import { SyntheticTest, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const checkoutFlow = new SyntheticTest({\n    test: { type: 'browser', properties: { scriptPath: './e2e/checkout.canary.ts' } },\n    // [!code focus-start]\n    notificationChannels: [{ type: 'console-channel', properties: { channelName: 'on-call-slack' } }]\n    // [!code focus-end]\n  });\n  return { resources: { checkoutFlow } };\n});"
+          }
+        ]
+      },
+      {
+        "name": "retentionDays",
+        "required": false,
+        "shortDescription": "<p> How long run results (pass/fail history and reports) are kept, in days.</p>",
+        "longDescription": "<p>Between 1 and 455. Applies to both successful and failed runs.</p>\n<p>This controls the CloudWatch Synthetics run history. Artifacts the runs produce — screenshots\nand HAR files stored in the stack&#39;s deployment bucket, and the canary&#39;s CloudWatch logs — are\nnot deleted automatically by AWS; clean them up manually if storage cost matters.</p>",
+        "defaultValue": "31",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "number"
+          ]
+        }
+      },
+      {
+        "name": "scheduleRate",
+        "required": false,
+        "shortDescription": "<p> How often the test runs.</p>",
+        "longDescription": "<p>Accepts <code>rate(n minutes)</code> (between <code>rate(1 minute)</code> and <code>rate(1 hour)</code>) or a\n<code>cron(...)</code> expression.</p>\n<p>Cost scales with frequency: CloudWatch Synthetics charges ~$0.0012 per run, so a browser test\nat <code>rate(5 minutes)</code> costs about $11/month in run charges plus a few dollars of Lambda and\nstorage — budget roughly $15–20/month. An <code>api</code> test runs shorter and lands closer to\n$11–13/month. Slower schedules cost proportionally less.</p>",
+        "defaultValue": "rate(5 minutes)",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        },
+        "examples": [
+          {
+            "lang": "yaml",
+            "code": "resources:\n  checkoutFlow:\n    type: synthetic-test\n    properties:\n      test:\n        type: browser\n        properties:\n          scriptPath: ./e2e/checkout.canary.ts\n      # [!code focus-start]\n      scheduleRate: rate(15 minutes)\n      # [!code focus-end]"
+          },
+          {
+            "lang": "typescript",
+            "code": "import { SyntheticTest, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const checkoutFlow = new SyntheticTest({\n    test: { type: 'browser', properties: { scriptPath: './e2e/checkout.canary.ts' } },\n    // [!code focus-start]\n    scheduleRate: 'rate(15 minutes)'\n    // [!code focus-end]\n  });\n  return { resources: { checkoutFlow } };\n});"
+          }
+        ]
+      },
+      {
+        "name": "timeoutSeconds",
+        "required": false,
+        "shortDescription": "<p> How long one run may take before it counts as failed, in seconds.</p>",
+        "longDescription": "<p>Between 3 and 840 seconds, and never more than the schedule interval.</p>",
+        "defaultValue": "60",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "number"
+          ]
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 6
+    },
+    "typeDeclaration": "import type { ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, EnvironmentVar, MsTeamsIntegration, SlackIntegration, SyntheticApiTest, SyntheticBrowserTest, WebhookIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype SyntheticTestProps = {\n  /** What the test does: drive a real browser, or call APIs directly. */\n  test: SyntheticTestTest;\n  /** Environment variables available to the test script. */\n  environment?: Array<EnvironmentVar>;\n  /** Memory available to the test run, in MB. */\n  memory?: number;\n  /** Where to send an alert when the test starts failing (and when it recovers). */\n  notificationChannels?: Array<SyntheticTestNotificationChannels>;\n  /** How long run results (pass/fail history and reports) are kept, in days. */\n  retentionDays?: number;\n  /** How often the test runs. */\n  scheduleRate?: string;\n  /** How long one run may take before it counts as failed, in seconds. */\n  timeoutSeconds?: number;\n};\n\n/** Union choices used by the properties above. */\ntype SyntheticTestTest =\n  | SyntheticBrowserTest\n  | SyntheticApiTest;\n\ntype SyntheticTestNotificationChannels =\n  | SlackIntegration\n  | MsTeamsIntegration\n  | EmailIntegration\n  | DiscordIntegration\n  | WebhookIntegration\n  | ConsoleChannelIntegration;\n// [!code focus-end]"
+  },
   "TanStackWeb": {
     "definitionName": "TanStackWeb",
     "shortDescription": "<p> Deploy a TanStack Start SSR app with Lambda (Nitro aws-lambda preset), S3 for static assets, and CloudFront CDN.</p>",
@@ -60124,7 +60833,7 @@
         "name": "enabled",
         "required": false,
         "shortDescription": "<p> Turn distributed tracing on or off.</p>",
-        "longDescription": "<p>When enabled, Stacktape instruments supported resources with OpenTelemetry automatically: every\nrequest produces a trace — a timeline of the work it caused (handler execution, SQL queries,\nHTTP calls to other services) — viewable in the Console. Traces are stored in your AWS account\nusing X-Ray Transaction Search, priced at ~$0.35 per GB of span data.</p>\n<p>Enabling tracing in any stack turns on X-Ray Transaction Search for the <strong>whole AWS account and\nregion</strong>: spans from all X-Ray-instrumented workloads (Stacktape-managed or not) are then stored\nin the <code>aws/spans</code> CloudWatch Logs log group. When Stacktape itself performs this switch, it caps\nthe log group&#39;s retention at 90 days; an already-enabled setup is left exactly as found. Deleting\nthe stack does not switch Transaction Search back off, because other workloads may rely on it.</p>\n<p>Lambda functions are instrumented with the AWS-managed OpenTelemetry layer. Supported runtimes:\nNode.js 18–22, Python 3.10–3.13, Java 11/17/21 and .NET 8; functions on other runtimes are\nskipped with a warning. The <code>OTEL_TRACES_SAMPLER</code>, <code>OTEL_TRACES_SAMPLER_ARG</code> and the\n<code>stacktape.*</code> keys of <code>OTEL_RESOURCE_ATTRIBUTES</code> environment variables are managed by Stacktape;\nother OpenTelemetry variables (like <code>OTEL_SERVICE_NAME</code>) can be overridden per function.</p>",
+        "longDescription": "<p>When enabled, Stacktape instruments supported resources with OpenTelemetry automatically: every\nrequest produces a trace — a timeline of the work it caused (handler execution, SQL queries,\nHTTP calls to other services) — viewable in the Console. Traces are stored in your AWS account\nusing X-Ray Transaction Search, priced at ~$0.35 per GB of span data.</p>\n<p>Enabling tracing in any stack turns on X-Ray Transaction Search for the <strong>whole AWS account and\nregion</strong>: spans from all X-Ray-instrumented workloads (Stacktape-managed or not) are then stored\nin the <code>aws/spans</code> CloudWatch Logs log group. When Stacktape itself performs this switch, it caps\nthe log group&#39;s retention at 90 days; an already-enabled setup is left exactly as found. Deleting\nthe stack does not switch Transaction Search back off, because other workloads may rely on it.</p>\n<p>Lambda functions are instrumented with the AWS-managed OpenTelemetry layer. Supported runtimes:\nNode.js 18–24, Python 3.10–3.13, Java 11/17/21 and .NET 8; functions on other runtimes are\nskipped with a warning. Container services run an OpenTelemetry collector sidecar (256 MB hard\nmemory cap and a low CPU weight within the task&#39;s allocation); the application itself needs the\nOpenTelemetry SDK — spans it emits reach the collector without further configuration. The\n<code>OTEL_TRACES_SAMPLER</code>, <code>OTEL_TRACES_SAMPLER_ARG</code> and the <code>stacktape.*</code> keys of\n<code>OTEL_RESOURCE_ATTRIBUTES</code> environment variables are managed by Stacktape; other OpenTelemetry\nvariables (like <code>OTEL_SERVICE_NAME</code>) can be overridden per resource.</p>",
         "typeInfo": {
           "kind": "primitive",
           "types": [
@@ -66519,6 +67228,83 @@
         ]
       },
       {
+        "name": "tracing",
+        "required": false,
+        "shortDescription": "<p> Distributed tracing for this service.</p>",
+        "longDescription": "<p>Overrides the stack-wide <code>stackConfig.tracing</code> setting: <code>false</code> opts this service out, <code>true</code>\nopts it in with the stack-wide sampling, an object opts it in with its own settings.</p>\n<p>When enabled, Stacktape runs an OpenTelemetry collector as a sidecar container and points the\nservice&#39;s OpenTelemetry SDK at it (<code>http://localhost:4318</code>) through standard <code>OTEL_*</code>\nenvironment variables. The service needs the OpenTelemetry SDK in the application (any\nlanguage) — spans it emits are picked up without further configuration.</p>\n<p>Traces are stored in your AWS account via X-Ray Transaction Search; see <code>stackConfig.tracing</code>\nfor the account-level effects.</p>",
+        "typeInfo": {
+          "kind": "union",
+          "discriminator": null,
+          "branches": [
+            {
+              "label": "TracingOptions",
+              "typeName": "TracingOptions",
+              "properties": [
+                {
+                  "name": "enabled",
+                  "required": false,
+                  "shortDescription": "<p> Turn distributed tracing on or off.</p>",
+                  "longDescription": "<p>When enabled, Stacktape instruments supported resources with OpenTelemetry automatically: every\nrequest produces a trace — a timeline of the work it caused (handler execution, SQL queries,\nHTTP calls to other services) — viewable in the Console. Traces are stored in your AWS account\nusing X-Ray Transaction Search, priced at ~$0.35 per GB of span data.</p>\n<p>Enabling tracing in any stack turns on X-Ray Transaction Search for the <strong>whole AWS account and\nregion</strong>: spans from all X-Ray-instrumented workloads (Stacktape-managed or not) are then stored\nin the <code>aws/spans</code> CloudWatch Logs log group. When Stacktape itself performs this switch, it caps\nthe log group&#39;s retention at 90 days; an already-enabled setup is left exactly as found. Deleting\nthe stack does not switch Transaction Search back off, because other workloads may rely on it.</p>\n<p>Lambda functions are instrumented with the AWS-managed OpenTelemetry layer. Supported runtimes:\nNode.js 18–24, Python 3.10–3.13, Java 11/17/21 and .NET 8; functions on other runtimes are\nskipped with a warning. Container services run an OpenTelemetry collector sidecar (256 MB hard\nmemory cap and a low CPU weight within the task&#39;s allocation); the application itself needs the\nOpenTelemetry SDK — spans it emits reach the collector without further configuration. The\n<code>OTEL_TRACES_SAMPLER</code>, <code>OTEL_TRACES_SAMPLER_ARG</code> and the <code>stacktape.*</code> keys of\n<code>OTEL_RESOURCE_ATTRIBUTES</code> environment variables are managed by Stacktape; other OpenTelemetry\nvariables (like <code>OTEL_SERVICE_NAME</code>) can be overridden per resource.</p>",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "boolean"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "stackConfig:\n  tracing:\n    # [!code focus-start]\n    enabled: true\n    # [!code focus-end]\nresources:\n  api:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/api.ts"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new LambdaFunction({\n    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } }\n  });\n  return {\n    // [!code focus-start]\n    stackConfig: { tracing: { enabled: true } },\n    // [!code focus-end]\n    resources: { api }\n  };\n});"
+                    }
+                  ]
+                },
+                {
+                  "name": "samplingRate",
+                  "required": false,
+                  "shortDescription": "<p> Fraction of requests to trace, between 0 and 1.</p>",
+                  "longDescription": "<p><code>1</code> records every request — ideal while traffic is small, because the interesting request is\nalways captured. Lower it as traffic grows to control span-storage cost (~$0.35/GB). Sampling\nis parent-based: once a request is sampled, every service it touches records its part of the\ntrace, so distributed traces stay complete.</p>",
+                  "defaultValue": "1",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "number"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "stackConfig:\n  tracing:\n    enabled: true\n    # [!code focus-start]\n    samplingRate: 0.2\n    # [!code focus-end]\nresources:\n  api:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/api.ts"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new LambdaFunction({\n    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } }\n  });\n  return {\n    // [!code focus-start]\n    stackConfig: { tracing: { enabled: true, samplingRate: 0.2 } },\n    // [!code focus-end]\n    resources: { api }\n  };\n});"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "label": "option-2",
+              "properties": []
+            }
+          ]
+        },
+        "examples": [
+          {
+            "lang": "yaml",
+            "code": "stackConfig:\n  tracing:\n    enabled: true\nresources:\n  api:\n    type: web-service\n    properties:\n      packaging:\n        type: stacktape-image-buildpack\n        properties:\n          entryfilePath: src/server.ts\n      resources:\n        cpu: 0.5\n        memory: 1024\n      # [!code focus-start]\n      tracing:\n        samplingRate: 0.5\n      # [!code focus-end]"
+          },
+          {
+            "lang": "typescript",
+            "code": "import { WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new WebService({\n    packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: 'src/server.ts' } },\n    resources: { cpu: 0.5, memory: 1024 },\n    // [!code focus-start]\n    tracing: { samplingRate: 0.5 }\n    // [!code focus-end]\n  });\n  return { stackConfig: { tracing: { enabled: true } }, resources: { api } };\n});"
+          }
+        ]
+      },
+      {
         "name": "useFirewall",
         "required": false,
         "shortDescription": "<p> Name of a <code>web-app-firewall</code> resource to protect this service from common web exploits.</p>",
@@ -66589,9 +67375,9 @@
     ],
     "stats": {
       "requiredCount": 2,
-      "optionalCount": 20
+      "optionalCount": 21
     },
-    "typeDeclaration": "import type { ApplicationLoadBalancerAlarm, CdnConfiguration, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadDeploymentConfig, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, CustomDockerfileCwImagePackaging, DomainConfiguration, EnvironmentVar, ExternalBuildpackCwImagePackaging, HttpApiCorsConfig, HttpApiGatewayAlarm, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, SecretEnvironmentVar, ServiceHelperContainer, StpBuildpackCwImagePackaging, StpIamRoleStatement, WebServiceAlbLoadBalancing, WebServiceHttpApiGatewayLoadBalancing, WebServiceNlbLoadBalancing } from 'stacktape';\n\n// [!code focus-start]\ntype WebServiceProps = {\n  /** Configures the container image for the service. */\n  packaging: WebServicePackaging;\n  /** CPU, memory, and compute engine for the container. */\n  resources: ContainerWorkloadResourcesConfig;\n  /** Alarms for this service (merged with global alarms from the Stacktape Console). */\n  alarms?: Array<WebServiceAlarms>;\n  /** Put a CDN (CloudFront) in front of this service for caching and lower latency worldwide. */\n  cdn?: CdnConfiguration;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** CORS settings. Overrides any CORS headers from your application. */\n  cors?: HttpApiCorsConfig;\n  /** Custom domains (e.g., `api.example.com`). Stacktape auto-creates DNS records and TLS certificates. */\n  customDomains?: Array<DomainConfiguration>;\n  /** Gradual traffic shifting for safe deployments (canary, linear, or all-at-once). */\n  deployment?: ContainerWorkloadDeploymentConfig;\n  /** Global alarm names to exclude from this service. */\n  disabledGlobalAlarms?: Array<string>;\n  /** Allow SSH-like access to running containers for debugging. */\n  enableRemoteSessions?: boolean;\n  /** Environment variables injected into the container at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Health check that auto-replaces unhealthy containers. */\n  internalHealthCheck?: ContainerHealthCheck;\n  /** How traffic reaches your containers. Affects pricing, features, and protocol support. */\n  loadBalancing?: WebServiceLoadBalancing;\n  /** Logging configuration. */\n  logging?: ContainerWorkloadContainerLogging;\n  /** Auto-scaling: add/remove container instances based on demand. */\n  scaling?: ContainerWorkloadScaling;\n  /** Sensitive environment variables fetched by the container runtime.\n\nValues must be exact `$SsmParam(...)` or `$Secret(...)` directives. Prefer a SecureString SSM parameter for\nsecrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features\nare useful.\n\n**Example (TypeScript):**\nsecrets: {\n  DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),\n  ROTATING_API_KEY: $Secret('rotating-api-key')\n} */\n  secrets?: Array<SecretEnvironmentVar>;\n  /** Helper containers that run alongside the main container. */\n  sideContainers?: Array<ServiceHelperContainer>;\n  /** Seconds to wait for graceful shutdown before force-killing the container. */\n  stopTimeout?: number;\n  /** Name of a `web-app-firewall` resource to protect this service from common web exploits. */\n  useFirewall?: string;\n  /** Deploy in private subnets with a static outbound IP via NAT Gateway. */\n  usePrivateSubnetsWithNAT?: boolean;\n  /** Persistent EFS volumes shared across containers and restarts. */\n  volumeMounts?: Array<ContainerEfsMount>;\n};\n\n/** Union choices used by the properties above. */\ntype WebServicePackaging =\n  | PrebuiltCwImagePackaging\n  | CustomDockerfileCwImagePackaging\n  | ExternalBuildpackCwImagePackaging\n  | NixpacksCwImagePackaging\n  | StpBuildpackCwImagePackaging;\n\ntype WebServiceAlarms =\n  | ApplicationLoadBalancerAlarm\n  | HttpApiGatewayAlarm;\n\ntype WebServiceLoadBalancing =\n  | WebServiceHttpApiGatewayLoadBalancing\n  | WebServiceAlbLoadBalancing\n  | WebServiceNlbLoadBalancing;\n// [!code focus-end]"
+    "typeDeclaration": "import type { ApplicationLoadBalancerAlarm, CdnConfiguration, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadDeploymentConfig, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, CustomDockerfileCwImagePackaging, DomainConfiguration, EnvironmentVar, ExternalBuildpackCwImagePackaging, HttpApiCorsConfig, HttpApiGatewayAlarm, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, SecretEnvironmentVar, ServiceHelperContainer, StpBuildpackCwImagePackaging, StpIamRoleStatement, TracingOptions, WebServiceAlbLoadBalancing, WebServiceHttpApiGatewayLoadBalancing, WebServiceNlbLoadBalancing } from 'stacktape';\n\n// [!code focus-start]\ntype WebServiceProps = {\n  /** Configures the container image for the service. */\n  packaging: WebServicePackaging;\n  /** CPU, memory, and compute engine for the container. */\n  resources: ContainerWorkloadResourcesConfig;\n  /** Alarms for this service (merged with global alarms from the Stacktape Console). */\n  alarms?: Array<WebServiceAlarms>;\n  /** Put a CDN (CloudFront) in front of this service for caching and lower latency worldwide. */\n  cdn?: CdnConfiguration;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** CORS settings. Overrides any CORS headers from your application. */\n  cors?: HttpApiCorsConfig;\n  /** Custom domains (e.g., `api.example.com`). Stacktape auto-creates DNS records and TLS certificates. */\n  customDomains?: Array<DomainConfiguration>;\n  /** Gradual traffic shifting for safe deployments (canary, linear, or all-at-once). */\n  deployment?: ContainerWorkloadDeploymentConfig;\n  /** Global alarm names to exclude from this service. */\n  disabledGlobalAlarms?: Array<string>;\n  /** Allow SSH-like access to running containers for debugging. */\n  enableRemoteSessions?: boolean;\n  /** Environment variables injected into the container at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Health check that auto-replaces unhealthy containers. */\n  internalHealthCheck?: ContainerHealthCheck;\n  /** How traffic reaches your containers. Affects pricing, features, and protocol support. */\n  loadBalancing?: WebServiceLoadBalancing;\n  /** Logging configuration. */\n  logging?: ContainerWorkloadContainerLogging;\n  /** Auto-scaling: add/remove container instances based on demand. */\n  scaling?: ContainerWorkloadScaling;\n  /** Sensitive environment variables fetched by the container runtime.\n\nValues must be exact `$SsmParam(...)` or `$Secret(...)` directives. Prefer a SecureString SSM parameter for\nsecrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features\nare useful.\n\n**Example (TypeScript):**\nsecrets: {\n  DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),\n  ROTATING_API_KEY: $Secret('rotating-api-key')\n} */\n  secrets?: Array<SecretEnvironmentVar>;\n  /** Helper containers that run alongside the main container. */\n  sideContainers?: Array<ServiceHelperContainer>;\n  /** Seconds to wait for graceful shutdown before force-killing the container. */\n  stopTimeout?: number;\n  /** Distributed tracing for this service. */\n  tracing?: WebServiceTracing;\n  /** Name of a `web-app-firewall` resource to protect this service from common web exploits. */\n  useFirewall?: string;\n  /** Deploy in private subnets with a static outbound IP via NAT Gateway. */\n  usePrivateSubnetsWithNAT?: boolean;\n  /** Persistent EFS volumes shared across containers and restarts. */\n  volumeMounts?: Array<ContainerEfsMount>;\n};\n\n/** Union choices used by the properties above. */\ntype WebServicePackaging =\n  | PrebuiltCwImagePackaging\n  | CustomDockerfileCwImagePackaging\n  | ExternalBuildpackCwImagePackaging\n  | NixpacksCwImagePackaging\n  | StpBuildpackCwImagePackaging;\n\ntype WebServiceAlarms =\n  | ApplicationLoadBalancerAlarm\n  | HttpApiGatewayAlarm;\n\ntype WebServiceLoadBalancing =\n  | WebServiceHttpApiGatewayLoadBalancing\n  | WebServiceAlbLoadBalancing\n  | WebServiceNlbLoadBalancing;\n\ntype WebServiceTracing =\n  | TracingOptions\n  | \"option-2\";\n// [!code focus-end]"
   },
   "WebSocketApiAccessLogsConfig": {
     "definitionName": "WebSocketApiAccessLogsConfig",
@@ -68841,6 +69627,83 @@
         ]
       },
       {
+        "name": "tracing",
+        "required": false,
+        "shortDescription": "<p> Distributed tracing for this service.</p>",
+        "longDescription": "<p>Overrides the stack-wide <code>stackConfig.tracing</code> setting: <code>false</code> opts this service out, <code>true</code>\nopts it in with the stack-wide sampling, an object opts it in with its own settings.</p>\n<p>When enabled, Stacktape runs an OpenTelemetry collector as a sidecar container and points the\nservice&#39;s OpenTelemetry SDK at it (<code>http://localhost:4318</code>) through standard <code>OTEL_*</code>\nenvironment variables. The service needs the OpenTelemetry SDK in the application (any\nlanguage) — spans it emits are picked up without further configuration.</p>\n<p>Traces are stored in your AWS account via X-Ray Transaction Search; see <code>stackConfig.tracing</code>\nfor the account-level effects.</p>",
+        "typeInfo": {
+          "kind": "union",
+          "discriminator": null,
+          "branches": [
+            {
+              "label": "TracingOptions",
+              "typeName": "TracingOptions",
+              "properties": [
+                {
+                  "name": "enabled",
+                  "required": false,
+                  "shortDescription": "<p> Turn distributed tracing on or off.</p>",
+                  "longDescription": "<p>When enabled, Stacktape instruments supported resources with OpenTelemetry automatically: every\nrequest produces a trace — a timeline of the work it caused (handler execution, SQL queries,\nHTTP calls to other services) — viewable in the Console. Traces are stored in your AWS account\nusing X-Ray Transaction Search, priced at ~$0.35 per GB of span data.</p>\n<p>Enabling tracing in any stack turns on X-Ray Transaction Search for the <strong>whole AWS account and\nregion</strong>: spans from all X-Ray-instrumented workloads (Stacktape-managed or not) are then stored\nin the <code>aws/spans</code> CloudWatch Logs log group. When Stacktape itself performs this switch, it caps\nthe log group&#39;s retention at 90 days; an already-enabled setup is left exactly as found. Deleting\nthe stack does not switch Transaction Search back off, because other workloads may rely on it.</p>\n<p>Lambda functions are instrumented with the AWS-managed OpenTelemetry layer. Supported runtimes:\nNode.js 18–24, Python 3.10–3.13, Java 11/17/21 and .NET 8; functions on other runtimes are\nskipped with a warning. Container services run an OpenTelemetry collector sidecar (256 MB hard\nmemory cap and a low CPU weight within the task&#39;s allocation); the application itself needs the\nOpenTelemetry SDK — spans it emits reach the collector without further configuration. The\n<code>OTEL_TRACES_SAMPLER</code>, <code>OTEL_TRACES_SAMPLER_ARG</code> and the <code>stacktape.*</code> keys of\n<code>OTEL_RESOURCE_ATTRIBUTES</code> environment variables are managed by Stacktape; other OpenTelemetry\nvariables (like <code>OTEL_SERVICE_NAME</code>) can be overridden per resource.</p>",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "boolean"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "stackConfig:\n  tracing:\n    # [!code focus-start]\n    enabled: true\n    # [!code focus-end]\nresources:\n  api:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/api.ts"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new LambdaFunction({\n    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } }\n  });\n  return {\n    // [!code focus-start]\n    stackConfig: { tracing: { enabled: true } },\n    // [!code focus-end]\n    resources: { api }\n  };\n});"
+                    }
+                  ]
+                },
+                {
+                  "name": "samplingRate",
+                  "required": false,
+                  "shortDescription": "<p> Fraction of requests to trace, between 0 and 1.</p>",
+                  "longDescription": "<p><code>1</code> records every request — ideal while traffic is small, because the interesting request is\nalways captured. Lower it as traffic grows to control span-storage cost (~$0.35/GB). Sampling\nis parent-based: once a request is sampled, every service it touches records its part of the\ntrace, so distributed traces stay complete.</p>",
+                  "defaultValue": "1",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "number"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "stackConfig:\n  tracing:\n    enabled: true\n    # [!code focus-start]\n    samplingRate: 0.2\n    # [!code focus-end]\nresources:\n  api:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/api.ts"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new LambdaFunction({\n    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } }\n  });\n  return {\n    // [!code focus-start]\n    stackConfig: { tracing: { enabled: true, samplingRate: 0.2 } },\n    // [!code focus-end]\n    resources: { api }\n  };\n});"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "label": "option-2",
+              "properties": []
+            }
+          ]
+        },
+        "examples": [
+          {
+            "lang": "yaml",
+            "code": "stackConfig:\n  tracing:\n    enabled: true\nresources:\n  api:\n    type: web-service\n    properties:\n      packaging:\n        type: stacktape-image-buildpack\n        properties:\n          entryfilePath: src/server.ts\n      resources:\n        cpu: 0.5\n        memory: 1024\n      # [!code focus-start]\n      tracing:\n        samplingRate: 0.5\n      # [!code focus-end]"
+          },
+          {
+            "lang": "typescript",
+            "code": "import { WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new WebService({\n    packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: 'src/server.ts' } },\n    resources: { cpu: 0.5, memory: 1024 },\n    // [!code focus-start]\n    tracing: { samplingRate: 0.5 }\n    // [!code focus-end]\n  });\n  return { stackConfig: { tracing: { enabled: true } }, resources: { api } };\n});"
+          }
+        ]
+      },
+      {
         "name": "usePrivateSubnetsWithNAT",
         "required": false,
         "shortDescription": "<p> Deploy in private subnets with a static outbound IP via NAT Gateway.</p>",
@@ -68889,8 +69752,8 @@
     ],
     "stats": {
       "requiredCount": 2,
-      "optionalCount": 12
+      "optionalCount": 13
     },
-    "typeDeclaration": "import type { ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, SecretEnvironmentVar, ServiceHelperContainer, StpBuildpackCwImagePackaging, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype WorkerServiceProps = {\n  /** Configures the container image for the service. */\n  packaging: WorkerServicePackaging;\n  /** CPU, memory, and compute engine for the container. */\n  resources: ContainerWorkloadResourcesConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Allow SSH-like access to running containers for debugging. */\n  enableRemoteSessions?: boolean;\n  /** Environment variables injected into the container at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Health check that auto-replaces unhealthy containers. */\n  internalHealthCheck?: ContainerHealthCheck;\n  /** Logging configuration. */\n  logging?: ContainerWorkloadContainerLogging;\n  /** Auto-scaling: add/remove container instances based on demand. */\n  scaling?: ContainerWorkloadScaling;\n  /** Sensitive environment variables fetched by the container runtime.\n\nValues must be exact `$SsmParam(...)` or `$Secret(...)` directives. Prefer a SecureString SSM parameter for\nsecrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features\nare useful.\n\n**Example (TypeScript):**\nsecrets: {\n  DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),\n  ROTATING_API_KEY: $Secret('rotating-api-key')\n} */\n  secrets?: Array<SecretEnvironmentVar>;\n  /** Helper containers that run alongside the main container. */\n  sideContainers?: Array<ServiceHelperContainer>;\n  /** Seconds to wait for graceful shutdown before force-killing the container. */\n  stopTimeout?: number;\n  /** Deploy in private subnets with a static outbound IP via NAT Gateway. */\n  usePrivateSubnetsWithNAT?: boolean;\n  /** Persistent EFS volumes shared across containers and restarts. */\n  volumeMounts?: Array<ContainerEfsMount>;\n};\n\n/** Union choices used by the properties above. */\ntype WorkerServicePackaging =\n  | PrebuiltCwImagePackaging\n  | CustomDockerfileCwImagePackaging\n  | ExternalBuildpackCwImagePackaging\n  | NixpacksCwImagePackaging\n  | StpBuildpackCwImagePackaging;\n// [!code focus-end]"
+    "typeDeclaration": "import type { ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, SecretEnvironmentVar, ServiceHelperContainer, StpBuildpackCwImagePackaging, StpIamRoleStatement, TracingOptions } from 'stacktape';\n\n// [!code focus-start]\ntype WorkerServiceProps = {\n  /** Configures the container image for the service. */\n  packaging: WorkerServicePackaging;\n  /** CPU, memory, and compute engine for the container. */\n  resources: ContainerWorkloadResourcesConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Allow SSH-like access to running containers for debugging. */\n  enableRemoteSessions?: boolean;\n  /** Environment variables injected into the container at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Health check that auto-replaces unhealthy containers. */\n  internalHealthCheck?: ContainerHealthCheck;\n  /** Logging configuration. */\n  logging?: ContainerWorkloadContainerLogging;\n  /** Auto-scaling: add/remove container instances based on demand. */\n  scaling?: ContainerWorkloadScaling;\n  /** Sensitive environment variables fetched by the container runtime.\n\nValues must be exact `$SsmParam(...)` or `$Secret(...)` directives. Prefer a SecureString SSM parameter for\nsecrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features\nare useful.\n\n**Example (TypeScript):**\nsecrets: {\n  DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),\n  ROTATING_API_KEY: $Secret('rotating-api-key')\n} */\n  secrets?: Array<SecretEnvironmentVar>;\n  /** Helper containers that run alongside the main container. */\n  sideContainers?: Array<ServiceHelperContainer>;\n  /** Seconds to wait for graceful shutdown before force-killing the container. */\n  stopTimeout?: number;\n  /** Distributed tracing for this service. */\n  tracing?: WorkerServiceTracing;\n  /** Deploy in private subnets with a static outbound IP via NAT Gateway. */\n  usePrivateSubnetsWithNAT?: boolean;\n  /** Persistent EFS volumes shared across containers and restarts. */\n  volumeMounts?: Array<ContainerEfsMount>;\n};\n\n/** Union choices used by the properties above. */\ntype WorkerServicePackaging =\n  | PrebuiltCwImagePackaging\n  | CustomDockerfileCwImagePackaging\n  | ExternalBuildpackCwImagePackaging\n  | NixpacksCwImagePackaging\n  | StpBuildpackCwImagePackaging;\n\ntype WorkerServiceTracing =\n  | TracingOptions\n  | \"option-2\";\n// [!code focus-end]"
   }
 }

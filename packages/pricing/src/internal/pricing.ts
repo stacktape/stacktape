@@ -1596,6 +1596,21 @@ const getPricingInformationForResource = async ({
       }
     };
   }
+  if (resource.type === 'synthetic-test') {
+    const priceInfo = await getCumulatedPriceInfoForProducts({
+      dynamoDbTableName,
+      region,
+      products: []
+    });
+    return {
+      priceInfo,
+      customComment:
+        'CloudWatch Synthetics charges ~$0.0012 per run (first 100 runs/month free), plus the underlying Lambda, S3 and CloudWatch Logs usage. A browser test at rate(5 minutes) costs roughly $15-20/month all-in; an API test lands closer to $11-13. Slower schedules cost proportionally less.',
+      relatedAwsPricingDocs: {
+        'CloudWatch pricing (Synthetics)': 'https://aws.amazon.com/cloudwatch/pricing/'
+      }
+    };
+  }
   if (resource.type === 'upstash-redis') {
     const priceInfo = await getCumulatedPriceInfoForProducts({
       dynamoDbTableName,

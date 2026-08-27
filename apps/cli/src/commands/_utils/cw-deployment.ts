@@ -142,13 +142,17 @@ export const getECSHotswapInformation = async ({ workload }: { workload: StpCont
         hotSwapDeploy: true
       }).imageTagWithUrl;
     }
-    // we also substitute log group name with actual name
-
-    (containerDef.LogConfiguration as LogConfiguration).Options['awslogs-group'] = awsResourceNames.containerLogGroup({
-      stackName: globalStateManager.targetStack.stackName,
-      stpResourceName: workload.name,
-      containerName: containerDef.Name as string
-    });
+    // we also substitute log group name with actual name; containers without awslogs (disabled
+    // logging) have nothing to substitute
+    if (containerDef.LogConfiguration) {
+      (containerDef.LogConfiguration as LogConfiguration).Options['awslogs-group'] = awsResourceNames.containerLogGroup(
+        {
+          stackName: globalStateManager.targetStack.stackName,
+          stpResourceName: workload.name,
+          containerName: containerDef.Name as string
+        }
+      );
+    }
   });
 
   const temporaryTemplate: CloudFormationTemplate = {

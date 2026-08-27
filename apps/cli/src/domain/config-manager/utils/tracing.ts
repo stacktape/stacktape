@@ -52,11 +52,16 @@ export const OTEL_WRAPPER_SCRIPT = '/opt/otel-instrument';
  * https://docs.aws.amazon.com/lambda/latest/dg/monitoring-application-signals.html (identical list
  * on the ADOT Lambda page). Newer runtime versions must not be assumed compatible — the layer ships
  * its own agent build per language version. Revisit together with `refresh:catalog:otel-layers`.
+ *
+ * nodejs24.x: the Lambda dev guide still lists 18–22, but the bundled ADOT JS SDK documents Node
+ * 18–24 support and 24 is Stacktape's default runtime — excluding it would silently disable tracing
+ * for default configs. Pending verification against a real stack (part of the tracing test plan).
  */
 const OTEL_SUPPORTED_RUNTIMES: Record<string, OtelLayerRuntimeFamily> = {
   'nodejs18.x': 'nodejs',
   'nodejs20.x': 'nodejs',
   'nodejs22.x': 'nodejs',
+  'nodejs24.x': 'nodejs',
   'python3.10': 'python',
   'python3.11': 'python',
   'python3.12': 'python',
@@ -78,7 +83,7 @@ export type LambdaTracingInstrumentation = {
 /** Keys of OTEL_RESOURCE_ATTRIBUTES that Stacktape owns; user-supplied values for them are dropped. */
 const RESERVED_RESOURCE_ATTRIBUTE_KEYS = ['stacktape.project', 'stacktape.stage', 'deployment.environment.name'];
 
-const mergeResourceAttributes = ({
+export const mergeResourceAttributes = ({
   userValue,
   stacktapeAttributes
 }: {
@@ -151,6 +156,44 @@ export const getLambdaTracingInstrumentation = ({
     };
   }
 
+  const { environmentOverrides, warnings } = getReservedOtelEnvironment({
+    samplingRate,
+    userEnvironment,
+    projectName,
+    stage
+  });
+  return {
+    instrumentation: {
+      layerArn,
+      environmentDefaults: {
+        AWS_LAMBDA_EXEC_WRAPPER: OTEL_WRAPPER_SCRIPT,
+        // Traces only for now; the Application Signals metrics pipeline stays off.
+        OTEL_AWS_APPLICATION_SIGNALS_ENABLED: 'false',
+        OTEL_SERVICE_NAME: resourceName
+      },
+      environmentOverrides
+    },
+    ...(warnings.length ? { warnings } : {})
+  };
+};
+
+/**
+ * The environment Stacktape always enforces on a traced workload, shared by the Lambda and
+ * container paths: config-driven sampling and the trace-identity resource attributes the Console
+ * relies on. User values for the sampler are ignored with a warning; user resource attributes are
+ * merged, with the `stacktape.*` keys reserved.
+ */
+export const getReservedOtelEnvironment = ({
+  samplingRate,
+  userEnvironment,
+  projectName,
+  stage
+}: {
+  samplingRate: number;
+  userEnvironment: Record<string, unknown>;
+  projectName: string;
+  stage: string;
+}): { environmentOverrides: Record<string, string>; warnings: string[] } => {
   const warnings: string[] = [];
   const samplerValue = 'parentbased_traceidratio';
   const samplerArg = String(samplingRate);
@@ -165,30 +208,20 @@ export const getLambdaTracingInstrumentation = ({
       );
     }
   }
-
   const userResourceAttributes = userEnvironment.OTEL_RESOURCE_ATTRIBUTES;
   return {
-    instrumentation: {
-      layerArn,
-      environmentDefaults: {
-        AWS_LAMBDA_EXEC_WRAPPER: OTEL_WRAPPER_SCRIPT,
-        // Traces only for now; the Application Signals metrics pipeline stays off.
-        OTEL_AWS_APPLICATION_SIGNALS_ENABLED: 'false',
-        OTEL_SERVICE_NAME: resourceName
-      },
-      environmentOverrides: {
-        OTEL_RESOURCE_ATTRIBUTES: mergeResourceAttributes({
-          userValue: userResourceAttributes === undefined ? undefined : String(userResourceAttributes),
-          stacktapeAttributes: {
-            'stacktape.project': projectName,
-            'stacktape.stage': stage,
-            'deployment.environment.name': stage
-          }
-        }),
-        OTEL_TRACES_SAMPLER: samplerValue,
-        OTEL_TRACES_SAMPLER_ARG: samplerArg
-      }
+    environmentOverrides: {
+      OTEL_RESOURCE_ATTRIBUTES: mergeResourceAttributes({
+        userValue: userResourceAttributes === undefined ? undefined : String(userResourceAttributes),
+        stacktapeAttributes: {
+          'stacktape.project': projectName,
+          'stacktape.stage': stage,
+          'deployment.environment.name': stage
+        }
+      }),
+      OTEL_TRACES_SAMPLER: samplerValue,
+      OTEL_TRACES_SAMPLER_ARG: samplerArg
     },
-    ...(warnings.length ? { warnings } : {})
+    warnings
   };
 };

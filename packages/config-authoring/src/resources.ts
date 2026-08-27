@@ -71,6 +71,7 @@ export const StateMachine = createResourceClass('StateMachine', 'state-machine')
 export const UserAuthPool = createResourceClass('UserAuthPool', 'user-auth-pool');
 export const UpstashRedis = createResourceClass('UpstashRedis', 'upstash-redis');
 export const UptimeCheck = createResourceClass('UptimeCheck', 'uptime-check');
+export const SyntheticTest = createResourceClass('SyntheticTest', 'synthetic-test');
 export const SqsQueue = createResourceClass('SqsQueue', 'sqs-queue');
 export const SnsTopic = createResourceClass('SnsTopic', 'sns-topic');
 export const KinesisStream = createResourceClass('KinesisStream', 'kinesis-stream');

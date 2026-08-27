@@ -16,6 +16,10 @@ export const CHILD_RESOURCES: Record<
   ],
   'email-sender': [],
   'uptime-check': [],
+  'synthetic-test': [
+    { logicalName: cfLogicalNames.syntheticCanary, resourceType: 'AWS::Synthetics::Canary' },
+    { logicalName: cfLogicalNames.syntheticCanaryRole, resourceType: 'AWS::IAM::Role' }
+  ],
   'appsync-api': [
     { logicalName: cfLogicalNames.appsyncApi, resourceType: 'AWS::AppSync::GraphQLApi' },
     { logicalName: cfLogicalNames.appsyncApiSchema, resourceType: 'AWS::AppSync::GraphQLSchema' },

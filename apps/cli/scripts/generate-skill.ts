@@ -2522,8 +2522,30 @@ Per-function override: \`tracing: false\` opts out, \`tracing: { samplingRate: 1
 
 Important caveats to tell the user:
 - Enabling tracing switches on X-Ray Transaction Search for the WHOLE AWS account+region (~$0.35/GB of spans). Deleting the stack leaves it on.
-- Supported runtimes: Node.js 18-22, Python 3.10-3.13, Java 11/17/21, .NET 8. Others are skipped with a warning.
-- Lambda functions only for now; container services are not instrumented yet.
+- Lambda runtimes: Node.js 18-24, Python 3.10-3.13, Java 11/17/21, .NET 8. Others are skipped with a warning.
+- Container services (web-service, private-service, worker-service, multi-container-workload) get an OpenTelemetry collector sidecar (256 MB hard memory cap from the task allocation); the app code needs the OpenTelemetry SDK — spans it emits are picked up automatically. EC2-based (instanceTypes) workloads are skipped.
+
+## Synthetic Tests (verify whole flows, not just uptime)
+
+Scripted browser (Playwright) or API tests running on a schedule via CloudWatch Synthetics in the user's account:
+
+\`\`\`yaml
+resources:
+  checkoutFlow:
+    type: synthetic-test
+    properties:
+      test:
+        type: browser
+        properties:
+          scriptPath: ./e2e/checkout.canary.ts
+      scheduleRate: rate(15 minutes)  # default rate(5 minutes)
+      notificationChannels:
+        - type: console-channel
+          properties:
+            channelName: on-call-slack
+\`\`\`
+
+The script exports a \`handler\`; browser tests use \`import { synthetics } from '@aws/synthetics-playwright'\` (synthetics.launch() / synthetics.newPage(browser)); a run fails when the handler throws. COST WARNING to tell the user: ~\$0.0012/run — a 5-minute browser test is roughly \$15-20/month all-in. Reserve for the few flows whose breakage costs customers (sign-in, checkout).
 
 ## Alarms (alert on metric thresholds)
 

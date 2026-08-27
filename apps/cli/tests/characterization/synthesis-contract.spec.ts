@@ -58,6 +58,7 @@ import {
   SqsQueueEventBusIntegration,
   StacktapeImageBuildpackPackaging,
   StacktapeLambdaBuildpackPackaging,
+  SyntheticTest,
   UptimeCheck,
   UserAuthPool,
   WebSocketApiGateway,
@@ -75,7 +76,9 @@ const createDenseConfig = ({
   kafkaRemoteInDev = false,
   infrequentAccessWorkerLogs = false,
   subscribeToWorkerLogs = false,
-  includeUptimeCheck = false
+  includeUptimeCheck = false,
+  includeTracing = false,
+  includeSyntheticTest = false
 }: {
   includeAppsync?: boolean;
   includeDsql?: boolean;
@@ -86,6 +89,8 @@ const createDenseConfig = ({
   infrequentAccessWorkerLogs?: boolean;
   subscribeToWorkerLogs?: boolean;
   includeUptimeCheck?: boolean;
+  includeTracing?: boolean;
+  includeSyntheticTest?: boolean;
 } = {}) =>
   defineConfig(() => {
     const apiGateway = new HttpApiGateway({
@@ -175,6 +180,11 @@ const createDenseConfig = ({
     const homepageUptime = new UptimeCheck({
       url: 'https://example.com',
       regions: ['eu-west-1']
+    });
+    const homepageFlow = new SyntheticTest({
+      test: { type: 'browser', properties: { scriptPath: './e2e-canary.ts' } },
+      scheduleRate: 'rate(10 minutes)',
+      notificationChannels: [{ type: 'console-channel', properties: { channelName: 'on-call' } }]
     });
     const kafkaCluster = new KafkaCluster(kafkaRemoteInDev ? { dev: { remote: true } } : {});
     const api = new LambdaFunction({
@@ -319,6 +329,7 @@ const createDenseConfig = ({
         ...(includeDsql ? { dsqlDatabase } : {}),
         ...(includeKafka ? { kafkaCluster } : {}),
         ...(includeUptimeCheck ? { apiUptime, homepageUptime } : {}),
+        ...(includeSyntheticTest ? { homepageFlow } : {}),
         api,
         worker,
         ...(subscribeToWorkerLogs ? { logObserver } : {}),
@@ -334,7 +345,8 @@ const createDenseConfig = ({
             export: true
           }
         ],
-        tags: [{ name: 'suite', value: 'characterization' }]
+        tags: [{ name: 'suite', value: 'characterization' }],
+        ...(includeTracing ? { tracing: { enabled: true, samplingRate: 0.3 } } : {})
       },
       finalTransform: (template) => ({
         ...template,
@@ -364,6 +376,8 @@ export const synthesizeDenseFixture = async ({
   infrequentAccessWorkerLogs,
   subscribeToWorkerLogs,
   includeUptimeCheck,
+  includeTracing,
+  includeSyntheticTest,
   remoteResources
 }: {
   synthesisContext?: Partial<StackContext>;
@@ -413,7 +427,9 @@ export const synthesizeDenseFixture = async ({
       includeWebsocket,
       infrequentAccessWorkerLogs,
       subscribeToWorkerLogs,
-      includeUptimeCheck
+      includeUptimeCheck,
+      includeTracing,
+      includeSyntheticTest
     });
     globalStateManager.presetConfig = compiledConfig.config;
     globalStateManager.persistedState = {
@@ -1056,6 +1072,133 @@ describe('full synthesis contract', () => {
     // Dev stacks are ephemeral; they must not provision probers.
     const devTemplate = await synthesizeDenseFixture({ includeUptimeCheck: true, command: 'dev' });
     expect(devTemplate.Resources[cfLogicalNames.customResourceUptimeMonitoring()]).toBeUndefined();
+  });
+
+  test('synthesizes a synthetic test into a canary, execution role, alarm and notification rule', async () => {
+    const template = await synthesizeDenseFixture({ includeSyntheticTest: true });
+    const resources = template.Resources as Record<string, any>;
+
+    const canary = resources[cfLogicalNames.syntheticCanary('homepageFlow')];
+    expect(canary).toMatchObject({ Type: 'AWS::Synthetics::Canary' });
+    expect(canary.Properties.Name).toBe('characterization-baseline-homepageflow');
+    expect(canary.Properties.RuntimeVersion).toBe('syn-nodejs-playwright-8.0');
+    expect(canary.Properties.Schedule).toEqual({ Expression: 'rate(10 minutes)' });
+    expect(canary.Properties.Code.Handler).toBe('index.handler');
+    // The script bundled to CJS: the runtime package stays external, the handler is exported.
+    expect(canary.Properties.Code.Script).toContain('@aws/synthetics-playwright');
+    expect(canary.Properties.Code.Script).toContain('handler');
+    expect(canary.Properties.RunConfig).toMatchObject({ TimeoutInSeconds: 60, MemoryInMB: 1024 });
+    expect(canary.Properties.ProvisionedResourceCleanup).toBe('AUTOMATIC');
+    expect(canary.Properties.ArtifactS3Location).toMatch(/^s3:\/\/.+\/synthetics\/homepageFlow$/);
+
+    const role = resources[cfLogicalNames.syntheticCanaryRole('homepageFlow')];
+    const roleStatements = role.Properties.Policies[0].PolicyDocument.Statement;
+    expect(roleStatements.some((statement: any) => (statement.Action || []).includes('cloudwatch:PutMetricData'))).toBe(
+      true
+    );
+
+    const alarm = resources[cfLogicalNames.cloudwatchAlarm('homepageFlow-availability')];
+    expect(alarm.Properties).toMatchObject({
+      Namespace: 'CloudWatchSynthetics',
+      MetricName: 'SuccessPercent',
+      Threshold: 100,
+      ComparisonOperator: 'LessThanThreshold',
+      TreatMissingData: 'breaching',
+      Period: 600
+    });
+    expect(alarm.Properties.Dimensions).toEqual([
+      { Name: 'CanaryName', Value: 'characterization-baseline-homepageflow' }
+    ]);
+
+    const rule = resources[cfLogicalNames.cloudwatchAlarmEventBusNotificationRule('homepageFlow-availability')];
+    const inputTemplate = rule.Properties.Targets[0].InputTransformer.InputTemplate;
+    const templateText = typeof inputTemplate === 'string' ? inputTemplate : JSON.stringify(inputTemplate);
+    expect(templateText).toContain('synthetic-test-failure');
+    expect(templateText).toContain('console-channel');
+
+    // Dev stacks skip canaries entirely.
+    const devTemplate = await synthesizeDenseFixture({ includeSyntheticTest: true, command: 'dev' });
+    expect(devTemplate.Resources[cfLogicalNames.syntheticCanary('homepageFlow')]).toBeUndefined();
+  });
+
+  test('synthesizes tracing: layers and env for functions, sidecar and IAM for containers', async () => {
+    const template = await synthesizeDenseFixture({ includeTracing: true });
+    const resources = template.Resources as Record<string, any>;
+
+    // Account-level enablement exists exactly once, and traced workloads wait for it.
+    expect(resources[cfLogicalNames.customResourceTransactionSearch()]).toMatchObject({
+      Type: 'AWS::CloudFormation::CustomResource'
+    });
+
+    // Lambda side: managed OTel layer + activation environment.
+    const workerFn = resources[cfLogicalNames.lambda('worker')];
+    expect(workerFn.Properties.Layers.some((layer: any) => String(layer).includes('AWSOpenTelemetryDistroJs'))).toBe(
+      true
+    );
+    expect(workerFn.Properties.Environment.Variables).toMatchObject({
+      AWS_LAMBDA_EXEC_WRAPPER: '/opt/otel-instrument',
+      OTEL_TRACES_SAMPLER: 'parentbased_traceidratio',
+      OTEL_TRACES_SAMPLER_ARG: '0.3',
+      OTEL_RESOURCE_ATTRIBUTES:
+        'stacktape.project=characterization,stacktape.stage=baseline,deployment.environment.name=baseline'
+    });
+    expect(workerFn.DependsOn).toContain(cfLogicalNames.customResourceTransactionSearch());
+
+    // Container side: the web service's task runs the hard-bounded collector sidecar.
+    const webWorkloadName = 'web';
+    const taskDefinition = resources[cfLogicalNames.ecsTaskDefinition(webWorkloadName)];
+    const containerNames = taskDefinition.Properties.ContainerDefinitions.map(({ Name }: any) => Name);
+    expect(containerNames).toContain('stp-otel-collector');
+    const collector = taskDefinition.Properties.ContainerDefinitions.find(
+      ({ Name }: any) => Name === 'stp-otel-collector'
+    );
+    expect(collector.Essential).toBe(false);
+    expect(collector.Cpu).toBe(128);
+    expect(collector.Memory).toBe(256);
+    // ECS requires the CMD/CMD-SHELL prefix; a bare command fails task-definition registration.
+    expect(collector.HealthCheck.Command).toEqual(['CMD', '/healthcheck']);
+    const collectorConfig = collector.Environment.find(({ Name }: any) => Name === 'AOT_CONFIG_CONTENT').Value;
+    expect(collectorConfig).toContain('https://xray.eu-west-1.amazonaws.com/v1/traces');
+    expect(collectorConfig).toContain('sigv4auth');
+    expect(collectorConfig).toContain('memory_limiter');
+    // connectTo variables (which can carry database credentials) never reach the collector.
+    expect(collector.Environment.map(({ Name }: any) => Name)).toEqual(['AOT_CONFIG_CONTENT']);
+
+    const appContainer = taskDefinition.Properties.ContainerDefinitions.find(
+      ({ Name }: any) => !Name.startsWith('stp-otel')
+    );
+    const appEnvironment = Object.fromEntries(appContainer.Environment.map(({ Name, Value }: any) => [Name, Value]));
+    expect(appEnvironment).toMatchObject({
+      OTEL_EXPORTER_OTLP_ENDPOINT: 'http://localhost:4318',
+      OTEL_METRICS_EXPORTER: 'none',
+      OTEL_TRACES_SAMPLER_ARG: '0.3'
+    });
+
+    // Task role can write spans; the ECS service waits for Transaction Search.
+    const taskRole = resources[cfLogicalNames.ecsTaskRole(webWorkloadName)];
+    const taskRoleActions = (taskRole.Properties.Policies || [])
+      .flatMap((policy: any) => policy.PolicyDocument.Statement)
+      .flatMap((statement: any) => statement.Action || []);
+    expect(taskRoleActions).toContain('xray:PutSpans');
+    expect(resources[cfLogicalNames.ecsService(webWorkloadName, false)].DependsOn).toContain(
+      cfLogicalNames.customResourceTransactionSearch()
+    );
+    // The collector gets its own log group.
+    expect(resources[cfLogicalNames.ecsLogGroup(webWorkloadName, 'stp-otel-collector')]).toBeDefined();
+
+    // Zero churn without tracing: none of this exists in the baseline template.
+    const baseline = await synthesizeDenseFixture();
+    expect(baseline.Resources[cfLogicalNames.customResourceTransactionSearch()]).toBeUndefined();
+    const baselineTask = baseline.Resources[cfLogicalNames.ecsTaskDefinition(webWorkloadName)] as any;
+    expect(baselineTask.Properties.ContainerDefinitions.map(({ Name }: any) => Name)).not.toContain(
+      'stp-otel-collector'
+    );
+    const baselineWorker = baseline.Resources[cfLogicalNames.lambda('worker')] as any;
+    expect(baselineWorker.Properties.Environment.Variables.AWS_LAMBDA_EXEC_WRAPPER).toBeUndefined();
+
+    // Dev stacks skip tracing entirely.
+    const devTemplate = await synthesizeDenseFixture({ includeTracing: true, command: 'dev' });
+    expect(devTemplate.Resources[cfLogicalNames.customResourceTransactionSearch()]).toBeUndefined();
   });
 
   test('synthesizes the complete AppSync Lambda-resolver and connectTo contract', async () => {

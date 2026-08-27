@@ -155,6 +155,12 @@ export const cfEvaluatedLinks = {
   cloudwatchAlarm(alarmName: string | Intrinsic) {
     return getBaseCfSubstitutedAwsConsoleLink('cloudwatch', sub(`alarmsV2:alarm/\${alarmName}`, { alarmName }));
   },
+  syntheticsCanary(canaryName: string | Intrinsic) {
+    return getBaseCfSubstitutedAwsConsoleLink(
+      'cloudwatch',
+      sub('synthetics:canary/detail/${canaryName}', { canaryName })
+    );
+  },
   firewall({ region, awsWebACLName, awsWebACLId }: { region: string; awsWebACLName: string; awsWebACLId: Intrinsic }) {
     return sub(
       `https://us-east-1.console.aws.amazon.com/wafv2/homev2/web-acl/${awsWebACLName}/\${awsWebACLId}/overview?region=${region}`,
