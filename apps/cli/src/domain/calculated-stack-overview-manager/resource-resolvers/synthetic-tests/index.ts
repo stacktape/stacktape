@@ -9,6 +9,7 @@ import { cfEvaluatedLinks } from '@domain-services/calculated-stack-overview-man
 import { configManager } from '@domain-services/config-manager';
 import {
   MAX_SYNTHETIC_SCRIPT_BYTES,
+  MAX_SYNTHETIC_TOTAL_SCRIPT_BYTES,
   SYNTHETIC_RUNTIME_EXTERNAL_MODULES,
   SYNTHETIC_RUNTIME_VERSIONS,
   getScheduleIntervalSeconds
@@ -33,7 +34,7 @@ import { addSharedAlarmNotificationPermission } from '../_utils/alarms';
 const bundleSyntheticScript = async (test: StpSyntheticTest): Promise<string> => {
   const scriptPath = isAbsolute(test.test.properties.scriptPath)
     ? test.test.properties.scriptPath
-    : join(globalStateManager.args.currentWorkingDirectory, test.test.properties.scriptPath);
+    : join(globalStateManager.workingDir, test.test.properties.scriptPath);
   if (!existsSync(scriptPath)) {
     throw configErrors.syntheticTestScriptInvalid({
       testName: test.name,
@@ -51,6 +52,11 @@ const bundleSyntheticScript = async (test: StpSyntheticTest): Promise<string> =>
       external: SYNTHETIC_RUNTIME_EXTERNAL_MODULES
     });
     bundled = await buildResult.outputs[0].text();
+    // The Synthetics runtime loads the script with `import()`, and Node's cjs-module-lexer cannot
+    // statically see the getter-based exports Bun's CJS output uses — the namespace then has no
+    // `handler` and every run dies with "customerCanary[functionName] is not a function". This
+    // dead-code annotation is the esbuild convention the lexer recognizes (verified live).
+    bundled += '\n0 && (module.exports = { handler });\n';
   } catch (err) {
     throw configErrors.syntheticTestScriptInvalid({
       testName: test.name,
@@ -84,18 +90,20 @@ const getCanaryExecutionRole = ({ test, canaryName }: { test: StpSyntheticTest; 
             {
               Effect: 'Allow',
               Action: ['s3:PutObject', 's3:GetObject'],
-              Resource: [`arn:aws:s3:::${artifactBucket}/synthetics/${test.name}/*`]
+              Resource: [sub(`arn:\${AWS::Partition}:s3:::${artifactBucket}/synthetics/${test.name}/*`)]
             },
             {
               Effect: 'Allow',
               Action: ['s3:GetBucketLocation'],
-              Resource: [`arn:aws:s3:::${artifactBucket}`]
+              Resource: [sub(`arn:\${AWS::Partition}:s3:::${artifactBucket}`)]
             },
             {
               Effect: 'Allow',
               Action: ['logs:CreateLogGroup', 'logs:CreateLogStream', 'logs:PutLogEvents'],
               Resource: [
-                sub(`arn:aws:logs:\${AWS::Region}:\${AWS::AccountId}:log-group:/aws/lambda/cwsyn-${canaryName}-*`)
+                sub(
+                  `arn:\${AWS::Partition}:logs:\${AWS::Region}:\${AWS::AccountId}:log-group:/aws/lambda/cwsyn-${canaryName}-*`
+                )
               ]
             },
             {
@@ -126,14 +134,17 @@ const getSuccessPercentAlarm = ({ test, canaryName }: { test: StpSyntheticTest; 
     MetricName: 'SuccessPercent',
     Dimensions: [{ Name: 'CanaryName', Value: canaryName }],
     Statistic: 'Average',
-    // Rate schedules: one failed run trips the alarm, and a stopped or broken canary must alarm
-    // too, so missing data breaches at the run interval. Cron schedules run irregularly (possibly
-    // hours apart) — quiet periods are normal there, so only actual failing datapoints alarm.
+    // One failed run trips the alarm, and missing data is IGNORED: the alarm holds its last real
+    // state between runs. `breaching` would page a phantom failure the moment a new test deploys
+    // (alarms evaluate before the first run reports), and `notBreaching` would flip a failing
+    // sparse-schedule test back to OK once its failure datapoint ages out of the period — a false
+    // recovery without a passing run. A canary that stops running keeps its last state; the stopped
+    // state itself is visible in the Console.
     Period: intervalSeconds ?? 3600,
     EvaluationPeriods: 1,
     Threshold: 100,
     ComparisonOperator: 'LessThanThreshold',
-    TreatMissingData: intervalSeconds !== undefined ? 'breaching' : 'notBreaching'
+    TreatMissingData: 'ignore'
   });
 };
 
@@ -178,7 +189,12 @@ const getAlarmNotificationRule = ({ test, canaryName }: { test: StpSyntheticTest
       source: ['aws.cloudwatch'],
       'detail-type': ['CloudWatch Alarm State Change'],
       resources: [getAtt(cfLogicalNames.cloudwatchAlarm(alarmName), 'Arn')],
-      detail: { state: { value: ['ALARM', 'OK'] } }
+      // Recovery only counts coming out of a real failure: a new test's first passing run moves the
+      // alarm INSUFFICIENT_DATA -> OK, and forwarding that would announce a recovery for a test
+      // that never failed.
+      detail: {
+        $or: [{ state: { value: ['ALARM'] } }, { state: { value: ['OK'] }, previousState: { value: ['ALARM'] } }]
+      }
     },
     Targets: [
       {
@@ -207,9 +223,20 @@ export const resolveSyntheticTests = async () => {
   }
   const { stackName, globallyUniqueStackHash } = calculatedStackOverviewManager.context;
 
+  // Every script ships inside the ONE CloudFormation template (1 MB cap), so the per-script limit
+  // alone cannot protect a stack with many tests.
+  let totalScriptBytes = 0;
+
   for (const test of syntheticTests) {
     const canaryName = awsResourceNames.syntheticCanary(stackName, test.name);
     const script = await bundleSyntheticScript(test);
+    totalScriptBytes += Buffer.byteLength(script, 'utf8');
+    if (totalScriptBytes > MAX_SYNTHETIC_TOTAL_SCRIPT_BYTES) {
+      throw configErrors.syntheticTestScriptInvalid({
+        testName: test.name,
+        reason: `the bundled scripts of all synthetic tests together exceed ${Math.round(MAX_SYNTHETIC_TOTAL_SCRIPT_BYTES / 1024)} KB. They all ship inside the CloudFormation template, which is capped at 1 MB in total — shrink the scripts or split the tests across stacks.`
+      });
+    }
     const roleLogicalName = cfLogicalNames.syntheticCanaryRole(test.name);
 
     calculatedStackOverviewManager.addCfChildResource({

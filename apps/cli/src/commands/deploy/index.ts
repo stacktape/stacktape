@@ -327,6 +327,29 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     }
   });
 
+  // Pre-announce the new uptime-check revisions to the Console. The custom resource writes them to
+  // the prober manifests DURING the CloudFormation update, so on long deploys probers report the
+  // new revision minutes before the post-deploy sync — without this, those reports are dropped.
+  // Best-effort and update-only: on a first deploy nothing probes yet, and runtime directives can
+  // only resolve against an existing stack. Hotswaps never run the custom resource, so announcing
+  // a new revision under one would split the Console's definition from the manifests probers use.
+  if (config.uptimeChecks.length && stack.existingStackDetails && !useHotswap) {
+    try {
+      await stacktapeApi.apiClient.syncUptimeChecks(
+        (await config.resolveDirectives({
+          itemToResolve: buildUptimeChecksSyncPayload({
+            checks: config.uptimeChecks,
+            projectName: stackContext.projectName,
+            stage: stackContext.stage
+          }),
+          resolveRuntime: true
+        })) as ReturnType<typeof buildUptimeChecksSyncPayload>
+      );
+    } catch {
+      // The authoritative sync after a successful deploy retries with warnings.
+    }
+  }
+
   event.setPhase('DEPLOY');
   if (useHotswap) {
     await performHotswapDeploy({ config, event });
@@ -394,23 +417,33 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
 
   // Config is the source of truth for uptime checks; the Console keeps a read-only projection so it
   // can evaluate probe results and render history. A sync failure must not fail a finished deploy.
-  try {
-    const { missingChannelNames } = await withSyncRetries(() =>
-      stacktapeApi.apiClient.syncUptimeChecks(
-        buildUptimeChecksSyncPayload({
+  // Hotswaps skip the sync: changed uptime definitions always change the template and therefore
+  // force a full deploy, so under a hotswap the sync could only re-announce unchanged definitions —
+  // and must never announce anything the manifests (untouched by hotswap) do not carry.
+  if (!useHotswap) {
+    try {
+      // The revision hashes the authored (unresolved) definition, so it is computed BEFORE resolving
+      // directives — it must stay byte-identical to the revision the prober manifests carry. The
+      // payload the Console stores must carry real values, not `$ResourceParam`/`$Secret` source text.
+      const uptimeChecksSyncPayload = (await config.resolveDirectives({
+        itemToResolve: buildUptimeChecksSyncPayload({
           checks: config.uptimeChecks,
           projectName: stackContext.projectName,
           stage: stackContext.stage
-        })
-      )
-    );
-    missingChannelNames.forEach((channelName) => {
-      tui.warn(
-        `Notification channel \`${channelName}\` referenced by an uptime check does not exist in your organization's Console channels. Its notifications will not be delivered until it is created.`
+        }),
+        resolveRuntime: true
+      })) as ReturnType<typeof buildUptimeChecksSyncPayload>;
+      const { missingChannelNames } = await withSyncRetries(() =>
+        stacktapeApi.apiClient.syncUptimeChecks(uptimeChecksSyncPayload)
       );
-    });
-  } catch (err) {
-    tui.warn(`Could not sync uptime check definitions to the Stacktape Console: ${err}`);
+      missingChannelNames.forEach((channelName) => {
+        tui.warn(
+          `Notification channel \`${channelName}\` referenced by an uptime check does not exist in your organization's Console channels. Its notifications will not be delivered until it is created.`
+        );
+      });
+    } catch (err) {
+      tui.warn(`Could not sync uptime check definitions to the Stacktape Console: ${err}`);
+    }
   }
 
   const consoleUrl = `https://console.stacktape.com/projects/${stackContext.projectName}/${stackContext.stage}/overview`;

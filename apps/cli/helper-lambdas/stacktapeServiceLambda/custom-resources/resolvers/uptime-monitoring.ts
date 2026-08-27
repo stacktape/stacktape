@@ -4,6 +4,7 @@ import type {
   StpServiceCustomResourceUptimeMonitoringProps
 } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
 import type { UptimeCheckManifestEntry, UptimeRegionAssignment } from '@helper-lambdas/uptimeProber/manifest';
+import { normalizeUptimeManifestEntry } from '@helper-lambdas/uptimeProber/manifest';
 import { EventBridge } from '@aws-sdk/client-eventbridge';
 import { IAM, EntityAlreadyExistsException, NoSuchEntityException } from '@aws-sdk/client-iam';
 import {
@@ -137,11 +138,13 @@ const provisionRegion = async ({
 
   // Manifests are written before the prober infrastructure so a concurrent stack's last-one-out
   // teardown can never observe an empty prefix while this stack still expects probing here.
+  // Normalization is load-bearing: CloudFormation stringified every scalar of these entries on the
+  // way into the custom resource, and the prober rejects (or mis-evaluates) stringified manifests.
   await Promise.all(
     assignment.checks.map((entry) =>
       ssm.putParameter({
         Name: helperLambdaAwsResourceNames.uptimeManifestParameter(entry.stackName, entry.checkName),
-        Value: JSON.stringify(entry),
+        Value: JSON.stringify(normalizeUptimeManifestEntry(entry)),
         Type: 'String',
         Overwrite: true
       })
@@ -187,24 +190,43 @@ const provisionRegion = async ({
   }
   const currentDigest = existing?.Configuration?.Environment?.Variables?.ARTIFACT_DIGEST;
   const currentApiUrl = existing?.Configuration?.Environment?.Variables?.STACKTAPE_TRPC_API_ENDPOINT;
+  // Concurrent deploys of different stacks race on the shared prober: a conflict means the other
+  // deploy's update is mid-flight, so wait it out and retry rather than failing this deployment.
+  const updateToleratingConcurrentDeploys = async (performUpdate: () => Promise<unknown>) => {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await performUpdate();
+        return;
+      } catch (err) {
+        if (!(err instanceof LambdaConflictException) || attempt >= 5) {
+          throw err;
+        }
+        await waitUntilFunctionUpdatedV2({ client: lambda, maxWaitTime: 120 }, { FunctionName: functionName });
+      }
+    }
+  };
   if (currentDigest !== props.proberArtifact.digest) {
     console.info(`Updating uptime prober code in ${region} (${currentDigest} -> ${props.proberArtifact.digest})...`);
     await waitUntilFunctionUpdatedV2({ client: lambda, maxWaitTime: 120 }, { FunctionName: functionName });
-    await lambda.updateFunctionCode({
-      FunctionName: functionName,
-      S3Bucket: stagingBucket,
-      S3Key: props.proberArtifact.s3Key
-    });
+    await updateToleratingConcurrentDeploys(() =>
+      lambda.updateFunctionCode({
+        FunctionName: functionName,
+        S3Bucket: stagingBucket,
+        S3Key: props.proberArtifact.s3Key
+      })
+    );
   }
   if (currentDigest !== props.proberArtifact.digest || currentApiUrl !== props.apiUrl) {
     await waitUntilFunctionUpdatedV2({ client: lambda, maxWaitTime: 120 }, { FunctionName: functionName });
-    await lambda.updateFunctionConfiguration({
-      FunctionName: functionName,
-      Environment: { Variables: desiredEnvironment },
-      MemorySize: PROBER_MEMORY_MB,
-      Timeout: PROBER_TIMEOUT_SECONDS,
-      Runtime: PROBER_RUNTIME
-    });
+    await updateToleratingConcurrentDeploys(() =>
+      lambda.updateFunctionConfiguration({
+        FunctionName: functionName,
+        Environment: { Variables: desiredEnvironment },
+        MemorySize: PROBER_MEMORY_MB,
+        Timeout: PROBER_TIMEOUT_SECONDS,
+        Runtime: PROBER_RUNTIME
+      })
+    );
     await waitUntilFunctionUpdatedV2({ client: lambda, maxWaitTime: 120 }, { FunctionName: functionName });
   }
 

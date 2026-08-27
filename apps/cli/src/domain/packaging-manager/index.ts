@@ -1453,7 +1453,17 @@ export class PackagingManager {
           });
           // Lambda@Edge doesn't support ESM with top-level await, so force CJS for edge functions
           const isEdgeFunction = workloadType === 'edge-lambda-function';
-          const useEsm = !isEdgeFunction && (languageSpecificConfig?.outputModuleFormat === 'esm' || nodeVersion >= 24);
+          // The AWS-managed OTel layer cannot instrument ESM output (verified on a real stack: it
+          // initializes, wraps nothing, and spans silently vanish), so traced functions bundle as
+          // CJS. An explicit user `esm` choice never reaches this branch — instrumentation is
+          // skipped for it upstream, with a warning.
+          const tracedAsCjs =
+            packagingType === 'stacktape-lambda-buildpack' &&
+            configManager.instrumentedLambdaFunctions.some(({ name: tracedName }) => tracedName === workloadName);
+          const useEsm =
+            !isEdgeFunction &&
+            !tracedAsCjs &&
+            (languageSpecificConfig?.outputModuleFormat === 'esm' || nodeVersion >= 24);
           const sharedStpBuildpackProps = {
             ...packaging.properties,
             minify: false,

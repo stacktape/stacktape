@@ -59,4 +59,26 @@ describe('validateSyntheticTest', () => {
     expect(() => validateSyntheticTest({ test: baseTest({ retentionDays: 0 }) })).toThrow(/between 1 and 455/);
     expect(() => validateSyntheticTest({ test: baseTest({ retentionDays: 500 }) })).toThrow(/between 1 and 455/);
   });
+
+  test('rejects environment variables AWS would reject at deploy time', () => {
+    const withEnvironment = (environment: { name: string; value: string }[]) => baseTest({ environment });
+    expect(() =>
+      validateSyntheticTest({ test: withEnvironment([{ name: 'TARGET_URL', value: 'https://example.com' }]) })
+    ).not.toThrow();
+    expect(() => validateSyntheticTest({ test: withEnvironment([{ name: '2FA_CODE', value: 'x' }]) })).toThrow(
+      /start with a letter/
+    );
+    expect(() => validateSyntheticTest({ test: withEnvironment([{ name: 'MY-VAR', value: 'x' }]) })).toThrow(
+      /start with a letter/
+    );
+    expect(() => validateSyntheticTest({ test: withEnvironment([{ name: 'AWS_REGION', value: 'x' }]) })).toThrow(
+      /reserved/
+    );
+    expect(() => validateSyntheticTest({ test: withEnvironment([{ name: 'LAMBDA_TASK_ROOT', value: 'x' }]) })).toThrow(
+      /reserved/
+    );
+    expect(() => validateSyntheticTest({ test: withEnvironment([{ name: 'BIG', value: 'x'.repeat(5000) }]) })).toThrow(
+      /4096 bytes/
+    );
+  });
 });

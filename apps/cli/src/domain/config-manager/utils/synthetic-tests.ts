@@ -82,7 +82,46 @@ export const validateSyntheticTest = ({ test }: { test: StpSyntheticTest }) => {
       reason: 'synthetic test names may contain only letters, digits, `_` and `-`'
     });
   }
+  // Canary environment variables become Lambda environment variables, and AWS rejects the whole
+  // canary at deploy time for names Lambda reserves or a total size above 4 KB — catch it here.
+  const environment = test.environment || [];
+  for (const { name } of environment) {
+    if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(name)) {
+      throw configErrors.syntheticTestPropertyInvalid({
+        testName: test.name,
+        property: 'environment',
+        reason: `variable name \`${name}\` is invalid: names must start with a letter and contain only letters, digits and \`_\``
+      });
+    }
+    if (name.startsWith('AWS_') || RESERVED_CANARY_ENVIRONMENT_NAMES.has(name)) {
+      throw configErrors.syntheticTestPropertyInvalid({
+        testName: test.name,
+        property: 'environment',
+        reason: `variable name \`${name}\` is reserved by the AWS Lambda runtime the canary runs on`
+      });
+    }
+  }
+  const environmentBytes = environment.reduce(
+    (total, { name, value }) => total + Buffer.byteLength(`${name}=${String(value)}`, 'utf8'),
+    0
+  );
+  if (environmentBytes > MAX_CANARY_ENVIRONMENT_BYTES) {
+    throw configErrors.syntheticTestPropertyInvalid({
+      testName: test.name,
+      property: 'environment',
+      reason: `environment variables total ${environmentBytes} bytes; AWS caps a canary's environment at ${MAX_CANARY_ENVIRONMENT_BYTES} bytes`
+    });
+  }
 };
+
+/** Lambda-reserved names without the `AWS_` prefix (that whole prefix is rejected separately). */
+const RESERVED_CANARY_ENVIRONMENT_NAMES = new Set([
+  '_HANDLER',
+  '_X_AMZN_TRACE_ID',
+  'LAMBDA_TASK_ROOT',
+  'LAMBDA_RUNTIME_DIR'
+]);
+const MAX_CANARY_ENVIRONMENT_BYTES = 4 * 1024;
 
 /** Modules the Synthetics runtime provides; the user script imports them without bundling them. */
 export const SYNTHETIC_RUNTIME_EXTERNAL_MODULES = [
@@ -114,3 +153,9 @@ export const SYNTHETIC_RUNTIME_VERSIONS = {
  * leaves ample room for the rest of the stack while fitting any sane test script.
  */
 export const MAX_SYNTHETIC_SCRIPT_BYTES = 250 * 1024;
+
+/**
+ * All scripts of a stack land in that same 1 MB template, so their sum is capped too — 600 KB
+ * leaves the rest of the template a comfortable share.
+ */
+export const MAX_SYNTHETIC_TOTAL_SCRIPT_BYTES = 600 * 1024;

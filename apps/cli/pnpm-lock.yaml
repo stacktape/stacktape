@@ -137,6 +137,9 @@ importers:
       '@aws-sdk/client-sts':
         specifier: 3.895.0
         version: 3.895.0
+      '@aws-sdk/client-synthetics':
+        specifier: 3.895.0
+        version: 3.895.0
       '@aws-sdk/client-wafv2':
         specifier: 3.895.0
         version: 3.895.0
@@ -816,6 +819,10 @@ packages:
 
   '@aws-sdk/client-sts@3.895.0':
     resolution: {integrity: sha512-tDlAk5Xjminr3/rvFjmfB5PTb7VEo628DQEqV79ReM+RRQQCEesZ/s5zMRua/QeUmaq0V2QAnr24ELTbfAEYqQ==}
+    engines: {node: '>=18.0.0'}
+
+  '@aws-sdk/client-synthetics@3.895.0':
+    resolution: {integrity: sha512-jn3KsM8gR039shv5Y/T9Fn5yUl4/AVD3BHZdjw9vg6Alg0DU8ZiwHuD5zsOf1b0ikPfS9Eh9DbZWmt5+rDsFFA==}
     engines: {node: '>=18.0.0'}
 
   '@aws-sdk/client-wafv2@3.895.0':
@@ -5105,7 +5112,7 @@ snapshots:
       '@aws-sdk/util-user-agent-node': 3.895.0
       '@smithy/config-resolver': 4.6.14
       '@smithy/core': 3.30.0
-      '@smithy/fetch-http-handler': 5.6.11
+      '@smithy/fetch-http-handler': 5.3.9
       '@smithy/hash-node': 4.4.14
       '@smithy/invalid-dependency': 4.4.14
       '@smithy/middleware-content-length': 4.4.14
@@ -5115,7 +5122,7 @@ snapshots:
       '@smithy/middleware-stack': 4.4.14
       '@smithy/node-config-provider': 4.5.14
       '@smithy/node-http-handler': 4.9.11
-      '@smithy/protocol-http': 5.5.14
+      '@smithy/protocol-http': 5.3.8
       '@smithy/smithy-client': 4.14.14
       '@smithy/types': 4.16.1
       '@smithy/url-parser': 4.4.14
@@ -6535,6 +6542,50 @@ snapshots:
     transitivePeerDependencies:
       - aws-crt
 
+  '@aws-sdk/client-synthetics@3.895.0':
+    dependencies:
+      '@aws-crypto/sha256-browser': 5.2.0
+      '@aws-crypto/sha256-js': 5.2.0
+      '@aws-sdk/core': 3.894.0
+      '@aws-sdk/credential-provider-node': 3.895.0
+      '@aws-sdk/middleware-host-header': 3.893.0
+      '@aws-sdk/middleware-logger': 3.893.0
+      '@aws-sdk/middleware-recursion-detection': 3.893.0
+      '@aws-sdk/middleware-user-agent': 3.895.0
+      '@aws-sdk/region-config-resolver': 3.893.0
+      '@aws-sdk/types': 3.893.0
+      '@aws-sdk/util-endpoints': 3.895.0
+      '@aws-sdk/util-user-agent-browser': 3.893.0
+      '@aws-sdk/util-user-agent-node': 3.895.0
+      '@smithy/config-resolver': 4.6.14
+      '@smithy/core': 3.30.0
+      '@smithy/fetch-http-handler': 5.3.9
+      '@smithy/hash-node': 4.4.14
+      '@smithy/invalid-dependency': 4.4.14
+      '@smithy/middleware-content-length': 4.4.14
+      '@smithy/middleware-endpoint': 4.6.14
+      '@smithy/middleware-retry': 4.7.14
+      '@smithy/middleware-serde': 4.4.14
+      '@smithy/middleware-stack': 4.4.14
+      '@smithy/node-config-provider': 4.5.14
+      '@smithy/node-http-handler': 4.9.11
+      '@smithy/protocol-http': 5.3.8
+      '@smithy/smithy-client': 4.14.14
+      '@smithy/types': 4.16.1
+      '@smithy/url-parser': 4.4.14
+      '@smithy/util-base64': 4.5.14
+      '@smithy/util-body-length-browser': 4.4.14
+      '@smithy/util-body-length-node': 4.4.14
+      '@smithy/util-defaults-mode-browser': 4.5.14
+      '@smithy/util-defaults-mode-node': 4.4.14
+      '@smithy/util-endpoints': 3.6.14
+      '@smithy/util-middleware': 4.4.14
+      '@smithy/util-retry': 4.5.14
+      '@smithy/util-utf8': 4.4.14
+      tslib: 2.8.1
+    transitivePeerDependencies:
+      - aws-crt
+
   '@aws-sdk/client-wafv2@3.895.0':
     dependencies:
       '@aws-crypto/sha256-browser': 5.2.0
@@ -6676,10 +6727,10 @@ snapshots:
     dependencies:
       '@aws-sdk/core': 3.894.0
       '@aws-sdk/types': 3.893.0
-      '@smithy/fetch-http-handler': 5.6.11
+      '@smithy/fetch-http-handler': 5.3.9
       '@smithy/node-http-handler': 4.9.11
       '@smithy/property-provider': 4.4.14
-      '@smithy/protocol-http': 5.5.14
+      '@smithy/protocol-http': 5.3.8
       '@smithy/smithy-client': 4.14.14
       '@smithy/types': 4.16.1
       '@smithy/util-stream': 4.7.14
@@ -6892,7 +6943,7 @@ snapshots:
       '@aws-sdk/types': 3.893.0
       '@aws-sdk/util-arn-parser': 3.893.0
       '@smithy/node-config-provider': 4.5.14
-      '@smithy/protocol-http': 5.5.14
+      '@smithy/protocol-http': 5.3.8
       '@smithy/types': 4.16.1
       '@smithy/util-config-provider': 4.4.14
       tslib: 2.8.1
@@ -6908,7 +6959,7 @@ snapshots:
       '@aws-sdk/endpoint-cache': 3.893.0
       '@aws-sdk/types': 3.893.0
       '@smithy/node-config-provider': 4.5.14
-      '@smithy/protocol-http': 5.5.14
+      '@smithy/protocol-http': 5.3.8
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
@@ -6926,7 +6977,7 @@ snapshots:
   '@aws-sdk/middleware-expect-continue@3.893.0':
     dependencies:
       '@aws-sdk/types': 3.893.0
-      '@smithy/protocol-http': 5.5.14
+      '@smithy/protocol-http': 5.3.8
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
@@ -6939,7 +6990,7 @@ snapshots:
       '@aws-sdk/types': 3.893.0
       '@smithy/is-array-buffer': 4.4.14
       '@smithy/node-config-provider': 4.5.14
-      '@smithy/protocol-http': 5.5.14
+      '@smithy/protocol-http': 5.3.8
       '@smithy/types': 4.16.1
       '@smithy/util-middleware': 4.4.14
       '@smithy/util-stream': 4.7.14
@@ -7004,7 +7055,7 @@ snapshots:
       '@aws-sdk/types': 3.893.0
       '@aws-sdk/util-format-url': 3.893.0
       '@smithy/middleware-endpoint': 4.6.14
-      '@smithy/protocol-http': 5.5.14
+      '@smithy/protocol-http': 5.3.8
       '@smithy/signature-v4': 5.6.10
       '@smithy/smithy-client': 4.14.14
       '@smithy/types': 4.16.1
@@ -7015,7 +7066,7 @@ snapshots:
       '@aws-sdk/types': 3.893.0
       '@aws-sdk/util-format-url': 3.893.0
       '@smithy/middleware-endpoint': 4.6.14
-      '@smithy/protocol-http': 5.5.14
+      '@smithy/protocol-http': 5.3.8
       '@smithy/signature-v4': 5.6.10
       '@smithy/types': 4.16.1
       tslib: 2.8.1
@@ -7033,7 +7084,7 @@ snapshots:
       '@aws-sdk/util-arn-parser': 3.893.0
       '@smithy/core': 3.30.0
       '@smithy/node-config-provider': 4.5.14
-      '@smithy/protocol-http': 5.5.14
+      '@smithy/protocol-http': 5.3.8
       '@smithy/signature-v4': 5.6.10
       '@smithy/smithy-client': 4.14.14
       '@smithy/types': 4.16.1
@@ -7117,7 +7168,7 @@ snapshots:
       '@aws-sdk/util-user-agent-node': 3.895.0
       '@smithy/config-resolver': 4.6.14
       '@smithy/core': 3.30.0
-      '@smithy/fetch-http-handler': 5.6.11
+      '@smithy/fetch-http-handler': 5.3.9
       '@smithy/hash-node': 4.4.14
       '@smithy/invalid-dependency': 4.4.14
       '@smithy/middleware-content-length': 4.4.14
@@ -7127,7 +7178,7 @@ snapshots:
       '@smithy/middleware-stack': 4.4.14
       '@smithy/node-config-provider': 4.5.14
       '@smithy/node-http-handler': 4.9.11
-      '@smithy/protocol-http': 5.5.14
+      '@smithy/protocol-http': 5.3.8
       '@smithy/smithy-client': 4.14.14
       '@smithy/types': 4.16.1
       '@smithy/url-parser': 4.4.14
@@ -7210,7 +7261,7 @@ snapshots:
     dependencies:
       '@aws-sdk/middleware-sdk-s3': 3.894.0
       '@aws-sdk/types': 3.893.0
-      '@smithy/protocol-http': 5.5.14
+      '@smithy/protocol-http': 5.3.8
       '@smithy/signature-v4': 5.6.10
       '@smithy/types': 4.16.1
       tslib: 2.8.1

@@ -4,7 +4,7 @@
 
 ```typescript
 type SyntheticApiTestProps = {
-  /** Path to the test script, relative to the current working directory. */
+  /** Path to the test script, relative to the config file (or the --currentWorkingDirectory when set). */
   scriptPath: string;
 };
 ```
@@ -14,7 +14,7 @@ type SyntheticApiTestProps = {
 - Required: yes
 - Type: `string`
 
-Path to the test script, relative to the current working directory.
+Path to the test script, relative to the config file (or the --currentWorkingDirectory when set).
 
 The script makes HTTP calls with per-step timing; no browser starts. TypeScript works out of
 the box — Stacktape bundles the script at deploy time.

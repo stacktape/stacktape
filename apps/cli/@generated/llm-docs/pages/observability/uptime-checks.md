@@ -8,7 +8,7 @@ Add an uptime check to every public endpoint whose downtime you want to hear abo
 
 ## When NOT to use
 
-- **Verifying business logic** — an uptime check asserts that an endpoint responds; it does not run flows like sign-in or checkout. Synthetic browser tests cover that (planned).
+- **Verifying business logic** — an uptime check asserts that an endpoint responds; it does not run flows like sign-in or checkout. Use a [synthetic test](/observability/synthetic-tests) for that.
 - **Monitoring internal-only services** — probers reach endpoints over the public internet. A VPC-internal service is not reachable.
 - **Catching application errors** — [issues](/observability/issues) group runtime errors from logs; an endpoint can serve 200s while a background job fails.
 
@@ -72,8 +72,8 @@ Deleting the stack (or the check) removes the check's probing; the shared prober
 ## Limits
 
 - Probed methods are `GET` and `HEAD`. Checks with request bodies are not supported.
-- At most 100 uptime checks per stack, and at most 5 regions per check.
-- Response bodies are read up to 512 KB for `body-contains` assertions.
+- At most 100 uptime checks per stack, and at most 5 regions per check. A region's shared prober has a bounded probing budget per minute — with many slow or timing-out endpoints in one region (across all stacks), some probes can be skipped for that tick; keep high-`timeoutSeconds` checks few. A probe that cannot get its full configured timeout is dropped rather than reported as down, and a check that stops getting probed entirely raises a monitoring-silent alert.
+- Response bodies are read up to 512 KB for `body-contains` assertions; the asserted text itself is capped at 2000 characters.
 - Uptime checks are skipped in [dev mode](/local-development/dev-mode-overview) — ephemeral dev stacks would only produce noise.
 
 ## Viewing results

@@ -1,0 +1,10 @@
+{
+  "name": "observability-smoke",
+  "private": true,
+  "description": "Disposable real-AWS fixture for the observability suite; see README.md.",
+  "dependencies": {
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.205.0",
+    "@opentelemetry/sdk-node": "^0.205.0"
+  }
+}

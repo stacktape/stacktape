@@ -87,7 +87,7 @@ exports.handler = async () => {
 
 ## Failure alerts
 
-Stacktape creates a CloudWatch alarm on the test's success rate. One failed run trips it; recovery resolves it. With `notificationChannels` configured, both events are delivered like [alarm](/observability/alarms) notifications — including `console-channel` references — and appear in the Console's alert history. For `rate(...)` schedules, a stopped or broken canary also trips the alarm (missing data counts as breaching), so a dead monitor cannot masquerade as a healthy flow; `cron(...)` schedules run irregularly, so only actual failing runs alarm there.
+Stacktape creates a CloudWatch alarm on the test's success rate. One failed run trips it; the next passing run resolves it. Between runs the alarm holds its last real state — a failing test on a sparse schedule stays failing until a run actually passes, and a new test's first passing run does not announce a recovery. With `notificationChannels` configured, both events are delivered like [alarm](/observability/alarms) notifications — including `console-channel` references — and appear in the Console's alert history. Only actual failing runs alarm; a canary that stops running entirely does not page (its state is visible on the Synthetics page).
 
 ## Cost
 
@@ -97,7 +97,8 @@ CloudWatch Synthetics charges ~$0.0012 per run (first 100 runs each month are fr
 
 - Schedules between `rate(1 minute)` and `rate(1 hour)`, or a six-field `cron(...)` expression. For cron schedules, AWS rejects a timeout longer than the gap between runs.
 - Run timeout between 3 and 840 seconds, never above the schedule interval.
-- The bundled script must stay under 250 KB — it ships inside the CloudFormation template.
+- The bundled script must stay under 250 KB, and all of a stack's bundled scripts together under 600 KB — they ship inside the CloudFormation template.
+- Environment variable names must start with a letter, use only letters, digits and `_`, and avoid the reserved `AWS_`/Lambda runtime names; all variables together must stay under 4 KB.
 - Memory between 960 and 3008 MB (multiples of 64).
 - Synthetic tests are skipped in [dev mode](/local-development/dev-mode-overview).
 - Renaming a synthetic test replaces its canary, and the run history starts over.

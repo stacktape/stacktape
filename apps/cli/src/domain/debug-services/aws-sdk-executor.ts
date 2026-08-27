@@ -40,6 +40,7 @@ import * as costexplorer from '@aws-sdk/client-cost-explorer';
 import * as codebuild from '@aws-sdk/client-codebuild';
 import * as codedeploy from '@aws-sdk/client-codedeploy';
 import * as servicediscovery from '@aws-sdk/client-servicediscovery';
+import * as synthetics from '@aws-sdk/client-synthetics';
 import * as xray from '@aws-sdk/client-xray';
 import * as apigatewayv2 from '@aws-sdk/client-apigatewayv2';
 import * as kinesis from '@aws-sdk/client-kinesis';
@@ -91,6 +92,7 @@ const SERVICE_MAP: Record<AwsReadOnlyService, ClientConfig> = {
   acm: { module: acm, clientClass: 'ACMClient' },
   cognito: { module: cognito, clientClass: 'CognitoIdentityProviderClient' },
   opensearch: { module: opensearch, clientClass: 'OpenSearchClient' },
+  synthetics: { module: synthetics, clientClass: 'SyntheticsClient' },
   wafv2: { module: wafv2, clientClass: 'WAFV2Client' },
   elbv2: { module: elbv2, clientClass: 'ElasticLoadBalancingV2Client' },
   autoscaling: { module: autoscaling, clientClass: 'AutoScalingClient' },
@@ -156,8 +158,21 @@ export const executeAwsSdkCommand = async (
 
     // Create client and command instances, execute
     const client = new ClientClass({ region: context.region, credentials: context.credentials });
-    const cmd = new CommandClass(input);
-    const result = await client.send(cmd);
+    let result: unknown;
+    try {
+      result = await client.send(new CommandClass(input));
+    } catch (err) {
+      // SDK timestamp fields require Date instances, but aws:call input arrives as JSON where
+      // callers naturally write epoch numbers or ISO strings (e.g. GetMetricData StartTime).
+      // Only after the SDK proves a timestamp is involved is the input re-tried with likely
+      // timestamp keys revived — a blind pass would corrupt epoch-typed long fields like
+      // FilterLogEvents startTime.
+      if (err instanceof TypeError && err.message.includes('toISOString')) {
+        result = await client.send(new CommandClass(reviveTimestampInputs(input)));
+      } else {
+        throw err;
+      }
+    }
 
     // Clean up response (remove $metadata for cleaner output)
     if (result && typeof result === 'object' && '$metadata' in result) {
@@ -169,6 +184,32 @@ export const executeAwsSdkCommand = async (
   } catch (err: unknown) {
     return handleAwsError(err);
   }
+};
+
+const TIMESTAMP_KEY_PATTERN = /(Time|Date|Timestamp)$/i;
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
+
+const reviveTimestampInputs = (node: unknown): any => {
+  if (Array.isArray(node)) {
+    return node.map(reviveTimestampInputs);
+  }
+  if (!node || typeof node !== 'object') {
+    return node;
+  }
+  return Object.fromEntries(
+    Object.entries(node as Record<string, unknown>).map(([key, value]) => {
+      if (TIMESTAMP_KEY_PATTERN.test(key)) {
+        if (typeof value === 'number') {
+          // Epoch seconds fit comfortably under 1e12 for centuries; milliseconds never do.
+          return [key, new Date(value > 1e12 ? value : value * 1000)];
+        }
+        if (typeof value === 'string' && ISO_DATE_PATTERN.test(value)) {
+          return [key, new Date(value)];
+        }
+      }
+      return [key, reviveTimestampInputs(value)];
+    })
+  );
 };
 
 /**

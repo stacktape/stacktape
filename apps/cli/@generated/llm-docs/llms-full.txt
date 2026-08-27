@@ -20803,7 +20803,7 @@ exports.handler = async () => {
 
 ## Failure alerts
 
-Stacktape creates a CloudWatch alarm on the test's success rate. One failed run trips it; recovery resolves it. With `notificationChannels` configured, both events are delivered like [alarm](/observability/alarms) notifications — including `console-channel` references — and appear in the Console's alert history. For `rate(...)` schedules, a stopped or broken canary also trips the alarm (missing data counts as breaching), so a dead monitor cannot masquerade as a healthy flow; `cron(...)` schedules run irregularly, so only actual failing runs alarm there.
+Stacktape creates a CloudWatch alarm on the test's success rate. One failed run trips it; the next passing run resolves it. Between runs the alarm holds its last real state — a failing test on a sparse schedule stays failing until a run actually passes, and a new test's first passing run does not announce a recovery. With `notificationChannels` configured, both events are delivered like [alarm](/observability/alarms) notifications — including `console-channel` references — and appear in the Console's alert history. Only actual failing runs alarm; a canary that stops running entirely does not page (its state is visible on the Synthetics page).
 
 ## Cost
 
@@ -20813,7 +20813,8 @@ CloudWatch Synthetics charges ~$0.0012 per run (first 100 runs each month are fr
 
 - Schedules between `rate(1 minute)` and `rate(1 hour)`, or a six-field `cron(...)` expression. For cron schedules, AWS rejects a timeout longer than the gap between runs.
 - Run timeout between 3 and 840 seconds, never above the schedule interval.
-- The bundled script must stay under 250 KB — it ships inside the CloudFormation template.
+- The bundled script must stay under 250 KB, and all of a stack's bundled scripts together under 600 KB — they ship inside the CloudFormation template.
+- Environment variable names must start with a letter, use only letters, digits and `_`, and avoid the reserved `AWS_`/Lambda runtime names; all variables together must stay under 4 KB.
 - Memory between 960 and 3008 MB (multiples of 64).
 - Synthetic tests are skipped in [dev mode](/local-development/dev-mode-overview).
 - Renaming a synthetic test replaces its canary, and the run history starts over.
@@ -20854,7 +20855,7 @@ resources:
           entryfilePath: src/api.ts
 ```
 
-Every supported function in the stack is instrumented. Individual functions can override the stack default with their own `tracing` property:
+Every `function` resource in the stack is instrumented (server functions nested inside web-framework resources like `nextjs-web` are not instrumented yet). Individual functions can override the stack default with their own `tracing` property:
 
 ```yaml
 stackConfig:
@@ -20895,6 +20896,8 @@ Stacktape attaches the AWS-managed OpenTelemetry Lambda layer and activates it t
 
 Supported runtimes: Node.js 18–24, Python 3.10–3.13, Java 11/17/21, and .NET 8. A traced function on any other runtime is skipped with a deploy-time warning instead of failing the deployment. A function is also skipped when it already uses a conflicting `AWS_LAMBDA_EXEC_WRAPPER` or a manually attached OpenTelemetry layer.
 
+The layer cannot instrument ESM bundles (it initializes but produces no spans), so traced Node.js functions are bundled as CommonJS — including on Node.js 24, where ESM is otherwise the default output. A function that explicitly sets `outputModuleFormat: esm` keeps its ESM output and is skipped from tracing, with a warning.
+
 ### Container services
 
 For a traced [web service](/resources/compute/web-service), private service, worker service, or multi-container workload, Stacktape adds an OpenTelemetry collector as an extra container in the task and points every container's OpenTelemetry SDK at it (`http://localhost:4318`) through standard `OTEL_*` environment variables. The application needs the OpenTelemetry SDK — any language works, and spans the SDK emits reach the collector without further configuration. Automatic zero-code instrumentation for containers is planned.
@@ -20910,7 +20913,7 @@ Stacktape manages `OTEL_TRACES_SAMPLER`, `OTEL_TRACES_SAMPLER_ARG`, and the `sta
 The first deploy with tracing enabled switches on **X-Ray Transaction Search** for the whole AWS account and region. This is an account-level AWS setting, not a per-stack one:
 
 - Spans from **all** X-Ray-instrumented workloads in the account — Stacktape-managed or not — are then stored in the `aws/spans` CloudWatch Logs log group.
-- When Stacktape performs this switch and the `aws/spans` log group does not exist yet, Stacktape creates it with retention capped at 90 days. A pre-existing log group — and an already-enabled Transaction Search setup — is left exactly as found, including its retention.
+- When Stacktape performs this switch, it caps the `aws/spans` log group's retention at 90 days once X-Ray creates the group — but only when no retention was set before. An already-enabled Transaction Search setup is left exactly as found.
 - Deleting the stack does **not** switch Transaction Search back off, because other workloads may rely on it.
 
 Span storage is priced by AWS at roughly $0.35 per GB ingested (plus CloudWatch Logs storage), and searching traces runs CloudWatch Logs Insights queries, which AWS bills by data scanned. With sampling and typical span sizes this is small; watch it on high-traffic stacks with `samplingRate: 1`.
@@ -20942,7 +20945,7 @@ Add an uptime check to every public endpoint whose downtime you want to hear abo
 
 ## When NOT to use
 
-- **Verifying business logic** — an uptime check asserts that an endpoint responds; it does not run flows like sign-in or checkout. Synthetic browser tests cover that (planned).
+- **Verifying business logic** — an uptime check asserts that an endpoint responds; it does not run flows like sign-in or checkout. Use a [synthetic test](/observability/synthetic-tests) for that.
 - **Monitoring internal-only services** — probers reach endpoints over the public internet. A VPC-internal service is not reachable.
 - **Catching application errors** — [issues](/observability/issues) group runtime errors from logs; an endpoint can serve 200s while a background job fails.
 
@@ -21006,8 +21009,8 @@ Deleting the stack (or the check) removes the check's probing; the shared prober
 ## Limits
 
 - Probed methods are `GET` and `HEAD`. Checks with request bodies are not supported.
-- At most 100 uptime checks per stack, and at most 5 regions per check.
-- Response bodies are read up to 512 KB for `body-contains` assertions.
+- At most 100 uptime checks per stack, and at most 5 regions per check. A region's shared prober has a bounded probing budget per minute — with many slow or timing-out endpoints in one region (across all stacks), some probes can be skipped for that tick; keep high-`timeoutSeconds` checks few. A probe that cannot get its full configured timeout is dropped rather than reported as down, and a check that stops getting probed entirely raises a monitoring-silent alert.
+- Response bodies are read up to 512 KB for `body-contains` assertions; the asserted text itself is capped at 2000 characters.
 - Uptime checks are skipped in [dev mode](/local-development/dev-mode-overview) — ephemeral dev stacks would only produce noise.
 
 ## Viewing results
@@ -115786,7 +115789,7 @@ Route: `/config-reference/synthetic-tests`
 
 ```typescript
 type SyntheticApiTestProps = {
-  /** Path to the test script, relative to the current working directory. */
+  /** Path to the test script, relative to the config file (or the --currentWorkingDirectory when set). */
   scriptPath: string;
 };
 ```
@@ -115796,7 +115799,7 @@ type SyntheticApiTestProps = {
 - Required: yes
 - Type: `string`
 
-Path to the test script, relative to the current working directory.
+Path to the test script, relative to the config file (or the --currentWorkingDirectory when set).
 
 The script makes HTTP calls with per-step timing; no browser starts. TypeScript works out of
 the box — Stacktape bundles the script at deploy time.
@@ -115856,7 +115859,7 @@ Route: `/config-reference/synthetic-tests`
 
 ```typescript
 type SyntheticBrowserTestProps = {
-  /** Path to the test script, relative to the current working directory. */
+  /** Path to the test script, relative to the config file (or the --currentWorkingDirectory when set). */
   scriptPath: string;
 };
 ```
@@ -115866,7 +115869,7 @@ type SyntheticBrowserTestProps = {
 - Required: yes
 - Type: `string`
 
-Path to the test script, relative to the current working directory.
+Path to the test script, relative to the config file (or the --currentWorkingDirectory when set).
 
 The script drives a real browser with [Playwright](https://playwright.dev) and runs on the
 AWS-managed Playwright runtime. TypeScript works out of the box — Stacktape bundles the script
@@ -116913,12 +116916,15 @@ using X-Ray Transaction Search, priced at ~$0.35 per GB of span data.
 Enabling tracing in any stack turns on X-Ray Transaction Search for the **whole AWS account and
 region**: spans from all X-Ray-instrumented workloads (Stacktape-managed or not) are then stored
 in the `aws/spans` CloudWatch Logs log group. When Stacktape itself performs this switch, it caps
-the log group's retention at 90 days; an already-enabled setup is left exactly as found. Deleting
+the log group's retention at 90 days (only when no retention was set before); an already-enabled
+setup is left exactly as found. Deleting
 the stack does not switch Transaction Search back off, because other workloads may rely on it.
 
 Lambda functions are instrumented with the AWS-managed OpenTelemetry layer. Supported runtimes:
 Node.js 18–24, Python 3.10–3.13, Java 11/17/21 and .NET 8; functions on other runtimes are
-skipped with a warning. Container services run an OpenTelemetry collector sidecar (256 MB hard
+skipped with a warning. Traced Node.js functions are bundled as CommonJS (the layer cannot
+instrument ESM output); a function that explicitly sets `outputModuleFormat: esm` keeps ESM and
+skips tracing instead. Container services run an OpenTelemetry collector sidecar (256 MB hard
 memory cap and a low CPU weight within the task's allocation); the application itself needs the
 OpenTelemetry SDK — spans it emits reach the collector without further configuration. The
 `OTEL_TRACES_SAMPLER`, `OTEL_TRACES_SAMPLER_ARG` and the `stacktape.*` keys of
@@ -117473,8 +117479,8 @@ Conditions the response must meet for the probe to count as successful.
 
 When omitted, any `2xx` or `3xx` status code counts as up. All listed assertions must pass.
 
-TLS certificate expiry is tracked automatically on every `https://` check — you get a warning when the
-certificate is about to expire, without configuring anything.
+TLS certificate expiry is tracked automatically on every `https://` check and shown on the
+check's Console page; expiry alerts are planned.
 
 Choices:
 - `status-code` (`StatusCodeAssertion`). Properties: `accepted: Array<number>`.
@@ -117803,6 +117809,10 @@ export default defineConfig(() => {
 How long to wait for a response before the probe counts as failed, in seconds.
 
 Allowed range: 1 to 30.
+
+Probes run inside shared per-minute workers. When a worker is near its time budget — many slow
+checks at once, or 30-second-interval checks sharing the region — a probe that cannot get its
+full timeout is dropped for that tick instead of being reported as down.
 
 ### Example 1 (yaml)
 

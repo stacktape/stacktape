@@ -683,6 +683,40 @@ export const buildEsCode = async ({
       }
     }
 
+    // CJS Lambda bundles are loaded with import() by modern Lambda runtimes and by the ADOT tracing
+    // wrapper, where a CJS module's namespace `default` is ALWAYS `module.exports` itself — the
+    // getter-defined `default` Bun emits is invisible there and `index.default` resolves to the
+    // exports object, killing the function with Runtime.HandlerNotFound (verified on nodejs24).
+    // Re-pointing module.exports at the handler function, with the named exports and a
+    // self-referencing `default` copied onto it, resolves under require() and import() alike.
+    if (outputModuleFormat === 'cjs' && isLambda && distPath) {
+      const interopTail = [
+        '',
+        '/* stacktape: make `index.default` resolve under both require() and import() loaders */',
+        '(() => {',
+        '  const exportsObject = module.exports;',
+        '  if (!exportsObject) return;',
+        '  const handlerFn =',
+        "    typeof exportsObject.default === 'function'",
+        '      ? exportsObject.default',
+        "      : typeof exportsObject.handler === 'function'",
+        '        ? exportsObject.handler',
+        '        : undefined;',
+        '  if (!handlerFn) return;',
+        '  for (const key of Object.keys(exportsObject)) {',
+        "    if (key !== 'default') {",
+        '      try { handlerFn[key] = exportsObject[key]; } catch {}',
+        '    }',
+        '  }',
+        '  handlerFn.default = handlerFn;',
+        '  module.exports = handlerFn;',
+        '})();',
+        ''
+      ].join('\n');
+      const content = await readFile(distPath, 'utf-8');
+      await Bun.write(distPath, content + interopTail);
+    }
+
     // Extract source files from metafile (more accurate than onLoad tracking)
     const buildMetafile = buildResult.metafile as { inputs: Record<string, unknown>; outputs: Record<string, unknown> };
     const sourceFiles = Object.keys(buildMetafile?.inputs || {})

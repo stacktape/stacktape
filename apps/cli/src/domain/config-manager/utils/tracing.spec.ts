@@ -95,6 +95,20 @@ describe('getLambdaTracingInstrumentation', () => {
     }
   });
 
+  test('skips explicit ESM output, while the implicit Node 24 default stays instrumented', () => {
+    const explicit = getLambdaTracingInstrumentation(instrumentationInput({ explicitOutputModuleFormat: 'esm' }));
+    expect(explicit.instrumentation).toBeUndefined();
+    expect(explicit.skippedReason).toContain('outputModuleFormat');
+    // No explicit choice: packaging bundles the traced function as CJS instead, so it instruments.
+    const implicit = getLambdaTracingInstrumentation(instrumentationInput({ runtime: 'nodejs24.x' }));
+    expect(implicit.instrumentation).toBeDefined();
+    // Non-Node runtimes have no module-format concern at all.
+    const python = getLambdaTracingInstrumentation(
+      instrumentationInput({ runtime: 'python3.12', explicitOutputModuleFormat: 'esm' })
+    );
+    expect(python.instrumentation).toBeDefined();
+  });
+
   test('skips regions where the layer is not published', () => {
     const { instrumentation, skippedReason } = getLambdaTracingInstrumentation(
       // The Python layer is not published in me-south-1 (the Node.js one is).

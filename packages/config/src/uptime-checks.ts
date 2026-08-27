@@ -157,6 +157,10 @@ export interface UptimeCheckProps {
    *
    * Allowed range: 1 to 30.
    *
+   * Probes run inside shared per-minute workers. When a worker is near its time budget — many slow
+   * checks at once, or 30-second-interval checks sharing the region — a probe that cannot get its
+   * full timeout is dropped for that tick instead of being reported as down.
+   *
    * **Example (YAML):**
    *
    * ```yaml
@@ -240,8 +244,8 @@ export interface UptimeCheckProps {
    *
    * When omitted, any `2xx` or `3xx` status code counts as up. All listed assertions must pass.
    *
-   * TLS certificate expiry is tracked automatically on every `https://` check — you get a warning when the
-   * certificate is about to expire, without configuring anything.
+   * TLS certificate expiry is tracked automatically on every `https://` check and shown on the
+   * check's Console page; expiry alerts are planned.
    *
    * **Example (YAML):**
    *
@@ -507,6 +511,8 @@ export interface BodyContainsAssertionProps {
    * ---
    *
    * Matched against the first 512 KB of the response. Requires the `GET` method.
+   *
+   * @maxLength 2000
    */
   value: string;
 }

@@ -781,7 +781,10 @@ export class ConfigManager {
         ),
         userLayers: lambdaFunction.layers,
         projectName: this.stackContext.projectName,
-        stage: this.stackContext.stage
+        stage: this.stackContext.stage,
+        explicitOutputModuleFormat: (
+          lambdaFunction.packaging?.properties as { languageSpecificConfig?: { outputModuleFormat?: string } }
+        )?.languageSpecificConfig?.outputModuleFormat
       })
     }));
   }
@@ -2245,7 +2248,8 @@ export class ConfigManager {
         ...getStacktapeServiceLambdaUptimeMonitoringStatements({
           uptimeMonitoringEnabled: this.uptimeChecks.length > 0,
           accountId: this.stackContext.accountId,
-          deploymentBucketName: awsResourceNames.deploymentBucket(this.globallyUniqueStackHash)
+          deploymentBucketName: awsResourceNames.deploymentBucket(this.globallyUniqueStackHash),
+          region: this.stackContext.region
         }),
         ...getStacktapeServiceLambdaTracingStatements({
           // Dev stacks skip both the instrumentation and the Transaction Search custom resource, so

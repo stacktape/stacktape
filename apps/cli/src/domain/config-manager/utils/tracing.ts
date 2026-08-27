@@ -55,7 +55,8 @@ export const OTEL_WRAPPER_SCRIPT = '/opt/otel-instrument';
  *
  * nodejs24.x: the Lambda dev guide still lists 18–22, but the bundled ADOT JS SDK documents Node
  * 18–24 support and 24 is Stacktape's default runtime — excluding it would silently disable tracing
- * for default configs. Pending verification against a real stack (part of the tracing test plan).
+ * for default configs. Verified against a real stack on 2026-08-27 (CJS bundle; see the ESM skip
+ * below).
  */
 const OTEL_SUPPORTED_RUNTIMES: Record<string, OtelLayerRuntimeFamily> = {
   'nodejs18.x': 'nodejs',
@@ -116,7 +117,8 @@ export const getLambdaTracingInstrumentation = ({
   userEnvironment,
   userLayers = [],
   projectName,
-  stage
+  stage,
+  explicitOutputModuleFormat
 }: {
   resourceName: string;
   runtime: string;
@@ -126,11 +128,22 @@ export const getLambdaTracingInstrumentation = ({
   userLayers?: string[];
   projectName: string;
   stage: string;
+  /** The user's own `outputModuleFormat` choice, when set. The Node 24 implicit ESM default does not count. */
+  explicitOutputModuleFormat?: string;
 }): { instrumentation?: LambdaTracingInstrumentation; skippedReason?: string; warnings?: string[] } => {
   const runtimeFamily = OTEL_SUPPORTED_RUNTIMES[runtime];
   if (!runtimeFamily) {
     return {
       skippedReason: `runtime \`${runtime}\` is not supported by the AWS-managed OpenTelemetry layers (supported: ${Object.keys(OTEL_SUPPORTED_RUNTIMES).join(', ')})`
+    };
+  }
+  // Verified on a real stack: the layer initializes on an ESM bundle but its handler wrapping
+  // never engages and spans silently vanish. Implicitly-ESM functions (the Node 24 default) are
+  // bundled as CJS instead; an explicit ESM choice wins over tracing.
+  if (runtimeFamily === 'nodejs' && explicitOutputModuleFormat === 'esm') {
+    return {
+      skippedReason:
+        'it explicitly sets `outputModuleFormat: esm`, and the AWS-managed OpenTelemetry layer cannot instrument ESM output'
     };
   }
   const layerArn = OTEL_LAMBDA_LAYER_ARNS[runtimeFamily][region];

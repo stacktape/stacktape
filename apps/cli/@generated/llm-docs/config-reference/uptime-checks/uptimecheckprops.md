@@ -108,8 +108,8 @@ Conditions the response must meet for the probe to count as successful.
 
 When omitted, any `2xx` or `3xx` status code counts as up. All listed assertions must pass.
 
-TLS certificate expiry is tracked automatically on every `https://` check — you get a warning when the
-certificate is about to expire, without configuring anything.
+TLS certificate expiry is tracked automatically on every `https://` check and shown on the
+check's Console page; expiry alerts are planned.
 
 Choices:
 - `status-code` (`StatusCodeAssertion`). Properties: `accepted: Array<number>`.
@@ -438,6 +438,10 @@ export default defineConfig(() => {
 How long to wait for a response before the probe counts as failed, in seconds.
 
 Allowed range: 1 to 30.
+
+Probes run inside shared per-minute workers. When a worker is near its time budget — many slow
+checks at once, or 30-second-interval checks sharing the region — a probe that cannot get its
+full timeout is dropped for that tick instead of being reported as down.
 
 ### Example 1 (yaml)
 

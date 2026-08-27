@@ -1087,6 +1087,9 @@ describe('full synthesis contract', () => {
     // The script bundled to CJS: the runtime package stays external, the handler is exported.
     expect(canary.Properties.Code.Script).toContain('@aws/synthetics-playwright');
     expect(canary.Properties.Code.Script).toContain('handler');
+    // The runtime import()s the script; without this lexer annotation the CJS named export is
+    // invisible and every run fails.
+    expect(canary.Properties.Code.Script).toContain('0 && (module.exports = { handler });');
     expect(canary.Properties.RunConfig).toMatchObject({ TimeoutInSeconds: 60, MemoryInMB: 1024 });
     expect(canary.Properties.ProvisionedResourceCleanup).toBe('AUTOMATIC');
     expect(canary.Properties.ArtifactS3Location).toMatch(/^s3:\/\/.+\/synthetics\/homepageFlow$/);
@@ -1103,7 +1106,9 @@ describe('full synthesis contract', () => {
       MetricName: 'SuccessPercent',
       Threshold: 100,
       ComparisonOperator: 'LessThanThreshold',
-      TreatMissingData: 'breaching',
+      // `ignore` holds the last real state between sparse runs: `breaching` would page phantom
+      // failures on creation, `notBreaching` would fake a recovery once a failure ages out.
+      TreatMissingData: 'ignore',
       Period: 600
     });
     expect(alarm.Properties.Dimensions).toEqual([
@@ -1111,6 +1116,11 @@ describe('full synthesis contract', () => {
     ]);
 
     const rule = resources[cfLogicalNames.cloudwatchAlarmEventBusNotificationRule('homepageFlow-availability')];
+    // OK only counts as a recovery when it follows a real failure; INSUFFICIENT_DATA -> OK on a new
+    // test's first passing run must not announce anything.
+    expect(rule.Properties.EventPattern.detail).toEqual({
+      $or: [{ state: { value: ['ALARM'] } }, { state: { value: ['OK'] }, previousState: { value: ['ALARM'] } }]
+    });
     const inputTemplate = rule.Properties.Targets[0].InputTransformer.InputTemplate;
     const templateText = typeof inputTemplate === 'string' ? inputTemplate : JSON.stringify(inputTemplate);
     expect(templateText).toContain('synthetic-test-failure');
@@ -1143,6 +1153,9 @@ describe('full synthesis contract', () => {
         'stacktape.project=characterization,stacktape.stage=baseline,deployment.environment.name=baseline'
     });
     expect(workerFn.DependsOn).toContain(cfLogicalNames.customResourceTransactionSearch());
+    // Active tracing is what gives the OTel distro its UDP export path in traces-only mode; without
+    // it the daemon address does not exist and spans vanish silently.
+    expect(workerFn.Properties.TracingConfig).toEqual({ Mode: 'Active' });
 
     // Container side: the web service's task runs the hard-bounded collector sidecar.
     const webWorkloadName = 'web';

@@ -18,6 +18,11 @@ describe('aws:call read-only allowlist', () => {
     // The Step Functions reads it does accept still work.
     expect(isReadOnlyAwsCommand('sfn', 'DescribeExecution')).toBe(true);
     expect(isReadOnlyAwsCommand('sfn', 'GetExecutionHistory')).toBe(true);
+
+    // Logs Insights queries are reads: starting/stopping a query mutates only the query job. The
+    // debug-agent IAM role has always granted them on the stack's log groups.
+    expect(isReadOnlyAwsCommand('logs', 'StartQuery')).toBe(true);
+    expect(isReadOnlyAwsCommand('logs', 'StopQuery')).toBe(true);
   });
 
   test('rejects the mutating operations the old prefix rule let through', () => {
@@ -41,7 +46,6 @@ describe('aws:call read-only allowlist', () => {
       ['sfn', 'StartExecution'],
       ['eventbridge', 'PutEvents'],
       ['logs', 'DeleteLogGroup'],
-      ['logs', 'StartQuery'],
       ['ec2', 'TerminateInstances'],
       ['cloudformation', 'DetectStackDrift'],
       ['sts', 'GetSessionToken'],

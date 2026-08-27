@@ -15,15 +15,16 @@ const SECOND_ROUND_OFFSET_MS = 30 * 1000;
 const SECOND_ROUND_DEADLINE_MS = 35 * 1000;
 // Probes not started by these budgets are skipped, and in-flight probe timeouts are additionally
 // capped by the round's hard stop: with a 55s function timeout, an overloaded round must shed load
-// and shorten timeouts instead of dying mid-report and losing everything.
-const FIRST_ROUND_BUDGET_MS = 25 * 1000;
-const SECOND_ROUND_BUDGET_MS = 50 * 1000;
-const FIRST_ROUND_HARD_STOP_MS = 27 * 1000;
-const SECOND_ROUND_HARD_STOP_MS = 52 * 1000;
+// instead of dying mid-report and losing everything. The first round only stops early when a +30s
+// round has to follow it; otherwise it may use the whole invocation.
+const HALF_MINUTE_FIRST_ROUND_BUDGET_MS = 25 * 1000;
+const HALF_MINUTE_FIRST_ROUND_HARD_STOP_MS = 27 * 1000;
+const FULL_BUDGET_MS = 50 * 1000;
+const FULL_HARD_STOP_MS = 52 * 1000;
 const MIN_PROBE_TIME_MS = 1500;
 const MAX_REDIRECTS = 5;
 const MAX_BODY_BYTES = 512 * 1024;
-const PROBE_CONCURRENCY = 10;
+const PROBE_CONCURRENCY = 25;
 const REPORT_BATCH_SIZE = 500;
 
 const ssmClient = new SSMClient({});
@@ -40,19 +41,21 @@ export default async (event: { time?: string }) => {
 
   const entries = (await loadManifest()).filter(({ enabled }) => enabled);
   if (!entries.length) {
+    // One line per tick, but it turns "why is monitoring silent" from archaeology into a grep.
+    console.info('The uptime manifest has no enabled checks in this region; nothing to probe.');
     return;
   }
 
+  const halfMinuteEntries = entries.filter(({ intervalSeconds }) => intervalSeconds === 30);
   const firstRound = await probeAll({
     entries,
     scheduledTick,
     probeOrdinal: 0,
-    startDeadline: invocationStart + FIRST_ROUND_BUDGET_MS,
-    hardStopAt: invocationStart + FIRST_ROUND_HARD_STOP_MS
+    startDeadline: invocationStart + (halfMinuteEntries.length ? HALF_MINUTE_FIRST_ROUND_BUDGET_MS : FULL_BUDGET_MS),
+    hardStopAt: invocationStart + (halfMinuteEntries.length ? HALF_MINUTE_FIRST_ROUND_HARD_STOP_MS : FULL_HARD_STOP_MS)
   });
   await report(reporter, firstRound);
 
-  const halfMinuteEntries = entries.filter(({ intervalSeconds }) => intervalSeconds === 30);
   if (!halfMinuteEntries.length) {
     return;
   }
@@ -66,8 +69,8 @@ export default async (event: { time?: string }) => {
     entries: halfMinuteEntries,
     scheduledTick,
     probeOrdinal: 1,
-    startDeadline: invocationStart + SECOND_ROUND_BUDGET_MS,
-    hardStopAt: invocationStart + SECOND_ROUND_HARD_STOP_MS
+    startDeadline: invocationStart + FULL_BUDGET_MS,
+    hardStopAt: invocationStart + FULL_HARD_STOP_MS
   });
   await report(reporter, secondRound);
 };
@@ -131,12 +134,19 @@ const probeAll = async ({
           shed += 1;
           continue;
         }
-        results.push(await probe({ entry, scheduledTick, probeOrdinal, hardStopAt }));
+        const result = await probe({ entry, scheduledTick, probeOrdinal, hardStopAt });
+        if (result) {
+          results.push(result);
+        } else {
+          shed += 1;
+        }
       }
     })
   );
   if (shed) {
-    console.error(`Shed ${shed} probes in round ${probeOrdinal}: the round exceeded its time budget.`);
+    console.error(
+      `Shed ${shed} probes in round ${probeOrdinal}: the round exceeded its time budget. Persistently shed checks stop reporting and raise monitoring-silent alerts.`
+    );
   }
   return results;
 };
@@ -151,7 +161,7 @@ const probe = async ({
   scheduledTick: string;
   probeOrdinal: 0 | 1;
   hardStopAt: number;
-}): Promise<ProbeResult> => {
+}): Promise<ProbeResult | undefined> => {
   const base: Omit<ProbeResult, 'status'> = {
     project: entry.project,
     stage: entry.stage,
@@ -161,14 +171,16 @@ const probe = async ({
     probeOrdinal
   };
   const startedAt = Date.now();
+  // The round's hard stop caps the configured timeout so an in-flight slow endpoint can never push
+  // the invocation past the Lambda timeout with unreported results.
+  const allottedMs = Math.max(1000, Math.min(entry.timeoutSeconds * 1000, hardStopAt - Date.now()));
+  const truncated = allottedMs < entry.timeoutSeconds * 1000;
   try {
     const needsBody = entry.method === 'GET' && (entry.assertions || []).some(({ type }) => type === 'body-contains');
     const response = await request({
       url: entry.url,
       method: entry.method,
-      // The round's hard stop caps the configured timeout so an in-flight slow endpoint can never
-      // push the invocation past the Lambda timeout with unreported results.
-      timeoutMs: Math.max(1000, Math.min(entry.timeoutSeconds * 1000, hardStopAt - Date.now())),
+      timeoutMs: allottedMs,
       followRedirects: entry.followRedirects,
       readBody: needsBody
     });
@@ -184,11 +196,17 @@ const probe = async ({
       ...(response.certExpiresAt ? { certExpiresAt: response.certExpiresAt } : {})
     };
   } catch (err) {
+    const message = String(err instanceof Error ? err.message : err);
+    // A timeout against LESS than the configured budget proves nothing about the endpoint — the
+    // worker ran out of round, not the target out of time. No data beats wrong data.
+    if (truncated && message.includes('timed out')) {
+      return undefined;
+    }
     return {
       ...base,
       status: 'down',
       latencyMs: Date.now() - startedAt,
-      failureReason: String(err instanceof Error ? err.message : err).slice(0, 500)
+      failureReason: message.slice(0, 500)
     };
   }
 };

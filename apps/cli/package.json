@@ -111,6 +111,7 @@
     "@aws-sdk/client-sqs": "3.895.0",
     "@aws-sdk/client-ssm": "3.895.0",
     "@aws-sdk/client-sts": "3.895.0",
+    "@aws-sdk/client-synthetics": "3.895.0",
     "@aws-sdk/client-wafv2": "3.895.0",
     "@aws-sdk/client-xray": "3.895.0",
     "@aws-sdk/credential-provider-node": "3.895.0",

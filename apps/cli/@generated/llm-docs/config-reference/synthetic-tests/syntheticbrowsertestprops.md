@@ -4,7 +4,7 @@
 
 ```typescript
 type SyntheticBrowserTestProps = {
-  /** Path to the test script, relative to the current working directory. */
+  /** Path to the test script, relative to the config file (or the --currentWorkingDirectory when set). */
   scriptPath: string;
 };
 ```
@@ -14,7 +14,7 @@ type SyntheticBrowserTestProps = {
 - Required: yes
 - Type: `string`
 
-Path to the test script, relative to the current working directory.
+Path to the test script, relative to the config file (or the --currentWorkingDirectory when set).
 
 The script drives a real browser with [Playwright](https://playwright.dev) and runs on the
 AWS-managed Playwright runtime. TypeScript works out of the box — Stacktape bundles the script

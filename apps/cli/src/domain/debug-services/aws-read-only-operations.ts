@@ -195,7 +195,10 @@ export const AWS_READ_ONLY_OPERATIONS = {
     'DescribeSubscriptionFilters',
     'FilterLogEvents',
     'GetLogEvents',
-    'GetQueryResults'
+    'GetQueryResults',
+    // Logs Insights reads: starting/stopping a query mutates nothing but the query job itself.
+    'StartQuery',
+    'StopQuery'
   ],
   opensearch: ['DescribeDomain', 'DescribeDomainConfig', 'DescribeDomains', 'ListDomainNames'],
   rds: [
@@ -276,7 +279,8 @@ export const AWS_READ_ONLY_OPERATIONS = {
   ],
   sts: ['GetCallerIdentity'],
   wafv2: ['GetIPSet', 'GetWebACL', 'ListIPSets', 'ListRuleGroups', 'ListWebACLs'],
-  xray: ['BatchGetTraces', 'GetServiceGraph', 'GetTraceGraph', 'GetTraceSummaries']
+  synthetics: ['DescribeCanaries', 'DescribeCanariesLastRun', 'GetCanary', 'GetCanaryRuns'],
+  xray: ['BatchGetTraces', 'GetServiceGraph', 'GetTraceGraph', 'GetTraceSegmentDestination', 'GetTraceSummaries']
 } as const satisfies Record<string, readonly string[]>;
 
 export type AwsReadOnlyService = keyof typeof AWS_READ_ONLY_OPERATIONS;

@@ -251,6 +251,76 @@ export const resolveDebugAgentRole = () => {
         }
       },
 
+      // Observability: the stack's traces, canaries and uptime manifests. All spans of the
+      // account share the single `aws/spans` log group (AWS design), so trace reads are
+      // account-wide; everything else stays stack-scoped.
+      {
+        PolicyName: 'observability-read',
+        PolicyDocument: {
+          Version: '2012-10-17',
+          Statement: [
+            {
+              Effect: 'Allow',
+              Action: ['xray:GetTraceSegmentDestination'],
+              Resource: '*'
+            },
+            {
+              Effect: 'Allow',
+              Action: [
+                'logs:DescribeLogGroups',
+                'logs:DescribeLogStreams',
+                'logs:GetLogEvents',
+                'logs:FilterLogEvents',
+                'logs:GetLogGroupFields',
+                'logs:StartQuery',
+                'logs:StopQuery',
+                'logs:GetQueryResults'
+              ],
+              Resource: [
+                sub(`arn:aws:logs:*:\${AWS::AccountId}:log-group:aws/spans`),
+                sub(`arn:aws:logs:*:\${AWS::AccountId}:log-group:aws/spans:*`),
+                sub(`arn:aws:logs:*:\${AWS::AccountId}:log-group:/aws/lambda/cwsyn-${stackName}-*`),
+                sub(`arn:aws:logs:*:\${AWS::AccountId}:log-group:/aws/lambda/cwsyn-${stackName}-*:*`)
+              ]
+            },
+            {
+              // The list calls have no resource-level scoping; per-canary reads do.
+              Effect: 'Allow',
+              Action: ['synthetics:DescribeCanaries', 'synthetics:DescribeCanariesLastRun'],
+              Resource: '*'
+            },
+            {
+              Effect: 'Allow',
+              Action: ['synthetics:GetCanary', 'synthetics:GetCanaryRuns'],
+              Resource: sub(`arn:aws:synthetics:*:\${AWS::AccountId}:canary:${stackName}-*`)
+            },
+            {
+              // The whole manifest tree, not just this stack's subtree: the prober lists it from
+              // the root, and debugging its view requires reproducing that exact query. Manifests
+              // hold check definitions of same-account stacks only.
+              Effect: 'Allow',
+              Action: ['ssm:GetParameter', 'ssm:GetParameters', 'ssm:GetParametersByPath'],
+              Resource: sub(`arn:aws:ssm:*:\${AWS::AccountId}:parameter/stacktape/uptime-checks*`)
+            },
+            {
+              // The shared regional prober executes this stack's checks; "why is my check silent"
+              // is undebuggable without its health. Its logs carry operational lines only.
+              Effect: 'Allow',
+              Action: ['lambda:GetFunction', 'lambda:GetFunctionConfiguration'],
+              Resource: sub(`arn:aws:lambda:*:\${AWS::AccountId}:function:stacktape-uptime-prober`)
+            },
+            {
+              Effect: 'Allow',
+              Action: ['logs:DescribeLogStreams', 'logs:GetLogEvents', 'logs:FilterLogEvents'],
+              Resource: [
+                sub(`arn:aws:logs:*:\${AWS::AccountId}:log-group:/aws/lambda/stacktape-uptime-prober`),
+                sub(`arn:aws:logs:*:\${AWS::AccountId}:log-group:/aws/lambda/stacktape-uptime-prober:*`)
+              ]
+            }
+          ]
+        }
+      },
+
       // ECS: Read only (no ExecuteCommand)
       {
         PolicyName: 'ecs-read',

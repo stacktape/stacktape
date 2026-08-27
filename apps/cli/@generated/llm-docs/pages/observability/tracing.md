@@ -29,7 +29,7 @@ resources:
           entryfilePath: src/api.ts
 ```
 
-Every supported function in the stack is instrumented. Individual functions can override the stack default with their own `tracing` property:
+Every `function` resource in the stack is instrumented (server functions nested inside web-framework resources like `nextjs-web` are not instrumented yet). Individual functions can override the stack default with their own `tracing` property:
 
 ```yaml
 stackConfig:
@@ -70,6 +70,8 @@ Stacktape attaches the AWS-managed OpenTelemetry Lambda layer and activates it t
 
 Supported runtimes: Node.js 18–24, Python 3.10–3.13, Java 11/17/21, and .NET 8. A traced function on any other runtime is skipped with a deploy-time warning instead of failing the deployment. A function is also skipped when it already uses a conflicting `AWS_LAMBDA_EXEC_WRAPPER` or a manually attached OpenTelemetry layer.
 
+The layer cannot instrument ESM bundles (it initializes but produces no spans), so traced Node.js functions are bundled as CommonJS — including on Node.js 24, where ESM is otherwise the default output. A function that explicitly sets `outputModuleFormat: esm` keeps its ESM output and is skipped from tracing, with a warning.
+
 ### Container services
 
 For a traced [web service](/resources/compute/web-service), private service, worker service, or multi-container workload, Stacktape adds an OpenTelemetry collector as an extra container in the task and points every container's OpenTelemetry SDK at it (`http://localhost:4318`) through standard `OTEL_*` environment variables. The application needs the OpenTelemetry SDK — any language works, and spans the SDK emits reach the collector without further configuration. Automatic zero-code instrumentation for containers is planned.
@@ -85,7 +87,7 @@ Stacktape manages `OTEL_TRACES_SAMPLER`, `OTEL_TRACES_SAMPLER_ARG`, and the `sta
 The first deploy with tracing enabled switches on **X-Ray Transaction Search** for the whole AWS account and region. This is an account-level AWS setting, not a per-stack one:
 
 - Spans from **all** X-Ray-instrumented workloads in the account — Stacktape-managed or not — are then stored in the `aws/spans` CloudWatch Logs log group.
-- When Stacktape performs this switch and the `aws/spans` log group does not exist yet, Stacktape creates it with retention capped at 90 days. A pre-existing log group — and an already-enabled Transaction Search setup — is left exactly as found, including its retention.
+- When Stacktape performs this switch, it caps the `aws/spans` log group's retention at 90 days once X-Ray creates the group — but only when no retention was set before. An already-enabled Transaction Search setup is left exactly as found.
 - Deleting the stack does **not** switch Transaction Search back off, because other workloads may rely on it.
 
 Span storage is priced by AWS at roughly $0.35 per GB ingested (plus CloudWatch Logs storage), and searching traces runs CloudWatch Logs Insights queries, which AWS bills by data scanned. With sampling and typical span sizes this is small; watch it on high-traffic stacks with `samplingRate: 1`.

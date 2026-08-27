@@ -625,8 +625,11 @@ export const getStacktapeServiceLambdaIssueDetectionStatements = ({
  * `CloudWatchLambdaApplicationSignalsExecutionRolePolicy` plus the span-write actions used by the
  * X-Ray OTLP endpoint; none of these support resource-level scoping.
  */
+const getAwsPartition = (region: string) =>
+  region.startsWith('cn-') ? 'aws-cn' : region.startsWith('us-gov-') ? 'aws-us-gov' : 'aws';
+
 export const getLambdaTracingRoleStatements = ({ region }: { region: string }): StpIamRoleStatement[] => {
-  const partition = region.startsWith('cn-') ? 'aws-cn' : region.startsWith('us-gov-') ? 'aws-us-gov' : 'aws';
+  const partition = getAwsPartition(region);
   return [
     {
       Resource: ['*'],
@@ -654,21 +657,49 @@ export const getStacktapeServiceLambdaTracingStatements = ({
   region: string;
 }): StpIamRoleStatement[] => {
   if (!tracingEnabled) return [];
-  const partition = region.startsWith('cn-') ? 'aws-cn' : region.startsWith('us-gov-') ? 'aws-us-gov' : 'aws';
-  // Transaction Search is an account-level X-Ray setting; its APIs and the Logs resource policy do
-  // not support resource-level scoping. The log-group statement covers bounding the retention of
-  // the `aws/spans` log group when Stacktape itself first enables Transaction Search.
+  const partition = getAwsPartition(region);
+  const applicationSignalsServiceRoleArn = `arn:${partition}:iam::*:role/aws-service-role/application-signals.cloudwatch.amazonaws.com/AWSServiceRoleForCloudWatchApplicationSignals`;
+  // This is AWS's documented minimum for enabling Transaction Search (the Transaction Search
+  // getting-started prerequisites), which the custom resource performs. Enabling the destination
+  // internally starts Application Signals span discovery UNDER THE CALLER'S IDENTITY (aws:CalledVia)
+  // — hence the application-signals, cloudtrail service-linked-channel, service-linked-role and
+  // span log-group creation grants, even though the resolver never calls those APIs directly. The
+  // account-wide statements cover APIs without resource-level scoping.
   return [
     {
       Resource: ['*'],
-      Action: ['xray:GetTraceSegmentDestination', 'xray:UpdateTraceSegmentDestination', 'logs:PutResourcePolicy']
+      Action: [
+        'xray:GetTraceSegmentDestination',
+        'xray:UpdateTraceSegmentDestination',
+        'xray:GetIndexingRules',
+        'xray:UpdateIndexingRule',
+        'application-signals:StartDiscovery',
+        'logs:PutResourcePolicy',
+        'logs:DescribeResourcePolicies',
+        'logs:DescribeLogGroups'
+      ]
+    },
+    {
+      Resource: [applicationSignalsServiceRoleArn],
+      Action: ['iam:CreateServiceLinkedRole'],
+      Condition: { StringLike: { 'iam:AWSServiceName': 'application-signals.cloudwatch.amazonaws.com' } }
+    },
+    {
+      Resource: [applicationSignalsServiceRoleArn],
+      Action: ['iam:GetRole']
+    },
+    {
+      Resource: [`arn:${partition}:cloudtrail:*:*:channel/aws-service-channel/application-signals/*`],
+      Action: ['cloudtrail:CreateServiceLinkedChannel', 'cloudtrail:GetChannel']
     },
     {
       Resource: [
         `arn:${partition}:logs:${region}:*:log-group:aws/spans`,
-        `arn:${partition}:logs:${region}:*:log-group:aws/spans:*`
+        `arn:${partition}:logs:${region}:*:log-group:aws/spans:*`,
+        `arn:${partition}:logs:${region}:*:log-group:/aws/application-signals/data`,
+        `arn:${partition}:logs:${region}:*:log-group:/aws/application-signals/data:*`
       ],
-      Action: ['logs:CreateLogGroup', 'logs:PutRetentionPolicy']
+      Action: ['logs:CreateLogGroup', 'logs:CreateLogStream', 'logs:PutRetentionPolicy']
     }
   ];
 };
@@ -676,24 +707,29 @@ export const getStacktapeServiceLambdaTracingStatements = ({
 export const getStacktapeServiceLambdaUptimeMonitoringStatements = ({
   uptimeMonitoringEnabled,
   accountId,
-  deploymentBucketName
+  deploymentBucketName,
+  region
 }: {
   uptimeMonitoringEnabled: boolean;
   accountId: string;
   deploymentBucketName: string;
+  region: string;
 }): StpIamRoleStatement[] => {
   if (!uptimeMonitoringEnabled) return [];
+  const partition = getAwsPartition(region);
   return [
     {
-      Resource: ['arn:aws:s3:::stp-uptime-prober-*', 'arn:aws:s3:::stp-uptime-prober-*/*'],
+      Resource: [`arn:${partition}:s3:::stp-uptime-prober-*`, `arn:${partition}:s3:::stp-uptime-prober-*/*`],
       Action: ['s3:CreateBucket', 's3:GetObject', 's3:PutObject', 's3:ListBucket']
     },
     {
-      Resource: [`arn:aws:s3:::${deploymentBucketName}/*`],
+      Resource: [`arn:${partition}:s3:::${deploymentBucketName}/*`],
       Action: ['s3:GetObject']
     },
     {
-      Resource: [`arn:aws:lambda:*:${accountId}:function:${helperLambdaAwsResourceNames.uptimeProberFunction()}`],
+      Resource: [
+        `arn:${partition}:lambda:*:${accountId}:function:${helperLambdaAwsResourceNames.uptimeProberFunction()}`
+      ],
       Action: [
         'lambda:CreateFunction',
         'lambda:GetFunction',
@@ -708,11 +744,13 @@ export const getStacktapeServiceLambdaUptimeMonitoringStatements = ({
       ]
     },
     {
-      Resource: [`arn:aws:iam::${accountId}:role/${helperLambdaAwsResourceNames.uptimeProberRole()}`],
+      Resource: [`arn:${partition}:iam::${accountId}:role/${helperLambdaAwsResourceNames.uptimeProberRole()}`],
       Action: ['iam:GetRole', 'iam:CreateRole', 'iam:PutRolePolicy', 'iam:PassRole']
     },
     {
-      Resource: [`arn:aws:events:*:${accountId}:rule/${helperLambdaAwsResourceNames.uptimeProberScheduleRule()}`],
+      Resource: [
+        `arn:${partition}:events:*:${accountId}:rule/${helperLambdaAwsResourceNames.uptimeProberScheduleRule()}`
+      ],
       Action: [
         'events:PutRule',
         'events:PutTargets',
@@ -723,7 +761,7 @@ export const getStacktapeServiceLambdaUptimeMonitoringStatements = ({
     },
     {
       Resource: [
-        `arn:aws:ssm:*:${accountId}:parameter${helperLambdaAwsResourceNames.uptimeManifestParameterPrefix()}*`
+        `arn:${partition}:ssm:*:${accountId}:parameter${helperLambdaAwsResourceNames.uptimeManifestParameterPrefix()}*`
       ],
       Action: ['ssm:PutParameter', 'ssm:DeleteParameter', 'ssm:GetParametersByPath', 'ssm:GetParameter']
     }

@@ -409,6 +409,12 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
   if (allLayers.length > 0) {
     Object.assign(lambdaFunctionResource.Properties, { Layers: allLayers });
   }
+  if (tracingInstrumentation) {
+    // In traces-only mode (Application Signals off) the OTel distro exports spans over UDP to the
+    // X-Ray daemon, which Lambda runs only with Active tracing — with PassThrough the UDP writes
+    // vanish without a single error line (verified live: instrumented function, zero spans).
+    Object.assign(lambdaFunctionResource.Properties, { TracingConfig: { Mode: 'Active' } });
+  }
   if (reservedConcurrency) {
     Object.assign(lambdaFunctionResource.Properties, { ReservedConcurrentExecutions: reservedConcurrency });
   }
