@@ -23,6 +23,16 @@ export const PUBLISH_STARTER_PROJECTS_DIR_PATH = join(process.cwd(), '__publish-
 export const SOURCE_FOLDER_PATH = join(process.cwd(), 'src');
 export const NPM_PACKAGE_JSON_SOURCE_PATH = join(process.cwd(), 'scripts', 'release', 'npm-package', 'package.json');
 export const SOURCE_MAP_INSTALL_DIST_PATH = join(DIST_FOLDER_PATH, SOURCE_MAP_INSTALL_FILENAME);
+/** Self-contained OTel runtime that packaging bundles into traced Lambda functions. */
+export const LAMBDA_TRACING_RUNTIME_FILE_NAME = 'lambda-tracing-runtime.mjs';
+export const LAMBDA_TRACING_RUNTIME_DIST_PATH = join(DIST_FOLDER_PATH, LAMBDA_TRACING_RUNTIME_FILE_NAME);
+export const LAMBDA_TRACING_RUNTIME_SOURCE_PATH = join(
+  process.cwd(),
+  'src',
+  'packaging-assets',
+  'lambda-tracing-runtime',
+  'index.ts'
+);
 export const STARTER_PROJECTS_SOURCE_PATH = join(process.cwd(), 'starter-projects');
 export const GENERATED_STARTER_PROJECTS_DIR_PATH = join(process.cwd(), '__starter-projects');
 export const SOURCE_MAP_INSTALL_FILE_NAME = 'source-map-install.js';

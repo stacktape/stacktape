@@ -73,11 +73,9 @@ resources:
 
 ## What gets instrumented
 
-Stacktape attaches the AWS-managed OpenTelemetry Lambda layer and activates it through environment variables — no code changes and no agents to run. Instrumentation for AWS SDK and HTTP calls is on by default.
+For Node.js functions, Stacktape bundles a slim OpenTelemetry runtime directly into the function's code and wraps the handler at the bundle entry — no code changes on your side. This works identically for ESM and CJS output (ESM stays the default), instruments HTTP and `fetch` calls out of the box, and starts in a fraction of the time the AWS-managed layer needs. Spans are handed to the X-Ray daemon over UDP, so exporting adds no measurable latency to your invocations.
 
-Supported runtimes: Node.js 18–24, Python 3.10–3.13, Java 11/17/21, and .NET 8. A traced function on any other runtime is skipped with a deploy-time warning instead of failing the deployment. A function is also skipped when it already uses a conflicting `AWS_LAMBDA_EXEC_WRAPPER` or a manually attached OpenTelemetry layer.
-
-The layer cannot instrument ESM bundles (it initializes but produces no spans), so traced Node.js functions are bundled as CommonJS — including on Node.js 24, where ESM is otherwise the default output. A function that explicitly sets `outputModuleFormat: esm` keeps its ESM output and is skipped from tracing, with a warning.
+Python 3.10–3.13, Java 11/17/21, and .NET 8 functions are instrumented with the AWS-managed OpenTelemetry layer instead. A traced function on any other runtime is skipped with a deploy-time warning instead of failing the deployment; a layer-instrumented function is also skipped when it already uses a conflicting `AWS_LAMBDA_EXEC_WRAPPER` or a manually attached OpenTelemetry layer.
 
 ### Container services
 

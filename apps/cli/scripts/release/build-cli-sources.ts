@@ -6,6 +6,8 @@ import {
   CONFIG_SCHEMA_PATH,
   DIST_FOLDER_PATH,
   INIT_WIZARD_BUNDLE_SOURCE_PATH,
+  LAMBDA_TRACING_RUNTIME_FILE_NAME,
+  LAMBDA_TRACING_RUNTIME_SOURCE_PATH,
   LLM_DOCS_FOLDER_PATH,
   SCRIPTS_ASSETS_PATH,
   SOURCE_MAP_INSTALL_FILE_NAME
@@ -112,6 +114,25 @@ export const EXECUTABLE_FILE_PATTERNS = [
   '*/exec',
   '*/exec.exe'
 ];
+
+export const generateLambdaTracingRuntime = async ({ distFolderPath }: { distFolderPath: string }) => {
+  logInfo('Generating the Lambda tracing runtime...');
+  await buildEsCode({
+    createPackagingError: createCliPackagingError,
+    sourcePath: LAMBDA_TRACING_RUNTIME_SOURCE_PATH,
+    distPath: join(distFolderPath, LAMBDA_TRACING_RUNTIME_FILE_NAME),
+    outputModuleFormat: 'esm',
+    externals: [],
+    sourceMaps: 'disabled',
+    sourceMapBannerType: 'disabled',
+    tsConfigPath: localBuildTsConfigPath,
+    keepNames: true,
+    minify: true,
+    nodeTarget: '18.18',
+    cwd: process.cwd()
+  });
+  logSuccess('Lambda tracing runtime generated successfully.');
+};
 
 export const generateSourceMapInstall = async ({ distFolderPath }: { distFolderPath: string }) => {
   logInfo('Generating source map install file...');
@@ -254,14 +275,16 @@ export const buildBinaryFile = async ({
 
   const result = await Bun.build({
     entrypoints: [entrypoint],
+    // Preserve command-level dynamic imports as ESM chunks inside the executable instead of initializing every command.
+    format: 'esm',
     compile: {
       target: compileTarget,
       outfile: outputPath,
       autoloadTsconfig: true,
       autoloadPackageJson: true
     },
-    // Bun 1.3.14 emits a separate `compiled-cli.js.map` even when a compiled executable asks for an inline map.
-    // That file is useful while debugging, but shipping it added more than 70 MB to every installed release.
+    // A compiled executable can emit a separate `compiled-cli.js.map`. It is useful while debugging, but shipping it
+    // added more than 70 MB to every installed release.
     sourcemap: debug ? 'external' : 'none',
     // Production executables do not ship their >70 MB source map. Minify syntax and whitespace while retaining
     // identifiers so PostHog exception grouping and stack traces still contain useful function/class names.

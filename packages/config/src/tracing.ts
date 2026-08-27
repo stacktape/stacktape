@@ -16,11 +16,11 @@ export interface TracingOptions {
    * setup is left exactly as found. Deleting
    * the stack does not switch Transaction Search back off, because other workloads may rely on it.
    *
-   * Lambda functions are instrumented with the AWS-managed OpenTelemetry layer. Supported runtimes:
-   * Node.js 18–24, Python 3.10–3.13, Java 11/17/21 and .NET 8; functions on other runtimes are
-   * skipped with a warning. Traced Node.js functions are bundled as CommonJS (the layer cannot
-   * instrument ESM output); a function that explicitly sets `outputModuleFormat: esm` keeps ESM and
-   * skips tracing instead. Container services run an OpenTelemetry collector sidecar (256 MB hard
+   * Node.js functions get a slim OpenTelemetry runtime bundled directly into their code (ESM and
+   * CJS alike; HTTP and `fetch` calls are instrumented automatically). Python 3.10–3.13,
+   * Java 11/17/21 and .NET 8 functions are instrumented with the AWS-managed OpenTelemetry layer;
+   * functions on other runtimes are
+   * skipped with a warning. Container services run an OpenTelemetry collector sidecar (256 MB hard
    * memory cap and a low CPU weight within the task's allocation); the application itself needs the
    * OpenTelemetry SDK — spans it emits reach the collector without further configuration. The
    * `OTEL_TRACES_SAMPLER`, `OTEL_TRACES_SAMPLER_ARG` and the `stacktape.*` keys of

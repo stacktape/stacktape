@@ -53,10 +53,9 @@ export const OTEL_WRAPPER_SCRIPT = '/opt/otel-instrument';
  * on the ADOT Lambda page). Newer runtime versions must not be assumed compatible — the layer ships
  * its own agent build per language version. Revisit together with `refresh:catalog:otel-layers`.
  *
- * nodejs24.x: the Lambda dev guide still lists 18–22, but the bundled ADOT JS SDK documents Node
- * 18–24 support and 24 is Stacktape's default runtime — excluding it would silently disable tracing
- * for default configs. Verified against a real stack on 2026-08-27 (CJS bundle; see the ESM skip
- * below).
+ * Node.js runtimes do not depend on the layer at all — Stacktape bundles its own OTel runtime into
+ * the function (works for ESM and CJS alike; verified against a real stack). The nodejs entries
+ * here only gate which runtimes count as traceable.
  */
 const OTEL_SUPPORTED_RUNTIMES: Record<string, OtelLayerRuntimeFamily> = {
   'nodejs18.x': 'nodejs',
@@ -74,7 +73,9 @@ const OTEL_SUPPORTED_RUNTIMES: Record<string, OtelLayerRuntimeFamily> = {
 };
 
 export type LambdaTracingInstrumentation = {
-  layerArn: string;
+  /** `bundled` = the OTel runtime ships inside the bundle (Node); `layer` = the AWS-managed layer. */
+  mode: 'bundled' | 'layer';
+  layerArn?: string;
   /** Applied only for keys the function does not already set; user-provided values win. */
   environmentDefaults: Record<string, string>;
   /** Always applied; these keys carry the trace identity and sampling the config promises. */
@@ -105,9 +106,12 @@ export const mergeResourceAttributes = ({
 };
 
 /**
- * Computes the AWS-managed OpenTelemetry layer + activation environment for one traced function.
- * Returns `skippedReason` (instead of throwing) when instrumentation cannot be applied, so a
- * stack-wide `tracing.enabled: true` does not break stacks containing e.g. a Go function.
+ * Computes how one traced function gets instrumented. Node.js functions get Stacktape's OTel
+ * runtime bundled in at packaging time (`mode: 'bundled'`) — the AWS-managed layer cannot see
+ * bundled code and cannot wrap ESM handlers, so it is not used for Node at all. Other supported
+ * runtimes attach the AWS-managed layer (`mode: 'layer'`). Returns `skippedReason` (instead of
+ * throwing) when instrumentation cannot be applied, so a stack-wide `tracing.enabled: true` does
+ * not break stacks containing e.g. a Go function.
  */
 export const getLambdaTracingInstrumentation = ({
   resourceName,
@@ -117,8 +121,7 @@ export const getLambdaTracingInstrumentation = ({
   userEnvironment,
   userLayers = [],
   projectName,
-  stage,
-  explicitOutputModuleFormat
+  stage
 }: {
   resourceName: string;
   runtime: string;
@@ -128,24 +131,32 @@ export const getLambdaTracingInstrumentation = ({
   userLayers?: string[];
   projectName: string;
   stage: string;
-  /** The user's own `outputModuleFormat` choice, when set. The Node 24 implicit ESM default does not count. */
-  explicitOutputModuleFormat?: string;
 }): { instrumentation?: LambdaTracingInstrumentation; skippedReason?: string; warnings?: string[] } => {
   const runtimeFamily = OTEL_SUPPORTED_RUNTIMES[runtime];
   if (!runtimeFamily) {
     return {
-      skippedReason: `runtime \`${runtime}\` is not supported by the AWS-managed OpenTelemetry layers (supported: ${Object.keys(OTEL_SUPPORTED_RUNTIMES).join(', ')})`
+      skippedReason: `runtime \`${runtime}\` does not support tracing (supported: ${Object.keys(OTEL_SUPPORTED_RUNTIMES).join(', ')})`
     };
   }
-  // Verified on a real stack: the layer initializes on an ESM bundle but its handler wrapping
-  // never engages and spans silently vanish. Implicitly-ESM functions (the Node 24 default) are
-  // bundled as CJS instead; an explicit ESM choice wins over tracing.
-  if (runtimeFamily === 'nodejs' && explicitOutputModuleFormat === 'esm') {
+
+  const { environmentOverrides, warnings } = getReservedOtelEnvironment({
+    samplingRate,
+    userEnvironment,
+    projectName,
+    stage
+  });
+
+  if (runtimeFamily === 'nodejs') {
     return {
-      skippedReason:
-        'it explicitly sets `outputModuleFormat: esm`, and the AWS-managed OpenTelemetry layer cannot instrument ESM output'
+      instrumentation: {
+        mode: 'bundled',
+        environmentDefaults: { OTEL_SERVICE_NAME: resourceName },
+        environmentOverrides
+      },
+      ...(warnings.length ? { warnings } : {})
     };
   }
+
   const layerArn = OTEL_LAMBDA_LAYER_ARNS[runtimeFamily][region];
   if (!layerArn) {
     return {
@@ -169,14 +180,9 @@ export const getLambdaTracingInstrumentation = ({
     };
   }
 
-  const { environmentOverrides, warnings } = getReservedOtelEnvironment({
-    samplingRate,
-    userEnvironment,
-    projectName,
-    stage
-  });
   return {
     instrumentation: {
+      mode: 'layer',
       layerArn,
       environmentDefaults: {
         AWS_LAMBDA_EXEC_WRAPPER: OTEL_WRAPPER_SCRIPT,

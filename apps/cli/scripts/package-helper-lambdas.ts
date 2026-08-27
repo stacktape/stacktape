@@ -15,7 +15,7 @@ import { logInfo, logSuccess } from '@scripts/support/logging';
 import { localBuildTsConfigPath } from '@utils/misc';
 import { archiveItem } from '@utils/zip';
 import fsExtra, { remove } from 'fs-extra';
-import { generateSourceMapInstall } from './release/build-cli-sources';
+import { generateLambdaTracingRuntime, generateSourceMapInstall } from './release/build-cli-sources';
 
 const helperLambdas = {
   stacktapeServiceLambda: {
@@ -45,6 +45,7 @@ export const packageHelperLambdas = async ({ distFolderPath }: { distFolderPath:
   const packagingRunId = `helper-lambdas-install-${process.pid}-${Date.now().toString(36)}`;
 
   await generateSourceMapInstall({ distFolderPath: DIST_FOLDER_PATH });
+  await generateLambdaTracingRuntime({ distFolderPath: DIST_FOLDER_PATH });
 
   const lambdasDistFolderPath = join(distFolderPath, HELPER_LAMBDAS_FOLDER_NAME);
   await remove(lambdasDistFolderPath);

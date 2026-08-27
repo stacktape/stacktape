@@ -781,10 +781,7 @@ export class ConfigManager {
         ),
         userLayers: lambdaFunction.layers,
         projectName: this.stackContext.projectName,
-        stage: this.stackContext.stage,
-        explicitOutputModuleFormat: (
-          lambdaFunction.packaging?.properties as { languageSpecificConfig?: { outputModuleFormat?: string } }
-        )?.languageSpecificConfig?.outputModuleFormat
+        stage: this.stackContext.stage
       })
     }));
   }

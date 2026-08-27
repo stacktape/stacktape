@@ -393,8 +393,10 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
   const sharedLayerRefs = sharedLayerNumbers.map((layerNumber) =>
     getAtt(cfLogicalNames.sharedChunkLayer(layerNumber), 'LayerVersionArn')
   );
+  // Node functions trace via the runtime bundled into their code; only layer-mode runtimes
+  // (python/java/dotnet) attach the AWS-managed layer.
   const tracingLayers =
-    tracingInstrumentation && !(layers || []).includes(tracingInstrumentation.layerArn)
+    tracingInstrumentation?.layerArn && !(layers || []).includes(tracingInstrumentation.layerArn)
       ? [tracingInstrumentation.layerArn]
       : [];
   const allLayers = [...(layers || []), ...sharedLayerRefs, ...tracingLayers];

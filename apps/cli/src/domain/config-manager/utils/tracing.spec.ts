@@ -71,19 +71,32 @@ const instrumentationInput = (overrides: Partial<Parameters<typeof getLambdaTrac
 });
 
 describe('getLambdaTracingInstrumentation', () => {
-  test('instruments a supported runtime with the regional layer and activation environment', () => {
-    const { instrumentation, skippedReason } = getLambdaTracingInstrumentation(instrumentationInput());
+  test('Node runtimes trace via the bundled runtime: no layer, no exec wrapper, any module format', () => {
+    for (const runtime of ['nodejs18.x', 'nodejs22.x', 'nodejs24.x']) {
+      const { instrumentation, skippedReason } = getLambdaTracingInstrumentation(instrumentationInput({ runtime }));
+      expect(skippedReason).toBeUndefined();
+      expect(instrumentation!.mode).toBe('bundled');
+      expect(instrumentation!.layerArn).toBeUndefined();
+      expect(instrumentation!.environmentDefaults).toEqual({ OTEL_SERVICE_NAME: 'api' });
+      expect(instrumentation!.environmentOverrides).toEqual({
+        OTEL_RESOURCE_ATTRIBUTES: 'stacktape.project=shop,stacktape.stage=prod,deployment.environment.name=prod',
+        OTEL_TRACES_SAMPLER: 'parentbased_traceidratio',
+        OTEL_TRACES_SAMPLER_ARG: '1'
+      });
+    }
+  });
+
+  test('layer-mode runtimes attach the regional layer with the activation environment', () => {
+    const { instrumentation, skippedReason } = getLambdaTracingInstrumentation(
+      instrumentationInput({ runtime: 'python3.12' })
+    );
     expect(skippedReason).toBeUndefined();
-    expect(instrumentation!.layerArn).toBe('arn:aws:lambda:eu-west-1:615299751070:layer:AWSOpenTelemetryDistroJs:15');
+    expect(instrumentation!.mode).toBe('layer');
+    expect(instrumentation!.layerArn).toContain(':layer:AWSOpenTelemetryDistroPython:');
     expect(instrumentation!.environmentDefaults).toMatchObject({
       AWS_LAMBDA_EXEC_WRAPPER: '/opt/otel-instrument',
       OTEL_AWS_APPLICATION_SIGNALS_ENABLED: 'false',
       OTEL_SERVICE_NAME: 'api'
-    });
-    expect(instrumentation!.environmentOverrides).toEqual({
-      OTEL_RESOURCE_ATTRIBUTES: 'stacktape.project=shop,stacktape.stage=prod,deployment.environment.name=prod',
-      OTEL_TRACES_SAMPLER: 'parentbased_traceidratio',
-      OTEL_TRACES_SAMPLER_ARG: '1'
     });
   });
 
@@ -93,20 +106,6 @@ describe('getLambdaTracingInstrumentation', () => {
       expect(instrumentation).toBeUndefined();
       expect(skippedReason).toContain(runtime);
     }
-  });
-
-  test('skips explicit ESM output, while the implicit Node 24 default stays instrumented', () => {
-    const explicit = getLambdaTracingInstrumentation(instrumentationInput({ explicitOutputModuleFormat: 'esm' }));
-    expect(explicit.instrumentation).toBeUndefined();
-    expect(explicit.skippedReason).toContain('outputModuleFormat');
-    // No explicit choice: packaging bundles the traced function as CJS instead, so it instruments.
-    const implicit = getLambdaTracingInstrumentation(instrumentationInput({ runtime: 'nodejs24.x' }));
-    expect(implicit.instrumentation).toBeDefined();
-    // Non-Node runtimes have no module-format concern at all.
-    const python = getLambdaTracingInstrumentation(
-      instrumentationInput({ runtime: 'python3.12', explicitOutputModuleFormat: 'esm' })
-    );
-    expect(python.instrumentation).toBeDefined();
   });
 
   test('skips regions where the layer is not published', () => {
@@ -119,19 +118,22 @@ describe('getLambdaTracingInstrumentation', () => {
   });
 
   test('skips when a different OpenTelemetry layer is already attached, reuses the exact one', () => {
-    const managedArn = 'arn:aws:lambda:eu-west-1:615299751070:layer:AWSOpenTelemetryDistroJs:15';
     const conflicting = getLambdaTracingInstrumentation(
-      instrumentationInput({ userLayers: [managedArn.replace(':15', ':9')] })
+      instrumentationInput({
+        runtime: 'python3.12',
+        userLayers: ['arn:aws:lambda:eu-west-1:615299751070:layer:AWSOpenTelemetryDistroPython:9']
+      })
     );
     expect(conflicting.instrumentation).toBeUndefined();
-    expect(conflicting.skippedReason).toContain('AWSOpenTelemetryDistroJs:9');
-    const exact = getLambdaTracingInstrumentation(instrumentationInput({ userLayers: [managedArn] }));
-    expect(exact.instrumentation!.layerArn).toBe(managedArn);
+    expect(conflicting.skippedReason).toContain('AWSOpenTelemetryDistroPython:9');
   });
 
   test('skips entirely when the user already uses a different exec wrapper', () => {
     const { instrumentation, skippedReason } = getLambdaTracingInstrumentation(
-      instrumentationInput({ userEnvironment: { AWS_LAMBDA_EXEC_WRAPPER: '/opt/custom-wrapper' } })
+      instrumentationInput({
+        runtime: 'python3.12',
+        userEnvironment: { AWS_LAMBDA_EXEC_WRAPPER: '/opt/custom-wrapper' }
+      })
     );
     expect(instrumentation).toBeUndefined();
     expect(skippedReason).toContain('/opt/custom-wrapper');
@@ -178,7 +180,9 @@ describe('getLambdaTracingInstrumentation', () => {
   });
 
   test('uses partition-correct layer ARNs for China regions', () => {
-    const { instrumentation } = getLambdaTracingInstrumentation(instrumentationInput({ region: 'cn-north-1' }));
-    expect(instrumentation!.layerArn.startsWith('arn:aws-cn:lambda:cn-north-1:')).toBe(true);
+    const { instrumentation } = getLambdaTracingInstrumentation(
+      instrumentationInput({ runtime: 'python3.12', region: 'cn-north-1' })
+    );
+    expect(instrumentation!.layerArn!.startsWith('arn:aws-cn:lambda:cn-north-1:')).toBe(true);
   });
 });

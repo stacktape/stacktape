@@ -24,7 +24,7 @@ import { deployedStackOverviewManager } from '@domain-services/deployed-stack-ov
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { ec2Manager } from '@domain-services/ec2-manager';
 import { fsPaths } from 'src/config/runtime-paths';
-import { SOURCE_MAP_INSTALL_DIST_PATH } from 'src/config/project-paths';
+import { LAMBDA_TRACING_RUNTIME_DIST_PATH, SOURCE_MAP_INSTALL_DIST_PATH } from 'src/config/project-paths';
 import { buildLayerS3Key } from '@domain-services/deployment-artifact-manager/artifact-names';
 import { getJobName } from '@stacktape/naming/workload-names';
 import { buildNativeBinaryLayer } from '@stacktape/packaging/es/native-dependencies';
@@ -1453,23 +1453,23 @@ export class PackagingManager {
           });
           // Lambda@Edge doesn't support ESM with top-level await, so force CJS for edge functions
           const isEdgeFunction = workloadType === 'edge-lambda-function';
-          // The AWS-managed OTel layer cannot instrument ESM output (verified on a real stack: it
-          // initializes, wraps nothing, and spans silently vanish), so traced functions bundle as
-          // CJS. An explicit user `esm` choice never reaches this branch — instrumentation is
-          // skipped for it upstream, with a warning.
-          const tracedAsCjs =
+          const useEsm = !isEdgeFunction && (languageSpecificConfig?.outputModuleFormat === 'esm' || nodeVersion >= 24);
+          // Traced functions get Stacktape's OTel runtime bundled in and their handler wrapped at
+          // the bundle entry — module format stays whatever the function would use anyway. The
+          // AWS-managed layer is not used for Node: its hooks cannot see bundled code at all and it
+          // cannot wrap ESM handlers (verified live).
+          const tracingRuntimeFilePath =
             packagingType === 'stacktape-lambda-buildpack' &&
-            configManager.instrumentedLambdaFunctions.some(({ name: tracedName }) => tracedName === workloadName);
-          const useEsm =
-            !isEdgeFunction &&
-            !tracedAsCjs &&
-            (languageSpecificConfig?.outputModuleFormat === 'esm' || nodeVersion >= 24);
+            configManager.instrumentedLambdaFunctions.some(({ name: tracedName }) => tracedName === workloadName)
+              ? LAMBDA_TRACING_RUNTIME_DIST_PATH
+              : undefined;
           const sharedStpBuildpackProps = {
             ...packaging.properties,
             minify: false,
             keepNames: true,
             nodeTarget: String(nodeVersion),
             entryfilePath: join(globalStateManager.workingDir, packaging.properties.entryfilePath),
+            ...(tracingRuntimeFilePath && { tracingRuntimeFilePath }),
             ...(useEsm && { outputModuleFormat: 'esm' as const })
           };
           const additionalDigestInput = objectHash({

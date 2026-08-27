@@ -1140,13 +1140,16 @@ describe('full synthesis contract', () => {
       Type: 'AWS::CloudFormation::CustomResource'
     });
 
-    // Lambda side: managed OTel layer + activation environment.
+    // Lambda side: Node functions carry the OTel runtime inside their bundle — no AWS layer and no
+    // exec wrapper (the layer cannot see bundled code or wrap ESM handlers). Only the activation
+    // environment shows in the template.
     const workerFn = resources[cfLogicalNames.lambda('worker')];
-    expect(workerFn.Properties.Layers.some((layer: any) => String(layer).includes('AWSOpenTelemetryDistroJs'))).toBe(
-      true
-    );
+    expect(
+      (workerFn.Properties.Layers || []).some((layer: any) => String(layer).includes('AWSOpenTelemetryDistro'))
+    ).toBe(false);
+    expect(workerFn.Properties.Environment.Variables.AWS_LAMBDA_EXEC_WRAPPER).toBeUndefined();
     expect(workerFn.Properties.Environment.Variables).toMatchObject({
-      AWS_LAMBDA_EXEC_WRAPPER: '/opt/otel-instrument',
+      OTEL_SERVICE_NAME: 'worker',
       OTEL_TRACES_SAMPLER: 'parentbased_traceidratio',
       OTEL_TRACES_SAMPLER_ARG: '0.3',
       OTEL_RESOURCE_ATTRIBUTES:

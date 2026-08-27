@@ -20,7 +20,8 @@ import {
   copySessionsManagerPluginBinary,
   createReleaseDataFile,
   EXECUTABLE_FILE_PATTERNS,
-  generateSourceMapInstall
+  generateSourceMapInstall,
+  generateLambdaTracingRuntime
 } from './release/build-cli-sources';
 
 const { debug, keepUnarchived } = getCliArgs();
@@ -74,7 +75,8 @@ const buildEverything = async () => {
     generateStarterProjectsMetadata({ distFolderPath: platformDistFolderPath }),
     packageHelperLambdas({ distFolderPath: platformDistFolderPath }),
     createReleaseDataFile({ distFolderPath: platformDistFolderPath, version }),
-    generateSourceMapInstall({ distFolderPath: platformDistFolderPath })
+    generateSourceMapInstall({ distFolderPath: platformDistFolderPath }),
+    generateLambdaTracingRuntime({ distFolderPath: platformDistFolderPath })
   ]);
 
   if (platform !== 'win') {
