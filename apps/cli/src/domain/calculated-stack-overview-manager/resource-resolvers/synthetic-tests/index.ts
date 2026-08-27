@@ -18,6 +18,7 @@ import { configErrors } from '@domain-services/config-manager/errors';
 import { templateManager } from '@domain-services/template-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
+import { tagNames } from '@stacktape/naming/tag-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { isDevCommand } from '../../../../commands/dev/dev-mode-utils';
 import { transformToUnixPath } from '@utils/fs-utils';
@@ -269,7 +270,14 @@ export const resolveSyntheticTests = async () => {
         SuccessRetentionPeriod: test.retentionDays,
         FailureRetentionPeriod: test.retentionDays,
         StartCanaryAfterCreation: true,
-        ProvisionedResourceCleanup: 'AUTOMATIC'
+        ProvisionedResourceCleanup: 'AUTOMATIC',
+        // CloudFormation does not propagate stack-level tags to canaries; the Console derives the
+        // test's project/stage/name from these.
+        Tags: [
+          { Key: tagNames.stackName(), Value: stackName },
+          { Key: tagNames.projectName(), Value: calculatedStackOverviewManager.context.projectName },
+          { Key: tagNames.stage(), Value: calculatedStackOverviewManager.context.stage }
+        ]
       })
     });
     calculatedStackOverviewManager.addStacktapeResourceLink({

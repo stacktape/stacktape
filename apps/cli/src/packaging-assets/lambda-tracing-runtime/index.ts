@@ -108,6 +108,20 @@ const environmentCarrierGetter: TextMapGetter<Record<string, string | undefined>
 
 type LambdaHandler = (event: unknown, context: unknown, ...rest: unknown[]) => unknown;
 
+/** HTTP shape of function-URL / API Gateway (v2 and v1) / ALB events, when the event carries one. */
+const httpFromEvent = (event: unknown): { method: string; path: string } | undefined => {
+  const eventLike = event as {
+    requestContext?: { http?: { method?: string; path?: string } };
+    rawPath?: string;
+    httpMethod?: string;
+    path?: string;
+  } | null;
+  const v2 = eventLike?.requestContext?.http;
+  if (v2?.method) return { method: v2.method, path: eventLike?.rawPath || v2.path || '/' };
+  if (eventLike?.httpMethod) return { method: eventLike.httpMethod, path: eventLike.path || '/' };
+  return undefined;
+};
+
 let initialized: { provider: NodeTracerProvider; xrayPropagator: AWSXRayPropagator } | undefined;
 let coldStart = true;
 
@@ -175,13 +189,19 @@ export const wrapLambdaHandler = <T extends LambdaHandler>(userHandler: T): T =>
         awsRequestId?: string;
         invokedFunctionArn?: string;
       };
+      // HTTP invocations get the request as the span name — "GET /orders/42" reads; a bare
+      // function name does not.
+      const http = httpFromEvent(event);
       span = tracer.startSpan(
-        contextLike.functionName || process.env.AWS_LAMBDA_FUNCTION_NAME || 'invoke',
+        http
+          ? `${http.method} ${http.path}`
+          : contextLike.functionName || process.env.AWS_LAMBDA_FUNCTION_NAME || 'invoke',
         {
           kind: SpanKind.SERVER,
           attributes: {
-            'faas.trigger': 'http',
+            'faas.trigger': http ? 'http' : 'other',
             'faas.coldstart': coldStart,
+            ...(http ? { 'http.request.method': http.method, 'url.path': http.path } : {}),
             ...(contextLike.awsRequestId ? { 'faas.invocation_id': contextLike.awsRequestId } : {}),
             ...(contextLike.invokedFunctionArn ? { 'cloud.resource_id': contextLike.invokedFunctionArn } : {})
           }
