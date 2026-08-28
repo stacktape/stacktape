@@ -9,65 +9,6 @@ import { tuiDebug } from '@application-services/tui-manager/debug';
 import { commandsWithDisabledAnnouncements } from './config/cli/commands';
 import { notificationManager } from '@domain-services/notification-manager';
 import { deleteTempFolder } from '@utils/temp-files';
-import { commandAwsProfileCreate } from './commands/aws-profile-create';
-import { commandAwsProfileDelete } from './commands/aws-profile-delete';
-import { commandAwsProfileList } from './commands/aws-profile-list';
-import { commandAwsProfileUpdate } from './commands/aws-profile-update';
-import { commandBastionSession } from './commands/bastion-session';
-import { commandBastionTunnel } from './commands/bastion-tunnel';
-import { commandBucketSync } from './commands/bucket-sync';
-import { commandCfModuleUpdate } from './commands/cf-module-update';
-import { commandSynth } from './commands/synth';
-import { commandContainerSession } from './commands/container-session';
-import { commandDefaultsConfigure } from './commands/defaults-configure';
-import { commandDefaultsList } from './commands/defaults-list';
-import { commandDelete } from './commands/delete';
-import { commandDeploy } from './commands/deploy';
-import { commandDeploymentScriptRun } from './commands/deployment-script-run';
-import { commandDev } from './commands/dev';
-import { commandDevStop } from './commands/dev-stop';
-import { commandDomainAdd } from './commands/domain-add';
-import { commandHelp } from './commands/help';
-import { commandInit } from './commands/init';
-import { commandInfoOperations } from './commands/info-operations';
-import { commandIssuesIgnore } from './commands/issues-ignore';
-import { commandIssuesList } from './commands/issues-list';
-import { commandIssuesReopen } from './commands/issues-reopen';
-import { commandIssuesResolve } from './commands/issues-resolve';
-import { commandProjectList } from './commands/project-list';
-import { commandInfoStack } from './commands/info-stack';
-import { commandInfoWhoami } from './commands/info-whoami';
-import { commandLogin } from './commands/login';
-import { commandLogout } from './commands/logout';
-import { commandOrgCreate } from './commands/org-create';
-import { commandOrgDelete } from './commands/org-delete';
-import { commandOrgList } from './commands/org-list';
-import { commandProjectCreate } from './commands/project-create';
-import { commandLogs } from './commands/logs';
-import { commandAlarms } from './commands/alarms';
-import { commandMetrics } from './commands/metrics';
-import { commandContainerExec } from './commands/container-exec';
-import { commandQuerySql } from './commands/query-sql';
-import { commandAwsCall } from './commands/aws-call';
-import { commandQueryDynamodb } from './commands/query-dynamodb';
-import { commandQueryRedis } from './commands/query-redis';
-import { commandQueryOpensearch } from './commands/query-opensearch';
-import { commandPackage } from './commands/package';
-import { commandParamGet } from './commands/param-get';
-import { commandDiff } from './commands/diff';
-import { commandCfRollback } from './commands/cf-rollback';
-import { commandRollback } from './commands/rollback';
-import { commandScriptRun } from './commands/script-run';
-import { commandSecretSet } from './commands/secret-set';
-import { commandSecretDelete } from './commands/secret-delete';
-import { commandSecretGet } from './commands/secret-get';
-
-import { commandInfoStacks } from './commands/info-stacks';
-import { commandMcp } from './commands/mcp';
-import { commandMcpAdd } from './commands/mcp-add';
-import { commandUpgrade } from './commands/upgrade';
-import { commandValidate } from './commands/validate';
-import { commandVersion } from './commands/version';
 import { initAgentMode } from './commands/_utils/agent-mode';
 
 /**
@@ -179,7 +120,7 @@ export const runCommand = async (opts: RunCommandOptions) => {
       tuiDebug('MAIN', 'starting TUI', { command: globalStateManager.command, phases: ui.phases });
       tuiManager.start({ phases: ui.phases });
     }
-    const executor = getCommandExecutor(globalStateManager.command);
+    const executor = await getCommandExecutor(globalStateManager.command);
     commandResult = await executor();
     eventManager.clearHookFailures();
     const shouldContinueAfterHookFailure = globalStateManager.command === 'deploy';
@@ -266,67 +207,72 @@ export const runCommand = async (opts: RunCommandOptions) => {
   }
 };
 
-const getCommandExecutor = (command: StacktapeCommand) => {
-  const commandMap: { [_ in StacktapeCommand]: () => any } = {
-    synth: commandSynth,
-    validate: commandValidate,
-    'defaults:configure': commandDefaultsConfigure,
-    'defaults:list': commandDefaultsList,
-    'aws-profile:create': commandAwsProfileCreate,
-    'aws-profile:delete': commandAwsProfileDelete,
-    'aws-profile:update': commandAwsProfileUpdate,
-    'aws-profile:list': commandAwsProfileList,
-    delete: commandDelete,
-    deploy: commandDeploy,
-    'deployment-script:run': commandDeploymentScriptRun,
-    'domain:add': commandDomainAdd,
-    help: commandHelp,
-    init: commandInit,
-    dev: commandDev,
-    'dev:stop': commandDevStop,
-    package: commandPackage,
-    diff: commandDiff,
-    logs: commandLogs,
-    alarms: commandAlarms,
-    metrics: commandMetrics,
-    'container:exec': commandContainerExec,
-    'query:sql': commandQuerySql,
-    'aws:call': commandAwsCall,
-    'query:dynamodb': commandQueryDynamodb,
-    'query:redis': commandQueryRedis,
-    'query:opensearch': commandQueryOpensearch,
-    rollback: commandRollback,
-    'cf:rollback': commandCfRollback,
-    'secret:set': commandSecretSet,
-    'secret:delete': commandSecretDelete,
-    'secret:get': commandSecretGet,
-    'bucket:sync': commandBucketSync,
-    'bastion:session': commandBastionSession,
-    'bastion:tunnel': commandBastionTunnel,
-    'container:session': commandContainerSession,
-    'cf-module:update': commandCfModuleUpdate,
-    'script:run': commandScriptRun,
+type CommandExecutor = () => unknown;
 
-    'param:get': commandParamGet,
-    'info:stacks': commandInfoStacks,
-    version: commandVersion,
-    login: commandLogin,
-    logout: commandLogout,
-    'org:create': commandOrgCreate,
-    'org:list': commandOrgList,
-    'org:delete': commandOrgDelete,
-    'project:create': commandProjectCreate,
-    'project:list': commandProjectList,
-    upgrade: commandUpgrade,
-    'info:whoami': commandInfoWhoami,
-    'info:operations': commandInfoOperations,
-    'issues:list': commandIssuesList,
-    'issues:resolve': commandIssuesResolve,
-    'issues:ignore': commandIssuesIgnore,
-    'issues:reopen': commandIssuesReopen,
-    'info:stack': commandInfoStack,
-    mcp: commandMcp,
-    'mcp:add': commandMcpAdd
-  };
-  return commandMap[command];
-};
+/**
+ * Keep command modules out of the startup path. Bun embeds these dynamic imports in the compiled executable and only
+ * initializes the module selected by the parsed command. The exhaustive record makes a new command fail typechecking
+ * until it gets a loader.
+ */
+const commandLoaders = {
+  synth: async () => (await import('./commands/synth')).commandSynth,
+  validate: async () => (await import('./commands/validate')).commandValidate,
+  'defaults:configure': async () => (await import('./commands/defaults-configure')).commandDefaultsConfigure,
+  'defaults:list': async () => (await import('./commands/defaults-list')).commandDefaultsList,
+  'aws-profile:create': async () => (await import('./commands/aws-profile-create')).commandAwsProfileCreate,
+  'aws-profile:delete': async () => (await import('./commands/aws-profile-delete')).commandAwsProfileDelete,
+  'aws-profile:update': async () => (await import('./commands/aws-profile-update')).commandAwsProfileUpdate,
+  'aws-profile:list': async () => (await import('./commands/aws-profile-list')).commandAwsProfileList,
+  delete: async () => (await import('./commands/delete')).commandDelete,
+  deploy: async () => (await import('./commands/deploy')).commandDeploy,
+  'deployment-script:run': async () => (await import('./commands/deployment-script-run')).commandDeploymentScriptRun,
+  'domain:add': async () => (await import('./commands/domain-add')).commandDomainAdd,
+  help: async () => (await import('./commands/help')).commandHelp,
+  init: async () => (await import('./commands/init')).commandInit,
+  dev: async () => (await import('./commands/dev')).commandDev,
+  'dev:stop': async () => (await import('./commands/dev-stop')).commandDevStop,
+  package: async () => (await import('./commands/package')).commandPackage,
+  diff: async () => (await import('./commands/diff')).commandDiff,
+  logs: async () => (await import('./commands/logs')).commandLogs,
+  alarms: async () => (await import('./commands/alarms')).commandAlarms,
+  metrics: async () => (await import('./commands/metrics')).commandMetrics,
+  'container:exec': async () => (await import('./commands/container-exec')).commandContainerExec,
+  'query:sql': async () => (await import('./commands/query-sql')).commandQuerySql,
+  'aws:call': async () => (await import('./commands/aws-call')).commandAwsCall,
+  'query:dynamodb': async () => (await import('./commands/query-dynamodb')).commandQueryDynamodb,
+  'query:redis': async () => (await import('./commands/query-redis')).commandQueryRedis,
+  'query:opensearch': async () => (await import('./commands/query-opensearch')).commandQueryOpensearch,
+  rollback: async () => (await import('./commands/rollback')).commandRollback,
+  'cf:rollback': async () => (await import('./commands/cf-rollback')).commandCfRollback,
+  'secret:set': async () => (await import('./commands/secret-set')).commandSecretSet,
+  'secret:delete': async () => (await import('./commands/secret-delete')).commandSecretDelete,
+  'secret:get': async () => (await import('./commands/secret-get')).commandSecretGet,
+  'bucket:sync': async () => (await import('./commands/bucket-sync')).commandBucketSync,
+  'bastion:session': async () => (await import('./commands/bastion-session')).commandBastionSession,
+  'bastion:tunnel': async () => (await import('./commands/bastion-tunnel')).commandBastionTunnel,
+  'container:session': async () => (await import('./commands/container-session')).commandContainerSession,
+  'cf-module:update': async () => (await import('./commands/cf-module-update')).commandCfModuleUpdate,
+  'script:run': async () => (await import('./commands/script-run')).commandScriptRun,
+  'param:get': async () => (await import('./commands/param-get')).commandParamGet,
+  'info:stacks': async () => (await import('./commands/info-stacks')).commandInfoStacks,
+  version: async () => (await import('./commands/version')).commandVersion,
+  login: async () => (await import('./commands/login')).commandLogin,
+  logout: async () => (await import('./commands/logout')).commandLogout,
+  'org:create': async () => (await import('./commands/org-create')).commandOrgCreate,
+  'org:list': async () => (await import('./commands/org-list')).commandOrgList,
+  'org:delete': async () => (await import('./commands/org-delete')).commandOrgDelete,
+  'project:create': async () => (await import('./commands/project-create')).commandProjectCreate,
+  'project:list': async () => (await import('./commands/project-list')).commandProjectList,
+  upgrade: async () => (await import('./commands/upgrade')).commandUpgrade,
+  'info:whoami': async () => (await import('./commands/info-whoami')).commandInfoWhoami,
+  'info:operations': async () => (await import('./commands/info-operations')).commandInfoOperations,
+  'issues:list': async () => (await import('./commands/issues-list')).commandIssuesList,
+  'issues:resolve': async () => (await import('./commands/issues-resolve')).commandIssuesResolve,
+  'issues:ignore': async () => (await import('./commands/issues-ignore')).commandIssuesIgnore,
+  'issues:reopen': async () => (await import('./commands/issues-reopen')).commandIssuesReopen,
+  'info:stack': async () => (await import('./commands/info-stack')).commandInfoStack,
+  mcp: async () => (await import('./commands/mcp')).commandMcp,
+  'mcp:add': async () => (await import('./commands/mcp-add')).commandMcpAdd
+} satisfies Record<StacktapeCommand, () => Promise<CommandExecutor>>;
+
+const getCommandExecutor = (command: StacktapeCommand): Promise<CommandExecutor> => commandLoaders[command]();
