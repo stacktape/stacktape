@@ -8,7 +8,7 @@ import type {
   StpResource,
   StpResourceType
 } from '@domain-services/config-manager/resolved-types/resources';
-import { eventManager } from '@application-services/event-manager';
+import { operationReporter } from '@application-services/operation-manager';
 import { configManager } from '@domain-services/config-manager';
 import { getEmailSenderBindingsFingerprint } from '@domain-services/email-sender-manager/bindings-fingerprint';
 import { templateManager } from '@domain-services/template-manager';
@@ -149,8 +149,8 @@ export class CalculatedStackOverviewManager {
     void this.context;
     // No phase pin: this runs at different points per command (after packaging
     // during deploy), and pinning it to INITIALIZE would file the event under a
-    // phase that already closed in the scrollback record.
-    await eventManager.startEvent({
+    // phase that already closed in the operation journal.
+    await operationReporter.startEvent({
       eventType: 'RESOLVE_CONFIG',
       description: 'Preparing infrastructure template'
     });
@@ -221,7 +221,7 @@ export class CalculatedStackOverviewManager {
       resolveDebugAgentRole,
       resolveDevContainerWorkloadRoles
     ]);
-    await eventManager.finishEvent({
+    await operationReporter.finishEvent({
       eventType: 'RESOLVE_CONFIG',
       finalMessage: `Infrastructure template prepared (${this.resourceCount} AWS resources)`
     });

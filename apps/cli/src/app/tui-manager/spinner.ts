@@ -1,4 +1,4 @@
-import type { LoggableEventType, ProgressLogger } from '@application-services/event-manager/types';
+import type { LoggableEventType, ProgressReporter as ProgressLogger } from '@application-services/operation-manager';
 import { formatDuration, stripAnsi } from './format/text';
 
 const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
@@ -27,10 +27,9 @@ let _devTuiActive = false;
 let _agentMode = false;
 type TuiSpinnerMessageSink = (type: 'success' | 'error', text: string) => void;
 
-// While the split-footer TUI owns the terminal, inline \r-animated spinners would
-// be captured as raw stdout and replayed into scrollback frame-by-frame. Instead,
-// spinners stay silent while running and stream only their final line through the
-// TUI message sink (→ scrollback).
+// While a TUI presenter owns the terminal, inline \r-animated spinners would
+// be captured as raw stdout and replayed frame-by-frame. Spinners stay silent
+// while running and journal only their final line.
 let _tuiMessageSink: TuiSpinnerMessageSink | null = null;
 
 export const setSpinnerTuiMessageSink = (sink: TuiSpinnerMessageSink | null) => {

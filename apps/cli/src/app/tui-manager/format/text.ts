@@ -113,10 +113,27 @@ export const getElapsedTime = (startTime: number | undefined, duration: number |
   return Date.now() - startTime;
 };
 
+/**
+ * Every terminal escape sequence, not just SGR colors: CSI with any final byte
+ * (cursor movement, erase-line), OSC (hyperlinks, titles) terminated by BEL or
+ * ST, and remaining two-character ESC sequences. Tool output routinely carries
+ * these, and OpenTUI measures any leftover bytes as visible cells.
+ */
+// eslint-disable-next-line no-control-regex
+const ANSI_SEQUENCE = /\x1B\[[0-?]*[ -/]*[@-~]|\x1B\][^\x07\x1B]*(?:\x07|\x1B\\)?|\x1B[@-Z\\-_]/g;
+
 export const stripAnsi = (str?: string): string => {
   if (!str) return '';
-  // eslint-disable-next-line no-control-regex
-  return str.replace(/\x1B\[[0-9;]*m/g, '');
+  return str.replace(ANSI_SEQUENCE, '');
 };
+
+/**
+ * Human label for an event instance id. Instance ids double as artifact job
+ * names, which carry addressing suffixes users don't think in (`web-default`
+ * is the `web` container workload; `manual-db-migrate` is the db-migrate
+ * script). Display surfaces show the workload-level name.
+ */
+export const displayInstanceLabel = (instanceId: string): string =>
+  instanceId.replace(/^manual-/, '').replace(/-default$/, '');
 
 export const visibleWidth = (value: string): number => Bun.stringWidth(value);

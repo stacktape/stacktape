@@ -235,15 +235,37 @@ export const buildDeploymentChangePlan = (input: ChangePlanInput): DeploymentCha
   };
 };
 
+/**
+ * One-line, user-facing answer to "what is this deploy about to do to my
+ * infrastructure". Counts are Stacktape resources; zero counts are dropped
+ * rather than listed, and the plan id stays at the end for support and audit
+ * lookups. Workload-build counts are deliberately absent — the packaging block
+ * already reports builds in detail.
+ */
 export const formatDeploymentChangePlanSummary = (plan: DeploymentChangePlanV1) => {
   const { creates, updates, deletes, replacements, dangerousChanges } = plan.summary;
-  const workloadBuildCount = plan.candidate.workloadBuilds.length;
-  return [
-    `Change plan ${plan.planId.slice('sha256:'.length, 'sha256:'.length + 12)}`,
-    `${creates} create, ${updates} update, ${deletes} delete, ${replacements} replace`,
-    `${workloadBuildCount} workload build${workloadBuildCount === 1 ? '' : 's'}`,
-    dangerousChanges > 0 ? `${dangerousChanges} protected-resource risk${dangerousChanges === 1 ? '' : 's'}` : undefined
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  const planId = plan.planId.slice('sha256:'.length, 'sha256:'.length + 12);
+
+  const parts: string[] = [];
+  if (creates > 0) parts.push(`${creates} to create`);
+  if (updates > 0) parts.push(`${updates} to update`);
+  if (replacements > 0) parts.push(`${replacements} to replace`);
+  if (deletes > 0) parts.push(`${deletes} to delete`);
+
+  const changeText =
+    parts.length === 1 && creates + updates + deletes + replacements === 1
+      ? `1 resource ${parts[0].slice('1 '.length)}`
+      : parts.length === 1
+        ? `${parts[0].replace(' to ', ' resources to ')}`
+        : parts.length > 0
+          ? parts.join(' · ')
+          : plan.candidate.workloadBuilds.length > 0
+            ? 'no infrastructure changes — application code only'
+            : 'no changes';
+
+  const riskText =
+    dangerousChanges > 0
+      ? ` · ${dangerousChanges} change${dangerousChanges === 1 ? '' : 's'} affect${dangerousChanges === 1 ? 's' : ''} a protected resource`
+      : '';
+  return `Infrastructure changes: ${changeText}${riskText} (plan ${planId})`;
 };

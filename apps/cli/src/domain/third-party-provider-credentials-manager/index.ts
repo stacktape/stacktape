@@ -1,5 +1,5 @@
 import { getAtt } from '@stacktape/cloudformation/intrinsics';
-import { eventManager } from '@application-services/event-manager';
+import { operationReporter } from '@application-services/operation-manager';
 import { ParameterNotFound } from '@aws-sdk/client-ssm';
 import { configManager } from '@domain-services/config-manager';
 import { stpErrors } from '@errors';
@@ -24,7 +24,7 @@ export class ThirdPartyProviderManager {
     requireUpstashCredentialsParameter: boolean;
   }) => {
     if (requireAtlasCredentialsParameter || requireUpstashCredentialsParameter) {
-      await eventManager.startEvent({
+      await operationReporter.startEvent({
         eventType: 'LOAD_PROVIDER_CREDENTIALS',
         description: 'Load provider credentials'
       });
@@ -63,7 +63,7 @@ export class ThirdPartyProviderManager {
         }
       }
 
-      await eventManager.finishEvent({
+      await operationReporter.finishEvent({
         eventType: 'LOAD_PROVIDER_CREDENTIALS'
       });
     }

@@ -141,6 +141,8 @@ export type JsonlOutputEvent = {
   type: 'output';
   /** ISO-8601 timestamp. */
   ts: string;
+  /** Original child stream, when known. */
+  stream?: 'stdout' | 'stderr';
   /** The tracked operation that produced this output, if known. */
   eventType?: string;
   /** Disambiguates parallel instances (same as on the parent event). */

@@ -37,8 +37,9 @@ const parseRetainedSharedResources = (serialized: string): RetainedSharedResourc
 type DeleteExecutionOperation = {
   config: Pick<DeleteOperation['config'], 'config' | 'hooks'>;
   deploymentArtifacts: { deleteAllArtifacts: () => Promise<unknown> };
-  event: Pick<DeleteOperation['event'], 'processHooks' | 'registerHooks' | 'setPhase'>;
+  lifecycle: Pick<DeleteOperation['lifecycle'], 'processHooks' | 'registerHooks'>;
   notification: Pick<DeleteOperation['notification'], 'sendDeploymentNotification'>;
+  progress: Pick<DeleteOperation['progress'], 'setPhase'>;
   stack: {
     deleteStack: () => Promise<unknown>;
     existingStackDetails: { EnableTerminationProtection?: boolean };
@@ -54,8 +55,9 @@ export const commandDelete = async () => {
     config,
     deployedStackOverview,
     deploymentArtifacts,
-    event,
+    lifecycle,
     notification,
+    progress,
     stack,
     stackContext,
     template,
@@ -80,8 +82,9 @@ export const commandDelete = async () => {
   const result = await executeDeleteOperation({
     config,
     deploymentArtifacts,
-    event,
+    lifecycle,
     notification,
+    progress,
     retainedSharedResources,
     stack,
     stackName,
@@ -106,14 +109,15 @@ export const commandDelete = async () => {
 export const executeDeleteOperation = async ({
   config,
   deploymentArtifacts,
-  event,
+  lifecycle,
   notification,
+  progress,
   retainedSharedResources,
   stack,
   stackName,
   tui
 }: DeleteExecutionOperation) => {
-  event.setPhase('DEPLOY');
+  progress.setPhase('DEPLOY');
 
   if (stack.existingStackDetails.EnableTerminationProtection) {
     throw new ExpectedError(
@@ -131,8 +135,8 @@ export const executeDeleteOperation = async ({
   });
 
   if (config.config) {
-    await event.registerHooks(config.hooks);
-    await event.processHooks({ captureType: 'START' });
+    await lifecycle.registerHooks(config.hooks);
+    await lifecycle.processHooks({ captureType: 'START' });
   }
   await deploymentArtifacts.deleteAllArtifacts();
   await stack.deleteStack();

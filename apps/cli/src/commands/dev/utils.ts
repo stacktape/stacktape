@@ -7,7 +7,7 @@ import type { Stats } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import { applicationManager } from '@application-services/application-manager';
 import { devTuiManager } from 'src/app/tui-manager/dev/manager';
-import { eventManager } from '@application-services/event-manager';
+import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -337,14 +337,14 @@ export const resolveRunningContainersWithSamePort = async ({
           )}`
         });
     if (shouldStopConflictingContainers) {
-      await eventManager.startEvent({
+      await operationReporter.startEvent({
         eventType: 'STOP_CONTAINER',
         description: `Stopping ${containersWithConflictingPorts.length} conflicting container${containersWithConflictingPorts.length > 1 ? 's' : ''}`
       });
       await Promise.all(
         containersWithConflictingPorts.map((container) => stopDockerContainer(container.Id, getContainerStopWaitTime()))
       );
-      await eventManager.finishEvent({ eventType: 'STOP_CONTAINER' });
+      await operationReporter.finishEvent({ eventType: 'STOP_CONTAINER' });
     }
     if (onContainerStopped) {
       onContainerStopped();

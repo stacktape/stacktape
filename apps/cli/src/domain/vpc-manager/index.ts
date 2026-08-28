@@ -1,7 +1,7 @@
 import { ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpResource } from '@domain-services/config-manager/resolved-types/resources';
 import type { Subnet, Vpc } from '@aws-sdk/client-ec2';
-import { eventManager } from '@application-services/event-manager';
+import { operationReporter } from '@application-services/operation-manager';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getStackName } from '@stacktape/naming/stacks';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
@@ -58,7 +58,7 @@ export class VpcManager {
 
     const resourcesRequiringPrivateSubnet = params?.resourcesRequiringPrivateSubnet || [];
 
-    await eventManager.startEvent({
+    await operationReporter.startEvent({
       eventType: 'LOAD_VPC_INFO',
       description: 'Loading VPC information'
     });
@@ -165,7 +165,7 @@ export class VpcManager {
       });
     }
 
-    await eventManager.finishEvent({
+    await operationReporter.finishEvent({
       eventType: 'LOAD_VPC_INFO',
       data: {
         vpcId,

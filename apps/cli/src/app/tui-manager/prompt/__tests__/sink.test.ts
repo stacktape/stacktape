@@ -1,20 +1,16 @@
 import { describe, test, expect, beforeEach } from 'bun:test';
 import { PromptSink } from '../sink';
 import { UserCancelledError } from '../inline';
-import { scrollbackFeed, type ScrollbackItem } from '../../progress/feed';
 import { tuiState } from '../../progress/state';
 import type { TuiPromptConfirm } from '../../progress/types';
+import { interactionCoordinator } from '../../interaction/coordinator';
+import { operationSession } from '@application-services/operation-manager';
 
 let sink: PromptSink;
 let autoAnswerLogs: string[];
-let received: ScrollbackItem[];
 
 beforeEach(() => {
   tuiState.reset();
-  scrollbackFeed.reset();
-  scrollbackFeed.enable();
-  received = [];
-  scrollbackFeed.setConsumer((item) => received.push(item));
   autoAnswerLogs = [];
   sink = new PromptSink((message) => autoAnswerLogs.push(message));
 });
@@ -54,7 +50,15 @@ describe('PromptSink non-interactive mode', () => {
 });
 
 describe('PromptSink TUI mode', () => {
-  test('sets the active prompt and resolves with a scrollback transcript', async () => {
+  test('sets the active prompt and resolves with a journal transcript', async () => {
+    let promptSurfaceRuns = 0;
+    sink = new PromptSink(
+      (message) => autoAnswerLogs.push(message),
+      async (run) => {
+        promptSurfaceRuns++;
+        return run();
+      }
+    );
     const promise = sink.confirm({
       config: { message: 'Deploy to production?', defaultValue: false },
       isEnabled: true,
@@ -62,26 +66,39 @@ describe('PromptSink TUI mode', () => {
     });
 
     const prompt = tuiState.getSnapshot().activePrompt as TuiPromptConfirm;
+    expect(promptSurfaceRuns).toBe(1);
     expect(prompt?.type).toBe('confirm');
-    prompt.resolve(true);
+    interactionCoordinator.answerPrompt(prompt.id, true);
 
     await expect(promise).resolves.toBe(true);
     expect(tuiState.getSnapshot().activePrompt).toBeUndefined();
-    expect(received).toEqual([{ kind: 'prompt-answer', message: 'Deploy to production?', answer: 'Yes' }]);
+    expect(operationSession.journal.replay().at(-1)).toMatchObject({
+      type: 'prompt-closed',
+      promptId: prompt.id,
+      answer: 'Yes',
+      sensitive: false
+    });
   });
 
   test('text prompt masks password answers in the transcript', async () => {
     const promise = sink.text({
-      config: { message: 'API key', isPassword: true },
+      config: { message: 'API key', isPassword: true, defaultValue: 'secret-default' },
       isEnabled: true,
       isTTY: true
     });
 
     const prompt = tuiState.getSnapshot().activePrompt;
-    (prompt as Extract<typeof prompt, { type: 'text' }>)!.resolve('secret');
+    expect(JSON.stringify(operationSession.journal.replay())).not.toContain('secret-default');
+    expect(interactionCoordinator.getSensitiveDefault(prompt!.id)).toBe('secret-default');
+    interactionCoordinator.answerPrompt(prompt!.id, 'secret');
 
     await expect(promise).resolves.toBe('secret');
-    expect(received[0]).toEqual({ kind: 'prompt-answer', message: 'API key', answer: '••••••' });
+    expect(operationSession.journal.replay().at(-1)).toMatchObject({
+      type: 'prompt-closed',
+      promptId: prompt!.id,
+      sensitive: true,
+      answer: undefined
+    });
   });
 
   test('rejectPending rejects a prompt stranded by renderer teardown', async () => {

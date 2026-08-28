@@ -1,11 +1,11 @@
 import type { StpDomainStatus } from '@domain-services/domain-manager/types';
-import type { LoggableEventType } from '@application-services/event-manager/types';
+import type { LoggableEventType } from '@application-services/operation-manager';
 import type { CertificateDetail, StacktapeCertInfo } from '@domain-services/domain-manager/types';
 import type { StpDomainAttachableResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import type { HostedZone } from '@aws-sdk/client-route-53';
 import type { WhoisSearchResult } from 'whoiser';
 import { promises as dnsPromises } from 'node:dns';
-import { eventManager } from '@application-services/event-manager';
+import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { CertificateStatus } from '@aws-sdk/client-acm';
@@ -70,7 +70,7 @@ export class DomainManager {
     // }
     this.dnsResolver = new dnsPromises.Resolver();
     this.dnsResolver.setServers(['8.8.8.8']);
-    await eventManager.startEvent({
+    await operationReporter.startEvent({
       eventType: 'FETCH_DOMAIN_STATUSES',
       description: 'Fetching domain statuses',
       parentEventType,
@@ -101,7 +101,7 @@ export class DomainManager {
         : domains.length && this.#fetchDomainStatuses({ domains })
     ]);
     this.defaultDomainsInfo = stackName && this.#validateDefaultDomainsInfo(fetchedDefaultDomainsInfo);
-    await eventManager.finishEvent({
+    await operationReporter.finishEvent({
       eventType: 'FETCH_DOMAIN_STATUSES',
       parentEventType,
       instanceId: parentEventType ? 'Domain statuses' : undefined

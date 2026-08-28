@@ -12,11 +12,9 @@ import type {
 } from './types';
 import { applicationManager } from '@application-services/application-manager';
 import { tuiManager } from '@application-services/tui-manager';
-import type { CliRenderer } from '@opentui/core';
 import { formatSectionHeaderLine } from '../format/blocks';
 import { TtyRuntime } from '../runtime/lifecycle';
 import { setSpinnerDevTuiActive } from '../spinner';
-import { devScrollbackFeed } from './feed';
 import { formatDuration, normalizeLogLines, resetWorkloadColors } from './utils';
 import { devTuiState } from './state';
 import { agentLog } from 'src/commands/dev/agent-logger';
@@ -26,8 +24,6 @@ export type { Hook, HookStatus, LocalResource, LogEntry, RebuildStep, ResourceSt
 type RebuildHandler = (workloadName: string | null) => Promise<void>;
 type ReadyHandler = () => void;
 type DevPhase = 'startup' | 'running' | 'rebuilding';
-
-const DEV_FOOTER_HEIGHT = 10;
 
 interface DevTuiRendererInterface {
   start: () => void;
@@ -47,19 +43,11 @@ class DevTuiRenderer {
   }
 
   start() {
-    let attachConsumer: ((renderer: CliRenderer) => () => void) | null = null;
-
     this.runtime.start(
       async () => {
         // OpenTUI process configuration must run before view modules evaluate.
         const { createOpenTuiApp } = await import('../runtime/opentui');
-        const [{ attachScrollbackConsumer }, { DevDashboard }, { DevScrollbackItemView }] = await Promise.all([
-          import('../runtime/scrollback-consumer'),
-          import('./views/dashboard'),
-          import('./views/scrollback-items')
-        ]);
-
-        attachConsumer = (renderer) => attachScrollbackConsumer(renderer, devScrollbackFeed, DevScrollbackItemView);
+        const { DevDashboard } = await import('./views/dashboard');
 
         const rebuildHandler = this.rebuildHandler;
         const quitHandler = this.quitHandler;
@@ -78,11 +66,10 @@ class DevTuiRenderer {
                 errorHandler?.(error);
               }
             }),
-          { screenMode: 'split-footer', footerHeight: DEV_FOOTER_HEIGHT, useMouse: true, forceFullRenders: true }
+          { screenMode: 'alternate-screen', useMouse: true, forceFullRenders: true }
         );
       },
       {
-        onReady: (renderer) => attachConsumer?.(renderer) ?? undefined,
         onStartError: (err) => {
           console.error('Failed to start dev TUI renderer:', err?.message || err);
           this.errorHandler?.(err);
@@ -242,10 +229,6 @@ class DevTuiManager {
     setSpinnerDevTuiActive(true);
 
     resetWorkloadColors();
-    devScrollbackFeed.reset();
-    if (!this._agentMode) {
-      devScrollbackFeed.enable();
-    }
     devTuiState.init({
       projectName: config.projectName,
       stageName: config.stageName
@@ -291,7 +274,6 @@ class DevTuiManager {
     this.setupStepStatusSignatures.clear();
     this.workloadStatusSignatures.clear();
     this.hookStatusSignatures.clear();
-    devScrollbackFeed.reset();
     devTuiState.reset();
     tuiManager.setDevTuiActive(false);
     setSpinnerDevTuiActive(false);
@@ -539,14 +521,20 @@ class DevTuiManager {
 
   private pushLogLines(source: string, sourceType: 'workload' | 'system', message: string, level: LogEntry['level']) {
     for (const line of normalizeLogLines(message)) {
-      devScrollbackFeed.push({ kind: 'log', source, sourceType, level, message: line, timestamp: Date.now() });
+      devTuiState.addLog({ source, sourceType, level, message: line, timestamp: Date.now() });
       // Mirror to the agent JSONL log file (no-op when the agent logger is not initialized)
       agentLog(source, line, level === 'debug' ? 'info' : level);
     }
   }
 
   private pushStatus(level: 'info' | 'success' | 'error' | 'warn', text: string) {
-    devScrollbackFeed.push({ kind: 'status', level, text, timestamp: Date.now() });
+    devTuiState.addLog({
+      source: 'stacktape',
+      sourceType: 'system',
+      level: level === 'success' ? 'info' : level,
+      message: text,
+      timestamp: Date.now()
+    });
   }
 }
 

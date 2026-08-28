@@ -9,7 +9,7 @@ import http from 'node:http';
 import https from 'node:https';
 import { join } from 'node:path';
 import { applicationManager } from '@application-services/application-manager';
-import { eventManager } from '@application-services/event-manager';
+import { operationReporter, operationSession } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import {
   calculatedStackOverviewManager,
@@ -392,14 +392,16 @@ export const synthesizeDenseFixture = async ({
   infrequentAccessWorkerLogs?: boolean;
   subscribeToWorkerLogs?: boolean;
   includeUptimeCheck?: boolean;
+  includeTracing?: boolean;
+  includeSyntheticTest?: boolean;
   remoteResources?: string[];
 } = {}) => {
   return withCredentiallessSynthesisBoundary(async () => {
     calculatedStackOverviewManager.reset();
     configManager.reset();
     templateManager.reset();
-    eventManager.reset();
-    eventManager.setSilentMode(true);
+    operationSession.reset();
+    operationReporter.setSilentMode(true);
 
     await applicationManager.init();
     const helperLambda = {
@@ -478,7 +480,6 @@ export const synthesizeDenseFixture = async ({
       workingDir: globalStateManager.workingDir,
       ...synthesisContext
     };
-    await eventManager.init();
     await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
     configManager.transforms = compiledConfig.transforms;
     configManager.finalTransform = compiledConfig.finalTransform;

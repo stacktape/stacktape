@@ -199,6 +199,7 @@ class JsonlEmitter {
   }
 
   emitOutput({
+    stream,
     eventType,
     instanceId,
     parentEventType,
@@ -206,6 +207,7 @@ class JsonlEmitter {
     lines,
     stdout = true
   }: {
+    stream?: 'stdout' | 'stderr';
     eventType?: string;
     instanceId?: string;
     parentEventType?: string;
@@ -219,6 +221,7 @@ class JsonlEmitter {
     const payload: JsonlOutputEvent = {
       type: 'output',
       ts: now(),
+      ...(stream ? { stream } : {}),
       ...(eventType ? { eventType } : {}),
       ...(instanceId ? { instanceId } : {}),
       ...(parentEventType ? { parentEventType } : {}),

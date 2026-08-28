@@ -6,7 +6,7 @@ import type { SsmPortForwardingTunnel } from '@utils/ssm-session';
 import type { ExecaReturnBase } from 'execa';
 import type { PackagingOutput } from '@stacktape/packaging/runtime-contracts';
 import { applicationManager } from '@application-services/application-manager';
-import { eventManager } from '@application-services/event-manager';
+import { commandLifecycle } from '@application-services/command-lifecycle';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { renderErrorToString } from '@application-services/tui-manager/format/errors';
@@ -108,7 +108,7 @@ export const runDevContainer = async () => {
   }
 
   // Run beforeDev hooks
-  await eventManager.processHooks({ captureType: 'START' });
+  await commandLifecycle.processHooks({ captureType: 'START' });
 
   // Check if we need deployed stack (for deployed resources or IAM role)
   const needsDeployedStack = deployedResourceNames.length > 0 || !disableEmulation;
@@ -315,7 +315,7 @@ type PrepareImageResult = {
   imageName: string;
   sourceFiles: string[];
   distFolderPath?: string;
-  /** Final message from packaging (e.g., "Image size: 343 MB") */
+  /** Final message from packaging (e.g., "Container image · 343 MB") */
   details?: string;
 };
 

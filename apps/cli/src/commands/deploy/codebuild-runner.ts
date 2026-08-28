@@ -1,7 +1,8 @@
 import type { StacktapeArgs, StacktapeCliArgs } from 'src/config/cli/types';
 import type { Build } from '@aws-sdk/client-codebuild';
 import { relative, resolve } from 'node:path';
-import { eventManager } from '@application-services/event-manager';
+import { commandLifecycle } from '@application-services/command-lifecycle';
+import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
@@ -62,9 +63,9 @@ export const deployWithCodebuildRunner = async () => {
     }
 
     // Switch to UPLOAD phase for preparation work (zip, upload, start codebuild)
-    eventManager.setPhase('UPLOAD');
+    operationReporter.setPhase('UPLOAD');
 
-    await eventManager.startEvent({ eventType: 'PREPARE_PIPELINE', description: 'Preparing deployment pipeline' });
+    await operationReporter.startEvent({ eventType: 'PREPARE_PIPELINE', description: 'Preparing deployment pipeline' });
 
     const awsAccountId = stackContext.accountId;
 
@@ -75,10 +76,10 @@ export const deployWithCodebuildRunner = async () => {
       deploymentBucketTransferAccelerationEnabled: configManager.isS3TransferAccelerationAvailableInDeploymentRegion
     });
 
-    await eventManager.finishEvent({ eventType: 'PREPARE_PIPELINE' });
+    await operationReporter.finishEvent({ eventType: 'PREPARE_PIPELINE' });
 
     // zip artifact (project)
-    await eventManager.startEvent({ eventType: 'ZIP_PROJECT', description: 'Zipping project' });
+    await operationReporter.startEvent({ eventType: 'ZIP_PROJECT', description: 'Zipping project' });
     const projectZipPath = `${fsPaths.absoluteTempFolderPath({
       invocationId: stackContext.invocationId
     })}/archive.zip`;
@@ -87,10 +88,10 @@ export const deployWithCodebuildRunner = async () => {
       directory: stackContext.workingDir,
       outputPath: projectZipPath
     });
-    await eventManager.finishEvent({ eventType: 'ZIP_PROJECT' });
+    await operationReporter.finishEvent({ eventType: 'ZIP_PROJECT' });
 
     // upload zipped project
-    await eventManager.startEvent({ eventType: 'UPLOAD_PROJECT', description: 'Uploading project' });
+    await operationReporter.startEvent({ eventType: 'UPLOAD_PROJECT', description: 'Uploading project' });
     const projectZipS3Key = `${stackContext.stackName}/${stackContext.invocationId}/archive.zip`;
     await awsSdkManager.s3.uploadFile({
       bucketName: codebuildPipeline.bucketName,
@@ -99,10 +100,10 @@ export const deployWithCodebuildRunner = async () => {
       s3Key: projectZipS3Key,
       useS3Acceleration: configManager.isS3TransferAccelerationAvailableInDeploymentRegion
     });
-    await eventManager.finishEvent({ eventType: 'UPLOAD_PROJECT' });
+    await operationReporter.finishEvent({ eventType: 'UPLOAD_PROJECT' });
 
     // start codebuild deployment
-    await eventManager.startEvent({ eventType: 'START_DEPLOYMENT', description: 'Starting codebuild deployment' });
+    await operationReporter.startEvent({ eventType: 'START_DEPLOYMENT', description: 'Starting codebuild deployment' });
     const { apiKey: deploymentApiKey } = await stacktapeTrpcApiManager.apiClient.createDeploymentTokenFromCli({
       projectName: stackContext.projectName,
       accountConnectionId: runner.accountConnectionId,
@@ -139,7 +140,7 @@ export const deployWithCodebuildRunner = async () => {
         });
       }
     });
-    await eventManager.finishEvent({ eventType: 'START_DEPLOYMENT' });
+    await operationReporter.finishEvent({ eventType: 'START_DEPLOYMENT' });
   } catch (err) {
     await stacktapeTrpcApiManager.recordStackOperationEnd({
       stackName: operation?.stackContext.stackName || globalStateManager.targetStack?.stackName,
@@ -159,9 +160,9 @@ export const deployWithCodebuildRunner = async () => {
   });
 
   // Switch to DEPLOY phase for codebuild monitoring
-  eventManager.setPhase('DEPLOY');
+  operationReporter.setPhase('DEPLOY');
 
-  await eventManager.startEvent({ eventType: 'DEPLOY', description: 'Deploying using codebuild' });
+  await operationReporter.startEvent({ eventType: 'DEPLOY', description: 'Deploying using codebuild' });
   stacktapeTrpcApiManager.recordStackOperationProgress({
     stackName: stackContext.stackName,
     codebuildBuildArn: build.arn,
@@ -197,7 +198,7 @@ export const deployWithCodebuildRunner = async () => {
     await cloudwatchLogPrinter.printLogs();
   } while (build.buildStatus !== StatusType.SUCCEEDED);
 
-  await eventManager.finishEvent({ eventType: 'DEPLOY' });
+  await operationReporter.finishEvent({ eventType: 'DEPLOY' });
 
   // refreshing stack details to return to user and pretty print
   await Promise.all([stackManager.refetchStackDetails(stackContext.stackName), budgetManager.loadBudgets()]);
@@ -228,7 +229,7 @@ export const deployWithCodebuildRunner = async () => {
       })
     });
   }
-  eventManager.addFinalAction(() => deployedStackOverviewManager.printShortStackInfo());
+  commandLifecycle.addFinalAction(() => deployedStackOverviewManager.printShortStackInfo());
   // @todo end
 
   const consoleUrl = `https://console.stacktape.com/projects/${stackContext.projectName}/${stackContext.stage}/overview`;

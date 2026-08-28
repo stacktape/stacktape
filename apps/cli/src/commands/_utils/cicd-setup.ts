@@ -1,4 +1,4 @@
-import { eventManager } from '@application-services/event-manager';
+import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
@@ -94,7 +94,7 @@ export const promptCiCdSetupAfterDeploy = async (): Promise<void> => {
     return;
   }
 
-  await eventManager.startEvent({
+  await operationReporter.startEvent({
     eventType: 'SETUP_CICD',
     description: 'Setting up CI/CD'
   });
@@ -104,7 +104,7 @@ export const promptCiCdSetupAfterDeploy = async (): Promise<void> => {
     const isProviderConnected = await checkGitProviderConnection(gitInfo.provider);
 
     if (!isProviderConnected) {
-      await eventManager.updateEvent({
+      await operationReporter.updateEvent({
         eventType: 'SETUP_CICD',
         additionalMessage: `${providerName} not connected`
       });
@@ -119,7 +119,7 @@ export const promptCiCdSetupAfterDeploy = async (): Promise<void> => {
       if (connectNow) {
         const connected = await connectGitProvider(gitInfo.provider);
         if (!connected) {
-          await eventManager.finishEvent({
+          await operationReporter.finishEvent({
             eventType: 'SETUP_CICD',
             status: 'warning',
             finalMessage: `${providerName} connection not completed`
@@ -128,7 +128,7 @@ export const promptCiCdSetupAfterDeploy = async (): Promise<void> => {
           return;
         }
       } else {
-        await eventManager.finishEvent({
+        await operationReporter.finishEvent({
           eventType: 'SETUP_CICD',
           status: 'warning',
           finalMessage: 'Skipped - provider not connected'
@@ -138,7 +138,7 @@ export const promptCiCdSetupAfterDeploy = async (): Promise<void> => {
       }
     }
 
-    await eventManager.updateEvent({
+    await operationReporter.updateEvent({
       eventType: 'SETUP_CICD',
       additionalMessage: 'Creating deployment configuration'
     });
@@ -149,7 +149,7 @@ export const promptCiCdSetupAfterDeploy = async (): Promise<void> => {
     );
 
     if (!awsAccount) {
-      await eventManager.finishEvent({
+      await operationReporter.finishEvent({
         eventType: 'SETUP_CICD',
         status: 'error',
         finalMessage: 'AWS account not found'
@@ -173,13 +173,13 @@ export const promptCiCdSetupAfterDeploy = async (): Promise<void> => {
       templateId: null
     });
 
-    await eventManager.finishEvent({
+    await operationReporter.finishEvent({
       eventType: 'SETUP_CICD',
       finalMessage: `CI/CD configured - pushes to '${gitInfo.branch}' will auto-deploy`
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
-    await eventManager.finishEvent({
+    await operationReporter.finishEvent({
       eventType: 'SETUP_CICD',
       status: 'error',
       finalMessage: `CI/CD setup failed: ${message}`

@@ -1,4 +1,4 @@
-import type { LoggableEventType, ProgressLogger } from '@application-services/event-manager/types';
+import type { LoggableEventType, ProgressReporter as ProgressLogger } from '@application-services/operation-manager';
 import type { HelperLambdaPackaging, PackageWorkloadOutput } from '@domain-services/packaging-manager/types';
 import type { Subtype } from '@utils/type-helpers';
 import type { StpAstroWeb } from '@domain-services/config-manager/resolved-types/astro-web';
@@ -16,7 +16,7 @@ import { packagingMessages } from '@stacktape/packaging/runtime-contracts';
 import type { LambdaEntrypoint } from '@stacktape/packaging/split-bundler/types';
 import { existsSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
-import { eventManager } from '@application-services/event-manager';
+import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -447,7 +447,7 @@ export class PackagingManager {
     });
 
     // Create progress logger for the shared layer (split bundle process)
-    const sharedLayerLogger = eventManager.createChildLogger({
+    const sharedLayerLogger = operationReporter.createChildLogger({
       parentEventType: 'PACKAGE_ARTIFACTS',
       instanceId: 'shared-layer'
     });
@@ -457,10 +457,10 @@ export class PackagingManager {
     });
 
     // Create progress loggers for each lambda immediately so they're visible from the start
-    const lambdaLoggers = new Map<string, ReturnType<typeof eventManager.createChildLogger>>();
+    const lambdaLoggers = new Map<string, ReturnType<typeof operationReporter.createChildLogger>>();
     for (const { name, type } of nodeLambdas) {
       const jobName = getJobName({ workloadName: name, workloadType: type as any });
-      const logger = eventManager.createChildLogger({
+      const logger = operationReporter.createChildLogger({
         parentEventType: 'PACKAGE_ARTIFACTS',
         instanceId: jobName
       });
@@ -821,7 +821,7 @@ export class PackagingManager {
     /** If provided, only package workloads whose names are in this list */
     onlyWorkloads?: string[];
   }): Promise<PackageWorkloadOutput[]> => {
-    await eventManager.startEvent({
+    await operationReporter.startEvent({
       eventType: 'PACKAGE_ARTIFACTS',
       description: 'Packaging workloads'
     });
@@ -884,7 +884,7 @@ export class PackagingManager {
                 build: build!,
                 createPackagingError: createCliPackagingError,
                 executeProcess: exec,
-                progressLogger: eventManager.createChildLogger({
+                progressLogger: operationReporter.createChildLogger({
                   instanceId: name,
                   parentEventType: 'PACKAGE_ARTIFACTS'
                 })
@@ -1046,7 +1046,7 @@ export class PackagingManager {
     if (reusedCount > 0) {
       summaryParts.push(`${packagedJobCount - reusedCount} built`, `${reusedCount} unchanged`);
     }
-    await eventManager.finishEvent({
+    await operationReporter.finishEvent({
       eventType: 'PACKAGE_ARTIFACTS',
       ...(packagedJobCount > 0 && { finalMessage: summaryParts.join(' · ') }),
       data: { packagedJobs: this.#packagedJobs }
@@ -1102,7 +1102,7 @@ export class PackagingManager {
       return;
     }
 
-    await eventManager.startEvent({
+    await operationReporter.startEvent({
       eventType: 'REPACKAGE_ARTIFACTS',
       description: 'Rebuilding cached workloads for the full deployment'
     });
@@ -1137,7 +1137,7 @@ export class PackagingManager {
       })
     ]);
 
-    await eventManager.finishEvent({
+    await operationReporter.finishEvent({
       eventType: 'REPACKAGE_ARTIFACTS',
       finalMessage: 'Cached workloads rebuilt',
       data: { packagedJobs: this.#packagedJobs }
@@ -1171,7 +1171,7 @@ export class PackagingManager {
     nextjsWebResource: StpNextjsWeb;
     commandCanUseCache: boolean;
   }) => {
-    const progressLogger = eventManager.createChildLogger({
+    const progressLogger = operationReporter.createChildLogger({
       parentEventType: 'PACKAGE_ARTIFACTS',
       instanceId: nextjsWebResource.name
     });
@@ -1262,7 +1262,7 @@ export class PackagingManager {
             : []
       },
       createProgressLogger: (instanceId) =>
-        eventManager.createChildLogger({ instanceId, parentEventType: 'PACKAGE_ARTIFACTS' }),
+        operationReporter.createChildLogger({ instanceId, parentEventType: 'PACKAGE_ARTIFACTS' }),
       progressLogger,
       archiveItem,
       createPackagingError: createCliPackagingError,
@@ -1289,7 +1289,7 @@ export class PackagingManager {
 
     const appDirectory = resource.appDirectory || '.';
     const workingDir = join(globalStateManager.workingDir, appDirectory);
-    const progressLogger = eventManager.createChildLogger({
+    const progressLogger = operationReporter.createChildLogger({
       parentEventType: 'PACKAGE_ARTIFACTS',
       instanceId: resource.name
     });
@@ -1306,7 +1306,7 @@ export class PackagingManager {
       cwd: globalStateManager.workingDir,
       progressLogger,
       createProgressLogger: (instanceId) =>
-        eventManager.createChildLogger({ instanceId, parentEventType: 'PACKAGE_ARTIFACTS' }),
+        operationReporter.createChildLogger({ instanceId, parentEventType: 'PACKAGE_ARTIFACTS' }),
       buildConfig: {
         buildCommand: resource.buildCommand || frameworkConfig.defaultBuildCommand,
         bundledApplicationPackages: frameworkConfig.bundledApplicationPackages,
@@ -1385,7 +1385,7 @@ export class PackagingManager {
     const existingDigests = shouldUseCache ? deploymentArtifactManager.getExistingDigestsForJob(jobName) : [];
     const packagingType = packaging.type;
     const progressLogger =
-      customProgressLogger || eventManager.createChildLogger({ parentEventType, instanceId: jobName });
+      customProgressLogger || operationReporter.createChildLogger({ parentEventType, instanceId: jobName });
     const cacheRef = shouldUseRemoteDockerCache() ? getCacheRef(jobName) : undefined;
 
     const sharedProps = {

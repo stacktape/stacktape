@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import type { ProgressLogger } from '@application-services/event-manager/types';
+import type { ProgressReporter as ProgressLogger } from '@application-services/operation-manager';
 import AdmZip from 'adm-zip';
 import { buildUsingCustomArtifact } from '@stacktape/packaging/artifact/custom-artifact';
 import { archiveItem } from '@utils/zip';

@@ -4,7 +4,7 @@ import type { SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regi
 import type { AwsCloudFront } from 'src/aws/cloudfront';
 import type { AwsS3 } from 'src/aws/s3';
 import { isAbsolute, join } from 'node:path';
-import { eventManager } from '@application-services/event-manager';
+import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
@@ -39,7 +39,7 @@ type BucketSyncInput =
 
 type BucketSyncExecutionServices = {
   cloudFront: Pick<AwsCloudFront, 'findDistributionsForBucket' | 'invalidateCache'>;
-  event: Pick<typeof eventManager, 'finishEvent' | 'startEvent' | 'updateEvent'>;
+  event: Pick<typeof operationReporter, 'finishEvent' | 'startEvent' | 'updateEvent'>;
   notification: Pick<typeof notificationManager, 'sendDeploymentNotification'>;
   s3: Pick<AwsS3, 'syncDirectory'>;
 };
@@ -52,7 +52,7 @@ type BucketSyncCommandDependencies = {
 
 const getDefaultExecutionServices = (): BucketSyncExecutionServices => ({
   cloudFront: awsSdkManager.cloudFront,
-  event: eventManager,
+  event: operationReporter,
   notification: notificationManager,
   s3: awsSdkManager.s3
 });

@@ -4,6 +4,7 @@ import type {
   Hook,
   HookStatus,
   LocalResource,
+  LogEntry,
   RebuildStep,
   RebuildWorkloadState,
   ResourceStatus,
@@ -25,6 +26,7 @@ const createInitialState = (): DevTuiState => ({
   workloads: [],
   rebuildPickerActive: false,
   rebuildingWorkloads: [],
+  logs: [],
   startTime: Date.now()
 });
 
@@ -32,6 +34,7 @@ class DevTuiStateManager {
   private state: DevTuiState = createInitialState();
   private listeners: Set<Listener> = new Set();
   private notifyScheduled = false;
+  private logSequence = 0;
 
   getState(): DevTuiState {
     return this.state;
@@ -81,12 +84,18 @@ class DevTuiStateManager {
   }
 
   reset() {
+    this.logSequence = 0;
     this.state = createInitialState();
     this.notify();
   }
 
   setPhase(phase: DevPhase) {
     this.setState({ phase });
+  }
+
+  addLog(entry: Omit<LogEntry, 'id'>) {
+    const log: LogEntry = { ...entry, id: `dev-log-${++this.logSequence}` };
+    this.setState({ logs: [...this.state.logs, log].slice(-5_000) });
   }
 
   addLocalResource(resource: Omit<LocalResource, 'status'>) {

@@ -1,11 +1,11 @@
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 import type { StackActionType } from '@domain-services/cloudformation-stack-manager/types';
 import type { DeploymentBucketObjectType } from '@domain-services/deployment-artifact-manager/types';
-import type { LoggableEventType } from '@application-services/event-manager/types';
+import type { LoggableEventType } from '@application-services/operation-manager';
 import type { HelperLambdaPackaging } from '@domain-services/packaging-manager/types';
 import type { ImageIdentifier } from '@aws-sdk/client-ecr';
 import type { _Object, ObjectIdentifier } from '@aws-sdk/client-s3';
-import { eventManager } from '@application-services/event-manager';
+import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import {
@@ -118,7 +118,7 @@ export class DeploymentArtifactManager {
     this.repositoryUrl = getEcrRepositoryUrl(accountId, globalStateManager.region, this.repositoryName);
     // Skip artifact lookup for create (nothing to look up) and dev (running locally)
     if (stackActionType && stackActionType !== 'create' && stackActionType !== 'dev') {
-      await eventManager.startEvent({
+      await operationReporter.startEvent({
         eventType: 'FETCH_PREVIOUS_ARTIFACTS',
         description: 'Fetching previous deployment artifacts',
         parentEventType,
@@ -128,7 +128,7 @@ export class DeploymentArtifactManager {
         this.loadPreviousBucketObjects(this.deploymentBucketName, stackActionType),
         this.loadPreviousImages(this.repositoryName, stackActionType)
       ]);
-      await eventManager.finishEvent({
+      await operationReporter.finishEvent({
         eventType: 'FETCH_PREVIOUS_ARTIFACTS',
         parentEventType,
         instanceId: parentEventType ? 'previous-artifacts' : undefined
@@ -255,7 +255,7 @@ export class DeploymentArtifactManager {
     deleteRemoved?: boolean;
     shortName: string;
   }) => {
-    const childLogger = eventManager.createChildLogger({
+    const childLogger = operationReporter.createChildLogger({
       instanceId: shortName || bucketName,
       parentEventType: 'SYNC_BUCKET'
     });
@@ -284,7 +284,7 @@ export class DeploymentArtifactManager {
     // 1. all objects/images/templates which were uploaded during this attempt
     // 2. all previous objects/images which are in the same version as the stack version for current (failed) attempt
     //    - there could have been multiple failed updates which created new artifacts with same version (but different digest)
-    await eventManager.startEvent({
+    await operationReporter.startEvent({
       eventType: 'DELETE_OBSOLETE_ARTIFACTS',
       description: 'Deleting obsolete artifacts'
     });
@@ -301,7 +301,7 @@ export class DeploymentArtifactManager {
         ...this.previousObjects.filter(({ version }) => version === stackManager.nextVersion).map(({ s3Key }) => s3Key)
       ])
     ]);
-    await eventManager.finishEvent({
+    await operationReporter.finishEvent({
       eventType: 'DELETE_OBSOLETE_ARTIFACTS',
       finalMessage: 'Obsolete artifacts deleted',
       data: {}
@@ -310,7 +310,7 @@ export class DeploymentArtifactManager {
 
   // this is ran after a stack which was in UPDATE_FAILED state gets successfully updated
   deleteArtifactsFixedDeploy = async () => {
-    await eventManager.startEvent({
+    await operationReporter.startEvent({
       eventType: 'DELETE_OBSOLETE_ARTIFACTS',
       description: 'Deleting obsolete artifacts'
     });
@@ -338,7 +338,7 @@ export class DeploymentArtifactManager {
           .map(({ s3Key }) => s3Key)
       )
     ]);
-    await eventManager.finishEvent({
+    await operationReporter.finishEvent({
       eventType: 'DELETE_OBSOLETE_ARTIFACTS',
       finalMessage: 'Obsolete artifacts deleted',
       data: {}
@@ -385,7 +385,7 @@ export class DeploymentArtifactManager {
     const obsoleteImages = this.getObsoleteItems(this.previousImages);
     const obsoleteObjects = this.getObsoleteItems(this.previousObjects);
     if (obsoleteImages.length || obsoleteObjects.length) {
-      await eventManager.startEvent({
+      await operationReporter.startEvent({
         eventType: 'DELETE_OBSOLETE_ARTIFACTS',
         description: 'Deleting obsolete artifacts'
       });
@@ -397,7 +397,7 @@ export class DeploymentArtifactManager {
         ),
         this.deleteObjectsFromDeploymentBucket(obsoleteObjects.map((obj) => obj.s3Key))
       ]);
-      await eventManager.finishEvent({
+      await operationReporter.finishEvent({
         eventType: 'DELETE_OBSOLETE_ARTIFACTS',
         finalMessage: 'Obsolete artifacts deleted',
         data: { obsoleteImages, obsoleteObjects }
@@ -474,7 +474,7 @@ export class DeploymentArtifactManager {
     }
 
     if (jobs.length) {
-      await eventManager.startEvent({
+      await operationReporter.startEvent({
         eventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
         description: 'Uploading deployment artifacts'
       });
@@ -487,17 +487,17 @@ export class DeploymentArtifactManager {
       ]);
 
       await processConcurrently(jobs, DEFAULT_MAXIMUM_PARALLEL_ARTIFACT_UPLOADS);
-      await eventManager.finishEvent({
+      await operationReporter.finishEvent({
         eventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
         finalMessage: 'Deployment artifacts uploaded',
         data: { images: this.successfullyUploadedImages, objects: this.successfullyCreatedObjects }
       });
     } else {
-      await eventManager.startEvent({
+      await operationReporter.startEvent({
         eventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
         description: 'Uploading deployment artifacts'
       });
-      await eventManager.finishEvent({
+      await operationReporter.finishEvent({
         eventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
         finalMessage: 'Nothing to upload (all artifacts unchanged)'
       });
@@ -505,7 +505,7 @@ export class DeploymentArtifactManager {
   };
 
   syncBuckets = async () => {
-    await eventManager.startEvent({ eventType: 'SYNC_BUCKET', description: 'Syncing directories into buckets' });
+    await operationReporter.startEvent({ eventType: 'SYNC_BUCKET', description: 'Syncing directories into buckets' });
     const jobs: (() => Promise<any>)[] = [];
     configManager.allBucketsToSync.forEach(
       ({ bucketName, uploadConfiguration, stpConfigBucketName, deleteRemoved }) => {
@@ -526,7 +526,7 @@ export class DeploymentArtifactManager {
     );
     await processConcurrently(jobs, DEFAULT_MAXIMUM_PARALLEL_BUCKET_SYNCS);
     const syncedCount = configManager.allBucketsToSync.length;
-    await eventManager.finishEvent({
+    await operationReporter.finishEvent({
       eventType: 'SYNC_BUCKET',
       finalMessage: `${syncedCount} director${syncedCount === 1 ? 'y' : 'ies'} synced into bucket${syncedCount === 1 ? '' : 's'}`,
       data: { syncedDirs: configManager.allBucketsToSync }
@@ -534,7 +534,7 @@ export class DeploymentArtifactManager {
   };
 
   deleteAllArtifacts = async () => {
-    await eventManager.startEvent({
+    await operationReporter.startEvent({
       eventType: 'DELETE_ARTIFACTS',
       description: 'Deleting all deployment artifacts'
     });
@@ -557,7 +557,7 @@ export class DeploymentArtifactManager {
       ...emptyBucketsPromises
       // this.emptyAllAutoSyncedUserBuckets()
     ]);
-    await eventManager.finishEvent({
+    await operationReporter.finishEvent({
       eventType: 'DELETE_ARTIFACTS',
       data: { deletedImages, deletedObjects }
     });
@@ -713,7 +713,7 @@ export class DeploymentArtifactManager {
     metadata?: { [key: string]: string };
   }) => {
     const isHelperLambda = configManager.helperLambdas.map((l) => l.artifactName).includes(artifactName);
-    const uploadLogger = eventManager.createChildLogger({
+    const uploadLogger = operationReporter.createChildLogger({
       parentEventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
       instanceId: isHelperLambda ? `${artifactName} (stacktape internal)` : artifactName
     });
@@ -743,7 +743,7 @@ export class DeploymentArtifactManager {
     jobName: string;
     imageTagWithUrl: string;
   }) => {
-    const uploadLogger = eventManager.createChildLogger({
+    const uploadLogger = operationReporter.createChildLogger({
       parentEventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
       instanceId: jobName
     });
@@ -782,7 +782,7 @@ export class DeploymentArtifactManager {
       return;
     }
 
-    const uploadLogger = eventManager.createChildLogger({
+    const uploadLogger = operationReporter.createChildLogger({
       parentEventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
       instanceId: 'shared-layer'
     });

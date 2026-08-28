@@ -1,6 +1,6 @@
 /**
- * Headless frame previewer for the progress TUI. Renders the dashboard footer
- * and every scrollback item kind in representative states via the OpenTUI test
+ * Headless frame previewer for the progress TUI. Renders the full-screen
+ * dashboard in representative states via the OpenTUI test
  * renderer and prints the text frames — a fast way to inspect and diff the UI
  * without a live terminal session.
  *

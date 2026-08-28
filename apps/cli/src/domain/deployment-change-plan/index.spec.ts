@@ -124,7 +124,7 @@ describe('deployment change plan', () => {
       'archive',
       'database'
     ]);
-    expect(formatDeploymentChangePlanSummary(plan)).toContain('2 protected-resource risks');
+    expect(formatDeploymentChangePlanSummary(plan)).toContain('2 changes affect a protected resource');
   });
 
   test('does not require approval for ordinary changes', () => {
@@ -134,8 +134,9 @@ describe('deployment change plan', () => {
     const plan = buildDeploymentChangePlan(input);
 
     expect(plan.safety).toMatchObject({ hasProtectedResourceRisk: false, protectedResourceChanges: [] });
+    // Zero counts are dropped; the plan id stays for support lookups.
     expect(formatDeploymentChangePlanSummary(plan)).toBe(
-      `Change plan ${plan.planId.slice(7, 19)} · 1 create, 1 update, 0 delete, 0 replace · 2 workload builds`
+      `Infrastructure changes: 1 to create · 1 to update (plan ${plan.planId.slice(7, 19)})`
     );
   });
 

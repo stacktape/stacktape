@@ -18,7 +18,6 @@ export type OpenTuiHandle = {
 
 type OpenTuiAppOptions = {
   screenMode?: ScreenMode;
-  footerHeight?: number;
   useMouse?: boolean;
   /**
    * Re-emit every cell on each frame. The native cell-diff engine skips unchanged
@@ -65,11 +64,10 @@ export const createOpenTuiApp = async (
     exitOnCtrlC: false,
     exitSignals: [],
     screenMode: options?.screenMode ?? 'alternate-screen',
-    ...(options?.footerHeight !== undefined && { footerHeight: options.footerHeight }),
     consoleMode: 'disabled',
     // The renderer registers its own uncaughtException/unhandledRejection
     // handlers; without this it would pop its debug console overlay into the
-    // footer on any unhandled error. Stacktape owns error display.
+    // dashboard overlay on any unhandled error. Stacktape owns error display.
     openConsoleOnError: false,
     useMouse: options?.useMouse ?? false,
     targetFps: 60
@@ -98,8 +96,27 @@ export const createOpenTuiApp = async (
     renderer: capturedRenderer!,
     destroy: async () => {
       tuiDebug('RENDERER', 'handle.destroy() called');
+      const retainRawInput = options?.releaseStdinOnDestroy === false;
+      const originalSetRawMode = process.stdin.setRawMode;
       try {
+        if (retainRawInput && process.stdin.isTTY && originalSetRawMode) {
+          // OpenTUI unconditionally releases raw mode while destroying a
+          // renderer. A dashboard -> stream handoff must not expose even that
+          // synchronous gap: terminal capability replies can arrive in it and
+          // the line discipline will echo them into the primary screen.
+          process.stdin.setRawMode = ((enabled: boolean) =>
+            enabled ? originalSetRawMode.call(process.stdin, true) : process.stdin) as typeof process.stdin.setRawMode;
+        }
         capturedRenderer?.destroy();
+      } catch {
+      } finally {
+        if (retainRawInput && originalSetRawMode) process.stdin.setRawMode = originalSetRawMode;
+      }
+      try {
+        if (retainRawInput && process.stdin.isTTY) {
+          process.stdin.setRawMode(true);
+          process.stdin.resume();
+        }
       } catch {}
       try {
         if (capturedRenderer) {
@@ -109,6 +126,13 @@ export const createOpenTuiApp = async (
           await Promise.race([capturedRenderer.idle(), new Promise<void>((resolve) => setTimeout(resolve, 500))]);
         }
       } catch {}
+      if (retainRawInput) {
+        try {
+          if (process.stdin.isTTY) process.stdin.setRawMode(true);
+          process.stdin.resume();
+          while (process.stdin.read() !== null) {}
+        } catch {}
+      }
       if (options?.releaseStdinOnDestroy ?? true) {
         try {
           if (process.stdin.isTTY) {

@@ -1,6 +1,6 @@
 import type { ExpectedError } from '@utils/errors';
 import { applicationManager } from '@application-services/application-manager';
-import { eventManager } from '@application-services/event-manager';
+import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
@@ -27,7 +27,7 @@ import { potentiallyPromptBeforeOperation } from '../_utils/common';
 export const deployDevStack = async (): Promise<void> => {
   tuiManager.info('Deploying dev stack...');
 
-  eventManager.setPhase('BUILD_AND_PACKAGE');
+  operationReporter.setPhase('BUILD_AND_PACKAGE');
 
   // Set dev stack metadata
   calculatedStackOverviewManager.addStackMetadata({
@@ -43,7 +43,9 @@ export const deployDevStack = async (): Promise<void> => {
   await calculatedStackOverviewManager.resolveAllResources();
 
   if (obfuscatedNamesStateHolder.usingObfuscateNames) {
-    tuiManager.warn('Stack name too long (project+stage). Some resource names will be obfuscated.');
+    tuiManager.warn(
+      'Project + stage name exceeds the AWS length limit, so some AWS resource names will be shortened with hashes. Everything works the same; only the names in the AWS console look less readable.'
+    );
   }
 
   await calculatedStackOverviewManager.populateStackMetadata();
@@ -71,11 +73,11 @@ export const deployDevStack = async (): Promise<void> => {
   }
 
   // Upload artifacts
-  eventManager.setPhase('UPLOAD');
+  operationReporter.setPhase('UPLOAD');
   await deploymentArtifactManager.uploadAllArtifacts({ useHotswap: false });
 
   // Deploy the stack
-  eventManager.setPhase('DEPLOY');
+  operationReporter.setPhase('DEPLOY');
   try {
     const { warningMessages } = await stackManager.deployStack(deploymentArtifactManager.cloudformationTemplateUrl);
     warningMessages?.forEach((msg) => {

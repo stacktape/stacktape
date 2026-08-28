@@ -81,7 +81,7 @@ export type ThemeMode = 'light' | 'dark';
 /**
  * Module-level detected terminal scheme. The renderer feeds this (see
  * opentui-renderer.ts) once the terminal reports light/dark; ThemeProvider
- * subscribes reactively, so the footer and future scrollback items repaint in
+ * subscribes reactively, so the active dashboard repaints in
  * the right palette without re-mounting.
  */
 const [themeMode, setThemeModeSignal] = createSignal<ThemeMode>('dark');

@@ -16,9 +16,8 @@ const phaseLines = (phases: TuiPhase[]): string[] => {
 
 /**
  * Plain-text summary inferred from the progress state shape. Used by plain
- * output mode and as the TTY fallback when the renderer never streamed to
- * scrollback (early crash). In the normal TTY flow, scrollback already holds
- * the full record and this never runs.
+ * output mode and as the TTY fallback when the presenter never streamed an
+ * early failure. In the normal TTY flow, the primary screen holds the record.
  *
  * Decision tree:
  *   state.summary exists          -> full detailed summary (success or failure)

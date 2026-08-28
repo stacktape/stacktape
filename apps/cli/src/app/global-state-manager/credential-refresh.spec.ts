@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
-import { eventManager } from '@application-services/event-manager';
+import { operationReporter } from '@application-services/operation-manager';
 import { GlobalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 
@@ -21,14 +21,14 @@ describe.serial('automatic AWS credential refresh', () => {
     const warnings: string[] = [];
     const finishedEvents: unknown[] = [];
     const originalWarn = tuiManager.warn;
-    const originalFinishEvent = eventManager.finishEvent;
+    const originalFinishEvent = operationReporter.finishEvent;
     tuiManager.warn = (message: string) => warnings.push(message);
-    eventManager.finishEvent = mock(async (event) => {
+    operationReporter.finishEvent = mock(async (event) => {
       finishedEvents.push(event);
-    }) as typeof eventManager.finishEvent;
+    }) as typeof operationReporter.finishEvent;
     restores.push(() => {
       tuiManager.warn = originalWarn;
-      eventManager.finishEvent = originalFinishEvent;
+      operationReporter.finishEvent = originalFinishEvent;
       manager.stopCredentialRefresh();
     });
     manager.loadValidatedAwsCredentials = async () => {
@@ -68,7 +68,7 @@ describe.serial('automatic AWS credential refresh', () => {
     const originalFetch = globalThis.fetch;
     const originalSetTimeout = globalThis.setTimeout;
     const originalWarn = tuiManager.warn;
-    const originalFinishEvent = eventManager.finishEvent;
+    const originalFinishEvent = operationReporter.finishEvent;
     globalThis.fetch = Object.assign(
       async () => new Response(null, { headers: { date: synchronizedNow.toUTCString() } }),
       { preconnect: originalFetch.preconnect }
@@ -79,12 +79,12 @@ describe.serial('automatic AWS credential refresh', () => {
       return originalSetTimeout(callback, 2_147_483_647, ...callbackArgs);
     }) as typeof setTimeout;
     tuiManager.warn = () => undefined;
-    eventManager.finishEvent = async () => undefined;
+    operationReporter.finishEvent = async () => undefined;
     restores.push(() => {
       globalThis.fetch = originalFetch;
       globalThis.setTimeout = originalSetTimeout;
       tuiManager.warn = originalWarn;
-      eventManager.finishEvent = originalFinishEvent;
+      operationReporter.finishEvent = originalFinishEvent;
       manager.stopCredentialRefresh();
     });
 

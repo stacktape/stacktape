@@ -3,7 +3,7 @@ import type { SsmPortForwardingTunnel } from '@utils/ssm-session';
 import type { LocalResourceInstance } from '../local-resources';
 import type { TunnelInfo } from '../tunnel-manager';
 import { applicationManager } from '@application-services/application-manager';
-import { eventManager } from '@application-services/event-manager';
+import { commandLifecycle } from '@application-services/command-lifecycle';
 import { tuiManager } from '@application-services/tui-manager';
 import { IS_DEV, PRINT_LOGS_INTERVAL } from '@config';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
@@ -1248,8 +1248,8 @@ const runBeforeDevHooks = async () => {
   const scriptHookRefs = hooks.filter((h): h is { scriptName: string } => 'scriptName' in h);
 
   if (!useDevTui) {
-    // Without DevTui, just use eventManager
-    await eventManager.processHooks({ captureType: 'START' });
+    // Without DevTui, run hooks through the command lifecycle directly.
+    await commandLifecycle.processHooks({ captureType: 'START' });
     return;
   }
 

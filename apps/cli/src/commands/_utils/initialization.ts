@@ -1,7 +1,8 @@
 import type { StacktapeRecordedCommand } from '@config';
 import { applicationManager } from '@application-services/application-manager';
-import { eventManager } from '@application-services/event-manager';
+import { commandLifecycle } from '@application-services/command-lifecycle';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { operationReporter } from '@application-services/operation-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { RECORDED_STACKTAPE_COMMANDS } from '@config';
@@ -213,7 +214,7 @@ export const initializeStackOperationLifecycle = async ({
     stageName: globalStateManager.stage || 'stage',
     region: globalStateManager.region || 'region'
   });
-  eventManager.setPhase('INITIALIZE');
+  operationReporter.setPhase('INITIALIZE');
 
   if (requiresControlPlane) {
     await loadUserCredentials();
@@ -255,7 +256,7 @@ export const initializeStackOperationLifecycle = async ({
   }
 
   // Start the parent event for loading AWS metadata
-  await eventManager.startEvent({
+  await operationReporter.startEvent({
     eventType: 'LOAD_METADATA_FROM_AWS',
     description: 'Loading metadata from AWS',
     phase: 'INITIALIZE'
@@ -321,17 +322,17 @@ export const initializeStackOperationLifecycle = async ({
   ]);
 
   // Finish the parent event for loading AWS metadata
-  await eventManager.finishEvent({ eventType: 'LOAD_METADATA_FROM_AWS' });
+  await operationReporter.finishEvent({ eventType: 'LOAD_METADATA_FROM_AWS', finalMessage: 'AWS metadata loaded' });
 
-  await eventManager.registerHooks(configManager.hooks);
+  await commandLifecycle.registerHooks(configManager.hooks);
   if (!isRemoteRunnerDeployInvocation()) {
     await dependencyInstaller.install({
       rootProjectDirPath: globalStateManager.workingDir,
-      progressLogger: eventManager,
+      progressLogger: operationReporter,
       phase: 'INITIALIZE'
     });
   }
-  await eventManager.processHooks({ captureType: 'START' });
+  await commandLifecycle.processHooks({ captureType: 'START' });
 
   return { args: captureCommandArgs(), stackContext } as const;
 };
@@ -407,7 +408,8 @@ export const initializeDeployOperation = async ({
   config: configManager,
   deployedStackOverview: deployedStackOverviewManager,
   deploymentArtifacts: deploymentArtifactManager,
-  event: eventManager,
+  lifecycle: commandLifecycle,
+  progress: operationReporter,
   notification: notificationManager,
   packaging: packagingManager,
   prepareTemplateForDeploy,
@@ -460,7 +462,7 @@ export const initializeStackServicesForLocalResolve = async () => {
     stageName: globalStateManager.stage || 'stage',
     region: globalStateManager.region || 'region'
   });
-  eventManager.setPhase('INITIALIZE');
+  operationReporter.setPhase('INITIALIZE');
 
   await loadUserCredentials();
   await recordStackOperationStart();
@@ -496,8 +498,8 @@ export const initializeStackServicesForLocalResolve = async () => {
     calculatedStackOverviewManager.init({ context: stackContext }),
     packagingManager.init()
   ]);
-  await eventManager.registerHooks(configManager.hooks);
-  await eventManager.processHooks({ captureType: 'START' });
+  await commandLifecycle.registerHooks(configManager.hooks);
+  await commandLifecycle.processHooks({ captureType: 'START' });
 
   return { args, stackContext } as const;
 };
@@ -546,8 +548,8 @@ export const initializeStackServicesForHotSwapDeploy = async () => {
       stackActionType: 'deployment-script:run'
     })
   ]);
-  await eventManager.registerHooks(configManager.hooks);
-  await eventManager.processHooks({ captureType: 'START' });
+  await commandLifecycle.registerHooks(configManager.hooks);
+  await commandLifecycle.processHooks({ captureType: 'START' });
 
   return { args, stackContext } as const;
 };
@@ -560,8 +562,8 @@ const DEFAULT_LOCAL_REGION = 'us-east-1';
  * This is enough to start building. Call phase 2 after (or in parallel) to fetch AWS stack data.
  */
 export const initializeStackServicesForDevPhase1 = async () => {
-  // Suppress eventManager logs - dev mode uses spinners instead
-  eventManager.setSilentMode(true);
+  // Suppress operation progress - dev mode has its own long-running dashboard.
+  operationReporter.setSilentMode(true);
 
   const isLocalOnlyMode = globalStateManager.args.disableEmulation;
 
@@ -596,7 +598,7 @@ export const initializeStackServicesForDevPhase1 = async () => {
   await packagingManager.init();
 
   // Register hooks (but don't process yet - local resources need to start first)
-  await eventManager.registerHooks(configManager.hooks);
+  await commandLifecycle.registerHooks(configManager.hooks);
 
   return Object.freeze({ args: captureCommandArgs(), stackContext });
 };
@@ -714,7 +716,7 @@ export const initializeDeleteOperation = async () => {
     stageName: globalStateManager.stage || 'stage',
     region: globalStateManager.region || 'region'
   });
-  eventManager.setPhase('INITIALIZE');
+  operationReporter.setPhase('INITIALIZE');
 
   const operation = await initializeStackServicesForWorkingWithDeployedStack({
     commandModifiesStack: true,
@@ -734,7 +736,8 @@ export const initializeDeleteOperation = async () => {
     config: configManager,
     deploymentArtifacts: deploymentArtifactManager,
     deployedStackOverview: deployedStackOverviewManager,
-    event: eventManager,
+    lifecycle: commandLifecycle,
+    progress: operationReporter,
     notification: notificationManager,
     stack: stackManager,
     template: templateManager,
@@ -749,7 +752,7 @@ export const initializeRollbackOperation = async () => ({
   })),
   deployedStackOverview: deployedStackOverviewManager,
   deploymentArtifacts: deploymentArtifactManager,
-  event: eventManager,
+  progress: operationReporter,
   stack: stackManager,
   tui: tuiManager
 });
@@ -765,7 +768,7 @@ export const initializeCloudFormationRollbackOperation = async () => ({
 });
 
 export const loadUserCredentials = async () => {
-  await eventManager.startEvent({ eventType: 'LOAD_USER_DATA', description: 'Loading user data' });
+  await operationReporter.startEvent({ eventType: 'LOAD_USER_DATA', description: 'Loading user data' });
 
   // First, ensure AWS account is connected (may prompt user to connect if no accounts)
   // This must happen before loadUserCredentials because that accesses targetAwsAccount
@@ -780,11 +783,9 @@ export const loadUserCredentials = async () => {
     plugins: [loggingPlugin, retryPlugin, redirectPlugin],
     printer: tuiManager
   });
-  await eventManager.finishEvent({
+  await operationReporter.finishEvent({
     eventType: 'LOAD_USER_DATA',
-    finalMessage: `User: ${tuiManager.makeBold(globalStateManager.userData.name)}. Organization: ${tuiManager.makeBold(
-      globalStateManager.organizationData.name
-    )}.`
+    finalMessage: `Signed in as ${globalStateManager.userData.name} (${globalStateManager.organizationData.name})`
   });
 
   return Object.freeze({

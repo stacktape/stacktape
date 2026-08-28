@@ -1,4 +1,4 @@
-import { eventManager } from '@application-services/event-manager';
+import { operationReporter } from '@application-services/operation-manager';
 import { getCloudfrontDistributionConfigs } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/cdn';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -14,7 +14,7 @@ export class CloudfrontManager {
   };
 
   invalidateCaches = async () => {
-    await eventManager.startEvent({ eventType: 'INVALIDATE_CACHE', description: 'Invalidating CDN caches' });
+    await operationReporter.startEvent({ eventType: 'INVALIDATE_CACHE', description: 'Invalidating CDN caches' });
 
     const stackResources = stackManager.existingStackResources;
 
@@ -53,7 +53,7 @@ export class CloudfrontManager {
         .flat(2)
     );
 
-    await eventManager.finishEvent({
+    await operationReporter.finishEvent({
       eventType: 'INVALIDATE_CACHE',
       data: { invalidatedDistributionIds },
       finalMessage: 'Invalidation has started but it might take few seconds until all edge locations are invalidated.'

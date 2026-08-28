@@ -1,44 +1,64 @@
 # CLI presentation layer
 
-All terminal effects go through the `tuiManager` facade in `index.ts`. Application code may import pure formatters,
-output types, the dev manager or launcher directly, but must not write progress state or renderer internals.
+All terminal effects go through the `tuiManager` facade in `index.ts`. Application and domain code report semantic
+progress through `operation-manager`; they must not import OpenTUI, mutate presenter state or write terminal control
+sequences.
 
 ## Output model
 
 `output/mode.ts` selects:
 
-- `tty`: OpenTUI renders a fixed footer while completed work enters terminal scrollback;
+- `tty`: a primary-screen stream or alternate-screen dashboard, switchable with Ctrl+T;
 - `plain`: line-oriented output suitable for CI and redirected terminals;
 - `jsonl`: machine-readable records; `JsonlStdioGuard` wraps stray stdout/stderr writes so the stream stays valid.
 
 Every mode also writes records to the log collector through `OutputRouter`. `commandUi` in `src/index.ts` makes the UI
 choice exhaustive for every command. JSONL shapes in `output/jsonl-types.ts` are a public automation contract.
 
-## TTY mental model
+## Canonical operation model
 
-The footer shows only current work. A finished event is rendered once into real scrollback and is never repainted.
+`operation-manager` owns an append-only journal and a reducer-backed state store. Stable activity IDs are allocated by
+the reporter. Presentation is a projection of those records and never a source of truth.
 
 ```text
-command -> tuiManager -> TuiStateSink -> TuiState -> footer views
-                              |
-                              +-> scrollback feed -> render completed item once
+command/domain -> OperationReporter -> OperationJournal -> OperationStore
+                                         |                    |
+                                         +-> output router     +-> dashboard
+                                         +-> stream presenter
 ```
 
-`progress/state.ts` is a plain pub/sub store. `progress/sink.ts` decides whether an update belongs in live state or
-scrollback. Phase mode buffers event output and shows it on failure; simple mode streams command output as it arrives.
-Never stream content that another path will render again.
+The stream presenter owns the primary screen. It writes completed work and subprocess output durably, and repaints only
+a small bounded block of running activities. The dashboard owns the alternate screen. `PresentationController` is the
+only component allowed to transfer terminal ownership between them. Its replay cursor prevents both lost and duplicate
+records during Ctrl+T transitions.
 
-`runtime/lifecycle.ts` is the only renderer lifecycle (`idle -> starting -> active -> stopping`) for both progress and
-dev dashboards. All mount and teardown paths go through it. Teardown must reject pending prompts or the calling command
-will hang.
+In `auto` mode initialization, packaging, upload and post-deploy use the stream; the deploy phase uses the dashboard.
+`--ui stream` and `--ui dashboard` pin one view for the whole command. A manual Ctrl+T also pins the selected view for
+the rest of that command.
 
-The phase footer is always 13 rows; simple mode is always 9. Running, prompt, cancellation and completion views reuse
-those rows. Do not add wrapping or variable-height content. Only clocks, spinners, counters, progress fill and slot
-content should change during a tick.
+## Prompts and subprocesses
+
+Prompt callbacks and cancellation functions live in `interaction/coordinator.ts`, outside serializable operation state.
+Dashboard text/password prompts use OpenTUI's native input control; selection prompts use its native select control.
+Prompts opened from the stream temporarily switch to the dashboard modal so OpenTUI has exclusive terminal ownership;
+the stream and its durable history are restored after the answer. Password answers are never written to the journal.
+Sensitive defaults also stay in the interaction coordinator, and `SecureInputRenderable` blanks the native editor's
+render buffer—hiding plaintext with foreground color alone still leaks it into raw terminal output.
+
+Child standard I/O modes are explicit:
+
+- `capture`: stdout/stderr become operation output; stdin is not inherited;
+- `inherit`: the UI releases the terminal to the child and restores itself afterward;
+- `ignore`: no child standard I/O is shown.
+
+Never let a presenter and a child process read raw stdin simultaneously.
 
 ## Non-obvious constraints
 
 - Set `OTUI_USE_CONSOLE=false` before importing OpenTUI. `runtime/opentui.ts` also disables its debug console overlay.
+- Only one `TtyRuntime` may own a terminal at a time.
+- Strip ANSI/OSC control sequences at the operation boundary; OpenTUI otherwise counts them as visible cells.
+- Use native OpenTUI input/select controls. Do not rebuild text editing, paste or cursor behavior from key events.
 - Use the shared, ref-counted spinner clock. Recreated row components freeze per-instance timers.
 - Use glyphs from `ui/glyphs.ts`; they are checked as single terminal cells across supported terminals.
 - Read reactive theme values directly. Do not destructure and cache them.
@@ -50,12 +70,13 @@ content should change during a tick.
 
 ## Main directories
 
+- `operation-manager`: renderer-neutral journal, reducer, store and reporter.
 - `output`: headless routing, records and sinks; no OpenTUI imports.
 - `format`: pure text, blocks and errors.
-- `runtime`: renderer and lifecycle ownership.
-- `progress`: deploy-style state, feed and views.
-- `dev`: separate long-lived dashboard using the same lifecycle.
-- `prompt`: routes footer, inline and non-interactive prompts.
+- `runtime`: renderer lifecycle and presentation ownership.
+- `progress`: stream and dashboard projections.
+- `dev`: separate long-lived full-screen dashboard with overview and log tabs.
+- `prompt` and `interaction`: prompt routing and non-serializable callbacks.
 - `launcher`: interactive command builder shown with no command.
 - `ui`: shared Solid primitives, theme and glyphs.
 
@@ -64,9 +85,8 @@ content should change during a tick.
 ```sh
 bun scripts/tui-demo.ts deploy 1
 bun scripts/tui-preview.ts
-bun test src/app/tui-manager
+bun test src/app/operation-manager src/app/tui-manager --isolate
 ```
 
-The demo is the primary real-terminal check. The preview prints headless frames. Tests cover stable footer geometry and
-scrollback behavior; they cannot prove terminal resize, hyperlinks or theme behavior, so check those interactively after
-renderer or lifecycle changes.
+Headless tests cover reducer semantics, replay, prompt controls and narrow layouts. The demo is the real-terminal gate
+for mode switching, resize behavior, cursor restoration, interactive children, hyperlinks and themes.

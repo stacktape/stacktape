@@ -6,7 +6,7 @@ import type { StacktapeCliArgs } from 'src/config/cli/types';
 import type { StpHostingBucket } from '@domain-services/config-manager/resolved-types/hosting-buckets';
 import type { ResourceImpact, TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import { join } from 'node:path';
-import { eventManager } from '@application-services/event-manager';
+import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
@@ -65,8 +65,15 @@ export const potentiallyPromptBeforeOperation = async ({
     if (!process.stdout.isTTY) {
       throw stpErrors.e108({ reason: possiblyImpactedResourcesPart, command: globalStateManager.command });
     }
+    // The active prompt is what the user's eyes are on — it must carry the
+    // stakes itself, not just reference warnings that scrolled by above.
     const proceed = await tuiManager.promptConfirm({
-      message: 'Are you sure you want to proceed?'
+      message:
+        stackManager.stackActionType === 'delete'
+          ? `Delete stack ${stackName} and all of its resources?`
+          : possiblyImpactedResourcesPart
+            ? 'Proceed with the update? Resources listed above may be deleted (possible data loss).'
+            : 'Proceed with the update?'
     });
     if (!proceed) {
       tuiManager.info('Operation canceled.');
@@ -109,7 +116,7 @@ export const isPromptBeforeOperationNeeded = ({
 export const injectEnvironmentToHostedHtmlFiles = async () => {
   const hostingBucketsWithInject = configManager.hostingBuckets.filter((bucket) => bucket.injectEnvironment);
   if (hostingBucketsWithInject.length > 0) {
-    await eventManager.startEvent({
+    await operationReporter.startEvent({
       eventType: 'INJECT_ENVIRONMENT',
       description: 'Injecting environment to HTML files'
     });
@@ -130,7 +137,10 @@ export const injectEnvironmentToHostedHtmlFiles = async () => {
       })
     );
     await Promise.all(allEnvironmentInjectJobs.flat());
-    await eventManager.finishEvent({ eventType: 'INJECT_ENVIRONMENT' });
+    await operationReporter.finishEvent({
+      eventType: 'INJECT_ENVIRONMENT',
+      finalMessage: 'Environment injected into HTML files'
+    });
   }
 };
 

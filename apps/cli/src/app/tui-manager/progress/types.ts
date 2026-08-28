@@ -1,20 +1,18 @@
-import type { DeploymentPhase, LoggableEventType } from '@application-services/event-manager/types';
-import type { TuiDeploymentHeader, TuiEventStatus, TuiLink, TuiSelectOption } from '../types';
-
-/**
- * Identity of an event inside the progress state. The same derivation is used
- * by the state store, the scrollback sink, and the JSONL emitter — keep them in
- * sync by always going through this helper.
- */
-export const eventId = (eventType: LoggableEventType | string, instanceId?: string): string =>
-  instanceId ? `${eventType}-${instanceId}` : `${eventType}`;
+import type {
+  DeploymentPhase,
+  OperationActivity,
+  OperationCancellation,
+  OperationPhasePreset,
+  OperationPromptRequest,
+  OperationState,
+  OperationSummary
+} from '@application-services/operation-manager';
+import { getPhaseOrder, PHASE_NAMES as OPERATION_PHASE_NAMES } from '@application-services/operation-manager/reducer';
 
 export type CfResourceInProgress = {
   name: string;
   action: 'CREATE' | 'UPDATE' | 'DELETE';
-  /** CloudFormation resource type, e.g. AWS::ECS::Service. */
   resourceType?: string;
-  /** Epoch ms of the first IN_PROGRESS event — used for stable oldest-first slots. */
   since?: number;
 };
 
@@ -26,160 +24,73 @@ export type CfProgressData = {
   totalPlanned?: number;
   inProgressCount?: number;
   inProgressResources?: string[];
-  /** Rich per-resource rows; falls back to inProgressResources names when absent. */
   inProgressDetails?: CfResourceInProgress[];
   waitingResources?: string[];
-  changeCounts: {
-    created: number;
-    updated: number;
-    deleted: number;
-  };
+  changeCounts: { created: number; updated: number; deleted: number };
 };
 
-export type TuiEvent = {
-  id: string;
-  eventType: LoggableEventType;
-  description: string;
-  status: TuiEventStatus;
-  startTime: number;
-  endTime?: number;
-  duration?: number;
-  message?: string;
-  finalMessage?: string;
-  additionalMessage?: string;
+export type TuiEvent = Omit<OperationActivity, 'detail' | 'outputLines' | 'phase'> & {
   phase?: DeploymentPhase;
-  hideChildrenWhenFinished?: boolean;
-  parentEventType?: LoggableEventType;
-  instanceId?: string;
   children: TuiEvent[];
-  data?: Record<string, any>;
+  data?: Record<string, unknown>;
   outputLines?: string[];
+  hideChildrenWhenFinished?: boolean;
 };
 
 export type TuiPhase = {
   id: DeploymentPhase;
   name: string;
-  status: TuiEventStatus;
+  status: OperationActivity['status'];
   startTime?: number;
   endTime?: number;
   duration?: number;
   events: TuiEvent[];
 };
 
-export type TuiSummary = {
-  success: boolean;
-  message: string;
-  links: TuiLink[];
-  consoleUrl?: string;
-};
+export type TuiSummary = OperationSummary;
+export type TuiPrompt = OperationPromptRequest;
+export type TuiPromptSelect = Extract<TuiPrompt, { type: 'select' }>;
+export type TuiPromptMultiSelect = Extract<TuiPrompt, { type: 'multiSelect' }>;
+export type TuiPromptConfirm = Extract<TuiPrompt, { type: 'confirm' }>;
+export type TuiPromptText = Extract<TuiPrompt, { type: 'text' }>;
 
-export type TuiPromptSelect = {
-  type: 'select';
-  message: string;
-  options: TuiSelectOption[];
-  defaultValue?: string;
-  resolve: (value: string) => void;
-  reject?: () => void;
-};
+/** Public callback-bearing input; the callback is held by InteractionCoordinator, never render state. */
+export type TuiCancelDeployment = OperationCancellation & { onCancel: () => void };
 
-export type TuiPromptMultiSelect = {
-  type: 'multiSelect';
-  message: string;
-  options: TuiSelectOption[];
-  defaultValues?: string[];
-  resolve: (values: string[]) => void;
-  reject?: () => void;
-};
-
-export type TuiPromptConfirm = {
-  type: 'confirm';
-  message: string;
-  defaultValue?: boolean;
-  resolve: (value: boolean) => void;
-  reject?: () => void;
-};
-
-export type TuiPromptText = {
-  type: 'text';
-  message: string;
-  placeholder?: string;
-  isPassword?: boolean;
-  description?: string;
-  defaultValue?: string;
-  resolve: (value: string) => void;
-  reject?: () => void;
-};
-
-export type TuiPrompt = TuiPromptSelect | TuiPromptMultiSelect | TuiPromptConfirm | TuiPromptText;
-
-export type TuiCancelDeployment = {
-  message: string;
-  onCancel: () => void;
-  isCancelling?: boolean;
-};
-
-export type TuiState = {
-  header?: TuiDeploymentHeader;
+export type TuiState = Omit<
+  OperationState,
+  'activities' | 'activityOrder' | 'phases' | 'phasePreset' | 'showPhaseHeaders' | 'cancellation' | 'isFinalizing'
+> & {
   phases: TuiPhase[];
-  currentPhase?: DeploymentPhase;
-  summary?: TuiSummary;
-  isComplete: boolean;
-  startTime: number;
-  activePrompt?: TuiPrompt;
-  /** Total ms spent in closed input prompts (the session clock excludes it). */
-  inputPausedMs?: number;
-  /** Epoch ms when the currently open prompt appeared. */
-  inputPausedSince?: number;
   showPhaseHeaders?: boolean;
+  cancelDeployment?: OperationCancellation;
   isFinalizing?: boolean;
-  pendingCompletion?: { success: boolean; message: string; links: TuiLink[]; consoleUrl?: string };
-  cancelDeployment?: TuiCancelDeployment;
 };
 
-/**
- * Phase presets: which deployment phases a command walks through and how they
- * are titled. Chosen when the progress app starts; the codebuild deploy runner
- * switches preset at runtime once the runner choice is known.
- */
-export type PhasePreset = 'deploy' | 'delete' | 'codebuild-deploy';
+export type PhasePreset = OperationPhasePreset;
 
-/**
- * Fixed footer heights — the footer is a framed panel and never changes height
- * while mounted (2 border rows + identity + rail row/blank + blank + body +
- * status strip + hints).
- */
+export const MAX_DOCUMENT_WIDTH = 100;
+
+export const sessionElapsedMs = (
+  state: Pick<TuiState, 'startTime' | 'inputPausedMs' | 'inputPausedSince' | 'activePrompt'>,
+  now: number
+) => {
+  const openPause = state.activePrompt && state.inputPausedSince ? now - state.inputPausedSince : 0;
+  return Math.max(0, now - state.startTime - (state.inputPausedMs ?? 0) - openPause);
+};
+
+export const PHASE_NAMES = OPERATION_PHASE_NAMES;
+export const PHASE_ORDER = getPhaseOrder('deploy');
+export const DELETE_PHASE_ORDER = getPhaseOrder('delete');
+export const CODEBUILD_DEPLOY_PHASE_ORDER = getPhaseOrder('codebuild-deploy');
+export const DELETE_PHASE_NAMES: Partial<Record<DeploymentPhase, string>> = { DEPLOY: 'Delete' };
+export const CODEBUILD_DEPLOY_PHASE_NAMES: Partial<Record<DeploymentPhase, string>> = {
+  UPLOAD: 'Prepare Pipeline'
+};
+
+/** Legacy exports retained until downstream demo tooling is migrated. */
 export const PHASE_FOOTER_HEIGHT = 13;
 export const SIMPLE_FOOTER_HEIGHT = 9;
 
-/**
- * Session time excluding time spent waiting for user input — prompts pause
- * the clock (and the receipt's total).
- */
-export const sessionElapsedMs = (state: TuiState, now: number): number => {
-  const closedPauses = state.inputPausedMs ?? 0;
-  const openPause = state.activePrompt && state.inputPausedSince ? now - state.inputPausedSince : 0;
-  return Math.max(0, now - state.startTime - closedPauses - openPause);
-};
-
-export const PHASE_NAMES: Record<DeploymentPhase, string> = {
-  INITIALIZE: 'Initialize',
-  BUILD_AND_PACKAGE: 'Build & Package',
-  UPLOAD: 'Upload',
-  DEPLOY: 'Deploy',
-  POST_DEPLOY: 'Finalize'
-};
-
-export const PHASE_ORDER: DeploymentPhase[] = ['INITIALIZE', 'BUILD_AND_PACKAGE', 'UPLOAD', 'DEPLOY', 'POST_DEPLOY'];
-
-export const DELETE_PHASE_ORDER: DeploymentPhase[] = ['INITIALIZE', 'DEPLOY'];
-export const DELETE_PHASE_NAMES: Partial<Record<DeploymentPhase, string>> = {
-  INITIALIZE: 'Initialize',
-  DEPLOY: 'Delete'
-};
-
-export const CODEBUILD_DEPLOY_PHASE_ORDER: DeploymentPhase[] = ['INITIALIZE', 'UPLOAD', 'DEPLOY'];
-export const CODEBUILD_DEPLOY_PHASE_NAMES: Partial<Record<DeploymentPhase, string>> = {
-  INITIALIZE: 'Initialize',
-  UPLOAD: 'Prepare Pipeline',
-  DEPLOY: 'Deploy'
-};
+export const eventId = (eventType: string, instanceId?: string) =>
+  instanceId ? `${eventType}-${instanceId}` : eventType;

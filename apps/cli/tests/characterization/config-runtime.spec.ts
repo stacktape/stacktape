@@ -3,7 +3,7 @@ import { cp, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
-import { eventManager } from '@application-services/event-manager';
+import { operationReporter, operationSession } from '@application-services/operation-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { ConfigResolver } from '@domain-services/config-manager/config-resolver';
 import { ConfigManager, configManager } from '@domain-services/config-manager';
@@ -734,8 +734,8 @@ export default defineConfig(() => ({ projectName, resources: {} }));
     const previousTargetStack = globalStateManager.targetStack;
     try {
       configManager.reset();
-      eventManager.reset();
-      eventManager.setSilentMode(true);
+      operationSession.reset();
+      operationReporter.setSilentMode(true);
       (globalStateManager as any).rawArgs = {
         stage: 'test',
         region: 'eu-west-1',

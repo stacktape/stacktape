@@ -1,26 +1,26 @@
 import { ExpectedError } from '@utils/errors';
-import { PromptManager, UserCancelledError } from './inline';
-import { scrollbackFeed } from '../progress/feed';
-import { tuiState } from '../progress/state';
-import type { TuiPrompt } from '../progress/types';
+import { stripAnsi } from '../format/text';
+import { interactionCoordinator } from '../interaction/coordinator';
 import type { TuiSelectOption } from '../types';
+import { PromptManager } from './inline';
+
+const plainOptions = (options: TuiSelectOption[]): TuiSelectOption[] =>
+  options.map((option) => ({
+    ...option,
+    label: stripAnsi(option.label),
+    ...(option.description !== undefined && { description: stripAnsi(option.description) })
+  }));
 
 type AutoAnswerLogger = (message: string) => void;
-
 type PromptContext = { isEnabled: boolean; isTTY: boolean };
 
-/**
- * Single routing point for all user prompts:
- *  - TUI mounted (TTY)     → prompt renders in the split-footer; the answered
- *                            prompt persists as a transcript line in scrollback
- *  - plain interactive TTY → inline `prompts`-package prompt
- *  - non-interactive       → documented default (logged, never silent) or a
- *                            structured error when no default exists
- */
 export class PromptSink {
   private promptManager: PromptManager | null = null;
 
-  constructor(private logAutoAnswer: AutoAnswerLogger) {}
+  constructor(
+    private logAutoAnswer: AutoAnswerLogger,
+    private runWithPromptSurface: <T>(run: () => Promise<T>) => Promise<T> = (run) => run()
+  ) {}
 
   async select({
     config,
@@ -32,24 +32,24 @@ export class PromptSink {
     isTTY: boolean;
   }): Promise<string> {
     const mode = this.resolveMode({ isEnabled, isTTY });
-    if (mode === 'tui') {
-      return this.tuiPrompt<string>((resolve, reject) => ({
-        type: 'select',
-        message: config.message,
-        options: config.options,
-        defaultValue: config.defaultValue,
-        resolve: this.resolveAndClear(resolve, config.message, (value) => {
-          const option = config.options.find((o) => o.value === value);
-          return option?.label || value;
-        }),
-        reject: this.rejectAndClear(reject)
-      }));
+    if (mode === 'dashboard') {
+      return this.runWithPromptSurface(() =>
+        interactionCoordinator.openPrompt<string>({
+          prompt: {
+            type: 'select',
+            message: stripAnsi(config.message),
+            options: plainOptions(config.options),
+            defaultValue: config.defaultValue
+          },
+          describe: (value) => config.options.find((option) => option.value === value)?.label ?? value
+        })
+      );
     }
     if (mode === 'auto') {
       return this.autoAnswer({
         message: config.message,
         defaultValue: config.defaultValue,
-        describe: (value) => config.options.find((o) => o.value === value)?.label || value
+        describe: (value) => config.options.find((option) => option.value === value)?.label ?? value
       });
     }
     return this.getPromptManager().select(config);
@@ -65,24 +65,26 @@ export class PromptSink {
     isTTY: boolean;
   }): Promise<string[]> {
     const mode = this.resolveMode({ isEnabled, isTTY });
-    if (mode === 'tui') {
-      return this.tuiPrompt<string[]>((resolve, reject) => ({
-        type: 'multiSelect',
-        message: config.message,
-        options: config.options,
-        defaultValues: config.defaultValues,
-        resolve: this.resolveAndClear(resolve, config.message, (values) =>
-          values.map((value) => config.options.find((o) => o.value === value)?.label || value).join(', ')
-        ),
-        reject: this.rejectAndClear(reject)
-      }));
+    if (mode === 'dashboard') {
+      return this.runWithPromptSurface(() =>
+        interactionCoordinator.openPrompt<string[]>({
+          prompt: {
+            type: 'multiSelect',
+            message: stripAnsi(config.message),
+            options: plainOptions(config.options),
+            defaultValues: config.defaultValues
+          },
+          describe: (values) =>
+            values.map((value) => config.options.find((option) => option.value === value)?.label ?? value).join(', ')
+        })
+      );
     }
     if (mode === 'auto') {
       return this.autoAnswer({
         message: config.message,
         defaultValue: config.defaultValues,
         describe: (values) =>
-          values.map((value) => config.options.find((o) => o.value === value)?.label || value).join(', ')
+          values.map((value) => config.options.find((option) => option.value === value)?.label ?? value).join(', ')
       });
     }
     return this.getPromptManager().multiSelect(config);
@@ -98,14 +100,13 @@ export class PromptSink {
     isTTY: boolean;
   }): Promise<boolean> {
     const mode = this.resolveMode({ isEnabled, isTTY });
-    if (mode === 'tui') {
-      return this.tuiPrompt<boolean>((resolve, reject) => ({
-        type: 'confirm',
-        message: config.message,
-        defaultValue: config.defaultValue,
-        resolve: this.resolveAndClear(resolve, config.message, (value) => (value ? 'Yes' : 'No')),
-        reject: this.rejectAndClear(reject)
-      }));
+    if (mode === 'dashboard') {
+      return this.runWithPromptSurface(() =>
+        interactionCoordinator.openPrompt<boolean>({
+          prompt: { type: 'confirm', message: stripAnsi(config.message), defaultValue: config.defaultValue },
+          describe: (value) => (value ? 'Yes' : 'No')
+        })
+      );
     }
     if (mode === 'auto') {
       return this.autoAnswer({
@@ -133,47 +134,36 @@ export class PromptSink {
     isTTY: boolean;
   }): Promise<string> {
     const mode = this.resolveMode({ isEnabled, isTTY });
-    const maskValue = (value: string) => (config.isPassword ? '•'.repeat(value.length) : value);
-    if (mode === 'tui') {
-      return this.tuiPrompt<string>((resolve, reject) => ({
-        type: 'text',
-        message: config.message,
-        placeholder: config.placeholder,
-        isPassword: config.isPassword,
-        description: config.description,
-        defaultValue: config.defaultValue,
-        resolve: this.resolveAndClear(resolve, config.message, maskValue),
-        reject: this.rejectAndClear(reject)
-      }));
+    const mask = (value: string) => (config.isPassword ? 'provided' : value);
+    if (mode === 'dashboard') {
+      return this.runWithPromptSurface(() =>
+        interactionCoordinator.openPrompt<string>({
+          prompt: {
+            type: 'text',
+            message: stripAnsi(config.message),
+            placeholder: config.placeholder === undefined ? undefined : stripAnsi(config.placeholder),
+            isPassword: config.isPassword,
+            description: config.description === undefined ? undefined : stripAnsi(config.description),
+            defaultValue: config.defaultValue
+          },
+          describe: mask,
+          sensitive: config.isPassword
+        })
+      );
     }
     if (mode === 'auto') {
-      return this.autoAnswer({ message: config.message, defaultValue: config.defaultValue, describe: maskValue });
+      return this.autoAnswer({ message: config.message, defaultValue: config.defaultValue, describe: mask });
     }
     return this.getPromptManager().text(config);
   }
 
-  /** Rejects a prompt left pending in TUI state (renderer destroyed or failed to mount). */
   rejectPending() {
-    const prompt = tuiState.getSnapshot().activePrompt;
-    if (!prompt) return;
-    if (prompt.reject) {
-      try {
-        prompt.reject();
-      } catch {}
-      return;
-    }
-    tuiState.clearActivePrompt();
+    interactionCoordinator.rejectAllPending();
   }
 
-  private resolveMode({ isEnabled, isTTY }: PromptContext): 'tui' | 'inline' | 'auto' {
+  private resolveMode({ isEnabled, isTTY }: PromptContext): 'dashboard' | 'inline' | 'auto' {
     if (!isTTY) return 'auto';
-    return isEnabled ? 'tui' : 'inline';
-  }
-
-  private tuiPrompt<T>(buildPrompt: (resolve: (value: T) => void, reject: (reason?: unknown) => void) => TuiPrompt) {
-    return new Promise<T>((resolve, reject) => {
-      tuiState.setActivePrompt(buildPrompt(resolve, reject));
-    });
+    return isEnabled ? 'dashboard' : 'inline';
   }
 
   private autoAnswer<T>({
@@ -197,24 +187,7 @@ export class PromptSink {
   }
 
   private getPromptManager(): PromptManager {
-    if (!this.promptManager) {
-      this.promptManager = new PromptManager();
-    }
+    this.promptManager ??= new PromptManager();
     return this.promptManager;
   }
-
-  private resolveAndClear = <T>(resolve: (value: T) => void, message: string, describe: (value: T) => string) => {
-    return (value: T) => {
-      tuiState.clearActivePrompt();
-      scrollbackFeed.push({ kind: 'prompt-answer', message, answer: describe(value) });
-      queueMicrotask(() => resolve(value));
-    };
-  };
-
-  private rejectAndClear = (reject: (reason?: unknown) => void) => {
-    return () => {
-      tuiState.clearActivePrompt();
-      queueMicrotask(() => reject(new UserCancelledError()));
-    };
-  };
 }

@@ -9,7 +9,7 @@ import {
 } from '@aws-sdk/client-cloudformation';
 import { fromIni, fromEnv } from '@aws-sdk/credential-providers';
 import { createFetchHandler } from 'src/aws/fetch-handler';
-import { eventManager } from '@application-services/event-manager';
+import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
@@ -70,7 +70,7 @@ const runAutoAwsConnection = async (
         connectionMode: 'PRIVILEGED'
       });
 
-    await eventManager.updateEvent({
+    await operationReporter.updateEvent({
       eventType: 'CONNECT_AWS_ACCOUNT',
       additionalMessage: 'Deploying connection stack...'
     });
@@ -127,7 +127,7 @@ const runAutoAwsConnection = async (
 
       if (i > 0 && i % 5 === 0) {
         const seconds = i * 3;
-        await eventManager.updateEvent({
+        await operationReporter.updateEvent({
           eventType: 'CONNECT_AWS_ACCOUNT',
           additionalMessage: `Creating connection stack (${seconds}s)...`
         });
@@ -146,7 +146,7 @@ const runAutoAwsConnection = async (
     }
 
     // 5. Poll for connection activation (custom resource should have activated it)
-    await eventManager.updateEvent({
+    await operationReporter.updateEvent({
       eventType: 'CONNECT_AWS_ACCOUNT',
       additionalMessage: 'Verifying connection...'
     });
@@ -201,7 +201,7 @@ const pollForAwsConnection = async (
       if (i > 0 && i % 5 === 0) {
         const minutes = Math.floor((i * 2) / 60);
         const seconds = (i * 2) % 60;
-        await eventManager.updateEvent({
+        await operationReporter.updateEvent({
           eventType: 'CONNECT_AWS_ACCOUNT',
           additionalMessage: `Waiting for CloudFormation (${minutes}m ${seconds}s)`
         });
@@ -260,7 +260,7 @@ export const ensureAwsAccountConnected = async (): Promise<void> => {
     throw stpErrors.e66({ organizationName: currentUserAndOrgData.organization.name });
   }
 
-  await eventManager.startEvent({
+  await operationReporter.startEvent({
     eventType: 'CONNECT_AWS_ACCOUNT',
     description: 'Connecting AWS account'
   });
@@ -271,7 +271,7 @@ export const ensureAwsAccountConnected = async (): Promise<void> => {
   let connectionMethod: 'auto' | 'browser' = 'browser';
 
   if (localCreds.hasCredentials) {
-    await eventManager.updateEvent({
+    await operationReporter.updateEvent({
       eventType: 'CONNECT_AWS_ACCOUNT',
       additionalMessage: `Found local credentials (${localCreds.profile || 'default'})`
     });
@@ -294,7 +294,7 @@ export const ensureAwsAccountConnected = async (): Promise<void> => {
   }
 
   if (connectionMethod === 'auto') {
-    await eventManager.updateEvent({
+    await operationReporter.updateEvent({
       eventType: 'CONNECT_AWS_ACCOUNT',
       additionalMessage: 'Setting up connection using local credentials'
     });
@@ -302,7 +302,7 @@ export const ensureAwsAccountConnected = async (): Promise<void> => {
     const result = await runAutoAwsConnection(currentUserAndOrgData.organization.id, localCreds);
 
     if (result.success) {
-      await eventManager.finishEvent({
+      await operationReporter.finishEvent({
         eventType: 'CONNECT_AWS_ACCOUNT',
         finalMessage: `AWS account connected (${result.awsAccountId})`
       });
@@ -319,7 +319,7 @@ export const ensureAwsAccountConnected = async (): Promise<void> => {
   }
 
   // Browser-based connection flow
-  await eventManager.updateEvent({
+  await operationReporter.updateEvent({
     eventType: 'CONNECT_AWS_ACCOUNT',
     additionalMessage: 'Opening browser for AWS connection'
   });
@@ -343,7 +343,7 @@ export const ensureAwsAccountConnected = async (): Promise<void> => {
   tuiManager.info('');
   tuiManager.info('Complete the CloudFormation stack creation in AWS, then return here.');
 
-  await eventManager.updateEvent({
+  await operationReporter.updateEvent({
     eventType: 'CONNECT_AWS_ACCOUNT',
     additionalMessage: 'Waiting for CloudFormation stack creation'
   });
@@ -352,7 +352,7 @@ export const ensureAwsAccountConnected = async (): Promise<void> => {
   const pollResult = await pollForAwsConnection(connectionId);
 
   if (pollResult.connected) {
-    await eventManager.finishEvent({
+    await operationReporter.finishEvent({
       eventType: 'CONNECT_AWS_ACCOUNT',
       finalMessage: `AWS account connected (${pollResult.awsAccountId})`
     });
@@ -363,7 +363,7 @@ export const ensureAwsAccountConnected = async (): Promise<void> => {
     return;
   }
 
-  await eventManager.finishEvent({
+  await operationReporter.finishEvent({
     eventType: 'CONNECT_AWS_ACCOUNT',
     status: 'error',
     finalMessage: 'AWS connection timed out or was cancelled'

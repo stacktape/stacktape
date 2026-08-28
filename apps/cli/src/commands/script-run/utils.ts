@@ -2,7 +2,7 @@ import type { Script } from '@domain-services/config-manager/resolved-types/reso
 import type { ScriptFn } from '@utils/scripts';
 import type { SsmPortForwardingTunnel } from '@utils/ssm-session';
 import { join, resolve } from 'node:path';
-import { eventManager } from '@application-services/event-manager';
+import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -17,6 +17,7 @@ import {
 } from '@utils/ssm-session';
 import { validateScript } from '@utils/validator';
 import { getLocalInvokeAwsCredentials } from '../_utils/assume-role';
+import { resolveScriptStdioMode } from './stdio';
 import type {
   BastionScript,
   EnvironmentVar,
@@ -83,7 +84,7 @@ const getBastionScriptExecutionFn = ({
     const scriptDescription = `${hookTrigger ? `(${hookTrigger} hook) ` : ''}${resolvedScriptDefinition.scriptName}`;
     const eventInstanceId = `${hookTrigger || 'manual'}-${resolvedScriptDefinition.scriptName}`;
 
-    eventManager.startEvent({
+    operationReporter.startEvent({
       eventType: 'RUN_SCRIPT',
       description: `Running script ${scriptDescription} on bastion ${bastionResourceStpName}`,
       instanceId: eventInstanceId
@@ -105,15 +106,17 @@ const getBastionScriptExecutionFn = ({
         instanceId: bastionInstanceId,
         cwd: resolvedScriptDefinition.properties.cwd
       });
-      eventManager.finishEvent({
-        eventType: 'RUN_SCRIPT',
-        instanceId: eventInstanceId
-      });
-    } catch (err) {
-      eventManager.finishEvent({
+      operationReporter.finishEvent({
         eventType: 'RUN_SCRIPT',
         instanceId: eventInstanceId,
-        status: 'error'
+        finalMessage: `Script ${scriptDescription} finished`
+      });
+    } catch (err) {
+      operationReporter.finishEvent({
+        eventType: 'RUN_SCRIPT',
+        instanceId: eventInstanceId,
+        status: 'error',
+        finalMessage: `Script ${scriptDescription} failed`
       });
       throw new ExpectedError(
         'SCRIPT',
@@ -196,15 +199,12 @@ const getLocalScriptExecutionFn = ({
       });
     }
 
-    const pipeStdio =
-      resolvedScriptDefinition.properties.pipeStdio !== undefined
-        ? resolvedScriptDefinition.properties.pipeStdio
-        : true;
+    const stdioMode = resolveScriptStdioMode(resolvedScriptDefinition.properties);
 
     const scriptDisplayName = `${hookTrigger ? `(${hookTrigger} hook) ` : ''}${resolvedScriptDefinition.scriptName}`;
     const eventInstanceId = `${hookTrigger || 'manual'}-${resolvedScriptDefinition.scriptName}`;
 
-    eventManager.startEvent({
+    operationReporter.startEvent({
       eventType: 'RUN_SCRIPT',
       description: `Running script ${scriptDisplayName}`,
       instanceId: eventInstanceId
@@ -212,15 +212,17 @@ const getLocalScriptExecutionFn = ({
 
     // Callback to capture script output and send to TUI
     // This avoids piping directly to stdout while streaming
-    const onOutputLine = pipeStdio
-      ? (line: string) => {
-          eventManager.appendEventOutput({
-            eventType: 'RUN_SCRIPT',
-            instanceId: eventInstanceId,
-            lines: [line]
-          });
-        }
-      : undefined;
+    const onOutputLine =
+      stdioMode === 'capture'
+        ? (line: string, stream: 'stdout' | 'stderr') => {
+            operationReporter.appendEventOutput({
+              eventType: 'RUN_SCRIPT',
+              instanceId: eventInstanceId,
+              lines: [line],
+              stream
+            });
+          }
+        : undefined;
 
     for (const commandOrScriptToExecute of executeSequence) {
       const currentDescription =
@@ -228,7 +230,7 @@ const getLocalScriptExecutionFn = ({
           ? `script at ${join(globalStateManager.workingDir, commandOrScriptToExecute)}`
           : `command '${commandOrScriptToExecute}'`;
 
-      eventManager.updateEvent({
+      operationReporter.updateEvent({
         eventType: 'RUN_SCRIPT',
         instanceId: eventInstanceId,
         additionalMessage: `Running ${currentDescription}`
@@ -245,28 +247,17 @@ const getLocalScriptExecutionFn = ({
           assumedRoleAWSEnvVars
         });
         const cwd = getScriptCwd(resolvedScriptDefinition);
-        if (commandOrScript === 'command') {
-          await executeCommandHook({
-            command: commandOrScriptToExecute,
-            env,
-            cwd,
-            pipeStdio,
-            onOutputLine
-          });
-        } else {
-          await executeScriptHook({
-            env,
-            filePath: commandOrScriptToExecute,
-            cwd,
-            pipeStdio,
-            onOutputLine
-          });
-        }
+        const run = () =>
+          commandOrScript === 'command'
+            ? executeCommandHook({ command: commandOrScriptToExecute, env, cwd, stdioMode, onOutputLine })
+            : executeScriptHook({ env, filePath: commandOrScriptToExecute, cwd, stdioMode, onOutputLine });
+        await (stdioMode === 'inherit' ? tuiManager.withTerminalLease(run) : run());
       } catch (err) {
-        eventManager.finishEvent({
+        operationReporter.finishEvent({
           eventType: 'RUN_SCRIPT',
           instanceId: eventInstanceId,
-          status: 'error'
+          status: 'error',
+          finalMessage: `Script ${scriptDisplayName} failed`
         });
         await Promise.all(tunnels.map((tunnel) => tunnel.kill()));
         throw new ExpectedError(
@@ -276,9 +267,10 @@ const getLocalScriptExecutionFn = ({
       }
     }
 
-    eventManager.finishEvent({
+    operationReporter.finishEvent({
       eventType: 'RUN_SCRIPT',
-      instanceId: eventInstanceId
+      instanceId: eventInstanceId,
+      finalMessage: `Script ${scriptDisplayName} finished`
     });
     await Promise.all(tunnels.map((tunnel) => tunnel.kill()));
   };

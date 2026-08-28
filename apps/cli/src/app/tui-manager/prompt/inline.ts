@@ -1,3 +1,4 @@
+import { PassThrough } from 'node:stream';
 import type { TuiSelectOption } from '../types';
 import prompts from 'prompts';
 import promptStyle from 'prompts/lib/util/style';
@@ -37,31 +38,63 @@ export class PromptManager {
     console.info('');
   }
 
-  async select(config: { message: string; options: TuiSelectOption[]; defaultValue?: string }): Promise<string> {
-    const response = await prompts(
-      {
-        type: 'select',
-        name: 'value',
-        message: config.message,
-        choices: config.options.map((option) => ({
-          title: option.label,
-          value: option.value,
-          description: option.description
-        })),
-        initial:
-          config.defaultValue !== undefined
-            ? Math.max(
-                0,
-                config.options.findIndex((o) => o.value === config.defaultValue)
-              )
-            : 0
-      },
-      {
+  /**
+   * `prompts` closes the readline interface it creates on the supplied input.
+   * Giving it the real process.stdin can leave Bun's shared TTY stream unable
+   * to deliver bytes to the stream presenter afterwards. A disposable proxy
+   * confines readline lifecycle changes while forwarding raw terminal input.
+   */
+  private async run(question: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const input = new PassThrough();
+    Object.defineProperty(input, 'isTTY', { value: Boolean(process.stdin.isTTY) });
+    Object.defineProperty(input, 'isRaw', { get: () => process.stdin.isRaw });
+    Object.defineProperty(input, 'setRawMode', {
+      value: (enabled: boolean) => {
+        if (process.stdin.isTTY) process.stdin.setRawMode(enabled);
+        return input;
+      }
+    });
+    const forward = (chunk: Buffer | string) => {
+      if (!input.destroyed) input.write(chunk);
+    };
+    process.stdin.on('data', forward);
+    process.stdin.ref();
+    process.stdin.resume();
+    try {
+      return (await prompts({ ...question, stdin: input } as unknown as Parameters<typeof prompts>[0], {
         onCancel: () => {
           throw new UserCancelledError();
         }
-      }
-    );
+      })) as Record<string, unknown>;
+    } finally {
+      process.stdin.off('data', forward);
+      input.end();
+      try {
+        if (process.stdin.isTTY && process.stdin.isRaw) process.stdin.setRawMode(false);
+        process.stdin.pause();
+        process.stdin.unref();
+      } catch {}
+    }
+  }
+
+  async select(config: { message: string; options: TuiSelectOption[]; defaultValue?: string }): Promise<string> {
+    const response = await this.run({
+      type: 'select',
+      name: 'value',
+      message: config.message,
+      choices: config.options.map((option) => ({
+        title: option.label,
+        value: option.value,
+        description: option.description
+      })),
+      initial:
+        config.defaultValue !== undefined
+          ? Math.max(
+              0,
+              config.options.findIndex((o) => o.value === config.defaultValue)
+            )
+          : 0
+    });
 
     this.printSpacer();
 
@@ -73,52 +106,38 @@ export class PromptManager {
     options: TuiSelectOption[];
     defaultValues?: string[];
   }): Promise<string[]> {
-    const response = await prompts(
-      {
-        type: 'multiselect',
-        name: 'values',
-        message: config.message,
-        choices: config.options.map((option) => ({
-          title: option.label,
-          value: option.value,
-          description: option.description
-        })),
-        hint: '- Space to select. Return to submit',
-        instructions: false
-      },
-      {
-        onCancel: () => {
-          throw new UserCancelledError();
-        }
-      }
-    );
+    const response = await this.run({
+      type: 'multiselect',
+      name: 'values',
+      message: config.message,
+      choices: config.options.map((option) => ({
+        title: option.label,
+        value: option.value,
+        description: option.description,
+        selected: config.defaultValues?.includes(option.value) ?? false
+      })),
+      hint: '- Space to select. Return to submit',
+      instructions: false
+    });
 
     const selected = response.values as string[];
     this.printSpacer();
-    if (selected.length > 0) return selected;
-    return config.defaultValues || [];
+    return selected;
   }
 
   async confirm(config: { message: string; defaultValue?: boolean }): Promise<boolean> {
-    const response = await prompts(
-      {
-        type: 'toggle',
-        name: 'value',
-        message: config.message,
-        initial: false,
-        active: 'No',
-        inactive: 'Yes'
-      },
-      {
-        onCancel: () => {
-          throw new UserCancelledError();
-        }
-      }
-    );
+    const response = await this.run({
+      type: 'toggle',
+      name: 'value',
+      message: config.message,
+      initial: config.defaultValue ?? false,
+      active: 'Yes',
+      inactive: 'No'
+    });
 
     this.printSpacer();
 
-    return !response.value;
+    return response.value as boolean;
   }
 
   async text(config: {
@@ -128,23 +147,16 @@ export class PromptManager {
     description?: string;
     defaultValue?: string;
   }): Promise<string> {
-    const response = await prompts(
-      {
-        type: config.isPassword ? 'password' : 'text',
-        name: 'value',
-        message: config.message,
-        initial: config.defaultValue,
-        ...(config.placeholder ? { placeholder: config.placeholder } : {})
-      },
-      {
-        onCancel: () => {
-          throw new UserCancelledError();
-        }
-      }
-    );
+    const response = await this.run({
+      type: config.isPassword ? 'password' : 'text',
+      name: 'value',
+      message: config.message,
+      initial: config.defaultValue,
+      ...(config.placeholder ? { placeholder: config.placeholder } : {})
+    });
 
     this.printSpacer();
 
-    return (response.value as string) || config.defaultValue || '';
+    return (response.value as string | undefined) ?? config.defaultValue ?? '';
   }
 }

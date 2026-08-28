@@ -3,7 +3,7 @@
  *
  * The deploy runs as a *child* `stacktape deploy --agent`, not as a function call inside this
  * process. That is the important decision here, and it is not laziness: the deploy command owns
- * global state — the resolved config, the AWS clients, the event manager, the TUI — and running it
+ * global state — the resolved config, the AWS clients, the operation reporter, the TUI — and running it
  * inside a process that is already holding an init session would mean two commands sharing one set
  * of singletons. A child process has exactly the isolation the CLI already assumes it has.
  *

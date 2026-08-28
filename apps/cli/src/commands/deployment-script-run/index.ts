@@ -1,7 +1,7 @@
 import type { InvokeLambdaReturnValue } from 'src/aws/lambda';
 import type { StpDeploymentScript } from '@domain-services/config-manager/resolved-types/deployment-script';
 import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
-import { eventManager } from '@application-services/event-manager';
+import { operationReporter } from '@application-services/operation-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stpErrors } from '@errors';
@@ -35,7 +35,7 @@ export const commandDeploymentScriptRun = async () => {
     })
   ]);
 
-  await eventManager.startEvent({
+  await operationReporter.startEvent({
     eventType: 'RUN_DEPLOYMENT_SCRIPT',
     description: `Running deployment script ${resourceName}`
   });
@@ -44,7 +44,7 @@ export const commandDeploymentScriptRun = async () => {
     payload: scriptParametersResolvedLocally
   });
   const resultMessage = getScriptResultMessage({ stpResourceName: resourceName, response });
-  await eventManager.finishEvent({
+  await operationReporter.finishEvent({
     eventType: 'RUN_DEPLOYMENT_SCRIPT',
     finalMessage: resultMessage
   });

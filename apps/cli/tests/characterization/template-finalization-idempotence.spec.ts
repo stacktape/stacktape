@@ -2,7 +2,7 @@ import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource'
 import { describe, expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { applicationManager } from '@application-services/application-manager';
-import { eventManager } from '@application-services/event-manager';
+import { operationReporter, operationSession } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
@@ -140,8 +140,8 @@ const finalizeInOneInvocation = async ({
     calculatedStackOverviewManager.reset();
     configManager.reset();
     templateManager.reset();
-    eventManager.reset();
-    eventManager.setSilentMode(true);
+    operationSession.reset();
+    operationReporter.setSilentMode(true);
 
     await applicationManager.init();
     const helperLambda = {
@@ -207,7 +207,6 @@ const finalizeInOneInvocation = async ({
       workingDir: globalStateManager.workingDir
     };
 
-    await eventManager.init();
     await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
     configManager.transforms = compiledConfig.transforms;
     configManager.finalTransform = compiledConfig.finalTransform;

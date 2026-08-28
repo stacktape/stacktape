@@ -73,7 +73,12 @@ export class NotificationManager {
         timeoutMs: 10000
       });
     } catch (err) {
-      tuiManager.warn(`Failed to report event to console: ${err}`);
+      // Console reporting is best-effort telemetry — say so, and keep the raw
+      // cause to one line instead of dumping a full nested error wall.
+      const cause = String((err as Error)?.message ?? err)
+        .split('\n')[0]
+        .slice(0, 200);
+      tuiManager.warn(`Couldn't record this event in the Stacktape Console (the deployment is not affected): ${cause}`);
     }
   };
 

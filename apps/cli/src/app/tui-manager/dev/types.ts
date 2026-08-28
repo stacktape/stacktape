@@ -82,6 +82,7 @@ export type DevTuiState = {
 
   rebuildPickerActive: boolean;
   rebuildingWorkloads: RebuildWorkloadState[];
+  logs: LogEntry[];
   startTime: number;
 };
 

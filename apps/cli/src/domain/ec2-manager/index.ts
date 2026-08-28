@@ -3,7 +3,7 @@ import type {
   DescribeInstanceTypeLimitsCommandOutput,
   OpenSearchPartitionInstanceType
 } from '@aws-sdk/client-opensearch';
-import { eventManager } from '@application-services/event-manager';
+import { operationReporter } from '@application-services/operation-manager';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
@@ -25,7 +25,7 @@ export class EC2Manager {
     }[];
   }) => {
     if (instanceTypes?.length || openSearchInstanceTypes?.length) {
-      await eventManager.startEvent({
+      await operationReporter.startEvent({
         eventType: 'FETCH_EC2_INFO',
         description: 'Fetching EC2 info'
       });
@@ -50,7 +50,7 @@ export class EC2Manager {
           )
       ]);
       this.ec2InstanceTypes = ec2InstanceTypes;
-      await eventManager.finishEvent({
+      await operationReporter.finishEvent({
         eventType: 'FETCH_EC2_INFO'
       });
     }

@@ -2,7 +2,7 @@ import type { RunCommandOptions } from '@application-services/global-state-manag
 import type { StacktapeCommand } from 'src/config/cli/types';
 import { announcementsManager } from '@application-services/announcements-manager';
 import { applicationManager } from '@application-services/application-manager';
-import { eventManager } from '@application-services/event-manager';
+import { commandLifecycle } from '@application-services/command-lifecycle';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { tuiDebug } from '@application-services/tui-manager/debug';
@@ -107,11 +107,12 @@ export const runCommand = async (opts: RunCommandOptions) => {
     if (requestedOutputMode && ['jsonl', 'plain', 'tty'].includes(requestedOutputMode)) {
       tuiManager.setOutputFormat(requestedOutputMode);
     }
+    if (opts.args.ui) tuiManager.setTtyView(opts.args.ui);
     // Output must be configured before argument validation so early failures use the requested machine format.
     tuiManager.init({ logLevel: opts.args.logLevel });
     await deleteTempFolder();
     await globalStateManager.init(opts);
-    await eventManager.init();
+    await commandLifecycle.init();
     await announcementsManager.init();
     initAgentMode();
     const command = globalStateManager.command;
@@ -122,25 +123,25 @@ export const runCommand = async (opts: RunCommandOptions) => {
     }
     const executor = await getCommandExecutor(globalStateManager.command);
     commandResult = await executor();
-    eventManager.clearHookFailures();
+    commandLifecycle.clearHookFailures();
     const shouldContinueAfterHookFailure = globalStateManager.command === 'deploy';
-    await eventManager.processHooks({
+    await commandLifecycle.processHooks({
       captureType: 'FINISH',
       continueOnError: shouldContinueAfterHookFailure
     });
 
-    if (shouldContinueAfterHookFailure && eventManager.hookFailures.length) {
-      const count = eventManager.hookFailures.length;
+    if (shouldContinueAfterHookFailure && commandLifecycle.hookFailures.length) {
+      const count = commandLifecycle.hookFailures.length;
       const hookMsg = `${count} after:deploy hook${count > 1 ? 's' : ''} failed`;
       tuiManager.warn(`${hookMsg}. Deployment is complete, but post-deploy tasks need attention.`);
     }
 
     // Commit pending completion, downgrading to failure if hooks failed
     tuiManager.commitPendingCompletion({
-      hookFailureCount: eventManager.hookFailures.length
+      hookFailureCount: commandLifecycle.hookFailures.length
     });
 
-    await eventManager.processFinalActions();
+    await commandLifecycle.processFinalActions();
 
     tuiDebug('MAIN', 'success path — calling tuiManager.stop()');
     await tuiManager.stop();
@@ -155,12 +156,12 @@ export const runCommand = async (opts: RunCommandOptions) => {
       ok: true,
       code: 'OK',
       message: `${globalStateManager.command} completed`,
-      ...((commandResult !== undefined || eventManager.hookFailures.length) && {
+      ...((commandResult !== undefined || commandLifecycle.hookFailures.length) && {
         data: {
           ...(commandResult !== undefined ? { result: commandResult } : {}),
-          ...(eventManager.hookFailures.length
+          ...(commandLifecycle.hookFailures.length
             ? {
-                hookFailures: eventManager.hookFailures.map(({ hookEvent, error }) => ({
+                hookFailures: commandLifecycle.hookFailures.map(({ hookEvent, error }) => ({
                   hookEvent,
                   message: error instanceof Error ? error.message : `${error}`
                 }))

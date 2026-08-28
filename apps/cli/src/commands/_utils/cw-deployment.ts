@@ -13,7 +13,7 @@ import type {
 } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
 import type { StpResource } from '@domain-services/config-manager/resolved-types/resources';
 import type { UpdateServiceCommandInput } from '@aws-sdk/client-ecs';
-import { eventManager } from '@application-services/event-manager';
+import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { getTaskDefinitionTemplateOverrideFns } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/multi-container-workloads';
 import {
@@ -234,7 +234,7 @@ export const updateEcsService = async ({
   ecsTaskDefinition,
   ecsService
 }: Awaited<ReturnType<typeof getECSHotswapInformation>>) => {
-  const updateWorkloadLogger = eventManager.createChildLogger({
+  const updateWorkloadLogger = operationReporter.createChildLogger({
     parentEventType: 'HOTSWAP_UPDATE',
     instanceId: workload.name
   });
@@ -248,7 +248,8 @@ export const updateEcsService = async ({
       cloudformationEcsTaskDefinition: newCfTaskDefinition
     }));
     await updateWorkloadLogger.finishEvent({
-      eventType: 'REGISTER_ECS_TASK_DEFINITION'
+      eventType: 'REGISTER_ECS_TASK_DEFINITION',
+      finalMessage: 'New task definition registered'
     });
   }
 
@@ -366,7 +367,8 @@ export const updateEcsService = async ({
       statusPoller.stopPolling();
     }
     await updateWorkloadLogger.finishEvent({
-      eventType: 'UPDATE_ECS_SERVICE'
+      eventType: 'UPDATE_ECS_SERVICE',
+      finalMessage: 'Service updated (new version running)'
     });
   }
 };

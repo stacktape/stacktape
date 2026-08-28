@@ -1,5 +1,5 @@
 import { globalStateManager } from '@application-services/global-state-manager';
-import { eventManager } from '@application-services/event-manager';
+import { operationReporter } from '@application-services/operation-manager';
 import { applicationManager } from '@application-services/application-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { createSpinner, setSpinnerAgentMode } from '@application-services/tui-manager/spinner';
@@ -581,7 +581,7 @@ export const commandDev = async () => {
     } else {
       // Interactive mode: use TUI to show deployment progress.
       // Set a header that explains this is an automatic dev-stack setup step.
-      eventManager.setSilentMode(false);
+      operationReporter.setSilentMode(false);
       tuiManager.showCommandHeader({
         action: 'DEPLOYING DEV STACK',
         projectName: stackContext.projectName,
@@ -593,7 +593,7 @@ export const commandDev = async () => {
         await deployDevStack();
       } finally {
         await tuiManager.stop();
-        eventManager.setSilentMode(true);
+        operationReporter.setSilentMode(true);
       }
     }
 

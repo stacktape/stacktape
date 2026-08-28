@@ -1,7 +1,8 @@
 import type { FilteredLogEvent } from '@aws-sdk/client-cloudwatch-logs';
 import type { ConfigureEc2RunnerFromCliParams } from '@stacktape-api/api-key-protected';
 import { CommandInvocationStatus } from '@aws-sdk/client-ssm';
-import { eventManager } from '@application-services/event-manager';
+import { commandLifecycle } from '@application-services/command-lifecycle';
+import { operationReporter } from '@application-services/operation-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { budgetManager } from '@domain-services/budget-manager';
@@ -77,8 +78,8 @@ export const deployWithEc2Runner = async () => {
 
   const configPath = runner.configPath && getPathRelativeTo(runner.configPath, stackContext.workingDir);
 
-  eventManager.setPhase('UPLOAD');
-  await eventManager.startEvent({ eventType: 'START_DEPLOYMENT', description: 'Starting EC2 runner deployment' });
+  operationReporter.setPhase('UPLOAD');
+  await operationReporter.startEvent({ eventType: 'START_DEPLOYMENT', description: 'Starting EC2 runner deployment' });
   const { invocationId } = await stacktapeTrpcApiManager.apiClient.ec2DeployFromCli({
     invocationId: stackContext.invocationId,
     projectName: stackContext.projectName,
@@ -95,10 +96,10 @@ export const deployWithEc2Runner = async () => {
     templateId: args.templateId || null,
     hotSwap: Boolean(args.hotSwap)
   });
-  await eventManager.finishEvent({ eventType: 'START_DEPLOYMENT' });
+  await operationReporter.finishEvent({ eventType: 'START_DEPLOYMENT' });
 
-  eventManager.setPhase('DEPLOY');
-  await eventManager.startEvent({ eventType: 'DEPLOY', description: 'Deploying using EC2 runner' });
+  operationReporter.setPhase('DEPLOY');
+  await operationReporter.startEvent({ eventType: 'DEPLOY', description: 'Deploying using EC2 runner' });
 
   tuiManager.printLines([
     '',
@@ -107,7 +108,7 @@ export const deployWithEc2Runner = async () => {
   ]);
   await monitorEc2RunnerDeployment({ invocationId });
 
-  await eventManager.finishEvent({ eventType: 'DEPLOY' });
+  await operationReporter.finishEvent({ eventType: 'DEPLOY' });
 
   await Promise.all([stackManager.refetchStackDetails(stackContext.stackName), budgetManager.loadBudgets()]);
   await deployedStackOverviewManager.refreshStackInfoMap({
@@ -134,7 +135,7 @@ export const deployWithEc2Runner = async () => {
       })
     });
   }
-  eventManager.addFinalAction(() => deployedStackOverviewManager.printShortStackInfo());
+  commandLifecycle.addFinalAction(() => deployedStackOverviewManager.printShortStackInfo());
 
   const consoleUrl = `https://console.stacktape.com/projects/${stackContext.projectName}/${stackContext.stage}/overview`;
 

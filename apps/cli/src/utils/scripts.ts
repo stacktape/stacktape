@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stpErrors } from '@errors';
 import { checkExecutableInPath } from '@utils/bin-executable';
-import { exec } from '@utils/exec';
+import { exec, type ChildStdioMode } from '@utils/exec';
 import { getFileExtension } from '@utils/fs-utils';
 import { ExpectedError } from './errors';
 import { getPythonExecutable } from './file-loaders';
@@ -59,29 +59,29 @@ export const executeCommandHook = ({
   command,
   env,
   cwd,
-  pipeStdio,
+  stdioMode,
   onOutputLine
 }: {
   command: string;
   env: Record<string, any>;
   cwd: string;
-  pipeStdio: boolean;
-  onOutputLine?: (line: string) => void;
+  stdioMode: ChildStdioMode;
+  onOutputLine?: (line: string, stream: 'stdout' | 'stderr') => void;
 }) => {
   // When using onOutputLine callback, don't use prefix transformer
   // When piping directly to stdout (no callback), use prefix for visual hierarchy
-  const usePrefix = pipeStdio && !onOutputLine;
+  const usePrefix = stdioMode === 'capture' && !onOutputLine;
   return exec(command, [], {
     cwd,
     env,
     // maybe use powershell.exe for windows? Originally cmd.exe was used so it could be a breaking change
     rawOptions: { shell: process.platform === 'win32' ? undefined : '/bin/bash' },
-    pipeStdio,
-    disableStderr: !pipeStdio,
-    disableStdout: !pipeStdio,
+    stdioMode,
+    disableStderr: stdioMode === 'ignore',
+    disableStdout: stdioMode === 'ignore',
     transformStderrLine: usePrefix ? getStdioPrefixTransformer('  └ ') : undefined,
     transformStdoutLine: usePrefix ? getStdioPrefixTransformer('  └ ') : undefined,
-    onOutputLine: onOutputLine ? (line) => onOutputLine(line) : undefined
+    onOutputLine: onOutputLine ? (line, stream) => onOutputLine(line, stream) : undefined
   }).then((execResult) => {
     if (execResult.failed) {
       throw new Error(execResult.stderr);
@@ -93,22 +93,22 @@ export const executeScriptHook = ({
   filePath,
   cwd,
   env,
-  pipeStdio,
+  stdioMode,
   onOutputLine
 }: {
   filePath: string;
   cwd: string;
   env: Record<string, any>;
-  pipeStdio: boolean;
-  onOutputLine?: (line: string) => void;
+  stdioMode: ChildStdioMode;
+  onOutputLine?: (line: string, stream: 'stdout' | 'stderr') => void;
 }) => {
   // When using onOutputLine callback, don't use prefix transformer
-  const usePrefix = pipeStdio && !onOutputLine;
+  const usePrefix = stdioMode === 'capture' && !onOutputLine;
   return execScriptInNewProcess({
     absoluteScriptPath: join(globalStateManager.workingDir, filePath),
     scriptCwd: cwd,
     env,
-    pipeStdio,
+    stdioMode,
     transformStderrLine: usePrefix ? getStdioPrefixTransformer('  └ ') : undefined,
     transformStdoutLine: usePrefix ? getStdioPrefixTransformer('  └ ') : undefined,
     onOutputLine
@@ -127,7 +127,7 @@ const execScriptInNewProcess = async ({
   absoluteScriptPath,
   scriptCwd,
   env,
-  pipeStdio,
+  stdioMode,
   transformStderrLine,
   transformStdoutLine,
   onOutputLine
@@ -137,14 +137,20 @@ const execScriptInNewProcess = async ({
   env?: {
     [key: string]: any;
   };
-  pipeStdio?: boolean;
+  stdioMode: ChildStdioMode;
   transformStderrLine: AnyFunction;
   transformStdoutLine: AnyFunction;
-  onOutputLine?: (line: string) => void;
+  onOutputLine?: (line: string, stream: 'stdout' | 'stderr') => void;
 }) => {
   const ext = getFileExtension(absoluteScriptPath);
-  const stdioOpts = pipeStdio ? { pipeStdio: true } : { disableStderr: true, disableStdout: true };
-  const outputCallback = onOutputLine ? { onOutputLine: (line: string) => onOutputLine(line) } : {};
+  const stdioOpts = {
+    stdioMode,
+    disableStderr: stdioMode === 'ignore',
+    disableStdout: stdioMode === 'ignore'
+  };
+  const outputCallback = onOutputLine
+    ? { onOutputLine: (line: string, stream: 'stdout' | 'stderr') => onOutputLine(line, stream) }
+    : {};
   if (!existsSync(absoluteScriptPath)) {
     throw stpErrors.e18({ absoluteScriptPath });
   }

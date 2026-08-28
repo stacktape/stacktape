@@ -151,6 +151,14 @@ Controls the CLI output format:
 - \`tty\`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected.
 If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl.`);
 
+export const ui = z.enum(['auto', 'stream', 'dashboard']).describe(`#### Terminal UI
+---
+Controls the interactive presentation when output format is \`tty\`:
+- \`auto\`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases.
+- \`stream\`: Keeps native terminal scrollback visible and only redraws currently active work.
+- \`dashboard\`: Uses the fullscreen interactive dashboard for the whole command.
+Press Ctrl+T during a command to switch views and pin that choice for the rest of the run.`);
+
 export const agent = z.boolean().describe(`#### Agent Mode
 ---
 Optimizes CLI output for programmatic/LLM consumption:
@@ -445,7 +453,8 @@ export const universalArgs = {
   help: help.optional(),
   awsAccount: awsAccount.optional(),
   agent: agent.optional(),
-  outputFormat: outputFormat.optional()
+  outputFormat: outputFormat.optional(),
+  ui: ui.optional()
 };
 
 export const localUniversalArgs = {
@@ -453,7 +462,8 @@ export const localUniversalArgs = {
   logLevel: logLevel.optional(),
   help: help.optional(),
   agent: agent.optional(),
-  outputFormat: outputFormat.optional()
+  outputFormat: outputFormat.optional(),
+  ui: ui.optional()
 };
 
 export const stackArgs = {
@@ -530,6 +540,7 @@ export const argAliases = {
   agent: 'ag',
   agentPort: 'ap',
   outputFormat: 'ofmt',
+  ui: 'ui',
   limit: 'lim',
   stackName: 'sn',
   secretName: 'secn',
@@ -616,6 +627,7 @@ export const allCliArgsSchema = z.object({
   agentPort: agentPort.optional(),
   agentChild: agentChild.optional(),
   outputFormat: outputFormat.optional(),
+  ui: ui.optional(),
   cleanupContainers: cleanupContainers.optional(),
   freshDb: freshDb.optional(),
   limit: limit.optional(),

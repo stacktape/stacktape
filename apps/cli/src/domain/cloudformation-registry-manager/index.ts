@@ -5,7 +5,7 @@ import type {
   SupportedPrivateCfResourceType
 } from '@domain-services/cloudformation-registry-manager/types';
 import type { RegisteredPrivateTypeVersion } from 'src/aws/cloudformation-registry';
-import { eventManager } from '@application-services/event-manager';
+import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { S3Client } from '@aws-sdk/client-s3';
 import { SUPPORTED_CF_INFRASTRUCTURE_MODULES } from '@config';
@@ -189,7 +189,7 @@ export class CloudformationRegistryManager {
       (moduleType) => !this.areMinimalRequirementsForModulePrivateTypesMet({ infrastructureModuleType: moduleType })
     );
     if (modulesToRegister.length) {
-      await eventManager.startEvent({
+      await operationReporter.startEvent({
         eventType: 'REGISTER_CF_PRIVATE_TYPES',
         description: 'Registering new cloudformation private types'
       });
@@ -198,7 +198,7 @@ export class CloudformationRegistryManager {
           this.registerNewestAvailablePrivateTypes({ infrastructureModuleType: moduleType })
         )
       );
-      await eventManager.finishEvent({
+      await operationReporter.finishEvent({
         eventType: 'REGISTER_CF_PRIVATE_TYPES'
       });
     }

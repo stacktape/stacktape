@@ -6,12 +6,15 @@
  *   bun scripts/tui-demo.ts deploy    full deploy: phases, CF progress, summary
  *   bun scripts/tui-demo.ts fail      deploy ending in a styled fatal error
  *   bun scripts/tui-demo.ts cancel    long CF update — press `c` to cancel+rollback
- *   bun scripts/tui-demo.ts prompts   all four footer prompt types
+ *   bun scripts/tui-demo.ts prompts   all four prompt types
  *   bun scripts/tui-demo.ts script    simple mode with two concurrent output streams
- *   bun scripts/tui-demo.ts dev       dev dashboard: workloads, logs, `r` rebuild, `q` quit
+ *   bun scripts/tui-demo.ts switch    prompt followed by repeated view handoffs
+ *   bun scripts/tui-demo.ts child     interactive child-process terminal handoff
+ *   bun scripts/tui-demo.ts dev       dev dashboard: overview/logs, rebuilds, Ctrl+C quit
  *
  * A second argument slows everything down for inspection, e.g.
- * `bun scripts/tui-demo.ts deploy 3` runs the deploy at one third speed.
+ * `bun scripts/tui-demo.ts deploy 3 dashboard` runs the deploy at one third
+ * speed and pins the dashboard. The third argument can be auto, stream or dashboard.
  *
  * The OpenTUI Solid views are transformed at runtime via Bun's plugin API (same
  * loader the test preload uses), so this runs without a bundling step.
@@ -22,11 +25,15 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager, UserCancelledError } from '@application-services/tui-manager';
 import { devTuiManager } from '@application-services/tui-manager/dev/manager';
 import { CliError, getErrorDetails } from '@utils/errors';
+import { packagingMessages } from '@stacktape/packaging/runtime-contracts';
+import type { TtyView } from '@application-services/operation-manager';
+import { exec } from '@utils/exec';
 
 plugin(createStacktapeOpenTuiBuildPlugin());
 
 /** Pacing multiplier from argv[3] — `tui-demo deploy 3` runs 3x slower. */
 const SPEED = Math.max(0.1, Number(process.argv[3]) || 1);
+const VIEW: TtyView = ['auto', 'stream', 'dashboard'].includes(process.argv[4]) ? (process.argv[4] as TtyView) : 'auto';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms * SPEED));
 
@@ -91,10 +98,12 @@ const runPackagePhase = async () => {
   tuiManager.startEvent({ eventType: 'PACKAGE_ARTIFACTS', description: 'Packaging workloads' });
 
   const workloads = [
-    { id: 'web-service', size: '38.2 MB', buildMs: 3600 },
-    { id: 'api-lambda', size: '4.1 MB', buildMs: 2300 },
-    { id: 'worker-lambda', size: '2.7 MB', buildMs: 1700 }
+    { id: 'web-service', outcome: 'Vite build · 2.7 MB gzipped · 265 files', buildMs: 3600 },
+    { id: 'api-lambda', outcome: 'Lambda bundle · 4.1 MB (1.2 MB zipped) · uses 1 shared layer', buildMs: 2300 },
+    { id: 'worker-default', outcome: 'Container image · 82.1 MB', buildMs: 1700 }
   ];
+  // Unchanged workloads share the same semantic outcome.
+  const cachedWorkloads = ['mailer', 'cron-cleanup', 'image-resizer', 'webhook-handler', 'audit-trail'];
   for (const workload of workloads) {
     tuiManager.startEvent({
       eventType: 'BUILD_CODE',
@@ -103,9 +112,26 @@ const runPackagePhase = async () => {
       instanceId: workload.id
     });
   }
+  for (const name of cachedWorkloads) {
+    tuiManager.startEvent({
+      eventType: 'BUILD_CODE',
+      description: `Building ${name}`,
+      parentEventType: 'PACKAGE_ARTIFACTS',
+      instanceId: name
+    });
+  }
+  await sleep(500);
+  for (const name of cachedWorkloads) {
+    tuiManager.finishEvent({
+      eventType: 'BUILD_CODE',
+      parentEventType: 'PACKAGE_ARTIFACTS',
+      instanceId: name,
+      finalMessage: packagingMessages.unchanged
+    });
+  }
 
-  // Output drips in over time: the footer shows it as a live tail on the
-  // running event; the full log lands inside the event's scrollback block.
+  // Output drips in over time: stream mode writes it durably while dashboard
+  // mode keeps it attached to the selected activity.
   const dockerLines = [
     '$ docker build -t web-service .',
     '#1 [internal] load build definition',
@@ -137,13 +163,17 @@ const runPackagePhase = async () => {
         eventType: 'BUILD_CODE',
         parentEventType: 'PACKAGE_ARTIFACTS',
         instanceId: workload.id,
-        finalMessage: `${workload.id} packaged (${workload.size})`
+        finalMessage: workload.outcome
       });
     })
   );
 
   await dripOutput;
-  tuiManager.finishEvent({ eventType: 'PACKAGE_ARTIFACTS', finalMessage: '3 workloads packaged' });
+  tuiManager.finishEvent({
+    eventType: 'PACKAGE_ARTIFACTS',
+    finalMessage: `Packaged ${workloads.length + cachedWorkloads.length} workloads · ${workloads.length} built · ${cachedWorkloads.length} unchanged`
+  });
+  tuiManager.info('Infrastructure changes: 3 resources to update (plan 01b11a735dfe)');
   tuiManager.finishPhase();
 };
 
@@ -425,6 +455,44 @@ const runScript = async () => {
   await tuiManager.stop();
 };
 
+const runSwitch = async () => {
+  tuiManager.showCommandHeader({ ...HEADER, action: 'VALIDATING', subtitle: 'view handoff showcase' });
+  tuiManager.start({ phases: 'deploy' });
+  await tuiManager.promptConfirm({ message: 'Start the view handoff showcase?', defaultValue: true });
+  tuiManager.setPhase('BUILD_AND_PACKAGE');
+  tuiManager.startEvent({ eventType: 'BUILD_CODE', description: 'Building view-handoff fixture' });
+  for (let step = 1; step <= 12; step++) {
+    tuiManager.updateEvent({ eventType: 'BUILD_CODE', additionalMessage: `step ${step}/12` });
+    await sleep(500);
+  }
+  tuiManager.finishEvent({ eventType: 'BUILD_CODE', finalMessage: 'View-handoff fixture built' });
+  tuiManager.setPendingCompletion({ success: true, message: 'HANDOFFS FINISHED', links: [] });
+  tuiManager.commitPendingCompletion();
+  await tuiManager.stop();
+};
+
+const runInteractiveChild = async () => {
+  tuiManager.showCommandHeader({ ...HEADER, action: 'RUNNING SCRIPT: interactive-child' });
+  tuiManager.start({ phases: 'deploy' });
+  tuiManager.setPhase('BUILD_AND_PACKAGE');
+  tuiManager.startEvent({ eventType: 'RUN_SCRIPT', description: 'Running interactive child' });
+  await sleep(500);
+  await tuiManager.withTerminalLease(() =>
+    exec(
+      process.execPath,
+      [
+        '-e',
+        "process.stdout.write('child> type something: '); process.stdin.once('data', (value) => { console.log('child received: ' + value.toString().trim()); process.exit(0); });"
+      ],
+      { stdioMode: 'inherit' }
+    ).then(() => undefined)
+  );
+  tuiManager.finishEvent({ eventType: 'RUN_SCRIPT', finalMessage: 'Interactive child finished' });
+  tuiManager.setPendingCompletion({ success: true, message: 'CHILD FINISHED', links: [] });
+  tuiManager.commitPendingCompletion();
+  await tuiManager.stop();
+};
+
 const runDevDashboard = async () => {
   // The dev dashboard's quit path goes through applicationManager.handleExitSignal,
   // which reads command/args from globalStateManager — give it just enough state.
@@ -491,7 +559,7 @@ const runDevDashboard = async () => {
   }, 800);
   logInterval.unref();
 
-  // Runs until `q` (dev dashboard quit) or Ctrl+C.
+  // Runs until Ctrl+C.
   await new Promise(() => {});
 };
 
@@ -501,6 +569,8 @@ const scenarios: Record<string, () => Promise<void>> = {
   cancel: runCancel,
   prompts: runPrompts,
   script: runScript,
+  switch: runSwitch,
+  child: runInteractiveChild,
   dev: runDevDashboard
 };
 
@@ -508,7 +578,9 @@ const main = async () => {
   const scenario = process.argv[2];
   const run = scenarios[scenario];
   if (!run) {
-    console.info(`Usage: bun scripts/tui-demo.ts <${Object.keys(scenarios).join('|')}> [speed-multiplier]`);
+    console.info(
+      `Usage: bun scripts/tui-demo.ts <${Object.keys(scenarios).join('|')}> [speed-multiplier] [auto|stream|dashboard]`
+    );
     process.exitCode = 1;
     return;
   }
@@ -518,6 +590,7 @@ const main = async () => {
   });
 
   tuiManager.init();
+  tuiManager.setTtyView(VIEW);
   try {
     await run();
   } catch (err) {

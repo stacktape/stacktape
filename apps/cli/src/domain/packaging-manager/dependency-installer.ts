@@ -1,4 +1,4 @@
-import type { DeploymentPhase, ProgressLogger } from '@application-services/event-manager/types';
+import type { DeploymentPhase, ProgressReporter as ProgressLogger } from '@application-services/operation-manager';
 import type { ExecaReturnValue } from 'execa';
 import { getLockFileData } from '@stacktape/packaging/bundlers/es/utils';
 import ci from 'ci-info';
@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import readPkgUp from 'read-pkg-up';
 import { checkExecutableInPath } from '@utils/bin-executable';
-import { getEsInstallScript } from './es-install-scripts';
+import { getProjectDependencyInstallScript } from './es-install-scripts';
 import { exec } from '@utils/exec';
 import { CliError } from '@utils/errors';
 import { findProjectRoot } from '@stacktape/packaging/es/project-root';
@@ -174,7 +174,15 @@ class DependencyInstaller {
       });
     }
 
-    const installScript = getEsInstallScript(packageManager, useCiInstall ? 'CI' : 'normal');
+    const packageManagerDeclaration =
+      readPkgResult && 'packageJson' in readPkgResult ? readPkgResult.packageJson.packageManager : undefined;
+    const lockfile = lockFileInfo.lockfilePath ? await readFile(lockFileInfo.lockfilePath, 'utf8') : undefined;
+    const installScript = getProjectDependencyInstallScript({
+      packageManager,
+      installType: useCiInstall ? 'CI' : 'normal',
+      ...(typeof packageManagerDeclaration === 'string' ? { packageManagerDeclaration } : {}),
+      ...(lockfile === undefined ? {} : { lockfile })
+    });
     this.pendingInstalls[installKey] = (async () => {
       await progressLogger.startEvent({
         eventType: 'INSTALL_DEPENDENCIES',

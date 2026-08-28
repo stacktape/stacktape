@@ -1,261 +1,143 @@
-import { describe, test, expect, afterEach } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
+import { InputRenderable } from '@opentui/core';
 import { testRender } from '@opentui/solid';
+import { PromptSink } from '../../../prompt/sink';
+import { interactionCoordinator } from '../../../interaction/coordinator';
 import { tuiState } from '../../state';
 import { ProgressDashboard } from '../dashboard';
 
 type TestSetup = Awaited<ReturnType<typeof testRender>>;
-let testSetup: TestSetup;
+let setup: TestSetup | undefined;
 
 afterEach(() => {
-  if (testSetup) {
-    testSetup.renderer.destroy();
-  }
+  interactionCoordinator.rejectAllPending();
+  setup?.renderer.destroy();
+  setup = undefined;
   tuiState.reset();
 });
 
-const flushAndRender = async () => {
+const flush = async () => {
   tuiState.flushPendingNotifications();
-  await new Promise((r) => setTimeout(r, 20));
-  await testSetup.renderOnce();
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  await setup!.renderOnce();
 };
 
-const renderDashboard = async (opts = { width: 100, height: 13 }) => {
-  testSetup = await testRender(() => <ProgressDashboard onQuit={() => {}} onCancel={() => {}} />, opts);
-  await flushAndRender();
-  return testSetup.captureCharFrame();
+const renderDashboard = async (
+  options: { width?: number; height?: number; onSwitchView?: () => void } = {}
+): Promise<TestSetup> => {
+  setup = await testRender(
+    () => <ProgressDashboard onQuit={() => {}} onCancel={() => {}} onSwitchView={options.onSwitchView} />,
+    { width: options.width ?? 100, height: options.height ?? 32 }
+  );
+  await flush();
+  return setup;
 };
 
-const frameLines = (frame: string) => frame.replace(/\n$/, '').split('\n');
-
-const normalizeIndependentAnimations = (line: string) =>
-  line.replace(/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/g, '⠋').replace(/\b\d{2}:\d{2}:\d{2}\b/g, '00:00:00');
-
-const initDeployState = () => {
+const init = () => {
+  tuiState.reset();
   tuiState.setHeader({ projectName: 'my-app', stageName: 'dev', region: 'eu-west-1', action: 'DEPLOYING' });
   tuiState.setCurrentPhase('BUILD_AND_PACKAGE');
 };
 
-const cfDetail = (completed: number) => ({
+const cloudFormationDetail = () => ({
   kind: 'cloudformation-progress',
   stackAction: 'update',
-  status: 'active',
-  completedCount: completed,
+  completedCount: 5,
   totalPlanned: 14,
-  inProgressCount: 2,
-  inProgressResources: ['web-service', 'main-database'],
   inProgressDetails: [
-    { name: 'web-service', action: 'UPDATE' as const, resourceType: 'AWS::ECS::Service', since: 1 },
-    { name: 'main-database', action: 'UPDATE' as const, resourceType: 'AWS::RDS::DBCluster', since: 2 }
+    { name: 'web-service', action: 'UPDATE' as const, resourceType: 'AWS::ECS::Service' },
+    { name: 'main-database', action: 'UPDATE' as const, resourceType: 'AWS::RDS::DBCluster' }
   ],
-  waitingResources: ['cdn'],
   changeCounts: { created: 3, updated: 9, deleted: 2 }
 });
 
-describe('ProgressDashboard footer', () => {
-  test('renders divider, identity and clock', async () => {
-    initDeployState();
-    const frame = await renderDashboard();
-    expect(frame).toContain('stacktape / deploy');
-    expect(frame).toContain('my-app / dev');
-    expect(frame).toContain('eu-west-1');
-    expect(frame).toMatch(/\d{2}:\d{2}:\d{2}/);
-  });
-
-  test('renders the phase rail with a spinner on the active phase', async () => {
-    initDeployState();
-    const frame = await renderDashboard();
-    expect(frame).toContain('✓ Initialize');
-    expect(frame).toMatch(/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] Package/);
-    expect(frame).toContain('· Deploy');
-    expect(frame).toContain('· Finalize');
-  });
-
-  test('hides the rail in simple mode and keeps 9-row layout', async () => {
-    initDeployState();
-    tuiState.setShowPhaseHeaders(false);
-    const frame = await renderDashboard({ width: 100, height: 9 });
-    expect(frame).not.toContain('Finalize');
-    expect(frameLines(frame)).toHaveLength(9);
-  });
-
-  test('live area shows running events but not finished ones', async () => {
-    initDeployState();
-    tuiState.startEvent({ eventType: 'PACKAGE_ARTIFACTS', description: 'Packaging artifacts' });
-    tuiState.startEvent({ eventType: 'LOAD_METADATA_FROM_AWS', description: 'Loading metadata' });
-    tuiState.finishEvent({ eventType: 'LOAD_METADATA_FROM_AWS' });
-
-    const frame = await renderDashboard();
-    expect(frame).toContain('Packaging artifacts');
-    expect(frame).not.toContain('Loading metadata');
-  });
-
-  test('finished children show only their outcome message', async () => {
-    initDeployState();
+describe('fullscreen progress dashboard', () => {
+  test('renders session identity, phase rail, activity list and details', async () => {
+    init();
     tuiState.startEvent({ eventType: 'PACKAGE_ARTIFACTS', description: 'Packaging workloads' });
-    tuiState.startEvent({
-      eventType: 'BUILD_CODE',
-      description: 'Building api-lambda',
-      parentEventType: 'PACKAGE_ARTIFACTS',
-      instanceId: 'api-lambda'
-    });
-    tuiState.finishEvent({
-      eventType: 'BUILD_CODE',
-      parentEventType: 'PACKAGE_ARTIFACTS',
-      instanceId: 'api-lambda',
-      finalMessage: 'api-lambda packaged (4.1 MB)'
-    });
-
-    const frame = await renderDashboard();
-    // Name column + outcome column, with the repeated name prefix stripped.
-    expect(frame).toContain('api-lambda  packaged (4.1 MB)');
-    expect(frame).not.toContain('api-lambda  api-lambda');
-  });
-
-  test('buffered output never surfaces while an event is running', async () => {
-    initDeployState();
-    tuiState.startEvent({ eventType: 'PACKAGE_ARTIFACTS', description: 'Packaging workloads' });
-    tuiState.appendEventOutput({
-      eventType: 'PACKAGE_ARTIFACTS',
-      lines: ['#2 transferring context', '#6 RUN bun install']
-    });
-
-    const frame = await renderDashboard();
+    const app = await renderDashboard();
+    const frame = app.captureCharFrame();
+    expect(frame).toContain('stacktape / deploying');
+    expect(frame).toContain('my-app → dev');
+    expect(frame).toContain('Build & Package');
+    expect(frame).toContain('ACTIVITY');
     expect(frame).toContain('Packaging workloads');
-    expect(frame).not.toContain('#6 RUN bun install');
-    expect(frame).not.toContain('#2 transferring context');
   });
 
-  test('CF panel renders verb columns, honest progress and queue aggregate', async () => {
-    initDeployState();
+  test('shows structured CloudFormation progress in the details pane', async () => {
+    init();
+    tuiState.startEvent({ eventType: 'PACKAGE_ARTIFACTS', description: 'Stale packaging activity' });
     tuiState.setCurrentPhase('DEPLOY');
     tuiState.startEvent({ eventType: 'UPDATE_STACK', description: 'Updating CloudFormation stack' });
-    tuiState.updateEvent({ eventType: 'UPDATE_STACK', data: cfDetail(5) });
-
-    const frame = await renderDashboard();
-    expect(frame).toContain('CloudFormation update');
-    expect(frame).toContain('36% ·  5/14 complete');
-    expect(frame).toContain('UPDATE  web-service');
+    tuiState.updateEvent({ eventType: 'UPDATE_STACK', data: cloudFormationDetail() });
+    const frame = (await renderDashboard()).captureCharFrame();
+    expect(frame).toContain('update · 36%');
+    expect(frame).toContain('5/14 complete');
+    expect(frame).toContain('3 create · 9 update · 2 delete');
+    expect(frame).toContain('web-service');
     expect(frame).toContain('AWS::ECS::Service');
-    expect(frame).toContain('3 CREATE · 9 UPDATE · 2 DELETE');
+    expect(frame).not.toContain('Stale packaging activity');
   });
 
-  test('hints are phase-honest', async () => {
-    initDeployState();
-    const early = await renderDashboard();
-    // Before a cancellable operation exists, only plain cancel is offered.
-    expect(early).toContain('ctrl+c cancel');
-    expect(early).not.toContain('roll back');
-
-    tuiState.setCancelDeployment({ message: 'Deployment in progress.', onCancel: () => {} });
-    await flushAndRender();
-    const during = testSetup.captureCharFrame();
-    expect(during).toContain('c cancel & roll back');
-    expect(during).toContain('detach (deployment continues in AWS)');
-  });
-
-  test('active prompt replaces the live area within the same geometry', async () => {
-    initDeployState();
-    tuiState.startEvent({ eventType: 'PACKAGE_ARTIFACTS', description: 'Packaging artifacts' });
-    tuiState.setActivePrompt({
-      type: 'confirm',
-      message: 'Proceed with deployment?',
-      resolve: () => {},
-      reject: () => {}
-    });
-
-    const frame = await renderDashboard();
-    expect(frame).toContain('Proceed with deployment?');
-    expect(frame).not.toContain('Packaging artifacts');
-    expect(frameLines(frame)).toHaveLength(13);
-  });
-
-  test('complete state shows the summary banner', async () => {
-    initDeployState();
-    tuiState.setComplete(true, 'DEPLOYED', []);
-
-    const frame = await renderDashboard();
-    expect(frame).toContain('✓ DEPLOYED');
-  });
-
-  test('delete action renders deletion phases and verb', async () => {
-    tuiState.setPhasePreset('delete');
-    tuiState.setHeader({ projectName: 'my-app', stageName: 'dev', region: 'eu-west-1', action: 'DELETING' });
+  test('uses a single-pane fallback on narrow terminals without overlapping cells', async () => {
+    init();
     tuiState.setCurrentPhase('DEPLOY');
+    tuiState.startEvent({ eventType: 'UPDATE_STACK', description: 'Updating CloudFormation stack' });
+    tuiState.updateEvent({ eventType: 'UPDATE_STACK', data: cloudFormationDetail() });
+    const app = await renderDashboard({ width: 60, height: 24 });
+    const frame = app.captureCharFrame();
+    expect(frame).toContain('ACTIVITY');
+    expect(frame).toContain('Init');
+    expect(frame).toContain('ctrl+c cancel');
+    expect(frame).not.toContain('CloudFormation u3');
+    for (const line of frame.replace(/\n$/, '').split('\n')) expect(line.length).toBeLessThanOrEqual(60);
+  });
 
-    const frame = await renderDashboard();
-    expect(frame).toContain('stacktape / delete');
-    expect(frame).toMatch(/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] Delete/);
+  test('Ctrl+T delegates mode switching to the presentation controller', async () => {
+    init();
+    let switches = 0;
+    const app = await renderDashboard({ onSwitchView: () => switches++ });
+    app.mockInput.pressKey('t', { ctrl: true });
+    await flush();
+    expect(switches).toBe(1);
+  });
+
+  test('renders cancellation as a modal layer without replacing operation state', async () => {
+    init();
+    tuiState.setCancelDeployment({ message: 'Deployment in progress', onCancel: () => {} });
+    const app = await renderDashboard();
+    app.mockInput.pressKey('c');
+    await flush();
+    const frame = app.captureCharFrame();
+    expect(frame).toContain('Cancel and roll back?');
+    expect(tuiState.getSnapshot().cancelDeployment).toBeDefined();
   });
 });
 
-describe('ProgressDashboard stability', () => {
-  test('CF progress tick repaints only bar, counters and resource cells', async () => {
-    initDeployState();
-    tuiState.setCurrentPhase('DEPLOY');
-    tuiState.startEvent({ eventType: 'UPDATE_STACK', description: 'Updating CloudFormation stack' });
-    tuiState.updateEvent({ eventType: 'UPDATE_STACK', data: cfDetail(5) });
-
-    const before = await renderDashboard();
-    tuiState.updateEvent({ eventType: 'UPDATE_STACK', data: cfDetail(6) });
-    await flushAndRender();
-    const after = testSetup.captureCharFrame();
-
-    // A phase/resource spinner or the session clock can advance independently while the state update is flushed.
-    // Normalize those cells so this assertion measures only the CloudFormation progress update.
-    const beforeLines = frameLines(before).map(normalizeIndependentAnimations);
-    const afterLines = frameLines(after).map(normalizeIndependentAnimations);
-    expect(afterLines).toHaveLength(beforeLines.length);
-    const changedRows = beforeLines
-      .map((line, index) => (line === afterLines[index] ? null : index))
-      .filter((index) => index !== null);
-    expect(changedRows).toContain(5);
-    // Only the progress row (5) and resource rows (6-8) may change; identity, rail, title and hints must not move.
-    for (const row of changedRows) {
-      expect(row).toBeGreaterThanOrEqual(5);
-      expect(row).toBeLessThanOrEqual(8);
-    }
-  });
-
-  test('rollback state keeps status strip and hints on separate rows', async () => {
-    initDeployState();
-    tuiState.setCurrentPhase('DEPLOY');
-    tuiState.startEvent({ eventType: 'UPDATE_STACK', description: 'Updating CloudFormation stack' });
-    tuiState.setCancelDeployment({ message: 'Deployment in progress.', onCancel: () => {}, isCancelling: true });
-
-    const frame = await renderDashboard();
-    const lines = frameLines(frame);
-    expect(lines).toHaveLength(13);
-    expect(frame).toContain('CloudFormation rollback');
-    expect(frame).toContain('Rolling back to the previous working state');
-    expect(frame).toContain('detach (rollback continues in AWS)');
-    const statusRow = lines.findIndex((l) => l.includes('Rolling back to the previous'));
-    const hintsRow = lines.findIndex((l) => l.includes('ctrl+c'));
-    expect(statusRow).toBe(10);
-    expect(hintsRow).toBe(11);
-  });
-
-  test('every footer state keeps exactly 13 rows', async () => {
-    initDeployState();
-    tuiState.startEvent({ eventType: 'PACKAGE_ARTIFACTS', description: 'Packaging artifacts' });
-    const runningFrame = await renderDashboard();
-    expect(frameLines(runningFrame)).toHaveLength(13);
-
-    tuiState.setActivePrompt({
-      type: 'select',
-      message: 'Pick one',
-      options: [
-        { label: 'a', value: 'a' },
-        { label: 'b', value: 'b' }
-      ],
-      resolve: () => {},
-      reject: () => {}
+describe('dashboard prompt controls', () => {
+  test('native input submits an entire default value without dropping characters', async () => {
+    init();
+    const sink = new PromptSink(() => {});
+    const answer = sink.text({
+      config: { message: 'API key', defaultValue: 'sk-demo-123', isPassword: true },
+      isEnabled: true,
+      isTTY: true
     });
-    await flushAndRender();
-    expect(frameLines(testSetup.captureCharFrame())).toHaveLength(13);
+    const app = await renderDashboard();
+    expect(app.renderer.currentFocusedEditor).toBeInstanceOf(InputRenderable);
+    expect(app.captureCharFrame()).not.toContain('sk-demo-123');
+    expect(app.captureCharFrame()).toContain('•••••••••••');
+    app.mockInput.pressEnter();
+    await expect(answer).resolves.toBe('sk-demo-123');
+  });
 
-    tuiState.clearActivePrompt();
-    tuiState.setComplete(true, 'DEPLOYED', []);
-    await flushAndRender();
-    expect(frameLines(testSetup.captureCharFrame())).toHaveLength(13);
+  test('native input accepts bracketed Unicode paste', async () => {
+    init();
+    const sink = new PromptSink(() => {});
+    const answer = sink.text({ config: { message: 'Label' }, isEnabled: true, isTTY: true });
+    const app = await renderDashboard();
+    await app.mockInput.pasteBracketedText('žluťoučký 🦊');
+    app.mockInput.pressEnter();
+    await expect(answer).resolves.toBe('žluťoučký 🦊');
   });
 });

@@ -12,7 +12,7 @@ import type { HelperLambdaDetails } from '@utils/helper-lambdas';
 import type { StacktapeRecordedCommand } from '@config';
 import type { LogLevel, StacktapeArgs, StacktapeCliArgs, StacktapeCommand } from 'src/config/cli/types';
 import { dirname, isAbsolute, join } from 'node:path';
-import { eventManager } from '@application-services/event-manager';
+import { operationReporter } from '@application-services/operation-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { commandsNotRequiringApiKey } from '../../config/cli/commands';
@@ -330,7 +330,7 @@ export class GlobalStateManager {
   };
 
   loadLocalAwsCredentials = async (): Promise<AwsCredentialsProvider> => {
-    await eventManager.startEvent({ eventType: 'LOAD_AWS_CREDENTIALS', description: 'Loading AWS credentials' });
+    await operationReporter.startEvent({ eventType: 'LOAD_AWS_CREDENTIALS', description: 'Loading AWS credentials' });
 
     const selectedProfile = selectAwsCredentialProfile({
       requestedProfile: this.rawArgs.profile,
@@ -365,11 +365,11 @@ export class GlobalStateManager {
       defaultRegion: this.region
     };
 
-    await eventManager.finishEvent({
+    await operationReporter.finishEvent({
       eventType: 'LOAD_AWS_CREDENTIALS',
       finalMessage: selectedProfile
-        ? `Loaded from AWS profile ${tuiManager.makeBold(selectedProfile)}.`
-        : 'Loaded from the standard AWS credential chain.'
+        ? `AWS credentials loaded (profile ${selectedProfile})`
+        : 'AWS credentials loaded (standard AWS credential chain)'
     });
     return credentialsProvider;
   };
@@ -388,7 +388,7 @@ export class GlobalStateManager {
   };
 
   loadValidatedAwsCredentials = async (): Promise<ValidatedAwsCredentials> => {
-    await eventManager.startEvent({ eventType: 'LOAD_AWS_CREDENTIALS', description: 'Loading AWS credentials' });
+    await operationReporter.startEvent({ eventType: 'LOAD_AWS_CREDENTIALS', description: 'Loading AWS credentials' });
     validateAwsAccountUsability({ account: this.targetAwsAccount, organization: this.organizationData });
 
     // loading method API
@@ -478,16 +478,18 @@ export class GlobalStateManager {
     if (this.credentials.expiration) {
       await this.scheduleCredentialRefresh(this.credentials.expiration);
     }
+    // The finished line must stand alone in the record — name the subject, not
+    // just the source ("Loaded from Stacktape API" reads as a mystery later).
     const loadedFrom = {
-      envVar: 'Environment variables',
-      credentialsFile: 'System-wide credentials file',
+      envVar: 'environment variables',
+      credentialsFile: 'credentials file',
       providerChain: 'AWS credential provider chain',
-      api: 'Stacktape API',
-      assumeRole: 'Assumed role'
+      api: 'via Stacktape',
+      assumeRole: 'assumed role'
     }[this.credentials.source];
-    await eventManager.finishEvent({
+    await operationReporter.finishEvent({
       eventType: 'LOAD_AWS_CREDENTIALS',
-      finalMessage: `Loaded from ${tuiManager.makeBold(loadedFrom)}.`
+      finalMessage: `AWS credentials loaded (${loadedFrom})`
     });
     return this.credentials;
   };
@@ -516,7 +518,7 @@ export class GlobalStateManager {
       clearTimeout(this.credentialsRefreshTimeout);
       this.credentialsRefreshTimeout = undefined;
       await Promise.resolve(
-        eventManager.finishEvent({
+        operationReporter.finishEvent({
           eventType: 'LOAD_AWS_CREDENTIALS',
           finalMessage: 'Automatic AWS credential refresh failed.'
         })
@@ -555,7 +557,7 @@ export class GlobalStateManager {
   };
 
   loadTargetStackInfo = async ({ configProjectName }: { configProjectName?: string } = {}) => {
-    // await eventManager.startEvent({
+    // await operationReporter.startEvent({
     //   eventType: 'LOAD_TARGET_STACK_INFO',
     //   description: 'Loading target stack info'
     // });
@@ -574,7 +576,7 @@ export class GlobalStateManager {
       stage,
       globallyUniqueStackHash
     };
-    // await eventManager.finishEvent({
+    // await operationReporter.finishEvent({
     //   eventType: 'LOAD_TARGET_STACK_INFO'
     // });
   };

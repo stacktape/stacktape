@@ -1,9 +1,19 @@
-import type { DeploymentPhase, LoggableEventType } from '@application-services/event-manager/types';
-import { scrollbackFeed } from './feed';
+import {
+  operationSession,
+  type DeploymentPhase,
+  type LoggableEventType
+} from '@application-services/operation-manager';
+import { stripAnsi } from '../format/text';
 import type { TuiDeploymentHeader, TuiEventStatus, TuiMessageType } from '../types';
 import { tuiState } from './state';
-import type { TuiEvent } from './types';
 import { eventId } from './types';
+
+/**
+ * Event text entering TuiState must be plain: OpenTUI measures embedded ANSI
+ * escapes as visible cells, so a `makeBold` inside a message shifts the
+ * right-aligned duration rail. OpenTUI applies its own styling instead.
+ */
+const plainText = (text: string | undefined): string | undefined => (text === undefined ? undefined : stripAnsi(text));
 
 type StartEventParams = {
   eventType: LoggableEventType;
@@ -32,13 +42,9 @@ type FinishEventParams = {
 };
 
 export class TuiStateSink {
-  /** Top-level event ids currently producing streamed output (for prefix-on-concurrency). */
-  private activeOutputSources = new Set<string>();
-
   getState = () => tuiState.getState();
 
   reset = () => {
-    this.activeOutputSources.clear();
     tuiState.reset();
   };
 
@@ -52,7 +58,6 @@ export class TuiStateSink {
       currentHeader?.subtitle === header.subtitle;
     if (isDuplicateHeader) return false;
     tuiState.setHeader(header);
-    scrollbackFeed.push({ kind: 'header', header });
     return true;
   };
 
@@ -62,15 +67,15 @@ export class TuiStateSink {
 
   startEvent = (params: StartEventParams): { phase: DeploymentPhase } => {
     const phase = params.phase || this.getCurrentPhase();
-    tuiState.startEvent(params);
+    tuiState.startEvent({ ...params, description: plainText(params.description)! });
     return { phase };
   };
 
   updateEvent = (params: UpdateEventParams): { phase: DeploymentPhase; message: string } | null => {
     const stateParams: Parameters<typeof tuiState.updateEvent>[0] = {
       eventType: params.eventType,
-      additionalMessage: params.additionalMessage,
-      description: params.description,
+      additionalMessage: plainText(params.additionalMessage),
+      description: plainText(params.description),
       parentEventType: params.parentEventType,
       instanceId: params.instanceId,
       // Map `detail` (from event system) to `data` (TUI state field) so components
@@ -87,62 +92,28 @@ export class TuiStateSink {
     const existingDescription = this.findEventDescription(params);
     const message =
       params.finalMessage || this.buildFallbackFinishedMessage(params.eventType, params.status, existingDescription);
-    tuiState.finishEvent(params);
-    this.emitFinishedEventToScrollback(params);
+    tuiState.finishEvent({
+      ...params,
+      finalMessage: plainText(params.finalMessage),
+      ...(params.detail !== undefined && { data: params.detail as Record<string, any> })
+    });
     return { phase, message };
   };
 
-  /**
-   * Finished top-level events stream into terminal scrollback (split-footer mode)
-   * and become the permanent record. Child events are included in their parent's
-   * block when the parent finishes.
-   */
-  private emitFinishedEventToScrollback = (params: FinishEventParams) => {
-    if (!scrollbackFeed.enabled || params.parentEventType) return;
-    const id = eventId(params.eventType, params.instanceId);
-    this.activeOutputSources.delete(id);
-    const state = tuiState.getState();
-    for (const phase of state.phases) {
-      const event = phase.events.find((candidate): candidate is TuiEvent => candidate.id === id);
-      if (!event) continue;
-      if (state.showPhaseHeaders !== false) {
-        scrollbackFeed.pushPhaseHeaderIfNeeded(phase.id, phase.name);
-      }
-      scrollbackFeed.push({ kind: 'event', event });
-      return;
-    }
-  };
-
-  /**
-   * Routes event output to the correct side of the append/re-render seam:
-   *
-   * - Simple mode (script:run and friends): the output IS the content — stream
-   *   it into scrollback shell-style as it is produced. A source prefix is
-   *   added only while more than one event streams at once.
-   * - Phase mode (deploy/delete/...): the output is incidental (docker noise,
-   *   hook logs). Streaming it would detach it from its event block, which only
-   *   lands on FINISH. Instead it is buffered on the event and rendered inside
-   *   the block; the footer shows the last line as a live tail meanwhile.
-   */
   appendEventOutput = (params: { eventType: LoggableEventType; lines: string[]; instanceId?: string }) => {
-    const phaseMode = tuiState.getState().showPhaseHeaders !== false;
-    if (!scrollbackFeed.enabled || phaseMode) {
-      tuiState.appendEventOutput(params);
-      return;
-    }
-    const sourceKey = eventId(params.eventType, params.instanceId);
-    this.activeOutputSources.add(sourceKey);
-    const source = this.activeOutputSources.size > 1 ? sourceKey.replace(/^manual-/, '') : undefined;
-    for (const line of params.lines) {
-      scrollbackFeed.push({ kind: 'output-line', source, line });
-    }
+    const lines = params.lines.map((line) => stripAnsi(line));
+    tuiState.appendEventOutput({ ...params, lines });
   };
 
   addMessage = (type: TuiMessageType, message: string) => {
-    scrollbackFeed.push({ kind: 'message', type, text: message });
+    operationSession.message(type, plainText(message)!, 'cli');
   };
 
   markAllRunningAsErrored = () => {
+    tuiState.markAllRunningAsErrored();
+  };
+
+  flushRunningEventsAsErrored = () => {
     tuiState.markAllRunningAsErrored();
   };
 

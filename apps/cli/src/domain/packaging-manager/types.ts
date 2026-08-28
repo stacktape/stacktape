@@ -1,5 +1,5 @@
 import type { HelperLambdaData } from '@utils/helper-lambdas';
-import type { ProgressLogger } from '@application-services/event-manager/types';
+import type { ProgressReporter as ProgressLogger } from '@application-services/operation-manager';
 import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
 import type { StacktapeArgs } from 'src/config/cli/types';
 import type { BatchJobContainer, BatchJobResources } from '@stacktape/config/batch-jobs';

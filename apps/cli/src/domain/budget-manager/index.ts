@@ -1,7 +1,7 @@
 import type { BudgetInfo, CostExplorerTagsError } from '@domain-services/budget-manager/types';
-import type { LoggableEventType } from '@application-services/event-manager/types';
+import type { LoggableEventType } from '@application-services/operation-manager';
 import type { Budget } from '@aws-sdk/client-budgets';
-import { eventManager } from '@application-services/event-manager';
+import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { tagNames } from '@stacktape/naming/tag-names';
@@ -15,7 +15,7 @@ export class BudgetManager {
   budgets: Budget[] = [];
 
   init = async ({ parentEventType }: { parentEventType?: LoggableEventType } = {}) => {
-    await eventManager.startEvent({
+    await operationReporter.startEvent({
       eventType: 'FETCH_BUDGET_INFO',
       description: 'Fetching budget info',
       parentEventType,
@@ -29,7 +29,7 @@ export class BudgetManager {
     // await this.loadBudgets();
     this.tagsUsedInRegion = tagsUsedInRegion;
     this.tagsUsableInCostExploring = tagsUsableInCostExploring;
-    await eventManager.finishEvent({
+    await operationReporter.finishEvent({
       eventType: 'FETCH_BUDGET_INFO',
       parentEventType,
       instanceId: parentEventType ? 'Cost budgets' : undefined

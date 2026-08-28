@@ -42,7 +42,7 @@ import { guardrailDefinitionSchema } from '@stacktape/console-api/guardrails';
 import type { FinalTransform, ResourceTransform as CfResourceTransform } from '@stacktape/config-authoring/tooling';
 import type { DefaultedResource, ResourceDefinitionOf, StacktapeResourceType } from './normalized-resource';
 import { isAbsolute, join } from 'node:path';
-import { eventManager } from '@application-services/event-manager';
+import { operationReporter } from '@application-services/operation-manager';
 import { getRemoteResourceNames } from '../../commands/dev/local-resources';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import {
@@ -196,7 +196,7 @@ export class ConfigManager {
 
   init = async ({ configRequired = true, context }: { configRequired: boolean; context: ConfigManagerInitContext }) => {
     const { configPath, presetConfig, templateId } = context.resolver;
-    await eventManager.startEvent({
+    await operationReporter.startEvent({
       eventType: 'LOAD_CONFIG_FILE',
       description: 'Loading configuration',
       phase: 'INITIALIZE'
@@ -244,7 +244,7 @@ export class ConfigManager {
     this.#publishInitializedConfig(candidate);
     this.#discoveredConfig = undefined;
 
-    await eventManager.finishEvent({
+    await operationReporter.finishEvent({
       eventType: 'LOAD_CONFIG_FILE',
       data: { stackName: this.stackContext.stackName, config: this.config },
       phase: 'INITIALIZE'

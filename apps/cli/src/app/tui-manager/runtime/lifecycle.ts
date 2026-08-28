@@ -61,7 +61,7 @@ export class TtyRuntime {
     this.startPromise = mount()
       .then((handle) => {
         // Stop arrived while the mount was in flight — tear the fresh renderer
-        // down immediately instead of leaving an orphaned footer region.
+        // down immediately instead of leaving an orphaned alternate screen.
         if (this.phase !== 'starting') {
           tuiDebug('RUNTIME', 'start() post-mount bail — destroying handle', { phase: this.phase });
           return handle.destroy().catch(() => {});

@@ -1,5 +1,5 @@
-import { createEffect, ErrorBoundary, For, Show } from 'solid-js';
-import { useKeyboard, useRenderer } from '@opentui/solid';
+import { createSignal, ErrorBoundary, For, Show } from 'solid-js';
+import { useKeyboard } from '@opentui/solid';
 import { ThemeProvider, useTheme } from '../../ui/theme';
 import { createDevSignal } from './signals';
 import { devTuiState } from '../state';
@@ -8,6 +8,7 @@ import { getWorkloadColor } from '../utils';
 import { KeyHints, type Hint } from '../../ui/key-hint';
 import { Spinner } from '../../ui/spinner';
 import { StatusIcon } from '../../ui/status-icon';
+import { glyphs } from '../../ui/glyphs';
 
 type DevDashboardProps = {
   onRebuild?: (workloadName: string | null) => void;
@@ -219,25 +220,12 @@ const RebuildPicker = () => {
 
 const DevDashboardInner = (props: Pick<DevDashboardProps, 'onRebuild' | 'onQuit'>) => {
   const { theme } = useTheme();
-  const renderer = useRenderer();
   const phase = createDevSignal((s) => s.phase);
   const workloads = createDevSignal((s) => s.workloads);
   const rebuildingWorkloads = createDevSignal((s) => s.rebuildingWorkloads);
   const rebuildPickerActive = createDevSignal((s) => s.rebuildPickerActive);
-
-  // 3 chrome rows (border, header, hints) + one row per item in the live area
-  createEffect(() => {
-    const contentRows =
-      phase() === 'rebuilding'
-        ? rebuildingWorkloads().length
-        : phase() === 'startup'
-          ? 4
-          : Math.max(workloads().length, 1);
-    const pickerRows = rebuildPickerActive() ? getActiveWorkloads().length + 2 : 0;
-    try {
-      renderer.footerHeight = Math.max(6, Math.min(4 + Math.max(contentRows, pickerRows), 18));
-    } catch {}
-  });
+  const logs = createDevSignal((s) => s.logs);
+  const [view, setView] = createSignal<'overview' | 'logs'>('overview');
 
   useKeyboard((key) => {
     if (key.ctrl && key.name === 'c') {
@@ -246,7 +234,12 @@ const DevDashboardInner = (props: Pick<DevDashboardProps, 'onRebuild' | 'onQuit'
       return;
     }
 
-    if (phase() === 'startup') return;
+    if (key.name === 'tab') {
+      setView((current) => (current === 'overview' ? 'logs' : 'overview'));
+      return;
+    }
+
+    if (phase() === 'startup' || view() === 'logs') return;
 
     if (rebuildPickerActive()) {
       if (key.name === 'escape') {
@@ -287,9 +280,14 @@ const DevDashboardInner = (props: Pick<DevDashboardProps, 'onRebuild' | 'onQuit'
   });
 
   const hints = (): Hint[] => {
-    if (phase() === 'startup') return [{ key: 'ctrl+c', label: 'quit' }];
-    if (phase() === 'rebuilding') return [{ key: 'ctrl+c', label: 'quit' }];
+    if (phase() === 'startup' || phase() === 'rebuilding') {
+      return [
+        { key: 'tab', label: view() === 'overview' ? 'logs' : 'overview' },
+        { key: 'ctrl+c', label: 'quit' }
+      ];
+    }
     return [
+      { key: 'tab', label: view() === 'overview' ? 'logs' : 'overview' },
       { key: 'ctrl+r', label: 'rebuild' },
       { key: 'ctrl+a', label: 'rebuild all' },
       { key: 'ctrl+c', label: 'quit' }
@@ -299,18 +297,57 @@ const DevDashboardInner = (props: Pick<DevDashboardProps, 'onRebuild' | 'onQuit'
   return (
     <box flexDirection="column" width="100%" height="100%" border={['top']} borderColor={theme.border}>
       <DevHeader />
-      <Show when={!rebuildPickerActive()} fallback={<RebuildPicker />}>
-        <scrollbox flexGrow={1} paddingX={1} stickyScroll={true}>
-          <Show when={phase() === 'startup'}>
-            <StartupSteps />
-          </Show>
-          <Show when={phase() === 'rebuilding'}>
-            <For each={rebuildingWorkloads()}>{(w) => <RebuildRow workload={w} />}</For>
-          </Show>
-          <Show when={phase() === 'running'}>
-            <For each={workloads()}>{(w) => <WorkloadRow workload={w} />}</For>
-          </Show>
-        </scrollbox>
+      <box height={2} paddingX={1} flexDirection="row" border={['bottom']} borderColor={theme.border}>
+        <text fg={view() === 'overview' ? theme.running : theme.muted}>
+          <b>Overview</b>
+        </text>
+        <text fg={theme.border}> {glyphs.separator} </text>
+        <text fg={view() === 'logs' ? theme.running : theme.muted}>
+          <b>Logs</b>
+        </text>
+      </box>
+      <Show
+        when={view() === 'overview'}
+        fallback={
+          <scrollbox flexGrow={1} paddingX={1} stickyScroll stickyStart="bottom">
+            <For each={logs()}>
+              {(entry) => (
+                <box minHeight={1} flexDirection="row">
+                  <text flexShrink={0} fg={theme.dim}>
+                    {new Date(entry.timestamp).toLocaleTimeString('en-GB', { hour12: false })}{' '}
+                  </text>
+                  <text flexShrink={0} fg={WORKLOAD_COLOR_HEX[getWorkloadColor(entry.source)]}>
+                    [{entry.source}]{' '}
+                  </text>
+                  <text
+                    flexShrink={1}
+                    wrapMode="word"
+                    fg={entry.level === 'error' ? theme.error : entry.level === 'warn' ? theme.warning : theme.text}
+                  >
+                    {entry.message}
+                  </text>
+                </box>
+              )}
+            </For>
+            <Show when={logs().length === 0}>
+              <text fg={theme.muted}>No logs yet.</text>
+            </Show>
+          </scrollbox>
+        }
+      >
+        <Show when={!rebuildPickerActive()} fallback={<RebuildPicker />}>
+          <scrollbox flexGrow={1} paddingX={1} stickyScroll={true}>
+            <Show when={phase() === 'startup'}>
+              <StartupSteps />
+            </Show>
+            <Show when={phase() === 'rebuilding'}>
+              <For each={rebuildingWorkloads()}>{(w) => <RebuildRow workload={w} />}</For>
+            </Show>
+            <Show when={phase() === 'running'}>
+              <For each={workloads()}>{(w) => <WorkloadRow workload={w} />}</For>
+            </Show>
+          </scrollbox>
+        </Show>
       </Show>
       <box height={1} paddingX={1} flexShrink={0}>
         <KeyHints hints={hints()} />

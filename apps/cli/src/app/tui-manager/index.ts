@@ -1,8 +1,7 @@
-import type { DeploymentPhase, LoggableEventType } from '@application-services/event-manager/types';
-import type { CliRenderer } from '@opentui/core';
+import type { DeploymentPhase, LoggableEventType } from '@application-services/operation-manager';
 import type { LogLevel } from 'src/config/cli/types';
 import { CliError, type HandledError } from '@utils/errors';
-import { eventManager } from '@application-services/event-manager';
+import { operationSession, type OperationRecord, type TtyView } from '@application-services/operation-manager';
 import { ARE_NOTIFICATIONS_DISABLED, IS_DEV, NOTIFICATION_MIN_DURATION_MS } from '@config';
 import { tuiDebug } from './debug';
 import { renderErrorToString, renderStackErrorsToString, type ErrorDisplayData } from './format/errors';
@@ -23,15 +22,16 @@ import type { JsonlEventDetail } from './output/jsonl-types';
 import type { OutputRecord } from './output/record';
 import { OutputRouter } from './output/router';
 import { ConsoleInterceptor, JsonlStdioGuard } from './output/stdio-guard';
-import { scrollbackFeed } from './progress/feed';
 import { renderExitSummaryLines } from './progress/exit-summary';
 import { TuiStateSink } from './progress/sink';
 import { tuiState } from './progress/state';
 import type { PhasePreset, TuiCancelDeployment, TuiState } from './progress/types';
-import { PHASE_FOOTER_HEIGHT, SIMPLE_FOOTER_HEIGHT, sessionElapsedMs } from './progress/types';
+import { sessionElapsedMs } from './progress/types';
 import { PromptSink } from './prompt/sink';
 import { UserCancelledError } from './prompt/inline';
-import { forceRestoreTerminal, TtyRuntime } from './runtime/lifecycle';
+import { forceRestoreTerminal } from './runtime/lifecycle';
+import { PresentationController } from './runtime/presentation-controller';
+import { interactionCoordinator } from './interaction/coordinator';
 import {
   createSpinner,
   createSpinnerProgressLogger,
@@ -55,7 +55,7 @@ export type { TuiDeploymentHeader, TuiLink, TuiSelectOption } from './types';
  * terminal through this singleton; it routes output to the right surface for
  * the resolved output mode:
  *
- *   tty   -> OpenTUI split-footer app (progress/) + terminal scrollback
+ *   tty   -> switchable primary-screen stream and alternate-screen dashboard
  *   plain -> line-oriented stdout (output/plain)
  *   jsonl -> machine-readable records on stdout (output/jsonl)
  *
@@ -65,26 +65,29 @@ export type { TuiDeploymentHeader, TuiLink, TuiSelectOption } from './types';
  * progress model (progress/), prompts (prompt/) and formatting (format/).
  */
 class TuiManager {
-  private runtime = new TtyRuntime();
+  private presentation = new PresentationController();
   private outputMode: OutputMode = resolveOutputMode({ forceTty: process.env.FORCE_TTY === '1' });
   private outputRouter: OutputRouter;
   private stateSink = new TuiStateSink();
-  private promptSink = new PromptSink((message) => this.log('info', message));
+  private promptSink = new PromptSink(
+    (message) => this.log('info', message),
+    (run) => this.presentation.withDashboardPrompt(run)
+  );
   private consoleInterceptor = new ConsoleInterceptor();
   private jsonlStdioGuard = new JsonlStdioGuard();
-  private finalScrollbackEmitted = false;
   private teardownDone = false;
   private _pendingErrorData?: ErrorDisplayData;
-  private _errorRenderedToScrollback = false;
   private explicitOutputMode?: OutputMode;
   private _isEnabled = false;
   private _wasEverStarted = false;
   private _devTuiActive = false;
   private logLevel: LogLevel = 'info';
+  private ttyView: TtyView = 'auto';
 
   constructor() {
     this.outputRouter = new OutputRouter(this.outputMode);
     fmt.setTextStylingEnabled(this.isTTY);
+    operationSession.journal.subscribe((record) => this.routeOperationRecord(record));
   }
 
   get isTTY(): boolean {
@@ -131,108 +134,51 @@ class TuiManager {
   }
 
   /**
-   * Starts a progress session. With `phases` set, the phase bar and per-phase
-   * scrollback headers are shown using that preset; without it the session
-   * runs in simple mode (events stream without phase structure).
+   * Starts a progress session. `auto` uses stream output for log-heavy phases
+   * and the dashboard for deployment; Ctrl+T switches and pins either view.
    */
-  start(options: { phases?: PhasePreset } = {}) {
+  setTtyView(view: TtyView) {
+    this.ttyView = view;
+  }
+
+  /** Temporarily releases raw input and alternate-screen ownership to an interactive child process. */
+  withTerminalLease<T>(run: () => Promise<T>): Promise<T> {
+    if (!this.isTTY || !this._isEnabled) return run();
+    return this.presentation.withTerminalLease(run);
+  }
+
+  start(options: { phases?: PhasePreset; view?: TtyView } = {}) {
     this._isEnabled = true;
     this._wasEverStarted = true;
     this.teardownDone = false;
-    // Commands may set their header before start() (demo, dev-stack deploy) —
-    // the session reset must not wipe it.
-    const preservedHeader = tuiState.getState().header;
-    this.stateSink.reset();
-    if (options.phases) {
-      tuiState.setPhasePreset(options.phases);
-    } else {
-      tuiState.setShowPhaseHeaders(false);
-    }
-    if (preservedHeader) {
-      tuiState.setHeader(preservedHeader);
-    }
-    scrollbackFeed.reset();
-    this.finalScrollbackEmitted = false;
+    interactionCoordinator.reset();
+    operationSession.reset({
+      preset: options.phases ?? 'deploy',
+      showPhaseHeaders: options.phases !== undefined
+    });
     this._pendingErrorData = undefined;
-    this._errorRenderedToScrollback = false;
     const profile = getOutputModeProfile(this.outputMode);
     tuiDebug('TUI', 'start()', { mode: this.outputMode, useTtyUi: profile.useTtyUi });
 
     if (profile.useTtyUi) {
-      scrollbackFeed.enable();
-      setSpinnerTuiMessageSink((type, text) => this.stateSink.addMessage(type, text));
-      this.startProgressApp(options.phases ? PHASE_FOOTER_HEIGHT : SIMPLE_FOOTER_HEIGHT);
-    }
-  }
-
-  private startProgressApp(footerHeight: number) {
-    let attachConsumer: ((renderer: CliRenderer) => () => void) | null = null;
-
-    this.runtime.start(
-      async () => {
-        // Load the runtime first: it configures OpenTUI's process-wide console
-        // behavior before any view evaluates a value import from @opentui/solid.
-        const { createOpenTuiApp } = await import('./runtime/opentui');
-        const [{ ProgressDashboard }, { attachScrollbackConsumer }, { ScrollbackItemView }] = await Promise.all([
-          import('./progress/views/dashboard'),
-          import('./runtime/scrollback-consumer'),
-          import('./progress/views/scrollback-items')
-        ]);
-
-        attachConsumer = (renderer) => attachScrollbackConsumer(renderer, scrollbackFeed, ScrollbackItemView);
-
-        const onQuit = () => {
-          tuiDebug('TUI', 'onQuit callback fired');
-          setTimeout(() => this.stopInternal(), 0);
-        };
-        const onCancel = () => {
-          tuiDebug('TUI', 'onCancel callback fired');
-          setTimeout(async () => {
-            await this.stopInternal();
-            process.emit('SIGINT', 'SIGINT');
-          }, 0);
-        };
-        const onRenderError = (error: Error) => {
-          tuiDebug('TUI', 'onRenderError callback fired', { message: error.message, stack: error.stack });
-          void this.teardown();
+      setSpinnerTuiMessageSink((type, text) => operationSession.message(type, text));
+      this.presentation.start({
+        preferredView: options.view ?? this.ttyView,
+        onQuit: () => {
+          void this.stopInternal();
+        },
+        onCancel: () => {
+          void this.stopInternal().then(() => process.emit('SIGINT', 'SIGINT'));
+        },
+        onRenderError: (error) => {
+          interactionCoordinator.rejectAllPending();
+          tuiDebug('TUI', 'renderer error', { message: error.message, stack: error.stack });
           try {
             process.stderr.write(`\n[TUI render error] ${error.message}\n`);
-            if (error.stack) {
-              process.stderr.write(`${error.stack}\n`);
-            }
-          } catch {}
-        };
-
-        return createOpenTuiApp(() => ProgressDashboard({ onQuit, onCancel, onRenderError }), {
-          screenMode: 'split-footer',
-          footerHeight
-        });
-      },
-      {
-        onReady: (renderer) => {
-          const detach = attachConsumer?.(renderer);
-          this.updateTerminalTitle();
-          return detach ?? undefined;
-        },
-        onStartError: (err) => {
-          // Dynamic import or renderer creation failed — mark the TUI as
-          // disabled and unblock any prompt queued for the never-mounted footer.
-          this._isEnabled = false;
-          this.promptSink.rejectPending();
-          try {
-            if (
-              shouldWriteTerminalControlSequences({
-                outputMode: this.outputMode,
-                stdoutIsTty: process.stdout.isTTY
-              })
-            ) {
-              process.stderr.write('\x1B[?25h');
-            }
-            process.stderr.write(`\n[TUI init error] ${err?.message || err}\n`);
           } catch {}
         }
-      }
-    );
+      });
+    }
   }
 
   /**
@@ -244,24 +190,10 @@ class TuiManager {
     if (this.teardownDone) return;
     this.teardownDone = true;
 
-    const { rendererDestroyed } = await this.runtime.stop();
-
-    // Safety: restore cursor, but ONLY if the renderer was NOT destroyed
-    // cleanly (destroy() already restores terminal state; re-emitting restore
-    // sequences afterwards moves the cursor on Windows terminals).
-    if (
-      this._wasEverStarted &&
-      !rendererDestroyed &&
-      shouldWriteTerminalControlSequences({ outputMode: this.outputMode, stdoutIsTty: process.stdout.isTTY })
-    ) {
-      try {
-        process.stdout.write('\x1B[?25h');
-      } catch {}
-    }
-
-    // A prompt awaiting an answer in the footer can never resolve once the
-    // renderer is gone — reject it so the awaiting command aborts cleanly.
+    // Reject first: prompt ownership is serialized with view transitions, so
+    // presentation.stop() must not wait on an answer the user can no longer give.
     this.promptSink.rejectPending();
+    await this.presentation.stop();
     setSpinnerTuiMessageSink(null);
     this._isEnabled = false;
     this.jsonlStdioGuard.disable();
@@ -275,9 +207,8 @@ class TuiManager {
   async stop() {
     tuiDebug('TUI', 'stop() called', { isEnabled: this._isEnabled });
     tuiState.setFinalizing();
-    // Give the footer one last paint so the final state (all phases checked)
-    // is briefly visible before the receipt is written and the footer unmounts.
-    const holdMs = this.runtime.isActive ? 350 : 100;
+    // Give the dashboard one final paint before its alternate screen closes.
+    const holdMs = this.presentation.isDashboardActive ? 220 : 25;
     await new Promise((resolve) => setTimeout(resolve, holdMs));
     await this.stopInternal();
   }
@@ -285,7 +216,6 @@ class TuiManager {
   private async stopInternal() {
     tuiDebug('TUI', 'stopInternal()');
     const state = tuiState.getSnapshot();
-    this.emitFinalScrollback(state);
     this.maybeNotifyCompletion(state);
     await this.teardown();
     this.printFallbackSummary(state);
@@ -296,10 +226,9 @@ class TuiManager {
     tuiState.setFinalizing();
     this._isEnabled = false;
     const state = tuiState.getSnapshot();
-    this.emitFinalScrollback(state);
     this.maybeNotifyCompletion(state);
-    // stopSync is inherently synchronous — fire-and-forget the async teardown.
-    void this.teardown();
+    this.promptSink.rejectPending();
+    this.presentation.stopSync();
     this.printFallbackSummary(state);
   }
 
@@ -312,7 +241,7 @@ class TuiManager {
   /** Updates the terminal tab title from the current header (TTY only). */
   private updateTerminalTitle() {
     const header = tuiState.getState().header;
-    const renderer = this.runtime.renderer;
+    const renderer = this.presentation.renderer;
     if (!header || !renderer) return;
     try {
       renderer.setTerminalTitle(
@@ -328,8 +257,8 @@ class TuiManager {
    * quick, or unsupported by the terminal.
    */
   private maybeNotifyCompletion(state: TuiState) {
-    const renderer = this.runtime.renderer;
-    if (ARE_NOTIFICATIONS_DISABLED || this.runtime.windowFocused || !renderer) return;
+    const renderer = this.presentation.renderer;
+    if (ARE_NOTIFICATIONS_DISABLED || this.presentation.windowFocused || !renderer) return;
     const elapsedMs = sessionElapsedMs(state, Date.now());
     if (elapsedMs < NOTIFICATION_MIN_DURATION_MS) return;
 
@@ -344,72 +273,14 @@ class TuiManager {
     } catch {}
   }
 
-  /**
-   * Streams the final outcome into terminal scrollback (split-footer mode).
-   * Finished work was already streamed as it happened, so this only appends
-   * the closing summary / cancellation / failure line.
-   */
-  private emitFinalScrollback(state: TuiState) {
-    if (!scrollbackFeed.enabled || this.finalScrollbackEmitted) return;
-    this.finalScrollbackEmitted = true;
-
-    const { summary, phases, cancelDeployment, header } = state;
-    const elapsed = fmt.formatDuration(sessionElapsedMs(state, Date.now()));
-
-    if (summary) {
-      scrollbackFeed.push({
-        kind: 'summary',
-        summary,
-        phases,
-        totalDurationMs: sessionElapsedMs(state, Date.now()),
-        header
-      });
-      return;
-    }
-
-    // A fatal error → stream the styled error block (covers the failure; the
-    // plain-text stderr fallback in displayError is then skipped).
-    if (this._pendingErrorData) {
-      scrollbackFeed.push({ kind: 'error', error: this._pendingErrorData, header });
-      this._errorRenderedToScrollback = true;
-      this._pendingErrorData = undefined;
-      return;
-    }
-
-    const action =
-      header?.action === 'DELETING'
-        ? 'Deletion'
-        : header?.action === 'COMPILING TEMPLATE'
-          ? 'Template compilation'
-          : 'Deployment';
-    const hasErroredPhase = phases.some((p) => p.status === 'error');
-    const hasRunningPhase = phases.some((p) => p.status === 'running');
-
-    if (hasErroredPhase || (hasRunningPhase && !cancelDeployment)) {
-      scrollbackFeed.push({ kind: 'message', type: 'error', text: `${action} failed (${elapsed})` });
-    } else if (cancelDeployment || hasRunningPhase) {
-      const text = cancelDeployment?.isCancelling
-        ? `${action} cancelled — rolling back (${elapsed})`
-        : `${action} cancelled (${elapsed})`;
-      scrollbackFeed.push({ kind: 'message', type: 'warn', text });
-    }
-  }
-
-  /**
-   * Plain-text exit summary for paths where nothing streamed to scrollback:
-   * plain output mode, or TTY mode where the renderer never mounted (early
-   * crash). In the normal TTY flow scrollback already holds the full record.
-   */
+  /** Plain-text exit summary for non-interactive output and pre-renderer failures. */
   private printFallbackSummary(state: TuiState) {
     if (this.outputMode === 'jsonl') return;
     if (this.outputMode === 'plain') {
       this.printExitSummary(state);
       return;
     }
-    const pending = scrollbackFeed.drainPending();
-    if (pending.length > 0) {
-      this.printExitSummary(state);
-    }
+    if (!this._wasEverStarted) this.printExitSummary(state);
   }
 
   private printExitSummary(state: TuiState) {
@@ -516,6 +387,90 @@ class TuiManager {
     this.outputRouter.emit(record);
   }
 
+  private routeOperationRecord(record: OperationRecord) {
+    const state = operationSession.store.getSnapshot();
+    if (record.type === 'message') {
+      this.emitOutputRecord({
+        type: 'log',
+        level: record.level === 'warn' || record.level === 'error' ? record.level : 'info',
+        source: record.source,
+        message: record.message
+      });
+      return;
+    }
+    if (record.type === 'header-set') {
+      this.emitOutputRecord({
+        type: 'progress',
+        phase: state.currentPhase ?? 'INITIALIZE',
+        message: formatCommandHeaderProgressMessage(record.header)
+      });
+      return;
+    }
+    if (record.type === 'phase-entered') {
+      this.emitOutputRecord({ type: 'progress', phase: record.phase, message: `Entering phase ${record.phase}` });
+      return;
+    }
+    if (record.type === 'activity-output') {
+      const activity = state.activities[record.activityId];
+      if (!activity) return;
+      this.emitOutputRecord({
+        type: 'output',
+        ...(record.stream === 'diagnostic' ? {} : { stream: record.stream }),
+        eventType: activity.eventType,
+        instanceId: activity.instanceId,
+        parentEventType: activity.parentEventType,
+        parentInstanceId: activity.parentInstanceId,
+        lines: record.lines
+      });
+      return;
+    }
+    if (record.type === 'activity-started') {
+      const activity = record.activity;
+      this.emitOutputRecord({
+        type: 'event',
+        phase: activity.phase,
+        eventType: activity.eventType,
+        status: 'started',
+        message: activity.description,
+        instanceId: activity.instanceId,
+        parentEventType: activity.parentEventType,
+        parentInstanceId: activity.parentInstanceId
+      });
+      return;
+    }
+    if (record.type === 'activity-updated') {
+      const activity = state.activities[record.activityId];
+      if (!activity || (!record.additionalMessage && record.detail === undefined)) return;
+      this.emitOutputRecord({
+        type: 'event',
+        phase: activity.phase,
+        eventType: activity.eventType,
+        status: 'running',
+        message: record.additionalMessage ?? activity.description,
+        instanceId: activity.instanceId,
+        parentEventType: activity.parentEventType,
+        parentInstanceId: activity.parentInstanceId,
+        detail: record.detail as JsonlEventDetail | undefined
+      });
+      return;
+    }
+    if (record.type === 'activity-finished') {
+      const activity = state.activities[record.activityId];
+      if (!activity) return;
+      this.emitOutputRecord({
+        type: 'event',
+        phase: activity.phase,
+        eventType: activity.eventType,
+        status: 'completed',
+        message: activity.finalMessage ?? activity.description,
+        instanceId: activity.instanceId,
+        parentEventType: activity.parentEventType,
+        parentInstanceId: activity.parentInstanceId,
+        detail: record.detail as JsonlEventDetail | undefined
+      });
+    }
+  }
+
   emitCollectorLog({
     level,
     source,
@@ -531,17 +486,11 @@ class TuiManager {
   }
 
   private log(type: TuiMessageType, message: string) {
-    const level: 'info' | 'warn' | 'error' = type === 'error' ? 'error' : type === 'warn' ? 'warn' : 'info';
-
-    this.emitOutputRecord({ type: 'log', level, source: 'cli', message });
+    operationSession.message(type, message);
 
     if (this.outputMode === 'plain' || this.outputMode === 'jsonl') return;
 
-    const hasActivePhase = this.stateSink.getState().currentPhase !== undefined;
-    if (this._isEnabled && this.isTTY && hasActivePhase) {
-      this.stateSink.addMessage(type, fmt.stripAnsi(message).trim());
-      return;
-    }
+    if (this._isEnabled && this.isTTY) return;
 
     if (!this._devTuiActive || !this._isEnabled) {
       this.printToConsole(type, message);
@@ -589,11 +538,6 @@ class TuiManager {
     if (!wasUpdated) return;
 
     this.updateTerminalTitle();
-    this.emitOutputRecord({
-      type: 'progress',
-      phase: 'INITIALIZE',
-      message: formatCommandHeaderProgressMessage(header)
-    });
   }
 
   showCommandHeader(header: TuiDeploymentHeader, options: { renderStandalone?: boolean } = {}) {
@@ -605,7 +549,6 @@ class TuiManager {
   }
 
   setPhase(phase: DeploymentPhase) {
-    this.emitOutputRecord({ type: 'progress', phase, message: `Entering phase ${phase}` });
     this.stateSink.setPhase(phase);
   }
 
@@ -621,17 +564,7 @@ class TuiManager {
     parentInstanceId?: string;
     instanceId?: string;
   }) {
-    const { phase } = this.stateSink.startEvent(params);
-    this.emitOutputRecord({
-      type: 'event',
-      phase,
-      eventType: params.eventType,
-      status: 'started',
-      message: params.description,
-      instanceId: params.instanceId,
-      parentEventType: params.parentEventType,
-      parentInstanceId: params.parentInstanceId
-    });
+    this.stateSink.startEvent(params);
   }
 
   updateEvent(params: {
@@ -643,19 +576,7 @@ class TuiManager {
     parentInstanceId?: string;
     instanceId?: string;
   }) {
-    const updated = this.stateSink.updateEvent(params);
-    if (!updated) return;
-    this.emitOutputRecord({
-      type: 'event',
-      phase: updated.phase,
-      eventType: params.eventType,
-      status: 'running',
-      message: updated.message,
-      instanceId: params.instanceId,
-      parentEventType: params.parentEventType,
-      parentInstanceId: params.parentInstanceId,
-      detail: params.detail
-    });
+    this.stateSink.updateEvent(params);
   }
 
   finishEvent(params: {
@@ -667,18 +588,7 @@ class TuiManager {
     instanceId?: string;
     status?: TuiEventStatus;
   }) {
-    const finished = this.stateSink.finishEvent(params);
-    this.emitOutputRecord({
-      type: 'event',
-      phase: finished.phase,
-      eventType: params.eventType,
-      status: 'completed',
-      message: finished.message,
-      instanceId: params.instanceId,
-      parentEventType: params.parentEventType,
-      parentInstanceId: params.parentInstanceId,
-      detail: params.detail
-    });
+    this.stateSink.finishEvent(params);
   }
 
   appendEventOutput(params: {
@@ -688,14 +598,6 @@ class TuiManager {
     parentEventType?: LoggableEventType;
     parentInstanceId?: string;
   }) {
-    this.emitOutputRecord({
-      type: 'output',
-      eventType: params.eventType,
-      instanceId: params.instanceId,
-      parentEventType: params.parentEventType,
-      parentInstanceId: params.parentInstanceId,
-      lines: params.lines
-    });
     this.stateSink.appendEventOutput(params);
   }
 
@@ -825,7 +727,7 @@ class TuiManager {
 
     const errorMessage =
       !IS_DEV && !isExpected
-        ? `An unexpected error occurred. Last captured event: ${eventManager.lastEvent?.eventType || '-'}.`
+        ? `An unexpected error occurred. Last captured event: ${operationSession.reporter.lastActivity?.eventType || '-'}.`
         : error.message;
 
     const hints: string[] = isExpected ? [...error.hints] : [];
@@ -848,15 +750,10 @@ class TuiManager {
     };
   }
 
-  /**
-   * Captures a fatal error so it is streamed into scrollback as a styled block
-   * while the renderer is still mounted. Call BEFORE stop()/teardown. The later
-   * displayError() then knows the error is already shown and skips the plain
-   * stderr fallback. No-op in non-TTY modes (stderr/jsonl handles those).
-   */
+  /** Captures a fatal error and marks in-flight work failed before renderer teardown. */
   setFatalError(error: HandledError) {
-    if (!scrollbackFeed.enabled) return;
     this._pendingErrorData = this.toErrorDisplayData(error);
+    operationSession.markRunningAsErrored();
   }
 
   async displayError(errorData: ErrorDisplayData) {
@@ -883,15 +780,9 @@ class TuiManager {
       ...(errorData.hints ? { data: { hints: errorData.hints } } : {})
     });
 
-    // In TTY mode the error was already streamed into scrollback as a styled
-    // block by emitFinalScrollback() (while the renderer was alive), so don't
-    // also dump it to stderr.
-    if (this._errorRenderedToScrollback) {
-      this._errorRenderedToScrollback = false;
-      return;
-    }
-
-    const errorString = renderErrorToString(errorData, this.colorize.bind(this), this.makeBold.bind(this));
+    const effectiveError = this._pendingErrorData ?? errorData;
+    this._pendingErrorData = undefined;
+    const errorString = renderErrorToString(effectiveError, this.colorize.bind(this), this.makeBold.bind(this));
     try {
       process.stderr.write(`${errorString}\n`);
     } catch {}

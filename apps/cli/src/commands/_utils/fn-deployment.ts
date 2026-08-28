@@ -1,6 +1,6 @@
 import type { StpLambdaFunction } from '@domain-services/config-manager/resolved-types/functions';
 import type { PackagingOutput } from '@stacktape/packaging/runtime-contracts';
-import { eventManager } from '@application-services/event-manager';
+import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
@@ -20,7 +20,7 @@ export const buildAndUpdateFunctionCode = async (stpResourceName: string, option
   const spinner = devMode ? tuiManager.createSpinner({ text: 'Packaging function' }) : null;
 
   if (!devMode) {
-    await eventManager.startEvent({
+    await operationReporter.startEvent({
       eventType: 'PACKAGE_ARTIFACTS',
       description: 'Packaging function'
     });
@@ -36,7 +36,7 @@ export const buildAndUpdateFunctionCode = async (stpResourceName: string, option
   })) as PackagingOutput;
 
   if (!devMode) {
-    await eventManager.finishEvent({ eventType: 'PACKAGE_ARTIFACTS' });
+    await operationReporter.finishEvent({ eventType: 'PACKAGE_ARTIFACTS', finalMessage: 'Function packaged' });
   } else {
     spinner.success({ details: `${packagingOutput.size} MB` });
   }
@@ -47,7 +47,7 @@ export const buildAndUpdateFunctionCode = async (stpResourceName: string, option
   const uploadSpinner = devMode ? tuiManager.createSpinner({ text: 'Uploading to S3' }) : null;
 
   if (!devMode) {
-    await eventManager.startEvent({
+    await operationReporter.startEvent({
       eventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
       description: 'Uploading deployment artifacts'
     });
@@ -56,7 +56,10 @@ export const buildAndUpdateFunctionCode = async (stpResourceName: string, option
   await deploymentArtifactManager.uploadLambda(artifactInfo);
 
   if (!devMode) {
-    await eventManager.finishEvent({ eventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS' });
+    await operationReporter.finishEvent({
+      eventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
+      finalMessage: 'Function code uploaded'
+    });
   } else {
     uploadSpinner.success();
   }
@@ -65,7 +68,7 @@ export const buildAndUpdateFunctionCode = async (stpResourceName: string, option
   const updateSpinner = devMode ? tuiManager.createSpinner({ text: 'Updating function code' }) : null;
 
   if (!devMode) {
-    await eventManager.startEvent({
+    await operationReporter.startEvent({
       eventType: 'HOTSWAP_UPDATE',
       description: 'Performing hotswap update'
     });
@@ -80,7 +83,7 @@ export const buildAndUpdateFunctionCode = async (stpResourceName: string, option
   });
 
   if (!devMode) {
-    await eventManager.finishEvent({ eventType: 'HOTSWAP_UPDATE' });
+    await operationReporter.finishEvent({ eventType: 'HOTSWAP_UPDATE', finalMessage: 'Function code hot-swapped' });
   } else {
     updateSpinner.success();
   }
@@ -128,7 +131,7 @@ export const updateFunctionCode = async ({
 }) => {
   const updateWorkloadLogger = devMode
     ? null
-    : eventManager.createChildLogger({
+    : operationReporter.createChildLogger({
         parentEventType: 'HOTSWAP_UPDATE',
         instanceId: workloadName
       });

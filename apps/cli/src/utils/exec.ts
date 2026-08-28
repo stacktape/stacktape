@@ -37,7 +37,7 @@ type ExecProps = {
   cwd?: string;
   rawOptions?: CommonOptions<'string'>;
   logDetails?: boolean;
-  pipeStdio?: boolean;
+  stdioMode?: ChildStdioMode;
   prefixStdioOutput?: string;
   disableExtendEnv?: boolean;
   inheritEnvVarsExcept?: string[];
@@ -63,6 +63,8 @@ type ExecProps = {
   redactedValues?: string[];
 };
 
+export type ChildStdioMode = 'capture' | 'inherit' | 'ignore';
+
 const getChildProcess = (
   command: string,
   args: string[],
@@ -75,7 +77,7 @@ const getChildProcess = (
     transformStdoutPut = [],
     disableStderr,
     disableStdout,
-    pipeStdio,
+    stdioMode = 'capture',
     disableExtendEnv,
     inheritEnvVarsExcept = [],
     rawOptions = {},
@@ -87,18 +89,26 @@ const getChildProcess = (
   const inheritedEnv = serialize(process.env);
   inheritEnvVarsExcept.forEach((envName) => delete inheritedEnv[envName]);
 
+  const stdio =
+    stdinInput !== undefined
+      ? (['pipe', 'pipe', 'pipe'] as const)
+      : stdioMode === 'inherit'
+        ? ('inherit' as const)
+        : stdioMode === 'ignore'
+          ? ('ignore' as const)
+          : (['ignore', 'pipe', 'pipe'] as const);
   const cpOpts = {
     ...rawOptions,
     env: { FORCE_COLOR: '3', ...(inheritEnvVarsExcept?.length ? inheritedEnv : {}), ...env },
     cwd,
     extendEnv: !disableExtendEnv && !inheritEnvVarsExcept?.length,
     windowsHide: true,
-    ...(pipeStdio && { stdin: 'inherit' as const, stdout: 'pipe' as const, stderr: 'pipe' as const }),
+    stdio,
     ...(stdinInput === undefined ? {} : { input: stdinInput })
   };
   const childProcess = useNodeExec ? execa.node(command, args, cpOpts) : execa(command, args, cpOpts);
 
-  if (!disableStdout) {
+  if (stdioMode === 'capture' && !disableStdout && childProcess.stdout) {
     let stdoutStream = childProcess.stdout;
     if (transformStdoutLine.length || transformStdoutPut.length) {
       const lineTransforms = Array.isArray(transformStdoutLine) ? transformStdoutLine : [transformStdoutLine];
@@ -117,7 +127,7 @@ const getChildProcess = (
       setupLineCallback(stdoutStream, (line) => emitCollectorLine({ line, stream: 'stdout' }));
     }
   }
-  if (!disableStderr) {
+  if (stdioMode === 'capture' && !disableStderr && childProcess.stderr) {
     let stderrStream = childProcess.stderr;
     if (transformStderrLine.length || transformStderrPut.length) {
       const lineTransforms = Array.isArray(transformStderrLine) ? transformStderrLine : [transformStderrLine];

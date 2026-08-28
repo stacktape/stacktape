@@ -22,7 +22,7 @@ type RollbackExecutionOperation = {
     | 'restoreBucketSyncFromManifest'
     | 'verifyArtifactsForVersion'
   >;
-  event: Pick<RollbackOperation['event'], 'setPhase'>;
+  progress: Pick<RollbackOperation['progress'], 'setPhase'>;
   stack: {
     deployStackForRollback: (templateUrl: string) => Promise<unknown>;
     lastVersion: string;
@@ -150,13 +150,13 @@ export const commandRollback = async () => {
   const operation = await initializeRollbackOperation();
   await configManager.loadGlobalConfig();
   configManager.validateGuardrails({ hasConfig: !!configManager.config });
-  const { args, deployedStackOverview, deploymentArtifacts, event, stack, stackContext, tui } = operation;
+  const { args, deployedStackOverview, deploymentArtifacts, progress, stack, stackContext, tui } = operation;
 
   return executeRollbackOperation({
     args,
     deployedStackOverview,
     deploymentArtifacts,
-    event,
+    progress,
     stack,
     stackName: stackContext.stackName,
     tui
@@ -167,7 +167,7 @@ export const executeRollbackOperation = async ({
   args,
   deployedStackOverview,
   deploymentArtifacts,
-  event,
+  progress,
   stack,
   stackName,
   tui
@@ -197,7 +197,7 @@ export const executeRollbackOperation = async ({
   }
 
   // Prepare rollback template: download old template, patch version output, re-upload
-  event.setPhase('DEPLOY');
+  progress.setPhase('DEPLOY');
   const newVersion = stack.nextVersion;
   const templateUrl = await deploymentArtifacts.prepareRollbackTemplate(targetVersion, newVersion);
 

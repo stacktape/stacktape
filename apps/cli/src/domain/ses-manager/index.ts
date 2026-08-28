@@ -1,7 +1,7 @@
 import type { NotificationEmailInformation } from '@domain-services/ses-manager/types';
 import type { IdentityVerificationAttributes } from '@aws-sdk/client-ses';
 import type { GetAccountCommandOutput } from '@aws-sdk/client-sesv2';
-import { eventManager } from '@application-services/event-manager';
+import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stpErrors } from '@errors';
 import { isEmailValid } from '@utils/validation';
@@ -15,7 +15,7 @@ export class SesManager {
   #sesAccountInfo: GetAccountCommandOutput;
   init = async ({ identities }: { identities: string[] }) => {
     if (identities.length) {
-      await eventManager.startEvent({
+      await operationReporter.startEvent({
         eventType: 'FETCH_MAIL_INFO',
         description: 'Fetching email info'
       });
@@ -23,7 +23,7 @@ export class SesManager {
         awsSdkManager.domains.getSesAccount(),
         awsSdkManager.domains.getSesIdentitiesStatus(identities.map(this.#getRelevantIdentitiesForVerification).flat())
       ]);
-      await eventManager.finishEvent({
+      await operationReporter.finishEvent({
         eventType: 'FETCH_MAIL_INFO'
       });
     }

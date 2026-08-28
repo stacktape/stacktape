@@ -18,10 +18,14 @@ mock.module('@application-services/application-manager', () => ({
   }
 }));
 
-mock.module('@application-services/event-manager', () => ({
-  eventManager: {
-    finishEvent: mock(async () => {}),
-    startEvent: mock(async () => {})
+mock.module('@application-services/operation-manager', () => ({
+  getPhaseOrder: () => [],
+  operationReporter: {
+    finishEvent: mock(() => {}),
+    startEvent: mock(() => {})
+  },
+  operationSession: {
+    journal: { subscribe: mock(() => () => {}) }
   }
 }));
 

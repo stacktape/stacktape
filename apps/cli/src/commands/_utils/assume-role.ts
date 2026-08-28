@@ -1,4 +1,4 @@
-import { eventManager } from '@application-services/event-manager';
+import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { arns, getRoleArnFromSessionArn } from '@stacktape/naming/arns';
@@ -25,7 +25,7 @@ export const getLocalInvokeAwsCredentials = async ({
   assumeRoleOfWorkload: string;
   isDevStack?: boolean;
 }) => {
-  await eventManager.startEvent({
+  await operationReporter.startEvent({
     eventType: 'ASSUME_ROLE',
     description: `Assuming role of ${assumeRoleOfWorkload}`
   });
@@ -67,7 +67,7 @@ export const getLocalInvokeAwsCredentials = async ({
     await new Promise((resolve) => setTimeout(resolve, 8000));
     credentials = await getCredentials();
   }
-  await eventManager.finishEvent({ eventType: 'ASSUME_ROLE' });
+  await operationReporter.finishEvent({ eventType: 'ASSUME_ROLE' });
 
   return {
     AWS_ACCESS_KEY_ID: credentials.accessKeyId,

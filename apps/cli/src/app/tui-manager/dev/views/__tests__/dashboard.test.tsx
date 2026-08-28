@@ -21,7 +21,7 @@ const flushAndRender = async () => {
   await testSetup.renderOnce();
 };
 
-const renderDashboard = async (opts = { width: 100, height: 10 }) => {
+const renderDashboard = async (opts = { width: 100, height: 16 }) => {
   testSetup = await testRender(() => <DevDashboard onRebuild={() => {}} onQuit={() => {}} />, opts);
   await flushAndRender();
   return testSetup.captureCharFrame();
@@ -36,7 +36,7 @@ const initRunningState = () => {
   devTuiState.setPhase('running');
 };
 
-describe('DevDashboard footer', () => {
+describe('full-screen DevDashboard', () => {
   test('startup phase shows header and running setup steps', async () => {
     devTuiState.init({ projectName: 'test-project', stageName: 'dev' });
     devTuiState.addSetupStep({ id: 'deploy', label: 'Deploying dev stack' });
@@ -79,5 +79,22 @@ describe('DevDashboard footer', () => {
     expect(frame).toContain('Rebuild which workload?');
     expect(frame).toContain('api');
     expect(frame).toContain('worker');
+  });
+
+  test('Tab switches to the integrated log view', async () => {
+    initRunningState();
+    devTuiState.addLog({
+      source: 'api',
+      sourceType: 'workload',
+      level: 'info',
+      message: 'GET /health 200',
+      timestamp: Date.now()
+    });
+    await renderDashboard();
+    testSetup.mockInput.pressTab();
+    await flushAndRender();
+    const frame = testSetup.captureCharFrame();
+    expect(frame).toContain('GET /health 200');
+    expect(frame).not.toContain('http://localhost:3000');
   });
 });

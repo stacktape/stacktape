@@ -101,9 +101,10 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     config,
     deployedStackOverview,
     deploymentArtifacts,
-    event,
+    lifecycle,
     notification,
     packaging,
+    progress,
     prepareTemplateForDeploy,
     stack,
     stackContext,
@@ -215,7 +216,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   });
   await ensureMissingSsmParamsCreated();
 
-  event.setPhase('BUILD_AND_PACKAGE');
+  progress.setPhase('BUILD_AND_PACKAGE');
   const [{ packagedWorkloads, cfTemplateDiff: initialCfTemplateDiff }] = await Promise.all([
     prepareArtifactsForStackDeployment({
       calculatedStackOverview,
@@ -316,7 +317,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   }
 
   // deploy all artifacts - use versions depending on whether this is hotswap or not
-  event.setPhase('UPLOAD');
+  progress.setPhase('UPLOAD');
   await deploymentArtifacts.uploadAllArtifacts({ useHotswap });
 
   await notification.sendDeploymentNotification({
@@ -350,14 +351,14 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     }
   }
 
-  event.setPhase('DEPLOY');
+  progress.setPhase('DEPLOY');
   if (useHotswap) {
-    await performHotswapDeploy({ config, event });
+    await performHotswapDeploy({ config, progress });
   } else {
     await performFullDeploy({ deploymentArtifacts, stack, tui });
   }
 
-  event.setPhase('POST_DEPLOY');
+  progress.setPhase('POST_DEPLOY');
 
   // refreshing stack details is only useful if we used full deploy
   if (!useHotswap) {
@@ -405,7 +406,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
       })
     });
   }
-  event.addFinalAction(() => deployedStackOverview.printShortStackInfo());
+  lifecycle.addFinalAction(() => deployedStackOverview.printShortStackInfo());
 
   await notification.sendDeploymentNotification({
     message: {
@@ -459,7 +460,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
 
   // Prompt for CI/CD setup after successful deploy (only for new stacks in TTY mode)
   if (stack.stackActionType === 'create') {
-    event.addFinalAction(() => promptCiCdSetupAfterDeploy());
+    lifecycle.addFinalAction(() => promptCiCdSetupAfterDeploy());
   }
 
   return {
@@ -521,17 +522,17 @@ export const performFullDeploy = async ({ deploymentArtifacts, stack, tui }: Ful
   await deploymentArtifacts.deleteAllObsoleteArtifacts();
 };
 
-const performHotswapDeploy = async ({ config, event }: Pick<DeployOperation, 'config' | 'event'>) => {
+const performHotswapDeploy = async ({ config, progress }: Pick<DeployOperation, 'config' | 'progress'>) => {
   // we need to invalidate directives, because we have previously resolved (and cached) them for usage with CF
   // directives in some resources(multi-container-workloads) need to be "resolved" again using the local resolve
   config.invalidatePotentiallyChangedDirectiveResults();
 
-  await event.startEvent({
+  await progress.startEvent({
     eventType: 'HOTSWAP_UPDATE',
     description: 'Performing hotswap update'
   });
 
-  await event.updateEvent({
+  await progress.updateEvent({
     eventType: 'HOTSWAP_UPDATE',
     additionalMessage: 'Determining compute resources to update'
   });
@@ -546,14 +547,14 @@ const performHotswapDeploy = async ({ config, event }: Pick<DeployOperation, 'co
     )
   ).filter(({ needsUpdate }) => needsUpdate);
 
-  await event.updateEvent({ eventType: 'HOTSWAP_UPDATE' });
+  await progress.updateEvent({ eventType: 'HOTSWAP_UPDATE' });
 
   const results = await Promise.all([
     ...containerWorkloadsToBeUpdated.map(updateEcsService),
     ...lambdaFunctionsToBeUpdated.map(updateFunctionCode)
   ]);
 
-  await event.finishEvent({
+  await progress.finishEvent({
     eventType: 'HOTSWAP_UPDATE',
     finalMessage: results.length
       ? `Hot-swapped ${results.length} workload${results.length === 1 ? '' : 's'}`

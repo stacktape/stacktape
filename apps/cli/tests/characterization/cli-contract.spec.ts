@@ -107,6 +107,8 @@ describe('CLI option semantics', () => {
     expect(validateCommandArgs('deploy', { runner: 'unknown-runner' }).success).toBe(false);
     expect(validateCommandArgs('deploy', { dockerArgs: '--no-cache' }).success).toBe(false);
     expect(validateCommandArgs('dev', { outputFormat: 'xml' }).success).toBe(false);
+    expect(validateCommandArgs('deploy', { ui: 'dashboard' }).success).toBe(true);
+    expect(validateCommandArgs('deploy', { ui: 'split-footer' }).success).toBe(false);
     expect(
       validateCommandArgs('validate', { stage: 'test', region: 'eu-west-1', outFile: '/tmp/template.yaml' }).success
     ).toBe(true);
@@ -117,6 +119,7 @@ describe('CLI option semantics', () => {
     expect(getArgInfo('deploy', 'region').alias).toContain('r');
     expect(getArgInfo('deploy', 'stage').alias).toContain('s');
     expect(getArgInfo('deploy', 'outputFormat').allowedValues).toEqual(['jsonl', 'plain', 'tty']);
+    expect(getArgInfo('deploy', 'ui').allowedValues).toEqual(['auto', 'stream', 'dashboard']);
   });
 
   test('exposes one dev workflow without retired single-resource selectors', () => {

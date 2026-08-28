@@ -4,6 +4,7 @@ import type { StpNextjsWeb } from '@domain-services/config-manager/resolved-type
 import type { StackContext } from '@domain-services/stack-context';
 import type { CdnCachingOptions, CdnConfiguration, CdnForwardingOptions } from '@stacktape/config/cdn';
 import type { CustomArtifactLambdaPackaging } from '@stacktape/config/deployment-artifacts';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   getLambdaLogResourceArnsForPermissions,
@@ -17,6 +18,23 @@ import { configErrors } from '../errors';
 import { getNestedResourceIdentity, type DefaultedResource } from '../normalized-resource';
 import { applySsrWebPathCachingOverrides } from './ssr-webs';
 
+const nextConfigNames = ['next.config.ts', 'next.config.js', 'next.config.mjs', 'next.config.cjs'];
+
+export const isNextjsProjectDirectory = (absoluteAppDirectory: string) => {
+  if (nextConfigNames.some((fileName) => isFileAccessible(join(absoluteAppDirectory, fileName)))) return true;
+  try {
+    const packageJson = JSON.parse(readFileSync(join(absoluteAppDirectory, 'package.json'), 'utf8')) as unknown;
+    if (typeof packageJson !== 'object' || packageJson === null || Array.isArray(packageJson)) return false;
+    const dependencies = Reflect.get(packageJson, 'dependencies');
+    const devDependencies = Reflect.get(packageJson, 'devDependencies');
+    return [dependencies, devDependencies].some(
+      (section) => typeof section === 'object' && section !== null && Reflect.has(section, 'next')
+    );
+  } catch {
+    return false;
+  }
+};
+
 export const validateNextjsWebConfig = ({ resource, workingDir }: { resource: StpNextjsWeb; workingDir: string }) => {
   const absoluteAppDirectory = join(workingDir, resource.appDirectory);
   if (!dirExists(absoluteAppDirectory)) {
@@ -26,10 +44,7 @@ export const validateNextjsWebConfig = ({ resource, workingDir }: { resource: St
       resolvedPath: absoluteAppDirectory
     });
   }
-  if (
-    !isFileAccessible(join(absoluteAppDirectory, 'next.config.js')) &&
-    !isFileAccessible(join(absoluteAppDirectory, 'next.config.ts'))
-  ) {
+  if (!isNextjsProjectDirectory(absoluteAppDirectory)) {
     throw configErrors.nextjsProjectMissing({
       directoryPath: resource.appDirectory,
       stpResourceName: resource.name

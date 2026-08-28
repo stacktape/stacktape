@@ -5,11 +5,11 @@ import type {
   StackActionType,
   StackDetails
 } from '@domain-services/cloudformation-stack-manager/types';
-import type { LoggableEventType, ProgressLogger } from '@application-services/event-manager/types';
+import type { LoggableEventType, ProgressReporter as ProgressLogger } from '@application-services/operation-manager';
 import type { Capability, StackEvent, StackResourceSummary } from '@aws-sdk/client-cloudformation';
 import type { MonitoredStackEvent } from 'src/aws/cloudformation-stacks';
 import type { Tag } from '@aws-sdk/client-ecs';
-import { eventManager } from '@application-services/event-manager';
+import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { OnFailure, ResourceStatus, StackStatus } from '@aws-sdk/client-cloudformation';
@@ -166,7 +166,7 @@ export class StackManager {
     /** Optional parent event for grouping (e.g., LOAD_METADATA_FROM_AWS) */
     parentEventType?: LoggableEventType;
   }) => {
-    await eventManager.startEvent({
+    await operationReporter.startEvent({
       eventType: 'FETCH_STACK_DATA',
       description: 'Fetching stack data',
       parentEventType,
@@ -181,7 +181,7 @@ export class StackManager {
       stackDetails,
       commandModifiesStack,
       commandRequiresDeployedStack,
-      progressLogger: eventManager,
+      progressLogger: operationReporter,
       eventContext: { parentEventType, instanceId }
     }));
 
@@ -196,7 +196,7 @@ export class StackManager {
     // this.stackDriftInformation = stackDriftInformation;
     this.existingStackResources = stackResources;
 
-    await eventManager.finishEvent({
+    await operationReporter.finishEvent({
       eventType: 'FETCH_STACK_DATA',
       data: { stackDetails, stackResources },
       parentEventType,
@@ -250,7 +250,7 @@ export class StackManager {
   }
 
   refetchStackDetails = async (stackName: string) => {
-    await eventManager.startEvent({ eventType: 'REFETCH_STACK_DATA', description: 'Fetching stack data' });
+    await operationReporter.startEvent({ eventType: 'REFETCH_STACK_DATA', description: 'Fetching stack data' });
     const [existingStackDetails, existingStackResources] = await Promise.all([
       awsSdkManager.cloudFormation.getDetails(stackName),
       awsSdkManager.cloudFormation
@@ -260,8 +260,9 @@ export class StackManager {
     ]);
     this.existingStackDetails = existingStackDetails;
     this.existingStackResources = existingStackResources;
-    await eventManager.finishEvent({
+    await operationReporter.finishEvent({
       eventType: 'REFETCH_STACK_DATA',
+      finalMessage: 'Stack data refreshed',
       data: { stackDetails: existingStackDetails, stackResources: existingStackResources }
     });
   };
@@ -368,7 +369,7 @@ export class StackManager {
   };
 
   createResourcesForArtifacts = async () => {
-    await eventManager.startEvent({
+    await operationReporter.startEvent({
       eventType: 'CREATE_RESOURCES_FOR_ARTIFACTS',
       description: 'Creating AWS resources for deployment artifacts (S3, ECR...)'
     });
@@ -384,7 +385,7 @@ export class StackManager {
     });
     // Monitor stack creation without progress updates (shown as simple event)
     await this.monitorStack('create', StackId, () => {});
-    await eventManager.finishEvent({
+    await operationReporter.finishEvent({
       eventType: 'CREATE_RESOURCES_FOR_ARTIFACTS',
       data: { stackParams, template: templateManager.initialTemplate }
     });
@@ -449,12 +450,15 @@ export class StackManager {
   };
 
   validateTemplate = async ({ templateBody, templateUrl }: { templateUrl?: string; templateBody?: string }) => {
-    await eventManager.startEvent({
+    await operationReporter.startEvent({
       eventType: 'VALIDATE_TEMPLATE',
       description: 'Validating template'
     });
     await awsSdkManager.cloudFormation.validateTemplate({ templateBody, templateUrl });
-    await eventManager.finishEvent({ eventType: 'VALIDATE_TEMPLATE' });
+    await operationReporter.finishEvent({
+      eventType: 'VALIDATE_TEMPLATE',
+      finalMessage: 'CloudFormation template validated'
+    });
   };
 
   getChangeSet = async ({
@@ -466,7 +470,7 @@ export class StackManager {
     templateBody?: string;
     includePropertyValues?: boolean;
   }) => {
-    await eventManager.startEvent({
+    await operationReporter.startEvent({
       eventType: 'CALCULATE_CHANGES',
       description: 'Calculating changes'
     });
@@ -477,7 +481,7 @@ export class StackManager {
       ...(templateUrl && { TemplateURL: templateUrl }),
       ...(templateBody && { TemplateBody: templateBody })
     });
-    await eventManager.finishEvent({ eventType: 'CALCULATE_CHANGES', data: { changesToBeMade: res.changes } });
+    await operationReporter.finishEvent({ eventType: 'CALCULATE_CHANGES', data: { changesToBeMade: res.changes } });
     return res;
   };
 
@@ -505,14 +509,14 @@ export class StackManager {
   deployStack = async (templateUrl: string) => {
     await this.validateTemplate({ templateUrl });
     const stackParams = this.getStackParams();
-    await eventManager.startEvent({
+    await operationReporter.startEvent({
       eventType: 'UPDATE_STACK',
       description: 'Deploying infrastructure resources'
     });
     const { skipped } = await awsSdkManager.cloudFormation.update(templateUrl, stackParams);
     if (!skipped) {
       const result = await this.monitorStack('update', stackParams.StackName, (progress) => {
-        eventManager.updateEvent({
+        operationReporter.updateEvent({
           eventType: 'UPDATE_STACK',
           additionalMessage: progress.message,
           detail: progress.detail
@@ -525,13 +529,13 @@ export class StackManager {
         !!stackParams.EnableTerminationProtection,
         stackParams.StackName
       );
-      await eventManager.finishEvent({
+      await operationReporter.finishEvent({
         eventType: 'UPDATE_STACK',
         finalMessage: 'Deployment successful.'
       });
       return result;
     }
-    await eventManager.finishEvent({
+    await operationReporter.finishEvent({
       eventType: 'UPDATE_STACK',
       finalMessage: 'No updates needed.'
     });
@@ -551,26 +555,26 @@ export class StackManager {
       Capabilities: ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND'] as Capability[],
       ...(roleArn && { RoleARN: roleArn })
     };
-    await eventManager.startEvent({
+    await operationReporter.startEvent({
       eventType: 'UPDATE_STACK',
       description: 'Deploying infrastructure resources'
     });
     const { skipped } = await awsSdkManager.cloudFormation.update(templateUrl, stackParams);
     if (!skipped) {
       const result = await this.monitorStack('update', stackName, (progress) => {
-        eventManager.updateEvent({
+        operationReporter.updateEvent({
           eventType: 'UPDATE_STACK',
           additionalMessage: progress.message,
           detail: progress.detail
         });
       });
-      await eventManager.finishEvent({
+      await operationReporter.finishEvent({
         eventType: 'UPDATE_STACK',
         finalMessage: 'Deployment successful.'
       });
       return result;
     }
-    await eventManager.finishEvent({
+    await operationReporter.finishEvent({
       eventType: 'UPDATE_STACK',
       finalMessage: 'No updates needed.'
     });
@@ -578,7 +582,7 @@ export class StackManager {
   };
 
   deleteStack = async () => {
-    await eventManager.startEvent({ eventType: 'DELETE_STACK', description: 'Deleting infrastructure resources' });
+    await operationReporter.startEvent({ eventType: 'DELETE_STACK', description: 'Deleting infrastructure resources' });
     const roleArn =
       configManager.deploymentConfig?.cloudformationRoleArn ||
       (deployedStackOverviewManager.getStackMetadata(stackMetadataNames.cloudformationRoleArn()) as string);
@@ -593,13 +597,13 @@ export class StackManager {
       roleArn
     });
     const result = await this.monitorStack('delete', this.existingStackDetails.StackId, (progress) =>
-      eventManager.updateEvent({
+      operationReporter.updateEvent({
         eventType: 'DELETE_STACK',
         additionalMessage: progress.message,
         detail: progress.detail
       })
     );
-    await eventManager.finishEvent({ eventType: 'DELETE_STACK', data: {} });
+    await operationReporter.finishEvent({ eventType: 'DELETE_STACK', data: {} });
     return result;
   };
 
@@ -616,7 +620,7 @@ export class StackManager {
       return;
     }
 
-    eventManager.updateEvent({
+    operationReporter.updateEvent({
       eventType: 'DELETE_STACK',
       additionalMessage: `Scaling down ${ecsServiceArns.length} ECS service${ecsServiceArns.length > 1 ? 's' : ''} before delete...`
     });
@@ -654,7 +658,7 @@ export class StackManager {
       if (allDrained) {
         return;
       }
-      eventManager.updateEvent({
+      operationReporter.updateEvent({
         eventType: 'DELETE_STACK',
         additionalMessage: `Waiting for ${totalRunning} ECS task${totalRunning > 1 ? 's' : ''} to drain...`
       });
@@ -663,7 +667,7 @@ export class StackManager {
   };
 
   rollbackStack = async () => {
-    await eventManager.startEvent({ eventType: 'ROLLBACK_STACK', description: 'Rolling back stack resources' });
+    await operationReporter.startEvent({ eventType: 'ROLLBACK_STACK', description: 'Rolling back stack resources' });
     const roleArn =
       configManager.deploymentConfig?.cloudformationRoleArn ||
       (deployedStackOverviewManager.getStackMetadata(stackMetadataNames.cloudformationRoleArn()) as string);
@@ -684,13 +688,13 @@ export class StackManager {
       });
     }
     const result = await this.monitorStack('rollback', this.existingStackDetails.StackId, (progress) =>
-      eventManager.updateEvent({
+      operationReporter.updateEvent({
         eventType: 'ROLLBACK_STACK',
         additionalMessage: progress.message,
         detail: progress.detail
       })
     );
-    await eventManager.finishEvent({ eventType: 'ROLLBACK_STACK', data: {} });
+    await operationReporter.finishEvent({ eventType: 'ROLLBACK_STACK', data: {} });
     return result;
   };
 

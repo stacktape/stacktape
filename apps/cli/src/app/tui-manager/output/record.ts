@@ -28,6 +28,7 @@ export type OutputProgressRecord = {
 
 export type OutputLinesRecord = {
   type: 'output';
+  stream?: 'stdout' | 'stderr';
   eventType?: string;
   instanceId?: string;
   parentEventType?: string;

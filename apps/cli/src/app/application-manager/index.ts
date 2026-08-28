@@ -1,4 +1,4 @@
-import type { CleanupHookFunction } from '@application-services/event-manager/types';
+import type { CleanupHookFunction } from './types';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager, UserCancelledError } from '@application-services/tui-manager';
 import { IS_TELEMETRY_DISABLED } from '@config';
@@ -69,8 +69,8 @@ export class ApplicationManager {
   gracefullyHandleError = async (err: any) => {
     tuiDebug('APP', 'gracefullyHandleError()', { message: err?.message?.slice?.(0, 200) });
     const stacktapeError = normalizeCliError(err);
-    // Capture the error before teardown so it streams into scrollback as a styled
-    // block while the renderer is still alive.
+    // Capture the error before teardown so every presenter can include it in
+    // the final operation state.
     tuiManager.setFatalError(stacktapeError);
     await tuiManager.stop();
     this.cancelPendingPromises(stacktapeError);
@@ -109,11 +109,7 @@ export class ApplicationManager {
       await this.cleanUp({ success: false, err });
     }
     const returnableError = getReturnableError(stacktapeError);
-    // right now we do not support onError hooks, but we can easily extend hooks to support them
-    // await eventManager.processHooks({
-    //   captureType: 'FINISH',
-    //   error: returnableError
-    // });
+    // onError hooks are not supported yet; CommandLifecycle is the extension point for them.
 
     return returnableError;
   };
@@ -248,11 +244,8 @@ export class ApplicationManager {
       mechanism: type === 'UNCAUGHT EXCEPTION' ? 'uncaught_exception' : 'unhandled_rejection'
     });
 
-    // Stop the TUI and stream the final outcome into scrollback. stopSync's
-    // renderer destroy is fire-and-forget (this is a sync context), so restore
-    // the terminal synchronously as a fallback. With the split-footer renderer
-    // the error below lands in scrollback, where a late footer frame can no
-    // longer paint over it.
+    // stopSync's renderer destroy is fire-and-forget (this is a sync context),
+    // so restore the terminal synchronously before writing the fatal error.
     tuiManager.stopSync();
 
     if (tuiManager.wasEverStarted || tuiManager.devTuiActive) {

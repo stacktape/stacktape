@@ -119,8 +119,7 @@ describe('delete lifecycle', () => {
           events.push('delete-artifacts');
         }
       },
-      event: {
-        setPhase: (phase) => events.push(`phase:${phase}`),
+      lifecycle: {
         registerHooks: async () => {
           events.push('register-hooks');
         },
@@ -128,6 +127,7 @@ describe('delete lifecycle', () => {
           events.push('process-hooks');
         }
       },
+      progress: { setPhase: (phase) => events.push(`phase:${phase}`) },
       notification: {
         sendDeploymentNotification: async ({ message }) => {
           events.push(`notification:${message.type}`);
@@ -161,8 +161,7 @@ describe('delete lifecycle', () => {
           events.push('delete-artifacts');
         }
       },
-      event: {
-        setPhase: (phase) => events.push(`phase:${phase}`),
+      lifecycle: {
         registerHooks: async () => {
           events.push('register-hooks');
         },
@@ -170,6 +169,7 @@ describe('delete lifecycle', () => {
           events.push('process-hooks');
         }
       },
+      progress: { setPhase: (phase) => events.push(`phase:${phase}`) },
       notification: {
         sendDeploymentNotification: async ({ message }) => {
           events.push(`notification:${message.type}`);
@@ -220,7 +220,7 @@ describe('Stacktape version rollback lifecycle', () => {
           events.push('verify');
         }
       },
-      event: { setPhase: (phase) => events.push(`phase:${phase}`) },
+      progress: { setPhase: (phase) => events.push(`phase:${phase}`) },
       stack: {
         deployStackForRollback: async () => {
           events.push('deploy');
@@ -263,7 +263,7 @@ describe('Stacktape version rollback lifecycle', () => {
           events.push(`verify:${targetVersion}`);
         }
       },
-      event: { setPhase: (phase) => events.push(`phase:${phase}`) },
+      progress: { setPhase: (phase) => events.push(`phase:${phase}`) },
       stack: {
         deployStackForRollback: async (templateUrl) => {
           events.push(`deploy:${templateUrl}`);
