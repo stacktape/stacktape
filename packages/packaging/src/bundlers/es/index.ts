@@ -1,3 +1,4 @@
+import { packagingMessages } from '../../runtime-contracts';
 import type { CreatePackagingError, EsBuildActions, StpBuildpackInput } from '../../runtime-contracts';
 import type { BunPlugin } from 'bun';
 import type { PackageJsonDepsInfo } from '../../es/bundler-helpers';
@@ -34,7 +35,10 @@ import {
   ESM_SOURCE_MAP_BANNER,
   filterDuplicates,
   getInfoFromPackageJson,
-  getTsconfigAliases
+  getTsconfigAliases,
+  isRequireImportKind,
+  packageEntryConditions,
+  resolveWithRequireCondition
 } from '../../es/bundler-helpers';
 import type { EsLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
 import type { ResolvedPackageDependency } from '../../runtime-contracts';
@@ -178,6 +182,33 @@ export const buildEsCode = async ({
     }
   };
 
+  /**
+   * Resolve a package import to a forward-slash real path, keeping the export condition Bun's own
+   * resolver would have used for this import kind. `Bun.resolveSync` always applies the ESM `import`
+   * condition, so a plugin that answers a bundled `require()` with it hands the CommonJS consumer a
+   * module namespace object instead of `module.exports`; see resolveWithRequireCondition.
+   */
+  const resolvePackageImport = (args: {
+    path: string;
+    importer: string;
+    resolveDir?: string | undefined;
+    kind: Bun.ImportKind;
+  }): { path: string } | undefined => {
+    try {
+      const requireResolved = isRequireImportKind(args.kind)
+        ? resolveWithRequireCondition({ specifier: args.path, importer: args.importer, resolveDir: args.resolveDir })
+        : undefined;
+      if (requireResolved) return { path: transformToUnixPath(realpathSync(requireResolved)) };
+      const importerDirectory =
+        args.resolveDir || (args.importer && isAbsolute(args.importer) ? dirname(args.importer) : cwd);
+      const resolvedPath = Bun.resolveSync(args.path, importerDirectory);
+      if (isAbsolute(resolvedPath)) return { path: transformToUnixPath(realpathSync(resolvedPath)) };
+    } catch {
+      // Let the caller fall back to its own probes, or to Bun's normal resolution diagnostics.
+    }
+    return undefined;
+  };
+
   const runBuild = async ({ dynamicallyImportedModules = [] }: { dynamicallyImportedModules?: string[] }) => {
     const allDependenciesToInstallInDocker: ResolvedPackageDependency[] = [];
     const externalModules: { name: string; note: string }[] = [];
@@ -218,6 +249,9 @@ export const buildEsCode = async ({
             // Check if it's a tsconfig alias
             const isAlias = await determineIfAlias({ moduleName, aliases });
             if (isAlias) {
+              // A tsconfig alias points at project sources, not at a package with export conditions, so
+              // this deliberately stays on Bun's resolution rather than resolvePackageImport: a CommonJS
+              // resolver would reach a real installed package that shadows the alias name.
               if (process.platform === 'win32') {
                 try {
                   const importerDirectory =
@@ -244,16 +278,8 @@ export const buildEsCode = async ({
               const realPath = transformToUnixPath(realpathSync(modulePath));
               // Resolve the complete import first so package exports and subpaths such as
               // `@stacktape/analytics/events` do not fall back to Bun's symlinked node_modules path.
-              try {
-                const importerDirectory =
-                  args.resolveDir || (args.importer && isAbsolute(args.importer) ? dirname(args.importer) : cwd);
-                const resolvedImportPath = Bun.resolveSync(args.path, importerDirectory);
-                if (isAbsolute(resolvedImportPath)) {
-                  return { path: transformToUnixPath(realpathSync(resolvedImportPath)) };
-                }
-              } catch {
-                // Fall back to the package entrypoint probes below.
-              }
+              const resolvedImport = resolvePackageImport(args);
+              if (resolvedImport) return resolvedImport;
               // Find the entry file in the workspace package
               const packageJsonPath = join(realPath, 'package.json');
               try {
@@ -337,16 +363,8 @@ export const buildEsCode = async ({
             }
 
             if (process.platform === 'win32') {
-              try {
-                const importerDirectory =
-                  args.resolveDir || (args.importer && isAbsolute(args.importer) ? dirname(args.importer) : cwd);
-                const resolvedModulePath = Bun.resolveSync(args.path, importerDirectory);
-                if (isAbsolute(resolvedModulePath)) {
-                  return { path: transformToUnixPath(realpathSync(resolvedModulePath)) };
-                }
-              } catch {
-                // Let Bun surface the unresolved import through its normal build diagnostics.
-              }
+              const resolvedModule = resolvePackageImport(args);
+              if (resolvedModule) return resolvedModule;
             }
 
             return undefined;
@@ -380,16 +398,7 @@ export const buildEsCode = async ({
         if (process.platform === 'win32') {
           build.onResolve({ filter: /^(?!\.\/__virtual-entry\.ts$)\.\.?[\\/]/ }, (args) => {
             if (!args.importer) return undefined;
-            try {
-              const importerDirectory = args.resolveDir || dirname(args.importer);
-              const resolvedModulePath = Bun.resolveSync(args.path, importerDirectory);
-              if (isAbsolute(resolvedModulePath)) {
-                return { path: transformToUnixPath(realpathSync(resolvedModulePath)) };
-              }
-            } catch {
-              // Let Bun report a normal resolution error when the relative import genuinely does not exist.
-            }
-            return undefined;
+            return resolvePackageImport(args);
           });
         }
 
@@ -404,18 +413,9 @@ export const buildEsCode = async ({
           // panics Bun 1.3.14 while formatting source maps. Every resolvable bare import therefore
           // goes through the forward-slash real path, whether or not the loose resolver knows it.
           if (process.platform === 'win32') {
-            try {
-              const importerDirectory =
-                args.resolveDir || (args.importer && isAbsolute(args.importer) ? dirname(args.importer) : cwd);
-              const resolvedModulePath = Bun.resolveSync(args.path, importerDirectory);
-              if (isAbsolute(resolvedModulePath)) {
-                return {
-                  path: transformToUnixPath(realpathSync(resolvedModulePath))
-                };
-              }
-            } catch {
-              // Fall back to the package-directory resolver below.
-            }
+            // Falls through to the package-directory resolver below when this returns nothing.
+            const resolvedModule = resolvePackageImport(args);
+            if (resolvedModule) return resolvedModule;
           }
 
           // Use combined resolution: fast path first, then walk-up from importer
@@ -451,7 +451,9 @@ export const buildEsCode = async ({
               }
             }
 
-            // Resolve main entry point
+            // Resolve main entry point, preferring the export condition Bun's own resolver would use
+            // for this import kind. A `require()` call answered with an ESM entry receives a namespace
+            // object instead of `module.exports`; see resolveWithRequireCondition.
             let entryPoint: string | undefined;
             if (pkgJson.exports) {
               const exports = pkgJson.exports;
@@ -461,16 +463,27 @@ export const buildEsCode = async ({
                 const dotExport = exports['.'];
                 if (typeof dotExport === 'string') {
                   entryPoint = dotExport;
-                } else if (dotExport.import) {
-                  entryPoint = typeof dotExport.import === 'string' ? dotExport.import : dotExport.import.default;
-                } else if (dotExport.require) {
-                  entryPoint = typeof dotExport.require === 'string' ? dotExport.require : dotExport.require.default;
-                } else if (dotExport.default) {
-                  entryPoint = dotExport.default;
+                } else {
+                  for (const condition of packageEntryConditions(args.kind)) {
+                    const value = dotExport[condition];
+                    if (typeof value === 'string') {
+                      entryPoint = value;
+                      break;
+                    }
+                    if (value && typeof value === 'object' && typeof value.default === 'string') {
+                      entryPoint = value.default;
+                      break;
+                    }
+                  }
                 }
               }
             }
-            if (!entryPoint) entryPoint = pkgJson.module || pkgJson.main || 'index.js';
+            // `module` names an ESM entry, so a `require()` call has to reach `main` first.
+            if (!entryPoint) {
+              entryPoint = isRequireImportKind(args.kind)
+                ? pkgJson.main || pkgJson.module || 'index.js'
+                : pkgJson.module || pkgJson.main || 'index.js';
+            }
 
             const resolvedPath = join(modulePath, entryPoint ?? 'index.js');
             if (isFileAccessible(resolvedPath)) return { path: transformToUnixPath(resolve(resolvedPath)) };
@@ -919,7 +932,7 @@ export const createEsBundle = async ({
     if (existingDigests.includes(digest)) {
       await progressLogger.finishEvent({
         eventType: 'CALCULATE_CHECKSUM',
-        finalMessage: 'Same artifact is already deployed, skipping.'
+        finalMessage: packagingMessages.unchanged
       });
       return {
         digest,

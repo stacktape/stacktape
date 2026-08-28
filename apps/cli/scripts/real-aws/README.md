@@ -3,10 +3,14 @@
 These runners test behavior that local and emulator tests cannot prove. They create billable resources and are never
 part of `pnpm check` or a normal release.
 
+The project qualification runner selects these canaries as explicit deployment archetypes. See
+[`../../../../docs/project-qualification.md`](../../../../docs/project-qualification.md) for the package-broadly,
+deploy-selectively strategy and commands.
+
 ## Guardrails
 
-Run from Linux, macOS, or a WSL-native checkout. Both runners refuse Windows, implicit credentials, AWS endpoint
-overrides, unsafe project names, and an account-id mismatch.
+The runners support Windows, Linux, and macOS. Both runners refuse implicit credentials, AWS endpoint overrides, unsafe
+project names, and an account-id mismatch.
 
 Before starting:
 

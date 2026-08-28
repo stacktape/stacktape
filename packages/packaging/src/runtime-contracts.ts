@@ -244,6 +244,20 @@ export type CreateBundleOutput = {
   languageSpecificBundleOutput: LanguageSpecificBundleOutput;
 };
 
+/**
+ * Shared progress-message vocabulary for packaging results. Every workload
+ * whose artifact is reused verbatim reports the SAME sentence: the CLI's
+ * progress presenter collapses children with identical outcomes into one counted row
+ * ("21 unchanged — reused from previous deploy"), which only works when the
+ * wording matches everywhere.
+ */
+export const packagingMessages = {
+  unchanged: 'Unchanged (reused from previous deploy)',
+  containerImage: (sizeMb: number | string) => `Container image · ${sizeMb} MB`,
+  lambdaBundle: ({ size, zippedSize }: { size: string; zippedSize: string }) =>
+    `Lambda bundle · ${size} (${zippedSize} zipped)`
+} as const;
+
 export type PackagingOutput = {
   /**
    * A number when the artifact was measured; `null` for cached/skipped results and for bundled ES image development

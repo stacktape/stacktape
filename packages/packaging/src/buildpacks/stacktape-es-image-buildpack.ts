@@ -1,3 +1,4 @@
+import { packagingMessages } from '../runtime-contracts';
 import type {
   BuildDockerImage,
   CheckDockerImageExists,
@@ -147,7 +148,7 @@ export const buildUsingStacktapeEsImageBuildpack = async ({
 
   await progressLogger.finishEvent({
     eventType: 'BUILD_IMAGE',
-    finalMessage: `Image size: ${size} MB.`
+    finalMessage: packagingMessages.containerImage(size)
   });
 
   return {

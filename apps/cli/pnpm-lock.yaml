@@ -6786,7 +6786,7 @@ snapshots:
       '@smithy/core': 3.30.0
       '@smithy/node-config-provider': 4.5.14
       '@smithy/property-provider': 4.4.14
-      '@smithy/protocol-http': 5.5.14
+      '@smithy/protocol-http': 5.3.8
       '@smithy/signature-v4': 5.6.10
       '@smithy/smithy-client': 4.14.14
       '@smithy/types': 4.16.1
@@ -7103,7 +7103,7 @@ snapshots:
   '@aws-sdk/middleware-host-header@3.893.0':
     dependencies:
       '@aws-sdk/types': 3.893.0
-      '@smithy/protocol-http': 5.5.14
+      '@smithy/protocol-http': 5.3.8
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
@@ -7134,7 +7134,7 @@ snapshots:
     dependencies:
       '@aws-sdk/types': 3.893.0
       '@aws/lambda-invoke-store': 0.0.1
-      '@smithy/protocol-http': 5.5.14
+      '@smithy/protocol-http': 5.3.8
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 
@@ -7245,7 +7245,7 @@ snapshots:
       '@aws-sdk/types': 3.893.0
       '@aws-sdk/util-endpoints': 3.895.0
       '@smithy/core': 3.30.0
-      '@smithy/protocol-http': 5.5.14
+      '@smithy/protocol-http': 5.3.8
       '@smithy/types': 4.16.1
       tslib: 2.8.1
 

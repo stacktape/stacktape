@@ -293,8 +293,20 @@ export const parseBuildOutput = (output: string): BuildOutputInfo | null => {
   return null;
 };
 
+/** "2740.61 kB" → "2.7 MB"; sub-MB values keep their kB form. */
+const humanizeKbSize = (size: string): string => {
+  const match = size.match(/^([\d.]+)\s*kB$/i);
+  if (!match) return size;
+  const kb = Number(match[1]);
+  if (!Number.isFinite(kb) || kb < 1024) return size;
+  return `${(kb / 1024).toFixed(1)} MB`;
+};
+
 /**
- * Formats build info into a final message for the progress logger.
+ * Formats build info into a final message for the progress logger. The build
+ * tool's own elapsed time is deliberately dropped: the event row already
+ * carries a measured duration, and two different times on one line read as a
+ * contradiction.
  */
 const formatFinalMessage = (info: BuildOutputInfo | null): string => {
   if (!info) return 'Build completed';
@@ -302,24 +314,20 @@ const formatFinalMessage = (info: BuildOutputInfo | null): string => {
   const parts: string[] = [];
 
   if (info.tool) {
-    parts.push(info.tool);
+    parts.push(`${info.tool} build`);
   }
 
   if (info.gzippedSize) {
-    parts.push(`${info.gzippedSize} gzipped`);
+    parts.push(`${humanizeKbSize(info.gzippedSize)} gzipped`);
   } else if (info.totalSize) {
-    parts.push(info.totalSize);
+    parts.push(humanizeKbSize(info.totalSize));
   }
 
   if (info.fileCount) {
     parts.push(`${info.fileCount} files`);
   }
 
-  if (info.buildTime) {
-    parts.push(info.buildTime);
-  }
-
-  return parts.length > 0 ? parts.join(' | ') : 'Build completed';
+  return parts.length > 0 ? parts.join(' · ') : 'Build completed';
 };
 
 /**

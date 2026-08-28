@@ -27,7 +27,10 @@ import {
   ensureDefaultExport,
   ESM_SOURCE_MAP_BANNER,
   getInfoFromPackageJson,
-  getTsconfigAliases
+  getTsconfigAliases,
+  isRequireImportKind,
+  packageEntryConditions,
+  resolveWithRequireCondition
 } from '../es/bundler-helpers';
 import { rewriteLambdaAssetReferences } from '../artifact/lambda-assets';
 
@@ -428,7 +431,12 @@ const createWindowsPathNormalizationPlugin = ({
      * bare specifier instead of a file path, while its bundler still resolves them to the real
      * package. This manual entry resolution is those modules' only forward-slash route.
      */
-    const resolveEntryManually = (specifier: string, moduleName: string, importer: string | undefined) => {
+    const resolveEntryManually = (
+      specifier: string,
+      moduleName: string,
+      importer: string | undefined,
+      kind: Bun.ImportKind
+    ) => {
       const moduleDirectory = moduleResolver.findModulePath(moduleName, importer);
       if (!moduleDirectory) return undefined;
       try {
@@ -455,7 +463,7 @@ const createWindowsPathNormalizationPlugin = ({
             if (typeof dot === 'string') return dot;
             if (dot && typeof dot === 'object') {
               const conditions = dot as Record<string, unknown>;
-              for (const condition of ['import', 'require', 'default']) {
+              for (const condition of packageEntryConditions(kind)) {
                 const value = conditions[condition];
                 if (typeof value === 'string') return value;
                 if (value && typeof value === 'object') {
@@ -467,7 +475,11 @@ const createWindowsPathNormalizationPlugin = ({
           }
           return undefined;
         })();
-        for (const entry of [dotExport, packageJson.module, packageJson.main, 'index.js']) {
+        // `module` names an ESM entry, so a `require()` call has to reach `main` first.
+        const legacyEntries = isRequireImportKind(kind)
+          ? [packageJson.main, packageJson.module]
+          : [packageJson.module, packageJson.main];
+        for (const entry of [dotExport, ...legacyEntries, 'index.js']) {
           if (!entry) continue;
           const candidate = join(moduleDirectory, entry);
           if (existsSync(candidate) && statSync(candidate).isFile()) {
@@ -480,8 +492,21 @@ const createWindowsPathNormalizationPlugin = ({
       return undefined;
     };
 
-    const normalize = (specifier: string, importer: string | undefined, resolveDir: string | undefined) => {
+    const normalize = (
+      specifier: string,
+      importer: string | undefined,
+      resolveDir: string | undefined,
+      kind: Bun.ImportKind
+    ) => {
       try {
+        // A `require()` call must keep CommonJS resolution: `Bun.resolveSync` would answer with the
+        // package's ESM entry and turn `module.exports` into a namespace object at runtime.
+        const requireResolved = isRequireImportKind(kind)
+          ? resolveWithRequireCondition({ specifier, importer, resolveDir })
+          : undefined;
+        if (requireResolved) {
+          return { path: realpathSync(requireResolved).replace(/\\/g, '/') };
+        }
         const importerDirectory = resolveDir || (importer && isAbsolute(importer) ? dirname(importer) : cwd);
         const resolved = Bun.resolveSync(specifier, importerDirectory);
         if (isAbsolute(resolved)) {
@@ -497,13 +522,13 @@ const createWindowsPathNormalizationPlugin = ({
       const moduleName = getModuleName(args.path);
       if (NODE_BUILTIN_MODULES.includes(moduleName)) return undefined;
       return (
-        normalize(args.path, args.importer, args.resolveDir) ??
-        resolveEntryManually(args.path, moduleName, args.importer)
+        normalize(args.path, args.importer, args.resolveDir, args.kind) ??
+        resolveEntryManually(args.path, moduleName, args.importer, args.kind)
       );
     });
     build.onResolve({ filter: /^\.\.?[\\/]/ }, (args) => {
       if (!args.importer) return undefined;
-      return normalize(args.path, args.importer, args.resolveDir);
+      return normalize(args.path, args.importer, args.resolveDir, args.kind);
     });
   }
 });

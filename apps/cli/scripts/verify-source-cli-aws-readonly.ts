@@ -54,18 +54,14 @@ const createSmokeInvocationId = () =>
   `source-cli-readonly-${Date.now().toString(36)}-${randomBytes(4).toString('hex')}`;
 
 export const resolveSmokeOptions = ({
-  platform = process.platform,
   env = process.env,
   makeProjectName = defaultProjectName
 }: {
+  /** Retained for callers that simulate a host platform; the smoke is supported on every CLI platform. */
   platform?: NodeJS.Platform;
   env?: Environment;
   makeProjectName?: () => string;
 } = {}): SmokeOptions => {
-  assert(
-    platform !== 'win32',
-    'The source-built Stacktape CLI cannot run from Windows. Use a Linux/macOS checkout or a WSL-native checkout.'
-  );
   assert(
     env[optInVariable] === '1',
     `Refusing to contact AWS without explicit opt-in. Set ${optInVariable}=1 for this read-only smoke.`
@@ -151,13 +147,23 @@ const runSourceCli = async ({
     env,
     stdout: 'pipe',
     stderr: 'pipe',
-    detached: true
+    detached: process.platform !== 'win32'
   });
   const stdoutPromise = new Response(child.stdout).text();
   const stderrPromise = new Response(child.stderr).text();
   let timedOut = false;
   let forceKillTimer: ReturnType<typeof setTimeout> | undefined;
   const signalProcessGroup = (signal: NodeJS.Signals) => {
+    if (process.platform === 'win32') {
+      const killer = Bun.spawn({
+        cmd: ['taskkill.exe', '/pid', String(child.pid), '/t', ...(signal === 'SIGKILL' ? ['/f'] : [])],
+        stdout: 'ignore',
+        stderr: 'ignore',
+        windowsHide: true
+      });
+      void killer.exited;
+      return;
+    }
     try {
       process.kill(-child.pid, signal);
       return;

@@ -1,3 +1,4 @@
+import { packagingMessages } from '../../runtime-contracts';
 import type { CreatePackagingError, RunDocker, StpBuildpackInput } from '../../runtime-contracts';
 import type { CreateBundleOutput } from '../../runtime-contracts';
 import { relative } from 'node:path';
@@ -117,7 +118,7 @@ export const buildPythonArtifact = async ({
   if (existingDigests.includes(digest)) {
     await progressLogger.finishEvent({
       eventType: 'CALCULATE_CHECKSUM',
-      finalMessage: 'Same artifact is already deployed, skipping.'
+      finalMessage: packagingMessages.unchanged
     });
     return {
       digest,

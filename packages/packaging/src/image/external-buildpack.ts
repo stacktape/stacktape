@@ -1,3 +1,4 @@
+import { packagingMessages } from '../runtime-contracts';
 import type { GetDockerImageDetails, PackagingProgressLogger as ProgressLogger, RunPack } from '../runtime-contracts';
 import type { DockerBuildOutputArchitecture, PackagingOutput } from '../runtime-contracts';
 import { join } from 'node:path';
@@ -47,7 +48,7 @@ export const buildUsingExternalBuildpack = async ({
   if (existingDigests.includes(digest)) {
     await progressLogger.finishEvent({
       eventType: 'CALCULATE_CHECKSUM',
-      finalMessage: 'Same artifact is already deployed, skipping.'
+      finalMessage: packagingMessages.unchanged
     });
     return {
       digest,
@@ -88,7 +89,7 @@ export const buildUsingExternalBuildpack = async ({
 
   await progressLogger.finishEvent({
     eventType: 'BUILD_IMAGE',
-    finalMessage: `Image size: ${imageDetails.size} MB.`
+    finalMessage: packagingMessages.containerImage(imageDetails.size)
   });
 
   return {

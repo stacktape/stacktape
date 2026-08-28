@@ -178,6 +178,58 @@ export const determineIfAlias = ({
   aliases: Record<string, string>;
 }): boolean => Object.keys(aliases).some((aliasName) => moduleName.startsWith(aliasName));
 
+/** Whether an import Bun is resolving came from a `require()` call rather than an `import` statement. */
+export const isRequireImportKind = (kind: Bun.ImportKind | undefined): boolean =>
+  kind === 'require-call' || kind === 'require-resolve';
+
+/**
+ * Export-condition preference for a package entry point, matching what Bun's own resolver would pick
+ * for this import kind. `import` stays last for a `require()` call so a package that ships no CJS
+ * entry still resolves instead of failing the build.
+ */
+export const packageEntryConditions = (kind: Bun.ImportKind | undefined): string[] =>
+  isRequireImportKind(kind) ? ['require', 'default', 'import'] : ['import', 'require', 'default'];
+
+const requireResolverCache = new Map<string, ReturnType<typeof createRequire>>();
+
+/**
+ * Resolve a specifier the way Node's CommonJS loader would, so the `require` export condition wins.
+ *
+ * `Bun.resolveSync` always applies the ESM `import` condition. A resolver plugin that answers a
+ * `require()` call with that path sends a CommonJS consumer to the package's ESM entry, and the
+ * bundled `require()` then hands back a module namespace object instead of `module.exports`. `pg`
+ * requires `pg-pool` that way and dies at load with "Class extends value #<Object> is not a
+ * constructor or null", because `class BoundPool extends Pool` extends `{ default: Pool }`.
+ *
+ * Returns `undefined` when CommonJS resolution does not apply, leaving the caller on its normal path.
+ */
+export const resolveWithRequireCondition = ({
+  specifier,
+  importer,
+  resolveDir
+}: {
+  specifier: string;
+  importer?: string | undefined;
+  resolveDir?: string | undefined;
+}): string | undefined => {
+  const importerFile = importer && isAbsolute(importer) ? importer : undefined;
+  // `createRequire` resolves relative to a file, so an importer-less resolution needs a placeholder in its directory.
+  const resolveFrom = importerFile ?? (resolveDir ? join(resolveDir, '__stp-resolve-from.js') : undefined);
+  if (!resolveFrom) return undefined;
+  try {
+    let resolver = requireResolverCache.get(resolveFrom);
+    if (!resolver) {
+      resolver = createRequire(resolveFrom);
+      requireResolverCache.set(resolveFrom, resolver);
+    }
+    const resolved = resolver.resolve(specifier);
+    return isAbsolute(resolved) ? resolved : undefined;
+  } catch {
+    // Node builtins, unresolvable specifiers and ESM-only packages all fall back to the caller's resolution.
+    return undefined;
+  }
+};
+
 export const createModuleResolver = ({ cwd, monorepoRoot }: { cwd: string; monorepoRoot: string | null }) => {
   const modulePathCache = new Map<string, string | null>();
   const projectModulePathCache = new Map<string, string | null>();

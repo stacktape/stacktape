@@ -1,3 +1,4 @@
+import { packagingMessages } from '../../runtime-contracts';
 import type {
   CreatePackagingError,
   PackagingProgressLogger as ProgressLogger,
@@ -111,7 +112,7 @@ export const buildDotnetArtifact = async ({
   if (existingDigests.includes(digest)) {
     await progressLogger.finishEvent({
       eventType: 'CALCULATE_CHECKSUM',
-      finalMessage: 'Same artifact is already deployed, skipping.'
+      finalMessage: packagingMessages.unchanged
     });
     return {
       digest,

@@ -104,15 +104,14 @@ const hasAwsEndpointOverride = (env: Environment) =>
   Object.keys(env).some((name) => name === 'AWS_ENDPOINT_URL' || name.startsWith('AWS_ENDPOINT_URL_'));
 
 export const resolveCanaryOptions = ({
-  platform = process.platform,
   env = process.env,
   makeProjectName = defaultProjectName
 }: {
+  /** Retained for callers that simulate a host platform; canaries are supported on every CLI platform. */
   platform?: NodeJS.Platform;
   env?: Environment;
   makeProjectName?: () => string;
 } = {}): CanaryOptions => {
-  assert(platform !== 'win32', 'The real-AWS canary requires a Linux or macOS checkout.');
   assert(env[OPT_IN] === '1', `Refusing to mutate AWS without explicit opt-in. Set ${OPT_IN}=1.`);
   assert(
     env[DISPOSABLE_CONFIRMATION] === DISPOSABLE_CONFIRMATION_VALUE,
@@ -236,13 +235,23 @@ const createAwsClients = (options: CanaryOptions): AwsClients => {
 const outputTail = (value: string) => value.trim().slice(-4_000);
 let activeChild: ReturnType<typeof Bun.spawn> | undefined;
 
-const terminateActiveChild = () => {
+const terminateActiveChild = (force = false) => {
   if (!activeChild) return;
+  if (process.platform === 'win32') {
+    const killer = Bun.spawn({
+      cmd: ['taskkill.exe', '/pid', String(activeChild.pid), '/t', ...(force ? ['/f'] : [])],
+      stdout: 'ignore',
+      stderr: 'ignore',
+      windowsHide: true
+    });
+    void killer.exited;
+    return;
+  }
   try {
-    process.kill(-activeChild.pid, 'SIGTERM');
+    process.kill(-activeChild.pid, force ? 'SIGKILL' : 'SIGTERM');
   } catch {
     try {
-      activeChild.kill('SIGTERM');
+      activeChild.kill(force ? 'SIGKILL' : 'SIGTERM');
     } catch {}
   }
 };
@@ -264,7 +273,7 @@ const runCliProcessOutput = async ({
   const child = Bun.spawn({
     cmd: [...cliPrefix(options), ...args],
     cwd: cliDirectory,
-    detached: true,
+    detached: process.platform !== 'win32',
     env,
     stdout: 'pipe',
     stderr: 'pipe'
@@ -279,7 +288,7 @@ const runCliProcessOutput = async ({
     terminateActiveChild();
     forceKillTimer = setTimeout(() => {
       try {
-        child.kill('SIGKILL');
+        terminateActiveChild(true);
       } catch {}
     }, terminationGraceMs);
   }, commandTimeoutMs);

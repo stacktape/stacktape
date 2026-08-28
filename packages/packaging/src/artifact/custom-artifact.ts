@@ -1,3 +1,4 @@
+import { packagingMessages } from '../runtime-contracts';
 import type {
   ArchiveItem,
   CreatePackagingError,
@@ -68,7 +69,7 @@ export const buildUsingCustomArtifact = async ({
   if (existingDigests.includes(digest)) {
     await progressLogger.finishEvent({
       eventType: 'CALCULATE_CHECKSUM',
-      finalMessage: 'Same artifact is already deployed, skipping.'
+      finalMessage: packagingMessages.unchanged
     });
     return {
       digest,

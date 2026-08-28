@@ -1,3 +1,4 @@
+import { packagingMessages } from '../runtime-contracts';
 import type { ImageBuildActions, StpBuildpackInput } from '../runtime-contracts';
 import type { PackagingOutput } from '../runtime-contracts';
 import { isAbsolute, join } from 'node:path';
@@ -82,7 +83,7 @@ export const buildUsingStacktapeDotnetImageBuildpack = async ({
 
   await progressLogger.finishEvent({
     eventType: 'BUILD_IMAGE',
-    finalMessage: `Image size: ${size} MB.`
+    finalMessage: packagingMessages.containerImage(size)
   });
 
   return {

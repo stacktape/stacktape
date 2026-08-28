@@ -8,10 +8,10 @@ import type {
 } from '../runtime-contracts';
 import type { NextjsWeb } from '@stacktape/config/nextjs-web';
 import { join } from 'node:path';
-import { dirExists } from '../fs/files';
+import { dirExists, isFileAccessible } from '../fs/files';
 import { serializeEnvironment } from '../runtime-helpers';
 import { EDGE_LAMBDA_ENV_ASSET_REPLACER_PLACEHOLDER } from './constants';
-import { copy, emptyDir, move, outputFile, readdir, remove, writeFile } from 'fs-extra';
+import { copy, emptyDir, move, outputFile, readJson, readdir, remove, writeFile } from 'fs-extra';
 import kleur from 'kleur';
 import { buildUsingCustomArtifact } from '../artifact/custom-artifact';
 import type { EnvironmentVar } from '@stacktape/config/shared';
@@ -49,6 +49,20 @@ type PackagedNextjsWeb = NextjsWeb['properties'] & {
 type OpenNextConfig = Pick<UpstreamOpenNextConfig, 'buildCommand' | 'default' | 'functions'>;
 const OPEN_NEXT_BUILD_PACKAGE = '@opennextjs/aws@3.10.4';
 
+export const getWindowsNextBuildCommand = (nextVersion: string | undefined) => {
+  const majorVersion = Number(nextVersion?.split('.')[0]);
+  const webpackFlag = Number.isFinite(majorVersion) && majorVersion >= 16 ? ' --webpack' : '';
+  return `npx next build${webpackFlag} && node -e "const fs=require('fs');const path=require('path');const file=path.join('.next','required-server-files.json');if(fs.existsSync(file)){const data=JSON.parse(fs.readFileSync(file,'utf8'));data.config=data.config||{};if(data.config.skipTrailingSlashRedirect===undefined)data.config.skipTrailingSlashRedirect=false;if(data.config.serverExternalPackages===undefined)data.config.serverExternalPackages=[];fs.writeFileSync(file,JSON.stringify(data,null,2));}"`;
+};
+
+export const describeNextPackagingError = (resourceName: string, error: unknown) => {
+  const cause = error instanceof Error ? error.message : String(error);
+  return `Error when packaging nextjs-web "${resourceName}".${cause ? `\n${cause}` : ''}`;
+};
+
+export const hasDefaultPrismaSchema = (absoluteAppDirectory: string) =>
+  isFileAccessible(join(absoluteAppDirectory, 'prisma', 'schema.prisma'));
+
 export const createNextjsWebArtifacts = async ({
   resource,
   progressLogger,
@@ -82,6 +96,15 @@ export const createNextjsWebArtifacts = async ({
       const openNextDir = join(absoluteAppDirectory, '.open-next');
       await remove(openNextDir);
       try {
+        if (hasDefaultPrismaSchema(absoluteAppDirectory)) {
+          await executeProcess('npx', ['--no-install', 'prisma', 'generate'], {
+            cwd: absoluteAppDirectory,
+            env: { ...copyEnv },
+            disableStderr: true,
+            disableStdout: true,
+            inheritEnvVarsExcept: []
+          });
+        }
         temporaryNextConfigPath = await ensureNextConfig(absoluteAppDirectory);
         await executeProcess('npx', ['--yes', OPEN_NEXT_BUILD_PACKAGE, 'build', '--config-path', configFileName], {
           cwd: absoluteAppDirectory,
@@ -93,7 +116,7 @@ export const createNextjsWebArtifacts = async ({
       } catch (error) {
         throw createPackagingError({
           type: 'PACKAGING',
-          message: `Error when packaging nextjs-web "${resource.name}".`,
+          message: describeNextPackagingError(resource.name, error),
           cause: error
         });
       } finally {
@@ -381,8 +404,11 @@ const getOpenNextConfig = async ({
       });
     }
   }
-  const windowsDefaultBuildCommand =
-    "npx next build --webpack && node -e \"const fs=require('fs');const path=require('path');const file=path.join('.next','required-server-files.json');if(fs.existsSync(file)){const data=JSON.parse(fs.readFileSync(file,'utf8'));data.config=data.config||{};if(data.config.skipTrailingSlashRedirect===undefined)data.config.skipTrailingSlashRedirect=false;if(data.config.serverExternalPackages===undefined)data.config.serverExternalPackages=[];fs.writeFileSync(file,JSON.stringify(data,null,2));}\"";
+  const absoluteAppDirectory = join(cwd, resource.appDirectory || '.');
+  const installedNextVersion = await readJson(join(absoluteAppDirectory, 'node_modules', 'next', 'package.json'))
+    .then((packageJson) => (typeof packageJson.version === 'string' ? packageJson.version : undefined))
+    .catch(() => undefined);
+  const windowsDefaultBuildCommand = getWindowsNextBuildCommand(installedNextVersion);
   const buildCommand = resource.buildCommand || (process.platform === 'win32' ? windowsDefaultBuildCommand : undefined);
 
   const finalConfig: OpenNextConfig = {

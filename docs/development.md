@@ -1,5 +1,9 @@
 # Development
 
+For importer, packaging, runtime, and guarded live-deployment qualification against real or synthetic applications, see
+[`project-qualification.md`](project-qualification.md). The repeatable agent workflow is in
+[`hardening-work-instructions.md`](hardening-work-instructions.md).
+
 ## Setup and checks
 
 Install Node 24+, pnpm 11.17 and Bun 1.4.0. Docker is needed only for packaging tests and local database emulation. The

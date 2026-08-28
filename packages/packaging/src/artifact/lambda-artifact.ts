@@ -3,6 +3,7 @@ import type {
   CreatePackagingError,
   PackagingProgressLogger as ProgressLogger
 } from '../runtime-contracts';
+import { packagingMessages } from '../runtime-contracts';
 import { rename } from 'fs-extra';
 import { getFileSizeBytes, getFolderSizeBytes } from '../fs/files';
 
@@ -66,7 +67,7 @@ export const createLambdaZipArtifact = async ({
   const suffix = finalMessageSuffix ? ` ${finalMessageSuffix}` : '';
   await progressLogger.finishEvent({
     eventType: 'ZIP_PACKAGE',
-    finalMessage: `Artifact size: ${unzippedSize} MB. Zipped artifact size: ${zippedSize} MB.${suffix}`
+    finalMessage: `${packagingMessages.lambdaBundle({ size: `${unzippedSize} MB`, zippedSize: `${zippedSize} MB` })}${suffix}`
   });
 
   return {

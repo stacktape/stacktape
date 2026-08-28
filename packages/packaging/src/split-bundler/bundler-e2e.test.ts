@@ -3,6 +3,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { buildSplitBundle } from './bundler';
 import type { PackagingErrorDetails } from './types';
 
@@ -126,6 +127,67 @@ describe('split bundler end-to-end regressions', () => {
         `/var/task/${assetName}`
       );
     }
+  });
+
+  test('resolves a require() of a dual-entry package to its CommonJS entry point', async () => {
+    // The layout that broke every deployed Lambda importing `pg`: a CommonJS module extends the class it
+    // gets from `require()`. Resolving that `require()` to the package's ESM entry hands the consumer a
+    // module namespace object, and the chunk dies on load with "Class extends value #<Object> is not a
+    // constructor or null".
+    const root = await createRoot();
+    const dualEntryRoot = join(root, 'node_modules', 'dual-entry');
+    const consumerRoot = join(root, 'node_modules', 'cjs-consumer');
+    await mkdir(join(dualEntryRoot, 'esm'), { recursive: true });
+    await mkdir(consumerRoot, { recursive: true });
+    await writeFile(join(root, 'package.json'), JSON.stringify({ name: 'fixture', private: true }));
+    await writeFile(
+      join(dualEntryRoot, 'package.json'),
+      JSON.stringify({
+        name: 'dual-entry',
+        version: '1.0.0',
+        main: './index.js',
+        module: './esm/index.mjs',
+        exports: { '.': { import: './esm/index.mjs', require: './index.js', default: './index.js' } }
+      })
+    );
+    await writeFile(join(dualEntryRoot, 'index.js'), "module.exports = class Base { get kind() { return 'base'; } };");
+    await writeFile(join(dualEntryRoot, 'esm', 'index.mjs'), "import Base from '../index.js';\nexport default Base;\n");
+    await writeFile(
+      join(consumerRoot, 'package.json'),
+      JSON.stringify({ name: 'cjs-consumer', version: '1.0.0', main: 'index.js' })
+    );
+    await writeFile(
+      join(consumerRoot, 'index.js'),
+      "const Base = require('dual-entry');\nmodule.exports = class Derived extends Base { get kind() { return 'derived'; } };"
+    );
+    for (const name of ['a', 'b']) {
+      await writeFile(
+        join(root, `${name}.ts`),
+        `import Derived from 'cjs-consumer'; export const handler = () => new Derived().kind;`
+      );
+    }
+
+    await buildSplitBundle({
+      entrypoints: ['a', 'b'].map((name) => ({
+        name,
+        jobName: name,
+        entryfilePath: join(root, `${name}.ts`),
+        distFolderPath: join(root, 'dist', name)
+      })),
+      sharedOutdir: join(root, 'shared'),
+      cwd: root,
+      minify: false,
+      sourceMaps: 'disabled',
+      sourceMapBannerType: 'disabled',
+      installDependencies: async () => {},
+      createPackagingError
+    });
+
+    // Loading the bundle is the assertion: the broken output threw while evaluating the class declaration.
+    const bundle = (await import(pathToFileURL(join(root, 'dist', 'a', 'index.js')).href)) as {
+      handler: () => string;
+    };
+    expect(bundle.handler()).toBe('derived');
   });
 
   test('does not bake the packaging process NODE_ENV into split Lambda output', async () => {
