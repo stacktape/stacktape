@@ -2,7 +2,7 @@
 
 ## Setup and checks
 
-Install Node 24+, pnpm 11.17 and Bun 1.3.14. Docker is needed only for packaging tests and local database emulation. The
+Install Node 24+, pnpm 11.17 and Bun 1.4.0. Docker is needed only for packaging tests and local database emulation. The
 private `apps/console` submodule is optional for public work.
 
 ```sh

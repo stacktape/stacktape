@@ -1,6 +1,5 @@
 import type { StdTransformer } from '@utils/streams';
 import type { StacktapeArgs } from 'src/config/cli/types';
-import type { ContainerInfo, ContainerInspectInfo, Port } from 'dockerode';
 import type { DockerBuildOutputArchitecture } from '@stacktape/packaging/runtime-contracts';
 import { isAbsolute, join } from 'node:path';
 import { exec } from '@utils/exec';
@@ -11,6 +10,71 @@ import { validateEnvVariableValue } from '@utils/validation';
 import { checkExecutableInPath, getPlatform } from './bin-executable';
 
 const STACKTAPE_BUILDER_NAME = 'stacktape-builder';
+
+type DockerPortBinding = { HostIp?: string; HostPort?: string };
+
+type DockerPort = {
+  IP: string;
+  PrivatePort: number;
+  PublicPort: number;
+  Type: string;
+};
+
+type DockerMount = {
+  Name?: string;
+  Type: string;
+  Source: string;
+  Destination: string;
+  Driver?: string;
+  Mode: string;
+  RW: boolean;
+  Propagation: string;
+};
+
+type DockerContainerInspectInfo = {
+  Id?: string;
+  Created?: string;
+  Path?: string;
+  Args?: string[];
+  State?: {
+    Status?: string;
+    Running?: boolean;
+    ExitCode?: number;
+    Error?: string;
+    StartedAt?: string;
+    FinishedAt?: string;
+  };
+  Image?: string;
+  Name?: string;
+  Names?: string[];
+  HostConfig?: { NetworkMode?: string };
+  Mounts?: DockerMount[];
+  Config?: {
+    Cmd?: string[];
+    Image?: string;
+    Labels?: Record<string, string>;
+  };
+  NetworkSettings?: {
+    Ports?: Record<string, DockerPortBinding[] | null>;
+    Networks?: Record<string, unknown>;
+  };
+};
+
+type DockerContainerInfo = {
+  Id: string;
+  Names: string[];
+  Image: string;
+  ImageID: string;
+  Command: string;
+  Created: number;
+  Ports: DockerPort[];
+  Labels: Record<string, string>;
+  State: string;
+  Status: string;
+  HostConfig: { NetworkMode: string };
+  NetworkSettings: { Networks: Record<string, unknown> };
+  Mounts: DockerMount[];
+};
 
 /**
  * Converts a Windows path to Docker-compatible mount path format.
@@ -370,18 +434,18 @@ export const checkDockerImageExists = async (imageTag: string): Promise<boolean>
   return image !== null;
 };
 
-const inspectContainers = async (containerIds: string[]): Promise<ContainerInspectInfo[]> => {
+const inspectContainers = async (containerIds: string[]): Promise<DockerContainerInspectInfo[]> => {
   if (!containerIds.length) {
     return [];
   }
   const { stdout } = await execDocker(['container', 'inspect', ...containerIds]);
-  return parseJsonArray<ContainerInspectInfo>(stdout);
+  return parseJsonArray<DockerContainerInspectInfo>(stdout);
 };
 
-const inspectContainer = async (containerName: string): Promise<ContainerInspectInfo | null> => {
+const inspectContainer = async (containerName: string): Promise<DockerContainerInspectInfo | null> => {
   try {
     const { stdout } = await execDocker(['container', 'inspect', containerName], { skipHandleError: true });
-    const [container] = parseJsonArray<ContainerInspectInfo>(stdout);
+    const [container] = parseJsonArray<DockerContainerInspectInfo>(stdout);
     return container || null;
   } catch (err) {
     if (isNoSuchContainerError(err)) {
@@ -392,7 +456,7 @@ const inspectContainer = async (containerName: string): Promise<ContainerInspect
   }
 };
 
-const buildContainerCommand = (inspectInfo: ContainerInspectInfo) => {
+const buildContainerCommand = (inspectInfo: DockerContainerInspectInfo) => {
   if (inspectInfo.Config?.Cmd?.length) {
     return inspectInfo.Config.Cmd.join(' ');
   }
@@ -400,7 +464,7 @@ const buildContainerCommand = (inspectInfo: ContainerInspectInfo) => {
   return [inspectInfo.Path, args].filter(Boolean).join(' ').trim();
 };
 
-const buildContainerStatus = (inspectInfo: ContainerInspectInfo) => {
+const buildContainerStatus = (inspectInfo: DockerContainerInspectInfo) => {
   const state = inspectInfo.State;
   if (!state) {
     return '';
@@ -420,19 +484,19 @@ const buildContainerStatus = (inspectInfo: ContainerInspectInfo) => {
   return state.Status || '';
 };
 
-const buildContainerNames = (inspectInfo: ContainerInspectInfo) => {
+const buildContainerNames = (inspectInfo: DockerContainerInspectInfo) => {
   const names: string[] = [];
   if (inspectInfo.Name) {
     names.push(inspectInfo.Name.replace(/^\//, ''));
   }
-  if (Array.isArray((inspectInfo as any).Names)) {
-    names.push(...(inspectInfo as any).Names.map((name: string) => name.replace(/^\//, '')));
+  if (Array.isArray(inspectInfo.Names)) {
+    names.push(...inspectInfo.Names.map((name) => name.replace(/^\//, '')));
   }
   return [...new Set(names)].filter(Boolean);
 };
 
-const buildContainerPortsFromInspect = (inspectInfo: ContainerInspectInfo): Port[] => {
-  const ports: Port[] = [];
+const buildContainerPortsFromInspect = (inspectInfo: DockerContainerInspectInfo): DockerPort[] => {
+  const ports: DockerPort[] = [];
   const portMap = inspectInfo.NetworkSettings?.Ports || {};
   Object.entries(portMap).forEach(([key, bindings]) => {
     const [privatePortRaw, type] = key.split('/');
@@ -458,9 +522,9 @@ const buildContainerPortsFromInspect = (inspectInfo: ContainerInspectInfo): Port
   return ports;
 };
 
-const toContainerInfo = (inspectInfo: ContainerInspectInfo): ContainerInfo => {
+const toContainerInfo = (inspectInfo: DockerContainerInspectInfo): DockerContainerInfo => {
   return {
-    Id: inspectInfo.Id,
+    Id: inspectInfo.Id || '',
     Names: buildContainerNames(inspectInfo),
     Image: inspectInfo.Config?.Image || inspectInfo.Image || '',
     ImageID: inspectInfo.Image || '',
@@ -489,12 +553,12 @@ const toContainerInfo = (inspectInfo: ContainerInspectInfo): ContainerInfo => {
   };
 };
 
-export const inspectDockerContainer = async (containerName: string): Promise<ContainerInspectInfo> => {
+export const inspectDockerContainer = async (containerName: string): Promise<DockerContainerInspectInfo> => {
   const container = await inspectContainer(containerName);
-  return (container || {}) as ContainerInspectInfo;
+  return container || {};
 };
 
-export const listDockerContainers = async (): Promise<ContainerInfo[]> => {
+export const listDockerContainers = async (): Promise<DockerContainerInfo[]> => {
   const { stdout } = await execDocker(['container', 'ls', '-q']);
   const containerIds = splitLines(stdout);
   if (!containerIds.length) {

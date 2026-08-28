@@ -5,7 +5,6 @@ import { copy, ensureDir, pathExists, readFile, writeFile } from 'fs-extra';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 import { existsSync, readFileSync } from 'node:fs';
-import JSON5 from 'json5';
 
 type ClientInstallerTarget = {
   id: 'claude-code' | 'codex' | 'cursor' | 'vscode' | 'opencode' | 'windsurf';
@@ -231,7 +230,7 @@ const installJsonTarget = async ({
     let currentConfig: Record<string, unknown> = {};
     if (currentRaw.trim().length > 0) {
       try {
-        currentConfig = JSON5.parse(currentRaw) as Record<string, unknown>;
+        currentConfig = Bun.JSON5.parse(currentRaw) as Record<string, unknown>;
       } catch (error) {
         return {
           client,

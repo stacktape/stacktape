@@ -1,7 +1,6 @@
 import { linksMap } from '@config';
 import { getRelativePath, transformToUnixPath } from '@utils/fs-utils';
 import kleur from 'kleur';
-import stringWidth from 'string-width';
 import terminalLink from 'terminal-link';
 import { resolveOutputMode } from '../output/mode';
 
@@ -120,4 +119,4 @@ export const stripAnsi = (str?: string): string => {
   return str.replace(/\x1B\[[0-9;]*m/g, '');
 };
 
-export const visibleWidth = (value: string): number => stringWidth(stripAnsi(value));
+export const visibleWidth = (value: string): number => Bun.stringWidth(value);

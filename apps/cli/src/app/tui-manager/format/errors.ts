@@ -1,5 +1,3 @@
-import stringWidth from 'string-width';
-
 export type ErrorDisplayData = {
   errorType: string;
   message: string;
@@ -76,7 +74,7 @@ export const wrapText = (text: string, maxWidth: number): string[] => {
     let currentLineWidth = 0;
 
     for (const word of words) {
-      const wordWidth = stringWidth(word);
+      const wordWidth = Bun.stringWidth(word);
 
       if (currentLineWidth + wordWidth + (currentLine ? 1 : 0) <= maxWidth) {
         currentLine += (currentLine ? ' ' : '') + word;
