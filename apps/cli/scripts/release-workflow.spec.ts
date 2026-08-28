@@ -253,7 +253,7 @@ describe('release candidate workflow', () => {
     }
     expect(workflow).toContain('version: 11.17.0');
     expect(workflow).toContain('node-version: 24');
-    expect(workspaceBunVersion).toBe('1.3.14');
+    expect(workspaceBunVersion).toBe('1.4.0');
     expect(getWorkflowVersions({ workflow, key: 'bun-version' })).toEqual(
       getWorkflowVersions({ workflow, key: 'bun-version' }).map(() => workspaceBunVersion)
     );
