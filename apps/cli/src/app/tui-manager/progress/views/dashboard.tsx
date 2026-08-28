@@ -1,6 +1,7 @@
 import { useKeyboard, useTerminalDimensions } from '@opentui/solid';
 import { createEffect, createSignal, ErrorBoundary, For, onCleanup, Show } from 'solid-js';
 import { formatClock, formatDuration } from '../../format/text';
+import { commandNameForHeaderAction } from '../../format/blocks';
 import { interactionCoordinator } from '../../interaction/coordinator';
 import { glyphs } from '../../ui/glyphs';
 import { KeyHints, type Hint } from '../../ui/key-hint';
@@ -44,7 +45,7 @@ const Header = () => {
   const interval = setInterval(() => setNow(Date.now()), 1_000);
   onCleanup(() => clearInterval(interval));
   const narrow = () => dimensions().width < 72;
-  const action = () => header()?.action.toLowerCase() ?? 'working';
+  const action = () => commandNameForHeaderAction(header()?.action ?? 'working');
 
   return (
     <box flexDirection="column" flexShrink={0} border={['bottom']} borderColor={theme.border} paddingX={2} paddingY={1}>
@@ -172,7 +173,7 @@ const ActivityList = (props: { rows: ActivityRow[]; selectedId?: string }) => {
               </Show>
               <text flexShrink={1} wrapMode="none" fg={selected() ? theme.textBright : theme.text}>
                 {' '}
-                {row.event.instanceId ?? row.event.description}
+                {row.event.label ?? row.event.instanceId ?? row.event.description}
               </text>
               <Show when={row.event.duration !== undefined}>
                 <text flexShrink={0} fg={theme.muted}>

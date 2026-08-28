@@ -449,7 +449,8 @@ export class PackagingManager {
     // Create progress logger for the shared layer (split bundle process)
     const sharedLayerLogger = operationReporter.createChildLogger({
       parentEventType: 'PACKAGE_ARTIFACTS',
-      instanceId: 'shared-layer'
+      instanceId: 'shared-layer',
+      label: 'shared layer'
     });
     await sharedLayerLogger.startEvent({
       eventType: 'BUILD_CODE',
@@ -462,7 +463,8 @@ export class PackagingManager {
       const jobName = getJobName({ workloadName: name, workloadType: type as any });
       const logger = operationReporter.createChildLogger({
         parentEventType: 'PACKAGE_ARTIFACTS',
-        instanceId: jobName
+        instanceId: jobName,
+        label: name
       });
       lambdaLoggers.set(name, logger);
       // Start each lambda in "identifying shared resources" state
@@ -886,6 +888,7 @@ export class PackagingManager {
                 executeProcess: exec,
                 progressLogger: operationReporter.createChildLogger({
                   instanceId: name,
+                  label: name,
                   parentEventType: 'PACKAGE_ARTIFACTS'
                 })
               });
@@ -1173,7 +1176,8 @@ export class PackagingManager {
   }) => {
     const progressLogger = operationReporter.createChildLogger({
       parentEventType: 'PACKAGE_ARTIFACTS',
-      instanceId: nextjsWebResource.name
+      instanceId: nextjsWebResource.name,
+      label: nextjsWebResource.name
     });
     let environment: EnvironmentVar[] = [];
     try {
@@ -1262,7 +1266,7 @@ export class PackagingManager {
             : []
       },
       createProgressLogger: (instanceId) =>
-        operationReporter.createChildLogger({ instanceId, parentEventType: 'PACKAGE_ARTIFACTS' }),
+        operationReporter.createChildLogger({ instanceId, label: instanceId, parentEventType: 'PACKAGE_ARTIFACTS' }),
       progressLogger,
       archiveItem,
       createPackagingError: createCliPackagingError,
@@ -1291,7 +1295,8 @@ export class PackagingManager {
     const workingDir = join(globalStateManager.workingDir, appDirectory);
     const progressLogger = operationReporter.createChildLogger({
       parentEventType: 'PACKAGE_ARTIFACTS',
-      instanceId: resource.name
+      instanceId: resource.name,
+      label: resource.name
     });
 
     const packagingOutputs = await createSsrWebArtifacts({
@@ -1306,7 +1311,7 @@ export class PackagingManager {
       cwd: globalStateManager.workingDir,
       progressLogger,
       createProgressLogger: (instanceId) =>
-        operationReporter.createChildLogger({ instanceId, parentEventType: 'PACKAGE_ARTIFACTS' }),
+        operationReporter.createChildLogger({ instanceId, label: instanceId, parentEventType: 'PACKAGE_ARTIFACTS' }),
       buildConfig: {
         buildCommand: resource.buildCommand || frameworkConfig.defaultBuildCommand,
         bundledApplicationPackages: frameworkConfig.bundledApplicationPackages,
@@ -1385,7 +1390,8 @@ export class PackagingManager {
     const existingDigests = shouldUseCache ? deploymentArtifactManager.getExistingDigestsForJob(jobName) : [];
     const packagingType = packaging.type;
     const progressLogger =
-      customProgressLogger || operationReporter.createChildLogger({ parentEventType, instanceId: jobName });
+      customProgressLogger ||
+      operationReporter.createChildLogger({ parentEventType, instanceId: jobName, label: workloadName });
     const cacheRef = shouldUseRemoteDockerCache() ? getCacheRef(jobName) : undefined;
 
     const sharedProps = {

@@ -57,7 +57,7 @@ describe('fullscreen progress dashboard', () => {
     tuiState.startEvent({ eventType: 'PACKAGE_ARTIFACTS', description: 'Packaging workloads' });
     const app = await renderDashboard();
     const frame = app.captureCharFrame();
-    expect(frame).toContain('stacktape / deploying');
+    expect(frame).toContain('stacktape / deploy');
     expect(frame).toContain('my-app → dev');
     expect(frame).toContain('Build & Package');
     expect(frame).toContain('ACTIVITY');

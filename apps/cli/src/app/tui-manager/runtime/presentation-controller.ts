@@ -102,8 +102,14 @@ export class PresentationController {
     this.active = false;
     this.unsubscribeJournal?.();
     this.unsubscribeJournal = undefined;
-    if (this.currentView === 'dashboard') this.runtime.stopSync();
-    else this.replayCursor = this.stream.stop();
+    if (this.currentView === 'dashboard') {
+      this.runtime.stopSync();
+      this.currentView = 'stream';
+      this.stream.start(this.replayCursor);
+      this.replayCursor = this.stream.stop();
+    } else {
+      this.replayCursor = this.stream.stop();
+    }
     this.options = undefined;
   }
 

@@ -563,6 +563,8 @@ class TuiManager {
     parentEventType?: LoggableEventType;
     parentInstanceId?: string;
     instanceId?: string;
+    label?: string;
+    detail?: unknown;
   }) {
     this.stateSink.startEvent(params);
   }
@@ -575,6 +577,7 @@ class TuiManager {
     parentEventType?: LoggableEventType;
     parentInstanceId?: string;
     instanceId?: string;
+    label?: string;
   }) {
     this.stateSink.updateEvent(params);
   }

@@ -65,15 +65,18 @@ export class OperationProgressReporter implements ProgressReporter {
 
   createChildLogger({
     instanceId,
+    label,
     parentEventType
   }: {
     instanceId: string;
+    label?: string;
     parentEventType: LoggableEventType;
   }): OperationProgressReporter {
     return new OperationProgressReporter(
       this.session,
       this.reporter.createChild({
         instanceId,
+        label,
         parentEventType,
         parentInstanceId: this.eventContext.instanceId
       }),

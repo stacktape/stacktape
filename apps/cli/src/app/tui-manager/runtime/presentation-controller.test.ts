@@ -46,6 +46,14 @@ const createController = (preferredView: TtyView) => {
 beforeEach(() => operationSession.reset());
 
 describe('PresentationController exclusive terminal ownership', () => {
+  test('replays the dashboard tail during synchronous shutdown', () => {
+    const { controller, events } = createController('dashboard');
+
+    controller.stopSync();
+
+    expect(events).toEqual(['dashboard-start', 'dashboard-stop-sync', 'stream-start', 'stream-stop']);
+  });
+
   test('queues view changes until a modal prompt has restored its previous surface', async () => {
     const { controller, events } = createController('stream');
     let releasePrompt!: () => void;

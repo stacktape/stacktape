@@ -8,14 +8,10 @@ import type {
   OperationStatus,
   ProgressReporter
 } from './types';
+import { plainOperationText, safeCapturedOutput } from './text';
 
 const locatorKey = ({ eventType, instanceId, parentEventType, parentInstanceId }: LegacyProgressEvent): string =>
   [parentEventType ?? '', parentInstanceId ?? '', eventType, instanceId ?? ''].join('\u001f');
-
-// Operation text is renderer-neutral plain text. Presentation layers add style.
-// eslint-disable-next-line no-control-regex
-const ANSI_SEQUENCE = /\x1B\[[0-?]*[ -/]*[@-~]|\x1B\][^\x07\x1B]*(?:\x07|\x1B\\)?|\x1B[@-Z\\-_]/g;
-const plain = (value: string): string => value.replace(ANSI_SEQUENCE, '');
 
 /**
  * Compatibility reporter for existing call sites. It allocates a real ID at
@@ -49,15 +45,17 @@ export class OperationReporter implements ProgressReporter {
     const activity: OperationActivity = {
       id,
       eventType: params.eventType,
-      description: plain(params.description),
+      description: plainOperationText(params.description),
       phase: params.phase ?? this.store.getSnapshot().currentPhase ?? 'INITIALIZE',
       status: 'running',
       startTime: Date.now(),
       outputLines: [],
       ...(resolved.instanceId !== undefined && { instanceId: resolved.instanceId }),
+      ...(resolved.label !== undefined && { label: plainOperationText(resolved.label) }),
       ...(resolved.parentEventType !== undefined && { parentEventType: resolved.parentEventType }),
       ...(resolved.parentInstanceId !== undefined && { parentInstanceId: resolved.parentInstanceId }),
-      ...(parentActivityId !== undefined && { parentActivityId })
+      ...(parentActivityId !== undefined && { parentActivityId }),
+      ...(params.detail !== undefined && { detail: params.detail })
     };
     const key = locatorKey({ ...params, ...resolved });
     this.registry.activeByLocator.set(key, [...(this.registry.activeByLocator.get(key) ?? []), id]);
@@ -71,8 +69,11 @@ export class OperationReporter implements ProgressReporter {
     this.journal.append({
       type: 'activity-updated',
       activityId,
-      ...(params.description !== undefined && { description: plain(params.description) }),
-      ...(params.additionalMessage !== undefined && { additionalMessage: plain(params.additionalMessage) }),
+      ...(params.description !== undefined && { description: plainOperationText(params.description) }),
+      ...(params.additionalMessage !== undefined && {
+        additionalMessage: plainOperationText(params.additionalMessage)
+      }),
+      ...(params.label !== undefined && { label: plainOperationText(params.label) }),
       ...(params.detail !== undefined && { detail: params.detail })
     });
   }
@@ -87,7 +88,7 @@ export class OperationReporter implements ProgressReporter {
       type: 'activity-finished',
       activityId,
       status,
-      ...(params.finalMessage !== undefined && { finalMessage: plain(params.finalMessage) }),
+      ...(params.finalMessage !== undefined && { finalMessage: plainOperationText(params.finalMessage) }),
       ...(params.detail !== undefined && { detail: params.detail })
     });
     const active = this.registry.activeByLocator.get(key) ?? [];
@@ -111,7 +112,9 @@ export class OperationReporter implements ProgressReporter {
     this.journal.append({
       type: 'activity-output',
       activityId,
-      lines: params.lines.map(plain),
+      lines: params.lines.map((line) =>
+        safeCapturedOutput(line, params.stream === 'stdout' || params.stream === 'stderr')
+      ),
       stream: params.stream ?? 'diagnostic'
     });
   }
@@ -125,6 +128,7 @@ export class OperationReporter implements ProgressReporter {
   private resolveContext(params: LegacyEventContext): LegacyEventContext {
     return {
       instanceId: params.instanceId ?? this.eventContext.instanceId,
+      label: params.label ?? this.eventContext.label,
       parentEventType: params.parentEventType ?? this.eventContext.parentEventType,
       parentInstanceId: params.parentInstanceId ?? this.eventContext.parentInstanceId
     };

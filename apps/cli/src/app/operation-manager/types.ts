@@ -85,6 +85,30 @@ export type LoggableEventType =
 export type OperationStatus = 'pending' | 'running' | 'success' | 'error' | 'warning';
 export type OperationMessageType = 'info' | 'warn' | 'error' | 'success' | 'debug' | 'hint' | 'start' | 'announcement';
 
+export type CloudFormationResourceProgress = {
+  name: string;
+  action: 'CREATE' | 'UPDATE' | 'DELETE';
+  resourceType?: string;
+  since?: number;
+};
+
+/** Structured deployment progress shared by human and machine presenters. */
+export type CloudFormationProgressDetail = {
+  kind: 'cloudformation-progress';
+  stackAction: 'create' | 'update' | 'delete' | 'rollback';
+  status?: 'active' | 'cleanup';
+  completedCount: number;
+  totalPlanned?: number;
+  percent?: number;
+  inProgressCount?: number;
+  inProgressResources?: string[];
+  inProgressDetails?: CloudFormationResourceProgress[];
+  waitingResources?: string[];
+  changeCounts: { created: number; updated: number; deleted: number };
+  /** Resources completed since the preceding progress record. */
+  recentlyCompleted?: CloudFormationResourceProgress[];
+};
+
 export type OperationPhasePreset = 'deploy' | 'delete' | 'codebuild-deploy';
 export type TtyView = 'auto' | 'stream' | 'dashboard';
 export type ActiveTtyView = Exclude<TtyView, 'auto'>;
@@ -141,6 +165,8 @@ export type OperationActivity = {
   parentEventType?: LoggableEventType;
   parentInstanceId?: string;
   instanceId?: string;
+  /** Stable human label; instanceId remains the machine correlation key. */
+  label?: string;
   detail?: unknown;
   outputLines: string[];
 };
@@ -198,6 +224,7 @@ export type OperationRecord = OperationRecordBase &
         activityId: string;
         description?: string;
         additionalMessage?: string;
+        label?: string;
         detail?: unknown;
       }
     | { type: 'activity-output'; activityId: string; lines: string[]; stream: 'stdout' | 'stderr' | 'diagnostic' }
@@ -226,6 +253,7 @@ export type OperationRecordInput = OperationRecord extends infer Record
 
 export type LegacyEventContext = {
   instanceId?: string;
+  label?: string;
   parentEventType?: LoggableEventType;
   parentInstanceId?: string;
 };

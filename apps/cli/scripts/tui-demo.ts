@@ -73,21 +73,23 @@ const runInitializePhase = async () => {
   await sleep(250);
   tuiManager.finishEvent({ eventType: 'FETCH_PREVIOUS_ARTIFACTS', finalMessage: 'Previous artifacts fetched' });
 
-  // A before:deploy hook script — output buffers silently and would surface
-  // only if the hook failed.
+  // A captured before:deploy hook. Stream mode keeps this in native scrollback
+  // as a labeled block; dashboard mode attaches it to the activity details.
   tuiManager.startEvent({
     eventType: 'RUN_SCRIPT',
     description: 'Running hook db-migrate',
-    instanceId: 'manual-db-migrate'
+    instanceId: 'beforeDeploy-db-migrate',
+    label: 'db-migrate',
+    detail: { kind: 'script', name: 'db-migrate', trigger: 'beforeDeploy', target: 'local' }
   });
   const migrateLines = ['$ prisma migrate deploy', '2 migrations found', 'applying 20260801_add_orders_table'];
   for (const line of migrateLines) {
-    tuiManager.appendEventOutput({ eventType: 'RUN_SCRIPT', instanceId: 'manual-db-migrate', lines: [line] });
+    tuiManager.appendEventOutput({ eventType: 'RUN_SCRIPT', instanceId: 'beforeDeploy-db-migrate', lines: [line] });
     await sleep(450);
   }
   tuiManager.finishEvent({
     eventType: 'RUN_SCRIPT',
-    instanceId: 'manual-db-migrate',
+    instanceId: 'beforeDeploy-db-migrate',
     finalMessage: 'Hook db-migrate finished (2 migrations applied)'
   });
   tuiManager.finishPhase();
@@ -107,17 +109,19 @@ const runPackagePhase = async () => {
   for (const workload of workloads) {
     tuiManager.startEvent({
       eventType: 'BUILD_CODE',
-      description: `Building ${workload.id}`,
+      description: 'Identifying shared resources',
       parentEventType: 'PACKAGE_ARTIFACTS',
-      instanceId: workload.id
+      instanceId: workload.id,
+      label: workload.id.replace(/-default$/, '')
     });
   }
   for (const name of cachedWorkloads) {
     tuiManager.startEvent({
       eventType: 'BUILD_CODE',
-      description: `Building ${name}`,
+      description: 'Identifying shared resources',
       parentEventType: 'PACKAGE_ARTIFACTS',
-      instanceId: name
+      instanceId: name,
+      label: name
     });
   }
   await sleep(500);
@@ -144,7 +148,12 @@ const runPackagePhase = async () => {
   ];
   const dripOutput = (async () => {
     for (const line of dockerLines) {
-      tuiManager.appendEventOutput({ eventType: 'PACKAGE_ARTIFACTS', lines: [line] });
+      tuiManager.appendEventOutput({
+        eventType: 'BUILD_CODE',
+        parentEventType: 'PACKAGE_ARTIFACTS',
+        instanceId: 'web-service',
+        lines: [line]
+      });
       await sleep(420);
     }
   })();
@@ -180,11 +189,22 @@ const runPackagePhase = async () => {
 const runUploadPhase = async () => {
   tuiManager.setPhase('UPLOAD');
   tuiManager.startEvent({ eventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS', description: 'Uploading deployment artifacts' });
-  for (let uploaded = 1; uploaded <= 3; uploaded++) {
+  for (const artifact of ['web-service', 'api-lambda', 'worker']) {
+    tuiManager.startEvent({
+      eventType: 'UPLOAD_PACKAGE',
+      description: 'Uploading artifact',
+      parentEventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
+      instanceId: artifact,
+      label: artifact
+    });
+  }
+  for (const artifact of ['web-service', 'api-lambda', 'worker']) {
     await sleep(500);
-    tuiManager.updateEvent({
-      eventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
-      additionalMessage: `${uploaded}/3 uploaded`
+    tuiManager.finishEvent({
+      eventType: 'UPLOAD_PACKAGE',
+      parentEventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
+      instanceId: artifact,
+      finalMessage: 'Artifact uploaded'
     });
   }
   tuiManager.finishEvent({ eventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS', finalMessage: 'Artifacts uploaded (45.0 MB)' });
@@ -205,6 +225,15 @@ const emitCfProgress = ({ completed, cleanup = false }: { completed: number; cle
       totalPlanned: total,
       inProgressCount: inProgress.length,
       inProgressResources: inProgress,
+      inProgressDetails: inProgress.map((name) => ({
+        name,
+        action: 'UPDATE',
+        resourceType: 'AWS::CloudFormation::Resource'
+      })),
+      recentlyCompleted:
+        completed > 0 && !cleanup
+          ? [{ name: CF_RESOURCES[completed - 1], action: 'UPDATE', resourceType: 'AWS::CloudFormation::Resource' }]
+          : [],
       waitingResources: cleanup ? [] : CF_RESOURCES.slice(completed + 3, completed + 6),
       changeCounts: { created: 3, updated: 9, deleted: 2 }
     }
@@ -249,14 +278,16 @@ const runDeploy = async () => {
   tuiManager.startEvent({
     eventType: 'RUN_SCRIPT',
     description: 'Running hook notify-slack',
-    instanceId: 'manual-notify-slack'
+    instanceId: 'afterDeploy-notify-slack',
+    label: 'notify-slack',
+    detail: { kind: 'script', name: 'notify-slack', trigger: 'afterDeploy', target: 'local' }
   });
   await sleep(600);
   tuiManager.finishEvent({ eventType: 'DELETE_OBSOLETE_ARTIFACTS', finalMessage: 'Obsolete artifacts deleted' });
   await sleep(1800);
   tuiManager.finishEvent({
     eventType: 'RUN_SCRIPT',
-    instanceId: 'manual-notify-slack',
+    instanceId: 'afterDeploy-notify-slack',
     status: 'warning',
     finalMessage: 'Hook notify-slack finished slowly (4.2s) — check the webhook endpoint'
   });
@@ -475,7 +506,12 @@ const runInteractiveChild = async () => {
   tuiManager.showCommandHeader({ ...HEADER, action: 'RUNNING SCRIPT: interactive-child' });
   tuiManager.start({ phases: 'deploy' });
   tuiManager.setPhase('BUILD_AND_PACKAGE');
-  tuiManager.startEvent({ eventType: 'RUN_SCRIPT', description: 'Running interactive child' });
+  tuiManager.startEvent({
+    eventType: 'RUN_SCRIPT',
+    description: 'Running interactive child',
+    label: 'interactive-child',
+    detail: { kind: 'script', name: 'interactive-child', target: 'local' }
+  });
   await sleep(500);
   await tuiManager.withTerminalLease(() =>
     exec(
@@ -487,7 +523,7 @@ const runInteractiveChild = async () => {
       { stdioMode: 'inherit' }
     ).then(() => undefined)
   );
-  tuiManager.finishEvent({ eventType: 'RUN_SCRIPT', finalMessage: 'Interactive child finished' });
+  tuiManager.finishEvent({ eventType: 'RUN_SCRIPT', finalMessage: 'Script interactive-child finished' });
   tuiManager.setPendingCompletion({ success: true, message: 'CHILD FINISHED', links: [] });
   tuiManager.commitPendingCompletion();
   await tuiManager.stop();

@@ -7,6 +7,7 @@ import type {
   OperationState,
   OperationStatus
 } from './types';
+import { plainOperationText } from './text';
 
 export const PHASE_NAMES: Record<DeploymentPhase, string> = {
   INITIALIZE: 'Initialize',
@@ -127,6 +128,7 @@ export const reduceOperationState = (state: OperationState, record: OperationRec
       return updateActivity(state, record.activityId, (activity) => ({
         ...activity,
         ...(record.description !== undefined && { description: record.description }),
+        ...(record.label !== undefined && { label: record.label }),
         ...(record.additionalMessage !== undefined && {
           additionalMessage: record.additionalMessage,
           message: record.additionalMessage
@@ -136,7 +138,9 @@ export const reduceOperationState = (state: OperationState, record: OperationRec
     case 'activity-output':
       return updateActivity(state, record.activityId, (activity) => ({
         ...activity,
-        outputLines: [...activity.outputLines, ...record.lines].slice(-MAX_ACTIVITY_OUTPUT_LINES)
+        outputLines: [...activity.outputLines, ...record.lines.map(plainOperationText)].slice(
+          -MAX_ACTIVITY_OUTPUT_LINES
+        )
       }));
     case 'activity-finished':
       return updateActivity(state, record.activityId, (activity) => ({

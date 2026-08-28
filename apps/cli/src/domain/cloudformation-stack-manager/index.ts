@@ -5,7 +5,12 @@ import type {
   StackActionType,
   StackDetails
 } from '@domain-services/cloudformation-stack-manager/types';
-import type { LoggableEventType, ProgressReporter as ProgressLogger } from '@application-services/operation-manager';
+import type {
+  CloudFormationProgressDetail,
+  CloudFormationResourceProgress,
+  LoggableEventType,
+  ProgressReporter as ProgressLogger
+} from '@application-services/operation-manager';
 import type { Capability, StackEvent, StackResourceSummary } from '@aws-sdk/client-cloudformation';
 import type { MonitoredStackEvent } from 'src/aws/cloudformation-stacks';
 import type { Tag } from '@aws-sdk/client-ecs';
@@ -130,7 +135,7 @@ const formatResourceList = (resources: string[], maxItems: number) => {
 
 type StackProgressUpdate = {
   message: string;
-  detail?: import('@application-services/tui-manager/output/jsonl-types').JsonlEventDetail;
+  detail?: CloudFormationProgressDetail;
 };
 
 export class StackManager {
@@ -383,8 +388,13 @@ export class StackManager {
       ...onCreateParams,
       ...(this.isAutoRollbackEnabled && { OnFailure: OnFailure.DELETE })
     });
-    // Monitor stack creation without progress updates (shown as simple event)
-    await this.monitorStack('create', StackId, () => {});
+    await this.monitorStack('create', StackId, (progress) => {
+      operationReporter.updateEvent({
+        eventType: 'CREATE_RESOURCES_FOR_ARTIFACTS',
+        additionalMessage: progress.message,
+        detail: progress.detail
+      });
+    });
     await operationReporter.finishEvent({
       eventType: 'CREATE_RESOURCES_FOR_ARTIFACTS',
       data: { stackParams, template: templateManager.initialTemplate }
@@ -708,6 +718,7 @@ export class StackManager {
     const inProgressResources = new Set<string>();
     const inProgressMeta = new Map<string, { resourceType?: string; since: number }>();
     const completeResources = new Set<string>();
+    const recentlyCompletedResources: CloudFormationResourceProgress[] = [];
     const seenResources = new Set<string>();
     let resourcesToHandleCount: number;
     let _isResourceToHandleCountPossiblyInaccurate = false;
@@ -815,6 +826,7 @@ export class StackManager {
 
     const handleProgress = () => {
       const completedAmount = completeResources.size;
+      const recentlyCompleted = recentlyCompletedResources.splice(0);
 
       // Get change summary (needed for both normal and cleanup progress)
       const changeSummary = formatChangeSummary({
@@ -859,7 +871,8 @@ export class StackManager {
               created: changeSummary.counts.created,
               updated: changeSummary.counts.updated,
               deleted: changeSummary.counts.deleted
-            }
+            },
+            recentlyCompleted
           }
         });
         return;
@@ -891,7 +904,8 @@ export class StackManager {
               created: changeSummary.counts.created,
               updated: changeSummary.counts.updated,
               deleted: changeSummary.counts.deleted
-            }
+            },
+            recentlyCompleted
           }
         });
         return;
@@ -1005,7 +1019,8 @@ export class StackManager {
             created: changeSummary.counts.created,
             updated: changeSummary.counts.updated,
             deleted: changeSummary.counts.deleted
-          }
+          },
+          recentlyCompleted
         }
       });
     };
@@ -1171,6 +1186,7 @@ export class StackManager {
                 inProgressResources.clear();
                 inProgressMeta.clear();
                 completeResources.clear();
+                recentlyCompletedResources.length = 0;
               }
             }
             // if the new event says that some resource is in progress, we add event into inProgressResources
@@ -1192,7 +1208,15 @@ export class StackManager {
               // it is only information that the resource whose update failed was rolled back - however it was still the cause for update failure and error remains
               (status !== ResourceStatus.UPDATE_ROLLBACK_COMPLETE || cfStackAction !== 'update')
             ) {
+              const wasAlreadyComplete = completeResources.has(LogicalResourceId);
               completeResources.add(LogicalResourceId);
+              if (!wasAlreadyComplete) {
+                recentlyCompletedResources.push({
+                  name: LogicalResourceId,
+                  action: status.startsWith('CREATE') ? 'CREATE' : status.startsWith('DELETE') ? 'DELETE' : 'UPDATE',
+                  ...(event.ResourceType ? { resourceType: event.ResourceType } : {})
+                });
+              }
               inProgressResources.delete(LogicalResourceId);
               inProgressMeta.delete(LogicalResourceId);
               seenResources.add(LogicalResourceId);

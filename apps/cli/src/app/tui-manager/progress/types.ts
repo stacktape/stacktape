@@ -1,4 +1,6 @@
 import type {
+  CloudFormationProgressDetail,
+  CloudFormationResourceProgress,
   DeploymentPhase,
   OperationActivity,
   OperationCancellation,
@@ -9,25 +11,8 @@ import type {
 } from '@application-services/operation-manager';
 import { getPhaseOrder, PHASE_NAMES as OPERATION_PHASE_NAMES } from '@application-services/operation-manager/reducer';
 
-export type CfResourceInProgress = {
-  name: string;
-  action: 'CREATE' | 'UPDATE' | 'DELETE';
-  resourceType?: string;
-  since?: number;
-};
-
-export type CfProgressData = {
-  kind: 'cloudformation-progress';
-  stackAction: string;
-  status?: 'active' | 'cleanup';
-  completedCount: number;
-  totalPlanned?: number;
-  inProgressCount?: number;
-  inProgressResources?: string[];
-  inProgressDetails?: CfResourceInProgress[];
-  waitingResources?: string[];
-  changeCounts: { created: number; updated: number; deleted: number };
-};
+export type CfResourceInProgress = CloudFormationResourceProgress;
+export type CfProgressData = CloudFormationProgressDetail;
 
 export type TuiEvent = Omit<OperationActivity, 'detail' | 'outputLines' | 'phase'> & {
   phase?: DeploymentPhase;

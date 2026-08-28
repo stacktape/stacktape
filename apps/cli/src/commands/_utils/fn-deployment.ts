@@ -133,7 +133,8 @@ export const updateFunctionCode = async ({
     ? null
     : operationReporter.createChildLogger({
         parentEventType: 'HOTSWAP_UPDATE',
-        instanceId: workloadName
+        instanceId: workloadName,
+        label: workloadName
       });
 
   if (!devMode) {

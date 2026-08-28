@@ -133,6 +133,8 @@ class TuiStateManager {
     parentEventType?: LoggableEventType;
     parentInstanceId?: string;
     instanceId?: string;
+    label?: string;
+    detail?: unknown;
   }) {
     operationSession.reporter.startEvent(params);
   }
@@ -145,6 +147,7 @@ class TuiStateManager {
     parentEventType?: LoggableEventType;
     parentInstanceId?: string;
     instanceId?: string;
+    label?: string;
   }) {
     operationSession.reporter.updateEvent({ ...params, detail: params.data });
   }

@@ -21,6 +21,8 @@ type StartEventParams = {
   phase?: DeploymentPhase;
   parentEventType?: LoggableEventType;
   instanceId?: string;
+  label?: string;
+  detail?: unknown;
 };
 
 type UpdateEventParams = {
@@ -30,6 +32,7 @@ type UpdateEventParams = {
   description?: string;
   parentEventType?: LoggableEventType;
   instanceId?: string;
+  label?: string;
 };
 
 type FinishEventParams = {
@@ -76,6 +79,7 @@ export class TuiStateSink {
       eventType: params.eventType,
       additionalMessage: plainText(params.additionalMessage),
       description: plainText(params.description),
+      label: plainText(params.label),
       parentEventType: params.parentEventType,
       instanceId: params.instanceId,
       // Map `detail` (from event system) to `data` (TUI state field) so components

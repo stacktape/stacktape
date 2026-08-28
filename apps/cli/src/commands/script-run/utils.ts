@@ -87,7 +87,14 @@ const getBastionScriptExecutionFn = ({
     operationReporter.startEvent({
       eventType: 'RUN_SCRIPT',
       description: `Running script ${scriptDescription} on bastion ${bastionResourceStpName}`,
-      instanceId: eventInstanceId
+      instanceId: eventInstanceId,
+      label: resolvedScriptDefinition.scriptName,
+      detail: {
+        kind: 'script',
+        name: resolvedScriptDefinition.scriptName,
+        trigger: hookTrigger,
+        target: bastionResourceStpName
+      }
     });
     try {
       const env = getScriptEnv({
@@ -207,7 +214,14 @@ const getLocalScriptExecutionFn = ({
     operationReporter.startEvent({
       eventType: 'RUN_SCRIPT',
       description: `Running script ${scriptDisplayName}`,
-      instanceId: eventInstanceId
+      instanceId: eventInstanceId,
+      label: resolvedScriptDefinition.scriptName,
+      detail: {
+        kind: 'script',
+        name: resolvedScriptDefinition.scriptName,
+        trigger: hookTrigger,
+        target: 'local'
+      }
     });
 
     // Callback to capture script output and send to TUI

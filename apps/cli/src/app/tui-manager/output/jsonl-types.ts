@@ -43,6 +43,12 @@ export type JsonlCloudFormationDetail = {
     resourceType?: string;
     since?: number;
   }>;
+  /** Resources completed since the preceding progress event. */
+  recentlyCompleted?: Array<{
+    name: string;
+    action: 'CREATE' | 'UPDATE' | 'DELETE';
+    resourceType?: string;
+  }>;
   waitingResources?: string[];
   changeCounts?: {
     created: number;

@@ -236,7 +236,8 @@ export const updateEcsService = async ({
 }: Awaited<ReturnType<typeof getECSHotswapInformation>>) => {
   const updateWorkloadLogger = operationReporter.createChildLogger({
     parentEventType: 'HOTSWAP_UPDATE',
-    instanceId: workload.name
+    instanceId: workload.name,
+    label: workload.name
   });
   let { taskDefinitionArn } = ecsTaskDefinition.currentState;
   if (ecsTaskDefinition.needsUpdate) {

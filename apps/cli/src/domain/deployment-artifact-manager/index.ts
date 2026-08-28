@@ -257,6 +257,7 @@ export class DeploymentArtifactManager {
   }) => {
     const childLogger = operationReporter.createChildLogger({
       instanceId: shortName || bucketName,
+      label: shortName || bucketName,
       parentEventType: 'SYNC_BUCKET'
     });
     await childLogger.startEvent({ eventType: 'UPLOAD_BUCKET_CONTENT', description: 'Uploading content' });
@@ -715,7 +716,8 @@ export class DeploymentArtifactManager {
     const isHelperLambda = configManager.helperLambdas.map((l) => l.artifactName).includes(artifactName);
     const uploadLogger = operationReporter.createChildLogger({
       parentEventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
-      instanceId: isHelperLambda ? `${artifactName} (stacktape internal)` : artifactName
+      instanceId: isHelperLambda ? `${artifactName} (stacktape internal)` : artifactName,
+      label: artifactName.replace(/-default$/, '')
     });
     // we do not log these events for service lambdas to avoid bloating output
     if (!isHelperLambda) {
@@ -729,7 +731,7 @@ export class DeploymentArtifactManager {
       metadata
     });
     if (!isHelperLambda) {
-      await uploadLogger.finishEvent({ eventType: 'UPLOAD_PACKAGE' });
+      await uploadLogger.finishEvent({ eventType: 'UPLOAD_PACKAGE', finalMessage: 'Artifact uploaded' });
     }
     return { artifactS3Key: s3Key };
   };
@@ -745,7 +747,8 @@ export class DeploymentArtifactManager {
   }) => {
     const uploadLogger = operationReporter.createChildLogger({
       parentEventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
-      instanceId: jobName
+      instanceId: jobName,
+      label: jobName.replace(/-default$/, '')
     });
     await uploadLogger.startEvent({ eventType: 'UPLOAD_IMAGE', description: 'Uploading image' });
     await tagDockerImage(jobName, imageTagWithUrl);
@@ -784,7 +787,8 @@ export class DeploymentArtifactManager {
 
     const uploadLogger = operationReporter.createChildLogger({
       parentEventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
-      instanceId: 'shared-layer'
+      instanceId: 'shared-layer',
+      label: 'shared layer'
     });
     await uploadLogger.startEvent({
       eventType: 'UPLOAD_SHARED_LAYER',

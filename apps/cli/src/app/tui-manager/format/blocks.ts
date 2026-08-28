@@ -11,6 +11,18 @@ type CommandHeaderLike = {
 
 export const COMMAND_HEADER_BOX_MIN_WIDTH = 54;
 
+export const commandNameForHeaderAction = (action: string): string => {
+  if (action === 'DEPLOYING' || action === 'DEPLOYING DEV STACK') return 'deploy';
+  if (action === 'COMPILING TEMPLATE') return 'synth';
+  if (action === 'DELETING') return 'delete';
+  if (action === 'UPDATING') return 'update';
+  if (action === 'PREVIEWING CHANGES') return 'diff';
+  if (action === 'VALIDATING') return 'validate';
+  if (action.startsWith('RUNNING SCRIPT')) return 'script run';
+  if (action.startsWith('RUNNING DEV MODE')) return 'dev';
+  return action.toLowerCase();
+};
+
 export const formatCommandHeaderLine = ({ action, projectName, stageName, region }: CommandHeaderLike): string =>
   `--- ${action}: ${projectName} -> ${stageName} (${region}) ---`;
 
