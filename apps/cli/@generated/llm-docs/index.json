@@ -8307,6 +8307,7 @@
         "disableStackInfoSaving",
         "outputs",
         "stackInfoDirectory",
+        "stageType",
         "tags",
         "tracing",
         "vpc"
@@ -8323,12 +8324,15 @@
         "config-reference:StackConfig#property-stackinfodirectory",
         "config-reference:StackConfig#example-1-yaml-3",
         "config-reference:StackConfig#example-2-typescript-3",
-        "config-reference:StackConfig#property-tags",
+        "config-reference:StackConfig#property-stagetype",
         "config-reference:StackConfig#example-1-yaml-4",
         "config-reference:StackConfig#example-2-typescript-4",
-        "config-reference:StackConfig#property-tracing",
+        "config-reference:StackConfig#property-tags",
         "config-reference:StackConfig#example-1-yaml-5",
         "config-reference:StackConfig#example-2-typescript-5",
+        "config-reference:StackConfig#property-tracing",
+        "config-reference:StackConfig#example-1-yaml-6",
+        "config-reference:StackConfig#example-2-typescript-6",
         "config-reference:StackConfig#property-vpc"
       ]
     },
@@ -8438,12 +8442,16 @@
       "tags": [
         "config-reference",
         "VpcSettings",
+        "interfaceEndpoints",
         "nat",
         "reuseVpc"
       ],
       "chunks": [
         "config-reference:VpcSettings#vpcsettings-api-reference",
         "config-reference:VpcSettings#typescript-definition",
+        "config-reference:VpcSettings#property-interfaceendpoints",
+        "config-reference:VpcSettings#example-1-yaml",
+        "config-reference:VpcSettings#example-2-typescript",
         "config-reference:VpcSettings#property-nat",
         "config-reference:VpcSettings#property-reusevpc"
       ]

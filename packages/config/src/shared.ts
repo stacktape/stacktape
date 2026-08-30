@@ -2740,6 +2740,57 @@ export interface StackConfig {
    * ```
    */
   tracing?: TracingOptions;
+  /**
+   * Explicitly classifies this stack's stage as production or not.
+   *
+   * The classification drives everything that treats production differently: error-tracking
+   * incidents (every production error group enters the incident queue), the stricter
+   * delete-production permission, deploy gates, and AI remediation autonomy limits.
+   *
+   * When omitted, Stacktape infers it from the stage name: `prod`, `production`, `prd`, and `live`
+   * (case-insensitive, including segmented variants like `prod-eu` or `client-a-prod`) count as
+   * production, while names carrying a rehearsal marker (`pre-prod`, `prod-test`, `staging-live`)
+   * do not. Set it explicitly when your naming does not follow those conventions.
+   *
+   * > This is a per-stage classification: with a TypeScript config, branch on the `stage` argument
+   * > to return different values for different stages.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * # stp-focus
+   * stackConfig:
+   *   stageType: production
+   * # stp-end-focus
+   * resources:
+   *   api:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/api.ts
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(({ stage }) => {
+   *   const api = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } }
+   *   });
+   *   return {
+   *     // stp-focus
+   *     stackConfig: { stageType: stage === 'live-eu' ? 'production' : 'non-production' },
+   *     // stp-end-focus
+   *     resources: { api }
+   *   };
+   * });
+   * ```
+   */
+  stageType?: 'production' | 'non-production';
 }
 
 
@@ -2957,6 +3008,66 @@ export interface VpcSettings {
    * Controls how many availability zones get a NAT Gateway (affects cost and redundancy).
    */
   nat?: NatSettings;
+
+  /**
+   * #### AWS services reachable from inside the VPC through interface endpoints.
+   *
+   * ---
+   *
+   * Resources placed into the VPC (for example lambda functions with `joinDefaultVpc: true`) have no
+   * route to the public internet, so calls to AWS service APIs (SSM Parameter Store, Secrets Manager,
+   * KMS, SQS, ...) hang until they time out. Listing a service here creates an
+   * [interface VPC endpoint](https://docs.aws.amazon.com/vpc/latest/privatelink/create-interface-endpoint.html)
+   * for it, giving everything inside the VPC a private route to that service.
+   *
+   * - Use the service's endpoint suffix: `ssm`, `secretsmanager`, `kms`, `sqs`, `sns`, `sts`, `lambda`,
+   *   `logs`, `monitoring`, `ecr.api`, `ecr.dkr`, ...
+   *   ([full list](https://docs.aws.amazon.com/vpc/latest/privatelink/aws-services-privatelink-support.html)).
+   * - Each endpoint is billed by AWS (~$0.01/hour per availability zone plus data processing). Endpoints
+   *   are created in every VPC availability zone for high availability.
+   * - Only applies when the stack creates its own VPC. With `reuseVpc`, manage endpoints in the stack
+   *   that owns the VPC.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * stackConfig:
+   *   vpc:
+   *     # stp-focus
+   *     interfaceEndpoints:
+   *       - ssm
+   *     # stp-end-focus
+   * resources:
+   *   worker:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/worker.ts
+   *       joinDefaultVpc: true
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const worker = new LambdaFunction({
+   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/worker.ts' }),
+   *     joinDefaultVpc: true
+   *   });
+   *   return {
+   *     // stp-focus
+   *     stackConfig: { vpc: { interfaceEndpoints: ['ssm'] } },
+   *     // stp-end-focus
+   *     resources: { worker }
+   *   };
+   * });
+   * ```
+   */
+  interfaceEndpoints?: string[];
 }
 
 

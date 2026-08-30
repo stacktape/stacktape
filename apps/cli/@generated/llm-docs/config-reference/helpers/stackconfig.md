@@ -12,6 +12,20 @@ type StackConfig = {
   outputs?: Array<StackOutput>;
   /** Directory for the stack info JSON file. */
   stackInfoDirectory?: string;
+  /** Explicitly classifies this stack's stage as production or not.
+
+The classification drives everything that treats production differently: error-tracking
+incidents (every production error group enters the incident queue), the stricter
+delete-production permission, deploy gates, and AI remediation autonomy limits.
+
+When omitted, Stacktape infers it from the stage name: `prod`, `production`, `prd`, and `live`
+(case-insensitive, including segmented variants like `prod-eu` or `client-a-prod`) count as
+production, while names carrying a rehearsal marker (`pre-prod`, `prod-test`, `staging-live`)
+do not. Set it explicitly when your naming does not follow those conventions.
+
+This is a per-stage classification: with a TypeScript config, branch on the `stage` argument
+to return different values for different stages. */
+  stageType?: "non-production" | "production";
   /** Tags applied to every AWS resource in this stack. */
   tags?: Array<CloudformationTag>;
   /** Stack-wide distributed tracing default. */
@@ -163,6 +177,56 @@ export default defineConfig(() => {
 
   return {
     stackConfig: { stackInfoDirectory: './build/stack-info' },
+    resources: { api }
+  };
+});
+```
+
+## Property: `stageType`
+
+- Required: no
+- Type: `string: "non-production" | "production"`
+
+Explicitly classifies this stack's stage as production or not.
+
+The classification drives everything that treats production differently: error-tracking
+incidents (every production error group enters the incident queue), the stricter
+delete-production permission, deploy gates, and AI remediation autonomy limits.
+
+When omitted, Stacktape infers it from the stage name: `prod`, `production`, `prd`, and `live`
+(case-insensitive, including segmented variants like `prod-eu` or `client-a-prod`) count as
+production, while names carrying a rehearsal marker (`pre-prod`, `prod-test`, `staging-live`)
+do not. Set it explicitly when your naming does not follow those conventions.
+
+This is a per-stage classification: with a TypeScript config, branch on the `stage` argument
+to return different values for different stages.
+
+### Example 1 (yaml)
+
+```yaml
+stackConfig:
+  stageType: production
+resources:
+  api:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/api.ts
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, defineConfig } from 'stacktape';
+
+export default defineConfig(({ stage }) => {
+  const api = new LambdaFunction({
+    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } }
+  });
+  return {
+    stackConfig: { stageType: stage === 'live-eu' ? 'production' : 'non-production' },
     resources: { api }
   };
 });

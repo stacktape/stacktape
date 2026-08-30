@@ -39,7 +39,8 @@ export default defineConfig(() => {
   });
 
   const homeUptime = new UptimeCheck({
-    url: 'https://example.com',
+    // The web service itself, so breaking it (scaling to zero) demonstrably opens an incident.
+    url: 'https://web-obsmoke-0827-dev-68ebfd7b.stacktape-app.com',
     assertions: [{ type: 'status-code', properties: { accepted: [200] } }]
   });
 

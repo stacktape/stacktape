@@ -869,6 +869,20 @@ Shows each project with its stages, deployment status (in-progress, errored, etc
     requiredArgs: [] as const
   },
 
+  'alarms:export': {
+    description: `Exports Console-defined alarm rules as stack-config alarm entries.
+
+Console alarm creation is retired in favor of config-defined alarms. This prints every alarm rule
+still defined in your organization's Console as a ready-to-paste config fragment, with a note on
+which projects and stages it currently applies to.`,
+    args: {
+      logLevel: logLevel.optional(),
+      agent: agent.optional(),
+      outputFormat: outputFormat.optional()
+    },
+    requiredArgs: [] as const
+  },
+
   'info:whoami': {
     description: `Displays information about the current user, organization, connected AWS accounts, and accessible projects.
 

@@ -52,6 +52,9 @@ const reportToConsoleApi = async (event: AlarmNotificationEventRuleInput) => {
     type: event.stateValue === 'OK' ? 'ALARM_RESOLVED' : 'ALARM_TRIGGERED',
     alarmName: event.alarmConfig?.name || event.alarmAwsResourceName,
     sourceConfigName: event.alarmConfig?.name,
+    // The config-side trigger type: the Console uses it to classify the signal (a canary's
+    // SuccessPercent alarm becomes the synthetic test's own signal, not a generic alarm).
+    triggerType: event.alarmConfig?.trigger?.type,
     project,
     stage,
     region,

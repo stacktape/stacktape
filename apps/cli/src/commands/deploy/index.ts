@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { CliError, type ExpectedError } from '@utils/errors';
 import type { PackageWorkloadOutput } from '@domain-services/packaging-manager/types';
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
@@ -319,6 +320,15 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   // deploy all artifacts - use versions depending on whether this is hotswap or not
   progress.setPhase('UPLOAD');
   await deploymentArtifacts.uploadAllArtifacts({ useHotswap });
+
+  // Release identity: stamped onto every event this operation reports, so the Console can associate
+  // incidents and error-group resolutions with the release that produced them. 'unset' tells the
+  // Console the config declares no stage classification, so name inference applies.
+  notification.setReleaseContext({
+    deploymentVersion: stack.nextVersion,
+    configRevision: createHash('sha256').update(JSON.stringify(template.getTemplate())).digest('hex').slice(0, 24),
+    stageType: config.stackConfig.stageType ?? 'unset'
+  });
 
   await notification.sendDeploymentNotification({
     message: {

@@ -1,4 +1,5 @@
 import { globalStateManager } from '@application-services/global-state-manager';
+import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import compose from '@utils/basic-compose-shim';
@@ -37,9 +38,49 @@ const severityFromMessageType = (type: ProgressMessage['type']): string => {
   }
 };
 
+/**
+ * CloudFormation stack states in which the RUNNING SYSTEM needs attention (not merely the deploy
+ * command): the Console opens a stack-unhealthy incident for these.
+ */
+const FAILURE_EVENT_TYPES = new Set(['DEPLOY_FAILED', 'DELETE_FAILED', 'ROLLBACK_FAILED']);
+
 export class NotificationManager {
   isInitialized: boolean;
   #hasConsoleApiAccess = false;
+  /**
+   * Release identity attached to every reported event once the deploy flow learns it: which version
+   * this operation produces, the hash of the resolved template, and the stage's explicit
+   * classification ('unset' = the config declares none). The Console stamps these onto incidents
+   * and stage settings.
+   */
+  #releaseContext: {
+    deploymentVersion?: string;
+    configRevision?: string;
+    stageType?: 'production' | 'non-production' | 'unset';
+  } = {};
+
+  setReleaseContext = (context: {
+    deploymentVersion?: string;
+    configRevision?: string;
+    stageType?: 'production' | 'non-production' | 'unset';
+  }) => {
+    Object.assign(this.#releaseContext, context);
+  };
+
+  /** Best-effort CloudFormation status for failure events; never delays reporting by more than 4s. */
+  #fetchStackStatus = async (): Promise<string | undefined> => {
+    const stackName = globalStateManager.targetStack?.stackName;
+    if (!stackName) return undefined;
+    try {
+      const details = await withTimeout({
+        promise: awsSdkManager.cloudFormation.getDetails(stackName),
+        timeoutMs: 4000
+      });
+      return details?.StackStatus;
+    } catch {
+      return undefined;
+    }
+  };
 
   init = async ({ consoleApiAccess = true }: { consoleApiAccess?: boolean } = {}) => {
     this.isInitialized = true;
@@ -59,6 +100,7 @@ export class NotificationManager {
   }) => {
     if (!this.#hasConsoleApiAccess) return;
     try {
+      const stackStatus = FAILURE_EVENT_TYPES.has(type) ? await this.#fetchStackStatus() : undefined;
       await withTimeout({
         promise: stacktapeTrpcApiManager.apiClient.reportEvent({
           type,
@@ -68,7 +110,9 @@ export class NotificationManager {
           region: globalStateManager.region,
           title,
           details,
-          invocationId: globalStateManager.invocationId
+          invocationId: globalStateManager.invocationId,
+          ...this.#releaseContext,
+          ...(stackStatus ? { stackStatus } : {})
         }),
         timeoutMs: 10000
       });

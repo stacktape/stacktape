@@ -103,6 +103,32 @@ const getKafkaOnDemandVpcEndpoint = (service: 'lambda' | 'sts') =>
     PrivateDnsEnabled: true
   });
 
+const getVpcInterfaceEndpointSecurityGroup = () =>
+  cfnResource('AWS::EC2::SecurityGroup', {
+    VpcId: vpcManager.getVpcId(),
+    GroupDescription: 'Interface endpoints configured in vpc.interfaceEndpoints',
+    SecurityGroupIngress: [
+      {
+        CidrIp: vpcManager.getVpcCidr(),
+        FromPort: 443,
+        ToPort: 443,
+        IpProtocol: 'tcp'
+      }
+    ]
+  });
+
+const getVpcInterfaceEndpoint = (service: string) =>
+  cfnResource('AWS::EC2::VPCEndpoint', {
+    VpcId: vpcManager.getVpcId(),
+    VpcEndpointType: 'Interface',
+    ServiceName: `com.amazonaws.${calculatedStackOverviewManager.context.region}.${service}`,
+    // One public subnet per usable availability zone (same constraint interface endpoints share
+    // with the Kafka on-demand endpoints).
+    SubnetIds: vpcManager.getKafkaSubnetIds(),
+    SecurityGroupIds: [ref(cfLogicalNames.vpcInterfaceEndpointSecurityGroup())],
+    PrivateDnsEnabled: true
+  });
+
 const getNatElasticIp = () => cfnResource('AWS::EC2::EIP', { Domain: 'vpc' });
 
 const getNatGateway = (azIndex: number) => {
@@ -280,6 +306,28 @@ export const resolveAwsVpcDeployment = async () => {
       calculatedStackOverviewManager.addCfChildResource({
         cfLogicalName: cfLogicalNames.kafkaOnDemandVpcEndpoint(service),
         resource: getKafkaOnDemandVpcEndpoint(service),
+        nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL]
+      });
+    });
+  }
+
+  // A second same-service endpoint with private DNS enabled fails the deployment with a
+  // conflicting-domain error, so services the Kafka block already covers are served by those
+  // endpoints instead of duplicated.
+  const kafkaManagedServices = configManager.kafkaClustersWithLambdaEvents.length ? ['lambda', 'sts'] : [];
+  const configuredInterfaceEndpoints = [...new Set(configManager.stackConfig.vpc?.interfaceEndpoints || [])].filter(
+    (service) => !kafkaManagedServices.includes(service)
+  );
+  if (configuredInterfaceEndpoints.length) {
+    calculatedStackOverviewManager.addCfChildResource({
+      cfLogicalName: cfLogicalNames.vpcInterfaceEndpointSecurityGroup(),
+      resource: getVpcInterfaceEndpointSecurityGroup(),
+      nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL]
+    });
+    configuredInterfaceEndpoints.forEach((service) => {
+      calculatedStackOverviewManager.addCfChildResource({
+        cfLogicalName: cfLogicalNames.vpcInterfaceEndpoint(service),
+        resource: getVpcInterfaceEndpoint(service),
         nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL]
       });
     });

@@ -1,3 +1,4 @@
+import { isProductionStageName } from '@stacktape/console-api/stages';
 import { CliError } from '@utils/errors';
 
 type GuardContext = {
@@ -6,10 +7,7 @@ type GuardContext = {
   projects?: Array<{ name: string }>;
 };
 
-export const isProductionStage = (stage?: string) => {
-  const normalizedStage = (stage || '').trim().toLowerCase();
-  return normalizedStage === 'prod' || normalizedStage === 'production';
-};
+export const isProductionStage = (stage?: string) => isProductionStageName(stage || '');
 
 export const getRequiredDeletePermission = ({ stage }: { stage?: string }) => {
   return isProductionStage(stage) ? 'deployments:delete-production' : 'deployments:delete-non-production';

@@ -51,6 +51,15 @@ describe('isProductionStage', () => {
     expect(isProductionStage('staging')).toBe(false);
     expect(isProductionStage(undefined)).toBe(false);
   });
+
+  test('recognizes the shared classifier variants', () => {
+    expect(isProductionStage('prd')).toBe(true);
+    expect(isProductionStage('live')).toBe(true);
+    expect(isProductionStage('prod-eu')).toBe(true);
+    expect(isProductionStage('client-a-prod')).toBe(true);
+    expect(isProductionStage('pre-prod')).toBe(false);
+    expect(isProductionStage('prod-test')).toBe(false);
+  });
 });
 
 describe('getRequiredDeletePermission', () => {
