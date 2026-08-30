@@ -30,6 +30,9 @@ export const reportAlarmEventInputSchema = z.object({
   region: z.string(),
   title: z.string(),
   sourceConfigName: z.string().optional(),
+  // The config-side trigger type of the alarm ("lambda-error-rate", "synthetic-test-failure", ...).
+  // Optional: alarms deployed before this field existed report without it and classify generically.
+  triggerType: z.string().optional(),
   channels: z.array(
     z.object({
       id: z.string().optional(),

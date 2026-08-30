@@ -130,7 +130,18 @@ export const reportEventInputSchema = z.object({
   region: z.string().optional(),
   title: z.string(),
   details: z.record(z.string(), z.unknown()).optional(),
-  invocationId: z.string().optional()
+  invocationId: z.string().optional(),
+  // Release identity, reported with deploy outcomes: the CFN deployment version this operation
+  // produced and the hash of the resolved config it deployed.
+  deploymentVersion: z.string().optional(),
+  configRevision: z.string().optional(),
+  // Explicit stage classification from stack config. 'unset' means the config declares none (the
+  // stored setting is removed and name inference takes over); an absent field means an older CLI
+  // that cannot say either way, which changes nothing.
+  stageType: z.enum(['production', 'non-production', 'unset']).optional(),
+  // The CloudFormation stack status after a failed operation, so the Console can tell "the deploy
+  // command failed" apart from "the stack itself is left unhealthy".
+  stackStatus: z.string().optional()
 });
 
 export const awsAccountCredentialsInputSchema = z.object({

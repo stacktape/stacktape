@@ -38,6 +38,8 @@ export const PERMISSIONS = [
   'templates:manage',
   'issues:view',
   'issues:manage',
+  'incidents:view',
+  'incidents:manage',
   'observability:view',
   'debug:interactive-sessions',
   'api-keys:manage-own',
@@ -67,11 +69,13 @@ const ROLE_PERMISSIONS: Record<Exclude<ConsoleRole, 'MEMBER'>, ReadonlySet<Permi
     'templates:manage',
     'issues:view',
     'issues:manage',
+    'incidents:view',
+    'incidents:manage',
     'observability:view',
     'debug:interactive-sessions',
     'api-keys:manage-own'
   ]),
-  VIEWER: new Set(['projects:view', 'issues:view', 'observability:view', 'members:view'])
+  VIEWER: new Set(['projects:view', 'issues:view', 'incidents:view', 'observability:view', 'members:view'])
 };
 
 export const getPermissionsForRole = (role: ConsoleRole): ReadonlySet<Permission> =>

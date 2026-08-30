@@ -8,7 +8,8 @@
     "./api-key": "./src/api-key.ts",
     "./aws-identity": "./src/aws-identity.ts",
     "./guardrails": "./src/guardrails.ts",
-    "./permissions": "./src/permissions.ts"
+    "./permissions": "./src/permissions.ts",
+    "./stages": "./src/stages.ts"
   },
   "scripts": {
     "test": "node --import=tsx --test src/*.test.ts",
