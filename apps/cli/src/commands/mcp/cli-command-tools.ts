@@ -180,6 +180,10 @@ const policyOverrides: Partial<Record<StacktapeCommand, Partial<CliCommandPolicy
   'domain:add': { category: 'config', safety: 'mutating' },
   'cf-module:update': { category: 'config', safety: 'mutating' },
 
+  incidents: { category: 'issues', safety: 'readOnly' },
+  'incidents:show': { category: 'issues', safety: 'readOnly' },
+  'incidents:ack': { category: 'issues', safety: 'mutating' },
+  'incidents:resolve': { category: 'issues', safety: 'mutating' },
   'issues:list': { category: 'issues', safety: 'readOnly' },
   'issues:resolve': { category: 'issues', safety: 'mutating' },
   'issues:ignore': { category: 'issues', safety: 'mutating' },
