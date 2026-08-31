@@ -12,6 +12,7 @@ const cliDirectory = join(workspaceRoot, 'apps', 'cli');
 const cliDevScript = join(cliDirectory, 'scripts', 'dev.ts');
 
 const unsupportedShellCharacter = /[;&|<>`$\r\n]/;
+const pathOptions = new Set(['--configPath', '--cp', '--currentWorkingDirectory', '--cwd']);
 
 const tokenizeLiteralCommand = (command: string): string[] => {
   const tokens: string[] = [];
@@ -78,21 +79,65 @@ const tokenizeLiteralCommand = (command: string): string[] => {
 export const sourceCliArgsForConsoleScript = ({
   command,
   overrides = [],
+  invocationDirectory = workspaceRoot,
   workingDirectory = consoleApiDirectory
 }: {
   command: string;
   overrides?: string[];
+  invocationDirectory?: string;
   workingDirectory?: string;
 }): string[] => {
   const tokens = tokenizeLiteralCommand(command);
   if (tokens[0] !== 'stacktape') {
     throw new Error('The selected package script must start with a single `stacktape` command.');
   }
-  const args = [...tokens.slice(1), ...overrides];
-  const hasWorkingDirectory = args.some(
-    (arg) => arg === '--currentWorkingDirectory' || arg === '--cwd' || arg.startsWith('--currentWorkingDirectory=')
+  const normalizedOverrides: string[] = [];
+  let isScriptArgument = false;
+  for (let index = 0; index < overrides.length; index++) {
+    const argument = overrides[index]!;
+    if (argument === '--') {
+      isScriptArgument = true;
+      normalizedOverrides.push(argument);
+      continue;
+    }
+    if (isScriptArgument) {
+      normalizedOverrides.push(argument);
+      continue;
+    }
+    if (pathOptions.has(argument)) {
+      const pathValue = overrides[++index];
+      if (!pathValue || pathValue === '--') throw new Error(`Missing path after ${argument}.`);
+      normalizedOverrides.push(argument, resolve(invocationDirectory, pathValue));
+      continue;
+    }
+    const equalsOption = [...pathOptions].find((option) => argument.startsWith(`${option}=`));
+    if (equalsOption) {
+      const pathValue = argument.slice(equalsOption.length + 1);
+      if (!pathValue) throw new Error(`Missing path after ${equalsOption}=.`);
+      normalizedOverrides.push(`${equalsOption}=${resolve(invocationDirectory, pathValue)}`);
+      continue;
+    }
+    normalizedOverrides.push(argument);
+  }
+
+  const args = [...tokens.slice(1), ...normalizedOverrides];
+  const separatorIndex = args.indexOf('--');
+  const cliArgs = separatorIndex === -1 ? args : args.slice(0, separatorIndex);
+  const hasWorkingDirectory = cliArgs.some(
+    (arg) =>
+      arg === '--currentWorkingDirectory' ||
+      arg === '--cwd' ||
+      arg.startsWith('--currentWorkingDirectory=') ||
+      arg.startsWith('--cwd=')
   );
-  return hasWorkingDirectory ? args : [...args, '--currentWorkingDirectory', workingDirectory];
+  if (hasWorkingDirectory) return args;
+  if (separatorIndex === -1) return [...args, '--currentWorkingDirectory', workingDirectory];
+  return [
+    ...args.slice(0, separatorIndex),
+    '--currentWorkingDirectory',
+    workingDirectory,
+    ...args.slice(separatorIndex)
+  ];
 };
 
 const runInherited = async (command: string, args: string[], cwd: string): Promise<number> => {
@@ -140,7 +185,11 @@ const main = async () => {
   if (!command) {
     throw new Error(`Console API package script \`${scriptName}\` does not exist.`);
   }
-  const cliArgs = sourceCliArgsForConsoleScript({ command, overrides });
+  const cliArgs = sourceCliArgsForConsoleScript({
+    command,
+    overrides,
+    invocationDirectory: process.env.INIT_CWD || process.cwd()
+  });
 
   console.info(`Running Console script \`${scriptName}\` with the source-built Stacktape CLI.\n`);
   const turboBin = require.resolve('turbo/bin/turbo');

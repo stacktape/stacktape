@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { sourceCliArgsForConsoleScript } from './run-console-cli-script.ts';
 
@@ -53,6 +54,53 @@ test('does not replace an explicitly selected working directory', () => {
       workingDirectory: '/console/api'
     }),
     ['deploy', '--cwd', 'custom-project']
+  );
+});
+
+test('resolves caller-supplied config paths from the invocation directory', () => {
+  const invocationDirectory = resolve('workspace-root');
+  assert.deepEqual(
+    sourceCliArgsForConsoleScript({
+      command: 'stacktape script:run --scn printSpend --stage production',
+      overrides: ['--cp', './apps/console/api/stacktape.ts', '--', '--month', '08/2026'],
+      invocationDirectory,
+      workingDirectory: '/console/api'
+    }),
+    [
+      'script:run',
+      '--scn',
+      'printSpend',
+      '--stage',
+      'production',
+      '--cp',
+      resolve(invocationDirectory, 'apps/console/api/stacktape.ts'),
+      '--currentWorkingDirectory',
+      '/console/api',
+      '--',
+      '--month',
+      '08/2026'
+    ]
+  );
+});
+
+test('normalizes equals-form working-directory overrides but leaves script arguments untouched', () => {
+  const invocationDirectory = resolve('workspace-root');
+  assert.deepEqual(
+    sourceCliArgsForConsoleScript({
+      command: 'stacktape script:run --scn printSpend',
+      overrides: ['--cwd=./apps/console/api', '--', '--cp', 'script-value'],
+      invocationDirectory,
+      workingDirectory: '/ignored'
+    }),
+    [
+      'script:run',
+      '--scn',
+      'printSpend',
+      `--cwd=${resolve(invocationDirectory, 'apps/console/api')}`,
+      '--',
+      '--cp',
+      'script-value'
+    ]
   );
 });
 

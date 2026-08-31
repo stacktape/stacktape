@@ -61,12 +61,15 @@ Both commands can change real AWS resources. The production command explicitly s
 
 To run any `stacktape`-based script from `apps/console/api/package.json` through the source-built workspace CLI, pass
 its package-script name to `dev:console:cli`. The script's arguments and Console API working directory are preserved;
-extra arguments are appended to the Stacktape command.
+extra arguments are appended to the Stacktape command. Relative `--configPath`/`--cp` and working-directory overrides
+are resolved from the directory where the helper was invoked. Arguments after `--` are passed to the configured script
+without path rewriting.
 
 ```sh
 pnpm dev:console:cli deploy:dev --ui stream
 pnpm dev:console:cli deploy:dev --ui dashboard
 pnpm dev:console:cli migrate:db:dev --ui stream
+pnpm dev:console:cli print:spend -- --month 08/2026
 ```
 
 These are real Console operations, not simulations. In particular, `deploy:dev` deploys to AWS and the production
