@@ -49,6 +49,8 @@ import {
   projectDirectory,
   incidentId,
   incidentStatus,
+  incidentWatchStabilitySeconds,
+  incidentWatchTimeoutSeconds,
   issueId,
   issueStatus,
   organizationId,
@@ -980,6 +982,20 @@ Pipe it to a coding agent (or read it yourself) to fix the incident.`,
       agent: agent.optional(),
       outputFormat: outputFormat.optional(),
       incidentId
+    },
+    requiredArgs: ['incidentId'] as const
+  },
+  'incidents:watch': {
+    description: `Waits for an incident to recover and stay recovered.
+
+The command succeeds only after the incident remains RESOLVED for the stability window. If the incident reopens, the window resets. This is intended for deployment verification and coding-agent workflows.`,
+    args: {
+      logLevel: logLevel.optional(),
+      agent: agent.optional(),
+      outputFormat: outputFormat.optional(),
+      incidentId,
+      incidentWatchTimeoutSeconds: incidentWatchTimeoutSeconds.optional(),
+      incidentWatchStabilitySeconds: incidentWatchStabilitySeconds.optional()
     },
     requiredArgs: ['incidentId'] as const
   },

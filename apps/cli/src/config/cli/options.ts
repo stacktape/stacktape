@@ -63,6 +63,15 @@ export const incidentStatus = z.enum(['ACTIVE', 'OPEN', 'ACKNOWLEDGED', 'RESOLVE
 ---
 Filter incidents by status. ACTIVE (the default) means OPEN + ACKNOWLEDGED.`);
 
+export const incidentWatchTimeoutSeconds = z.number().int().min(1).max(86_400).describe(`#### Incident Watch Timeout
+---
+Maximum number of seconds to wait for the incident to recover. Defaults to 900 seconds.`);
+
+export const incidentWatchStabilitySeconds = z.number().int().min(0).max(3_600)
+  .describe(`#### Incident Watch Stability Window
+---
+Number of continuous seconds the incident must remain resolved before the command succeeds. A recurring signal resets the window. Defaults to 30 seconds.`);
+
 export const resourceName = z.string().describe(`#### Resource Name
 ---
 The name of the resource as defined in your Stacktape configuration.`);
@@ -630,6 +639,8 @@ export const allCliArgsSchema = z.object({
   issueStatus: issueStatus.optional(),
   incidentId: incidentId.optional(),
   incidentStatus: incidentStatus.optional(),
+  incidentWatchTimeoutSeconds: incidentWatchTimeoutSeconds.optional(),
+  incidentWatchStabilitySeconds: incidentWatchStabilitySeconds.optional(),
   assumeRoleOfResource: assumeRoleOfResource.optional(),
   configFormat: configFormat.optional(),
   localTunnelingPort: localTunnelingPort.optional(),

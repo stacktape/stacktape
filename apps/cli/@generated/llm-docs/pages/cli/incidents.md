@@ -1,0 +1,13 @@
+# incidents
+
+Lists incidents with their status, severity, title, project, stage, open time, and contributing signals. The default `ACTIVE` view includes both open and acknowledged incidents.
+
+```bash
+stacktape incidents
+stacktape incidents --projectName api --stage production --incidentStatus ACTIVE
+stacktape incidents --incidentStatus RESOLVED --limit 50
+```
+
+Relevant options are `--projectName`, `--stage`, `--incidentStatus`, and `--limit`. Accepted statuses are `ACTIVE`, `OPEN`, `ACKNOWLEDGED`, `RESOLVED`, and `ALL`. Use `--agent` for machine-readable output.
+
+See [Incidents](/observability/incidents) for lifecycle and correlation behavior.

@@ -182,6 +182,7 @@ const policyOverrides: Partial<Record<StacktapeCommand, Partial<CliCommandPolicy
 
   incidents: { category: 'issues', safety: 'readOnly' },
   'incidents:show': { category: 'issues', safety: 'readOnly' },
+  'incidents:watch': { category: 'issues', safety: 'readOnly' },
   'incidents:ack': { category: 'issues', safety: 'mutating' },
   'incidents:resolve': { category: 'issues', safety: 'mutating' },
   'issues:list': { category: 'issues', safety: 'readOnly' },

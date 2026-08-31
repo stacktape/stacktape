@@ -1,0 +1,20 @@
+# incidents:watch
+
+Waits for an incident to recover and stay recovered. It exits successfully only after the incident remains `RESOLVED` for the stability window; a recurring signal resets the window.
+
+```bash
+stacktape incidents:watch --incidentId <incident-id>
+```
+
+The default timeout is 900 seconds and the default stability window is 30 seconds. Both durations include server-side recovery time already recorded before the command starts.
+
+```bash
+stacktape incidents:watch \
+  --incidentId <incident-id> \
+  --incidentWatchTimeoutSeconds 1800 \
+  --incidentWatchStabilitySeconds 120
+```
+
+The command exits with `INCIDENT_WATCH_TIMEOUT` if sustained recovery is not observed before the timeout. Use `--agent` for status events and the final result as machine-readable output.
+
+See [Incidents](/observability/incidents) for the recommended triage and verification workflow.

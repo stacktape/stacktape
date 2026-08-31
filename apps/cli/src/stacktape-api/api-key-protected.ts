@@ -36,6 +36,7 @@ import type {
   IncidentActionParams,
   IncidentActionResponse,
   IncidentHandoffResponse,
+  IncidentStatusResponse,
   IssueActionParams,
   IssueActionResponse,
   ListIncidentsParams,
@@ -97,6 +98,7 @@ export type {
   IncidentActionParams,
   IncidentActionResponse,
   IncidentHandoffResponse,
+  IncidentStatusResponse,
   IssueActionParams,
   IssueActionResponse,
   ListIncidentsParams,
@@ -321,6 +323,10 @@ export class ApiKeyProtectedClient {
 
   incidentHandoff = async (args: IncidentActionParams): Promise<IncidentHandoffResponse> => {
     return this.#request('incidentHandoffFromCli', () => this.#ensureInitialized().incidentHandoffFromCli.query(args));
+  };
+
+  incidentStatus = async (args: IncidentActionParams): Promise<IncidentStatusResponse> => {
+    return this.#request('incidentStatusFromCli', () => this.#ensureInitialized().incidentStatusFromCli.query(args));
   };
 
   acknowledgeIncident = async (args: IncidentActionParams): Promise<IncidentActionResponse> => {
