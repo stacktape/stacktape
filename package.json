@@ -21,6 +21,7 @@
     "deploy:console": "pnpm dev:cli deploy --region eu-west-1 --stage production --configPath ../console/api/stacktape.ts --hotSwap --projectName console-app --awsAccount stacktape-dev",
     "deploy:console:dev": "pnpm dev:cli deploy --region eu-west-1 --stage dev --configPath ../console/api/stacktape.ts --hotSwap --projectName console-app",
     "dev:cli": "turbo run build:dev-artifacts --filter=@stacktape/cli && pnpm --filter @stacktape/cli run dev",
+    "dev:console:cli": "bun scripts/workspace/run-console-cli-script.ts",
     "dev:console": "pnpm dev:cli dev --region eu-west-1 --stage devlocal --configPath ../console/api/stacktape.ts --projectName console-app --resources apiServer,webBucket,pricingTable",
     "dev:console:ui": "turbo run dev --filter=@stacktape/console-ui",
     "dev:docs": "turbo run dev --filter=@stacktape/docs",
@@ -43,7 +44,7 @@
     "release:preview": "pnpm --filter @stacktape/cli run release --channel preview",
     "test": "turbo run test",
     "test:packaging-e2e": "pnpm --filter @stacktape/packaging run test:docker-smoke && pnpm --filter @stacktape/packaging run test:node-lambda-e2e && pnpm --filter @stacktape/packaging run test:web-framework-e2e",
-    "test:tools": "node --test scripts/workspace/check-staged-secrets.test.ts scripts/workspace/configure-hooks.test.ts scripts/workspace/verify-console-pointer.test.ts",
+    "test:tools": "node --test scripts/workspace/check-staged-secrets.test.ts scripts/workspace/configure-hooks.test.ts scripts/workspace/run-console-cli-script.test.ts scripts/workspace/verify-console-pointer.test.ts",
     "typecheck": "turbo run typecheck",
     "typecheck:tools": "tsc -p tsconfig.json"
   },

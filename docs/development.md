@@ -59,6 +59,19 @@ pnpm deploy:console     # deploy console-app-production
 
 Both commands can change real AWS resources. The production command explicitly selects the `stacktape-dev` account.
 
+To run any `stacktape`-based script from `apps/console/api/package.json` through the source-built workspace CLI, pass
+its package-script name to `dev:console:cli`. The script's arguments and Console API working directory are preserved;
+extra arguments are appended to the Stacktape command.
+
+```sh
+pnpm dev:console:cli deploy:dev --ui stream
+pnpm dev:console:cli deploy:dev --ui dashboard
+pnpm dev:console:cli migrate:db:dev --ui stream
+```
+
+These are real Console operations, not simulations. In particular, `deploy:dev` deploys to AWS and the production
+scripts retain their production targets.
+
 Apply committed Console migrations through the same source-built CLI and bastion path:
 
 ```sh
