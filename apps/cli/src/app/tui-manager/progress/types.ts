@@ -67,11 +67,7 @@ export const sessionElapsedMs = (
 export const PHASE_NAMES = OPERATION_PHASE_NAMES;
 export const PHASE_ORDER = getPhaseOrder('deploy');
 export const DELETE_PHASE_ORDER = getPhaseOrder('delete');
-export const CODEBUILD_DEPLOY_PHASE_ORDER = getPhaseOrder('codebuild-deploy');
 export const DELETE_PHASE_NAMES: Partial<Record<DeploymentPhase, string>> = { DEPLOY: 'Delete' };
-export const CODEBUILD_DEPLOY_PHASE_NAMES: Partial<Record<DeploymentPhase, string>> = {
-  UPLOAD: 'Prepare Pipeline'
-};
 
 /** Legacy exports retained until downstream demo tooling is migrated. */
 export const PHASE_FOOTER_HEIGHT = 13;

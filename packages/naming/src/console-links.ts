@@ -65,9 +65,6 @@ export const consoleLinks = {
   cloudwatchAlbDashboard(region: string) {
     return getBaseAwsConsoleLink(region, 'cloudwatch', 'home:dashboards/ApplicationELB');
   },
-  codebuildDeployment(region: string, awsAccountId: string, codebuildProjectName: string, buildId: string) {
-    return `https://${region}.console.aws.amazon.com/codesuite/codebuild/${awsAccountId}/projects/${codebuildProjectName}/build/${buildId}/log?region=${region}`;
-  },
   snsTopic(region: string, awsAccountId: string, snsTopicAwsName: string) {
     return getBaseAwsConsoleLink(
       region,

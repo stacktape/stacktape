@@ -109,7 +109,7 @@ export type CloudFormationProgressDetail = {
   recentlyCompleted?: CloudFormationResourceProgress[];
 };
 
-export type OperationPhasePreset = 'deploy' | 'delete' | 'codebuild-deploy';
+export type OperationPhasePreset = 'deploy' | 'delete' | 'remote-deploy';
 export type TtyView = 'auto' | 'stream' | 'dashboard';
 export type ActiveTtyView = Exclude<TtyView, 'auto'>;
 

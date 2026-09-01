@@ -9,15 +9,6 @@ import type { GuardrailDefinition } from './guardrails.js';
  * deployment needs; the server decides that, and it is deliberately not described here.
  */
 
-const EC2_RUNNER_INSTANCE_TYPES = [
-  'm6a.large',
-  'm6a.xlarge',
-  'c7a.xlarge',
-  'c7a.2xlarge',
-  'c7a.4xlarge',
-  'c7a.8xlarge'
-] as const;
-
 export const recordStackOperationInputSchema = z.object({
   invocationId: z.string(),
   command: z.string().optional().nullable(),
@@ -33,8 +24,6 @@ export const recordStackOperationInputSchema = z.object({
   gitBranch: z.string().optional().nullable(),
   success: z.boolean().optional().nullable(),
   description: z.string().optional().nullable(),
-  isCodebuildOperation: z.boolean().optional().nullable(),
-  codebuildBuildArn: z.string().optional().nullable(),
   /**
    * The CLI's parsed command-line flags, forwarded as they were parsed and stored as JSON. The Console
    * reads `stage` out of it and keeps the rest verbatim, so the values stay unknown here: the CLI owns
@@ -69,7 +58,6 @@ export const ec2DeployFromCliInputSchema = z.object({
   gitBranch: z.string(),
   gitCommit: z.string(),
   gitCommitMessage: z.string().optional().nullable(),
-  gitUsername: z.string().optional().nullable(),
   configPath: z.string().optional().nullable(),
   templateId: z.string().optional().nullable(),
   hotSwap: z.boolean().optional()
@@ -77,11 +65,6 @@ export const ec2DeployFromCliInputSchema = z.object({
 
 export const ec2DeployStatusFromCliInputSchema = z.object({
   invocationId: z.string()
-});
-
-export const configureEc2RunnerFromCliInputSchema = z.object({
-  projectName: z.string(),
-  ec2RunnerInstanceType: z.enum(EC2_RUNNER_INSTANCE_TYPES)
 });
 
 export const createOrganizationFromCliInputSchema = z.object({
@@ -256,7 +239,6 @@ export type RecordStackOperationParams = z.input<typeof recordStackOperationInpu
 export type CreateDeploymentTokenFromCliParams = z.input<typeof createDeploymentTokenFromCliInputSchema>;
 export type Ec2DeployFromCliParams = z.input<typeof ec2DeployFromCliInputSchema>;
 export type Ec2DeployStatusFromCliParams = z.input<typeof ec2DeployStatusFromCliInputSchema>;
-export type ConfigureEc2RunnerFromCliParams = z.input<typeof configureEc2RunnerFromCliInputSchema>;
 export type CreateOrganizationParams = z.input<typeof createOrganizationFromCliInputSchema>;
 export type DeleteOrganizationParams = z.input<typeof deleteOrganizationFromCliInputSchema>;
 export type CreateAwsConnectionPendingInput = z.input<typeof awsConnectionInputSchema>;
@@ -402,7 +384,6 @@ export type CurrentUserAndOrgDataResponse = {
 
 export type Ec2DeployFromCliResponse = {
   invocationId: string;
-  ssmCommandId?: string;
 };
 
 export type Ec2DeployStatusFromCliResponse = {
@@ -415,14 +396,6 @@ export type Ec2DeployStatusFromCliResponse = {
   ssmCommandId?: string | null;
   logGroupName?: string | null;
   logStreamName?: string | null;
-};
-
-export type ConfigureEc2RunnerFromCliResponse = {
-  id: string;
-  name: string;
-  deploymentRunnerType?: string | null;
-  ec2RunnerInstanceType?: string | null;
-  [otherProperties: string]: unknown;
 };
 
 export type CreateDeploymentTokenFromCliResponse = {
@@ -634,9 +607,6 @@ export type ApiKeyTrpcClient = {
   };
   ec2DeployStatusFromCli: {
     query: (args: Ec2DeployStatusFromCliParams) => Promise<Ec2DeployStatusFromCliResponse>;
-  };
-  configureEc2RunnerFromCli: {
-    mutate: (args: ConfigureEc2RunnerFromCliParams) => Promise<ConfigureEc2RunnerFromCliResponse>;
   };
   createDeploymentTokenFromCli: {
     mutate: (args: CreateDeploymentTokenFromCliParams) => Promise<CreateDeploymentTokenFromCliResponse>;

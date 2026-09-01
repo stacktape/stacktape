@@ -226,7 +226,7 @@ Hooks correspond to the before and after phases of the deploy, delete, dev, and 
 
 Hook entries can use `skipOnCI` and `skipOnLocal` to control where they run.
 
-- **`skipOnCI: true`** — skips the hook in CI/CD environments (CodeBuild, GitHub Actions, GitLab CI). Useful for interactive or local-only actions like opening a browser.
+- **`skipOnCI: true`** — skips the hook in CI/CD environments such as GitHub Actions or GitLab CI. Useful for interactive or local-only actions like opening a browser.
 - **`skipOnLocal: true`** — skips the hook when running locally; runs only in CI/CD. Useful for CI-only tasks like uploading test reports or sending notifications.
 
 The hooks example above demonstrates `skipOnCI` — the `openDocs` script runs locally after deploy but is skipped in CI pipelines.

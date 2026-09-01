@@ -16,8 +16,8 @@ import { initAgentMode } from './commands/_utils/agent-mode';
  *
  *   progress — mounts the phase/event progress TUI before the executor runs.
  *              `phases` picks the phase-bar preset; omitted = simple mode
- *              (events stream without phase structure). The codebuild deploy
- *              runner switches preset at runtime via setPhasePreset().
+ *              (events stream without phase structure). Remote deploy runners
+ *              switch preset at runtime via setPhasePreset().
  *   none     — no TUI is mounted by the dispatcher: plain messages, tables and
  *              prompts only. Commands with their own UI (dev dashboard,
  *              interactive launcher) or that take over the terminal

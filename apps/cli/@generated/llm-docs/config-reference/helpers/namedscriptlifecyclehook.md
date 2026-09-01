@@ -6,7 +6,7 @@
 type NamedScriptLifecycleHook = {
   /** Script Name */
   scriptName: string;
-  /** Skip this hook in CI/CD environments (CodeBuild, GitHub Actions, GitLab CI). */
+  /** Skip this hook in CI/CD environments (GitHub Actions, GitLab CI, and similar systems). */
   skipOnCI?: boolean;
   /** Skip this hook when running locally; only run in CI/CD. */
   skipOnLocal?: boolean;
@@ -79,7 +79,7 @@ export default defineConfig(() => {
 - Type: `boolean`
 - Default: `false`
 
-Skip this hook in CI/CD environments (CodeBuild, GitHub Actions, GitLab CI).
+Skip this hook in CI/CD environments (GitHub Actions, GitLab CI, and similar systems).
 
 Useful for hooks that only make sense locally (e.g., opening a browser, interactive prompts).
 

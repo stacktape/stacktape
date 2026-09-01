@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { awsResourceNames, codebuildDeploymentBucketResourceName } from './aws-resource-names';
+import { awsResourceNames } from './aws-resource-names';
 import { buildResourceName, obfuscatedNamesStateHolder } from './resource-names';
 import { shortHash } from './short-hash';
 
@@ -12,9 +12,6 @@ describe('resource names', () => {
 
   test('preserves the shared short hash algorithm', () => {
     expect(shortHash('123456789012')).toBe('f2003d47');
-    expect(codebuildDeploymentBucketResourceName('eu-west-1', '123456789012')).toBe(
-      'stp-codebuild-deployment-eu-west-1-f2003d47'
-    );
   });
 
   test('contains the CLI and Console naming union without changing outputs', () => {

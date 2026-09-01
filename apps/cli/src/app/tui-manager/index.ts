@@ -528,7 +528,7 @@ class TuiManager {
     console.info(`${symbols[type] || '[*]'} ${message}\n`);
   }
 
-  /** Switches the phase preset mid-session (codebuild/ec2 deploy runners). */
+  /** Switches the phase preset mid-session for remote deployments. */
   setPhasePreset(preset: PhasePreset) {
     tuiState.setPhasePreset(preset);
   }

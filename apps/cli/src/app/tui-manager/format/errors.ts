@@ -20,7 +20,6 @@ const ERROR_TYPE_LABELS: Record<string, string> = {
   AWS_ACCOUNT: 'AWS Account Error',
   BUDGET: 'Budget Error',
   CLI: 'CLI Error',
-  CODEBUILD: 'CodeBuild Error',
   CONFIG: 'Configuration Error',
   CONFIG_GENERATION: 'Config Generation Error',
   CONFIG_VALIDATION: 'Config Validation Error',

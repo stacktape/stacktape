@@ -311,21 +311,17 @@ workflows:
 
 Store `STACKTAPE_API_KEY` as a project environment variable in CircleCI.
 
-## Using deploy --runner codebuild in pipelines
-
-For large projects where uploading built artifacts from your CI runner is slow, consider using `deploy --runner codebuild` instead. This offloads the build and deployment to AWS CodeBuild inside your AWS account. The `--runner` flag accepts `local` (default), `codebuild`, or `ec2`. See the [`deploy` CLI reference](/cli/deploy) for details on behavior and available flags.
-
-### When to use CodeBuild runner vs local runner
+## Choosing CI runner capacity
 
 | Scenario | Recommended command |
 |----------|-------------------|
 | Small to medium project, CI runner has enough CPU/RAM | `stacktape deploy` (default `--runner local`) |
-| Large dependencies, slow upload from CI runner | `stacktape deploy --runner codebuild` |
-| Need consistent build environment across team | `stacktape deploy --runner codebuild` |
-| Need full control over build environment | [`deploy`](/cli/deploy) on a [self-hosted runner](/ci-cd-and-gitops/self-hosted-github-actions-runners) |
+| Large dependencies or container builds | [`deploy`](/cli/deploy) on a larger CI worker |
+| Need a consistent build environment | Pin the CI image and tool versions |
+| Need AWS-hosted GitHub Actions compute | [`deploy`](/cli/deploy) on a [self-hosted runner](/ci-cd-and-gitops/self-hosted-github-actions-runners) |
 | Want fastest possible deploy from CI | `stacktape deploy` with caching |
 
-The default `deploy` command runs the build and deployment on your CI runner. The `--runner codebuild` flag offloads this to AWS CodeBuild. AWS CodeBuild charges per build minute — see [AWS CodeBuild pricing](https://aws.amazon.com/codebuild/pricing/) for current rates.
+The default `deploy` command runs the build and deployment on your CI worker. Configure CPU, memory, disk, Docker support, and dependency caches in the CI provider. For GitHub Actions, Stacktape can manage an EC2-based [self-hosted runner](/ci-cd-and-gitops/self-hosted-github-actions-runners) in your AWS account.
 
 ## Multi-environment patterns
 
@@ -381,9 +377,9 @@ Run [`stacktape login --apiKey <key>`](/cli/login) as a pipeline step before dep
 
 Use [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) when you want zero-maintenance push-to-deploy with PR previews and no workflow files. Use custom CI/CD when you need pre-deploy test gates, manual approval steps, multi-step pipelines, or non-git triggers. You can combine both — GitOps for staging branches and custom CI for production.
 
-### Should I use deploy --runner codebuild or the default local runner in CI?
+### Where does the deployment build run?
 
-Use [`deploy`](/cli/deploy) for most projects — it's simpler and runs on your CI runner. Switch to `deploy --runner codebuild` when your project has large dependencies that are slow to upload, or when you need a consistent AWS-hosted build environment. The `--runner` flag also accepts `ec2` for an EC2-based build runner. See the [`deploy` CLI reference](/cli/deploy) for details on behavior and available flags. AWS CodeBuild charges per build minute based on compute type.
+The standard [`deploy`](/cli/deploy) command builds on the CI worker that invokes it. Size that worker for your workload and configure provider-level caches for package managers and Docker. If you use Stacktape's self-hosted GitHub Actions integration, the workflow runs on the project's EC2 runner in your AWS account.
 
 ### What happens when a deploy fails in CI?
 

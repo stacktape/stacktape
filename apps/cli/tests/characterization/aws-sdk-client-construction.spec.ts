@@ -5,7 +5,6 @@ import { AutoScaling } from '@aws-sdk/client-auto-scaling';
 import { BudgetsClient } from '@aws-sdk/client-budgets';
 import { CloudFormationClient } from '@aws-sdk/client-cloudformation';
 import { CloudFrontClient } from '@aws-sdk/client-cloudfront';
-import { CodeBuildClient } from '@aws-sdk/client-codebuild';
 import { CodeDeployClient } from '@aws-sdk/client-codedeploy';
 import { CostExplorerClient } from '@aws-sdk/client-cost-explorer';
 import { EC2Client } from '@aws-sdk/client-ec2';
@@ -328,21 +327,6 @@ describe.serial('AWS SDK client construction', () => {
     expect(await capturedEcs().config.region()).toBe('eu-west-1');
     expect(await capturedCodeDeploy().config.region()).toBe('eu-west-1');
     expect(pluginApplications).toBe(2);
-  });
-
-  test.serial('constructs CodeBuild clients from the manager context', async () => {
-    const captured = captureSend<CodeBuildClient>(CodeBuildClient.prototype, { builds: [] });
-    let pluginApplications = 0;
-    const plugin: Pluggable<any, any> = {
-      applyToStack: () => {
-        pluginApplications += 1;
-      }
-    };
-
-    await managerWith([plugin]).codeBuild.getBuilds({ buildIds: ['build-1'] });
-
-    expect(await captured().config.region()).toBe('eu-west-1');
-    expect(pluginApplications).toBe(1);
   });
 
   test.serial('constructs Systems Manager session clients from the manager context', async () => {

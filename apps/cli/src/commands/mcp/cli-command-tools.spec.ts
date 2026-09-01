@@ -49,8 +49,7 @@ describe('MCP CLI command tools', () => {
       'debug:logs',
       'debug:sql',
       'secret:create',
-      'projects:list',
-      'codebuild:deploy'
+      'projects:list'
     ]) {
       const result = prepareCliRun({ command: oldCommand });
       expect(result.ok, oldCommand).toBe(false);
@@ -278,7 +277,7 @@ describe('MCP CLI command tools', () => {
     const description = describeCliCommand('deploy');
     const prepared = prepareCliRun({
       command: 'deploy',
-      args: { stage: 'dev', region: 'eu-west-1', runner: 'codebuild' },
+      args: { stage: 'dev', region: 'eu-west-1', runner: 'ec2' },
       confirm: true
     });
     const rejectedRunner = prepareCliRun({
@@ -290,7 +289,7 @@ describe('MCP CLI command tools', () => {
     expect(description?.allowedArgs).toContain('runner');
     expect(prepared.ok).toBe(true);
     if (prepared.ok) {
-      expect(prepared.args.runner).toBe('codebuild');
+      expect(prepared.args.runner).toBe('ec2');
       expect(prepared.args.autoConfirmOperation).toBe(true);
     }
     expect(rejectedRunner.ok).toBe(false);

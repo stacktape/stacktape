@@ -387,14 +387,6 @@ Use [`diff`](/cli/diff) to see what a deploy would modify without actually apply
 stacktape diff --stage production --region us-east-1
 ```
 
-### Deploy with a remote build environment
-
-For resource-intensive projects, use [`deploy --runner codebuild`](/cli/deploy) to offload the deployment process to AWS CodeBuild in your AWS account:
-
-```bash
-stacktape deploy --runner codebuild --stage production --region us-east-1
-```
-
 ## Dev stacks cannot be deployed
 
 Stages created by [`stacktape dev`](/cli/dev) (dev stacks) cannot be updated with `deploy`. If you attempt this, Stacktape rejects the deploy with an error. To deploy a production stack, use a different stage name (e.g., `--stage production`). To remove a dev stack, use [`stacktape delete`](/cli/delete).
@@ -404,6 +396,5 @@ Stages created by [`stacktape dev`](/cli/dev) (dev stacks) cannot be updated wit
 | Command | Description |
 |---|---|
 | [`diff`](/cli/diff) | Shows what a deploy would change without applying anything. |
-| [`deploy --runner codebuild`](/cli/deploy) | Deploys using AWS CodeBuild — offloads the deployment process to a dedicated environment in your AWS account. |
 | [`rollback`](/cli/rollback) | Rolls back to a previous Stacktape deployment version. |
 | [`cf:rollback`](/cli/cf-rollback) | Recovers a CloudFormation stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` state. |

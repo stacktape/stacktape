@@ -198,10 +198,7 @@ export const formatRelativeTime = (timestamp: number | null, now = Date.now()): 
 
 const normalizeRecentCommand = (command?: string | null): StacktapeCommand | null => {
   if (!command) return null;
-  const normalized = command.startsWith('codebuild:')
-    ? (command.replace('codebuild:', '') as StacktapeCommand)
-    : command;
-  return commandSet.has(normalized as StacktapeCommand) ? (normalized as StacktapeCommand) : null;
+  return commandSet.has(command as StacktapeCommand) ? (command as StacktapeCommand) : null;
 };
 
 const sanitizeRecentArgs = (command: StacktapeCommand, args: StacktapeArgs): StacktapeArgs => {

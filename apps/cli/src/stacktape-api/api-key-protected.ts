@@ -3,8 +3,6 @@ import type {
   AwsAccountCredentialsParams,
   AwsAccountCredentialsResponse,
   CanDeployResponse,
-  ConfigureEc2RunnerFromCliParams,
-  ConfigureEc2RunnerFromCliResponse,
   CreateAwsConnectionPendingInput,
   CreateAwsConnectionPendingResponse,
   CreateDeploymentTokenFromCliParams,
@@ -64,8 +62,6 @@ export type {
   AwsAccountCredentialsParams,
   AwsAccountCredentialsResponse,
   CanDeployResponse,
-  ConfigureEc2RunnerFromCliParams,
-  ConfigureEc2RunnerFromCliResponse,
   CreateAwsConnectionPendingInput,
   CreateAwsConnectionPendingResponse,
   CreateDeploymentTokenFromCliParams,
@@ -183,14 +179,6 @@ export class ApiKeyProtectedClient {
 
   ec2DeployStatusFromCli = async (args: Ec2DeployStatusFromCliParams): Promise<Ec2DeployStatusFromCliResponse> => {
     return this.#request('ec2DeployStatusFromCli', () => this.#ensureInitialized().ec2DeployStatusFromCli.query(args));
-  };
-
-  configureEc2RunnerFromCli = async (
-    args: ConfigureEc2RunnerFromCliParams
-  ): Promise<ConfigureEc2RunnerFromCliResponse> => {
-    return this.#request('configureEc2RunnerFromCli', () =>
-      this.#ensureInitialized().configureEc2RunnerFromCli.mutate(args)
-    );
   };
 
   createDeploymentTokenFromCli = async (

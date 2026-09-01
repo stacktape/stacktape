@@ -261,10 +261,6 @@ export class GlobalStateManager {
     );
   }
 
-  get isExecutingInsideCodebuild() {
-    return !!process.env.STP_CODEBUILD;
-  }
-
   get targetAwsAccount(): GlobalStateConnectedAwsAccount {
     if (this.localTargetAwsAccount) {
       return this.localTargetAwsAccount;
@@ -541,9 +537,7 @@ export class GlobalStateManager {
 
   getStackOperationLogStreamName = ({ stackName }: { stackName: string }) => {
     if (RECORDED_STACKTAPE_COMMANDS.includes(this.command as StacktapeRecordedCommand)) {
-      return this.isExecutingInsideCodebuild
-        ? process.env.CODEBUILD_LOG_PATH
-        : `${stackName}/${kebabCase(this.command)}/${this.invocationId}`;
+      return `${stackName}/${kebabCase(this.command)}/${this.invocationId}`;
     }
   };
 

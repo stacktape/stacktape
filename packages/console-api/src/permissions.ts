@@ -12,7 +12,7 @@ export const PERMISSIONS = [
   'org:manage-alarms',
   'org:manage-notifications',
   'org:manage-budgets',
-  'org:manage-codebuild-settings',
+  'org:manage-runner-settings',
   'members:invite',
   'members:remove',
   'members:update-role',

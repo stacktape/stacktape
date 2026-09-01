@@ -72,19 +72,19 @@ For the full flag reference with all available options and short aliases, see th
 
 ## Deployment modes
 
-Stacktape supports three deployment modes: full deployment through CloudFormation, hot-swap for rapid code iteration, and CodeBuild deployment for offloading builds to AWS. Most teams use full deployment for production and staging where infrastructure consistency matters, and hot-swap during development for faster code iterations.
+Stacktape supports two deployment modes: full deployment through CloudFormation and hot-swap for rapid code iteration. Most teams use full deployment for production and staging where infrastructure consistency matters, and hot-swap during development for faster code iterations.
 
 
 ## Feature Comparison
 
-| Feature | Full deploy | Hot-swap | CodeBuild deploy |
-| --- | --- | --- | --- |
-| Can update all resource types | yes | no | yes |
-| Adds or removes resources | yes | no | yes |
-| Changes IAM, networking, config | yes | no | yes |
-| Automatic rollback on failure | yes | no | yes |
-| Typical duration | Minutes (varies with stack complexity) | Seconds | Minutes (includes upload and build overhead) |
-| Build environment | Local machine | Local machine | AWS CodeBuild |
+| Feature | Full deploy | Hot-swap |
+| --- | --- | --- |
+| Can update all resource types | yes | no |
+| Adds or removes resources | yes | no |
+| Changes IAM, networking, config | yes | no |
+| Automatic rollback on failure | yes | no |
+| Typical duration | Minutes (varies with stack complexity) | Seconds |
+| Execution environment | Invoking CLI or Console EC2 runner | Invoking CLI |
 
 
 ### Full deployment
@@ -114,20 +114,6 @@ For Lambda functions, hot-swap updates the deployed function code. Eligible Lamb
 
 > **Warning:** Hot-swap updates resources outside of CloudFormation, which creates drift between the CloudFormation template and actual infrastructure. Use hot-swap only for development stages. Always use full deployment for production.
 
-
-### CodeBuild deployment
-
-For large container builds, monorepos, or machines with limited resources, offload the entire build and deploy process to [AWS CodeBuild](/ci-cd-and-gitops/build-runners):
-
-```bash
-stacktape deploy --runner codebuild --stage production --region eu-west-1
-```
-
-CodeBuild deployment uploads your project to S3 and starts a CodeBuild build that runs the full deployment inside your AWS account. This is useful when local Docker builds are slow or your CI runner is underpowered.
-
-For simple Lambda-based stacks, local deploy is usually faster because it avoids the overhead of uploading your project and starting a CodeBuild environment. CodeBuild deployment shines for container-heavy stacks and monorepos with multiple images to build.
-
-See the [`deploy --runner codebuild` CLI reference](/cli/deploy) for available options.
 
 ## Automatic rollback
 
@@ -170,7 +156,7 @@ stacktape deploy --stage production --region eu-west-1 --autoConfirmOperation
 > **Info:** The plan ID is a same-invocation audit fingerprint of semantic templates, workload build inputs, target identity, and the displayed Stacktape resource changes. It is not a checksum of uploaded bytes, a signature, or a reusable cross-job approval token. Portable approvals, signed plans, and immutable cross-account artifact promotion are separate workflows.
 
 
-Hot-swap deploys do not emit a CloudFormation change plan because they update selected Lambda or ECS targets directly. If hot-swap falls back to CloudFormation, Stacktape finalizes the fallback template and emits the plan before upload. CodeBuild and EC2 runners still use their existing launcher-level confirmation in this version; their remote execution is not yet bound to a returned plan ID.
+Hot-swap deploys do not emit a CloudFormation change plan because they update selected Lambda or ECS targets directly. If hot-swap falls back to CloudFormation, Stacktape finalizes the fallback template and emits the plan before upload. EC2 runner deployments still use their existing launcher-level confirmation in this version; their remote execution is not yet bound to a returned plan ID.
 
 ## Previewing changes
 
@@ -248,7 +234,7 @@ Common causes of slow Stacktape deployments:
 
 - **Large container images** — Use multi-stage Docker builds or [Stacktape buildpack packaging](/packaging/containers/stacktape-buildpack) to reduce image size.
 - **Many resources** — CloudFormation serializes dependent resources. This is expected for complex stacks.
-- **Slow local builds** — Consider [`deploy --runner codebuild`](/cli/deploy) to offload builds to AWS.
+- **Slow local builds** — Use a machine with more CPU and memory, improve package and Docker caching, or use Console GitOps with its [dedicated EC2 runner](/ci-cd-and-gitops/build-runners).
 - **First deploy to a new region** — Initial infrastructure setup (S3 deployment bucket, ECR repositories) adds one-time overhead.
 
 Run with `--logLevel debug` to see detailed timing for each phase.
@@ -278,10 +264,6 @@ Yes. The same `stacktape.ts` config produces independent stacks per stage. Deplo
 ### Should I use hot-swap or full deployment?
 
 Use hot-swap (`--hotSwap`) when iterating on Lambda or container code during development. It bypasses CloudFormation and pushes changes directly, completing in seconds instead of minutes. Use full deployment for any infrastructure changes (new resources, permission updates, config changes) and always for production. Hot-swap creates drift between your CloudFormation state and actual resources, which is acceptable in dev but risky in production.
-
-### When should I use CodeBuild deployment?
-
-Use [`deploy --runner codebuild`](/cli/deploy) when your local machine is slow for Docker builds, when building large container images, or when your CI runner has limited CPU/memory. CodeBuild runs the entire deployment in an AWS-hosted build environment, which can be useful when local or CI resources are constrained. For simple Lambda-based stacks, local deploy is usually faster because it avoids the overhead of uploading your project and starting a CodeBuild environment.
 
 ### Does hot-swap cause CloudFormation drift, and should I worry about it?
 

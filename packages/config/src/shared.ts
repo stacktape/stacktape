@@ -833,7 +833,7 @@ export interface Hooks {
 
 export interface LifecycleHookBase {
   /**
-   * #### Skip this hook in CI/CD environments (CodeBuild, GitHub Actions, GitLab CI).
+   * #### Skip this hook in CI/CD environments (GitHub Actions, GitLab CI, and similar systems).
    *
    * ---
    *

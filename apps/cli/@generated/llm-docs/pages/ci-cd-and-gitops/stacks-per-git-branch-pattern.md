@@ -54,7 +54,7 @@ Or dynamically from the branch:
 npx stacktape deploy --stage "${GITHUB_REF_NAME}" --region eu-west-1
 ```
 
-Stacktape [build runners](/ci-cd-and-gitops/build-runners) include CodeBuild-based and EC2-based options for running deployments from your custom pipeline. See [Build Runners](/ci-cd-and-gitops/build-runners) for the detailed tradeoffs.
+This command runs on your pipeline's worker. Console-managed GitOps deployments instead run on the project's [EC2 build runner](/ci-cd-and-gitops/build-runners).
 
 
 > **Warning:** When using the branch name directly as the stage name, sanitize it first. Branch names can be long and include separators such as `/`. Use a short normalized identifier, because stage names are passed into deployment operations and may appear in generated AWS names.
@@ -106,7 +106,7 @@ Delete on merge request close (GitLab CI):
 npx stacktape delete --stage "pr-${CI_MERGE_REQUEST_IID}" --region eu-west-1
 ```
 
-When using Stacktape [build runners](/ci-cd-and-gitops/build-runners) in your custom pipeline, you can choose between CodeBuild-managed runners and EC2 self-hosted runners — see [Build Runners](/ci-cd-and-gitops/build-runners) for details on choosing between them.
+For GitHub Actions, you can run this workflow on GitHub-hosted compute or enable Stacktape's [self-hosted EC2 runner](/ci-cd-and-gitops/self-hosted-github-actions-runners).
 
 ### Auto-delete on PR close
 

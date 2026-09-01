@@ -5,7 +5,6 @@ import { IS_DEV } from '@config';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { getErrorFromString } from '@utils/errors';
 import { getAwsSynchronizedTime } from '@utils/time';
-import dayjs from 'dayjs';
 
 type LogCallback = (message: string, level: 'info' | 'warn' | 'error') => void;
 
@@ -228,83 +227,6 @@ export class LambdaCloudwatchLogPrinter {
       }
     });
   };
-}
-
-export class CodebuildDeploymentCloudwatchLogPrinter {
-  logGroupName: string;
-  logStreamName: string;
-  fetchSince: number;
-  buildPhaseStartedLogFound = false;
-  handledEvents = new Set<string>();
-
-  constructor({
-    fetchSince,
-    logGroupName,
-    logStreamName
-  }: {
-    fetchSince: number;
-    logGroupName: string;
-    logStreamName: string;
-  }) {
-    this.fetchSince = fetchSince;
-    this.logGroupName = logGroupName;
-    this.logStreamName = logStreamName;
-  }
-
-  printLogs = async () => {
-    const events = await awsSdkManager.observability.getLogEvents({
-      logGroupName: this.logGroupName,
-      logStreamNames: [this.logStreamName],
-      startTime: this.fetchSince
-    });
-    if (events.length) {
-      this.fetchSince = events[events.length - 1].timestamp;
-      const unprocessedEvents = events.filter((e) => !this.handledEvents.has(e.eventId));
-      if (this.buildPhaseStartedLogFound) {
-        this.#printCodebuildDeploymentLogEvents(unprocessedEvents);
-      } else {
-        const buildPhaseStartedLogIndex = unprocessedEvents.findIndex(({ message }) =>
-          message.includes('Entering phase BUILD')
-        );
-        if (buildPhaseStartedLogIndex !== -1) {
-          this.buildPhaseStartedLogFound = true;
-          this.#printCodebuildDeploymentLogEvents(unprocessedEvents.slice(buildPhaseStartedLogIndex + 1));
-        }
-      }
-      events.forEach((e) => this.handledEvents.add(e.eventId));
-    }
-  };
-
-  #printCodebuildDeploymentLogEvents = (events: FilteredLogEvent[]) => {
-    events
-      // filter out meta messages from codebuild
-      .filter(({ message }) =>
-        ['Phase complete:', 'Phase context status', 'Entering phase'].every((fragment) => !message.includes(fragment))
-      )
-      .forEach((event) => {
-        let message = event.message.trim();
-        if (message.startsWith('[Container]')) {
-          message = tuiManager.colorize('gray', message);
-        }
-        const renderedLine = `${tuiManager.colorize('gray', `[${dayjs(event.timestamp).format('HH:mm:ss:SSS')}]:`)} ${this.#colorizeMessage(
-          message.length === 0 ? ' '.repeat(30) : message
-        )}`;
-        if (tuiManager.mode !== 'jsonl') {
-          console.info(renderedLine);
-        }
-        tuiManager.emitCollectorLog({ level: 'info', source: 'codebuild-log', message: renderedLine });
-      });
-  };
-
-  #colorizeMessage = (message: string) =>
-    message
-      .replaceAll('WARN', tuiManager.colorize('yellow', 'WARN'))
-      .replaceAll('UNEXPECTED_ERROR', tuiManager.colorize('red', 'UNEXPECTED_ERROR'))
-      .replaceAll('ERROR', tuiManager.colorize('red', 'ERROR'))
-      .replaceAll('INFO', tuiManager.colorize('cyan', 'INFO'))
-      .replaceAll('HINT', tuiManager.colorize('blue', 'HINT'))
-      .replaceAll('SUCCESS', tuiManager.colorize('green', 'SUCCESS'))
-      .replaceAll('START', tuiManager.colorize('magenta', 'START'));
 }
 
 export class SsmExecuteScriptCloudwatchLogPrinter {

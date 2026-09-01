@@ -37,7 +37,6 @@ import * as elbv2 from '@aws-sdk/client-elastic-load-balancing-v2';
 import * as autoscaling from '@aws-sdk/client-auto-scaling';
 import * as budgets from '@aws-sdk/client-budgets';
 import * as costexplorer from '@aws-sdk/client-cost-explorer';
-import * as codebuild from '@aws-sdk/client-codebuild';
 import * as codedeploy from '@aws-sdk/client-codedeploy';
 import * as servicediscovery from '@aws-sdk/client-servicediscovery';
 import * as synthetics from '@aws-sdk/client-synthetics';
@@ -98,7 +97,6 @@ const SERVICE_MAP: Record<AwsReadOnlyService, ClientConfig> = {
   autoscaling: { module: autoscaling, clientClass: 'AutoScalingClient' },
   budgets: { module: budgets, clientClass: 'BudgetsClient' },
   costexplorer: { module: costexplorer, clientClass: 'CostExplorerClient' },
-  codebuild: { module: codebuild, clientClass: 'CodeBuildClient' },
   codedeploy: { module: codedeploy, clientClass: 'CodeDeployClient' },
   servicediscovery: { module: servicediscovery, clientClass: 'ServiceDiscoveryClient' },
   xray: { module: xray, clientClass: 'XRayClient' },

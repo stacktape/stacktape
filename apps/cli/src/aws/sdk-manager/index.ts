@@ -6,7 +6,6 @@ import { CloudFormationClient } from '@aws-sdk/client-cloudformation';
 import { CloudFrontClient } from '@aws-sdk/client-cloudfront';
 import { CloudWatchClient } from '@aws-sdk/client-cloudwatch';
 import { CloudWatchLogsClient } from '@aws-sdk/client-cloudwatch-logs';
-import { CodeBuildClient } from '@aws-sdk/client-codebuild';
 import { CodeDeployClient } from '@aws-sdk/client-codedeploy';
 import { CostExplorerClient } from '@aws-sdk/client-cost-explorer';
 import { EC2Client } from '@aws-sdk/client-ec2';
@@ -48,7 +47,6 @@ import { AwsSts } from '../identity';
 import { AwsEcr } from '../ecr';
 import { AwsLambda } from '../lambda';
 import { AwsEcs } from '../ecs';
-import { AwsCodeBuild } from '../codebuild';
 import { AwsSystemsManager } from '../systems-manager';
 import { AwsCostManagement } from '../cost-management';
 import { AwsCloudFront } from '../cloudfront';
@@ -73,7 +71,6 @@ export class AwsSdkManager {
   #ecr?: AwsEcr;
   #lambda?: AwsLambda;
   #ecs?: AwsEcs;
-  #codeBuild?: AwsCodeBuild;
   #systemsManager?: AwsSystemsManager;
   #costManagement?: AwsCostManagement;
   #cloudFront?: AwsCloudFront;
@@ -163,12 +160,6 @@ export class AwsSdkManager {
       createClient: () => this.#ecsClient(),
       createCodeDeployClient: () => this.#codeDeployClient(),
       getErrorHandler: this.#getErrorHandler
-    });
-    this.#codeBuild = new AwsCodeBuild({
-      createClient: () => this.#codeBuildClient(),
-      getErrorHandler: this.#getErrorHandler,
-      printer,
-      region
     });
     this.#systemsManager = new AwsSystemsManager({
       createClient: () => this.#ssm(),
@@ -314,14 +305,6 @@ export class AwsSdkManager {
     return this.#ecs;
   }
 
-  get codeBuild() {
-    this.#getContext();
-    if (!this.#codeBuild) {
-      throw new Error('AWS CodeBuild has not been initialized.');
-    }
-    return this.#codeBuild;
-  }
-
   get systemsManager() {
     this.#getContext();
     if (!this.#systemsManager) {
@@ -422,10 +405,6 @@ export class AwsSdkManager {
 
   #codeDeployClient() {
     return this.#applyPlugins(new CodeDeployClient(this.#getClientArgs()));
-  }
-
-  #codeBuildClient() {
-    return this.#applyPlugins(new CodeBuildClient(this.#getClientArgs()));
   }
 
   #cloudfront() {

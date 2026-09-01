@@ -21,7 +21,7 @@ The Console structures work in three nested levels. An organization sits at the 
 
 An organization groups related projects, team members, and settings. In the Console, everything you see is scoped to the currently selected organization — projects, costs, alarms, and team settings all belong to the active organization. Switching organizations shows a different set of projects.
 
-Organization-level build runner settings are stored on the organization and include CodeBuild compute type, base image, and additional install commands.
+Organization-level build runner settings store additional commands that run while preparing EC2 deployment jobs.
 
 You can manage organizations from the CLI with [`stacktape org:create`](/cli/org-create) and [`stacktape org:list`](/cli/org-list).
 
@@ -86,27 +86,15 @@ Click a project card to open the project view. The left sidebar orders entries a
 
 ### Configuring build runners
 
-Organization-level build runner settings store the CodeBuild compute type, base image, and additional install commands on the selected organization. In the Console, navigate to **Projects**, click the gear icon in the page header, and select **Configure Codebuild settings**. This option is visible only to users with the `org:manage-codebuild-settings` permission.
+Organization-level build runner settings store additional build commands on the selected organization. In the Console, navigate to **Projects**, click the gear icon in the page header, and select **Configure runner settings**. This option is visible only to users with the `org:manage-runner-settings` permission.
 
 The settings form lets you configure:
 
-- **CodeBuild compute type** — the machine size used for builds
-- **Codebuild base image** — the base image value saved for organization-level CodeBuild settings
-- **Additional Codebuild install commands** — organization-level commands saved with the CodeBuild settings
+- **Additional runner build commands** — one command per line, run while preparing deployment jobs for projects in the organization
 
-Available compute types:
+Keep these commands deterministic and pin installed tool versions. They execute as privileged build configuration, so do not print credentials or other secrets. Configure the EC2 instance type separately for each project from its runner settings.
 
-| Compute type | CPU | Memory |
-|---|---|---|
-| BUILD_GENERAL1_SMALL | 2 vCPU | 4 GB |
-| BUILD_GENERAL1_MEDIUM | 4 vCPU | 8 GB |
-| BUILD_GENERAL1_LARGE | 8 vCPU | 16 GB |
-| BUILD_GENERAL1_XLARGE | 16 vCPU | 32 GB |
-| BUILD_GENERAL1_2XLARGE | 72 vCPU | 144 GB |
-
-For most projects, `BUILD_GENERAL1_SMALL` or `BUILD_GENERAL1_MEDIUM` is sufficient. Use larger sizes for projects with heavy compilation (e.g., large monorepos or native dependencies).
-
-See [Build runners](/ci-cd-and-gitops/build-runners) for details on runner types and configuration options.
+See [Build runners](/ci-cd-and-gitops/build-runners) for details on runner lifecycle, instance sizing, and caching.
 
 ### Configuring project settings
 
@@ -144,7 +132,7 @@ The Stacktape Console uses roles and permissions to control what team members ca
 | `projects:delete` | Deleting a project (shown inside the project settings dropdown, which requires `projects:update-settings`) |
 | `projects:update-settings` | Accessing project settings (Git deployments, runner config, GitHub Actions runner) |
 | `deployments:delete-non-production` | Controls delete and dismiss actions on stage entries in the project sidebar |
-| `org:manage-codebuild-settings` | Configuring organization-level CodeBuild settings |
+| `org:manage-runner-settings` | Configuring organization-level build runner settings |
 
 Users without the required permission do not see the corresponding UI controls — for example, the project settings gear icon is hidden from users who lack `projects:update-settings`.
 
@@ -197,7 +185,7 @@ Create separate organizations when you need distinct team boundaries — for exa
 - [Team and access control](/stacktape-console/team-and-access-control) — invite members, assign roles, and configure permissions
 - [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) — auto-deploy stages when you push to connected branches
 - [Stacks per Git branch](/ci-cd-and-gitops/stacks-per-git-branch-pattern) — map branches and PRs to stages dynamically
-- [Build runners](/ci-cd-and-gitops/build-runners) — configure CodeBuild or EC2 runners for deployments
+- [Build runners](/ci-cd-and-gitops/build-runners) — configure EC2 runners for Console-managed deployments
 - [Connecting your AWS account](/stacktape-console/connecting-your-aws-account) — required before deploying any stage
 - [Billing and subscription](/stacktape-console/billing-and-subscription) — organization-level billing management
 - [Stages and environments](/configuration/stages-and-environments) — how stages work in Stacktape configuration

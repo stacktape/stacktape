@@ -31,7 +31,6 @@ import { deployConvexFunctions } from '../_utils/convex-post-deploy';
 import { buildUptimeChecksSyncPayload, withSyncRetries } from '@domain-services/config-manager/utils/uptime-checks';
 import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
 import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
-import { deployWithCodebuildRunner } from './codebuild-runner';
 import { deployWithEc2Runner } from './ec2-runner';
 import { buildPreviewResourceChanges } from '../diff/utils';
 import { ensureManagedEmailSenders } from '@domain-services/email-sender-manager';
@@ -81,9 +80,6 @@ export const commandDeploy = async () => {
       message: 'The init wizard can deploy only with the local runner.',
       hints: 'Run the remote-runner deploy manually after reviewing its target and implications.'
     });
-  }
-  if (runner === 'codebuild') {
-    return deployWithCodebuildRunner();
   }
   if (runner === 'ec2') {
     return deployWithEc2Runner();
