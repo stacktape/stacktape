@@ -47,12 +47,12 @@ describe('Stacktape stack contracts', () => {
         region: 'eu-west-1'
       })
     ).toBe('/stp/third-party-provider-credentials/eu-west-1/mongo-atlas');
-    expect(getEc2RunnerApiKeySsmParameterName({ invocationId: 'inv-123', region: 'eu-west-1' })).toBe(
-      '/stp/ec2-runner/eu-west-1/inv-123/api-key'
-    );
-    expect(getEc2RunnerGitTokenSsmParameterName({ invocationId: 'inv-123', region: 'eu-west-1' })).toBe(
-      '/stp/ec2-runner/eu-west-1/inv-123/git-token'
-    );
+    expect(
+      getEc2RunnerApiKeySsmParameterName({ invocationId: 'inv-123', region: 'eu-west-1', runnerId: 'runner-123' })
+    ).toBe('/stp/ec2-runner/eu-west-1/runner-123/inv-123/api-key');
+    expect(
+      getEc2RunnerGitTokenSsmParameterName({ invocationId: 'inv-123', region: 'eu-west-1', runnerId: 'runner-123' })
+    ).toBe('/stp/ec2-runner/eu-west-1/runner-123/inv-123/git-token');
   });
 
   test('preserves output and tag identifiers', () => {

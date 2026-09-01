@@ -22,8 +22,8 @@ describe('resource names', () => {
     );
     expect(awsResourceNames.ec2RunnerInstanceName('my-project')).toBe('stp-runner-my-project');
     expect(awsResourceNames.ec2RunnerSecurityGroupName('eu-west-1')).toBe('stp-ec2-runner-sg-eu-west-1');
-    expect(awsResourceNames.ec2RunnerIamRoleName()).toBe('stp-ec2-runner-role');
-    expect(awsResourceNames.ec2RunnerInstanceProfileName()).toBe('stp-ec2-runner-instance-profile');
+    expect(awsResourceNames.ec2RunnerIamRoleName('runner-123')).toBe('stp-ec2-runner-runner-123');
+    expect(awsResourceNames.ec2RunnerInstanceProfileName('runner-123')).toBe('stp-ec2-runner-runner-123');
     expect(awsResourceNames.ec2RunnerLogGroupName()).toBe('/stacktape/ec2-runner');
   });
 });

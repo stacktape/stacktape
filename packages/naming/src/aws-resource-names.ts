@@ -813,11 +813,17 @@ export const awsResourceNames = {
   ec2RunnerSecurityGroupName(region: string) {
     return `stp-ec2-runner-sg-${region}`;
   },
-  ec2RunnerIamRoleName() {
-    return 'stp-ec2-runner-role';
+  ec2RunnerIamRoleName(runnerId: string) {
+    return buildResourceName({
+      proposedResourceName: `stp-ec2-runner-${runnerId}`,
+      lengthLimit: 64
+    });
   },
-  ec2RunnerInstanceProfileName() {
-    return 'stp-ec2-runner-instance-profile';
+  ec2RunnerInstanceProfileName(runnerId: string) {
+    return buildResourceName({
+      proposedResourceName: `stp-ec2-runner-${runnerId}`,
+      lengthLimit: 128
+    });
   },
   ec2RunnerLogGroupName() {
     return '/stacktape/ec2-runner';
