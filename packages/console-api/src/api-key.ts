@@ -9,15 +9,6 @@ import type { GuardrailDefinition } from './guardrails.js';
  * deployment needs; the server decides that, and it is deliberately not described here.
  */
 
-const EC2_RUNNER_INSTANCE_TYPES = [
-  'm6a.large',
-  'm6a.xlarge',
-  'c7a.xlarge',
-  'c7a.2xlarge',
-  'c7a.4xlarge',
-  'c7a.8xlarge'
-] as const;
-
 export const recordStackOperationInputSchema = z.object({
   invocationId: z.string(),
   command: z.string().optional().nullable(),
@@ -33,8 +24,6 @@ export const recordStackOperationInputSchema = z.object({
   gitBranch: z.string().optional().nullable(),
   success: z.boolean().optional().nullable(),
   description: z.string().optional().nullable(),
-  isCodebuildOperation: z.boolean().optional().nullable(),
-  codebuildBuildArn: z.string().optional().nullable(),
   /**
    * The CLI's parsed command-line flags, forwarded as they were parsed and stored as JSON. The Console
    * reads `stage` out of it and keeps the rest verbatim, so the values stay unknown here: the CLI owns
@@ -69,7 +58,6 @@ export const ec2DeployFromCliInputSchema = z.object({
   gitBranch: z.string(),
   gitCommit: z.string(),
   gitCommitMessage: z.string().optional().nullable(),
-  gitUsername: z.string().optional().nullable(),
   configPath: z.string().optional().nullable(),
   templateId: z.string().optional().nullable(),
   hotSwap: z.boolean().optional()
@@ -77,11 +65,6 @@ export const ec2DeployFromCliInputSchema = z.object({
 
 export const ec2DeployStatusFromCliInputSchema = z.object({
   invocationId: z.string()
-});
-
-export const configureEc2RunnerFromCliInputSchema = z.object({
-  projectName: z.string(),
-  ec2RunnerInstanceType: z.enum(EC2_RUNNER_INSTANCE_TYPES)
 });
 
 export const createOrganizationFromCliInputSchema = z.object({
@@ -102,18 +85,36 @@ export const getAwsConnectionStatusInputSchema = z.object({
   connectionId: z.string()
 });
 
-export const getGitProviderConnectionStatusInputSchema = z.object({
-  organizationId: z.string(),
-  provider: z.enum(['GITHUB', 'GITLAB', 'BITBUCKET'])
-});
+export const getGitProviderConnectionStatusInputSchema = z
+  .object({
+    organizationId: z.string(),
+    provider: z.enum(['GITHUB', 'GITLAB', 'BITBUCKET']),
+    owner: z
+      .string()
+      .trim()
+      .min(1)
+      .max(512)
+      .regex(/^[a-zA-Z0-9_.-]+(?:\/[a-zA-Z0-9_.-]+)*$/u),
+    repository: z
+      .string()
+      .trim()
+      .min(1)
+      .max(255)
+      .regex(/^[a-zA-Z0-9_.-]+$/u)
+  })
+  .superRefine((input, context) => {
+    if (input.provider !== 'GITLAB' && input.owner.includes('/')) {
+      context.addIssue({ code: 'custom', path: ['owner'], message: 'Only GitLab repository owners can be nested.' });
+    }
+  });
 
 export const createGitDeploymentConfigFromCliInputSchema = z.object({
   organizationId: z.string(),
   projectId: z.string(),
+  gitProviderInstallationId: z.string().min(1),
+  gitProviderRepositoryId: z.string().min(1),
   awsAccountConnectionId: z.string(),
   branch: z.string(),
-  owner: z.string(),
-  repository: z.string(),
   targetRegion: z.string(),
   stage: z.string(),
   configSource: z.enum(['GIT_REPOSITORY', 'STACKTAPE_DATABASE']),
@@ -204,6 +205,16 @@ export const listIssuesInputSchema = z.object({
 
 export const issueActionInputSchema = z.object({ issueId: z.string() });
 
+export const listIncidentsInputSchema = z.object({
+  // 'ACTIVE' = OPEN + ACKNOWLEDGED, the queue's default view.
+  status: z.enum(['ACTIVE', 'OPEN', 'ACKNOWLEDGED', 'RESOLVED', 'ALL']).optional(),
+  project: z.string().optional(),
+  stage: z.string().optional(),
+  limit: z.number().int().min(1).max(100).optional()
+});
+
+export const incidentActionInputSchema = z.object({ incidentId: z.string() });
+
 export const syncUptimeChecksInputSchema = z.object({
   project: z.string().min(1),
   stage: z.string().min(1),
@@ -246,7 +257,6 @@ export type RecordStackOperationParams = z.input<typeof recordStackOperationInpu
 export type CreateDeploymentTokenFromCliParams = z.input<typeof createDeploymentTokenFromCliInputSchema>;
 export type Ec2DeployFromCliParams = z.input<typeof ec2DeployFromCliInputSchema>;
 export type Ec2DeployStatusFromCliParams = z.input<typeof ec2DeployStatusFromCliInputSchema>;
-export type ConfigureEc2RunnerFromCliParams = z.input<typeof configureEc2RunnerFromCliInputSchema>;
 export type CreateOrganizationParams = z.input<typeof createOrganizationFromCliInputSchema>;
 export type DeleteOrganizationParams = z.input<typeof deleteOrganizationFromCliInputSchema>;
 export type CreateAwsConnectionPendingInput = z.input<typeof awsConnectionInputSchema>;
@@ -266,6 +276,8 @@ export type OrganizationActivityParams = z.input<typeof organizationActivityFrom
 export type StackDetailsParams = z.input<typeof stackDetailsInputSchema>;
 export type ListIssuesParams = z.input<typeof listIssuesInputSchema>;
 export type IssueActionParams = z.input<typeof issueActionInputSchema>;
+export type ListIncidentsParams = z.input<typeof listIncidentsInputSchema>;
+export type IncidentActionParams = z.input<typeof incidentActionInputSchema>;
 
 /**
  * Organization-wide configuration a deployment has to honour.
@@ -316,6 +328,32 @@ export type IssueActionResponse = {
   success: boolean;
 };
 
+export type ListIncidentsResponse = Array<{
+  id: string;
+  status: 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED';
+  severity: 'INFO' | 'WARNING' | 'ERROR' | 'CRITICAL';
+  title: string;
+  project: string | null;
+  stage: string | null;
+  region: string | null;
+  isProduction: boolean;
+  openedAt: string | Date;
+  acknowledgedAt: string | Date | null;
+  resolvedAt: string | Date | null;
+  resolveReason: string | null;
+  deploymentVersion: string | null;
+  gitCommit: string | null;
+  signals: Array<{ kind: string; state: string; title: string }>;
+}>;
+
+export type IncidentActionResponse = {
+  success: boolean;
+};
+
+export type IncidentHandoffResponse = {
+  markdown: string;
+};
+
 /**
  * Everything a CLI session needs to know about who it is acting as. The named properties are the ones
  * clients read; the index signatures leave room for the Console to add fields without a breaking change.
@@ -360,7 +398,6 @@ export type CurrentUserAndOrgDataResponse = {
 
 export type Ec2DeployFromCliResponse = {
   invocationId: string;
-  ssmCommandId?: string;
 };
 
 export type Ec2DeployStatusFromCliResponse = {
@@ -373,14 +410,6 @@ export type Ec2DeployStatusFromCliResponse = {
   ssmCommandId?: string | null;
   logGroupName?: string | null;
   logStreamName?: string | null;
-};
-
-export type ConfigureEc2RunnerFromCliResponse = {
-  id: string;
-  name: string;
-  deploymentRunnerType?: string | null;
-  ec2RunnerInstanceType?: string | null;
-  [otherProperties: string]: unknown;
 };
 
 export type CreateDeploymentTokenFromCliResponse = {
@@ -494,6 +523,7 @@ export type GetAwsConnectionStatusResponse = {
 export type GetGitProviderConnectionStatusResponse = {
   isConnected: boolean;
   installationId?: string;
+  providerRepositoryId?: string;
 };
 
 export type CreateGitDeploymentConfigFromCliResponse = {
@@ -593,9 +623,6 @@ export type ApiKeyTrpcClient = {
   ec2DeployStatusFromCli: {
     query: (args: Ec2DeployStatusFromCliParams) => Promise<Ec2DeployStatusFromCliResponse>;
   };
-  configureEc2RunnerFromCli: {
-    mutate: (args: ConfigureEc2RunnerFromCliParams) => Promise<ConfigureEc2RunnerFromCliResponse>;
-  };
   createDeploymentTokenFromCli: {
     mutate: (args: CreateDeploymentTokenFromCliParams) => Promise<CreateDeploymentTokenFromCliResponse>;
   };
@@ -661,6 +688,18 @@ export type ApiKeyTrpcClient = {
   };
   issuesFromCli: {
     query: (args: ListIssuesParams) => Promise<ListIssuesResponse>;
+  };
+  incidentsFromCli: {
+    query: (args: ListIncidentsParams) => Promise<ListIncidentsResponse>;
+  };
+  incidentHandoffFromCli: {
+    query: (args: IncidentActionParams) => Promise<IncidentHandoffResponse>;
+  };
+  acknowledgeIncidentFromCli: {
+    mutate: (args: IncidentActionParams) => Promise<IncidentActionResponse>;
+  };
+  resolveIncidentFromCli: {
+    mutate: (args: IncidentActionParams) => Promise<IncidentActionResponse>;
   };
   resolveIssueFromCli: {
     mutate: (args: IssueActionParams) => Promise<IssueActionResponse>;

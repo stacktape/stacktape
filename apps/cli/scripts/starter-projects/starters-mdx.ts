@@ -160,31 +160,6 @@ ${getRegionsTable()}
 </details>`;
 };
 
-const getCodebuildDeployMdx = () => {
-  return `<details>
-<summary>Deploy using AWS CodeBuild pipeline</summary>
-
-<br />
-
-Deployment using AWS CodeBuild will build and deploy your application inside [AWS CodeBuild pipeline](https://aws.amazon.com/codebuild/). To perform the deployment, use
-
-\`\`\`bash
-stacktape deploy --runner codebuild --stage <<stage>> --region <<region>> --projectName <<project-name>>
-\`\`\`
-
-\`stage\` is an arbitrary name of your environment (for example **staging**, **production** or **dev-john**)
-
-\`region\` is the AWS region, where your stack will be deployed to. All the available regions are listed below.
-
-\`projectName\` is the name of your project. You can create it in the console or interactively using CLI.
-
-<br />
-
-${getRegionsTable()}
-
-</details>`;
-};
-
 const getGithubActionsDeployMdx = () => {
   return `<details>
 <summary>Deploy using Github actions CI/CD pipeline</summary>
@@ -247,7 +222,6 @@ const getDeploymentMdx = (metadata: StarterProjectMetadata) => {
   return `The deployment will take ~5-15 minutes. Subsequent deploys will be significantly faster.
 
 ${getLocalDeploymentMdx(metadata)}
-${getCodebuildDeployMdx()}
 ${getGithubActionsDeployMdx()}
 ${getGitlabCiDeployMdx()}`;
 };

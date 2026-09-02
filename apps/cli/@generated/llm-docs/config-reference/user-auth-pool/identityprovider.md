@@ -5,8 +5,6 @@ Resource type: `user-auth-pool`
 ## TypeScript definition
 
 ```typescript
-import type { Record<string,any> } from 'stacktape';
-
 type IdentityProvider = {
   /** OAuth / OIDC client ID */
   clientId: string;
@@ -19,7 +17,7 @@ type IdentityProvider = {
   /** Requested scopes */
   authorizeScopes?: Array<string>;
   /** Advanced provider options */
-  providerDetails?: Record<string,any>;
+  providerDetails?: unknown;
 };
 ```
 
@@ -322,7 +320,7 @@ export default defineConfig(() => {
 ## Property: `providerDetails`
 
 - Required: no
-- Type: `Record<string,any>`
+- Type: `unknown`
 
 Advanced provider options
 

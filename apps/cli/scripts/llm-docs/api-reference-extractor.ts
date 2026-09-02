@@ -141,7 +141,8 @@ const stringifyDefault = (value: unknown): string | undefined => {
 
 const resolveBranchProperties = (
   branch: RawSchema,
-  definitions: Definitions
+  definitions: Definitions,
+  visited: ReadonlySet<string>
 ): { typeName?: string; shortDescription?: string; properties: NormalizedProperty[] } => {
   // A "branch" of a discriminated union typically has shape:
   //   { type: 'object', properties: { type: { const: 'X' }, properties: { $ref: 'XProps' } }, required: [...] }
@@ -151,6 +152,7 @@ const resolveBranchProperties = (
   let shortDescription: string | undefined;
   if (resolved.$ref) {
     typeName = refToName(resolved.$ref);
+    if (visited.has(typeName)) return { typeName, properties: [] };
     const target = definitions[typeName];
     if (target) {
       resolved = target;
@@ -161,12 +163,13 @@ const resolveBranchProperties = (
   const innerProperties = resolved.properties?.properties;
   if (innerProperties?.$ref) {
     const innerTypeName = refToName(innerProperties.$ref);
+    if (visited.has(innerTypeName)) return { typeName, shortDescription, properties: [] };
     const innerDef = definitions[innerTypeName];
     if (innerDef) {
       return {
         typeName,
         shortDescription,
-        properties: extractDirectProperties(innerDef, definitions, undefined)
+        properties: extractDirectProperties(innerDef, definitions, undefined, new Set(visited).add(innerTypeName))
       };
     }
   }
@@ -176,40 +179,49 @@ const resolveBranchProperties = (
   return {
     typeName,
     shortDescription,
-    properties: extractDirectProperties(resolved, definitions, undefined)
+    properties: extractDirectProperties(
+      resolved,
+      definitions,
+      undefined,
+      typeName ? new Set(visited).add(typeName) : visited
+    )
   };
 };
 
-const buildTypeInfo = (schema: RawSchema, definitions: Definitions): NormalizedTypeInfo => {
+const buildTypeInfo = (
+  schema: RawSchema,
+  definitions: Definitions,
+  visited: ReadonlySet<string> = new Set()
+): NormalizedTypeInfo => {
   // Array
   if (schema.type === 'array' && schema.items) {
-    return { kind: 'array', itemType: buildTypeInfo(schema.items, definitions) };
+    return { kind: 'array', itemType: buildTypeInfo(schema.items, definitions, visited) };
   }
   // Reference — possibly to a union, possibly to an object/primitive
   if (schema.$ref) {
     const typeName = refToName(schema.$ref);
+    if (visited.has(typeName)) return { kind: 'reference', typeName };
     const target = definitions[typeName];
-    if (target) {
-      // A bare named union like LambdaPackaging → unwrap into kind: 'union'.
-      const refBranches = target.anyOf || target.oneOf;
-      if (Array.isArray(refBranches) && refBranches.length > 1) {
-        return buildUnionTypeInfo(refBranches, definitions);
-      }
-      // Primitive aliased type (e.g. 'type SupportedNodeVersion = 16 | 18 | 20').
-      if (isPrimitive(target)) {
-        return {
-          kind: 'primitive',
-          types: Array.isArray(target.type) ? target.type : [target.type as string],
-          enumValues: Array.isArray(target.enum) ? (target.enum as (string | number)[]) : undefined
-        };
-      }
+    if (!target) return { kind: 'unknown' };
+    // A bare named union like LambdaPackaging → unwrap into kind: 'union'.
+    const refBranches = target.anyOf || target.oneOf;
+    if (Array.isArray(refBranches) && refBranches.length > 1) {
+      return buildUnionTypeInfo(refBranches, definitions, new Set(visited).add(typeName));
+    }
+    // Primitive aliased type (e.g. 'type SupportedNodeVersion = 16 | 18 | 20').
+    if (isPrimitive(target)) {
+      return {
+        kind: 'primitive',
+        types: Array.isArray(target.type) ? target.type : [target.type as string],
+        enumValues: Array.isArray(target.enum) ? (target.enum as (string | number)[]) : undefined
+      };
     }
     return { kind: 'reference', typeName };
   }
   // Inline union
   const inlineBranches = schema.anyOf || schema.oneOf;
   if (Array.isArray(inlineBranches) && inlineBranches.length > 1) {
-    return buildUnionTypeInfo(inlineBranches, definitions);
+    return buildUnionTypeInfo(inlineBranches, definitions, visited);
   }
   // Primitive
   if (isPrimitive(schema)) {
@@ -223,7 +235,11 @@ const buildTypeInfo = (schema: RawSchema, definitions: Definitions): NormalizedT
   return { kind: 'unknown' };
 };
 
-const buildUnionTypeInfo = (branches: RawSchema[], definitions: Definitions): NormalizedTypeInfo => {
+const buildUnionTypeInfo = (
+  branches: RawSchema[],
+  definitions: Definitions,
+  visited: ReadonlySet<string>
+): NormalizedTypeInfo => {
   // Detect whether this union is discriminated. It is iff every branch resolves to an object
   // schema with a `type` property whose value is a unique const string.
   const discriminatorValues: (string | null)[] = branches.map((b) => tryReadDiscriminatorValue(b, definitions));
@@ -232,7 +248,7 @@ const buildUnionTypeInfo = (branches: RawSchema[], definitions: Definitions): No
   const isDiscriminated = allDiscriminated && allUnique;
 
   const normalizedBranches: NormalizedUnionBranch[] = branches.map((branch, i) => {
-    const branchInfo = resolveBranchProperties(branch, definitions);
+    const branchInfo = resolveBranchProperties(branch, definitions, visited);
     const discriminatorValue = discriminatorValues[i];
     if (isDiscriminated && typeof discriminatorValue === 'string') {
       return {
@@ -260,7 +276,8 @@ const buildUnionTypeInfo = (branches: RawSchema[], definitions: Definitions): No
 const extractDirectProperties = (
   definition: RawSchema,
   definitions: Definitions,
-  inheritedFrom: string | undefined
+  inheritedFrom: string | undefined,
+  visited: ReadonlySet<string> = new Set()
 ): NormalizedProperty[] => {
   const required = new Set<string>(definition.required || []);
   const result: NormalizedProperty[] = [];
@@ -278,7 +295,7 @@ const extractDirectProperties = (
       shortDescription: sd,
       longDescription: ld,
       defaultValue: stringifyDefault(propSchema.default),
-      typeInfo: buildTypeInfo(propSchema, definitions),
+      typeInfo: buildTypeInfo(propSchema, definitions, visited),
       inheritedFrom,
       ...(propSchema._examples?.length ? { examples: propSchema._examples } : {})
     });

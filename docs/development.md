@@ -50,6 +50,12 @@ change: it runs both locally, connects the API to the shared dev database and se
 Lambdas handling external webhooks and background work. The command maintains the `console-app-devlocal` support stack
 and therefore needs the credentials described in `apps/console/README.md`.
 
+`dev:console` is the complete workflow, not just the Stacktape dev subprocess. It validates the active Stacktape login
+and AWS account, reads the current non-secret database and Cognito identifiers from `console-app-dev`, opens and waits
+for an SSM tunnel to the shared dev database, and then starts the local API and UI. It closes the tunnel with the dev
+process. The small `console-app-devlocal` support stack is refreshed only when its resolved configuration changes, so
+IAM changes are applied without making ordinary warm starts redeploy.
+
 Console deployments also use the source-built workspace CLI:
 
 ```sh
@@ -89,6 +95,12 @@ the migration automatically.
 
 Run `pnpm dev:cli login` for a human Stacktape session. Use `STACKTAPE_API_KEY` only for automation that cannot log in.
 The local `package`, `synth`, and `validate` commands do not need Console authentication.
+
+Full Console dev mode additionally requires Docker, AWS CLI v2, and AWS credentials for account `977946299200`. Startup
+fails closed before creating the `devlocal` support stack if the active account differs. The SSM Session Manager helper
+used for database tunneling ships with the source-built Stacktape CLI; a separate global plugin is not required. Inspect
+parameter presence without reading values with `pnpm parameters:check:console:dev` and
+`pnpm parameters:check:console:devlocal`.
 
 AWS uses the standard credential chain:
 

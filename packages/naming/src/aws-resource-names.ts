@@ -4,10 +4,6 @@ import { buildResourceName, getLogGroupBaseName } from './resource-names';
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS' | '*';
 
-export const codebuildDeploymentBucketResourceName = (region: string, accountId: string) => {
-  return `stp-codebuild-deployment-${region}-${shortHash(accountId)}`;
-};
-
 export const awsResourceNames = {
   // maximum 63 characters
   // https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html
@@ -752,16 +748,9 @@ export const awsResourceNames = {
       lengthLimit: 23
     })}`;
   },
-  codebuildProject(region: string) {
-    return `stacktape-deployment-${region}`;
-  },
-  codebuildServiceRole() {
-    return 'stacktape-codebuild-role';
-  },
   stackOperationsLogGroup() {
     return '/stp/stack-operations';
   },
-  codebuildDeploymentBucket: codebuildDeploymentBucketResourceName,
   // limit 80 https://docs.aws.amazon.com/cli/latest/reference/sqs/create-queue.html
   sqsQueue(stpResourceName: string, stackName: string, isFifo: boolean) {
     return buildResourceName({
@@ -824,11 +813,17 @@ export const awsResourceNames = {
   ec2RunnerSecurityGroupName(region: string) {
     return `stp-ec2-runner-sg-${region}`;
   },
-  ec2RunnerIamRoleName() {
-    return 'stp-ec2-runner-role';
+  ec2RunnerIamRoleName(runnerId: string) {
+    return buildResourceName({
+      proposedResourceName: `stp-ec2-runner-${runnerId}`,
+      lengthLimit: 64
+    });
   },
-  ec2RunnerInstanceProfileName() {
-    return 'stp-ec2-runner-instance-profile';
+  ec2RunnerInstanceProfileName(runnerId: string) {
+    return buildResourceName({
+      proposedResourceName: `stp-ec2-runner-${runnerId}`,
+      lengthLimit: 128
+    });
   },
   ec2RunnerLogGroupName() {
     return '/stacktape/ec2-runner';

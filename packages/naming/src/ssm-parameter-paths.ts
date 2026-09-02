@@ -50,22 +50,29 @@ export const parseDomainNameFromSmmParamName = ({ paramName, region }: { paramNa
   return paramName.slice(`/stp/${region}/`.length);
 };
 
+export const getEc2RunnerSsmParameterPrefix = ({ region, runnerId }: { region: string; runnerId: string }) =>
+  `/stp/ec2-runner/${region}/${runnerId}`;
+
 export const getEc2RunnerApiKeySsmParameterName = ({
   region,
+  runnerId,
   invocationId
 }: {
   region: string;
+  runnerId: string;
   invocationId: string;
 }) => {
-  return `/stp/ec2-runner/${region}/${invocationId}/api-key`;
+  return `${getEc2RunnerSsmParameterPrefix({ region, runnerId })}/${invocationId}/api-key`;
 };
 
 export const getEc2RunnerGitTokenSsmParameterName = ({
   region,
+  runnerId,
   invocationId
 }: {
   region: string;
+  runnerId: string;
   invocationId: string;
 }) => {
-  return `/stp/ec2-runner/${region}/${invocationId}/git-token`;
+  return `${getEc2RunnerSsmParameterPrefix({ region, runnerId })}/${invocationId}/git-token`;
 };

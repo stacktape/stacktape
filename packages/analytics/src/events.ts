@@ -64,7 +64,7 @@ export type ProductAnalyticsEventMap = {
     region: string;
     duration_ms: number | null;
     app_version: string | null;
-    source: 'cli' | 'codebuild';
+    source: 'cli';
   };
   [ANALYTICS_EVENTS.userSignedUp]: {
     method: 'google' | 'email';

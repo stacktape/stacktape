@@ -1725,7 +1725,7 @@ Choices:
 - `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
-- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: Record<string,string>`.
+- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: unknown`.
 - `console-channel` (`ConsoleChannelIntegration`). Properties: `channelName: string`.
 
 ### Example 1 (yaml)
@@ -2228,7 +2228,7 @@ Choices:
 - `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
-- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: Record<string,string>`.
+- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: unknown`.
 - `console-channel` (`ConsoleChannelIntegration`). Properties: `channelName: string`.
 
 ### Example 1 (yaml)
@@ -2978,7 +2978,7 @@ Choices:
 - `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
-- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: Record<string,string>`.
+- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: unknown`.
 - `console-channel` (`ConsoleChannelIntegration`). Properties: `channelName: string`.
 
 ### Example 1 (yaml)
@@ -3649,7 +3649,7 @@ Choices:
 - `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
-- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: Record<string,string>`.
+- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: unknown`.
 - `console-channel` (`ConsoleChannelIntegration`). Properties: `channelName: string`.
 
 ### Example 1 (yaml)
@@ -4340,7 +4340,7 @@ Choices:
 - `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
-- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: Record<string,string>`.
+- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: unknown`.
 - `console-channel` (`ConsoleChannelIntegration`). Properties: `channelName: string`.
 
 ### Example 1 (yaml)
@@ -6031,7 +6031,7 @@ Choices:
 - `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
-- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: Record<string,string>`.
+- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: unknown`.
 - `console-channel` (`ConsoleChannelIntegration`). Properties: `channelName: string`.
 
 ### Example 1 (yaml)
@@ -41052,7 +41052,7 @@ Route: `/config-reference/helpers`
 type NamedScriptLifecycleHook = {
   /** Script Name */
   scriptName: string;
-  /** Skip this hook in CI/CD environments (CodeBuild, GitHub Actions, GitLab CI). */
+  /** Skip this hook in CI/CD environments (GitHub Actions, GitLab CI, and similar systems). */
   skipOnCI?: boolean;
   /** Skip this hook when running locally; only run in CI/CD. */
   skipOnLocal?: boolean;
@@ -41125,7 +41125,7 @@ export default defineConfig(() => {
 - Type: `boolean`
 - Default: `false`
 
-Skip this hook in CI/CD environments (CodeBuild, GitHub Actions, GitLab CI).
+Skip this hook in CI/CD environments (GitHub Actions, GitLab CI, and similar systems).
 
 Useful for hooks that only make sense locally (e.g., opening a browser, interactive prompts).
 
@@ -61775,6 +61775,61 @@ export default defineConfig(() => {
 
 ---
 
+# AndIntrinsic API Reference
+
+Source: `apps/cli/@generated/schemas/enhanced-config-schema.json`
+Route: `/config-reference/shared`
+
+## TypeScript definition
+
+```typescript
+type AndIntrinsic = {
+  "Fn::And": Array<AndIntrinsicFnAnd>;
+};
+
+/** Union choices used by the properties above. */
+type AndIntrinsicFnAnd =
+  | "option-1"
+  | AndIntrinsic
+  | "option-3"
+  | "option-4"
+  | "option-5";
+```
+
+## Property: `Fn::And`
+
+- Required: yes
+- Type: `Array<option-1 | AndIntrinsic | option-3 | option-4 | option-5>`
+
+Choices:
+- `option-1`. Properties: `Condition: string`.
+- `AndIntrinsic` (`AndIntrinsic`). Properties: `Fn::And: Array<ConditionExpression>`.
+- `option-3`. Properties: `Fn::Equals: Array<unknown>`.
+- `option-4`. Properties: `Fn::Not: Array<unknown>`.
+- `option-5`. Properties: `Fn::Or: Array<ConditionExpression>`.
+
+---
+
+# Base64Intrinsic API Reference
+
+Source: `apps/cli/@generated/schemas/enhanced-config-schema.json`
+Route: `/config-reference/shared`
+
+## TypeScript definition
+
+```typescript
+type Base64Intrinsic = {
+  "Fn::Base64": unknown;
+};
+```
+
+## Property: `Fn::Base64`
+
+- Required: yes
+- Type: `unknown`
+
+---
+
 # BucketPolicyIamRoleStatement API Reference
 
 Source: `packages/config/src/buckets.ts`
@@ -61975,6 +62030,257 @@ export default defineConfig(() => {
   return { resources: { api } };
 });
 ```
+
+---
+
+# CloudFormationResource<string,object> API Reference
+
+Source: `apps/cli/@generated/schemas/enhanced-config-schema.json`
+Route: `/config-reference/shared`
+
+## TypeScript definition
+
+```typescript
+type CloudFormationResource<string,object> = {
+  Properties: unknown;
+  Type: string;
+  Condition?: string;
+  CreationPolicy?: unknown;
+  DeletionPolicy?: "Delete" | "Retain" | "RetainExceptOnCreate" | "Snapshot";
+  DependsOn?: CloudFormationResource<string,object>DependsOn;
+  Metadata?: unknown;
+  UpdatePolicy?: unknown;
+  UpdateReplacePolicy?: "Delete" | "Retain" | "Snapshot";
+};
+
+/** Union choices used by the properties above. */
+type CloudFormationResource<string,object>DependsOn =
+  | "option-1"
+  | "option-2";
+```
+
+## Property: `Properties`
+
+- Required: yes
+- Type: `unknown`
+
+## Property: `Type`
+
+- Required: yes
+- Type: `string`
+
+## Property: `Condition`
+
+- Required: no
+- Type: `string`
+
+## Property: `CreationPolicy`
+
+- Required: no
+- Type: `unknown`
+
+## Property: `DeletionPolicy`
+
+- Required: no
+- Type: `string: "Delete" | "Retain" | "RetainExceptOnCreate" | "Snapshot"`
+
+## Property: `DependsOn`
+
+- Required: no
+- Type: `option-1 | option-2`
+
+Choices:
+- `option-1`
+- `option-2`
+
+## Property: `Metadata`
+
+- Required: no
+- Type: `unknown`
+
+## Property: `UpdatePolicy`
+
+- Required: no
+- Type: `unknown`
+
+## Property: `UpdateReplacePolicy`
+
+- Required: no
+- Type: `string: "Delete" | "Retain" | "Snapshot"`
+
+---
+
+# JoinIntrinsic API Reference
+
+Source: `apps/cli/@generated/schemas/enhanced-config-schema.json`
+Route: `/config-reference/shared`
+
+## TypeScript definition
+
+```typescript
+type JoinIntrinsic = {
+  "Fn::Join": Array<unknown>;
+};
+```
+
+## Property: `Fn::Join`
+
+- Required: yes
+- Type: `Array<unknown>`
+
+---
+
+# PropertylessCloudFormationResource<string> API Reference
+
+Source: `apps/cli/@generated/schemas/enhanced-config-schema.json`
+Route: `/config-reference/shared`
+
+## TypeScript definition
+
+```typescript
+type PropertylessCloudFormationResource<string> = {
+  Type: string;
+  Condition?: string;
+  CreationPolicy?: unknown;
+  DeletionPolicy?: "Delete" | "Retain" | "RetainExceptOnCreate" | "Snapshot";
+  DependsOn?: PropertylessCloudFormationResource<string>DependsOn;
+  Metadata?: unknown;
+  UpdatePolicy?: unknown;
+  UpdateReplacePolicy?: "Delete" | "Retain" | "Snapshot";
+};
+
+/** Union choices used by the properties above. */
+type PropertylessCloudFormationResource<string>DependsOn =
+  | "option-1"
+  | "option-2";
+```
+
+## Property: `Type`
+
+- Required: yes
+- Type: `string`
+
+## Property: `Condition`
+
+- Required: no
+- Type: `string`
+
+## Property: `CreationPolicy`
+
+- Required: no
+- Type: `unknown`
+
+## Property: `DeletionPolicy`
+
+- Required: no
+- Type: `string: "Delete" | "Retain" | "RetainExceptOnCreate" | "Snapshot"`
+
+## Property: `DependsOn`
+
+- Required: no
+- Type: `option-1 | option-2`
+
+Choices:
+- `option-1`
+- `option-2`
+
+## Property: `Metadata`
+
+- Required: no
+- Type: `unknown`
+
+## Property: `UpdatePolicy`
+
+- Required: no
+- Type: `unknown`
+
+## Property: `UpdateReplacePolicy`
+
+- Required: no
+- Type: `string: "Delete" | "Retain" | "Snapshot"`
+
+---
+
+# SelectIntrinsic API Reference
+
+Source: `apps/cli/@generated/schemas/enhanced-config-schema.json`
+Route: `/config-reference/shared`
+
+## TypeScript definition
+
+```typescript
+type SelectIntrinsic = {
+  "Fn::Select": Array<unknown>;
+};
+```
+
+## Property: `Fn::Select`
+
+- Required: yes
+- Type: `Array<unknown>`
+
+---
+
+# SubIntrinsic API Reference
+
+Source: `apps/cli/@generated/schemas/enhanced-config-schema.json`
+Route: `/config-reference/shared`
+
+## TypeScript definition
+
+```typescript
+import type { AndIntrinsic, Base64Intrinsic, JoinIntrinsic, SelectIntrinsic } from 'stacktape';
+
+type SubIntrinsic = {
+  "Fn::Sub": SubIntrinsicFnSub;
+};
+
+/** Union choices used by the properties above. */
+type SubIntrinsicFnSub =
+  | "option-1"
+  | "option-2"
+  | AndIntrinsic
+  | "option-4"
+  | "option-5"
+  | "option-6"
+  | Base64Intrinsic
+  | "option-8"
+  | "option-9"
+  | "option-10"
+  | "option-11"
+  | JoinIntrinsic
+  | SelectIntrinsic
+  | "option-14"
+  | SubIntrinsic
+  | "option-16"
+  | "option-17"
+  | "option-18";
+```
+
+## Property: `Fn::Sub`
+
+- Required: yes
+- Type: `option-1 | option-2 | AndIntrinsic | option-4 | option-5 | option-6 | Base64Intrinsic | option-8 | option-9 | option-10 | option-11 | JoinIntrinsic | SelectIntrinsic | option-14 | SubIntrinsic | option-16 | option-17 | option-18`
+
+Choices:
+- `option-1`. Properties: `Ref: string`.
+- `option-2`. Properties: `Condition: string`.
+- `AndIntrinsic` (`AndIntrinsic`). Properties: `Fn::And: Array<option-1 | AndIntrinsic | option-3 | option-4 | option-5>`.
+- `option-4`. Properties: `Fn::Equals: Array<unknown>`.
+- `option-5`. Properties: `Fn::Not: Array<unknown>`.
+- `option-6`. Properties: `Fn::Or: Array<option-1 | AndIntrinsic | option-3 | option-4 | option-5>`.
+- `Base64Intrinsic` (`Base64Intrinsic`). Properties: `Fn::Base64: unknown`.
+- `option-8`. Properties: `Fn::FindInMap: Array<unknown>`.
+- `option-9`. Properties: `Fn::GetAtt: Array<unknown>`.
+- `option-10`. Properties: `Fn::GetAZs: unknown`.
+- `option-11`. Properties: `Fn::ImportValue: unknown`.
+- `JoinIntrinsic` (`JoinIntrinsic`). Properties: `Fn::Join: Array<unknown>`.
+- `SelectIntrinsic` (`SelectIntrinsic`). Properties: `Fn::Select: Array<unknown>`.
+- `option-14`. Properties: `Fn::Split: Array<unknown>`.
+- `SubIntrinsic` (`SubIntrinsic`). Properties: `Fn::Sub: option-1 | option-2 | AndIntrinsic | option-4 | option-5 | option-6 | Base64Intrinsic | option-8 | option-9 | option-10 | option-11 | JoinIntrinsic | SelectIntrinsic | option-14 | SubIntrinsic | option-16 | option-17 | option-18`.
+- `option-16`. Properties: `Fn::If: Array<unknown>`.
+- `option-17`
+- `option-18`
 
 ---
 
@@ -67656,7 +67962,7 @@ Choices:
 - `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
-- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: Record<string,string>`.
+- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: unknown`.
 - `console-channel` (`ConsoleChannelIntegration`). Properties: `channelName: string`.
 
 ### Example 1 (yaml)
@@ -69244,7 +69550,7 @@ Choices:
 - `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
-- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: Record<string,string>`.
+- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: unknown`.
 - `console-channel` (`ConsoleChannelIntegration`). Properties: `channelName: string`.
 
 ### Example 1 (yaml)
@@ -70144,8 +70450,6 @@ Resource type: `user-auth-pool`
 ## TypeScript definition
 
 ```typescript
-import type { Record<string,any> } from 'stacktape';
-
 type IdentityProvider = {
   /** OAuth / OIDC client ID */
   clientId: string;
@@ -70158,7 +70462,7 @@ type IdentityProvider = {
   /** Requested scopes */
   authorizeScopes?: Array<string>;
   /** Advanced provider options */
-  providerDetails?: Record<string,any>;
+  providerDetails?: unknown;
 };
 ```
 
@@ -70461,7 +70765,7 @@ export default defineConfig(() => {
 ## Property: `providerDetails`
 
 - Required: no
-- Type: `Record<string,any>`
+- Type: `unknown`
 
 Advanced provider options
 
@@ -74435,13 +74739,11 @@ Route: `/config-reference/user-integrations`
 ## TypeScript definition
 
 ```typescript
-import type { Record<string,string> } from 'stacktape';
-
 type WebhookIntegrationProps = {
   /** The URL to send webhook POST requests to. */
   url: string;
   /** Optional custom headers to include in each request. */
-  headers?: Record<string,string>;
+  headers?: unknown;
   /** Optional signing secret for HMAC-SHA256 payload verification. */
   secret?: string;
 };
@@ -74516,7 +74818,7 @@ export default defineConfig(() => {
 ## Property: `headers`
 
 - Required: no
-- Type: `Record<string,string>`
+- Type: `unknown`
 
 Optional custom headers to include in each request.
 

@@ -3,122 +3,94 @@
 Source: `apps/docs/content/ci-cd-and-gitops/build-runners.mdx`
 Route: `/ci-cd-and-gitops/build-runners`
 
-Console-managed project deployments run on a configured build runner. Stacktape offers two runner types: **EC2 runners** (recommended for most teams) and **CodeBuild runners**. EC2 runners are dedicated instances that stay warm between deploys and cache dependencies on disk — typically 2–5× faster than CodeBuild. CodeBuild runners provision a fresh container for each deploy with no idle costs.
+Stacktape Console executes GitOps deployments on a dedicated EC2 runner in your connected AWS account. Each Git-backed project has its own runner, AWS region, and instance type.
 
-EC2 runners cost ~$3/month in storage plus ~$0.005/min compute while deploying. CodeBuild runners cost ~$0.02/min with no idle charges.
+The runner keeps dependency and build caches on its EBS volume between deployments. It automatically stops after 15 minutes without deployment or GitHub Actions work, so compute charges stop while the project is idle. The next job starts the existing instance and reuses its caches.
 
-## EC2 runners vs CodeBuild
+## When the runner is used
 
+The EC2 runner executes operations started by Stacktape Console, including:
 
-## Feature Comparison
+- deployments triggered by pushes or pull requests
+- deployments started manually from the Console
+- stage deletions started from the Console
+- self-hosted GitHub Actions jobs when that feature is enabled for the project
 
-| Feature | EC2 runner | CodeBuild |
-| --- | --- | --- |
-| Recommended for | Most teams — regular deploys, fast iteration | Infrequent deploys, minimal infrastructure |
-| Caching | Dependencies cached on disk between deploys | Fresh container each deploy — re-downloads everything |
-| Deploy speed | 2–5× faster (cached dependencies + warm instance) | Slower — full dependency install on every build |
-| Idle behavior | Auto-hibernates after 15 min idle, wakes in ~10 seconds | No idle state — container destroyed after each build |
-| Cost model | ~$3/month storage + ~$0.005/min compute while deploying | ~$0.02/min build time, no idle charges |
-| Configuration | Per-project instance type in the runner configuration modal | Global settings on the Projects page in the Console |
+Local CLI commands and [custom CI/CD pipelines](/ci-cd-and-gitops/custom-ci-cd) normally run on the machine or CI runner that invokes Stacktape. Their compute and lifecycle are independent from the Console-managed runner.
 
+## Runner configuration
 
-## When to use EC2 runners
-
-EC2 runners are the right choice for teams that deploy more than a few times per week. The instance stays warm between deploys and caches dependencies on disk, so repeated deploys usually spend less time downloading and installing dependencies. In the Git-backed project creation flow, EC2 runner is preselected and marked as recommended.
-
-The ~$3/month baseline cost for storage is negligible compared to the time saved. If your team deploys daily — or multiple times per day during active development — the faster builds add up quickly. A 5-minute CodeBuild deploy finishing in 1–2 minutes on an EC2 runner means less waiting and faster feedback loops for the entire team.
-
-EC2 runners are also a good default if you're not sure which type to pick. You can switch between EC2 and CodeBuild runners from the project's runner configuration modal; changes take effect on the next deployment.
-
-## When to use CodeBuild
-
-CodeBuild runners are a good fit when you deploy rarely — perhaps a few times per month or less. With no persistent infrastructure, you pay nothing between deploys. Each build provisions a fresh container, runs the deployment, and tears down. There is no persistent state to manage or pay for.
-
-CodeBuild is also a reasonable starting point if you want to evaluate Stacktape before committing to any persistent runner infrastructure. You can switch to an EC2 runner from the project's runner configuration modal; changes take effect on the next deployment.
-
-The trade-off is speed. CodeBuild has no caching between builds, so every deploy re-downloads dependencies, which adds time to each build. For active development, this overhead compounds quickly across the team.
-
-## EC2 runner configuration
-
-EC2 runner settings are configured **per project** in the Stacktape Console. Git-backed project creation lets you choose the runner type and a region. The runner configuration modal lets you change the runner type and, for EC2 runners, the instance type.
+Runner settings are configured per project in the Stacktape Console. Open the project, select **Configure runner**, and choose the EC2 instance type. The runner region is selected when you create a Git-backed project.
 
 ### Instance types
 
-The instance type controls how much CPU and memory the runner has during builds. Larger instances build faster but cost more per minute of compute.
+The instance type controls the CPU and memory available during builds. Larger instances can shorten CPU-intensive builds but cost more while running.
 
-| Instance type | vCPU | Memory | Approx. cost |
-|---------------|------|--------|--------------|
-| `m6a.large` | 2 | 8 GB | ~$0.001/min |
-| `m6a.xlarge` | 4 | 16 GB | ~$0.003/min |
-| `c7a.xlarge` | 4 | 8 GB | ~$0.003/min |
-| `c7a.2xlarge` | 8 | 16 GB | ~$0.006/min |
-| `c7a.4xlarge` | 16 | 32 GB | ~$0.011/min |
-| `c7a.8xlarge` | 32 | 64 GB | ~$0.023/min |
+| Instance type | vCPU | Memory |
+| --- | --- | --- |
+| `m6a.large` | 2 | 8 GB |
+| `m6a.xlarge` | 4 | 16 GB |
+| `c7a.xlarge` | 4 | 8 GB |
+| `c7a.2xlarge` | 8 | 16 GB |
+| `c7a.4xlarge` | 16 | 32 GB |
+| `c7a.8xlarge` | 32 | 64 GB |
 
-The default is `c7a.2xlarge` (8 vCPU, 16 GB). This balances build speed and cost for most projects. The available instances span two AWS instance families:
+The default is `c7a.2xlarge` with 8 vCPU and 16 GB of memory. The available families suit different workloads:
 
-- **`c7a`** — an AWS compute-optimized instance family with a higher CPU-to-memory ratio. AWS compute-optimized instances are designed for CPU-bound workloads.
-- **`m6a`** — an AWS general-purpose instance family with more memory per vCPU. AWS general-purpose instances offer a balance of compute, memory, and networking.
+- **`c7a`** instances favor CPU-intensive builds, such as compiling applications and building container images.
+- **`m6a`** instances provide more memory per vCPU for memory-heavy builds.
 
-For small projects with simple builds, `m6a.large` keeps costs minimal. For projects with longer build times, `c7a.4xlarge` or `c7a.8xlarge` offer more CPU and memory. You can change the instance type at any time from the runner configuration modal — changes take effect on the next deployment.
-
-### Hibernation
-
-EC2 runners auto-hibernate after 15 minutes of inactivity. When the next deployment triggers, the runner wakes up in approximately 10 seconds — far faster than provisioning a new instance from scratch.
-
-While hibernated, you pay only for storage (~$3/month for 50 GB). Compute charges stop during hibernation. This means a team that deploys a few times per day pays for a few minutes of compute plus the flat storage cost, while still getting near-instant runner availability for every deploy.
-
-
-> **Tip:** Hibernation makes EC2 runners practical even for teams with gaps between deploys. You get the speed of a warm instance without paying for compute during quiet periods.
-
+Start with the default and change the size if runner metrics or build duration show that the project needs a different balance. A new size takes effect before the next operation executes.
 
 ### Runner region
 
-The runner region is selected when creating a Git-backed project. The Console describes the selected region as where the runner is created and warmed, and where the runner instance and its EBS volume live. EC2 and CodeBuild build minutes are billed at the selected region's AWS rates.
+The runner region determines where its EC2 instance, EBS volume, and supporting resources live. Choose a region supported by Stacktape's runner image and suitable for the AWS account that will own the infrastructure.
 
 
-> **Tip:** Choose a runner region close to where your stacks are deployed. Cross-region data transfer between the runner and your deployment target can add latency and incur additional AWS transfer costs.
+> **Tip:** Choose a runner region close to the regions where you usually deploy. This can reduce latency and cross-region data transfer during builds and uploads.
 
 
-## CodeBuild configuration
+### Organization install commands
 
-CodeBuild settings are configured **globally** for every project on the Projects page in the Stacktape Console.
+Organization administrators can configure additional build commands from the Projects page. Stacktape runs these commands while preparing deployment jobs, which is useful for installing organization-specific tools that are not part of the runner image.
 
-Unlike EC2 runners, CodeBuild provisions a fresh container for each deploy with no caching between builds. This makes CodeBuild simpler to manage (no persistent infrastructure) but slower for repeated deployments.
+Treat these commands as privileged build configuration. Keep them deterministic, pin external tool versions, and avoid printing credentials or other secrets.
 
-## Switching runner types
+## Lifecycle and cost
 
-You can switch between EC2 and CodeBuild runners from the project's runner configuration modal in the Stacktape Console. The modal notes that changes take effect on the next deployment.
+The runner is provisioned when first needed and reused for later work. When a job arrives, Stacktape makes sure the instance is running and ready before dispatching the operation. After 15 minutes without active work, Stacktape stops the instance and attempts to hibernate it where AWS supports that lifecycle.
 
-## Build runners and CI/CD
+You pay AWS directly for the runner resources in your account:
 
-Build runners execute deployments for Git-backed projects managed in the Stacktape Console — see [GitOps deployments](/ci-cd-and-gitops/gitops-with-console). Console runner settings apply to Git-backed projects managed in the Stacktape Console; [custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) and CLI workflows like [`deploy --runner codebuild`](/cli/deploy) are configured separately.
+- EC2 compute while the instance is running
+- EBS storage while the runner exists, including while stopped or hibernated
+- ordinary AWS data transfer and logging charges generated by runner activity
+
+Rates vary by region and change over time. Use the [AWS Pricing Calculator](https://calculator.aws/) or your AWS billing tools for current estimates.
+
+## Build caches
+
+The runner stores package-manager, source, and build caches on its persistent volume. This avoids downloading and rebuilding unchanged inputs on every deployment. Stacktape isolates individual operation work directories while reusing the caches that make repeated jobs faster.
+
+Use `--noCache` for a CLI deployment when you need Stacktape to rebuild artifacts without its normal build cache. That flag does not delete the runner or all operating-system-level caches.
 
 ## FAQ
 
-### Should I use an EC2 runner or CodeBuild?
+### Do I need a Console runner for custom CI/CD?
 
-Use an EC2 runner unless you deploy very infrequently. EC2 runners cache dependencies between deploys, making repeat deployments typically 2–5× faster than CodeBuild. The ~$3/month storage cost is negligible for active projects. CodeBuild is a better fit for projects with rare deployments where you want zero idle costs. In the project creation flow, EC2 runner is preselected and marked as recommended.
+No. GitHub Actions, GitLab CI, CircleCI, and other custom pipelines can run the Stacktape CLI on their own workers. The Console-managed runner is for operations dispatched through Stacktape Console and for the optional self-hosted GitHub Actions integration.
 
-### How much does an EC2 runner cost?
+### What instance type should I choose?
 
-An EC2 runner has two cost components: a fixed ~$3/month for storage (billed even when hibernated) and per-minute compute charges only while the instance is running. With the default `c7a.2xlarge` instance, compute costs approximately $0.006/min. Smaller instances like `m6a.large` cost ~$0.001/min, while the largest `c7a.8xlarge` costs ~$0.023/min.
+Start with `c7a.2xlarge`. Choose a smaller type for lightweight or infrequent builds, a larger `c7a` type for CPU-bound compilation and container builds, or an `m6a` type when the build needs more memory per CPU. Re-evaluate based on real build duration and AWS cost rather than choosing the largest instance by default.
 
-### How does EC2 runner hibernation affect speed and cost?
+### What happens when the runner is idle?
 
-An EC2 runner auto-hibernates after 15 minutes of inactivity, saving its memory state to its storage volume. While hibernated you pay only for storage (~$3/month) with no compute charges. When the next deployment triggers, the instance resumes from its saved state in about 10 seconds — far faster than booting a new instance from scratch — with cached dependencies immediately available. This gives you warm-instance speed without paying for compute during idle periods.
+Stacktape stops the EC2 instance after 15 minutes without active deployment or GitHub Actions work. The EBS volume remains so caches survive, and AWS continues billing for that storage. The next job starts the runner before executing.
 
-### Can I switch runner types after creating a project?
+### Can deployment and GitHub Actions jobs run at the same time?
 
-Yes. Open the runner configuration modal for your project in the Stacktape Console and select a different runner type. Changes take effect on the next deployment. EC2 runner settings (including the instance type) are configured per project, while CodeBuild settings are configured globally for every project on the Projects page.
-
-### Do I need a build runner if I use custom CI/CD?
-
-No. Build runners are specific to Git-backed projects deployed through the Stacktape Console (see [GitOps](/ci-cd-and-gitops/gitops-with-console)). When you use [custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) — GitHub Actions, GitLab CI, or any other pipeline — your CI system's own runners execute the Stacktape CLI. The Console's runner configuration does not apply. The [`deploy --runner codebuild`](/cli/deploy) CLI command is also separate from Console-managed runners — see its [CLI reference](/cli/deploy) for details.
-
-### What instance type should I choose for my EC2 runner?
-
-Start with the default `c7a.2xlarge` (8 vCPU, 16 GB) — it handles most build workloads well. To minimize cost on simple builds, drop to `m6a.large` (2 vCPU, 8 GB, ~$0.001/min); for projects with longer build times, scale up to `c7a.4xlarge` or `c7a.8xlarge` for more CPU and memory. You can change the instance type at any time from the runner configuration modal, and changes take effect on the next deployment.
+They use the same project runner. Stacktape coordinates runner work so jobs do not corrupt shared state. If the runner is busy, new work waits or reports that the runner is occupied rather than starting an unsafe overlapping operation.
 
 ---
 
@@ -431,21 +403,17 @@ workflows:
 
 Store `STACKTAPE_API_KEY` as a project environment variable in CircleCI.
 
-## Using deploy --runner codebuild in pipelines
-
-For large projects where uploading built artifacts from your CI runner is slow, consider using `deploy --runner codebuild` instead. This offloads the build and deployment to AWS CodeBuild inside your AWS account. The `--runner` flag accepts `local` (default), `codebuild`, or `ec2`. See the [`deploy` CLI reference](/cli/deploy) for details on behavior and available flags.
-
-### When to use CodeBuild runner vs local runner
+## Choosing CI runner capacity
 
 | Scenario | Recommended command |
 |----------|-------------------|
 | Small to medium project, CI runner has enough CPU/RAM | `stacktape deploy` (default `--runner local`) |
-| Large dependencies, slow upload from CI runner | `stacktape deploy --runner codebuild` |
-| Need consistent build environment across team | `stacktape deploy --runner codebuild` |
-| Need full control over build environment | [`deploy`](/cli/deploy) on a [self-hosted runner](/ci-cd-and-gitops/self-hosted-github-actions-runners) |
+| Large dependencies or container builds | [`deploy`](/cli/deploy) on a larger CI worker |
+| Need a consistent build environment | Pin the CI image and tool versions |
+| Need AWS-hosted GitHub Actions compute | [`deploy`](/cli/deploy) on a [self-hosted runner](/ci-cd-and-gitops/self-hosted-github-actions-runners) |
 | Want fastest possible deploy from CI | `stacktape deploy` with caching |
 
-The default `deploy` command runs the build and deployment on your CI runner. The `--runner codebuild` flag offloads this to AWS CodeBuild. AWS CodeBuild charges per build minute — see [AWS CodeBuild pricing](https://aws.amazon.com/codebuild/pricing/) for current rates.
+The default `deploy` command runs the build and deployment on your CI worker. Configure CPU, memory, disk, Docker support, and dependency caches in the CI provider. For GitHub Actions, Stacktape can manage an EC2-based [self-hosted runner](/ci-cd-and-gitops/self-hosted-github-actions-runners) in your AWS account.
 
 ## Multi-environment patterns
 
@@ -501,9 +469,9 @@ Run [`stacktape login --apiKey <key>`](/cli/login) as a pipeline step before dep
 
 Use [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) when you want zero-maintenance push-to-deploy with PR previews and no workflow files. Use custom CI/CD when you need pre-deploy test gates, manual approval steps, multi-step pipelines, or non-git triggers. You can combine both — GitOps for staging branches and custom CI for production.
 
-### Should I use deploy --runner codebuild or the default local runner in CI?
+### Where does the deployment build run?
 
-Use [`deploy`](/cli/deploy) for most projects — it's simpler and runs on your CI runner. Switch to `deploy --runner codebuild` when your project has large dependencies that are slow to upload, or when you need a consistent AWS-hosted build environment. The `--runner` flag also accepts `ec2` for an EC2-based build runner. See the [`deploy` CLI reference](/cli/deploy) for details on behavior and available flags. AWS CodeBuild charges per build minute based on compute type.
+The standard [`deploy`](/cli/deploy) command builds on the CI worker that invokes it. Size that worker for your workload and configure provider-level caches for package managers and Docker. If you use Stacktape's self-hosted GitHub Actions integration, the workflow runs on the project's EC2 runner in your AWS account.
 
 ### What happens when a deploy fails in CI?
 
@@ -667,20 +635,20 @@ Confirm the Stacktape GitHub App is installed on the repository (the handler onl
 Source: `apps/docs/content/ci-cd-and-gitops/overview.mdx`
 Route: `/ci-cd-and-gitops/overview`
 
-Stacktape supports several approaches to automated deployments: push-to-deploy **GitOps through the Stacktape Console**, the [`deploy --runner codebuild`](/cli/deploy) CLI command for offloading builds to AWS CodeBuild, integration with **any CI/CD system** via Stacktape CLI commands, and [**self-hosted GitHub Actions runners**](/ci-cd-and-gitops/self-hosted-github-actions-runners). The main practical difference between paths is where the build runs: `deploy --runner codebuild` runs the build remotely in AWS CodeBuild, while custom CI/CD runs Stacktape CLI commands wherever your pipeline runs them.
+Stacktape supports three approaches to automated deployments: push-to-deploy **GitOps through the Stacktape Console**, integration with **any CI/CD system** via Stacktape CLI commands, and [**self-hosted GitHub Actions runners**](/ci-cd-and-gitops/self-hosted-github-actions-runners). The main practical difference is whether Stacktape owns the deployment trigger and runner, or your pipeline owns the workflow and executes the CLI.
 
 ## Automation options at a glance
 
 
 ## Feature Comparison
 
-| Feature | GitOps (Console) | deploy --runner codebuild (CLI) | Custom CI/CD | Self-hosted GitHub Actions runners |
-| --- | --- | --- | --- | --- |
-| Setup effort | Configure in Console — no pipeline files | Single CLI command — no pipeline files | Write a workflow or pipeline file | Enable in Console + write a GitHub Actions workflow |
-| Where the build runs | AWS CodeBuild or EC2 runner (Console-managed) | AWS CodeBuild | Your CI provider's runners | EC2 instances in your AWS account |
-| Pipeline customization | Maps git events directly to deployments | None — runs a single deployment | Full control — tests, lint, approval gates, multi-step builds | Full GitHub Actions flexibility |
-| Maintenance | Managed by Stacktape | None — on-demand command | You own the pipeline definition | You own the workflow |
-| PR previews | Configuration displays stage as pr-{#number} | Manual — pass stage name as argument | Manual setup with dynamic stage names | Manual setup with dynamic stage names |
+| Feature | GitOps (Console) | Custom CI/CD | Self-hosted GitHub Actions runners |
+| --- | --- | --- | --- |
+| Setup effort | Configure in Console — no pipeline files | Write a workflow or pipeline file | Enable in Console + write a GitHub Actions workflow |
+| Where the build runs | Dedicated EC2 runner in your AWS account | Your CI provider's runners | EC2 runner in your AWS account |
+| Pipeline customization | Maps git events directly to deployments | Full control — tests, lint, approval gates, multi-step builds | Full GitHub Actions flexibility |
+| Maintenance | Managed by Stacktape | You own the pipeline definition | You own the workflow |
+| PR previews | Configuration displays stage as pr-{#number} | Manual setup with dynamic stage names | Manual setup with dynamic stage names |
 
 
 ## GitOps with Console
@@ -707,7 +675,7 @@ GitOps configuration is centered on mapping a git event to a deployment: trigger
 
 ## Custom CI/CD
 
-[Custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) means running Stacktape CLI commands — [`deploy`](/cli/deploy), [`deploy --runner codebuild`](/cli/deploy), [`delete`](/cli/delete) — as steps inside your own pipeline. This works with GitHub Actions, GitLab CI, CircleCI, Jenkins, or any system that can run shell commands.
+[Custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) means running Stacktape CLI commands such as [`deploy`](/cli/deploy) and [`delete`](/cli/delete) as steps inside your own pipeline. This works with GitHub Actions, GitLab CI, CircleCI, Jenkins, or any system that can run shell commands.
 
 See the [custom CI/CD guide](/ci-cd-and-gitops/custom-ci-cd) for authentication setup, full pipeline examples, multi-stage workflows, and provider-specific guidance. A minimal GitHub Actions workflow looks like this:
 
@@ -740,20 +708,6 @@ Choose custom CI/CD when you need pre-deploy validation (tests, type checks, lin
 
 If you don't have an existing CI pipeline and just want push-to-deploy, [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) is faster to set up and requires no maintenance. Writing a CI workflow purely to call `stacktape deploy` adds overhead for no benefit.
 
-## CodeBuild deploy from CLI
-
-The [`deploy --runner codebuild`](/cli/deploy) command offloads the entire build and deploy process to AWS CodeBuild. The CLI zips your project using git, uploads it to S3, starts a CodeBuild build, and streams the deployment logs back to your terminal.
-
-```bash
-npx stacktape deploy --runner codebuild --stage production --region us-east-1
-```
-
-This performs the same deployment as [`deploy`](/cli/deploy) but runs the resource-intensive build step on AWS infrastructure rather than your local machine. The command validates your configuration and resolves resources locally before uploading — configuration errors surface immediately without waiting for CodeBuild to provision.
-
-Use `deploy --runner codebuild` when your project has large dependencies that make local builds slow, when your machine is too constrained for the build, or when you want consistent build environments across your team. For most quick deploys from a developer machine, the standard [`deploy`](/cli/deploy) command is sufficient.
-
-`deploy --runner codebuild` can also be used inside CI/CD pipelines. When the CLI starts the build, it passes Stacktape user information (including an API key) to the remote build, and the remote build automatically skips the interactive confirmation prompt.
-
 ## Self-hosted GitHub Actions runners
 
 [Self-hosted GitHub Actions runners](/ci-cd-and-gitops/self-hosted-github-actions-runners) let you run GitHub Actions workflows on runner infrastructure in your AWS account instead of on GitHub's hosted runners. This combines the flexibility of GitHub Actions (custom steps, matrix builds, reusable workflows) with running close to your AWS resources.
@@ -762,12 +716,9 @@ Self-hosted runners are useful when your workflows are slow on hosted runners du
 
 ## Build runners
 
-The [`deploy --runner codebuild`](/cli/deploy) command and Stacktape's GitOps deployments execute on a build runner. Stacktape offers two runner types:
+Stacktape's GitOps deployments execute on a dedicated EC2 runner in your AWS account. The runner persists build caches between deployments and stops after idle time to reduce compute costs.
 
-- **EC2 runners** — dedicated instances that stay warm between deployments and cache dependencies on disk. The instance auto-hibernates after idle time to reduce costs.
-- **CodeBuild runners** — provision a fresh container for each deployment with no persistent infrastructure. Each build re-downloads all dependencies, but there are no idle charges.
-
-See [Build runners](/ci-cd-and-gitops/build-runners) for configuration, compute sizing, pricing, and a detailed comparison.
+See [Build runners](/ci-cd-and-gitops/build-runners) for lifecycle, compute sizing, caching, and cost details.
 
 ## Stacks per git branch
 
@@ -821,11 +772,7 @@ There is no conflict between the approaches. GitOps and custom CI/CD operate ind
 
 ### Do I need AWS credentials in my CI pipeline?
 
-No. The CLI authenticates with a `STACKTAPE_API_KEY` environment variable — create an API key in the Stacktape Console under [API keys](/stacktape-console/api-keys) and store it as a secret in your CI provider. The [`deploy --runner codebuild`](/cli/deploy) command passes the API key to the remote CodeBuild build automatically. See the [custom CI/CD guide](/ci-cd-and-gitops/custom-ci-cd) for full authentication details.
-
-### What is the CodeBuild deploy runner, and when should I use it?
-
-The [`deploy --runner codebuild`](/cli/deploy) command offloads the build and deploy to AWS CodeBuild. The CLI zips your project, uploads it to S3, starts a CodeBuild build, and streams logs back. Use it when local builds are slow, your machine is resource-constrained, or you want consistent remote builds. For most quick deploys, the standard [`deploy`](/cli/deploy) command is sufficient.
+No. The CLI authenticates with a `STACKTAPE_API_KEY` environment variable — create an API key in the Stacktape Console under [API keys](/stacktape-console/api-keys) and store it as a secret in your CI provider. See the [custom CI/CD guide](/ci-cd-and-gitops/custom-ci-cd) for full authentication details.
 
 ### How do GitOps PR preview environments show their stage name?
 
@@ -841,7 +788,7 @@ Stage names must be lowercase alphanumeric with dashes only, at least 2 characte
 
 ### How much do automated deployments cost?
 
-Cost depends on the build runner type. CodeBuild runners provision a fresh container per deployment with no idle charges, while EC2 runners stay warm between deployments (and auto-hibernate after idle time) but cache dependencies for faster builds. See [Build runners](/ci-cd-and-gitops/build-runners) for compute sizing and pricing details.
+Console-managed deployments use an EC2 runner in your AWS account. You pay for compute while it runs, persistent EBS storage, and ordinary data transfer and logging. The instance stops after idle time while its volume and caches remain. See [Build runners](/ci-cd-and-gitops/build-runners) for lifecycle and sizing details.
 
 ### How do I roll back a failed automated deployment?
 
@@ -856,7 +803,7 @@ Route: `/ci-cd-and-gitops/self-hosted-github-actions-runners`
 
 Stacktape can manage self-hosted GitHub Actions runners on EC2 instances in your connected AWS account. You keep full GitHub Actions flexibility — custom steps, matrix builds, reusable workflows — while running jobs on a managed EC2 instance with more compute, pre-installed tools, and automatic hibernation to reduce idle costs.
 
-This page covers the EC2-based GitHub Actions runner configured through the Stacktape Console. For CodeBuild-based build runners used with GitOps deployments, see [Build runners](/ci-cd-and-gitops/build-runners).
+This page covers GitHub Actions jobs dispatched to the project's EC2 runner. The same runner also executes Console-managed GitOps deployments; see [Build runners](/ci-cd-and-gitops/build-runners) for its lifecycle, sizing, caching, and cost model.
 
 ## When to use
 
@@ -1203,7 +1150,7 @@ Or dynamically from the branch:
 npx stacktape deploy --stage "${GITHUB_REF_NAME}" --region eu-west-1
 ```
 
-Stacktape [build runners](/ci-cd-and-gitops/build-runners) include CodeBuild-based and EC2-based options for running deployments from your custom pipeline. See [Build Runners](/ci-cd-and-gitops/build-runners) for the detailed tradeoffs.
+This command runs on your pipeline's worker. Console-managed GitOps deployments instead run on the project's [EC2 build runner](/ci-cd-and-gitops/build-runners).
 
 
 > **Warning:** When using the branch name directly as the stage name, sanitize it first. Branch names can be long and include separators such as `/`. Use a short normalized identifier, because stage names are passed into deployment operations and may appear in generated AWS names.
@@ -1255,7 +1202,7 @@ Delete on merge request close (GitLab CI):
 npx stacktape delete --stage "pr-${CI_MERGE_REQUEST_IID}" --region eu-west-1
 ```
 
-When using Stacktape [build runners](/ci-cd-and-gitops/build-runners) in your custom pipeline, you can choose between CodeBuild-managed runners and EC2 self-hosted runners — see [Build Runners](/ci-cd-and-gitops/build-runners) for details on choosing between them.
+For GitHub Actions, you can run this workflow on GitHub-hosted compute or enable Stacktape's [self-hosted EC2 runner](/ci-cd-and-gitops/self-hosted-github-actions-runners).
 
 ### Auto-delete on PR close
 
@@ -3131,7 +3078,7 @@ Includes sensitive values in deploy output. Handle with care.
 | `--preserveTempFiles (-ptf)` | no | `boolean` | Preserve Temporary Files — If `true`, preserves the temporary files generated by the operation, such as the CloudFormation template and packaged resources. These files are saved to `.stacktape/[invocation-id]`. | - |
 | `--profile (-p)` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. | - |
 | `--projectName (-prj)` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
-| `--runner` | no | `string` | Deploy Runner — Controls where deployment build and packaging work runs. • `local`: Run deployment locally. • `codebuild`: Run deployment in AWS CodeBuild. • `ec2`: Run deployment on a configured EC2 runner in your AWS account. | `local`, `codebuild`, `ec2` |
+| `--runner` | no | `string` | Deploy Runner — Controls where deployment build and packaging work runs. • `local`: Run deployment locally. • `ec2`: Run deployment on a configured EC2 runner in your AWS account. | `local`, `ec2` |
 | `--showSensitiveValues (-ssv)` | no | `boolean` | Show Sensitive Values — If `true`, includes sensitive values in the output of commands such as `info:stack`, `deploy`, and `param:get`. Be cautious when using this flag, as mishandling sensitive data can create security risks. | - |
 | `--templateId (-ti)` | no | `string` | Template ID — The ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates). | - |
 | `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
@@ -3171,14 +3118,6 @@ Use [`diff`](/cli/diff) to see what a deploy would modify without actually apply
 stacktape diff --stage production --region us-east-1
 ```
 
-### Deploy with a remote build environment
-
-For resource-intensive projects, use [`deploy --runner codebuild`](/cli/deploy) to offload the deployment process to AWS CodeBuild in your AWS account:
-
-```bash
-stacktape deploy --runner codebuild --stage production --region us-east-1
-```
-
 ## Dev stacks cannot be deployed
 
 Stages created by [`stacktape dev`](/cli/dev) (dev stacks) cannot be updated with `deploy`. If you attempt this, Stacktape rejects the deploy with an error. To deploy a production stack, use a different stage name (e.g., `--stage production`). To remove a dev stack, use [`stacktape delete`](/cli/delete).
@@ -3188,7 +3127,6 @@ Stages created by [`stacktape dev`](/cli/dev) (dev stacks) cannot be updated wit
 | Command | Description |
 |---|---|
 | [`diff`](/cli/diff) | Shows what a deploy would change without applying anything. |
-| [`deploy --runner codebuild`](/cli/deploy) | Deploys using AWS CodeBuild — offloads the deployment process to a dedicated environment in your AWS account. |
 | [`rollback`](/cli/rollback) | Rolls back to a previous Stacktape deployment version. |
 | [`cf:rollback`](/cli/cf-rollback) | Recovers a CloudFormation stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` state. |
 
@@ -9648,7 +9586,7 @@ Hooks correspond to the before and after phases of the deploy, delete, dev, and 
 
 Hook entries can use `skipOnCI` and `skipOnLocal` to control where they run.
 
-- **`skipOnCI: true`** — skips the hook in CI/CD environments (CodeBuild, GitHub Actions, GitLab CI). Useful for interactive or local-only actions like opening a browser.
+- **`skipOnCI: true`** — skips the hook in CI/CD environments such as GitHub Actions or GitLab CI. Useful for interactive or local-only actions like opening a browser.
 - **`skipOnLocal: true`** — skips the hook when running locally; runs only in CI/CD. Useful for CI-only tasks like uploading test reports or sending notifications.
 
 The hooks example above demonstrates `skipOnCI` — the `openDocs` script runs locally after deploy but is skipped in CI pipelines.
@@ -12498,19 +12436,19 @@ For the full flag reference with all available options and short aliases, see th
 
 ## Deployment modes
 
-Stacktape supports three deployment modes: full deployment through CloudFormation, hot-swap for rapid code iteration, and CodeBuild deployment for offloading builds to AWS. Most teams use full deployment for production and staging where infrastructure consistency matters, and hot-swap during development for faster code iterations.
+Stacktape supports two deployment modes: full deployment through CloudFormation and hot-swap for rapid code iteration. Most teams use full deployment for production and staging where infrastructure consistency matters, and hot-swap during development for faster code iterations.
 
 
 ## Feature Comparison
 
-| Feature | Full deploy | Hot-swap | CodeBuild deploy |
-| --- | --- | --- | --- |
-| Can update all resource types | yes | no | yes |
-| Adds or removes resources | yes | no | yes |
-| Changes IAM, networking, config | yes | no | yes |
-| Automatic rollback on failure | yes | no | yes |
-| Typical duration | Minutes (varies with stack complexity) | Seconds | Minutes (includes upload and build overhead) |
-| Build environment | Local machine | Local machine | AWS CodeBuild |
+| Feature | Full deploy | Hot-swap |
+| --- | --- | --- |
+| Can update all resource types | yes | no |
+| Adds or removes resources | yes | no |
+| Changes IAM, networking, config | yes | no |
+| Automatic rollback on failure | yes | no |
+| Typical duration | Minutes (varies with stack complexity) | Seconds |
+| Execution environment | Invoking CLI or Console EC2 runner | Invoking CLI |
 
 
 ### Full deployment
@@ -12540,20 +12478,6 @@ For Lambda functions, hot-swap updates the deployed function code. Eligible Lamb
 
 > **Warning:** Hot-swap updates resources outside of CloudFormation, which creates drift between the CloudFormation template and actual infrastructure. Use hot-swap only for development stages. Always use full deployment for production.
 
-
-### CodeBuild deployment
-
-For large container builds, monorepos, or machines with limited resources, offload the entire build and deploy process to [AWS CodeBuild](/ci-cd-and-gitops/build-runners):
-
-```bash
-stacktape deploy --runner codebuild --stage production --region eu-west-1
-```
-
-CodeBuild deployment uploads your project to S3 and starts a CodeBuild build that runs the full deployment inside your AWS account. This is useful when local Docker builds are slow or your CI runner is underpowered.
-
-For simple Lambda-based stacks, local deploy is usually faster because it avoids the overhead of uploading your project and starting a CodeBuild environment. CodeBuild deployment shines for container-heavy stacks and monorepos with multiple images to build.
-
-See the [`deploy --runner codebuild` CLI reference](/cli/deploy) for available options.
 
 ## Automatic rollback
 
@@ -12596,7 +12520,7 @@ stacktape deploy --stage production --region eu-west-1 --autoConfirmOperation
 > **Info:** The plan ID is a same-invocation audit fingerprint of semantic templates, workload build inputs, target identity, and the displayed Stacktape resource changes. It is not a checksum of uploaded bytes, a signature, or a reusable cross-job approval token. Portable approvals, signed plans, and immutable cross-account artifact promotion are separate workflows.
 
 
-Hot-swap deploys do not emit a CloudFormation change plan because they update selected Lambda or ECS targets directly. If hot-swap falls back to CloudFormation, Stacktape finalizes the fallback template and emits the plan before upload. CodeBuild and EC2 runners still use their existing launcher-level confirmation in this version; their remote execution is not yet bound to a returned plan ID.
+Hot-swap deploys do not emit a CloudFormation change plan because they update selected Lambda or ECS targets directly. If hot-swap falls back to CloudFormation, Stacktape finalizes the fallback template and emits the plan before upload. EC2 runner deployments still use their existing launcher-level confirmation in this version; their remote execution is not yet bound to a returned plan ID.
 
 ## Previewing changes
 
@@ -12674,7 +12598,7 @@ Common causes of slow Stacktape deployments:
 
 - **Large container images** — Use multi-stage Docker builds or [Stacktape buildpack packaging](/packaging/containers/stacktape-buildpack) to reduce image size.
 - **Many resources** — CloudFormation serializes dependent resources. This is expected for complex stacks.
-- **Slow local builds** — Consider [`deploy --runner codebuild`](/cli/deploy) to offload builds to AWS.
+- **Slow local builds** — Use a machine with more CPU and memory, improve package and Docker caching, or use Console GitOps with its [dedicated EC2 runner](/ci-cd-and-gitops/build-runners).
 - **First deploy to a new region** — Initial infrastructure setup (S3 deployment bucket, ECR repositories) adds one-time overhead.
 
 Run with `--logLevel debug` to see detailed timing for each phase.
@@ -12704,10 +12628,6 @@ Yes. The same `stacktape.ts` config produces independent stacks per stage. Deplo
 ### Should I use hot-swap or full deployment?
 
 Use hot-swap (`--hotSwap`) when iterating on Lambda or container code during development. It bypasses CloudFormation and pushes changes directly, completing in seconds instead of minutes. Use full deployment for any infrastructure changes (new resources, permission updates, config changes) and always for production. Hot-swap creates drift between your CloudFormation state and actual resources, which is acceptable in dev but risky in production.
-
-### When should I use CodeBuild deployment?
-
-Use [`deploy --runner codebuild`](/cli/deploy) when your local machine is slow for Docker builds, when building large container images, or when your CI runner has limited CPU/memory. CodeBuild runs the entire deployment in an AWS-hosted build environment, which can be useful when local or CI resources are constrained. For simple Lambda-based stacks, local deploy is usually faster because it avoids the overhead of uploading your project and starting a CodeBuild environment.
 
 ### Does hot-swap cause CloudFormation drift, and should I worry about it?
 
@@ -14558,16 +14478,6 @@ npx stacktape delete --projectName my-project --stage "pr-${PR_NUMBER}" --region
 ```
 
 For more detail on custom pipelines, see [Custom CI/CD](/ci-cd-and-gitops/custom-ci-cd).
-
-## CodeBuild deploy
-
-For large projects where uploading built artifacts from your CI runner is slow, Stacktape can offload the entire build and deploy to AWS CodeBuild using [`deploy --runner codebuild`](/cli/deploy). The CLI zips your project, uploads it to S3, and runs the deployment remotely in your AWS account — useful when your codebase or dependencies are large.
-
-```bash
-npx stacktape deploy --runner codebuild --projectName my-project --stage production --region us-east-1
-```
-
-[`deploy --runner codebuild`](/cli/deploy) performs the same deployment as [`deploy`](/cli/deploy) but runs the build step on AWS infrastructure instead of your local machine or CI runner. In CI, pass `--autoConfirmOperation` to skip the confirmation prompt.
 
 ## Which path to choose
 
@@ -46624,7 +46534,7 @@ The Console structures work in three nested levels. An organization sits at the 
 
 An organization groups related projects, team members, and settings. In the Console, everything you see is scoped to the currently selected organization — projects, costs, alarms, and team settings all belong to the active organization. Switching organizations shows a different set of projects.
 
-Organization-level build runner settings are stored on the organization and include CodeBuild compute type, base image, and additional install commands.
+Organization-level build runner settings store additional commands that run while preparing EC2 deployment jobs.
 
 You can manage organizations from the CLI with [`stacktape org:create`](/cli/org-create) and [`stacktape org:list`](/cli/org-list).
 
@@ -46689,27 +46599,15 @@ Click a project card to open the project view. The left sidebar orders entries a
 
 ### Configuring build runners
 
-Organization-level build runner settings store the CodeBuild compute type, base image, and additional install commands on the selected organization. In the Console, navigate to **Projects**, click the gear icon in the page header, and select **Configure Codebuild settings**. This option is visible only to users with the `org:manage-codebuild-settings` permission.
+Organization-level build runner settings store additional build commands on the selected organization. In the Console, navigate to **Projects**, click the gear icon in the page header, and select **Configure runner settings**. This option is visible only to users with the `org:manage-runner-settings` permission.
 
 The settings form lets you configure:
 
-- **CodeBuild compute type** — the machine size used for builds
-- **Codebuild base image** — the base image value saved for organization-level CodeBuild settings
-- **Additional Codebuild install commands** — organization-level commands saved with the CodeBuild settings
+- **Additional runner build commands** — one command per line, run while preparing deployment jobs for projects in the organization
 
-Available compute types:
+Keep these commands deterministic and pin installed tool versions. They execute as privileged build configuration, so do not print credentials or other secrets. Configure the EC2 instance type separately for each project from its runner settings.
 
-| Compute type | CPU | Memory |
-|---|---|---|
-| BUILD_GENERAL1_SMALL | 2 vCPU | 4 GB |
-| BUILD_GENERAL1_MEDIUM | 4 vCPU | 8 GB |
-| BUILD_GENERAL1_LARGE | 8 vCPU | 16 GB |
-| BUILD_GENERAL1_XLARGE | 16 vCPU | 32 GB |
-| BUILD_GENERAL1_2XLARGE | 72 vCPU | 144 GB |
-
-For most projects, `BUILD_GENERAL1_SMALL` or `BUILD_GENERAL1_MEDIUM` is sufficient. Use larger sizes for projects with heavy compilation (e.g., large monorepos or native dependencies).
-
-See [Build runners](/ci-cd-and-gitops/build-runners) for details on runner types and configuration options.
+See [Build runners](/ci-cd-and-gitops/build-runners) for details on runner lifecycle, instance sizing, and caching.
 
 ### Configuring project settings
 
@@ -46747,7 +46645,7 @@ The Stacktape Console uses roles and permissions to control what team members ca
 | `projects:delete` | Deleting a project (shown inside the project settings dropdown, which requires `projects:update-settings`) |
 | `projects:update-settings` | Accessing project settings (Git deployments, runner config, GitHub Actions runner) |
 | `deployments:delete-non-production` | Controls delete and dismiss actions on stage entries in the project sidebar |
-| `org:manage-codebuild-settings` | Configuring organization-level CodeBuild settings |
+| `org:manage-runner-settings` | Configuring organization-level build runner settings |
 
 Users without the required permission do not see the corresponding UI controls — for example, the project settings gear icon is hidden from users who lack `projects:update-settings`.
 
@@ -46800,7 +46698,7 @@ Create separate organizations when you need distinct team boundaries — for exa
 - [Team and access control](/stacktape-console/team-and-access-control) — invite members, assign roles, and configure permissions
 - [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) — auto-deploy stages when you push to connected branches
 - [Stacks per Git branch](/ci-cd-and-gitops/stacks-per-git-branch-pattern) — map branches and PRs to stages dynamically
-- [Build runners](/ci-cd-and-gitops/build-runners) — configure CodeBuild or EC2 runners for deployments
+- [Build runners](/ci-cd-and-gitops/build-runners) — configure EC2 runners for Console-managed deployments
 - [Connecting your AWS account](/stacktape-console/connecting-your-aws-account) — required before deploying any stage
 - [Billing and subscription](/stacktape-console/billing-and-subscription) — organization-level billing management
 - [Stages and environments](/configuration/stages-and-environments) — how stages work in Stacktape configuration
@@ -50264,7 +50162,7 @@ Choices:
 - `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
-- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: Record<string,string>`.
+- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: unknown`.
 - `console-channel` (`ConsoleChannelIntegration`). Properties: `channelName: string`.
 
 ### Example 1 (yaml)
@@ -50767,7 +50665,7 @@ Choices:
 - `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
-- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: Record<string,string>`.
+- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: unknown`.
 - `console-channel` (`ConsoleChannelIntegration`). Properties: `channelName: string`.
 
 ### Example 1 (yaml)
@@ -51517,7 +51415,7 @@ Choices:
 - `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
-- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: Record<string,string>`.
+- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: unknown`.
 - `console-channel` (`ConsoleChannelIntegration`). Properties: `channelName: string`.
 
 ### Example 1 (yaml)
@@ -52188,7 +52086,7 @@ Choices:
 - `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
-- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: Record<string,string>`.
+- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: unknown`.
 - `console-channel` (`ConsoleChannelIntegration`). Properties: `channelName: string`.
 
 ### Example 1 (yaml)
@@ -52879,7 +52777,7 @@ Choices:
 - `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
-- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: Record<string,string>`.
+- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: unknown`.
 - `console-channel` (`ConsoleChannelIntegration`). Properties: `channelName: string`.
 
 ### Example 1 (yaml)
@@ -54570,7 +54468,7 @@ Choices:
 - `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
-- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: Record<string,string>`.
+- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: unknown`.
 - `console-channel` (`ConsoleChannelIntegration`). Properties: `channelName: string`.
 
 ### Example 1 (yaml)
@@ -89591,7 +89489,7 @@ Route: `/config-reference/helpers`
 type NamedScriptLifecycleHook = {
   /** Script Name */
   scriptName: string;
-  /** Skip this hook in CI/CD environments (CodeBuild, GitHub Actions, GitLab CI). */
+  /** Skip this hook in CI/CD environments (GitHub Actions, GitLab CI, and similar systems). */
   skipOnCI?: boolean;
   /** Skip this hook when running locally; only run in CI/CD. */
   skipOnLocal?: boolean;
@@ -89664,7 +89562,7 @@ export default defineConfig(() => {
 - Type: `boolean`
 - Default: `false`
 
-Skip this hook in CI/CD environments (CodeBuild, GitHub Actions, GitLab CI).
+Skip this hook in CI/CD environments (GitHub Actions, GitLab CI, and similar systems).
 
 Useful for hooks that only make sense locally (e.g., opening a browser, interactive prompts).
 
@@ -110314,6 +110212,61 @@ export default defineConfig(() => {
 
 ---
 
+# AndIntrinsic API Reference
+
+Source: `apps/cli/@generated/schemas/enhanced-config-schema.json`
+Route: `/config-reference/shared`
+
+## TypeScript definition
+
+```typescript
+type AndIntrinsic = {
+  "Fn::And": Array<AndIntrinsicFnAnd>;
+};
+
+/** Union choices used by the properties above. */
+type AndIntrinsicFnAnd =
+  | "option-1"
+  | AndIntrinsic
+  | "option-3"
+  | "option-4"
+  | "option-5";
+```
+
+## Property: `Fn::And`
+
+- Required: yes
+- Type: `Array<option-1 | AndIntrinsic | option-3 | option-4 | option-5>`
+
+Choices:
+- `option-1`. Properties: `Condition: string`.
+- `AndIntrinsic` (`AndIntrinsic`). Properties: `Fn::And: Array<ConditionExpression>`.
+- `option-3`. Properties: `Fn::Equals: Array<unknown>`.
+- `option-4`. Properties: `Fn::Not: Array<unknown>`.
+- `option-5`. Properties: `Fn::Or: Array<ConditionExpression>`.
+
+---
+
+# Base64Intrinsic API Reference
+
+Source: `apps/cli/@generated/schemas/enhanced-config-schema.json`
+Route: `/config-reference/shared`
+
+## TypeScript definition
+
+```typescript
+type Base64Intrinsic = {
+  "Fn::Base64": unknown;
+};
+```
+
+## Property: `Fn::Base64`
+
+- Required: yes
+- Type: `unknown`
+
+---
+
 # BucketPolicyIamRoleStatement API Reference
 
 Source: `packages/config/src/buckets.ts`
@@ -110514,6 +110467,257 @@ export default defineConfig(() => {
   return { resources: { api } };
 });
 ```
+
+---
+
+# CloudFormationResource<string,object> API Reference
+
+Source: `apps/cli/@generated/schemas/enhanced-config-schema.json`
+Route: `/config-reference/shared`
+
+## TypeScript definition
+
+```typescript
+type CloudFormationResource<string,object> = {
+  Properties: unknown;
+  Type: string;
+  Condition?: string;
+  CreationPolicy?: unknown;
+  DeletionPolicy?: "Delete" | "Retain" | "RetainExceptOnCreate" | "Snapshot";
+  DependsOn?: CloudFormationResource<string,object>DependsOn;
+  Metadata?: unknown;
+  UpdatePolicy?: unknown;
+  UpdateReplacePolicy?: "Delete" | "Retain" | "Snapshot";
+};
+
+/** Union choices used by the properties above. */
+type CloudFormationResource<string,object>DependsOn =
+  | "option-1"
+  | "option-2";
+```
+
+## Property: `Properties`
+
+- Required: yes
+- Type: `unknown`
+
+## Property: `Type`
+
+- Required: yes
+- Type: `string`
+
+## Property: `Condition`
+
+- Required: no
+- Type: `string`
+
+## Property: `CreationPolicy`
+
+- Required: no
+- Type: `unknown`
+
+## Property: `DeletionPolicy`
+
+- Required: no
+- Type: `string: "Delete" | "Retain" | "RetainExceptOnCreate" | "Snapshot"`
+
+## Property: `DependsOn`
+
+- Required: no
+- Type: `option-1 | option-2`
+
+Choices:
+- `option-1`
+- `option-2`
+
+## Property: `Metadata`
+
+- Required: no
+- Type: `unknown`
+
+## Property: `UpdatePolicy`
+
+- Required: no
+- Type: `unknown`
+
+## Property: `UpdateReplacePolicy`
+
+- Required: no
+- Type: `string: "Delete" | "Retain" | "Snapshot"`
+
+---
+
+# JoinIntrinsic API Reference
+
+Source: `apps/cli/@generated/schemas/enhanced-config-schema.json`
+Route: `/config-reference/shared`
+
+## TypeScript definition
+
+```typescript
+type JoinIntrinsic = {
+  "Fn::Join": Array<unknown>;
+};
+```
+
+## Property: `Fn::Join`
+
+- Required: yes
+- Type: `Array<unknown>`
+
+---
+
+# PropertylessCloudFormationResource<string> API Reference
+
+Source: `apps/cli/@generated/schemas/enhanced-config-schema.json`
+Route: `/config-reference/shared`
+
+## TypeScript definition
+
+```typescript
+type PropertylessCloudFormationResource<string> = {
+  Type: string;
+  Condition?: string;
+  CreationPolicy?: unknown;
+  DeletionPolicy?: "Delete" | "Retain" | "RetainExceptOnCreate" | "Snapshot";
+  DependsOn?: PropertylessCloudFormationResource<string>DependsOn;
+  Metadata?: unknown;
+  UpdatePolicy?: unknown;
+  UpdateReplacePolicy?: "Delete" | "Retain" | "Snapshot";
+};
+
+/** Union choices used by the properties above. */
+type PropertylessCloudFormationResource<string>DependsOn =
+  | "option-1"
+  | "option-2";
+```
+
+## Property: `Type`
+
+- Required: yes
+- Type: `string`
+
+## Property: `Condition`
+
+- Required: no
+- Type: `string`
+
+## Property: `CreationPolicy`
+
+- Required: no
+- Type: `unknown`
+
+## Property: `DeletionPolicy`
+
+- Required: no
+- Type: `string: "Delete" | "Retain" | "RetainExceptOnCreate" | "Snapshot"`
+
+## Property: `DependsOn`
+
+- Required: no
+- Type: `option-1 | option-2`
+
+Choices:
+- `option-1`
+- `option-2`
+
+## Property: `Metadata`
+
+- Required: no
+- Type: `unknown`
+
+## Property: `UpdatePolicy`
+
+- Required: no
+- Type: `unknown`
+
+## Property: `UpdateReplacePolicy`
+
+- Required: no
+- Type: `string: "Delete" | "Retain" | "Snapshot"`
+
+---
+
+# SelectIntrinsic API Reference
+
+Source: `apps/cli/@generated/schemas/enhanced-config-schema.json`
+Route: `/config-reference/shared`
+
+## TypeScript definition
+
+```typescript
+type SelectIntrinsic = {
+  "Fn::Select": Array<unknown>;
+};
+```
+
+## Property: `Fn::Select`
+
+- Required: yes
+- Type: `Array<unknown>`
+
+---
+
+# SubIntrinsic API Reference
+
+Source: `apps/cli/@generated/schemas/enhanced-config-schema.json`
+Route: `/config-reference/shared`
+
+## TypeScript definition
+
+```typescript
+import type { AndIntrinsic, Base64Intrinsic, JoinIntrinsic, SelectIntrinsic } from 'stacktape';
+
+type SubIntrinsic = {
+  "Fn::Sub": SubIntrinsicFnSub;
+};
+
+/** Union choices used by the properties above. */
+type SubIntrinsicFnSub =
+  | "option-1"
+  | "option-2"
+  | AndIntrinsic
+  | "option-4"
+  | "option-5"
+  | "option-6"
+  | Base64Intrinsic
+  | "option-8"
+  | "option-9"
+  | "option-10"
+  | "option-11"
+  | JoinIntrinsic
+  | SelectIntrinsic
+  | "option-14"
+  | SubIntrinsic
+  | "option-16"
+  | "option-17"
+  | "option-18";
+```
+
+## Property: `Fn::Sub`
+
+- Required: yes
+- Type: `option-1 | option-2 | AndIntrinsic | option-4 | option-5 | option-6 | Base64Intrinsic | option-8 | option-9 | option-10 | option-11 | JoinIntrinsic | SelectIntrinsic | option-14 | SubIntrinsic | option-16 | option-17 | option-18`
+
+Choices:
+- `option-1`. Properties: `Ref: string`.
+- `option-2`. Properties: `Condition: string`.
+- `AndIntrinsic` (`AndIntrinsic`). Properties: `Fn::And: Array<option-1 | AndIntrinsic | option-3 | option-4 | option-5>`.
+- `option-4`. Properties: `Fn::Equals: Array<unknown>`.
+- `option-5`. Properties: `Fn::Not: Array<unknown>`.
+- `option-6`. Properties: `Fn::Or: Array<option-1 | AndIntrinsic | option-3 | option-4 | option-5>`.
+- `Base64Intrinsic` (`Base64Intrinsic`). Properties: `Fn::Base64: unknown`.
+- `option-8`. Properties: `Fn::FindInMap: Array<unknown>`.
+- `option-9`. Properties: `Fn::GetAtt: Array<unknown>`.
+- `option-10`. Properties: `Fn::GetAZs: unknown`.
+- `option-11`. Properties: `Fn::ImportValue: unknown`.
+- `JoinIntrinsic` (`JoinIntrinsic`). Properties: `Fn::Join: Array<unknown>`.
+- `SelectIntrinsic` (`SelectIntrinsic`). Properties: `Fn::Select: Array<unknown>`.
+- `option-14`. Properties: `Fn::Split: Array<unknown>`.
+- `SubIntrinsic` (`SubIntrinsic`). Properties: `Fn::Sub: option-1 | option-2 | AndIntrinsic | option-4 | option-5 | option-6 | Base64Intrinsic | option-8 | option-9 | option-10 | option-11 | JoinIntrinsic | SelectIntrinsic | option-14 | SubIntrinsic | option-16 | option-17 | option-18`.
+- `option-16`. Properties: `Fn::If: Array<unknown>`.
+- `option-17`
+- `option-18`
 
 ---
 
@@ -116195,7 +116399,7 @@ Choices:
 - `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
-- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: Record<string,string>`.
+- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: unknown`.
 - `console-channel` (`ConsoleChannelIntegration`). Properties: `channelName: string`.
 
 ### Example 1 (yaml)
@@ -117783,7 +117987,7 @@ Choices:
 - `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
-- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: Record<string,string>`.
+- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: unknown`.
 - `console-channel` (`ConsoleChannelIntegration`). Properties: `channelName: string`.
 
 ### Example 1 (yaml)
@@ -118683,8 +118887,6 @@ Resource type: `user-auth-pool`
 ## TypeScript definition
 
 ```typescript
-import type { Record<string,any> } from 'stacktape';
-
 type IdentityProvider = {
   /** OAuth / OIDC client ID */
   clientId: string;
@@ -118697,7 +118899,7 @@ type IdentityProvider = {
   /** Requested scopes */
   authorizeScopes?: Array<string>;
   /** Advanced provider options */
-  providerDetails?: Record<string,any>;
+  providerDetails?: unknown;
 };
 ```
 
@@ -119000,7 +119202,7 @@ export default defineConfig(() => {
 ## Property: `providerDetails`
 
 - Required: no
-- Type: `Record<string,any>`
+- Type: `unknown`
 
 Advanced provider options
 
@@ -122974,13 +123176,11 @@ Route: `/config-reference/user-integrations`
 ## TypeScript definition
 
 ```typescript
-import type { Record<string,string> } from 'stacktape';
-
 type WebhookIntegrationProps = {
   /** The URL to send webhook POST requests to. */
   url: string;
   /** Optional custom headers to include in each request. */
-  headers?: Record<string,string>;
+  headers?: unknown;
   /** Optional signing secret for HMAC-SHA256 payload verification. */
   secret?: string;
 };
@@ -123055,7 +123255,7 @@ export default defineConfig(() => {
 ## Property: `headers`
 
 - Required: no
-- Type: `Record<string,string>`
+- Type: `unknown`
 
 Optional custom headers to include in each request.
 

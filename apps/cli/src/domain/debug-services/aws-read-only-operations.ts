@@ -65,7 +65,6 @@ export const AWS_READ_ONLY_OPERATIONS = {
     'ListDashboards',
     'ListMetrics'
   ],
-  codebuild: ['BatchGetBuilds', 'BatchGetProjects', 'ListBuilds', 'ListBuildsForProject', 'ListProjects'],
   codedeploy: [
     'BatchGetDeployments',
     'GetApplication',

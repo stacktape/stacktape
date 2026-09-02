@@ -96,12 +96,10 @@ export class StacktapeTrpcApiManager {
   recordStackOperationProgress = async ({
     stackName,
     projectName,
-    codebuildBuildArn,
     logStreamName
   }: {
     stackName: string;
     projectName: string;
-    codebuildBuildArn?: string;
     logStreamName?: string;
   }) => {
     const gitInfo = await gitInfoManager.gitInfo;
@@ -114,7 +112,6 @@ export class StacktapeTrpcApiManager {
       stackName,
       projectName,
       accountConnectionId: globalStateManager.targetAwsAccount.id || undefined,
-      codebuildBuildArn,
       logStreamName,
       inProgress: true,
       stacktapeVersion: getStacktapeVersion(),
@@ -130,14 +127,12 @@ export class StacktapeTrpcApiManager {
     interrupted,
     error,
     stackName,
-    codebuildBuildArn,
     logStreamName
   }: {
     success: boolean;
     interrupted: boolean;
     error?: Error;
     stackName?: string;
-    codebuildBuildArn?: string;
     logStreamName?: string;
   }) => {
     return this.apiClient.recordStackOperation({
@@ -149,21 +144,14 @@ export class StacktapeTrpcApiManager {
       commandArgs: withStacktapeOperationInvocationContext(globalStateManager.args),
       region: globalStateManager.region,
       stackName,
-      codebuildBuildArn,
       logStreamName,
-      command: globalStateManager.isExecutingInsideCodebuild
-        ? `codebuild:${globalStateManager.command}`
-        : globalStateManager.command,
+      command: globalStateManager.command,
       inProgress: false,
       stacktapeVersion: getStacktapeVersion()
     });
   };
 
-  recordStackOperationStart = async ({
-    startingCodebuildOperation = false
-  }: {
-    startingCodebuildOperation?: boolean;
-  }) => {
+  recordStackOperationStart = async () => {
     const gitInfo = await gitInfoManager.gitInfo;
     return this.apiClient.recordStackOperation({
       // global state manager information
@@ -180,10 +168,8 @@ export class StacktapeTrpcApiManager {
       gitCommit: gitInfo.commit,
       gitUrl: gitInfo.gitUrl,
       // other information
-      isCodebuildOperation: startingCodebuildOperation,
       inProgress: true,
-      stacktapeVersion: getStacktapeVersion(),
-      logStreamName: globalStateManager.isExecutingInsideCodebuild ? process.env.CODEBUILD_LOG_PATH : undefined
+      stacktapeVersion: getStacktapeVersion()
     });
   };
 

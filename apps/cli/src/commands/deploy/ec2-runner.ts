@@ -1,5 +1,4 @@
 import type { FilteredLogEvent } from '@aws-sdk/client-cloudwatch-logs';
-import type { ConfigureEc2RunnerFromCliParams } from '@stacktape-api/api-key-protected';
 import { CommandInvocationStatus } from '@aws-sdk/client-ssm';
 import { commandLifecycle } from '@application-services/command-lifecycle';
 import { operationReporter } from '@application-services/operation-manager';
@@ -12,7 +11,6 @@ import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { fsPaths } from 'src/config/runtime-paths';
-import { getPathRelativeTo } from '@utils/fs-utils';
 import { wait } from '@utils/misc';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { ExpectedError } from '@utils/errors';
@@ -25,26 +23,12 @@ import { potentiallyPromptBeforeOperation, saveDetailedStackInfoMap } from '../_
 import { initializeRemoteDeployOperation } from '../_utils/initialization';
 import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
 import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
-
-const DEFAULT_EC2_RUNNER_INSTANCE_TYPE = 'c7a.2xlarge';
-type Ec2RunnerInstanceType = ConfigureEc2RunnerFromCliParams['ec2RunnerInstanceType'];
-type RemoteDeployOperation = Awaited<ReturnType<typeof initializeRemoteDeployOperation>>;
-
-const ec2RunnerInstanceOptions = [
-  { value: 'm6a.large', label: 'm6a.large', description: '2 vCPU, 8 GB RAM - approx $0.001/min' },
-  { value: 'm6a.xlarge', label: 'm6a.xlarge', description: '4 vCPU, 16 GB RAM - approx $0.003/min' },
-  { value: 'c7a.xlarge', label: 'c7a.xlarge', description: '4 vCPU, 8 GB RAM - approx $0.003/min' },
-  { value: 'c7a.2xlarge', label: 'c7a.2xlarge', description: '8 vCPU, 16 GB RAM - approx $0.006/min' },
-  { value: 'c7a.4xlarge', label: 'c7a.4xlarge', description: '16 vCPU, 32 GB RAM - approx $0.011/min' },
-  { value: 'c7a.8xlarge', label: 'c7a.8xlarge', description: '32 vCPU, 64 GB RAM - approx $0.023/min' }
-];
+import { resolveEc2RunnerConfigPath } from './ec2-runner-config-path';
 
 export const deployWithEc2Runner = async () => {
-  tuiManager.setPhasePreset('codebuild-deploy');
+  tuiManager.setPhasePreset('remote-deploy');
   const operation = await initializeRemoteDeployOperation();
   const { args, runner, stackContext } = operation;
-
-  await ensureProjectEc2RunnerConfigured(operation);
 
   configManager.validateGuardrails({ hasConfig: true });
   await ensureMissingSecretsCreated();
@@ -76,7 +60,21 @@ export const deployWithEc2Runner = async () => {
     gitCommitMessage = undefined;
   }
 
-  const configPath = runner.configPath && getPathRelativeTo(runner.configPath, stackContext.workingDir);
+  let configPath: string | undefined;
+  if (runner.configPath) {
+    try {
+      configPath = resolveEc2RunnerConfigPath({
+        configPath: runner.configPath,
+        repositoryRoot: await getGitVariable('repositoryRoot')
+      });
+    } catch {
+      throw new ExpectedError(
+        'CLI',
+        'EC2 runner deploys require the Stacktape config file to be inside the current Git repository.',
+        'Move the config into the repository or deploy without the EC2 runner.'
+      );
+    }
+  }
 
   operationReporter.setPhase('UPLOAD');
   await operationReporter.startEvent({ eventType: 'START_DEPLOYMENT', description: 'Starting EC2 runner deployment' });
@@ -91,7 +89,6 @@ export const deployWithEc2Runner = async () => {
     gitBranch: gitInfo.branch,
     gitCommit: gitInfo.commit,
     gitCommitMessage,
-    gitUsername: gitInfo.username,
     configPath,
     templateId: args.templateId || null,
     hotSwap: Boolean(args.hotSwap)
@@ -150,63 +147,6 @@ export const deployWithEc2Runner = async () => {
     invocationId,
     stackInfo: detailedStackInfoSensitive
   };
-};
-
-const ensureProjectEc2RunnerConfigured = async ({
-  args,
-  runner,
-  stackContext
-}: Pick<RemoteDeployOperation, 'args' | 'runner' | 'stackContext'>) => {
-  const project = runner.currentProject;
-
-  if (project?.deploymentRunnerType === 'EC2_RUNNER') {
-    return;
-  }
-
-  tuiManager.warn(`Project ${stackContext.projectName} is not configured to use an EC2 runner.`);
-  tuiManager.printLines([
-    '',
-    tuiManager.makeBold('EC2 runner implications'),
-    '- Stacktape will run deployments on a dedicated EC2 instance in your AWS account.',
-    '- The runner stays warm between deploys and caches dependencies on disk.',
-    '- The first deploy may take longer because the runner must be provisioned.',
-    '- The runner auto-hibernates after about 15 minutes of inactivity, but AWS charges apply while it is running.',
-    ''
-  ]);
-
-  if (args.autoConfirmOperation || !process.stdout.isTTY) {
-    throw new ExpectedError(
-      'CLI',
-      `Project ${stackContext.projectName} is not configured to use an EC2 runner.`,
-      'Configure the project runner in Stacktape Console, or run deploy --runner ec2 from an interactive terminal and confirm the setup prompt.'
-    );
-  }
-
-  const shouldConfigure = await tuiManager.promptConfirm({
-    message: `Configure EC2 runner for project ${stackContext.projectName}?`,
-    defaultValue: true
-  });
-
-  if (!shouldConfigure) {
-    throw new ExpectedError(
-      'CLI',
-      'EC2 runner setup was cancelled.',
-      'Run deploy --runner ec2 again when you are ready to configure the project.'
-    );
-  }
-
-  const selectedInstanceType = (await tuiManager.promptSelect({
-    message: 'Choose EC2 runner instance type:',
-    options: ec2RunnerInstanceOptions,
-    defaultValue: project?.ec2RunnerInstanceType || DEFAULT_EC2_RUNNER_INSTANCE_TYPE
-  })) as Ec2RunnerInstanceType;
-
-  await stacktapeTrpcApiManager.apiClient.configureEc2RunnerFromCli({
-    projectName: stackContext.projectName,
-    ec2RunnerInstanceType: selectedInstanceType
-  });
-
-  tuiManager.info(`Configured EC2 runner for project ${stackContext.projectName} (${selectedInstanceType}).`);
 };
 
 const monitorEc2RunnerDeployment = async ({ invocationId }: { invocationId: string }) => {

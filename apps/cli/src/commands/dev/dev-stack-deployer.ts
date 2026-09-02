@@ -24,7 +24,7 @@ import { potentiallyPromptBeforeOperation } from '../_utils/common';
  * 2. Excludes locally run resources (containers, frontends)
  * 3. Marks the stack as a dev stack in metadata
  */
-export const deployDevStack = async (): Promise<void> => {
+export const deployDevStack = async ({ configFingerprint }: { configFingerprint: string }): Promise<void> => {
   tuiManager.info('Deploying dev stack...');
 
   operationReporter.setPhase('BUILD_AND_PACKAGE');
@@ -33,6 +33,11 @@ export const deployDevStack = async (): Promise<void> => {
   calculatedStackOverviewManager.addStackMetadata({
     metaName: stackMetadataNames.isDevStack(),
     metaValue: true,
+    showDuringPrint: false
+  });
+  calculatedStackOverviewManager.addStackMetadata({
+    metaName: stackMetadataNames.devStackConfigFingerprint(),
+    metaValue: configFingerprint,
     showDuringPrint: false
   });
 

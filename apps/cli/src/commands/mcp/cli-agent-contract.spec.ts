@@ -27,7 +27,6 @@ describe('MCP CLI agent contract', () => {
     expect(summaries.map((summary) => summary.command)).not.toContain('package-workloads');
     expect(summaries.map((summary) => summary.command)).not.toContain('debug:logs');
     expect(summaries.map((summary) => summary.command)).not.toContain('secret:create');
-    expect(summaries.map((summary) => summary.command)).not.toContain('codebuild:deploy');
   });
 
   test('safe operational commands have a sanctioned MCP run path', () => {

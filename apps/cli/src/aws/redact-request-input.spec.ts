@@ -43,30 +43,7 @@ describe('AWS request debug redaction', () => {
     expect(JSON.stringify({ parameter, secret })).not.toContain(sentinel);
   });
 
-  test('redacts CodeBuild project and build-override environment values while preserving their names', () => {
-    const input = {
-      environment: {
-        computeType: 'BUILD_GENERAL1_SMALL',
-        environmentVariables: [{ name: 'DATABASE_PASSWORD', type: 'PLAINTEXT', value: sentinel }],
-        image: 'public.ecr.aws/docker/library/node:24',
-        type: 'LINUX_CONTAINER'
-      },
-      environmentVariablesOverride: [{ name: 'API_TOKEN', type: 'PLAINTEXT', value: sentinel }],
-      projectName: 'stacktape-build'
-    };
-    const redacted = redactAwsRequestInput({ commandName: 'StartBuildCommand', input });
-
-    expect(JSON.stringify(redacted)).not.toContain(sentinel);
-    expect(redacted).toMatchObject({
-      environment: { environmentVariables: [{ name: 'DATABASE_PASSWORD', type: 'PLAINTEXT' }] },
-      environmentVariablesOverride: [{ name: 'API_TOKEN', type: 'PLAINTEXT' }],
-      projectName: 'stacktape-build'
-    });
-    expect(input.environment.environmentVariables[0].value).toBe(sentinel);
-    expect(input.environmentVariablesOverride[0].value).toBe(sentinel);
-  });
-
-  test('redacts ECS task and run overrides', () => {
+  test('redacts ECS task and run overrides that the generated service filter leaves intact', () => {
     const input = {
       containerDefinitions: [
         { environment: [{ name: 'DATABASE_PASSWORD', value: sentinel }], image: 'example/image', name: 'web' }

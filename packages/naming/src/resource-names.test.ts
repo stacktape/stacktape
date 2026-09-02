@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { awsResourceNames, codebuildDeploymentBucketResourceName } from './aws-resource-names';
+import { awsResourceNames } from './aws-resource-names';
 import { buildResourceName, obfuscatedNamesStateHolder } from './resource-names';
 import { shortHash } from './short-hash';
 
@@ -12,9 +12,6 @@ describe('resource names', () => {
 
   test('preserves the shared short hash algorithm', () => {
     expect(shortHash('123456789012')).toBe('f2003d47');
-    expect(codebuildDeploymentBucketResourceName('eu-west-1', '123456789012')).toBe(
-      'stp-codebuild-deployment-eu-west-1-f2003d47'
-    );
   });
 
   test('contains the CLI and Console naming union without changing outputs', () => {
@@ -25,8 +22,8 @@ describe('resource names', () => {
     );
     expect(awsResourceNames.ec2RunnerInstanceName('my-project')).toBe('stp-runner-my-project');
     expect(awsResourceNames.ec2RunnerSecurityGroupName('eu-west-1')).toBe('stp-ec2-runner-sg-eu-west-1');
-    expect(awsResourceNames.ec2RunnerIamRoleName()).toBe('stp-ec2-runner-role');
-    expect(awsResourceNames.ec2RunnerInstanceProfileName()).toBe('stp-ec2-runner-instance-profile');
+    expect(awsResourceNames.ec2RunnerIamRoleName('runner-123')).toBe('stp-ec2-runner-runner-123');
+    expect(awsResourceNames.ec2RunnerInstanceProfileName('runner-123')).toBe('stp-ec2-runner-runner-123');
     expect(awsResourceNames.ec2RunnerLogGroupName()).toBe('/stacktape/ec2-runner');
   });
 });

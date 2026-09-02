@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { recordStackOperationInputSchema } from './api-key.js';
+import {
+  createGitDeploymentConfigFromCliInputSchema,
+  getGitProviderConnectionStatusInputSchema,
+  recordStackOperationInputSchema
+} from './api-key.js';
 
 /**
  * `commandArgs` is the CLI's whole parsed flag object. The CLI's argument parser decides the value types,
@@ -59,4 +63,60 @@ test('the minimal v4 operation requires only its invocation identity', () => {
 
   assert.equal(minimal.invocationId, 'inv-2');
   assert.equal(minimal.commandArgs, undefined);
+});
+
+test('Git provider status accepts nested GitLab owners but rejects URL-shaped repository input', () => {
+  assert.equal(
+    getGitProviderConnectionStatusInputSchema.safeParse({
+      organizationId: 'org-1',
+      provider: 'GITLAB',
+      owner: 'company/platform/team',
+      repository: 'public-api.v4'
+    }).success,
+    true
+  );
+  for (const input of [
+    { owner: 'company?admin=true', repository: 'api' },
+    { owner: 'company', repository: '../api' },
+    { owner: 'https://attacker.example', repository: 'api' }
+  ]) {
+    assert.equal(
+      getGitProviderConnectionStatusInputSchema.safeParse({
+        organizationId: 'org-1',
+        provider: 'GITLAB',
+        ...input
+      }).success,
+      false
+    );
+  }
+  assert.equal(
+    getGitProviderConnectionStatusInputSchema.safeParse({
+      organizationId: 'org-1',
+      provider: 'BITBUCKET',
+      owner: 'company/team',
+      repository: 'api'
+    }).success,
+    false
+  );
+});
+
+test('CLI Git deployment setup requires the provider stable repository identity', () => {
+  const input = {
+    organizationId: 'org-1',
+    projectId: 'project-1',
+    gitProviderInstallationId: 'connection-1',
+    awsAccountConnectionId: 'aws-1',
+    branch: 'main',
+    targetRegion: 'eu-west-1',
+    stage: 'production',
+    configSource: 'GIT_REPOSITORY' as const,
+    deployOnGitEvent: 'PUSHED_TO_BRANCH' as const,
+    configPath: null,
+    templateId: null
+  };
+  assert.equal(createGitDeploymentConfigFromCliInputSchema.safeParse(input).success, false);
+  assert.equal(
+    createGitDeploymentConfigFromCliInputSchema.safeParse({ ...input, gitProviderRepositoryId: 'repo-42' }).success,
+    true
+  );
 });

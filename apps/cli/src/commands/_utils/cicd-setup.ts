@@ -7,32 +7,55 @@ import { detectGitInfo, type GitProvider } from '../init/utils/git-detection';
 
 /** Non-null git provider type for internal use */
 type NonNullGitProvider = Exclude<GitProvider, null>;
+type GitProviderConnection = { installationId: string; providerRepositoryId: string };
 
 /**
  * Checks if git provider is connected to Stacktape
  */
-const checkGitProviderConnection = async (provider: NonNullGitProvider): Promise<boolean> => {
+const findGitProviderConnection = async ({
+  provider,
+  owner,
+  repository
+}: {
+  provider: NonNullGitProvider;
+  owner: string;
+  repository: string;
+}): Promise<GitProviderConnection | undefined> => {
   try {
     const status = await stacktapeTrpcApiManager.apiClient.getGitProviderConnectionStatus({
       organizationId: globalStateManager.organizationData!.id,
-      provider: provider.toUpperCase() as 'GITHUB' | 'GITLAB' | 'BITBUCKET'
+      provider: provider.toUpperCase() as 'GITHUB' | 'GITLAB' | 'BITBUCKET',
+      owner,
+      repository
     });
-    return status.isConnected;
+    return status.isConnected && status.installationId && status.providerRepositoryId
+      ? { installationId: status.installationId, providerRepositoryId: status.providerRepositoryId }
+      : undefined;
   } catch {
-    return false;
+    return undefined;
   }
 };
 
 /**
  * Initiates git provider connection flow by directing user to console
  */
-const connectGitProvider = async (provider: NonNullGitProvider): Promise<boolean> => {
+const connectGitProvider = async ({
+  provider,
+  owner,
+  repository
+}: {
+  provider: NonNullGitProvider;
+  owner: string;
+  repository: string;
+}): Promise<GitProviderConnection | undefined> => {
   const consoleUrl = process.env.STACKTAPE_CONSOLE_URL || 'https://console.stacktape.com';
-  const connectionUrl = `${consoleUrl}/connections?org=${globalStateManager.organizationData!.id}&connect=${provider}`;
+  const connectionUrl = new URL('/git-integrations', consoleUrl);
+  connectionUrl.searchParams.set('org', globalStateManager.organizationData!.id);
+  connectionUrl.searchParams.set('connect', provider);
 
   // Open browser
   try {
-    await openBrowser(connectionUrl);
+    await openBrowser(connectionUrl.toString());
   } catch {
     // Browser may not open in some environments
   }
@@ -41,7 +64,7 @@ const connectGitProvider = async (provider: NonNullGitProvider): Promise<boolean
 
   tuiManager.info('');
   tuiManager.info(`Browser opened. If it didn't open, visit:`);
-  tuiManager.info(tuiManager.colorize('cyan', connectionUrl));
+  tuiManager.info(tuiManager.colorize('cyan', connectionUrl.toString()));
   tuiManager.info('');
   tuiManager.info(`Please connect your ${providerName} account in the browser, then return here.`);
 
@@ -52,11 +75,11 @@ const connectGitProvider = async (provider: NonNullGitProvider): Promise<boolean
   });
 
   if (!confirmed) {
-    return false;
+    return undefined;
   }
 
   // Verify connection
-  return checkGitProviderConnection(provider);
+  return findGitProviderConnection({ provider, owner, repository });
 };
 
 /**
@@ -101,9 +124,13 @@ export const promptCiCdSetupAfterDeploy = async (): Promise<void> => {
 
   try {
     // Check if git provider is connected
-    const isProviderConnected = await checkGitProviderConnection(gitInfo.provider);
+    let gitProviderConnection = await findGitProviderConnection({
+      provider: gitInfo.provider,
+      owner: gitInfo.owner,
+      repository: gitInfo.repository
+    });
 
-    if (!isProviderConnected) {
+    if (!gitProviderConnection) {
       await operationReporter.updateEvent({
         eventType: 'SETUP_CICD',
         additionalMessage: `${providerName} not connected`
@@ -117,8 +144,12 @@ export const promptCiCdSetupAfterDeploy = async (): Promise<void> => {
       });
 
       if (connectNow) {
-        const connected = await connectGitProvider(gitInfo.provider);
-        if (!connected) {
+        gitProviderConnection = await connectGitProvider({
+          provider: gitInfo.provider,
+          owner: gitInfo.owner,
+          repository: gitInfo.repository
+        });
+        if (!gitProviderConnection) {
           await operationReporter.finishEvent({
             eventType: 'SETUP_CICD',
             status: 'warning',
@@ -161,10 +192,10 @@ export const promptCiCdSetupAfterDeploy = async (): Promise<void> => {
     await stacktapeTrpcApiManager.apiClient.createGitDeploymentConfigFromCli({
       organizationId: globalStateManager.organizationData!.id,
       projectId: globalStateManager.targetStack.projectId,
+      gitProviderInstallationId: gitProviderConnection.installationId,
+      gitProviderRepositoryId: gitProviderConnection.providerRepositoryId,
       awsAccountConnectionId: awsAccount.id,
       branch: gitInfo.branch,
-      owner: gitInfo.owner,
-      repository: gitInfo.repository,
       targetRegion: globalStateManager.region,
       stage: globalStateManager.targetStack.stage,
       configSource: 'GIT_REPOSITORY',

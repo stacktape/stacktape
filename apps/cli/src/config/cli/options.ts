@@ -96,11 +96,10 @@ export const autoConfirmOperation = z.boolean().describe(`#### Auto-Confirm Oper
 ---
 If \`true\`, automatically confirms prompts during \`deploy\` or \`delete\` operations, skipping the manual confirmation step.`);
 
-export const deployRunner = z.enum(['local', 'codebuild', 'ec2']).describe(`#### Deploy Runner
+export const deployRunner = z.enum(['local', 'ec2']).describe(`#### Deploy Runner
 ---
 Controls where deployment build and packaging work runs.
 - \`local\`: Run deployment locally.
-- \`codebuild\`: Run deployment in AWS CodeBuild.
 - \`ec2\`: Run deployment on a configured EC2 runner in your AWS account.`);
 
 export const showSensitiveValues = z.boolean().describe(`#### Show Sensitive Values

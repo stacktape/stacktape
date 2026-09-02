@@ -23,7 +23,7 @@ export const getStateMachineExecutionRole = () =>
       Version: '2012-10-17',
       Statement: [{ Effect: 'Allow', Principal: { Service: 'states.amazonaws.com' }, Action: 'sts:AssumeRole' }]
     },
-    // currently our stateMachines do not support SageMaker, EMR, CodeBuild, StepFunctions
+    // Some service integrations are not supported by the state-machine resolver.
     Policies: [
       {
         PolicyName: 'policy-for-interaction',

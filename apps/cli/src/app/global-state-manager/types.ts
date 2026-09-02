@@ -16,6 +16,10 @@ export type PersistedState = {
   systemId: string;
   cliArgsDefaults: ConfigurableCliArgsDefaults;
   otherDefaults: ConfigurableOtherDefaults;
+  authentication?: {
+    /** API keys are scoped to the control-plane endpoint that issued them. */
+    apiKeysByEndpoint?: Record<string, string>;
+  };
 };
 
 import type { CurrentUserAndOrgDataResponse } from '@stacktape/console-api/api-key';

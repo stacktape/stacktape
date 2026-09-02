@@ -11556,6 +11556,48 @@
       ]
     },
     {
+      "id": "config-reference:AndIntrinsic",
+      "title": "AndIntrinsic API Reference",
+      "route": "/config-reference/shared",
+      "sourcePath": "apps/cli/@generated/schemas/enhanced-config-schema.json",
+      "outputPath": "config-reference/shared/andintrinsic.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "AndIntrinsic"
+      ],
+      "tags": [
+        "config-reference",
+        "AndIntrinsic",
+        "Fn::And"
+      ],
+      "chunks": [
+        "config-reference:AndIntrinsic#andintrinsic-api-reference",
+        "config-reference:AndIntrinsic#typescript-definition",
+        "config-reference:AndIntrinsic#property-fn-and"
+      ]
+    },
+    {
+      "id": "config-reference:Base64Intrinsic",
+      "title": "Base64Intrinsic API Reference",
+      "route": "/config-reference/shared",
+      "sourcePath": "apps/cli/@generated/schemas/enhanced-config-schema.json",
+      "outputPath": "config-reference/shared/base64intrinsic.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "Base64Intrinsic"
+      ],
+      "tags": [
+        "config-reference",
+        "Base64Intrinsic",
+        "Fn::Base64"
+      ],
+      "chunks": [
+        "config-reference:Base64Intrinsic#base64intrinsic-api-reference",
+        "config-reference:Base64Intrinsic#typescript-definition",
+        "config-reference:Base64Intrinsic#property-fn-base64"
+      ]
+    },
+    {
       "id": "config-reference:BucketPolicyIamRoleStatement",
       "title": "BucketPolicyIamRoleStatement API Reference",
       "route": "/config-reference/shared",
@@ -11588,6 +11630,141 @@
         "config-reference:BucketPolicyIamRoleStatement#property-sid",
         "config-reference:BucketPolicyIamRoleStatement#example-1-yaml-2",
         "config-reference:BucketPolicyIamRoleStatement#example-2-typescript-2"
+      ]
+    },
+    {
+      "id": "config-reference:CloudFormationResource<string,object>",
+      "title": "CloudFormationResource<string,object> API Reference",
+      "route": "/config-reference/shared",
+      "sourcePath": "apps/cli/@generated/schemas/enhanced-config-schema.json",
+      "outputPath": "config-reference/shared/cloudformationresource-string-object.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "CloudFormationResource<string,object>"
+      ],
+      "tags": [
+        "config-reference",
+        "CloudFormationResource<string,object>",
+        "Properties",
+        "Type",
+        "Condition",
+        "CreationPolicy",
+        "DeletionPolicy",
+        "DependsOn",
+        "Metadata",
+        "UpdatePolicy",
+        "UpdateReplacePolicy"
+      ],
+      "chunks": [
+        "config-reference:CloudFormationResource<string,object>#cloudformationresource-string-object-api-reference",
+        "config-reference:CloudFormationResource<string,object>#typescript-definition",
+        "config-reference:CloudFormationResource<string,object>#property-properties",
+        "config-reference:CloudFormationResource<string,object>#property-type",
+        "config-reference:CloudFormationResource<string,object>#property-condition",
+        "config-reference:CloudFormationResource<string,object>#property-creationpolicy",
+        "config-reference:CloudFormationResource<string,object>#property-deletionpolicy",
+        "config-reference:CloudFormationResource<string,object>#property-dependson",
+        "config-reference:CloudFormationResource<string,object>#property-metadata",
+        "config-reference:CloudFormationResource<string,object>#property-updatepolicy",
+        "config-reference:CloudFormationResource<string,object>#property-updatereplacepolicy"
+      ]
+    },
+    {
+      "id": "config-reference:JoinIntrinsic",
+      "title": "JoinIntrinsic API Reference",
+      "route": "/config-reference/shared",
+      "sourcePath": "apps/cli/@generated/schemas/enhanced-config-schema.json",
+      "outputPath": "config-reference/shared/joinintrinsic.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "JoinIntrinsic"
+      ],
+      "tags": [
+        "config-reference",
+        "JoinIntrinsic",
+        "Fn::Join"
+      ],
+      "chunks": [
+        "config-reference:JoinIntrinsic#joinintrinsic-api-reference",
+        "config-reference:JoinIntrinsic#typescript-definition",
+        "config-reference:JoinIntrinsic#property-fn-join"
+      ]
+    },
+    {
+      "id": "config-reference:PropertylessCloudFormationResource<string>",
+      "title": "PropertylessCloudFormationResource<string> API Reference",
+      "route": "/config-reference/shared",
+      "sourcePath": "apps/cli/@generated/schemas/enhanced-config-schema.json",
+      "outputPath": "config-reference/shared/propertylesscloudformationresource-string.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "PropertylessCloudFormationResource<string>"
+      ],
+      "tags": [
+        "config-reference",
+        "PropertylessCloudFormationResource<string>",
+        "Type",
+        "Condition",
+        "CreationPolicy",
+        "DeletionPolicy",
+        "DependsOn",
+        "Metadata",
+        "UpdatePolicy",
+        "UpdateReplacePolicy"
+      ],
+      "chunks": [
+        "config-reference:PropertylessCloudFormationResource<string>#propertylesscloudformationresource-string-api-reference",
+        "config-reference:PropertylessCloudFormationResource<string>#typescript-definition",
+        "config-reference:PropertylessCloudFormationResource<string>#property-type",
+        "config-reference:PropertylessCloudFormationResource<string>#property-condition",
+        "config-reference:PropertylessCloudFormationResource<string>#property-creationpolicy",
+        "config-reference:PropertylessCloudFormationResource<string>#property-deletionpolicy",
+        "config-reference:PropertylessCloudFormationResource<string>#property-dependson",
+        "config-reference:PropertylessCloudFormationResource<string>#property-metadata",
+        "config-reference:PropertylessCloudFormationResource<string>#property-updatepolicy",
+        "config-reference:PropertylessCloudFormationResource<string>#property-updatereplacepolicy"
+      ]
+    },
+    {
+      "id": "config-reference:SelectIntrinsic",
+      "title": "SelectIntrinsic API Reference",
+      "route": "/config-reference/shared",
+      "sourcePath": "apps/cli/@generated/schemas/enhanced-config-schema.json",
+      "outputPath": "config-reference/shared/selectintrinsic.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "SelectIntrinsic"
+      ],
+      "tags": [
+        "config-reference",
+        "SelectIntrinsic",
+        "Fn::Select"
+      ],
+      "chunks": [
+        "config-reference:SelectIntrinsic#selectintrinsic-api-reference",
+        "config-reference:SelectIntrinsic#typescript-definition",
+        "config-reference:SelectIntrinsic#property-fn-select"
+      ]
+    },
+    {
+      "id": "config-reference:SubIntrinsic",
+      "title": "SubIntrinsic API Reference",
+      "route": "/config-reference/shared",
+      "sourcePath": "apps/cli/@generated/schemas/enhanced-config-schema.json",
+      "outputPath": "config-reference/shared/subintrinsic.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "SubIntrinsic"
+      ],
+      "tags": [
+        "config-reference",
+        "SubIntrinsic",
+        "Fn::Sub"
+      ],
+      "chunks": [
+        "config-reference:SubIntrinsic#subintrinsic-api-reference",
+        "config-reference:SubIntrinsic#typescript-definition",
+        "config-reference:SubIntrinsic#property-fn-sub"
       ]
     },
     {
@@ -14906,24 +15083,18 @@
       ],
       "chunks": [
         "page:/ci-cd-and-gitops/build-runners#build-runners",
-        "page:/ci-cd-and-gitops/build-runners#ec2-runners-vs-codebuild",
-        "page:/ci-cd-and-gitops/build-runners#feature-comparison",
-        "page:/ci-cd-and-gitops/build-runners#when-to-use-ec2-runners",
-        "page:/ci-cd-and-gitops/build-runners#when-to-use-codebuild",
-        "page:/ci-cd-and-gitops/build-runners#ec2-runner-configuration",
+        "page:/ci-cd-and-gitops/build-runners#when-the-runner-is-used",
+        "page:/ci-cd-and-gitops/build-runners#runner-configuration",
         "page:/ci-cd-and-gitops/build-runners#instance-types",
-        "page:/ci-cd-and-gitops/build-runners#hibernation",
         "page:/ci-cd-and-gitops/build-runners#runner-region",
-        "page:/ci-cd-and-gitops/build-runners#codebuild-configuration",
-        "page:/ci-cd-and-gitops/build-runners#switching-runner-types",
-        "page:/ci-cd-and-gitops/build-runners#build-runners-and-ci-cd",
+        "page:/ci-cd-and-gitops/build-runners#organization-install-commands",
+        "page:/ci-cd-and-gitops/build-runners#lifecycle-and-cost",
+        "page:/ci-cd-and-gitops/build-runners#build-caches",
         "page:/ci-cd-and-gitops/build-runners#faq",
-        "page:/ci-cd-and-gitops/build-runners#should-i-use-an-ec2-runner-or-codebuild",
-        "page:/ci-cd-and-gitops/build-runners#how-much-does-an-ec2-runner-cost",
-        "page:/ci-cd-and-gitops/build-runners#how-does-ec2-runner-hibernation-affect-speed-and-cost",
-        "page:/ci-cd-and-gitops/build-runners#can-i-switch-runner-types-after-creating-a-project",
-        "page:/ci-cd-and-gitops/build-runners#do-i-need-a-build-runner-if-i-use-custom-ci-cd",
-        "page:/ci-cd-and-gitops/build-runners#what-instance-type-should-i-choose-for-my-ec2-runner"
+        "page:/ci-cd-and-gitops/build-runners#do-i-need-a-console-runner-for-custom-ci-cd",
+        "page:/ci-cd-and-gitops/build-runners#what-instance-type-should-i-choose",
+        "page:/ci-cd-and-gitops/build-runners#what-happens-when-the-runner-is-idle",
+        "page:/ci-cd-and-gitops/build-runners#can-deployment-and-github-actions-jobs-run-at-the-same-time"
       ]
     },
     {
@@ -14956,8 +15127,7 @@
         "page:/ci-cd-and-gitops/custom-ci-cd#multi-stage-pipeline-with-tests",
         "page:/ci-cd-and-gitops/custom-ci-cd#bitbucket-pipelines",
         "page:/ci-cd-and-gitops/custom-ci-cd#circleci",
-        "page:/ci-cd-and-gitops/custom-ci-cd#using-deploy-runner-codebuild-in-pipelines",
-        "page:/ci-cd-and-gitops/custom-ci-cd#when-to-use-codebuild-runner-vs-local-runner",
+        "page:/ci-cd-and-gitops/custom-ci-cd#choosing-ci-runner-capacity",
         "page:/ci-cd-and-gitops/custom-ci-cd#multi-environment-patterns",
         "page:/ci-cd-and-gitops/custom-ci-cd#passing-config-level-variables-per-environment",
         "page:/ci-cd-and-gitops/custom-ci-cd#previewing-changes-before-deploying",
@@ -14969,7 +15139,7 @@
         "page:/ci-cd-and-gitops/custom-ci-cd#faq",
         "page:/ci-cd-and-gitops/custom-ci-cd#how-do-i-authenticate-stacktape-in-a-ci-pipeline",
         "page:/ci-cd-and-gitops/custom-ci-cd#when-should-i-use-custom-ci-cd-vs-gitops",
-        "page:/ci-cd-and-gitops/custom-ci-cd#should-i-use-deploy-runner-codebuild-or-the-default-local-runner-in-ci",
+        "page:/ci-cd-and-gitops/custom-ci-cd#where-does-the-deployment-build-run",
         "page:/ci-cd-and-gitops/custom-ci-cd#what-happens-when-a-deploy-fails-in-ci",
         "page:/ci-cd-and-gitops/custom-ci-cd#how-do-i-deploy-to-multiple-aws-regions-from-ci",
         "page:/ci-cd-and-gitops/custom-ci-cd#why-does-one-of-two-concurrent-deploys-to-the-same-stage-fail"
@@ -15034,14 +15204,12 @@
         "page:/ci-cd-and-gitops/overview#custom-ci-cd",
         "page:/ci-cd-and-gitops/overview#when-to-use-custom-ci-cd",
         "page:/ci-cd-and-gitops/overview#when-not-to-use-custom-ci-cd",
-        "page:/ci-cd-and-gitops/overview#codebuild-deploy-from-cli",
         "page:/ci-cd-and-gitops/overview#self-hosted-github-actions-runners",
         "page:/ci-cd-and-gitops/overview#build-runners",
         "page:/ci-cd-and-gitops/overview#stacks-per-git-branch",
         "page:/ci-cd-and-gitops/overview#choosing-the-right-approach",
         "page:/ci-cd-and-gitops/overview#faq",
         "page:/ci-cd-and-gitops/overview#do-i-need-aws-credentials-in-my-ci-pipeline",
-        "page:/ci-cd-and-gitops/overview#what-is-the-codebuild-deploy-runner-and-when-should-i-use-it",
         "page:/ci-cd-and-gitops/overview#how-do-gitops-pr-preview-environments-show-their-stage-name",
         "page:/ci-cd-and-gitops/overview#can-i-run-tests-before-deploying-with-gitops",
         "page:/ci-cd-and-gitops/overview#what-stage-names-should-i-use-for-branch-derived-stages",
@@ -15589,7 +15757,6 @@
         "page:/cli/deploy#fast-deploy-for-development",
         "page:/cli/deploy#non-interactive-deploy-in-ci-cd",
         "page:/cli/deploy#preview-changes-before-deploying",
-        "page:/cli/deploy#deploy-with-a-remote-build-environment",
         "page:/cli/deploy#dev-stacks-cannot-be-deployed",
         "page:/cli/deploy#related-commands"
       ]
@@ -17267,7 +17434,6 @@
         "page:/deployment-and-lifecycle/deploying-stacks#feature-comparison",
         "page:/deployment-and-lifecycle/deploying-stacks#full-deployment",
         "page:/deployment-and-lifecycle/deploying-stacks#hot-swap-deployment",
-        "page:/deployment-and-lifecycle/deploying-stacks#codebuild-deployment",
         "page:/deployment-and-lifecycle/deploying-stacks#automatic-rollback",
         "page:/deployment-and-lifecycle/deploying-stacks#debugging-failed-deployments",
         "page:/deployment-and-lifecycle/deploying-stacks#deployment-confirmation",
@@ -17286,7 +17452,6 @@
         "page:/deployment-and-lifecycle/deploying-stacks#what-happens-if-a-cloudformation-deployment-fails-midway",
         "page:/deployment-and-lifecycle/deploying-stacks#can-i-deploy-multiple-stages-from-the-same-config",
         "page:/deployment-and-lifecycle/deploying-stacks#should-i-use-hot-swap-or-full-deployment",
-        "page:/deployment-and-lifecycle/deploying-stacks#when-should-i-use-codebuild-deployment",
         "page:/deployment-and-lifecycle/deploying-stacks#does-hot-swap-cause-cloudformation-drift-and-should-i-worry-about-it"
       ]
     },
@@ -17557,7 +17722,6 @@
         "page:/getting-started/ci-cd#github-actions-example",
         "page:/getting-started/ci-cd#gitlab-ci-example",
         "page:/getting-started/ci-cd#pr-previews-in-custom-ci",
-        "page:/getting-started/ci-cd#codebuild-deploy",
         "page:/getting-started/ci-cd#which-path-to-choose",
         "page:/getting-started/ci-cd#feature-comparison",
         "page:/getting-started/ci-cd#next-step"

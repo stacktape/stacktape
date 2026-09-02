@@ -44,7 +44,6 @@ export type ErrorCategory =
   | 'SCRIPT'
   | 'PACK'
   | 'NIXPACKS'
-  | 'CODEBUILD'
   | 'AWS_ACCOUNT'
   | 'LIMIT_EXCEEDED'
   | 'GUARDRAIL'

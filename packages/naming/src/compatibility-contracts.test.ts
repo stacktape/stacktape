@@ -59,6 +59,7 @@ describe('migrated naming compatibility contracts', () => {
       imageCount: 'imageCount',
       functionCount: 'functionCount',
       isDevStack: 'isDevStack',
+      devStackConfigFingerprint: 'devStackConfigFingerprint',
       deploymentBucket: 'deploymentBucket',
       atlasMongoPrivateTypesMajorVersionUsed: 'mongoDbModuleMajorVersion',
       upstashRedisPrivateTypesMajorVersionUsed: 'upstashRedisModuleMajorVersion',

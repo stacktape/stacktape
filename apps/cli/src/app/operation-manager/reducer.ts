@@ -20,12 +20,12 @@ export const PHASE_NAMES: Record<DeploymentPhase, string> = {
 const PRESET_PHASES: Record<OperationPhasePreset, DeploymentPhase[]> = {
   deploy: ['INITIALIZE', 'BUILD_AND_PACKAGE', 'UPLOAD', 'DEPLOY', 'POST_DEPLOY'],
   delete: ['INITIALIZE', 'DEPLOY'],
-  'codebuild-deploy': ['INITIALIZE', 'UPLOAD', 'DEPLOY']
+  'remote-deploy': ['INITIALIZE', 'UPLOAD', 'DEPLOY']
 };
 
 const phaseName = (preset: OperationPhasePreset, phase: DeploymentPhase): string => {
   if (preset === 'delete' && phase === 'DEPLOY') return 'Delete';
-  if (preset === 'codebuild-deploy' && phase === 'UPLOAD') return 'Prepare Pipeline';
+  if (preset === 'remote-deploy' && phase === 'UPLOAD') return 'Prepare Runner';
   return PHASE_NAMES[phase];
 };
 

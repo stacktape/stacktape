@@ -3973,8 +3973,7 @@
                     "shortDescription": "<p> Optional custom headers to include in each request.</p>",
                     "longDescription": "",
                     "typeInfo": {
-                      "kind": "reference",
-                      "typeName": "Record<string,string>"
+                      "kind": "unknown"
                     },
                     "examples": [
                       {
@@ -4158,6 +4157,119 @@
       "optionalCount": 0
     },
     "typeDeclaration": "// [!code focus-start]\ntype AlarmIntegrationProps = {\n  /** The name of the alarm (defined in the `alarms` section) that will trigger the function. */\n  alarmName: string;\n};\n// [!code focus-end]"
+  },
+  "AndIntrinsic": {
+    "definitionName": "AndIntrinsic",
+    "properties": [
+      {
+        "name": "Fn::And",
+        "required": true,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "union",
+            "discriminator": null,
+            "branches": [
+              {
+                "label": "option-1",
+                "properties": [
+                  {
+                    "name": "Condition",
+                    "required": true,
+                    "shortDescription": "",
+                    "longDescription": "",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "label": "AndIntrinsic",
+                "typeName": "AndIntrinsic",
+                "properties": [
+                  {
+                    "name": "Fn::And",
+                    "required": true,
+                    "shortDescription": "",
+                    "longDescription": "",
+                    "typeInfo": {
+                      "kind": "array",
+                      "itemType": {
+                        "kind": "reference",
+                        "typeName": "ConditionExpression"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "label": "option-3",
+                "properties": [
+                  {
+                    "name": "Fn::Equals",
+                    "required": true,
+                    "shortDescription": "",
+                    "longDescription": "",
+                    "typeInfo": {
+                      "kind": "array",
+                      "itemType": {
+                        "kind": "unknown"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "label": "option-4",
+                "properties": [
+                  {
+                    "name": "Fn::Not",
+                    "required": true,
+                    "shortDescription": "",
+                    "longDescription": "",
+                    "typeInfo": {
+                      "kind": "array",
+                      "itemType": {
+                        "kind": "unknown"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "label": "option-5",
+                "properties": [
+                  {
+                    "name": "Fn::Or",
+                    "required": true,
+                    "shortDescription": "",
+                    "longDescription": "",
+                    "typeInfo": {
+                      "kind": "array",
+                      "itemType": {
+                        "kind": "reference",
+                        "typeName": "ConditionExpression"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 0
+    },
+    "typeDeclaration": "// [!code focus-start]\ntype AndIntrinsic = {\n  \"Fn::And\": Array<AndIntrinsicFnAnd>;\n};\n\n/** Union choices used by the properties above. */\ntype AndIntrinsicFnAnd =\n  | \"option-1\"\n  | AndIntrinsic\n  | \"option-3\"\n  | \"option-4\"\n  | \"option-5\";\n// [!code focus-end]"
   },
   "AppSyncApi": {
     "definitionName": "AppSyncApi",
@@ -5438,8 +5550,7 @@
                     "shortDescription": "<p> Optional custom headers to include in each request.</p>",
                     "longDescription": "",
                     "typeInfo": {
-                      "kind": "reference",
-                      "typeName": "Record<string,string>"
+                      "kind": "unknown"
                     },
                     "examples": [
                       {
@@ -8050,6 +8161,25 @@
       "optionalCount": 2
     },
     "typeDeclaration": "// [!code focus-start]\ntype AwsCdkConstructProps = {\n  /** Path to the file containing your CDK construct class. */\n  entryfilePath: string;\n  /** Custom props passed to the construct's constructor. */\n  constructProperties?: unknown;\n  /** Name of the exported construct class from the entry file. */\n  exportName?: string;\n};\n// [!code focus-end]"
+  },
+  "Base64Intrinsic": {
+    "definitionName": "Base64Intrinsic",
+    "properties": [
+      {
+        "name": "Fn::Base64",
+        "required": true,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "unknown"
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 0
+    },
+    "typeDeclaration": "// [!code focus-start]\ntype Base64Intrinsic = {\n  \"Fn::Base64\": unknown;\n};\n// [!code focus-end]"
   },
   "Bastion": {
     "definitionName": "Bastion",
@@ -15228,6 +15358,131 @@
     },
     "typeDeclaration": "import type { KeyValuePair } from 'stacktape';\n\n// [!code focus-start]\ntype ClassTransitionProps = {\n  /** Move objects to a cheaper storage class this many days after upload. */\n  daysAfterUpload: number;\n  /** Target storage class. Cheaper classes have higher retrieval costs/latency. */\n  storageClass: \"DEEP_ARCHIVE\" | \"GLACIER\" | \"INTELLIGENT_TIERING\" | \"ONEZONE_IA\" | \"STANDARD_IA\";\n  /** Only apply this rule to objects with this key prefix (e.g., `logs/`, `uploads/`). */\n  prefix?: string;\n  /** Only apply this rule to objects with these tags. */\n  tags?: Array<KeyValuePair>;\n};\n// [!code focus-end]"
   },
+  "CloudFormationResource<string,object>": {
+    "definitionName": "CloudFormationResource<string,object>",
+    "properties": [
+      {
+        "name": "Properties",
+        "required": true,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "unknown"
+        }
+      },
+      {
+        "name": "Type",
+        "required": true,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      },
+      {
+        "name": "Condition",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      },
+      {
+        "name": "CreationPolicy",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "unknown"
+        }
+      },
+      {
+        "name": "DeletionPolicy",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ],
+          "enumValues": [
+            "Delete",
+            "Retain",
+            "RetainExceptOnCreate",
+            "Snapshot"
+          ]
+        }
+      },
+      {
+        "name": "DependsOn",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "union",
+          "discriminator": null,
+          "branches": [
+            {
+              "label": "option-1",
+              "properties": []
+            },
+            {
+              "label": "option-2",
+              "properties": []
+            }
+          ]
+        }
+      },
+      {
+        "name": "Metadata",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "unknown"
+        }
+      },
+      {
+        "name": "UpdatePolicy",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "unknown"
+        }
+      },
+      {
+        "name": "UpdateReplacePolicy",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ],
+          "enumValues": [
+            "Delete",
+            "Retain",
+            "Snapshot"
+          ]
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 2,
+      "optionalCount": 7
+    },
+    "typeDeclaration": "// [!code focus-start]\ntype CloudFormationResource<string,object> = {\n  Properties: unknown;\n  Type: string;\n  Condition?: string;\n  CreationPolicy?: unknown;\n  DeletionPolicy?: \"Delete\" | \"Retain\" | \"RetainExceptOnCreate\" | \"Snapshot\";\n  DependsOn?: CloudFormationResource<string,object>DependsOn;\n  Metadata?: unknown;\n  UpdatePolicy?: unknown;\n  UpdateReplacePolicy?: \"Delete\" | \"Retain\" | \"Snapshot\";\n};\n\n/** Union choices used by the properties above. */\ntype CloudFormationResource<string,object>DependsOn =\n  | \"option-1\"\n  | \"option-2\";\n// [!code focus-end]"
+  },
   "CloudformationTag": {
     "definitionName": "CloudformationTag",
     "properties": [
@@ -21323,8 +21578,7 @@
                                 "shortDescription": "<p> Optional custom headers to include in each request.</p>",
                                 "longDescription": "",
                                 "typeInfo": {
-                                  "kind": "reference",
-                                  "typeName": "Record<string,string>"
+                                  "kind": "unknown"
                                 },
                                 "examples": [
                                   {
@@ -22219,8 +22473,7 @@
                                 "shortDescription": "<p> Optional custom headers to include in each request.</p>",
                                 "longDescription": "",
                                 "typeInfo": {
-                                  "kind": "reference",
-                                  "typeName": "Record<string,string>"
+                                  "kind": "unknown"
                                 },
                                 "examples": [
                                   {
@@ -32474,8 +32727,7 @@
                     "shortDescription": "<p> Optional custom headers to include in each request.</p>",
                     "longDescription": "",
                     "typeInfo": {
-                      "kind": "reference",
-                      "typeName": "Record<string,string>"
+                      "kind": "unknown"
                     },
                     "examples": [
                       {
@@ -33422,8 +33674,7 @@
         "shortDescription": "<p> Advanced provider options</p>",
         "longDescription": "<p>Low‑level configuration passed directly into Cognito&#39;s <code>ProviderDetails</code> map.\nYou can use this to override endpoints or supply provider‑specific keys as documented by AWS,\nfor example <code>authorize_url</code>, <code>token_url</code>, <code>attributes_request_method</code>, <code>oidc_issuer</code>, and others.</p>\n<p>In most cases you don&#39;t need to set this – Stacktape configures sensible defaults for common providers.</p>",
         "typeInfo": {
-          "kind": "reference",
-          "typeName": "Record<string,any>"
+          "kind": "unknown"
         },
         "examples": [
           {
@@ -33441,7 +33692,7 @@
       "requiredCount": 3,
       "optionalCount": 3
     },
-    "typeDeclaration": "import type { Record<string,any> } from 'stacktape';\n\n// [!code focus-start]\ntype IdentityProvider = {\n  /** OAuth / OIDC client ID */\n  clientId: string;\n  /** OAuth / OIDC client secret */\n  clientSecret: string;\n  /** Provider type */\n  type: \"Facebook\" | \"Google\" | \"LoginWithAmazon\" | \"OIDC\" | \"SAML\" | \"SignInWithApple\";\n  /** Attribute mapping */\n  attributeMapping?: unknown;\n  /** Requested scopes */\n  authorizeScopes?: Array<string>;\n  /** Advanced provider options */\n  providerDetails?: Record<string,any>;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype IdentityProvider = {\n  /** OAuth / OIDC client ID */\n  clientId: string;\n  /** OAuth / OIDC client secret */\n  clientSecret: string;\n  /** Provider type */\n  type: \"Facebook\" | \"Google\" | \"LoginWithAmazon\" | \"OIDC\" | \"SAML\" | \"SignInWithApple\";\n  /** Attribute mapping */\n  attributeMapping?: unknown;\n  /** Requested scopes */\n  authorizeScopes?: Array<string>;\n  /** Advanced provider options */\n  providerDetails?: unknown;\n};\n// [!code focus-end]"
   },
   "InviteMessageConfig": {
     "definitionName": "InviteMessageConfig",
@@ -33603,6 +33854,28 @@
       "optionalCount": 3
     },
     "typeDeclaration": "// [!code focus-start]\ntype JavaLanguageSpecificConfig = {\n  /** The version of Java to use. */\n  javaVersion?: 11 | 17 | 19 | 21 | 25 | 8;\n  /** The path to your project's build file (`pom.xml` for Maven or `build.gradle` for Gradle). */\n  packageManagerFile?: string;\n  /** Specifies whether to use Maven instead of Gradle. */\n  useMaven?: boolean;\n};\n// [!code focus-end]"
+  },
+  "JoinIntrinsic": {
+    "definitionName": "JoinIntrinsic",
+    "properties": [
+      {
+        "name": "Fn::Join",
+        "required": true,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "unknown"
+          }
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 0
+    },
+    "typeDeclaration": "// [!code focus-start]\ntype JoinIntrinsic = {\n  \"Fn::Join\": Array<unknown>;\n};\n// [!code focus-end]"
   },
   "KafkaCluster": {
     "definitionName": "KafkaCluster",
@@ -34952,8 +35225,7 @@
                     "shortDescription": "<p> Optional custom headers to include in each request.</p>",
                     "longDescription": "",
                     "typeInfo": {
-                      "kind": "reference",
-                      "typeName": "Record<string,string>"
+                      "kind": "unknown"
                     },
                     "examples": [
                       {
@@ -41883,7 +42155,7 @@
       {
         "name": "skipOnCI",
         "required": false,
-        "shortDescription": "<p> Skip this hook in CI/CD environments (CodeBuild, GitHub Actions, GitLab CI).</p>",
+        "shortDescription": "<p> Skip this hook in CI/CD environments (GitHub Actions, GitLab CI, and similar systems).</p>",
         "longDescription": "<p>Useful for hooks that only make sense locally (e.g., opening a browser, interactive prompts).</p>",
         "defaultValue": "false",
         "typeInfo": {
@@ -41931,7 +42203,7 @@
       "requiredCount": 1,
       "optionalCount": 2
     },
-    "typeDeclaration": "// [!code focus-start]\ntype NamedScriptLifecycleHook = {\n  /** Script Name */\n  scriptName: string;\n  /** Skip this hook in CI/CD environments (CodeBuild, GitHub Actions, GitLab CI). */\n  skipOnCI?: boolean;\n  /** Skip this hook when running locally; only run in CI/CD. */\n  skipOnLocal?: boolean;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype NamedScriptLifecycleHook = {\n  /** Script Name */\n  scriptName: string;\n  /** Skip this hook in CI/CD environments (GitHub Actions, GitLab CI, and similar systems). */\n  skipOnCI?: boolean;\n  /** Skip this hook when running locally; only run in CI/CD. */\n  skipOnLocal?: boolean;\n};\n// [!code focus-end]"
   },
   "NatSettings": {
     "definitionName": "NatSettings",
@@ -47298,6 +47570,122 @@
     },
     "typeDeclaration": "import type { ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, PrivateServiceLoadBalancing, SecretEnvironmentVar, ServiceHelperContainer, StpBuildpackCwImagePackaging, StpIamRoleStatement, TracingOptions } from 'stacktape';\n\n// [!code focus-start]\ntype PrivateServiceProps = {\n  /** Configures the container image for the service. */\n  packaging: PrivateServicePackaging;\n  /** CPU, memory, and compute engine for the container. */\n  resources: ContainerWorkloadResourcesConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Allow SSH-like access to running containers for debugging. */\n  enableRemoteSessions?: boolean;\n  /** Environment variables injected into the container at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Health check that auto-replaces unhealthy containers. */\n  internalHealthCheck?: ContainerHealthCheck;\n  /** How traffic reaches this service from other resources. */\n  loadBalancing?: PrivateServiceLoadBalancing;\n  /** Logging configuration. */\n  logging?: ContainerWorkloadContainerLogging;\n  /** Port this service listens on. Injected as the `PORT` env var. */\n  port?: number;\n  /** Protocol for metrics collection. Set to enable protocol-specific metrics (e.g., HTTP 5xx tracking). */\n  protocol?: \"grpc\" | \"http\" | \"http2\";\n  /** Auto-scaling: add/remove container instances based on demand. */\n  scaling?: ContainerWorkloadScaling;\n  /** Sensitive environment variables fetched by the container runtime.\n\nValues must be exact `$SsmParam(...)` or `$Secret(...)` directives. Prefer a SecureString SSM parameter for\nsecrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features\nare useful.\n\n**Example (TypeScript):**\nsecrets: {\n  DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),\n  ROTATING_API_KEY: $Secret('rotating-api-key')\n} */\n  secrets?: Array<SecretEnvironmentVar>;\n  /** Helper containers that run alongside the main container. */\n  sideContainers?: Array<ServiceHelperContainer>;\n  /** Seconds to wait for graceful shutdown before force-killing the container. */\n  stopTimeout?: number;\n  /** Distributed tracing for this service. */\n  tracing?: PrivateServiceTracing;\n  /** Deploy in private subnets with a static outbound IP via NAT Gateway. */\n  usePrivateSubnetsWithNAT?: boolean;\n  /** Persistent EFS volumes shared across containers and restarts. */\n  volumeMounts?: Array<ContainerEfsMount>;\n};\n\n/** Union choices used by the properties above. */\ntype PrivateServicePackaging =\n  | PrebuiltCwImagePackaging\n  | CustomDockerfileCwImagePackaging\n  | ExternalBuildpackCwImagePackaging\n  | NixpacksCwImagePackaging\n  | StpBuildpackCwImagePackaging;\n\ntype PrivateServiceTracing =\n  | TracingOptions\n  | \"option-2\";\n// [!code focus-end]"
   },
+  "PropertylessCloudFormationResource<string>": {
+    "definitionName": "PropertylessCloudFormationResource<string>",
+    "properties": [
+      {
+        "name": "Type",
+        "required": true,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      },
+      {
+        "name": "Condition",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      },
+      {
+        "name": "CreationPolicy",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "unknown"
+        }
+      },
+      {
+        "name": "DeletionPolicy",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ],
+          "enumValues": [
+            "Delete",
+            "Retain",
+            "RetainExceptOnCreate",
+            "Snapshot"
+          ]
+        }
+      },
+      {
+        "name": "DependsOn",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "union",
+          "discriminator": null,
+          "branches": [
+            {
+              "label": "option-1",
+              "properties": []
+            },
+            {
+              "label": "option-2",
+              "properties": []
+            }
+          ]
+        }
+      },
+      {
+        "name": "Metadata",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "unknown"
+        }
+      },
+      {
+        "name": "UpdatePolicy",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "unknown"
+        }
+      },
+      {
+        "name": "UpdateReplacePolicy",
+        "required": false,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ],
+          "enumValues": [
+            "Delete",
+            "Retain",
+            "Snapshot"
+          ]
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 7
+    },
+    "typeDeclaration": "// [!code focus-start]\ntype PropertylessCloudFormationResource<string> = {\n  Type: string;\n  Condition?: string;\n  CreationPolicy?: unknown;\n  DeletionPolicy?: \"Delete\" | \"Retain\" | \"RetainExceptOnCreate\" | \"Snapshot\";\n  DependsOn?: PropertylessCloudFormationResource<string>DependsOn;\n  Metadata?: unknown;\n  UpdatePolicy?: unknown;\n  UpdateReplacePolicy?: \"Delete\" | \"Retain\" | \"Snapshot\";\n};\n\n/** Union choices used by the properties above. */\ntype PropertylessCloudFormationResource<string>DependsOn =\n  | \"option-1\"\n  | \"option-2\";\n// [!code focus-end]"
+  },
   "PyLanguageSpecificConfig": {
     "definitionName": "PyLanguageSpecificConfig",
     "properties": [
@@ -49762,8 +50150,7 @@
                     "shortDescription": "<p> Optional custom headers to include in each request.</p>",
                     "longDescription": "",
                     "typeInfo": {
-                      "kind": "reference",
-                      "typeName": "Record<string,string>"
+                      "kind": "unknown"
                     },
                     "examples": [
                       {
@@ -52511,6 +52898,28 @@
     },
     "typeDeclaration": "// [!code focus-start]\ntype SecretEnvironmentVar = {\n  /** Environment variable name exposed to the container (e.g., `DATABASE_PASSWORD`, `API_KEY`). */\n  name: string;\n  /** Secret source injected by the container runtime.\n\nUse an exact `$SsmParam(...)` or `$Secret(...)` directive. Unlike `environment`, Stacktape passes only the\nparameter or secret ARN to the container orchestrator; the sensitive value is never stored in the task\ndefinition. */\n  valueFrom: string;\n};\n// [!code focus-end]"
   },
+  "SelectIntrinsic": {
+    "definitionName": "SelectIntrinsic",
+    "properties": [
+      {
+        "name": "Fn::Select",
+        "required": true,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "unknown"
+          }
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 0
+    },
+    "typeDeclaration": "// [!code focus-start]\ntype SelectIntrinsic = {\n  \"Fn::Select\": Array<unknown>;\n};\n// [!code focus-end]"
+  },
   "ServiceHelperContainer": {
     "definitionName": "ServiceHelperContainer",
     "properties": [
@@ -55170,8 +55579,7 @@
                     "shortDescription": "<p> Optional custom headers to include in each request.</p>",
                     "longDescription": "",
                     "typeInfo": {
-                      "kind": "reference",
-                      "typeName": "Record<string,string>"
+                      "kind": "unknown"
                     },
                     "examples": [
                       {
@@ -59504,6 +59912,903 @@
     },
     "typeDeclaration": "// [!code focus-start]\ntype StpStateMachine = {\n  configParentResourceType: \"state-machine\";\n  name: string;\n  nameChain: Array<string>;\n};\n// [!code focus-end]"
   },
+  "SubIntrinsic": {
+    "definitionName": "SubIntrinsic",
+    "properties": [
+      {
+        "name": "Fn::Sub",
+        "required": true,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "union",
+          "discriminator": null,
+          "branches": [
+            {
+              "label": "option-1",
+              "properties": [
+                {
+                  "name": "Ref",
+                  "required": true,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "label": "option-2",
+              "properties": [
+                {
+                  "name": "Condition",
+                  "required": true,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "label": "AndIntrinsic",
+              "typeName": "AndIntrinsic",
+              "properties": [
+                {
+                  "name": "Fn::And",
+                  "required": true,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "union",
+                      "discriminator": null,
+                      "branches": [
+                        {
+                          "label": "option-1",
+                          "properties": [
+                            {
+                              "name": "Condition",
+                              "required": true,
+                              "shortDescription": "",
+                              "longDescription": "",
+                              "typeInfo": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "label": "AndIntrinsic",
+                          "typeName": "AndIntrinsic",
+                          "properties": []
+                        },
+                        {
+                          "label": "option-3",
+                          "properties": [
+                            {
+                              "name": "Fn::Equals",
+                              "required": true,
+                              "shortDescription": "",
+                              "longDescription": "",
+                              "typeInfo": {
+                                "kind": "array",
+                                "itemType": {
+                                  "kind": "unknown"
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "label": "option-4",
+                          "properties": [
+                            {
+                              "name": "Fn::Not",
+                              "required": true,
+                              "shortDescription": "",
+                              "longDescription": "",
+                              "typeInfo": {
+                                "kind": "array",
+                                "itemType": {
+                                  "kind": "unknown"
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "label": "option-5",
+                          "properties": [
+                            {
+                              "name": "Fn::Or",
+                              "required": true,
+                              "shortDescription": "",
+                              "longDescription": "",
+                              "typeInfo": {
+                                "kind": "array",
+                                "itemType": {
+                                  "kind": "reference",
+                                  "typeName": "ConditionExpression"
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "label": "option-4",
+              "properties": [
+                {
+                  "name": "Fn::Equals",
+                  "required": true,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "unknown"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "label": "option-5",
+              "properties": [
+                {
+                  "name": "Fn::Not",
+                  "required": true,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "unknown"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "label": "option-6",
+              "properties": [
+                {
+                  "name": "Fn::Or",
+                  "required": true,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "union",
+                      "discriminator": null,
+                      "branches": [
+                        {
+                          "label": "option-1",
+                          "properties": [
+                            {
+                              "name": "Condition",
+                              "required": true,
+                              "shortDescription": "",
+                              "longDescription": "",
+                              "typeInfo": {
+                                "kind": "primitive",
+                                "types": [
+                                  "string"
+                                ]
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "label": "AndIntrinsic",
+                          "typeName": "AndIntrinsic",
+                          "properties": [
+                            {
+                              "name": "Fn::And",
+                              "required": true,
+                              "shortDescription": "",
+                              "longDescription": "",
+                              "typeInfo": {
+                                "kind": "array",
+                                "itemType": {
+                                  "kind": "reference",
+                                  "typeName": "ConditionExpression"
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "label": "option-3",
+                          "properties": [
+                            {
+                              "name": "Fn::Equals",
+                              "required": true,
+                              "shortDescription": "",
+                              "longDescription": "",
+                              "typeInfo": {
+                                "kind": "array",
+                                "itemType": {
+                                  "kind": "unknown"
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "label": "option-4",
+                          "properties": [
+                            {
+                              "name": "Fn::Not",
+                              "required": true,
+                              "shortDescription": "",
+                              "longDescription": "",
+                              "typeInfo": {
+                                "kind": "array",
+                                "itemType": {
+                                  "kind": "unknown"
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "label": "option-5",
+                          "properties": [
+                            {
+                              "name": "Fn::Or",
+                              "required": true,
+                              "shortDescription": "",
+                              "longDescription": "",
+                              "typeInfo": {
+                                "kind": "array",
+                                "itemType": {
+                                  "kind": "reference",
+                                  "typeName": "ConditionExpression"
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "label": "Base64Intrinsic",
+              "typeName": "Base64Intrinsic",
+              "properties": [
+                {
+                  "name": "Fn::Base64",
+                  "required": true,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "unknown"
+                  }
+                }
+              ]
+            },
+            {
+              "label": "option-8",
+              "properties": [
+                {
+                  "name": "Fn::FindInMap",
+                  "required": true,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "unknown"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "label": "option-9",
+              "properties": [
+                {
+                  "name": "Fn::GetAtt",
+                  "required": true,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "unknown"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "label": "option-10",
+              "properties": [
+                {
+                  "name": "Fn::GetAZs",
+                  "required": true,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "unknown"
+                  }
+                }
+              ]
+            },
+            {
+              "label": "option-11",
+              "properties": [
+                {
+                  "name": "Fn::ImportValue",
+                  "required": true,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "unknown"
+                  }
+                }
+              ]
+            },
+            {
+              "label": "JoinIntrinsic",
+              "typeName": "JoinIntrinsic",
+              "properties": [
+                {
+                  "name": "Fn::Join",
+                  "required": true,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "unknown"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "label": "SelectIntrinsic",
+              "typeName": "SelectIntrinsic",
+              "properties": [
+                {
+                  "name": "Fn::Select",
+                  "required": true,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "unknown"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "label": "option-14",
+              "properties": [
+                {
+                  "name": "Fn::Split",
+                  "required": true,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "unknown"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "label": "SubIntrinsic",
+              "typeName": "SubIntrinsic",
+              "properties": [
+                {
+                  "name": "Fn::Sub",
+                  "required": true,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "union",
+                    "discriminator": null,
+                    "branches": [
+                      {
+                        "label": "option-1",
+                        "properties": [
+                          {
+                            "name": "Ref",
+                            "required": true,
+                            "shortDescription": "",
+                            "longDescription": "",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "string"
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "label": "option-2",
+                        "properties": [
+                          {
+                            "name": "Condition",
+                            "required": true,
+                            "shortDescription": "",
+                            "longDescription": "",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "string"
+                              ]
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "label": "AndIntrinsic",
+                        "typeName": "AndIntrinsic",
+                        "properties": [
+                          {
+                            "name": "Fn::And",
+                            "required": true,
+                            "shortDescription": "",
+                            "longDescription": "",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "union",
+                                "discriminator": null,
+                                "branches": [
+                                  {
+                                    "label": "option-1",
+                                    "properties": [
+                                      {
+                                        "name": "Condition",
+                                        "required": true,
+                                        "shortDescription": "",
+                                        "longDescription": "",
+                                        "typeInfo": {
+                                          "kind": "primitive",
+                                          "types": [
+                                            "string"
+                                          ]
+                                        }
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "label": "AndIntrinsic",
+                                    "typeName": "AndIntrinsic",
+                                    "properties": []
+                                  },
+                                  {
+                                    "label": "option-3",
+                                    "properties": [
+                                      {
+                                        "name": "Fn::Equals",
+                                        "required": true,
+                                        "shortDescription": "",
+                                        "longDescription": "",
+                                        "typeInfo": {
+                                          "kind": "array",
+                                          "itemType": {
+                                            "kind": "unknown"
+                                          }
+                                        }
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "label": "option-4",
+                                    "properties": [
+                                      {
+                                        "name": "Fn::Not",
+                                        "required": true,
+                                        "shortDescription": "",
+                                        "longDescription": "",
+                                        "typeInfo": {
+                                          "kind": "array",
+                                          "itemType": {
+                                            "kind": "unknown"
+                                          }
+                                        }
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "label": "option-5",
+                                    "properties": [
+                                      {
+                                        "name": "Fn::Or",
+                                        "required": true,
+                                        "shortDescription": "",
+                                        "longDescription": "",
+                                        "typeInfo": {
+                                          "kind": "array",
+                                          "itemType": {
+                                            "kind": "reference",
+                                            "typeName": "ConditionExpression"
+                                          }
+                                        }
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "label": "option-4",
+                        "properties": [
+                          {
+                            "name": "Fn::Equals",
+                            "required": true,
+                            "shortDescription": "",
+                            "longDescription": "",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "unknown"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "label": "option-5",
+                        "properties": [
+                          {
+                            "name": "Fn::Not",
+                            "required": true,
+                            "shortDescription": "",
+                            "longDescription": "",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "unknown"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "label": "option-6",
+                        "properties": [
+                          {
+                            "name": "Fn::Or",
+                            "required": true,
+                            "shortDescription": "",
+                            "longDescription": "",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "union",
+                                "discriminator": null,
+                                "branches": [
+                                  {
+                                    "label": "option-1",
+                                    "properties": [
+                                      {
+                                        "name": "Condition",
+                                        "required": true,
+                                        "shortDescription": "",
+                                        "longDescription": "",
+                                        "typeInfo": {
+                                          "kind": "primitive",
+                                          "types": [
+                                            "string"
+                                          ]
+                                        }
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "label": "AndIntrinsic",
+                                    "typeName": "AndIntrinsic",
+                                    "properties": [
+                                      {
+                                        "name": "Fn::And",
+                                        "required": true,
+                                        "shortDescription": "",
+                                        "longDescription": "",
+                                        "typeInfo": {
+                                          "kind": "array",
+                                          "itemType": {
+                                            "kind": "reference",
+                                            "typeName": "ConditionExpression"
+                                          }
+                                        }
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "label": "option-3",
+                                    "properties": [
+                                      {
+                                        "name": "Fn::Equals",
+                                        "required": true,
+                                        "shortDescription": "",
+                                        "longDescription": "",
+                                        "typeInfo": {
+                                          "kind": "array",
+                                          "itemType": {
+                                            "kind": "unknown"
+                                          }
+                                        }
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "label": "option-4",
+                                    "properties": [
+                                      {
+                                        "name": "Fn::Not",
+                                        "required": true,
+                                        "shortDescription": "",
+                                        "longDescription": "",
+                                        "typeInfo": {
+                                          "kind": "array",
+                                          "itemType": {
+                                            "kind": "unknown"
+                                          }
+                                        }
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "label": "option-5",
+                                    "properties": [
+                                      {
+                                        "name": "Fn::Or",
+                                        "required": true,
+                                        "shortDescription": "",
+                                        "longDescription": "",
+                                        "typeInfo": {
+                                          "kind": "array",
+                                          "itemType": {
+                                            "kind": "reference",
+                                            "typeName": "ConditionExpression"
+                                          }
+                                        }
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Base64Intrinsic",
+                        "typeName": "Base64Intrinsic",
+                        "properties": [
+                          {
+                            "name": "Fn::Base64",
+                            "required": true,
+                            "shortDescription": "",
+                            "longDescription": "",
+                            "typeInfo": {
+                              "kind": "unknown"
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "label": "option-8",
+                        "properties": [
+                          {
+                            "name": "Fn::FindInMap",
+                            "required": true,
+                            "shortDescription": "",
+                            "longDescription": "",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "unknown"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "label": "option-9",
+                        "properties": [
+                          {
+                            "name": "Fn::GetAtt",
+                            "required": true,
+                            "shortDescription": "",
+                            "longDescription": "",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "unknown"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "label": "option-10",
+                        "properties": [
+                          {
+                            "name": "Fn::GetAZs",
+                            "required": true,
+                            "shortDescription": "",
+                            "longDescription": "",
+                            "typeInfo": {
+                              "kind": "unknown"
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "label": "option-11",
+                        "properties": [
+                          {
+                            "name": "Fn::ImportValue",
+                            "required": true,
+                            "shortDescription": "",
+                            "longDescription": "",
+                            "typeInfo": {
+                              "kind": "unknown"
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "label": "JoinIntrinsic",
+                        "typeName": "JoinIntrinsic",
+                        "properties": [
+                          {
+                            "name": "Fn::Join",
+                            "required": true,
+                            "shortDescription": "",
+                            "longDescription": "",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "unknown"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "label": "SelectIntrinsic",
+                        "typeName": "SelectIntrinsic",
+                        "properties": [
+                          {
+                            "name": "Fn::Select",
+                            "required": true,
+                            "shortDescription": "",
+                            "longDescription": "",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "unknown"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "label": "option-14",
+                        "properties": [
+                          {
+                            "name": "Fn::Split",
+                            "required": true,
+                            "shortDescription": "",
+                            "longDescription": "",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "unknown"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "label": "SubIntrinsic",
+                        "typeName": "SubIntrinsic",
+                        "properties": []
+                      },
+                      {
+                        "label": "option-16",
+                        "properties": [
+                          {
+                            "name": "Fn::If",
+                            "required": true,
+                            "shortDescription": "",
+                            "longDescription": "",
+                            "typeInfo": {
+                              "kind": "array",
+                              "itemType": {
+                                "kind": "unknown"
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "label": "option-17",
+                        "properties": []
+                      },
+                      {
+                        "label": "option-18",
+                        "properties": []
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "label": "option-16",
+              "properties": [
+                {
+                  "name": "Fn::If",
+                  "required": true,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "array",
+                    "itemType": {
+                      "kind": "unknown"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "label": "option-17",
+              "properties": []
+            },
+            {
+              "label": "option-18",
+              "properties": []
+            }
+          ]
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 0
+    },
+    "typeDeclaration": "import type { AndIntrinsic, Base64Intrinsic, JoinIntrinsic, SelectIntrinsic } from 'stacktape';\n\n// [!code focus-start]\ntype SubIntrinsic = {\n  \"Fn::Sub\": SubIntrinsicFnSub;\n};\n\n/** Union choices used by the properties above. */\ntype SubIntrinsicFnSub =\n  | \"option-1\"\n  | \"option-2\"\n  | AndIntrinsic\n  | \"option-4\"\n  | \"option-5\"\n  | \"option-6\"\n  | Base64Intrinsic\n  | \"option-8\"\n  | \"option-9\"\n  | \"option-10\"\n  | \"option-11\"\n  | JoinIntrinsic\n  | SelectIntrinsic\n  | \"option-14\"\n  | SubIntrinsic\n  | \"option-16\"\n  | \"option-17\"\n  | \"option-18\";\n// [!code focus-end]"
+  },
   "Succeed": {
     "definitionName": "Succeed",
     "properties": [
@@ -60273,8 +61578,7 @@
                     "shortDescription": "<p> Optional custom headers to include in each request.</p>",
                     "longDescription": "",
                     "typeInfo": {
-                      "kind": "reference",
-                      "typeName": "Record<string,string>"
+                      "kind": "unknown"
                     },
                     "examples": [
                       {
@@ -61539,8 +62843,7 @@
                     "shortDescription": "<p> Optional custom headers to include in each request.</p>",
                     "longDescription": "",
                     "typeInfo": {
-                      "kind": "reference",
-                      "typeName": "Record<string,string>"
+                      "kind": "unknown"
                     },
                     "examples": [
                       {
@@ -66076,8 +67379,7 @@
                                 "shortDescription": "<p> Optional custom headers to include in each request.</p>",
                                 "longDescription": "",
                                 "typeInfo": {
-                                  "kind": "reference",
-                                  "typeName": "Record<string,string>"
+                                  "kind": "unknown"
                                 },
                                 "examples": [
                                   {
@@ -66584,8 +67886,7 @@
                                 "shortDescription": "<p> Optional custom headers to include in each request.</p>",
                                 "longDescription": "",
                                 "typeInfo": {
-                                  "kind": "reference",
-                                  "typeName": "Record<string,string>"
+                                  "kind": "unknown"
                                 },
                                 "examples": [
                                   {
@@ -68018,8 +69319,7 @@
         "shortDescription": "<p> Optional custom headers to include in each request.</p>",
         "longDescription": "",
         "typeInfo": {
-          "kind": "reference",
-          "typeName": "Record<string,string>"
+          "kind": "unknown"
         },
         "examples": [
           {
@@ -68059,7 +69359,7 @@
       "requiredCount": 1,
       "optionalCount": 2
     },
-    "typeDeclaration": "import type { Record<string,string> } from 'stacktape';\n\n// [!code focus-start]\ntype WebhookIntegrationProps = {\n  /** The URL to send webhook POST requests to. */\n  url: string;\n  /** Optional custom headers to include in each request. */\n  headers?: Record<string,string>;\n  /** Optional signing secret for HMAC-SHA256 payload verification. */\n  secret?: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype WebhookIntegrationProps = {\n  /** The URL to send webhook POST requests to. */\n  url: string;\n  /** Optional custom headers to include in each request. */\n  headers?: unknown;\n  /** Optional signing secret for HMAC-SHA256 payload verification. */\n  secret?: string;\n};\n// [!code focus-end]"
   },
   "WorkerService": {
     "definitionName": "WorkerService",

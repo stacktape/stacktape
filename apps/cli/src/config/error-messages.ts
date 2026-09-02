@@ -345,27 +345,6 @@ If you want to disable local emulation, use the ${prettyOption('disableEmulation
       )} and load balancer with custom listeners`
     };
   },
-  e64({
-    stackName,
-    projectName,
-    invocationId,
-    buildId,
-    stage
-  }: {
-    stackName: string;
-    projectName: string;
-    invocationId: string;
-    buildId: string;
-    stage: string;
-  }): ReturnedError {
-    return {
-      type: 'CODEBUILD',
-      message: `Deployment of stack ${bold(
-        stackName
-      )} through codebuild failed (buildId: ${buildId}). Inspect logs for further information.`,
-      hint: `Deployment logs: https://console.stacktape.com/projects/${projectName}/${stage}/deployment-detail/${invocationId}?tab=logs`
-    };
-  },
   e65({
     accountName,
     organizationName,

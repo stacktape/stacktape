@@ -8,6 +8,9 @@ export const stackMetadataNames = {
   isDevStack() {
     return 'isDevStack';
   },
+  devStackConfigFingerprint() {
+    return 'devStackConfigFingerprint';
+  },
   deploymentBucket() {
     return 'deploymentBucket';
   },

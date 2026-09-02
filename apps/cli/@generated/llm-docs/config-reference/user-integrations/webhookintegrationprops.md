@@ -3,13 +3,11 @@
 ## TypeScript definition
 
 ```typescript
-import type { Record<string,string> } from 'stacktape';
-
 type WebhookIntegrationProps = {
   /** The URL to send webhook POST requests to. */
   url: string;
   /** Optional custom headers to include in each request. */
-  headers?: Record<string,string>;
+  headers?: unknown;
   /** Optional signing secret for HMAC-SHA256 payload verification. */
   secret?: string;
 };
@@ -84,7 +82,7 @@ export default defineConfig(() => {
 ## Property: `headers`
 
 - Required: no
-- Type: `Record<string,string>`
+- Type: `unknown`
 
 Optional custom headers to include in each request.
 
