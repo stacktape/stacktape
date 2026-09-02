@@ -3,7 +3,7 @@ import type { AnyFunction } from '@utils/type-helpers';
 import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
 import type { Spinner } from '@application-services/tui-manager';
 import type { SsmPortForwardingTunnel } from '@utils/ssm-session';
-import type { ExecaReturnBase } from 'execa';
+import type { Result } from 'execa';
 import type { PackagingOutput } from '@stacktape/packaging/runtime-contracts';
 import { applicationManager } from '@application-services/application-manager';
 import { commandLifecycle } from '@application-services/command-lifecycle';
@@ -286,7 +286,7 @@ const runDockerContainer = async (
     },
     args: globalStateManager.args
   }).catch((res) => {
-    return res as ExecaReturnBase<string>;
+    return res as Result;
   });
 
   // Exit code 143 = SIGTERM (sent during restart), don't show error if we're restarting this container

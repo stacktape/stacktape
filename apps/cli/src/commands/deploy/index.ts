@@ -322,11 +322,12 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   await deploymentArtifacts.uploadAllArtifacts({ useHotswap });
 
   // Release identity: stamped onto every event this operation reports, so the Console can associate
-  // incidents and error-group resolutions with the release that produced them. 'unset' tells the
-  // Console the config declares no stage classification, so name inference applies.
+  // incidents and error-group resolutions with the release that produced them.
   notification.setReleaseContext({
     deploymentVersion: stack.nextVersion,
     configRevision: createHash('sha256').update(JSON.stringify(template.getTemplate())).digest('hex').slice(0, 24),
+    // 'unset' tells the Console the config declares no classification, so a previously stored
+    // explicit stageType is removed and name inference takes over again.
     stageType: config.stackConfig.stageType ?? 'unset'
   });
 

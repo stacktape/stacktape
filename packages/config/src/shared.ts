@@ -3008,66 +3008,6 @@ export interface VpcSettings {
    * Controls how many availability zones get a NAT Gateway (affects cost and redundancy).
    */
   nat?: NatSettings;
-
-  /**
-   * #### AWS services reachable from inside the VPC through interface endpoints.
-   *
-   * ---
-   *
-   * Resources placed into the VPC (for example lambda functions with `joinDefaultVpc: true`) have no
-   * route to the public internet, so calls to AWS service APIs (SSM Parameter Store, Secrets Manager,
-   * KMS, SQS, ...) hang until they time out. Listing a service here creates an
-   * [interface VPC endpoint](https://docs.aws.amazon.com/vpc/latest/privatelink/create-interface-endpoint.html)
-   * for it, giving everything inside the VPC a private route to that service.
-   *
-   * - Use the service's endpoint suffix: `ssm`, `secretsmanager`, `kms`, `sqs`, `sns`, `sts`, `lambda`,
-   *   `logs`, `monitoring`, `ecr.api`, `ecr.dkr`, ...
-   *   ([full list](https://docs.aws.amazon.com/vpc/latest/privatelink/aws-services-privatelink-support.html)).
-   * - Each endpoint is billed by AWS (~$0.01/hour per availability zone plus data processing). Endpoints
-   *   are created in every VPC availability zone for high availability.
-   * - Only applies when the stack creates its own VPC. With `reuseVpc`, manage endpoints in the stack
-   *   that owns the VPC.
-   *
-   * **Example (YAML):**
-   *
-   * ```yaml
-   * stackConfig:
-   *   vpc:
-   *     # stp-focus
-   *     interfaceEndpoints:
-   *       - ssm
-   *     # stp-end-focus
-   * resources:
-   *   worker:
-   *     type: function
-   *     properties:
-   *       packaging:
-   *         type: stacktape-lambda-buildpack
-   *         properties:
-   *           entryfilePath: src/worker.ts
-   *       joinDefaultVpc: true
-   * ```
-   *
-   * **Example (TypeScript):**
-   *
-   * ```ts
-   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
-   *
-   * export default defineConfig(() => {
-   *   const worker = new LambdaFunction({
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/worker.ts' }),
-   *     joinDefaultVpc: true
-   *   });
-   *   return {
-   *     // stp-focus
-   *     stackConfig: { vpc: { interfaceEndpoints: ['ssm'] } },
-   *     // stp-end-focus
-   *     resources: { worker }
-   *   };
-   * });
-   * ```
-   */
-  interfaceEndpoints?: string[];
 }
 
 

@@ -2,8 +2,8 @@ import type { ServiceLambdaResolver } from '@helper-lambdas/stacktapeServiceLamb
 import type { StpServiceCustomResourceProperties } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
 import { CloudFormationClient, DescribeStacksCommand, StackStatus } from '@aws-sdk/client-cloudformation';
 import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda';
-import { NodeHttpHandler } from '@aws-sdk/node-http-handler';
-import { fromUtf8, toUtf8 } from '@aws-sdk/util-utf8-node';
+import { NodeHttpHandler } from '@smithy/node-http-handler';
+import { fromUtf8, toUtf8 } from '@smithy/util-utf8';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { consoleLinks } from '@stacktape/naming/console-links';
 

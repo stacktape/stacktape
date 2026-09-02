@@ -4,7 +4,8 @@ import { getIsDirective } from '@utils/directives';
 import { readFileSync } from 'fs-extra';
 import get from 'lodash/get';
 import yaml from 'yaml';
-import { Scalar, YAMLMap, YAMLSeq } from 'yaml/types';
+// yaml v2 exports these from the package root; the /types subpath was a v1 layout.
+import { Scalar, YAMLMap, YAMLSeq } from 'yaml';
 import { stacktapeConfigSchema } from '../../../../@generated/schemas/validate-config-zod';
 import { STACKTAPE_RESOURCE_TYPES } from '@stacktape/config/resource-types';
 
@@ -70,7 +71,7 @@ const buildSourceMap = (configPath: string): SourceMap | null => {
 
   try {
     const content = readFileSync(configPath, 'utf-8');
-    const doc = yaml.parseDocument(content, { keepCstNodes: true });
+    const doc = yaml.parseDocument(content);
     const sourceMap: SourceMap = new Map();
 
     const processNode = (node: any, path: string[] = []) => {

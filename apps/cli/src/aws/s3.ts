@@ -18,7 +18,7 @@ import {
   waitUntilBucketExists
 } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
-import { createWaiter, WaiterState } from '@aws-sdk/util-waiter';
+import { createWaiter, WaiterState } from '@smithy/util-waiter';
 import { getRelativePath } from '@utils/fs-utils';
 import { chunkArray, streamToString, stringMatchesGlob } from '@utils/misc';
 import { CliError } from '@utils/errors';

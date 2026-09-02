@@ -6,6 +6,7 @@ import type {
   DesiredStatus,
   ECSClient,
   ExecuteCommandCommandInput,
+  SettingName,
   UpdateServiceCommandInput
 } from '@aws-sdk/client-ecs';
 import {
@@ -20,7 +21,7 @@ import {
   UpdateServiceCommand
 } from '@aws-sdk/client-ecs';
 import type { StartSessionResponse } from '@aws-sdk/client-ssm';
-import { createWaiter, WaiterState } from '@aws-sdk/util-waiter';
+import { createWaiter, WaiterState } from '@smithy/util-waiter';
 import { chunkArray, lowerCaseFirstCharacterOfObjectKeys, serialize, wait } from '@utils/misc';
 
 type ErrorHandlerFactory = (message: string) => (error: Error) => never;
@@ -44,7 +45,7 @@ export class AwsEcs {
     this.#getErrorHandler = getErrorHandler;
   }
 
-  setAccountSetting = async (settingName: string, settingValue: 'enabled' | 'disabled') => {
+  setAccountSetting = async (settingName: SettingName, settingValue: 'enabled' | 'disabled') => {
     const errorHandler = this.#getErrorHandler(
       `Unable to set ecs setting ${settingName} to desired value ${settingValue}`
     );

@@ -1,0 +1,8 @@
+# Raw provider output and per-run scratch: large, noisy, and glm-settings.json would carry an API token.
+*.raw.txt
+*.stdout.txt
+*.stderr.txt
+*.last.md
+*.response.json
+*.prompt.md
+glm-settings.json

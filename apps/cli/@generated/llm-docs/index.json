@@ -8442,16 +8442,12 @@
       "tags": [
         "config-reference",
         "VpcSettings",
-        "interfaceEndpoints",
         "nat",
         "reuseVpc"
       ],
       "chunks": [
         "config-reference:VpcSettings#vpcsettings-api-reference",
         "config-reference:VpcSettings#typescript-definition",
-        "config-reference:VpcSettings#property-interfaceendpoints",
-        "config-reference:VpcSettings#example-1-yaml",
-        "config-reference:VpcSettings#example-2-typescript",
         "config-reference:VpcSettings#property-nat",
         "config-reference:VpcSettings#property-reusevpc"
       ]

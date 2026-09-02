@@ -1,11 +1,11 @@
 import type { DeploymentPhase, ProgressReporter as ProgressLogger } from '@application-services/operation-manager';
-import type { ExecaReturnValue } from 'execa';
+import type { Result } from 'execa';
 import { getLockFileData } from '@stacktape/packaging/bundlers/es/utils';
 import ci from 'ci-info';
 import { pathExists, readFile, remove, stat, writeFile } from 'fs-extra';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
-import readPkgUp from 'read-pkg-up';
+import { readPackageUp } from 'read-package-up';
 import { checkExecutableInPath } from '@utils/bin-executable';
 import { getProjectDependencyInstallScript } from './es-install-scripts';
 import { exec } from '@utils/exec';
@@ -72,8 +72,8 @@ const withInstallLock = async ({
 }: {
   installDir: string;
   lockfilePath: string | null;
-  installFn: () => Promise<ExecaReturnValue<string>>;
-}): Promise<ExecaReturnValue<string> | null> => {
+  installFn: () => Promise<Result>;
+}): Promise<Result | null> => {
   const lockPath = localStatePaths.dependencyInstallLockFile({ installDirectory: installDir });
   const startedAt = Date.now();
   const staleLockAfterMs = 5 * 60 * 1000;
@@ -128,7 +128,7 @@ const withInstallLock = async ({
 };
 
 class DependencyInstaller {
-  pendingInstalls: Record<string, Promise<ExecaReturnValue<string> | void>> = {};
+  pendingInstalls: Record<string, Promise<Result | void>> = {};
 
   install = async ({
     rootProjectDirPath,
@@ -139,7 +139,7 @@ class DependencyInstaller {
     progressLogger: ProgressLogger;
     phase?: DeploymentPhase;
   }) => {
-    const readPkgResult = await readPkgUp({ cwd: rootProjectDirPath }).catch(() => ({ path: null }));
+    const readPkgResult = await readPackageUp({ cwd: rootProjectDirPath }).catch(() => ({ path: null }));
     const packagePath = readPkgResult?.path || null;
     if (!packagePath) {
       return;

@@ -7,7 +7,7 @@ import {
   UpdateAliasCommand,
   UpdateFunctionCodeCommand
 } from '@aws-sdk/client-lambda';
-import { toUtf8 } from '@aws-sdk/util-utf8-node';
+import { toUtf8 } from '@smithy/util-utf8';
 import { AwsLambda } from '../../src/aws/lambda';
 
 type Send = LambdaClient['send'];

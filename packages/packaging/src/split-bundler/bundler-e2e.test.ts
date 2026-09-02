@@ -121,11 +121,11 @@ describe('split bundler end-to-end regressions', () => {
     for (const output of result.lambdaOutputs.values()) {
       const assetName = (await readdir(join(root, 'dist', output.name))).find((name) => name.endsWith('.wasm'));
       expect(assetName).toBeDefined();
-      const chunkName = (await readdir(join(root, 'dist', output.name, 'chunks'))).find((name) => name.endsWith('.js'));
-      expect(chunkName).toBeDefined();
-      expect(await Bun.file(join(root, 'dist', output.name, 'chunks', chunkName!)).text()).toContain(
-        `/var/task/${assetName}`
-      );
+      const chunkDirectory = join(root, 'dist', output.name, 'chunks');
+      const chunkNames = (await readdir(chunkDirectory)).filter((name) => name.endsWith('.js'));
+      expect(chunkNames.length).toBeGreaterThan(0);
+      const chunkSources = await Promise.all(chunkNames.map((name) => Bun.file(join(chunkDirectory, name)).text()));
+      expect(chunkSources.some((source) => source.includes(`/var/task/${assetName}`))).toBe(true);
     }
   });
 

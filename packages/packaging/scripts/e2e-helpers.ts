@@ -1,7 +1,7 @@
 import { createWriteStream } from 'node:fs';
 import { mkdir, stat } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
-import archiver from 'archiver';
+import { ZipArchive } from 'archiver';
 import type { ArchiveItem, PackagingProgressLogger, RunDocker } from '../src/runtime-contracts';
 
 export const write = async (path: string, contents: string | Uint8Array) => {
@@ -64,7 +64,7 @@ export const archiveItem: ArchiveItem = async ({
   );
   await mkdir(dirname(absoluteOutputPath), { recursive: true });
   const output = createWriteStream(absoluteOutputPath);
-  const archive = archiver('zip', {
+  const archive = new ZipArchive({
     store,
     zlib: { level: store ? 0 : compressionLevel }
   });

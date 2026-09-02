@@ -11,7 +11,6 @@ export const VALID_CONFIG_PATHS = ['stacktape.yaml', 'stacktape.yml', 'stacktape
 export const ANNOUNCEMENTS_ENDPOINT = 'https://announcements.stacktape-dev.com';
 export const SCHEMAS_BUCKET_NAME =
   process.env.SCHEMAS_BUCKET_NAME || 'internal-services-production-schemasbucket-eb6fca19';
-export const LLM_DOCS_BUCKET_NAME = process.env.LLM_DOCS_BUCKET_NAME || 'console-app-dev-mcpdocsbucket-743a732';
 export const DEFAULT_STARTER_PROJECT_TARGET_DIRECTORY = 'stacktape-project';
 
 export const IS_TELEMETRY_DISABLED = process.env.STP_DISABLE_TELEMETRY === '1';

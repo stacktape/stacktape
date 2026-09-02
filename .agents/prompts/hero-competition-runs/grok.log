@@ -1,0 +1,9 @@
+[05:52:36] grok v1 -> 11.astro : starting
+[05:52:44] grok v1 -> 11.astro : NO ASTRO FOUND in output (8s) - see C:\Projects\stacktape\.agents\prompts\hero-competition-runs\grok-v1.raw.txt
+[05:52:44] grok v2 -> 07.astro : starting
+[05:52:53] grok v2 -> 07.astro : NO ASTRO FOUND in output (9s) - see C:\Projects\stacktape\.agents\prompts\hero-competition-runs\grok-v2.raw.txt
+[05:52:53] grok v3 -> 18.astro : starting
+[05:53:02] grok v3 -> 18.astro : NO ASTRO FOUND in output (9s) - see C:\Projects\stacktape\.agents\prompts\hero-competition-runs\grok-v3.raw.txt
+[05:53:02] grok v4 -> 28.astro : starting
+[05:53:10] grok v4 -> 28.astro : NO ASTRO FOUND in output (8s) - see C:\Projects\stacktape\.agents\prompts\hero-competition-runs\grok-v4.raw.txt
+[05:53:10] grok : done

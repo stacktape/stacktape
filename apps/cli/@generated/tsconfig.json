@@ -4,13 +4,14 @@
     "The main CLI project excludes `@generated`, so this standard nested project keeps generated sources",
     "editor-discoverable and prevents invalid generated TypeScript from remaining hidden.",
     "`types: []` keeps unrelated ambient packages out of the program; `skipLibCheck` is off because",
-    "the generated declarations themselves are the files under test."
+    "the generated declarations themselves are the files under test. `DOM` supplies the standard URL type used",
+    "by Zod's public declarations without loading unrelated ambient packages."
   ],
   "compilerOptions": {
     "target": "ES2022",
     "module": "preserve",
     "moduleResolution": "bundler",
-    "lib": ["ES2023"],
+    "lib": ["ES2023", "DOM"],
     "strict": false,
     "noEmit": true,
     "skipLibCheck": false,

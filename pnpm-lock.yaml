@@ -10,8 +10,8 @@ catalogs:
       specifier: 0.44.1
       version: 0.44.1
     '@types/node':
-      specifier: 24.1.0
-      version: 24.1.0
+      specifier: 26.4.0
+      version: 26.4.0
     dependency-cruiser:
       specifier: 18.1.0
       version: 18.1.0
@@ -55,7 +55,7 @@ importers:
         version: 0.44.1
       '@types/node':
         specifier: 'catalog:'
-        version: 24.1.0
+        version: 26.4.0
       dependency-cruiser:
         specifier: 'catalog:'
         version: 18.1.0
@@ -754,8 +754,8 @@ packages:
   '@tybys/wasm-util@0.10.3':
     resolution: {integrity: sha512-F3fo1MYrRJYL3zER0OUOmkutjr1Vp23m7OsSgp7nq4SP6OqX6C/56XFIPAl5bt3zaBRjmW7SGz3u/6LwFpYcOg==}
 
-  '@types/node@24.1.0':
-    resolution: {integrity: sha512-ut5FthK5moxFKH2T1CUOC6ctR67rQRvvHdFLCD2Ql6KXmMuCrjsSsRI9UsLCm9M18BMwClv4pn327UvB7eeO1w==}
+  '@types/node@26.4.0':
+    resolution: {integrity: sha512-faiGnoIrLH/V8cibOMEAZ8pMw6oXqSukl29ra4mN8GdaB2ZewzeaLj+INpV5N+Z1eKWzY+IzaIZH2EIR6YZRNQ==}
 
   acorn-jsx-walk@2.0.0:
     resolution: {integrity: sha512-uuo6iJj4D4ygkdzd6jPtcxs8vZgDX9YFIkqczGImoypX2fQ4dVImmu3UzA4ynixCIMTrEOWW+95M2HuBaCEOVA==}
@@ -1291,8 +1291,8 @@ packages:
     resolution: {integrity: sha512-3cudTErfToSc4Ggv8XGXVNVli/xHKUtUZvaY5UVwhOcUPbQGz7PeaEnT/SAVgNziZtX67KEN9swMUYkLghxA1w==}
     engines: {node: '>=14'}
 
-  undici-types@7.8.0:
-    resolution: {integrity: sha512-9UJ2xGDvQ43tYyVMpuHlsgApydB8ZKfVYTsLDhXkFL/6gfkp+U8xTGdh8pMJv1SpZna0zxG1DwsKZsreLbXBxw==}
+  undici-types@8.3.0:
+    resolution: {integrity: sha512-j375ScV60dom+YkPFIfTLcOiPxkN/buHz5GobjLhixFuANaNs3C9l4GmrWqejgXWJ7BbJcFYpTEUkS1Ge8bpZQ==}
 
   walk-up-path@4.0.0:
     resolution: {integrity: sha512-3hu+tD8YzSLGuFYtPRb48vdhKMi0KQV5sn+uWr8+7dMEq/2G/dtLrdDinkLjqq5TIbIBjYJ4Ax/n3YiaW7QM8A==}
@@ -1686,9 +1686,9 @@ snapshots:
       tslib: 2.8.1
     optional: true
 
-  '@types/node@24.1.0':
+  '@types/node@26.4.0':
     dependencies:
-      undici-types: 7.8.0
+      undici-types: 8.3.0
 
   acorn-jsx-walk@2.0.0: {}
 
@@ -2239,7 +2239,7 @@ snapshots:
 
   unbash@4.0.3: {}
 
-  undici-types@7.8.0: {}
+  undici-types@8.3.0: {}
 
   walk-up-path@4.0.0: {}
 

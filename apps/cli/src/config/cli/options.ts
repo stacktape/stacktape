@@ -54,15 +54,6 @@ export const issueStatus = z.enum(['OPEN', 'RESOLVED', 'IGNORED']).describe(`###
 ---
 Filter issues by status (OPEN, RESOLVED, IGNORED).`);
 
-export const incidentId = z.string().describe(`#### Incident ID
----
-The ID of the incident to act on.`);
-
-export const incidentStatus = z.enum(['ACTIVE', 'OPEN', 'ACKNOWLEDGED', 'RESOLVED', 'ALL'])
-  .describe(`#### Incident Status Filter
----
-Filter incidents by status. ACTIVE (the default) means OPEN + ACKNOWLEDGED.`);
-
 export const resourceName = z.string().describe(`#### Resource Name
 ---
 The name of the resource as defined in your Stacktape configuration.`);
@@ -566,8 +557,6 @@ export const argAliases = {
   organizationId: 'oid',
   issueId: 'iid',
   issueStatus: 'is',
-  incidentId: 'incid',
-  incidentStatus: 'incs',
   onlyWorkloads: 'ow',
   targetVersion: 'tv',
   rollbackSteps: 'rbs',
@@ -628,8 +617,6 @@ export const allCliArgsSchema = z.object({
   organizationId: organizationId.optional(),
   issueId: issueId.optional(),
   issueStatus: issueStatus.optional(),
-  incidentId: incidentId.optional(),
-  incidentStatus: incidentStatus.optional(),
   assumeRoleOfResource: assumeRoleOfResource.optional(),
   configFormat: configFormat.optional(),
   localTunnelingPort: localTunnelingPort.optional(),

@@ -11,7 +11,7 @@ import { buildSSMParameterNameForReferencableParam } from '@stacktape/naming/ssm
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { ExpectedError } from '@utils/errors';
 import { runEcsExecCommand } from '@utils/ssm-session';
-import execa from 'execa';
+import { execa } from 'execa';
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -195,7 +195,7 @@ const runConvexDeploy = async ({ convex, url, adminKey }: { convex: StpConvex; u
     CONVEX_SELF_HOSTED_ADMIN_KEY: adminKey
   };
   const result = convex.functionsDeployment?.command
-    ? await execa.command(convex.functionsDeployment.command, {
+    ? await execa(convex.functionsDeployment.command, {
         cwd,
         env,
         reject: false,

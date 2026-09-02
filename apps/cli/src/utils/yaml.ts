@@ -1,9 +1,12 @@
+import type { CreateNodeOptions, DocumentOptions, ParseOptions, SchemaOptions, ToStringOptions } from 'yaml';
 import yaml from 'yaml';
 
 // yaml.scalarOptions.str.defaultType = Type.QUOTE_SINGLE;
 
 export const parseYaml = yaml.parse;
-export const stringifyToYaml = (value: any, options?: yaml.Options) => {
+type StringifyOptions = DocumentOptions & SchemaOptions & ParseOptions & CreateNodeOptions & ToStringOptions;
+
+export const stringifyToYaml = (value: any, options?: StringifyOptions) => {
   const stringifiedYaml = yaml.stringify(value, options);
   // replacing all string values (which are considered boolean in older versions of yaml) with quoted versions
   // otherwise cloudformation will treat them as boolean values

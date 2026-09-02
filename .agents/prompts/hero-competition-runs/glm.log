@@ -1,0 +1,9 @@
+[07:40:48] glm v1 -> 20.astro : starting
+[07:41:35] glm v1 -> 20.astro : OK (391 lines, 47s)
+[07:41:35] glm v2 -> 12.astro : starting
+[07:42:56] glm v2 -> 12.astro : OK (462 lines, 81s)
+[07:42:56] glm v3 -> 01.astro : starting
+[07:44:03] glm v3 -> 01.astro : OK (541 lines, 67s)
+[07:44:03] glm v4 -> 09.astro : starting
+[07:45:55] glm v4 -> 09.astro : OK (888 lines, 111s)
+[07:45:55] glm : done

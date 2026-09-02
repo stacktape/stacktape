@@ -15,7 +15,7 @@ import {
   StartBuildCommand,
   StatusType
 } from '@aws-sdk/client-codebuild';
-import { createWaiter, WaiterState } from '@aws-sdk/util-waiter';
+import { createWaiter, WaiterState } from '@smithy/util-waiter';
 import { getForwardableOperationInvocationEnv } from '@application-services/operation-invocation-context';
 import { consoleLinks } from '@stacktape/naming/console-links';
 import { transformToCliArgs } from '@utils/cli';

@@ -54,7 +54,8 @@ const getDescription = (desc: string) => {
       .split('\n')
       .map((l) => `  ${l}`)
       .join('\n')
-      .trimEnd()
+      .trimEnd(),
+    { async: false }
   ).replaceAll('*', '>');
 };
 

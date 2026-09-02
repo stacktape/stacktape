@@ -7,8 +7,8 @@ settings:
 catalogs:
   default:
     '@types/node':
-      specifier: 24.1.0
-      version: 24.1.0
+      specifier: 26.4.0
+      version: 26.4.0
     typescript:
       specifier: 6.0.3
       version: 6.0.3
@@ -19,30 +19,30 @@ importers:
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
-        version: 24.1.0
+        version: 26.4.0
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
 
 packages:
 
-  '@types/node@24.1.0':
-    resolution: {integrity: sha512-ut5FthK5moxFKH2T1CUOC6ctR67rQRvvHdFLCD2Ql6KXmMuCrjsSsRI9UsLCm9M18BMwClv4pn327UvB7eeO1w==}
+  '@types/node@26.4.0':
+    resolution: {integrity: sha512-faiGnoIrLH/V8cibOMEAZ8pMw6oXqSukl29ra4mN8GdaB2ZewzeaLj+INpV5N+Z1eKWzY+IzaIZH2EIR6YZRNQ==}
 
   typescript@6.0.3:
     resolution: {integrity: sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==}
     engines: {node: '>=14.17'}
     hasBin: true
 
-  undici-types@7.8.0:
-    resolution: {integrity: sha512-9UJ2xGDvQ43tYyVMpuHlsgApydB8ZKfVYTsLDhXkFL/6gfkp+U8xTGdh8pMJv1SpZna0zxG1DwsKZsreLbXBxw==}
+  undici-types@8.3.0:
+    resolution: {integrity: sha512-j375ScV60dom+YkPFIfTLcOiPxkN/buHz5GobjLhixFuANaNs3C9l4GmrWqejgXWJ7BbJcFYpTEUkS1Ge8bpZQ==}
 
 snapshots:
 
-  '@types/node@24.1.0':
+  '@types/node@26.4.0':
     dependencies:
-      undici-types: 7.8.0
+      undici-types: 8.3.0
 
   typescript@6.0.3: {}
 
-  undici-types@7.8.0: {}
+  undici-types@8.3.0: {}

@@ -24,10 +24,10 @@
     "@types/bun": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "@vitejs/plugin-react": "^5.1.1",
+    "@vitejs/plugin-react": "^6.1.1",
     "tailwindcss": "4.3.3",
     "typescript": "catalog:",
-    "vite": "^7.2.4"
+    "vite": "^8.2.2"
   },
   "engines": {
     "node": ">=24"

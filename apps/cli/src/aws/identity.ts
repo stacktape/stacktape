@@ -3,7 +3,7 @@ import { Sha256 } from '@aws-crypto/sha256-browser';
 import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { AssumeRoleCommand } from '@aws-sdk/client-sts';
 import type { Credentials } from '@aws-sdk/types';
-import { SignatureV4 } from '@aws-sdk/signature-v4';
+import { SignatureV4 } from '@smithy/signature-v4';
 import { createRequest } from '@aws-sdk/util-create-request';
 import { createFetchHandler } from 'src/aws/fetch-handler';
 import type { AwsCredentials } from './credentials';

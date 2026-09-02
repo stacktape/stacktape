@@ -11,7 +11,6 @@ import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { deployedResourceNotFoundError } from '@domain-services/deployed-stack-overview-manager/errors';
-import { notificationManager } from '@domain-services/notification-manager';
 import { isDirAccessible } from '@utils/fs-utils';
 import { CliError } from '@utils/errors';
 import { getCloudformationChildResources } from '@utils/stack-info-map';
@@ -40,7 +39,6 @@ type BucketSyncInput =
 type BucketSyncExecutionServices = {
   cloudFront: Pick<AwsCloudFront, 'findDistributionsForBucket' | 'invalidateCache'>;
   event: Pick<typeof operationReporter, 'finishEvent' | 'startEvent' | 'updateEvent'>;
-  notification: Pick<typeof notificationManager, 'sendDeploymentNotification'>;
   s3: Pick<AwsS3, 'syncDirectory'>;
 };
 
@@ -53,7 +51,6 @@ type BucketSyncCommandDependencies = {
 const getDefaultExecutionServices = (): BucketSyncExecutionServices => ({
   cloudFront: awsSdkManager.cloudFront,
   event: operationReporter,
-  notification: notificationManager,
   s3: awsSdkManager.s3
 });
 
@@ -100,8 +97,7 @@ export const commandBucketSync = async (dependencies: Partial<BucketSyncCommandD
     const { region } = await initializeCredentials();
     input = Object.freeze({ ...target, args, region });
   }
-  const { cloudFront, event, notification, s3 } =
-    dependencies.getExecutionServices?.() ?? getDefaultExecutionServices();
+  const { cloudFront, event, s3 } = dependencies.getExecutionServices?.() ?? getDefaultExecutionServices();
 
   const bucketName = getBucketName(input);
   const absoluteSourcePath = getDirectoryPath(input);
@@ -120,10 +116,6 @@ export const commandBucketSync = async (dependencies: Partial<BucketSyncCommandD
           fileOptions: getFilterFilesConfig(input),
           disableS3TransferAcceleration: getIsS3TransferAccelerationDisabled(input)
         };
-
-  await notification.sendDeploymentNotification({
-    message: { text: `Syncing ${prettyDirPath} to bucket ${bucketName} (deletes removed files).`, type: 'progress' }
-  });
 
   await event.startEvent({
     eventType: 'SYNC_BUCKET',
@@ -172,10 +164,6 @@ export const commandBucketSync = async (dependencies: Partial<BucketSyncCommandD
   if (input.kind === 'stack-resource') {
     deployedStackOverviewManager.printResourceInfo([input.resourceName]);
   }
-  await notification.sendDeploymentNotification({
-    message: { text: `Synced ${prettyDirPath} to bucket ${bucketName}.`, type: 'success' }
-  });
-
   return null;
 };
 

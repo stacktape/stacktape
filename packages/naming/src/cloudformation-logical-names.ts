@@ -615,18 +615,6 @@ export const cfLogicalNames = {
       suffix: { cloudformationResourceType: 'AWS::EC2::VPCEndpoint' }
     });
   },
-  vpcInterfaceEndpointSecurityGroup() {
-    return buildCfLogicalName({
-      specifier: { type: 'VpcInterfaceEndpoints' },
-      suffix: { cloudformationResourceType: 'AWS::EC2::SecurityGroup' }
-    });
-  },
-  vpcInterfaceEndpoint(service: string) {
-    return buildCfLogicalName({
-      specifier: { type: `InterfaceEndpoint-${service}` },
-      suffix: { cloudformationResourceType: 'AWS::EC2::VPCEndpoint' }
-    });
-  },
   dbSubnetGroup(stpResourceName: string) {
     return buildCfLogicalName({
       stpResourceName,

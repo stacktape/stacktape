@@ -1,35 +1,27 @@
 import { describe, expect, test } from 'bun:test';
-import {
-  ExecuteCommandRequestFilterSensitiveLog,
-  RegisterTaskDefinitionRequestFilterSensitiveLog
-} from '@aws-sdk/client-ecs';
-import { PutSecretValueRequestFilterSensitiveLog } from '@aws-sdk/client-secrets-manager';
-import { PutParameterRequestFilterSensitiveLog, SendCommandRequestFilterSensitiveLog } from '@aws-sdk/client-ssm';
 import { redactAwsRequestInput } from './redact-request-input';
 
 const sentinel = 'SENTINEL-sensitive-aws-value';
 
 describe('AWS request debug redaction', () => {
-  test('uses the generated service filter for modeled secret values without mutating the request', () => {
+  test('redacts modeled secret values without mutating the request', () => {
     const input = { SecretBinary: new Uint8Array([1, 2, 3]), SecretId: 'customer-secret', SecretString: sentinel };
     const redacted = redactAwsRequestInput({
       commandName: 'PutSecretValueCommand',
-      filterSensitiveLog: PutSecretValueRequestFilterSensitiveLog,
       input
     });
 
     expect(JSON.stringify(redacted)).not.toContain(sentinel);
     expect(redacted.SecretId).toBe('customer-secret');
-    expect(redacted.SecretString).toBe('***SensitiveInformation***');
+    expect(redacted.SecretString).toBe('...hidden sensitive content...');
     expect(input.SecretString).toBe(sentinel);
     expect(input.SecretBinary).toBeInstanceOf(Uint8Array);
   });
 
-  test('uses the generated service filter for SSM parameter values', () => {
+  test('redacts SSM parameter values', () => {
     const input = { Name: '/customer/token', Type: 'SecureString' as const, Value: sentinel };
     const redacted = redactAwsRequestInput({
       commandName: 'PutParameterCommand',
-      filterSensitiveLog: PutParameterRequestFilterSensitiveLog,
       input
     });
 
@@ -74,7 +66,7 @@ describe('AWS request debug redaction', () => {
     expect(input.environmentVariablesOverride[0].value).toBe(sentinel);
   });
 
-  test('redacts ECS task and run overrides that the generated service filter leaves intact', () => {
+  test('redacts ECS task and run overrides', () => {
     const input = {
       containerDefinitions: [
         { environment: [{ name: 'DATABASE_PASSWORD', value: sentinel }], image: 'example/image', name: 'web' }
@@ -86,7 +78,6 @@ describe('AWS request debug redaction', () => {
     };
     const redacted = redactAwsRequestInput({
       commandName: 'RegisterTaskDefinitionCommand',
-      filterSensitiveLog: RegisterTaskDefinitionRequestFilterSensitiveLog,
       input
     });
 
@@ -130,15 +121,9 @@ describe('AWS request debug redaction', () => {
     const redacted = {
       ecs: redactAwsRequestInput({
         commandName: 'ExecuteCommandCommand',
-        filterSensitiveLog: ExecuteCommandRequestFilterSensitiveLog,
         input: ecsInput
       }),
       ssm: redactAwsRequestInput({
-        commandName: 'SendCommandCommand',
-        filterSensitiveLog: SendCommandRequestFilterSensitiveLog,
-        input: ssmInput
-      }),
-      ssmFallback: redactAwsRequestInput({
         commandName: 'SendCommandCommand',
         input: ssmInput
       })
@@ -147,11 +132,6 @@ describe('AWS request debug redaction', () => {
     expect(JSON.stringify(redacted)).not.toContain(sentinel);
     expect(redacted.ecs).toMatchObject({ cluster: 'cluster', interactive: true, task: 'task' });
     expect(redacted.ssm).toMatchObject({
-      DocumentName: 'AWS-RunShellScript',
-      InstanceIds: ['i-123'],
-      Parameters: '***SensitiveInformation***'
-    });
-    expect(redacted.ssmFallback).toMatchObject({
       DocumentName: 'AWS-RunShellScript',
       InstanceIds: ['i-123'],
       Parameters: { workingDirectory: ['/'] }

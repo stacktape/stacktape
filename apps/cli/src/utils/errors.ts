@@ -1,7 +1,9 @@
 import { isAbsolute, join } from 'node:path';
 import { IS_DEV } from '@config';
 import { getRelativePath, isFileAccessible } from '@utils/fs-utils';
-import stacktrace from 'stack-trace';
+// stack-trace 1.0.0 is ESM-only with named exports; the namespace import works for both module
+// shapes Bun resolves here.
+import * as stacktrace from 'stack-trace';
 import stripAnsi from 'strip-ansi';
 
 export type ErrorCategory =

@@ -2,8 +2,8 @@
 import { createReadStream, createWriteStream } from 'node:fs';
 import { platform } from 'node:os';
 import { basename, join } from 'node:path';
-import archiver from 'archiver';
-import execa from 'execa';
+import { TarArchive, ZipArchive } from 'archiver';
+import { execa } from 'execa';
 import { createFile, rename } from 'fs-extra';
 import * as tar from 'tar';
 import { getFileNameWithoutExtension, getFolder, isDirAccessible } from './fs-utils';
@@ -229,8 +229,8 @@ const archiveDirectoryNodeImpl = async ({
 }) => {
   const archive =
     format === 'zip'
-      ? archiver('zip', { store, zlib: { level: store ? 0 : compressionLevel } })
-      : archiver('tar', { gzip: !store, gzipOptions: { level: compressionLevel } });
+      ? new ZipArchive({ store, zlib: { level: store ? 0 : compressionLevel } })
+      : new TarArchive({ gzip: !store, gzipOptions: { level: compressionLevel } });
 
   const outputStream = createWriteStream(absoluteOutputPath);
 

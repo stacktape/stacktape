@@ -3,7 +3,7 @@ import { copyFile, mkdtemp } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
 import { executeGit } from '@utils/exec';
 import { getBaseName } from '@utils/fs-utils';
-import execa from 'execa';
+import { execa } from 'execa';
 import { pathExists, remove } from 'fs-extra';
 
 type SupportedGitVariable =

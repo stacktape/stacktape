@@ -14,12 +14,12 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@aws-sdk/client-dynamodb": "3.895.0",
-    "@aws-sdk/lib-dynamodb": "3.895.0",
+    "@aws-sdk/client-dynamodb": "3.1121.0",
+    "@aws-sdk/lib-dynamodb": "3.1121.0",
     "@fast-csv/parse": "^5.0.2",
     "@stacktape/config": "workspace:*",
     "change-case": "^5.4.4",
-    "fs-extra": "11.3.3",
+    "fs-extra": "11.4.0",
     "nodejs-file-downloader": "^4.13.0"
   },
   "devDependencies": {

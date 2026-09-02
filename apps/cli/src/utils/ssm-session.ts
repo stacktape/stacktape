@@ -2,7 +2,7 @@ import type { ResolvedRemoteTarget } from '@domain-services/config-manager/resol
 import type { Task as ECSTask, ExecuteCommandCommandInput } from '@aws-sdk/client-ecs';
 import { DesiredStatus } from '@aws-sdk/client-ecs';
 import type { StartSessionCommandInput } from '@aws-sdk/client-ssm';
-import type { ExecaChildProcess } from 'execa';
+import type { ResultPromise } from 'execa';
 import readline from 'node:readline';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
@@ -12,7 +12,7 @@ import { fsPaths } from 'src/config/runtime-paths';
 import { injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
 import { wait } from '@utils/misc';
 import { isPortInUse } from '@utils/ports';
-import execa from 'execa';
+import { execa } from 'execa';
 import findFreePorts from 'find-free-ports';
 import { chmod } from 'fs-extra';
 import pRetry from 'p-retry';
@@ -37,7 +37,7 @@ export class SsmPortForwardingTunnel {
   #remotePort: number;
   #localPort: number;
   #ssmSessionId: string;
-  #tunnelProcess: ExecaChildProcess;
+  #tunnelProcess: ResultPromise;
   #targetInfo: ResolvedRemoteTarget;
 
   constructor({ localPort, targetInfo }: { localPort: number; targetInfo: ResolvedRemoteTarget }) {
@@ -148,10 +148,10 @@ export class SsmPortForwardingTunnel {
   };
 
   kill = async () => {
-    if (this.#tunnelProcess?.exitCode === null) {
+    if (this.#tunnelProcess?.nodeChildProcess.exitCode === null) {
       this.#tunnelProcess.kill();
       await wait(2000);
-      if (this.#tunnelProcess.exitCode === null) {
+      if (this.#tunnelProcess.nodeChildProcess.exitCode === null) {
         this.#tunnelProcess.kill('SIGKILL');
       }
       await awsSdkManager.systemsManager.terminateSession({ sessionId: this.#ssmSessionId });

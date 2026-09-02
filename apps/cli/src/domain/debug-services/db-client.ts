@@ -8,7 +8,7 @@ import {
   PutCommand,
   DeleteCommand
 } from '@aws-sdk/lib-dynamodb';
-import { SignatureV4 } from '@aws-sdk/signature-v4';
+import { SignatureV4 } from '@smithy/signature-v4';
 import { Sha256 } from '@aws-crypto/sha256-js';
 import { Client as PgClient } from 'pg';
 import { createConnection, type Connection as MysqlConnection } from 'mysql2/promise';

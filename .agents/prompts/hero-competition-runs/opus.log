@@ -1,0 +1,9 @@
+[05:52:36] opus v1 -> 19.astro : starting
+[05:59:52] opus v1 -> 19.astro : OK (1334 lines, 436s)
+[05:59:52] opus v2 -> 14.astro : starting
+[06:08:43] opus v2 -> 14.astro : OK (970 lines, 531s)
+[06:08:43] opus v3 -> 27.astro : starting
+[06:28:17] opus v3 -> 27.astro : OK (1008 lines, 1,174s)
+[06:28:17] opus v4 -> 15.astro : starting
+[06:36:26] opus v4 -> 15.astro : OK (1081 lines, 489s)
+[06:36:26] opus : done

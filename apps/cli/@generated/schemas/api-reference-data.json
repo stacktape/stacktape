@@ -62878,31 +62878,6 @@
     "definitionName": "VpcSettings",
     "properties": [
       {
-        "name": "interfaceEndpoints",
-        "required": false,
-        "shortDescription": "<p> AWS services reachable from inside the VPC through interface endpoints.</p>",
-        "longDescription": "<p>Resources placed into the VPC (for example lambda functions with <code>joinDefaultVpc: true</code>) have no\nroute to the public internet, so calls to AWS service APIs (SSM Parameter Store, Secrets Manager,\nKMS, SQS, ...) hang until they time out. Listing a service here creates an\n<a href=\"https://docs.aws.amazon.com/vpc/latest/privatelink/create-interface-endpoint.html\">interface VPC endpoint</a>\nfor it, giving everything inside the VPC a private route to that service.</p>\n<ul>\n<li>Use the service&#39;s endpoint suffix: <code>ssm</code>, <code>secretsmanager</code>, <code>kms</code>, <code>sqs</code>, <code>sns</code>, <code>sts</code>, <code>lambda</code>,\n<code>logs</code>, <code>monitoring</code>, <code>ecr.api</code>, <code>ecr.dkr</code>, ...\n(<a href=\"https://docs.aws.amazon.com/vpc/latest/privatelink/aws-services-privatelink-support.html\">full list</a>).</li>\n<li>Each endpoint is billed by AWS (~$0.01/hour per availability zone plus data processing). Endpoints\nare created in every VPC availability zone for high availability.</li>\n<li>Only applies when the stack creates its own VPC. With <code>reuseVpc</code>, manage endpoints in the stack\nthat owns the VPC.</li>\n</ul>",
-        "typeInfo": {
-          "kind": "array",
-          "itemType": {
-            "kind": "primitive",
-            "types": [
-              "string"
-            ]
-          }
-        },
-        "examples": [
-          {
-            "lang": "yaml",
-            "code": "stackConfig:\n  vpc:\n    # [!code focus-start]\n    interfaceEndpoints:\n      - ssm\n    # [!code focus-end]\nresources:\n  worker:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/worker.ts\n      joinDefaultVpc: true"
-          },
-          {
-            "lang": "typescript",
-            "code": "import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const worker = new LambdaFunction({\n    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/worker.ts' }),\n    joinDefaultVpc: true\n  });\n  return {\n    // [!code focus-start]\n    stackConfig: { vpc: { interfaceEndpoints: ['ssm'] } },\n    // [!code focus-end]\n    resources: { worker }\n  };\n});"
-          }
-        ]
-      },
-      {
         "name": "nat",
         "required": false,
         "shortDescription": "<p> NAT Gateway configuration for private subnets.</p>",
@@ -62925,9 +62900,9 @@
     ],
     "stats": {
       "requiredCount": 0,
-      "optionalCount": 3
+      "optionalCount": 2
     },
-    "typeDeclaration": "import type { NatSettings, VpcReuseConfig } from 'stacktape';\n\n// [!code focus-start]\ntype VpcSettings = {\n  /** AWS services reachable from inside the VPC through interface endpoints. */\n  interfaceEndpoints?: Array<string>;\n  /** NAT Gateway configuration for private subnets. */\n  nat?: NatSettings;\n  /** Share a VPC with another Stacktape stack or use an existing VPC. */\n  reuseVpc?: VpcReuseConfig;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { NatSettings, VpcReuseConfig } from 'stacktape';\n\n// [!code focus-start]\ntype VpcSettings = {\n  /** NAT Gateway configuration for private subnets. */\n  nat?: NatSettings;\n  /** Share a VPC with another Stacktape stack or use an existing VPC. */\n  reuseVpc?: VpcReuseConfig;\n};\n// [!code focus-end]"
   },
   "Wait": {
     "definitionName": "Wait",

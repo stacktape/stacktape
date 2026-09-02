@@ -1,7 +1,7 @@
 import type { StdTransformer } from '@utils/streams';
-import type { CommonOptions } from 'execa';
+import type { Options } from 'execa';
 import { EventEmitter } from 'node:events';
-import execa from 'execa';
+import { execa, execaNode } from 'execa';
 import { jsonlEmitter } from '../app/tui-manager/output/jsonl';
 import { logCollectorStream } from '../../src/utils/log-collector';
 import { isDirAccessible } from './fs-utils';
@@ -35,7 +35,7 @@ type ExecProps = {
   disableStdout?: boolean;
   env?: { [key: string]: any };
   cwd?: string;
-  rawOptions?: CommonOptions<'string'>;
+  rawOptions?: Pick<Options, 'shell'>;
   logDetails?: boolean;
   stdioMode?: ChildStdioMode;
   prefixStdioOutput?: string;
@@ -99,6 +99,8 @@ const getChildProcess = (
           : (['ignore', 'pipe', 'pipe'] as const);
   const cpOpts = {
     ...rawOptions,
+    encoding: 'utf8' as const,
+    lines: false as const,
     env: { FORCE_COLOR: '3', ...(inheritEnvVarsExcept?.length ? inheritedEnv : {}), ...env },
     cwd,
     extendEnv: !disableExtendEnv && !inheritEnvVarsExcept?.length,
@@ -106,7 +108,7 @@ const getChildProcess = (
     stdio,
     ...(stdinInput === undefined ? {} : { input: stdinInput })
   };
-  const childProcess = useNodeExec ? execa.node(command, args, cpOpts) : execa(command, args, cpOpts);
+  const childProcess = useNodeExec ? execaNode(command, args, cpOpts) : execa(command, args, cpOpts);
 
   if (stdioMode === 'capture' && !disableStdout && childProcess.stdout) {
     let stdoutStream = childProcess.stdout;
@@ -239,7 +241,7 @@ export const exec = async (command: string, args: string[], params: ExecProps) =
   return childProcess
     .then((res) => {
       logDetailsFn();
-      return res;
+      return { ...res, exitCode: res.exitCode ?? 0 };
     })
     .catch((err) => {
       logDetailsFn();
@@ -253,7 +255,7 @@ export const exec = async (command: string, args: string[], params: ExecProps) =
     });
 };
 
-export const executeGit = (command: string, opts: CommonOptions<'string'> = {}) => {
+export const executeGit = (command: string, opts: Pick<Options, 'cwd' | 'env'> = {}) => {
   return execa(`git ${command}`, { shell: true, ...opts }).catch((err) => {
     throw err;
   });

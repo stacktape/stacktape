@@ -1,0 +1,18 @@
+[05:52:36] gemini v1 -> 25.astro : starting
+[05:52:45] gemini v1 -> 25.astro : NO ASTRO FOUND in output (9s) - see C:\Projects\stacktape\.agents\prompts\hero-competition-runs\gemini-v1.raw.txt
+[05:52:45] gemini v2 -> 02.astro : starting
+[05:52:53] gemini v2 -> 02.astro : NO ASTRO FOUND in output (8s) - see C:\Projects\stacktape\.agents\prompts\hero-competition-runs\gemini-v2.raw.txt
+[05:52:53] gemini v3 -> 04.astro : starting
+[05:53:22] gemini v3 -> 04.astro : NO ASTRO FOUND in output (28s) - see C:\Projects\stacktape\.agents\prompts\hero-competition-runs\gemini-v3.raw.txt
+[05:53:22] gemini v4 -> 05.astro : starting
+[05:53:28] gemini v4 -> 05.astro : NO ASTRO FOUND in output (6s) - see C:\Projects\stacktape\.agents\prompts\hero-competition-runs\gemini-v4.raw.txt
+[05:53:28] gemini : done
+[05:54:05] gemini v1 -> 25.astro : starting
+[05:55:42] gemini v1 -> 25.astro : OK (728 lines, 98s)
+[05:55:42] gemini v2 -> 02.astro : starting
+[05:59:01] gemini v2 -> 02.astro : OK (2037 lines, 199s)
+[05:59:01] gemini v3 -> 04.astro : starting
+[06:01:18] gemini v3 -> 04.astro : OK (2020 lines, 137s)
+[06:01:18] gemini v4 -> 05.astro : starting
+[06:04:17] gemini v4 -> 05.astro : OK (2101 lines, 178s)
+[06:04:17] gemini : done

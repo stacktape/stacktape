@@ -47,8 +47,6 @@ import {
   paramName,
   preserveTempFiles,
   projectDirectory,
-  incidentId,
-  incidentStatus,
   issueId,
   issueStatus,
   organizationId,
@@ -955,53 +953,6 @@ Detects client config files (Claude Code, Codex, Cursor, VS Code/Copilot, OpenCo
       outputFormat: outputFormat.optional()
     },
     requiredArgs: [] as const
-  },
-  incidents: {
-    description: `Lists incidents — everything that needs (or needed) a reaction: downtime, failing synthetics, firing alarms, production errors, unhealthy stacks, expiring certificates.
-
-Shows status, severity, title, stack, and each incident's signals. Filter by status, project, or stage. The default view is ACTIVE (open + acknowledged).`,
-    args: {
-      logLevel: logLevel.optional(),
-      agent: agent.optional(),
-      outputFormat: outputFormat.optional(),
-      projectName: projectName.optional(),
-      stage: stage.optional(),
-      incidentStatus: incidentStatus.optional(),
-      limit: limit.optional()
-    },
-    requiredArgs: [] as const
-  },
-  'incidents:show': {
-    description: `Prints an incident's agent handoff bundle: a self-contained markdown document with the incident's state, signals, evidence, release context, timeline, and the fix/verify/resolve protocol.
-
-Pipe it to a coding agent (or read it yourself) to fix the incident.`,
-    args: {
-      logLevel: logLevel.optional(),
-      agent: agent.optional(),
-      outputFormat: outputFormat.optional(),
-      incidentId
-    },
-    requiredArgs: ['incidentId'] as const
-  },
-  'incidents:ack': {
-    description: `Acknowledges an incident: "someone is on it". The same signal getting worse stops re-paging; a NEW signal joining still notifies.`,
-    args: {
-      logLevel: logLevel.optional(),
-      agent: agent.optional(),
-      outputFormat: outputFormat.optional(),
-      incidentId
-    },
-    requiredArgs: ['incidentId'] as const
-  },
-  'incidents:resolve': {
-    description: `Resolves an incident manually. Use after you deployed and verified a fix for signals that cannot observe recovery on their own (production error groups). A recurring signal reopens the incident automatically.`,
-    args: {
-      logLevel: logLevel.optional(),
-      agent: agent.optional(),
-      outputFormat: outputFormat.optional(),
-      incidentId
-    },
-    requiredArgs: ['incidentId'] as const
   },
   'issues:list': {
     description: `Lists detected runtime issues (errors) across your deployed functions and containers.

@@ -167,9 +167,6 @@ describe('diagnostic command invocation inputs', () => {
             startEvent: async () => undefined,
             updateEvent: async () => undefined
           },
-          notification: {
-            sendDeploymentNotification: async () => undefined
-          },
           s3: {
             syncDirectory: async (request) => {
               syncRequest = request;

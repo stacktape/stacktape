@@ -136,7 +136,10 @@ const buildSource = async () => {
     // @opentui/core dynamically imports a native package per platform (@opentui/core-darwin-x64, etc.).
     // Only the current platform's package is installed, so externalize them all — the matching one
     // resolves from node_modules at runtime, the rest are never imported.
-    external: ['follow-redirects', '@opentui/core-*'],
+    // web-tree-sitter: @opentui/core imports the 0.25 wasm path while the hoisted package moved to
+    // 0.26's layout mid-migration; externalizing keeps the dev bundle building (the parser only
+    // loads for TUI syntax highlighting).
+    external: ['follow-redirects', '@opentui/core-*', 'web-tree-sitter', 'web-tree-sitter/*'],
     tsconfig: localBuildTsConfigPath,
     define: {
       STACKTAPE_VERSION: `"${packageJson.version}"`

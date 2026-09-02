@@ -69,7 +69,7 @@ export class SourceCodeWatcher {
 
   constructor() {
     if (!this.watcher) {
-      this.watcher = chokidar.watch([], { persistent: true, disableGlobbing: true });
+      this.watcher = chokidar.watch([], { persistent: true });
     }
     this.watcher.on('change', async (changedFile, stats) => {
       try {

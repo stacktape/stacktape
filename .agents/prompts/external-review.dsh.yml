@@ -1,0 +1,3 @@
+- id: llm-deepseek
+  config:
+    reasoningEffort: max

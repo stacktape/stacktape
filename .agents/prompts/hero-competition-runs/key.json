@@ -1,0 +1,142 @@
+[
+  {
+    "number": "01",
+    "player": "glm",
+    "version": 3
+  },
+  {
+    "number": "02",
+    "player": "gemini",
+    "version": 2
+  },
+  {
+    "number": "03",
+    "player": "deepseek",
+    "version": 1
+  },
+  {
+    "number": "04",
+    "player": "gemini",
+    "version": 3
+  },
+  {
+    "number": "05",
+    "player": "gemini",
+    "version": 4
+  },
+  {
+    "number": "06",
+    "player": "deepseek",
+    "version": 3
+  },
+  {
+    "number": "07",
+    "player": "grok",
+    "version": 2
+  },
+  {
+    "number": "08",
+    "player": "fable",
+    "version": 2
+  },
+  {
+    "number": "09",
+    "player": "glm",
+    "version": 4
+  },
+  {
+    "number": "10",
+    "player": "deepseek",
+    "version": 2
+  },
+  {
+    "number": "11",
+    "player": "grok",
+    "version": 1
+  },
+  {
+    "number": "12",
+    "player": "glm",
+    "version": 2
+  },
+  {
+    "number": "13",
+    "player": "fable",
+    "version": 3
+  },
+  {
+    "number": "14",
+    "player": "opus",
+    "version": 2
+  },
+  {
+    "number": "15",
+    "player": "opus",
+    "version": 4
+  },
+  {
+    "number": "16",
+    "player": "codex",
+    "version": 2
+  },
+  {
+    "number": "17",
+    "player": "deepseek",
+    "version": 4
+  },
+  {
+    "number": "18",
+    "player": "grok",
+    "version": 3
+  },
+  {
+    "number": "19",
+    "player": "opus",
+    "version": 1
+  },
+  {
+    "number": "20",
+    "player": "glm",
+    "version": 1
+  },
+  {
+    "number": "21",
+    "player": "codex",
+    "version": 1
+  },
+  {
+    "number": "22",
+    "player": "fable",
+    "version": 4
+  },
+  {
+    "number": "23",
+    "player": "fable",
+    "version": 1
+  },
+  {
+    "number": "24",
+    "player": "codex",
+    "version": 4
+  },
+  {
+    "number": "25",
+    "player": "gemini",
+    "version": 1
+  },
+  {
+    "number": "26",
+    "player": "codex",
+    "version": 3
+  },
+  {
+    "number": "27",
+    "player": "opus",
+    "version": 3
+  },
+  {
+    "number": "28",
+    "player": "grok",
+    "version": 4
+  }
+]

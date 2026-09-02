@@ -204,16 +204,6 @@ export const listIssuesInputSchema = z.object({
 
 export const issueActionInputSchema = z.object({ issueId: z.string() });
 
-export const listIncidentsInputSchema = z.object({
-  // 'ACTIVE' = OPEN + ACKNOWLEDGED, the queue's default view.
-  status: z.enum(['ACTIVE', 'OPEN', 'ACKNOWLEDGED', 'RESOLVED', 'ALL']).optional(),
-  project: z.string().optional(),
-  stage: z.string().optional(),
-  limit: z.number().int().min(1).max(100).optional()
-});
-
-export const incidentActionInputSchema = z.object({ incidentId: z.string() });
-
 export const syncUptimeChecksInputSchema = z.object({
   project: z.string().min(1),
   stage: z.string().min(1),
@@ -276,8 +266,6 @@ export type OrganizationActivityParams = z.input<typeof organizationActivityFrom
 export type StackDetailsParams = z.input<typeof stackDetailsInputSchema>;
 export type ListIssuesParams = z.input<typeof listIssuesInputSchema>;
 export type IssueActionParams = z.input<typeof issueActionInputSchema>;
-export type ListIncidentsParams = z.input<typeof listIncidentsInputSchema>;
-export type IncidentActionParams = z.input<typeof incidentActionInputSchema>;
 
 /**
  * Organization-wide configuration a deployment has to honour.
@@ -326,36 +314,6 @@ export type ListIssuesResponse = Array<{
 
 export type IssueActionResponse = {
   success: boolean;
-};
-
-export type ListIncidentsResponse = Array<{
-  id: string;
-  status: 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED';
-  severity: 'INFO' | 'WARNING' | 'ERROR' | 'CRITICAL';
-  title: string;
-  project: string | null;
-  stage: string | null;
-  region: string | null;
-  isProduction: boolean;
-  openedAt: string | Date;
-  acknowledgedAt: string | Date | null;
-  resolvedAt: string | Date | null;
-  resolveReason: string | null;
-  deploymentVersion: string | null;
-  gitCommit: string | null;
-  signals: Array<{ kind: string; state: string; title: string }>;
-}>;
-
-export type IncidentActionResponse = {
-  success: boolean;
-};
-
-/**
- * The agent handoff bundle: a self-contained markdown document with everything a coding agent (or
- * a person) needs to diagnose the incident, fix it, verify the fix, and resolve it.
- */
-export type IncidentHandoffResponse = {
-  markdown: string;
 };
 
 /**
@@ -703,18 +661,6 @@ export type ApiKeyTrpcClient = {
   };
   issuesFromCli: {
     query: (args: ListIssuesParams) => Promise<ListIssuesResponse>;
-  };
-  incidentsFromCli: {
-    query: (args: ListIncidentsParams) => Promise<ListIncidentsResponse>;
-  };
-  incidentHandoffFromCli: {
-    query: (args: IncidentActionParams) => Promise<IncidentHandoffResponse>;
-  };
-  acknowledgeIncidentFromCli: {
-    mutate: (args: IncidentActionParams) => Promise<IncidentActionResponse>;
-  };
-  resolveIncidentFromCli: {
-    mutate: (args: IncidentActionParams) => Promise<IncidentActionResponse>;
   };
   resolveIssueFromCli: {
     mutate: (args: IssueActionParams) => Promise<IssueActionResponse>;
