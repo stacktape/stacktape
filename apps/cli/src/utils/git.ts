@@ -13,6 +13,7 @@ type SupportedGitVariable =
   | 'email'
   | 'changes'
   | 'repository'
+  | 'repositoryRoot'
   | 'tags'
   | 'repositoryUrl';
 
@@ -89,6 +90,10 @@ export const getGitVariable = async (variable: SupportedGitVariable) => {
     case 'repository': {
       const { stdout } = await executeGit('rev-parse --show-toplevel');
       return getBaseName(stdout);
+    }
+    case 'repositoryRoot': {
+      const { stdout } = await executeGit('rev-parse --show-toplevel');
+      return stdout;
     }
     case 'tags': {
       const { stdout } = await executeGit('tag --points-at HEAD');

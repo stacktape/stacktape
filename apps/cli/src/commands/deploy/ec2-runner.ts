@@ -11,7 +11,6 @@ import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { fsPaths } from 'src/config/runtime-paths';
-import { getPathRelativeTo } from '@utils/fs-utils';
 import { wait } from '@utils/misc';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { ExpectedError } from '@utils/errors';
@@ -24,6 +23,7 @@ import { potentiallyPromptBeforeOperation, saveDetailedStackInfoMap } from '../_
 import { initializeRemoteDeployOperation } from '../_utils/initialization';
 import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
 import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
+import { resolveEc2RunnerConfigPath } from './ec2-runner-config-path';
 
 export const deployWithEc2Runner = async () => {
   tuiManager.setPhasePreset('remote-deploy');
@@ -60,7 +60,21 @@ export const deployWithEc2Runner = async () => {
     gitCommitMessage = undefined;
   }
 
-  const configPath = runner.configPath && getPathRelativeTo(runner.configPath, stackContext.workingDir);
+  let configPath: string | undefined;
+  if (runner.configPath) {
+    try {
+      configPath = resolveEc2RunnerConfigPath({
+        configPath: runner.configPath,
+        repositoryRoot: await getGitVariable('repositoryRoot')
+      });
+    } catch {
+      throw new ExpectedError(
+        'CLI',
+        'EC2 runner deploys require the Stacktape config file to be inside the current Git repository.',
+        'Move the config into the repository or deploy without the EC2 runner.'
+      );
+    }
+  }
 
   operationReporter.setPhase('UPLOAD');
   await operationReporter.startEvent({ eventType: 'START_DEPLOYMENT', description: 'Starting EC2 runner deployment' });
