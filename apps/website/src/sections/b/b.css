@@ -1,0 +1,907 @@
+/*
+ * Variant B — "Two acts: Day 0 / Day 1".
+ *
+ * One stylesheet for the whole variant, imported only from `src/pages/variants/b.astro`, so it is
+ * bundled onto that route and nowhere else. Every selector is prefixed `b-`: the file is not scoped
+ * by Astro (a shared sheet cannot be), and the prefix is what keeps it out of the way of the shared
+ * surfaces and of variant A.
+ *
+ * It is deliberately one file rather than a `<style>` block per section. The variant's argument is
+ * typographic — one act scale, one section-marker motif, one band rhythm — and a shared type scale
+ * that lives in eight scoped blocks stops being shared the first time someone edits one of them.
+ *
+ * Nothing here reaches inside a product surface. The variant only ever sets the width, the padding
+ * and the background of the container a surface sits in.
+ */
+
+.b-page {
+  /* Three measures, and the choice between them is the whole layout system. `--b-max` is prose and
+   * ordinary surfaces; `--b-max-wide` is the two surfaces that need room (the wizard's diagram, the
+   * Console's 1000 px minimum); `--b-max-hero` splits the difference so the H1 gets a column wide
+   * enough to hold a line of it at full size. */
+  --b-max: 1240px;
+  --b-max-wide: 1440px;
+  --b-max-hero: 1360px;
+  --b-gut: clamp(20px, 3.6vw, 48px);
+
+  /* The higher-contrast half of the palette. `--stp-surface-page` is the base; this is the band the
+   * act dividers and the proof block drop to, so a section change reads as a change in altitude
+   * rather than as a change in border colour. */
+  --b-deep: #0e1313;
+  --b-hair: rgba(255, 255, 255, 0.08);
+  --b-hair-soft: rgba(255, 255, 255, 0.045);
+
+  --b-band-y: clamp(72px, 8.5vw, 128px);
+  --b-nav-h: 60px;
+
+  background: var(--color-page);
+}
+
+/* The sticky nav would otherwise land on top of any section jumped to from the act agendas. */
+.b-page [id] {
+  scroll-margin-top: calc(var(--b-nav-h) + 28px);
+}
+
+/* ── Shell ──────────────────────────────────────────────────────────────────────────────────── */
+
+.b-shell {
+  width: 100%;
+  max-width: var(--b-max);
+  margin-inline: auto;
+  padding-inline: var(--b-gut);
+}
+
+.b-shell--wide {
+  max-width: var(--b-max-wide);
+}
+
+.b-shell--hero {
+  max-width: var(--b-max-hero);
+}
+
+.b-band {
+  position: relative;
+  padding-block: var(--b-band-y);
+}
+
+/* Dropped to the deep plane and separated by a hairline rather than a border, so consecutive bands
+ * read as one continuous page with a change in light. */
+.b-band--deep {
+  background: var(--b-deep);
+  box-shadow:
+    inset 0 1px 0 var(--b-hair-soft),
+    inset 0 -1px 0 var(--b-hair-soft);
+}
+
+/* ── Nav ────────────────────────────────────────────────────────────────────────────────────── */
+
+.b-nav {
+  position: sticky;
+  z-index: 40;
+  top: 0;
+  border-bottom: 1px solid var(--b-hair-soft);
+  background: color-mix(in srgb, var(--color-page) 82%, transparent);
+  backdrop-filter: blur(14px);
+}
+
+.b-nav__inner {
+  display: flex;
+  min-height: var(--b-nav-h);
+  align-items: center;
+  gap: 18px;
+}
+
+.b-nav__home {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* The persistent act indicator: which of the two acts the reader is currently inside. It is set by
+ * the observer in `SiteNav.astro` and is hidden from assistive technology — it reports scroll
+ * position, which a screen reader already conveys better. */
+.b-nav__act {
+  display: inline-flex;
+  align-items: center;
+  padding-left: 18px;
+  border-left: 1px solid var(--b-hair);
+  color: var(--color-fc-light);
+  font-family: var(--font-geist-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  opacity: 0;
+  text-transform: uppercase;
+  transition: opacity var(--stp-motion-duration-base) var(--stp-motion-easing);
+}
+
+.b-nav[data-act='0'] .b-nav__act,
+.b-nav[data-act='1'] .b-nav__act {
+  opacity: 1;
+}
+
+.b-nav__act > span {
+  display: none;
+}
+
+.b-nav[data-act='0'] .b-nav__act-0,
+.b-nav[data-act='1'] .b-nav__act-1 {
+  display: inline;
+}
+
+.b-nav__act b {
+  color: var(--color-fc-primary);
+  font-weight: 500;
+}
+
+.b-nav__links {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  gap: clamp(14px, 2vw, 28px);
+}
+
+.b-nav__link {
+  color: var(--color-fc-light);
+  font-size: 0.9rem;
+  transition: color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+}
+
+.b-nav__link:hover {
+  color: var(--color-fc-primary);
+}
+
+@media (max-width: 720px) {
+  .b-nav__act {
+    display: none;
+  }
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────────────────────────────── */
+
+.b-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 38px;
+  padding-inline: 18px;
+  border-radius: var(--stp-radius-medium);
+  font-size: 0.9rem;
+  font-weight: 550;
+  transition:
+    background-color var(--stp-motion-duration-fast) var(--stp-motion-easing),
+    color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+  white-space: nowrap;
+}
+
+/* The one saturated fill on the page. Green is spent here, on the act numerals and on the proof
+ * figures — nowhere else. */
+.b-btn--solid {
+  background: var(--color-brand);
+  color: #08100f;
+}
+
+.b-btn--solid:hover {
+  background: color-mix(in srgb, var(--color-brand) 88%, white);
+}
+
+.b-btn--quiet {
+  box-shadow: inset 0 0 0 1px var(--b-hair);
+  color: var(--color-fc-secondary);
+}
+
+.b-btn--quiet:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--color-fc-primary);
+}
+
+.b-link-arrow {
+  color: var(--color-fc-light);
+  font-size: 0.9rem;
+  transition: color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+}
+
+.b-link-arrow:hover {
+  color: var(--color-fc-primary);
+}
+
+.b-link-arrow span {
+  display: inline-block;
+  margin-left: 6px;
+  font-family: var(--font-geist-mono);
+}
+
+/* ── Hero ───────────────────────────────────────────────────────────────────────────────────── */
+
+.b-hero {
+  padding-block: clamp(48px, 6vw, 92px) clamp(64px, 8vw, 116px);
+}
+
+.b-hero__grid {
+  display: grid;
+  align-items: center;
+  gap: clamp(40px, 4.6vw, 72px);
+  grid-template-columns: minmax(0, 1.02fr) minmax(0, 1fr);
+}
+
+.b-hero__copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.b-hero__eyebrow {
+  margin: 0 0 22px;
+  color: var(--color-fc-ternary);
+  font-family: var(--font-geist-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.b-hero__eyebrow b {
+  color: var(--color-brand);
+  font-weight: 500;
+}
+
+.b-hero__title {
+  margin: 0;
+  font-size: clamp(2.15rem, 3.5vw, 3.15rem);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.02;
+  text-wrap: balance;
+}
+
+/* The two-act signature, marked inside the headline itself: the day counters are the only mono
+ * words on the page set at headline size. */
+.b-hero__day {
+  font-family: var(--font-geist-mono);
+  font-size: 0.86em;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.b-hero__sub {
+  margin: 24px 0 0;
+  max-width: 46rem;
+  color: var(--color-fc-lighter);
+  font-size: 1.06rem;
+  line-height: 1.62;
+}
+
+.b-hero__points {
+  display: flex;
+  margin: 30px 0 0;
+  flex-direction: column;
+  padding: 0;
+  gap: 13px;
+  list-style: none;
+}
+
+.b-hero__points li {
+  position: relative;
+  padding-left: 22px;
+  color: var(--color-fc-lighter);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.b-hero__points li::before {
+  position: absolute;
+  top: 0.72em;
+  left: 0;
+  width: 9px;
+  height: 1px;
+  background: var(--color-brand);
+  content: '';
+}
+
+.b-hero__points b {
+  color: var(--color-fc-primary);
+  font-weight: 550;
+}
+
+.b-hero__points code,
+.b-hero__sub code {
+  font-family: var(--font-geist-mono);
+  font-size: 0.9em;
+}
+
+.b-hero__cta {
+  width: 100%;
+  max-width: 30rem;
+  margin-top: 34px;
+}
+
+.b-hero__cta-row {
+  display: flex;
+  align-items: center;
+  margin-top: 18px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.b-hero__surface {
+  min-width: 0;
+}
+
+@media (max-width: 1024px) {
+  .b-hero__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ── Act dividers ───────────────────────────────────────────────────────────────────────────── */
+
+.b-act {
+  position: relative;
+  overflow: hidden;
+  padding-block: clamp(88px, 12vw, 172px);
+  background: var(--b-deep);
+  box-shadow:
+    inset 0 1px 0 var(--b-hair-soft),
+    inset 0 -1px 0 var(--b-hair-soft);
+}
+
+/* The oversized numeral. It is background, not content: `aria-hidden`, unselectable, and clipped by
+ * the band so it can run past the measure without ever widening the page. */
+.b-act__ghost {
+  position: absolute;
+  top: 50%;
+  right: -0.06em;
+  color: rgba(255, 255, 255, 0.035);
+  font-family: var(--font-geist-mono);
+  font-size: clamp(16rem, 38vw, 32rem);
+  font-weight: 500;
+  letter-spacing: -0.06em;
+  line-height: 0.7;
+  pointer-events: none;
+  transform: translateY(-48%);
+  user-select: none;
+}
+
+/* Act II is the payoff, so its numeral is the one that gets the brand. */
+.b-act--one .b-act__ghost {
+  color: color-mix(in srgb, var(--color-brand) 13%, transparent);
+}
+
+.b-act__inner {
+  position: relative;
+  max-width: 44rem;
+}
+
+.b-act__kicker {
+  margin: 0;
+  color: var(--color-brand);
+  font-family: var(--font-geist-mono);
+  font-size: 0.76rem;
+  font-weight: 500;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+.b-act__title {
+  margin: 20px 0 0;
+  font-size: clamp(2.6rem, 6.2vw, 5rem);
+  font-weight: 600;
+  letter-spacing: -0.045em;
+  line-height: 0.94;
+}
+
+.b-act__day {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--color-fc-light);
+  font-family: var(--font-geist-mono);
+  font-size: 0.28em;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.b-act__lede {
+  margin: 26px 0 0;
+  max-width: 40rem;
+  color: var(--color-fc-lighter);
+  font-size: 1.04rem;
+  line-height: 1.62;
+}
+
+/* The act's agenda: which numbered sections it contains, as links. */
+.b-act__beats {
+  display: flex;
+  margin: 34px 0 0;
+  padding: 0;
+  gap: 10px 26px;
+  flex-wrap: wrap;
+  list-style: none;
+}
+
+.b-act__beats a {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 9px;
+  color: var(--color-fc-light);
+  font-size: 0.88rem;
+  transition: color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+}
+
+.b-act__beats a:hover {
+  color: var(--color-fc-primary);
+}
+
+.b-act__beats i {
+  color: var(--color-fc-ternary);
+  font-family: var(--font-geist-mono);
+  font-size: 0.76rem;
+  font-style: normal;
+}
+
+/* ── Section head ───────────────────────────────────────────────────────────────────────────── */
+
+.b-head {
+  display: grid;
+  align-items: end;
+  gap: 20px clamp(32px, 4vw, 64px);
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+}
+
+.b-head__marker {
+  display: flex;
+  align-items: center;
+  margin: 0 0 8px;
+  gap: 14px;
+  grid-column: 1 / -1;
+}
+
+/* The act tag. It is what makes a numbered section legible out of context: `D1 / 06` says both
+ * which act you are in and how far through it you are. */
+.b-head__act {
+  padding: 3px 7px;
+  border-radius: var(--stp-radius-small);
+  box-shadow: inset 0 0 0 1px var(--b-hair);
+  color: var(--color-fc-ternary);
+  font-family: var(--font-geist-mono);
+  font-size: 0.64rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+}
+
+.b-head__index {
+  color: var(--color-fc-primary);
+  font-family: var(--font-geist-mono);
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.b-head__kicker {
+  color: var(--color-fc-ternary);
+  font-family: var(--font-geist-mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.b-head__rule {
+  height: 1px;
+  flex: 1 1 auto;
+  background: linear-gradient(90deg, var(--b-hair), transparent);
+}
+
+.b-head__title {
+  margin: 0;
+  font-size: clamp(1.7rem, 2.9vw, 2.5rem);
+  font-weight: 600;
+  letter-spacing: -0.032em;
+  line-height: 1.08;
+  text-wrap: balance;
+}
+
+.b-head__lede {
+  margin: 0;
+  color: var(--color-fc-lighter);
+  font-size: 1rem;
+  line-height: 1.62;
+}
+
+.b-head__lede code,
+.b-figure__caption code {
+  font-family: var(--font-geist-mono);
+  font-size: 0.9em;
+}
+
+.b-head__lede b {
+  color: var(--color-fc-primary);
+  font-weight: 550;
+}
+
+/* The head is bottom-aligned across two columns, which only reads as deliberate while the lede is
+ * about as tall as the title. Below this it stacks instead of leaving a hole above the heading. */
+@media (max-width: 1100px) {
+  .b-head {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ── Figures: the container every product surface sits in ───────────────────────────────────── */
+
+.b-figure {
+  margin: clamp(32px, 4vw, 56px) 0 0;
+}
+
+/* A figure that is already inside a block which carries that gap. */
+.b-figure--flush {
+  margin-top: 0;
+}
+
+.b-figure__stage {
+  padding: clamp(16px, 2.2vw, 32px);
+}
+
+/* The wizard is the one surface given extra room: its rail, its 62ch measure and the isometric
+ * diagram all have to fit in the same column. */
+.b-figure__stage--roomy {
+  padding: clamp(20px, 3.4vw, 52px);
+}
+
+/* Panels that already carry their own window chrome do not want a second frame around them. */
+.b-figure__stage--bare {
+  padding: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.b-figure__caption {
+  margin: 16px 2px 0;
+  color: var(--color-fc-ternary);
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+.b-figure__caption b {
+  color: var(--color-fc-light);
+  font-weight: 500;
+}
+
+/* ── Two-column body: a surface beside a short read of it ───────────────────────────────────── */
+
+.b-split {
+  display: grid;
+  align-items: start;
+  gap: clamp(28px, 3.4vw, 56px);
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+}
+
+.b-notes {
+  display: flex;
+  margin: 0;
+  flex-direction: column;
+  padding: 0;
+  gap: 20px;
+  list-style: none;
+}
+
+.b-notes li {
+  padding-top: 16px;
+  border-top: 1px solid var(--b-hair-soft);
+}
+
+.b-notes h3 {
+  display: flex;
+  align-items: baseline;
+  margin: 0 0 6px;
+  gap: 10px;
+  font-family: var(--font-geist-mono);
+  font-size: 0.82rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.b-notes h3 i {
+  color: var(--color-fc-ternary);
+  font-size: 0.72rem;
+  font-style: normal;
+}
+
+/* Notes under a full-width surface rather than beside a narrow one. */
+.b-notes--row {
+  margin-top: clamp(36px, 4vw, 56px);
+  gap: clamp(20px, 2.4vw, 40px);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  display: grid;
+}
+
+@media (max-width: 900px) {
+  .b-notes--row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .b-notes--row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.b-notes p {
+  margin: 0;
+  color: var(--color-fc-lighter);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.b-notes code {
+  font-family: var(--font-geist-mono);
+  font-size: 0.92em;
+}
+
+@media (max-width: 1100px) {
+  .b-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The one-line hinge between two surfaces in the same section. */
+.b-hinge {
+  max-width: 40rem;
+  margin: clamp(40px, 5vw, 64px) 0 0;
+  padding-left: 18px;
+  border-left: 1px solid var(--b-hair);
+  color: var(--color-fc-light);
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+/* ── Proof ──────────────────────────────────────────────────────────────────────────────────── */
+
+.b-stats {
+  display: grid;
+  margin: clamp(36px, 4vw, 56px) 0 0;
+  padding: 0;
+  gap: 28px clamp(24px, 3vw, 48px);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  list-style: none;
+}
+
+.b-stats > div {
+  padding-top: 18px;
+  border-top: 1px solid var(--b-hair);
+}
+
+.b-stats dt {
+  color: var(--color-brand);
+  font-family: var(--font-geist-mono);
+  font-size: clamp(1.9rem, 3.2vw, 2.7rem);
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.b-stats dd {
+  margin: 12px 0 0;
+  color: var(--color-fc-lighter);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.b-stats dd small {
+  display: block;
+  margin-top: 7px;
+  color: var(--color-fc-ternary);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 900px) {
+  .b-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .b-stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.b-quotes {
+  display: grid;
+  margin: clamp(52px, 6vw, 84px) 0 0;
+  padding: 0;
+  gap: clamp(20px, 2.4vw, 32px);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  list-style: none;
+}
+
+.b-quotes figure {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  margin: 0;
+  padding: clamp(22px, 2.4vw, 30px);
+}
+
+.b-quotes blockquote {
+  margin: 0 0 auto;
+  color: var(--color-fc-secondary);
+  font-size: 0.98rem;
+  line-height: 1.6;
+}
+
+.b-quotes blockquote p {
+  margin: 0;
+  color: var(--color-fc-primary);
+}
+
+.b-quotes figcaption {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--b-hair-soft);
+  color: var(--color-fc-ternary);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.b-quotes figcaption b {
+  display: block;
+  color: var(--color-fc-primary);
+  font-weight: 550;
+}
+
+@media (max-width: 900px) {
+  .b-quotes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ── Closing ────────────────────────────────────────────────────────────────────────────────── */
+
+.b-close {
+  position: relative;
+  overflow: hidden;
+  padding-block: clamp(84px, 10vw, 150px);
+  background: var(--b-deep);
+  box-shadow: inset 0 1px 0 var(--b-hair-soft);
+}
+
+/* A single wide, very faint brand wash behind the last call to action. It is the only gradient on
+ * the page and it carries no edge. */
+.b-close::before {
+  position: absolute;
+  top: -40%;
+  left: 50%;
+  width: min(1100px, 120%);
+  height: 150%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--color-brand) 11%, transparent), transparent);
+  content: '';
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.b-close__inner {
+  position: relative;
+  max-width: 40rem;
+}
+
+.b-close__title {
+  margin: 20px 0 0;
+  font-size: clamp(2rem, 4vw, 3.1rem);
+  font-weight: 600;
+  letter-spacing: -0.038em;
+  line-height: 1.04;
+}
+
+.b-close__lede {
+  margin: 22px 0 0;
+  color: var(--color-fc-lighter);
+  font-size: 1.02rem;
+  line-height: 1.62;
+}
+
+.b-close__lede code {
+  font-family: var(--font-geist-mono);
+  font-size: 0.9em;
+}
+
+.b-close__cta {
+  width: 100%;
+  max-width: 30rem;
+  margin-top: 34px;
+}
+
+.b-close__note {
+  margin: 30px 0 0;
+  color: var(--color-fc-ternary);
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+/* ── Footer ─────────────────────────────────────────────────────────────────────────────────── */
+
+.b-footer {
+  border-top: 1px solid var(--b-hair-soft);
+  padding-block: 44px 52px;
+}
+
+.b-footer__inner {
+  display: flex;
+  align-items: center;
+  gap: 20px 32px;
+  flex-wrap: wrap;
+}
+
+.b-footer__links {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  gap: 24px;
+  flex-wrap: wrap;
+  list-style: none;
+}
+
+.b-footer__links a {
+  color: var(--color-fc-light);
+  font-size: 0.88rem;
+  transition: color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+}
+
+.b-footer__links a:hover {
+  color: var(--color-fc-primary);
+}
+
+.b-footer__meta {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  gap: 16px;
+  color: var(--color-fc-ternary);
+  font-size: 0.8rem;
+}
+
+.b-footer__badge {
+  padding: 4px 9px;
+  border-radius: var(--stp-radius-small);
+  box-shadow: inset 0 0 0 1px var(--b-hair);
+  font-family: var(--font-geist-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+}
+
+@media (max-width: 640px) {
+  .b-footer__meta {
+    margin-left: 0;
+  }
+}
+
+/* ── Motion ─────────────────────────────────────────────────────────────────────────────────── */
+
+/*
+ * The page's only animation: section heads and figures arrive a few pixels late.
+ *
+ * Driven by a scroll-progress timeline, so there is no observer, no scroll listener and no
+ * JavaScript at all. Behind `@supports` because a browser without `animation-timeline` would run
+ * the same keyframes on the document timeline instead — every element on the page fading in at once
+ * on load — and no animation is the better of those two failures.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .b-reveal {
+      animation: b-rise linear both;
+      animation-range: entry 6% cover 24%;
+      animation-timeline: view();
+    }
+  }
+}
+
+@keyframes b-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

@@ -1,0 +1,26 @@
+---
+/**
+ * The footer. Four links, a copyright and the origin badge — nothing this page has not already
+ * earned the right to be brief about.
+ */
+import Logo from '../../components/Logo.astro';
+import { CONTACT_URL, DOCS_URL, GITHUB_URL, STATUS_URL } from './links';
+---
+
+<footer class="b-footer">
+  <div class="b-shell b-footer__inner">
+    <Logo height={20} />
+
+    <ul class="b-footer__links">
+      <li><a href={DOCS_URL}>Docs</a></li>
+      <li><a href={GITHUB_URL}>GitHub</a></li>
+      <li><a href={STATUS_URL}>Status</a></li>
+      <li><a href={CONTACT_URL}>Contact</a></li>
+    </ul>
+
+    <p class="b-footer__meta">
+      <span>© 2026 Stacktape</span>
+      <span class="b-footer__badge">Made in EU</span>
+    </p>
+  </div>
+</footer>

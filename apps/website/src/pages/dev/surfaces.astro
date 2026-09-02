@@ -1,0 +1,99 @@
+---
+/**
+ * QA scaffolding: every product surface, full width, in one scroll.
+ *
+ * This route exists so the surfaces can be reviewed as a set — same page, same fonts, same tokens —
+ * before the homepage variants decide how to frame them. It is deliberately plain: no section copy
+ * and no layout of its own beyond a label above each surface, because anything else would be a
+ * design decision made here instead of in the variant that ships.
+ *
+ * Not linked from anywhere, and `noindex`.
+ */
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { CicdPanel } from '../../surfaces/CicdPanel';
+import { CostsPanel } from '../../surfaces/CostsPanel';
+import { DeployTerminal } from '../../surfaces/DeployTerminal';
+import InitWizardRun from '../../surfaces/InitWizardRun/InitWizardRun.astro';
+import { IssuesInbox } from '../../surfaces/IssuesInbox/IssuesInbox';
+import { MetricsPanel } from '../../surfaces/MetricsPanel';
+import { StageOverview } from '../../surfaces/StageOverview/StageOverview';
+import { TraceWaterfall } from '../../surfaces/TraceWaterfall';
+---
+
+<BaseLayout
+  description="Development gallery of the product surfaces."
+  font="geist"
+  noindex
+  title="Surfaces — Stacktape"
+>
+  <main class="gallery">
+    <h1>Product surfaces</h1>
+
+    <section class="gallery__item">
+      <p class="gallery__label">1 — InitWizardRun</p>
+      <InitWizardRun />
+    </section>
+
+    <section class="gallery__item">
+      <p class="gallery__label">2 — DeployTerminal</p>
+      <DeployTerminal />
+    </section>
+
+    <section class="gallery__item">
+      <p class="gallery__label">3 — StageOverview</p>
+      <StageOverview />
+    </section>
+
+    <section class="gallery__item">
+      <p class="gallery__label">4 — MetricsPanel</p>
+      <MetricsPanel />
+    </section>
+
+    <section class="gallery__item">
+      <p class="gallery__label">5 — TraceWaterfall</p>
+      <TraceWaterfall />
+    </section>
+
+    <section class="gallery__item">
+      <p class="gallery__label">6 — IssuesInbox</p>
+      <IssuesInbox />
+    </section>
+
+    <section class="gallery__item">
+      <p class="gallery__label">7 — CicdPanel</p>
+      <CicdPanel />
+    </section>
+
+    <section class="gallery__item">
+      <p class="gallery__label">8 — CostsPanel</p>
+      <CostsPanel />
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+.gallery {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 48px 24px 120px;
+}
+
+.gallery h1 {
+  margin: 0 0 40px;
+  font-size: 1.4rem;
+  font-weight: 620;
+}
+
+.gallery__item {
+  margin-bottom: 88px;
+}
+
+.gallery__label {
+  margin: 0 0 14px;
+  color: var(--color-fc-ternary);
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+</style>

@@ -1,0 +1,24 @@
+resources:
+  supportAgent:
+    type: agentcore-runtime
+    properties:
+      packaging:
+        type: custom-dockerfile
+        properties:
+          buildContextPath: ./agent
+      protocol: HTTP
+      endpoints:
+        - name: chat
+      environment:
+        - name: MODEL_ID
+          value: anthropic.claude-sonnet-4-5-20250929-v1:0
+      connectTo:
+        - conversations
+
+  conversations:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: sessionId
+          type: string

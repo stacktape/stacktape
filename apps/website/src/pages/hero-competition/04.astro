@@ -1,0 +1,2144 @@
+---
+// concept: An interactive dual-plane "Engineering Cockpit" featuring an animated end-to-end DevOps pipeline visualizer, real-time CloudFormation synthesis inspector, and contextual AI incident triage console.
+// copy-angle: An authoritative "AWS DevOps, fully automated" stance built for modern engineering teams—combining turnkey Day-0 synthesis and Day-1 production observability with transparent, opt-in AI self-healing and zero AWS lock-in.
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Logo from '../../components/Logo.astro';
+---
+
+<BaseLayout
+  title="Stacktape — AWS DevOps, Fully Automated"
+  description="Describe your app in simple config. Stacktape compiles to CloudFormation, deploys to your AWS account, and automates Day-2 ops with built-in observability and opt-in AI incident resolution."
+  font="geist"
+  noindex
+>
+  <div class="hero-page-wrapper">
+    <!-- Ambient background illumination -->
+    <div class="glow-orb glow-top-center" aria-hidden="true"></div>
+    <div class="glow-orb glow-top-left" aria-hidden="true"></div>
+    <div class="glow-orb glow-top-right" aria-hidden="true"></div>
+    <div class="bg-grid-pattern" aria-hidden="true"></div>
+
+    <!-- Navigation -->
+    <header class="hero-nav">
+      <div class="nav-container">
+        <a href="https://stacktape.com" class="nav-brand" aria-label="Stacktape Home">
+          <Logo height={26} class="brand-logo" />
+        </a>
+
+        <nav class="nav-links" aria-label="Primary navigation">
+          <a href="https://docs.stacktape.com" class="nav-link" target="_blank" rel="noopener noreferrer">Docs</a>
+          <a
+            href="https://docs.stacktape.com/overview/features"
+            class="nav-link"
+            target="_blank"
+            rel="noopener noreferrer"
+          >Features</a>
+          <a
+            href="https://docs.stacktape.com/resources/compute"
+            class="nav-link"
+            target="_blank"
+            rel="noopener noreferrer"
+          >Architecture</a>
+          <a
+            href="https://github.com/stacktape/stacktape"
+            class="nav-link nav-github"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <svg class="icon-gh" viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true">
+              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+            </svg>
+            <span>GitHub</span>
+            <span class="gh-stars">★ 2.4k</span>
+          </a>
+        </nav>
+
+        <div class="nav-actions">
+          <a href="https://cal.com/stacktape/30min" class="btn-ghost" target="_blank" rel="noopener noreferrer"
+          >Book Demo</a>
+          <a
+            href="https://console.stacktape.com/sign-up"
+            class="btn-nav-primary"
+            target="_blank"
+            rel="noopener noreferrer"
+          >Sign Up</a>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Hero Section -->
+    <main class="hero-main">
+      <!-- Header Copy & Authority Positioning -->
+      <div class="hero-header">
+        <div class="hero-badge-row">
+          <div class="hero-badge">
+            <span class="status-pulse"></span>
+            <span class="badge-tag">DevOps Engine 2.0</span>
+            <span class="badge-separator">/</span>
+            <span class="badge-text">100% In Your AWS Account</span>
+          </div>
+        </div>
+
+        <h1 class="hero-title">
+          AWS DevOps, <br class="title-break-desktop" />
+          <span class="gradient-text">fully automated.</span>
+        </h1>
+
+        <p class="hero-subtitle">
+          Stacktape replaces weeks of complex Terraform scripts with one simple config. Generate infrastructure with AI,
+          compile to raw CloudFormation, and run production with integrated telemetry and opt-in AI self-healing.
+        </p>
+
+        <!-- Command Switcher & Primary Action Hub -->
+        <div class="hero-cta-hub">
+          <div class="cta-command-container">
+            <div class="command-tabs" role="tablist" aria-label="Installation Method">
+              <button class="cmd-tab active" data-cmd-type="npx" role="tab" aria-selected="true">
+                <span class="cmd-tab-label">npx (recommended)</span>
+              </button>
+              <button class="cmd-tab" data-cmd-type="macos" role="tab" aria-selected="false">
+                <span class="cmd-tab-label">macOS</span>
+              </button>
+              <button class="cmd-tab" data-cmd-type="linux" role="tab" aria-selected="false">
+                <span class="cmd-tab-label">Linux</span>
+              </button>
+              <button class="cmd-tab" data-cmd-type="windows" role="tab" aria-selected="false">
+                <span class="cmd-tab-label">Windows</span>
+              </button>
+            </div>
+
+            <div class="command-box">
+              <div class="command-prompt">
+                <span class="prompt-symbol">$</span>
+                <code class="command-string" id="hero-command-text">npx stacktape init</code>
+              </div>
+              <button class="btn-copy" id="btn-copy-command" aria-label="Copy command to clipboard">
+                <svg
+                  class="icon-copy"
+                  viewBox="0 0 24 24"
+                  width="16"
+                  height="16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+                <svg
+                  class="icon-check"
+                  viewBox="0 0 24 24"
+                  width="16"
+                  height="16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                <span class="copy-text">Copy</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="cta-actions-row">
+            <a
+              href="https://console.stacktape.com/sign-up"
+              class="btn-hero-primary"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <span>Start Free in Console</span>
+              <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" aria-hidden="true">
+                <path
+                  fill-rule="evenodd"
+                  d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z"
+                  clip-rule="evenodd"
+                />
+              </svg>
+            </a>
+            <a
+              href="https://cal.com/stacktape/30min"
+              class="btn-hero-secondary"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <svg
+                viewBox="0 0 20 20"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                aria-hidden="true"
+              >
+                <rect x="3" y="4" width="14" height="13" rx="2"></rect>
+                <path d="M3 8h14M7 2v4M13 2v4"></path>
+              </svg>
+              <span>Book Architecture Demo</span>
+            </a>
+          </div>
+
+          <!-- Trust Guarantees -->
+          <div class="hero-guarantees">
+            <span class="guarantee-item">
+              <svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor">
+                <path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z" />
+              </svg>
+              No DevOps Headcount Required
+            </span>
+            <span class="guarantee-bullet">•</span>
+            <span class="guarantee-item">
+              <svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor">
+                <path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z" />
+              </svg>
+              Deploys Native CloudFormation
+            </span>
+            <span class="guarantee-bullet">•</span>
+            <span class="guarantee-item">
+              <svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor">
+                <path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z" />
+              </svg>
+              Zero Vendor Lock-In
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Interactive DevOps Cockpit Centerpiece -->
+      <section class="cockpit-section" aria-label="Interactive DevOps Cockpit">
+        <div class="cockpit-card">
+          <!-- Cockpit Window Header & Workflow Stage Controller -->
+          <div class="cockpit-topbar">
+            <div class="cockpit-dots">
+              <span class="dot dot-red"></span>
+              <span class="dot dot-yellow"></span>
+              <span class="dot dot-green"></span>
+            </div>
+
+            <div class="cockpit-workflow-nav" role="tablist" aria-label="DevOps Lifecycle Stages">
+              <button class="stage-nav-btn active" data-stage="day0-arch" role="tab" aria-selected="true">
+                <span class="stage-step-num">01</span>
+                <span class="stage-step-title">Day 0: AI Synthesis & Topology</span>
+                <span class="stage-step-badge">Wizard</span>
+              </button>
+
+              <button class="stage-nav-btn" data-stage="day0-cfn" role="tab" aria-selected="false">
+                <span class="stage-step-num">02</span>
+                <span class="stage-step-title">Day 0: CloudFormation Synthesis</span>
+                <span class="stage-step-badge">Zero Lock-In</span>
+              </button>
+
+              <button class="stage-nav-btn" data-stage="day1-ops" role="tab" aria-selected="false">
+                <span class="stage-step-num">03</span>
+                <span class="stage-step-title">Day 1: Telemetry & AI Self-Healing</span>
+                <span class="stage-step-badge highlight-brand">Live Ops</span>
+              </button>
+            </div>
+
+            <div class="cockpit-account-indicator">
+              <span class="indicator-led"></span>
+              <span class="indicator-text">AWS: Production-us-east-1</span>
+            </div>
+          </div>
+
+          <!-- Stage 1 View: AI Synthesis & Interactive Architecture Topology -->
+          <div class="cockpit-stage-view active" id="stage-day0-arch">
+            <div class="stage-split-grid">
+              <!-- Left: AI Code Synthesis Panel -->
+              <div class="view-panel panel-code">
+                <div class="panel-header">
+                  <div class="panel-file-info">
+                    <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" class="file-icon">
+                      <path d="M3.75 1.5a.75.75 0 00-.75.75v11.5c0 .414.336.75.75.75h8.5a.75.75 0 00.75-.75V6h-3.75A1.75 1.75 0 017.5 4.25V1.5H3.75zm5.25.56v2.19c0 .138.112.25.25.25h2.19L9 2.06zM2.25 2.25C2.25 1.007 3.257 0 4.5 0h4.636a2.25 2.25 0 011.591.659l3.114 3.114a2.25 2.25 0 01.659 1.591V13.75A2.25 2.25 0 0112.25 16H3.75A2.25 2.25 0 011.5 13.75V2.25z" />
+                    </svg>
+                    <span class="file-name">stacktape.ts</span>
+                    <span class="file-tag">Auto-generated via repo analysis</span>
+                  </div>
+                  <div class="code-badge">TypeScript Safe</div>
+                </div>
+
+                <div class="code-viewport">
+                  <pre class="code-block"><code><span class="token-keyword">import</span> &#123; defineConfig &#125; <span class="token-keyword">from</span> <span class="token-string">'stacktape'</span>;
+
+<span class="token-keyword">export default</span> <span class="token-function">defineConfig</span>(&#123;
+  serviceName: <span class="token-string">'core-api-production'</span>,
+  resources: &#123;
+    <span class="token-comment">// Private VPC & Multi-AZ Subnets configured automatically</span>
+    webService: &#123;
+      type: <span class="token-string">'web-service'</span>,
+      properties: &#123;
+        src: <span class="token-string">'./apps/api'</span>,
+        packaging: &#123; type: <span class="token-string">'dockerfile'</span> &#125;,
+        cpu: <span class="token-number">2</span>,
+        memory: <span class="token-number">4096</span>,
+        scaling: &#123; min: <span class="token-number">2</span>, max: <span class="token-number">12</span>, targetCpuUtilization: <span class="token-number">70</span> &#125;,
+        connectTo: [<span class="token-string">'database'</span>, <span class="token-string">'cache'</span>],
+        cors: <span class="token-boolean">true</span>
+      &#125;
+    &#125;,
+    database: &#123;
+      type: <span class="token-string">'relational-database'</span>,
+      properties: &#123;
+        engine: <span class="token-string">'postgres'</span>,
+        version: <span class="token-string">'16.1'</span>,
+        storageSize: <span class="token-number">100</span>,
+        backups: &#123; retentionDays: <span class="token-number">30</span> &#125;
+      &#125;
+    &#125;,
+    cache: &#123;
+      type: <span class="token-string">'redis-cluster'</span>,
+      properties: &#123; nodeType: <span class="token-string">'cache.t4g.medium'</span> &#125;
+    &#125;
+  &#125;
+&#125;);</code></pre>
+                </div>
+
+                <div class="panel-footer-stats">
+                  <div class="stat-pill"><span class="stat-dot green"></span> Auto-VPC: 3 Subnets</div>
+                  <div class="stat-pill"><span class="stat-dot green"></span> Zero Secrets Leak</div>
+                  <div class="stat-pill"><span class="stat-dot green"></span> Least-Privilege IAM</div>
+                </div>
+              </div>
+
+              <!-- Right: Live Interactive Architecture Topology -->
+              <div class="view-panel panel-topology">
+                <div class="panel-header">
+                  <span class="topology-title">Synthesized AWS Architecture Topology</span>
+                  <div class="live-pill"><span class="live-blink"></span> Synthesized in 1.4s</div>
+                </div>
+
+                <div class="topology-canvas">
+                  <!-- Flow Lines SVG -->
+                  <svg class="topology-routes" viewBox="0 0 480 320" fill="none" preserveAspectRatio="none">
+                    <path class="route-line flow-active" d="M240,45 L240,100" />
+                    <path class="route-line flow-active" d="M240,140 L130,210" />
+                    <path class="route-line flow-active" d="M240,140 L350,210" />
+                    <path class="route-line flow-active" d="M130,250 L240,290" />
+                    <circle cx="240" cy="70" r="3" class="flow-particle p1" />
+                    <circle cx="185" cy="175" r="3" class="flow-particle p2" />
+                    <circle cx="295" cy="175" r="3" class="flow-particle p3" />
+                  </svg>
+
+                  <!-- Node 1: Edge & Route53 / CloudFront -->
+                  <div class="arch-node node-edge" style="top: 15px; left: 50%; transform: translateX(-50%);">
+                    <div class="node-icon bg-purple">
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.4z" />
+                      </svg>
+                    </div>
+                    <div class="node-details">
+                      <span class="node-name">CloudFront CDN & WAF</span>
+                      <span class="node-meta">SSL Auto-provisioned • Global Edge</span>
+                    </div>
+                  </div>
+
+                  <!-- Node 2: ALB & Container Service -->
+                  <div class="arch-node node-compute" style="top: 105px; left: 50%; transform: translateX(-50%);">
+                    <div class="node-icon bg-brand">
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                        <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z" />
+                      </svg>
+                    </div>
+                    <div class="node-details">
+                      <span class="node-name">AWS Fargate • Autoscaling</span>
+                      <span class="node-meta">2 → 12 Instances • Private Subnet</span>
+                    </div>
+                    <span class="node-badge-health">Healthy</span>
+                  </div>
+
+                  <!-- Node 3: PostgreSQL Database -->
+                  <div class="arch-node node-db" style="top: 200px; left: 15px;">
+                    <div class="node-icon bg-blue">
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                        <path d="M12 2C6.48 2 2 4.02 2 6.5v11C2 19.98 6.48 22 12 22s10-2.02 10-4.5v-11C22 4.02 17.52 2 12 2zm0 3c3.86 0 7 1.12 7 2.5S15.86 10 12 10s-7-1.12-7-2.5S8.14 5 12 5zm0 14.5c-3.86 0-7-1.12-7-2.5v-2.32c1.86 1.15 4.3 1.82 7 1.82s5.14-.67 7-1.82V17c0 1.38-3.14 2.5-7 2.5zm0-5c-3.86 0-7-1.12-7-2.5v-2.32c1.86 1.15 4.3 1.82 7 1.82s5.14-.67 7-1.82V12c0 1.38-3.14 2.5-7 2.5z" />
+                      </svg>
+                    </div>
+                    <div class="node-details">
+                      <span class="node-name">Aurora PostgreSQL 16</span>
+                      <span class="node-meta">Multi-AZ • Auto-backup</span>
+                    </div>
+                  </div>
+
+                  <!-- Node 4: Redis Cache -->
+                  <div class="arch-node node-cache" style="top: 200px; right: 15px;">
+                    <div class="node-icon bg-red">
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                        <path d="M19 4H5c-1.11 0-2 .9-2 2v12c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-7 2c2.76 0 5 2.24 5 5s-2.24 5-5 5-5-2.24-5-5 2.24-5 5-5z" />
+                      </svg>
+                    </div>
+                    <div class="node-details">
+                      <span class="node-name">ElastiCache Redis</span>
+                      <span class="node-meta">Sub-millisecond latency</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Security & Governance Callout -->
+                <div class="topology-footer">
+                  <div class="vpc-boundary-tag">
+                    <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+                      <path d="M8.5 1.75a.75.75 0 00-1 0L2.75 6.25a.75.75 0 000 1.06L7.5 11.75a.75.75 0 001 0l4.75-4.44a.75.75 0 000-1.06L8.5 1.75z" />
+                    </svg>
+                    <span>Isolated VPC & NAT Gateways • SOC2 / HIPAA Ready Architecture</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stage 2 View: Native CloudFormation Synthesis (Zero Lock-in) -->
+          <div class="cockpit-stage-view" id="stage-day0-cfn">
+            <div class="cfn-diff-container">
+              <div class="cfn-overview-bar">
+                <div class="cfn-metric">
+                  <span class="cfn-metric-value">1</span>
+                  <span class="cfn-metric-label">Stacktape File (35 lines)</span>
+                </div>
+                <div class="cfn-arrow-icon">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M5 12h14M12 5l7 7-7 7" />
+                  </svg>
+                </div>
+                <div class="cfn-metric highlight">
+                  <span class="cfn-metric-value">1,480+</span>
+                  <span class="cfn-metric-label">Lines of CloudFormation</span>
+                </div>
+                <div class="cfn-escape-notice">
+                  <span class="escape-icon">🔓</span>
+                  <span>100% Native AWS CloudFormation. Zero Proprietary Lock-In. Escape Anytime.</span>
+                </div>
+              </div>
+
+              <div class="cfn-columns">
+                <div class="cfn-col">
+                  <div class="col-header">
+                    <span>What Stacktape Synthesizes For You</span>
+                    <span class="col-pill">Automated</span>
+                  </div>
+                  <ul class="cfn-feature-list">
+                    <li>
+                      <span class="check">✓</span> <strong>VPC & Subnet Topology:</strong> 3 Availability Zones,
+                      Public/Private subnets, Internet & NAT Gateways.
+                    </li>
+                    <li>
+                      <span class="check">✓</span> <strong>Security Groups:</strong> Strict ingress/egress rules,
+                      inter-service least-privilege binding.
+                    </li>
+                    <li>
+                      <span class="check">✓</span> <strong>IAM Roles & Policies:</strong> Micro-scoped task roles
+                      without wildcard permissions.
+                    </li>
+                    <li>
+                      <span class="check">✓</span> <strong>Auto-Scaling Policies:</strong> Step scaling triggers for
+                      target CPU/Memory metrics.
+                    </li>
+                    <li>
+                      <span class="check">✓</span> <strong>CloudWatch & Alarms:</strong> Automated logging groups,
+                      retention lifecycles, and metric alerts.
+                    </li>
+                    <li>
+                      <span class="check">✓</span> <strong>Escape Hatches:</strong> Drop down to raw CFN overrides or
+                      AWS CDK constructs whenever needed.
+                    </li>
+                  </ul>
+                </div>
+
+                <div class="cfn-col cfn-raw-preview">
+                  <div class="col-header">
+                    <span>Compiled AWS CloudFormation (Snippet)</span>
+                    <span class="col-badge">template.json</span>
+                  </div>
+                  <pre class="cfn-code"><code>&#123;
+  <span class="token-string">"AWSTemplateFormatVersion"</span>: <span class="token-string">"2010-09-09"</span>,
+  <span class="token-string">"Description"</span>: <span class="token-string">"Compiled by Stacktape. Production Ready."</span>,
+  <span class="token-string">"Resources"</span>: &#123;
+    <span class="token-string">"WebServiceTaskDefinition"</span>: &#123;
+      <span class="token-string">"Type"</span>: <span class="token-string">"AWS::ECS::TaskDefinition"</span>,
+      <span class="token-string">"Properties"</span>: &#123;
+        <span class="token-string">"RequiresCompatibilities"</span>: [<span class="token-string">"FARGATE"</span>],
+        <span class="token-string">"Cpu"</span>: <span class="token-string">"2048"</span>,
+        <span class="token-string">"Memory"</span>: <span class="token-string">"4096"</span>,
+        <span class="token-string">"NetworkMode"</span>: <span class="token-string">"awsvpc"</span>,
+        <span class="token-string">"ExecutionRoleArn"</span>: &#123; <span class="token-string">"Fn::GetAtt"</span>: [<span class="token-string">"ECSTaskExecutionRole"</span>, <span class="token-string">"Arn"</span>] &#125;
+      &#125;
+    &#125;,
+    <span class="token-string">"DatabaseCluster"</span>: &#123;
+      <span class="token-string">"Type"</span>: <span class="token-string">"AWS::RDS::DBCluster"</span>,
+      <span class="token-string">"Properties"</span>: &#123;
+        <span class="token-string">"Engine"</span>: <span class="token-string">"aurora-postgresql"</span>,
+        <span class="token-string">"StorageEncrypted"</span>: <span class="token-boolean">true</span>
+      &#125;
+    &#125;
+  &#125;
+&#125;</code></pre>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stage 3 View: Day-1 Observability & AI Incident Remediation -->
+          <div class="cockpit-stage-view" id="stage-day1-ops">
+            <div class="ops-split-grid">
+              <!-- Left: Live Telemetry & Metrics -->
+              <div class="view-panel panel-telemetry">
+                <div class="panel-header">
+                  <span class="telemetry-title">Real-Time Telemetry & Distributed Tracing</span>
+                  <div class="telemetry-status"><span class="pulse-green"></span> 24,190 req/min</div>
+                </div>
+
+                <div class="telemetry-charts">
+                  <!-- Metrics Sparkline Grid -->
+                  <div class="metric-card">
+                    <div class="metric-header">
+                      <span class="metric-name">P99 Latency</span>
+                      <span class="metric-val">34ms</span>
+                    </div>
+                    <div class="sparkline-bar-container">
+                      <div class="bar" style="height: 40%"></div>
+                      <div class="bar" style="height: 55%"></div>
+                      <div class="bar" style="height: 45%"></div>
+                      <div class="bar" style="height: 70%"></div>
+                      <div class="bar" style="height: 35%"></div>
+                      <div class="bar bar-alert" style="height: 95%"></div>
+                      <div class="bar" style="height: 30%"></div>
+                      <div class="bar" style="height: 28%"></div>
+                    </div>
+                  </div>
+
+                  <div class="metric-card">
+                    <div class="metric-header">
+                      <span class="metric-name">Error Rate (5xx)</span>
+                      <span class="metric-val text-brand">0.00%</span>
+                    </div>
+                    <div class="sparkline-bar-container">
+                      <div class="bar" style="height: 10%"></div>
+                      <div class="bar" style="height: 8%"></div>
+                      <div class="bar" style="height: 12%"></div>
+                      <div class="bar bar-alert" style="height: 85%"></div>
+                      <div class="bar" style="height: 5%"></div>
+                      <div class="bar" style="height: 0%"></div>
+                      <div class="bar" style="height: 0%"></div>
+                      <div class="bar" style="height: 0%"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Trace Waterfall Snippet -->
+                <div class="trace-waterfall">
+                  <div class="waterfall-title">Trace Span Correlation #tr-8924f</div>
+                  <div class="waterfall-rows">
+                    <div class="waterfall-row">
+                      <span class="span-tag span-edge">GET /api/v1/orders</span>
+                      <div class="span-track"><div class="span-fill" style="left: 0%; width: 95%;"></div></div>
+                      <span class="span-time">34ms</span>
+                    </div>
+                    <div class="waterfall-row">
+                      <span class="span-tag span-compute">Fargate::handler</span>
+                      <div class="span-track"><div class="span-fill" style="left: 10%; width: 75%;"></div></div>
+                      <span class="span-time">26ms</span>
+                    </div>
+                    <div class="waterfall-row">
+                      <span class="span-tag span-db">Postgres::query</span>
+                      <div class="span-track"><div class="span-fill" style="left: 25%; width: 45%;"></div></div>
+                      <span class="span-time">14ms</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Right: AI Agent Incident Resolver (Opt-in) -->
+              <div class="view-panel panel-agent">
+                <div class="panel-header">
+                  <div class="agent-title-lockup">
+                    <span class="ai-sparkle">✦</span>
+                    <span class="agent-title">AI Incident Resolver</span>
+                    <span class="agent-optin-badge">Opt-In Controlled</span>
+                  </div>
+                  <span class="incident-badge-resolved">Auto-Remediated</span>
+                </div>
+
+                <div class="agent-timeline">
+                  <div class="agent-step">
+                    <div class="step-icon alert-red">!</div>
+                    <div class="step-content">
+                      <span class="step-time">14:02:11 UTC</span>
+                      <p class="step-desc">
+                        <strong>Incident Detected:</strong> Connection pool exhaustion on Aurora Postgres during deploy
+                        <code class="code-sm">v2.14.0</code>.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div class="agent-step">
+                    <div class="step-icon ai-purple">✦</div>
+                    <div class="step-content">
+                      <span class="step-time">14:02:13 UTC</span>
+                      <p class="step-desc">
+                        <strong>Context Synthesized:</strong> Correlated CloudWatch telemetry, git commit <code
+                          class="code-sm"
+                        >#9c12e8</code>, and RDS max_connections metric.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div class="agent-step">
+                    <div class="step-icon green-check">✓</div>
+                    <div class="step-content">
+                      <span class="step-time">14:02:20 UTC</span>
+                      <p class="step-desc">
+                        <strong>Verified Resolution:</strong> Injected RDS Proxy connection multiplexer into config and
+                        deployed hotfix.
+                      </p>
+                      <div class="agent-diff-box">
+                        <span class="diff-line remove">- maxPoolSize: 50</span>
+                        <span class="diff-line add">+ enableRdsProxy: true // multiplexed</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="agent-footer">
+                  <span class="agent-audit-note"
+                  >All agent actions require human confirmation or automated policy approval.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Enterprise Capabilities Proof Grid -->
+      <section class="enterprise-proof-section" aria-label="Enterprise AWS Depth">
+        <div class="proof-label-row">
+          <span class="proof-label">ENTERPRISE-GRADE AWS DEPTH & COMPLIANCE WITHOUT THE HEADCOUNT</span>
+        </div>
+        <div class="proof-grid">
+          <div class="proof-item">
+            <div class="proof-icon">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              </svg>
+            </div>
+            <div class="proof-content">
+              <h4>Isolated VPC Networking</h4>
+              <p>Multi-AZ private subnets, NAT gateways, bastion hosts, and custom VPC peering built-in.</p>
+            </div>
+          </div>
+
+          <div class="proof-item">
+            <div class="proof-icon">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              </svg>
+            </div>
+            <div class="proof-content">
+              <h4>SOC2 & HIPAA Compliant</h4>
+              <p>Automated encryption at rest & in transit, immutable audit logs, and granular RBAC.</p>
+            </div>
+          </div>
+
+          <div class="proof-item">
+            <div class="proof-icon">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+            </div>
+            <div class="proof-content">
+              <h4>Zero Cloud Lock-In</h4>
+              <p>Everything compiles to native AWS CloudFormation. Run standalone or eject at any moment.</p>
+            </div>
+          </div>
+
+          <div class="proof-item">
+            <div class="proof-icon">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="20" x2="18" y2="10"></line>
+                <line x1="12" y1="20" x2="12" y2="4"></line>
+                <line x1="6" y1="20" x2="6" y2="14"></line>
+              </svg>
+            </div>
+            <div class="proof-content">
+              <h4>Automatic Cost Optimization</h4>
+              <p>Native support for AWS Graviton (ARM64), Spot instances, and intelligent auto-scaling.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</BaseLayout>
+
+<style>
+/* -------------------------------------------------------------
+   Core Variables & Scoped Theming
+   ------------------------------------------------------------- */
+:root {
+  --brand-primary: #00E599;
+  --brand-primary-glow: rgba(0, 229, 153, 0.28);
+  --brand-secondary: #00B377;
+  --bg-dark-base: #08090A;
+  --bg-dark-surface: #0E1114;
+  --bg-dark-elevated: #15191E;
+  --bg-dark-overlay: #1C2229;
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --border-brand: rgba(0, 229, 153, 0.35);
+  --text-pure: #FFFFFF;
+  --text-primary: #E6EDF3;
+  --text-secondary: #8B949E;
+  --text-muted: #57606A;
+  --color-accent-purple: #A78BFA;
+  --color-accent-blue: #38BDF8;
+  --color-accent-red: #F87171;
+}
+
+.hero-page-wrapper {
+  position: relative;
+  min-height: 100vh;
+  background-color: var(--bg-dark-base);
+  color: var(--text-primary);
+  overflow-x: hidden;
+  font-family: var(--font-geist, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+  padding-bottom: 5rem;
+}
+
+/* -------------------------------------------------------------
+   Atmospheric Background Lights & Grids
+   ------------------------------------------------------------- */
+.bg-grid-pattern {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 900px;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: radial-gradient(ellipse 80% 50% at 50% 0%, #000 70%, transparent 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.glow-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(120px);
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.6;
+}
+
+.glow-top-center {
+  top: -160px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 680px;
+  height: 420px;
+  background: radial-gradient(circle, var(--brand-primary-glow) 0%, rgba(0, 229, 153, 0.02) 70%);
+}
+
+.glow-top-left {
+  top: 100px;
+  left: -100px;
+  width: 440px;
+  height: 380px;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.08) 0%, transparent 70%);
+}
+
+.glow-top-right {
+  top: 80px;
+  right: -100px;
+  width: 440px;
+  height: 380px;
+  background: radial-gradient(circle, rgba(167, 139, 250, 0.08) 0%, transparent 70%);
+}
+
+/* -------------------------------------------------------------
+   Navigation
+   ------------------------------------------------------------- */
+.hero-nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background: rgba(8, 9, 10, 0.75);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.nav-container {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0.85rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nav-brand {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.nav-link {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.nav-link:hover {
+  color: var(--text-pure);
+}
+
+.nav-github {
+  padding: 0.3rem 0.6rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  border-radius: 9999px;
+}
+
+.gh-stars {
+  color: var(--brand-primary);
+  font-weight: 500;
+  font-size: 0.75rem;
+}
+
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.btn-ghost {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  text-decoration: none;
+  padding: 0.45rem 0.85rem;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.btn-ghost:hover {
+  color: var(--text-pure);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.btn-nav-primary {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #000000;
+  background: var(--brand-primary);
+  text-decoration: none;
+  padding: 0.45rem 1rem;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 3px rgba(0, 229, 153, 0.3);
+}
+
+.btn-nav-primary:hover {
+  background: #10ffab;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 229, 153, 0.4);
+}
+
+/* -------------------------------------------------------------
+   Hero Header & Copy Area
+   ------------------------------------------------------------- */
+.hero-main {
+  position: relative;
+  z-index: 10;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 3.5rem 1.5rem 0;
+}
+
+.hero-header {
+  text-align: center;
+  max-width: 880px;
+  margin: 0 auto 3rem;
+}
+
+.hero-badge-row {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.85rem;
+  background: rgba(0, 229, 153, 0.08);
+  border: 1px solid var(--border-brand);
+  border-radius: 9999px;
+  font-size: 0.8125rem;
+  color: var(--brand-primary);
+  backdrop-filter: blur(8px);
+}
+
+.status-pulse {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--brand-primary);
+  box-shadow: 0 0 8px var(--brand-primary);
+  animation: pulseGlow 2s infinite ease-in-out;
+}
+
+@keyframes pulseGlow {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+
+.badge-tag {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.badge-separator {
+  color: rgba(0, 229, 153, 0.4);
+}
+
+.badge-text {
+  color: var(--text-primary);
+  font-weight: 400;
+}
+
+.hero-title {
+  font-size: clamp(2.5rem, 5.5vw, 4.25rem);
+  line-height: 1.08;
+  font-weight: 750;
+  letter-spacing: -0.035em;
+  color: var(--text-pure);
+  margin: 0 0 1.5rem;
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, #FFFFFF 20%, var(--brand-primary) 85%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.title-break-desktop {
+  display: inline;
+}
+
+.hero-subtitle {
+  font-size: clamp(1.0625rem, 1.8vw, 1.25rem);
+  line-height: 1.6;
+  color: var(--text-secondary);
+  max-width: 740px;
+  margin: 0 auto 2.5rem;
+  font-weight: 400;
+}
+
+/* -------------------------------------------------------------
+   Interactive Command Hub & CTAs
+   ------------------------------------------------------------- */
+.hero-cta-hub {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.cta-command-container {
+  width: 100%;
+  max-width: 580px;
+  background: var(--bg-dark-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  padding: 0.5rem;
+  box-shadow: 0 12px 36px -10px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.command-tabs {
+  display: flex;
+  gap: 0.25rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.cmd-tab {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.35rem 0.65rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cmd-tab:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.cmd-tab.active {
+  color: var(--brand-primary);
+  background: rgba(0, 229, 153, 0.08);
+  font-weight: 600;
+}
+
+.command-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 0.85rem;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 8px;
+  margin-top: 0.5rem;
+}
+
+.command-prompt {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-family: var(--font-geist-mono, monospace);
+  font-size: 0.9375rem;
+  color: var(--text-pure);
+  overflow-x: auto;
+}
+
+.prompt-symbol {
+  color: var(--brand-primary);
+  font-weight: 700;
+  user-select: none;
+}
+
+.command-string {
+  font-family: inherit;
+  color: inherit;
+  white-space: nowrap;
+}
+
+.btn-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.35rem 0.65rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.btn-copy:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--text-pure);
+}
+
+.icon-check {
+  display: none;
+  color: var(--brand-primary);
+}
+
+.btn-copy.copied .icon-copy {
+  display: none;
+}
+
+.btn-copy.copied .icon-check {
+  display: inline-block;
+}
+
+.btn-copy.copied {
+  border-color: var(--brand-primary);
+  background: rgba(0, 229, 153, 0.1);
+}
+
+.cta-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.btn-hero-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: var(--brand-primary);
+  color: #000000;
+  font-weight: 650;
+  font-size: 0.9375rem;
+  padding: 0.75rem 1.4rem;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 14px rgba(0, 229, 153, 0.35);
+}
+
+.btn-hero-primary:hover {
+  background: #15ffad;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 22px rgba(0, 229, 153, 0.5);
+}
+
+.btn-hero-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-strong);
+  color: var(--text-primary);
+  font-weight: 550;
+  font-size: 0.9375rem;
+  padding: 0.75rem 1.4rem;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.btn-hero-secondary:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-pure);
+  border-color: rgba(255, 255, 255, 0.25);
+  transform: translateY(-2px);
+}
+
+.hero-guarantees {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.guarantee-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.guarantee-item svg {
+  color: var(--brand-primary);
+}
+
+.guarantee-bullet {
+  color: var(--text-muted);
+}
+
+/* -------------------------------------------------------------
+   Interactive Engineering Cockpit Centerpiece
+   ------------------------------------------------------------- */
+.cockpit-section {
+  margin: 3.5rem 0 4rem;
+}
+
+.cockpit-card {
+  background: var(--bg-dark-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 16px;
+  box-shadow: 0 24px 60px -15px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+
+.cockpit-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  background: var(--bg-dark-elevated);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.cockpit-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.dot-red { background: #FF5F56; }
+.dot-yellow { background: #FFBD2E; }
+.dot-green { background: #27C93F; }
+
+.cockpit-workflow-nav {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.stage-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  padding: 0.4rem 0.85rem;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.stage-nav-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.stage-nav-btn.active {
+  color: var(--text-pure);
+  background: var(--bg-dark-surface);
+  border-color: var(--border-strong);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.stage-step-num {
+  font-family: var(--font-geist-mono, monospace);
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.stage-nav-btn.active .stage-step-num {
+  color: var(--brand-primary);
+}
+
+.stage-step-badge {
+  font-size: 0.6875rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-secondary);
+}
+
+.stage-step-badge.highlight-brand {
+  background: rgba(0, 229, 153, 0.15);
+  color: var(--brand-primary);
+}
+
+.cockpit-account-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  font-family: var(--font-geist-mono, monospace);
+  color: var(--text-muted);
+}
+
+.indicator-led {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--brand-primary);
+  box-shadow: 0 0 6px var(--brand-primary);
+}
+
+/* Stage View Panels */
+.cockpit-stage-view {
+  display: none;
+  padding: 1.25rem;
+  min-height: 480px;
+}
+
+.cockpit-stage-view.active {
+  display: block;
+  animation: fadeIn 0.25s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.stage-split-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+.view-panel {
+  background: var(--bg-dark-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.panel-file-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.file-icon {
+  color: var(--brand-primary);
+}
+
+.file-name {
+  font-family: var(--font-geist-mono, monospace);
+  font-weight: 600;
+  color: var(--text-pure);
+}
+
+.file-tag {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.code-badge {
+  font-size: 0.6875rem;
+  padding: 0.2rem 0.5rem;
+  background: rgba(56, 189, 248, 0.1);
+  color: var(--color-accent-blue);
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.code-viewport {
+  padding: 1rem;
+  overflow-x: auto;
+  flex: 1;
+  font-family: var(--font-geist-mono, "JetBrains Mono", monospace);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.code-block {
+  margin: 0;
+  background: transparent;
+}
+
+.token-keyword { color: #F472B6; font-weight: 600; }
+.token-string { color: #A7F3D0; }
+.token-function { color: #60A5FA; }
+.token-comment { color: #6B7280; font-style: italic; }
+.token-number { color: #FBBF24; }
+.token-boolean { color: #F87171; }
+
+.panel-footer-stats {
+  display: flex;
+  gap: 0.65rem;
+  padding: 0.65rem 1rem;
+  background: rgba(0, 0, 0, 0.3);
+  border-top: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
+}
+
+.stat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.stat-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.stat-dot.green { background: var(--brand-primary); }
+
+/* Topology Canvas */
+.panel-topology {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.topology-title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-pure);
+}
+
+.live-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--brand-primary);
+}
+
+.live-blink {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--brand-primary);
+  animation: blink 1.2s infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
+}
+
+.topology-canvas {
+  position: relative;
+  flex: 1;
+  min-height: 340px;
+  background: radial-gradient(circle at center, rgba(255, 255, 255, 0.02) 0%, transparent 80%);
+}
+
+.topology-routes {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.route-line {
+  stroke: rgba(255, 255, 255, 0.15);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+}
+
+.flow-particle {
+  fill: var(--brand-primary);
+  filter: drop-shadow(0 0 4px var(--brand-primary));
+}
+
+.arch-node {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--bg-dark-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  padding: 0.6rem 0.85rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  z-index: 2;
+  transition: transform 0.2s ease;
+}
+
+.arch-node:hover {
+  transform: translateY(-2px);
+  border-color: var(--brand-primary);
+}
+
+.node-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+  flex-shrink: 0;
+}
+
+.bg-purple { background: linear-gradient(135deg, #8B5CF6, #6D28D9); }
+.bg-brand { background: linear-gradient(135deg, #00E599, #009E69); color: #000; }
+.bg-blue { background: linear-gradient(135deg, #38BDF8, #0284C7); }
+.bg-red { background: linear-gradient(135deg, #F87171, #DC2626); }
+
+.node-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.node-name {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-pure);
+}
+
+.node-meta {
+  font-size: 0.6875rem;
+  color: var(--text-secondary);
+}
+
+.node-badge-health {
+  font-size: 0.625rem;
+  background: rgba(39, 201, 63, 0.15);
+  color: #27C93F;
+  border: 1px solid rgba(39, 201, 63, 0.3);
+  padding: 0.15rem 0.4rem;
+  border-radius: 9999px;
+  font-weight: 600;
+  margin-left: 0.5rem;
+}
+
+.topology-footer {
+  padding: 0.65rem 1rem;
+  background: rgba(0, 0, 0, 0.3);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.vpc-boundary-tag {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.vpc-boundary-tag svg {
+  color: var(--brand-primary);
+}
+
+/* -------------------------------------------------------------
+   Stage 2: CloudFormation Synthesis View
+   ------------------------------------------------------------- */
+.cfn-diff-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.cfn-overview-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-dark-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 0.85rem 1.25rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.cfn-metric {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.cfn-metric-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-pure);
+  font-family: var(--font-geist-mono, monospace);
+}
+
+.cfn-metric.highlight .cfn-metric-value {
+  color: var(--brand-primary);
+}
+
+.cfn-metric-label {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.cfn-arrow-icon {
+  color: var(--text-muted);
+}
+
+.cfn-escape-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--brand-primary);
+  background: rgba(0, 229, 153, 0.08);
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--border-brand);
+}
+
+.cfn-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+.cfn-col {
+  background: var(--bg-dark-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 1.25rem;
+}
+
+.col-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-pure);
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.col-pill {
+  font-size: 0.6875rem;
+  background: rgba(0, 229, 153, 0.12);
+  color: var(--brand-primary);
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+}
+
+.col-badge {
+  font-size: 0.6875rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  font-family: var(--font-geist-mono, monospace);
+}
+
+.cfn-feature-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.cfn-feature-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.cfn-feature-list strong {
+  color: var(--text-primary);
+}
+
+.check {
+  color: var(--brand-primary);
+  font-weight: 700;
+}
+
+.cfn-raw-preview {
+  display: flex;
+  flex-direction: column;
+}
+
+.cfn-code {
+  margin: 0;
+  font-family: var(--font-geist-mono, monospace);
+  font-size: 0.78125rem;
+  line-height: 1.45;
+  color: var(--text-primary);
+  background: transparent;
+  overflow-x: auto;
+}
+
+/* -------------------------------------------------------------
+   Stage 3: Day-1 Ops & AI Self-Healing View
+   ------------------------------------------------------------- */
+.ops-split-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+.panel-telemetry {
+  padding: 1.25rem;
+}
+
+.telemetry-title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-pure);
+}
+
+.telemetry-status {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--brand-primary);
+  font-family: var(--font-geist-mono, monospace);
+}
+
+.pulse-green {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--brand-primary);
+}
+
+.telemetry-charts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+  margin: 1rem 0;
+}
+
+.metric-card {
+  background: var(--bg-dark-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+
+.metric-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.5rem;
+}
+
+.metric-name {
+  font-size: 0.6875rem;
+  color: var(--text-secondary);
+}
+
+.metric-val {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--text-pure);
+  font-family: var(--font-geist-mono, monospace);
+}
+
+.sparkline-bar-container {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 36px;
+}
+
+.bar {
+  flex: 1;
+  background: rgba(0, 229, 153, 0.4);
+  border-radius: 2px;
+  min-height: 4px;
+}
+
+.bar-alert {
+  background: var(--color-accent-red);
+}
+
+.trace-waterfall {
+  background: var(--bg-dark-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 0.85rem;
+}
+
+.waterfall-title {
+  font-size: 0.6875rem;
+  font-family: var(--font-geist-mono, monospace);
+  color: var(--text-muted);
+  margin-bottom: 0.6rem;
+}
+
+.waterfall-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.waterfall-row {
+  display: grid;
+  grid-template-columns: 130px 1fr 45px;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.6875rem;
+}
+
+.span-tag {
+  font-family: var(--font-geist-mono, monospace);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.span-edge { color: var(--color-accent-purple); }
+.span-compute { color: var(--brand-primary); }
+.span-db { color: var(--color-accent-blue); }
+
+.span-track {
+  position: relative;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.span-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--brand-primary);
+  border-radius: 3px;
+}
+
+.span-time {
+  font-family: var(--font-geist-mono, monospace);
+  color: var(--text-secondary);
+  text-align: right;
+}
+
+/* AI Agent Panel */
+.panel-agent {
+  padding: 1.25rem;
+}
+
+.agent-title-lockup {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ai-sparkle {
+  color: var(--color-accent-purple);
+  font-size: 0.9375rem;
+}
+
+.agent-title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-pure);
+}
+
+.agent-optin-badge {
+  font-size: 0.625rem;
+  background: rgba(167, 139, 250, 0.12);
+  color: var(--color-accent-purple);
+  border: 1px solid rgba(167, 139, 250, 0.25);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.incident-badge-resolved {
+  font-size: 0.6875rem;
+  background: rgba(39, 201, 63, 0.15);
+  color: #27C93F;
+  border: 1px solid rgba(39, 201, 63, 0.3);
+  padding: 0.15rem 0.45rem;
+  border-radius: 9999px;
+  font-weight: 600;
+}
+
+.agent-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin: 1rem 0;
+}
+
+.agent-step {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.step-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.step-icon.alert-red { background: rgba(248, 113, 113, 0.2); color: var(--color-accent-red); }
+.step-icon.ai-purple { background: rgba(167, 139, 250, 0.2); color: var(--color-accent-purple); }
+.step-icon.green-check { background: rgba(39, 201, 63, 0.2); color: #27C93F; }
+
+.step-content {
+  flex: 1;
+  font-size: 0.78125rem;
+  line-height: 1.45;
+}
+
+.step-time {
+  font-size: 0.6875rem;
+  font-family: var(--font-geist-mono, monospace);
+  color: var(--text-muted);
+  display: block;
+  margin-bottom: 0.15rem;
+}
+
+.step-desc {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.step-desc strong {
+  color: var(--text-primary);
+}
+
+.code-sm {
+  font-family: var(--font-geist-mono, monospace);
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+  color: var(--text-pure);
+}
+
+.agent-diff-box {
+  margin-top: 0.4rem;
+  background: var(--bg-dark-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  font-family: var(--font-geist-mono, monospace);
+  font-size: 0.71875rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.diff-line.remove { color: var(--color-accent-red); }
+.diff-line.add { color: var(--brand-primary); }
+
+.agent-footer {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 0.75rem;
+}
+
+.agent-audit-note {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* -------------------------------------------------------------
+   Enterprise Proof Grid
+   ------------------------------------------------------------- */
+.enterprise-proof-section {
+  margin-top: 2rem;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 3rem;
+}
+
+.proof-label-row {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.proof-label {
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  font-weight: 650;
+  color: var(--text-muted);
+}
+
+.proof-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.25rem;
+}
+
+.proof-item {
+  background: var(--bg-dark-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  transition: all 0.2s ease;
+}
+
+.proof-item:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-2px);
+}
+
+.proof-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: rgba(0, 229, 153, 0.08);
+  border: 1px solid var(--border-brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--brand-primary);
+}
+
+.proof-content h4 {
+  margin: 0 0 0.4rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-pure);
+}
+
+.proof-content p {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+/* -------------------------------------------------------------
+   Responsive Breakpoints
+   ------------------------------------------------------------- */
+@media (max-width: 1024px) {
+  .stage-split-grid,
+  .cfn-columns,
+  .ops-split-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .proof-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .nav-links {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .proof-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cockpit-workflow-nav {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .stage-nav-btn {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .cta-actions-row {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .btn-hero-primary,
+  .btn-hero-secondary {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-pulse,
+  .live-blink,
+  .flow-particle,
+  .btn-hero-primary,
+  .btn-hero-secondary {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+</style>
+
+<script>
+// Interactive Command Switcher
+  const commandMap: Record<string, string> = {
+    npx: 'npx stacktape init',
+    macos: 'curl -L https://installs.stacktape.com/macos.sh | sh',
+    linux: 'curl -L https://installs.stacktape.com/linux.sh | sh',
+    windows: 'iwr https://installs.stacktape.com/windows.ps1 -useb | iex'
+  };
+
+  const commandTextEl = document.getElementById('hero-command-text');
+  const copyBtn = document.getElementById('btn-copy-command');
+  const cmdTabs = document.querySelectorAll('.cmd-tab');
+
+  cmdTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      cmdTabs.forEach(t => {
+        t.classList.remove('active');
+        t.setAttribute('aria-selected', 'false');
+      });
+      tab.classList.add('active');
+      tab.setAttribute('aria-selected', 'true');
+
+      const cmdType = tab.getAttribute('data-cmd-type') || 'npx';
+      if (commandTextEl && commandMap[cmdType]) {
+        commandTextEl.textContent = commandMap[cmdType];
+      }
+    });
+  });
+
+  // Clipboard Copy Action
+  if (copyBtn && commandTextEl) {
+    copyBtn.addEventListener('click', async () => {
+      const textToCopy = commandTextEl.textContent || 'npx stacktape init';
+      try {
+        await navigator.clipboard.writeText(textToCopy);
+        copyBtn.classList.add('copied');
+        const copyLabel = copyBtn.querySelector('.copy-text');
+        if (copyLabel) copyLabel.textContent = 'Copied!';
+        
+        setTimeout(() => {
+          copyBtn.classList.remove('copied');
+          if (copyLabel) copyLabel.textContent = 'Copy';
+        }, 2000);
+      } catch (err) {
+        console.error('Failed to copy: ', err);
+      }
+    });
+  }
+
+  // Interactive DevOps Cockpit Stage Navigation
+  const stageNavBtns = document.querySelectorAll('.stage-nav-btn');
+  const stageViews = document.querySelectorAll('.cockpit-stage-view');
+
+  stageNavBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const targetStage = btn.getAttribute('data-stage');
+      if (!targetStage) return;
+
+      // Update Nav Buttons
+      stageNavBtns.forEach(b => {
+        b.classList.remove('active');
+        b.setAttribute('aria-selected', 'false');
+      });
+      btn.classList.add('active');
+      btn.setAttribute('aria-selected', 'true');
+
+      // Update Stage Views
+      stageViews.forEach(view => {
+        view.classList.remove('active');
+      });
+
+      const targetView = document.getElementById(`stage-${targetStage}`);
+      if (targetView) {
+        targetView.classList.add('active');
+      }
+    });
+  });
+</script>

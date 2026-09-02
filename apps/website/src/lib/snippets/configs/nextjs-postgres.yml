@@ -1,0 +1,21 @@
+resources:
+  web:
+    type: nextjs-web
+    properties:
+      appDirectory: ./
+      customDomains:
+        - domainName: acme.com
+      connectTo:
+        - mainDatabase
+
+  mainDatabase:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: $Secret('acme-db.password')
+      engine:
+        type: postgres
+        properties:
+          version: '16.6'
+          primaryInstance:
+            instanceSize: db.t4g.micro

@@ -1,0 +1,34 @@
+---
+/**
+ * Act I, section 01: `npx stacktape init`.
+ *
+ * The wizard run is the widest surface in this act and the one the owner cares most about, so it
+ * gets the wide shell and the roomiest padding on the page. Its isometric diagram sizes itself from
+ * the column it is given; anything narrower here would shrink the one picture that explains what a
+ * Stacktape config actually creates.
+ */
+import InitWizardRun from '../../surfaces/InitWizardRun/InitWizardRun.astro';
+import SectionHead from './SectionHead.astro';
+---
+
+<section class="b-band" id="s01" data-act="0">
+  <div class="b-shell b-shell--wide">
+    <SectionHead act="0" index="01" kicker="npx stacktape init">
+      <Fragment slot="title">The first command reads your repository and writes the config.</Fragment>
+      <Fragment slot="lede">
+        Your own Claude Code opens the files, on your machine, and proposes the infrastructure they imply. Nothing is
+        sent to Stacktape, nothing is created on AWS, and nothing is billed. You get a diagram, a monthly estimate and
+        every decision it made — with the line of your code that caused it — before you agree to any of it.
+      </Fragment>
+    </SectionHead>
+
+    <figure class="b-figure b-reveal">
+      <div class="b-figure__stage b-figure__stage--roomy site-panel">
+        <InitWizardRun />
+      </div>
+      <figcaption class="b-figure__caption">
+        <b>The wizard, end to end.</b> The result is one file in your project. Deleting it deletes the whole proposal.
+      </figcaption>
+    </figure>
+  </div>
+</section>

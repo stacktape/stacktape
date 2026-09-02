@@ -1,0 +1,1046 @@
+---
+// concept: An engineering drawing sheet — a full-width masthead over three hairline "notes" columns, closed by an edge-to-edge blueprint plate: the plan view of the AWS architecture one command generates, with a title block, a dimension line and a pending revision stamp along its foot.
+// copy-angle: Lead on depth rather than convenience — "AWS DevOps, fully automated. Down to the subnet." — and play the AI claim as reviewable engineering rather than autonomy: the agent files the fix as a revision you sign off, and letting it sign for itself is a setting that ships off.
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Logo from '../../components/Logo.astro';
+import { CtaCommand } from '../../components/CtaCommand';
+---
+
+<BaseLayout
+  title="Stacktape — AWS DevOps, fully automated"
+  description="One config file becomes production-grade AWS infrastructure in your own account: VPCs, private subnets, TLS, autoscaling, least-privilege IAM, pipelines, metrics, traces, alarms and incident response — generated from your repository and operated for you."
+  font="geist"
+  noindex
+>
+  <div class="hc3">
+    <header class="nav">
+      <div class="wrap nav__inner">
+        <a class="nav__brand" href="/" aria-label="Stacktape home"><Logo height={22} /></a>
+        <nav class="nav__links" aria-label="Primary">
+          <a href="https://docs.stacktape.com">Docs</a>
+          <a href="https://github.com/stacktape/stacktape">GitHub</a>
+          <a href="https://cal.com/stacktape/30min">Book a demo</a>
+        </nav>
+        <a class="nav__cta" href="https://console.stacktape.com/sign-up">Sign up</a>
+      </div>
+    </header>
+
+    <main class="hero">
+      <div class="wrap">
+        <div class="masthead">
+          <div class="masthead__top">
+            <p class="eyebrow">One config file · Your AWS account · The entire job</p>
+            <p class="strapline">
+              For teams with developers and no DevOps department — and for the platform teams who would rather review
+              the drawing than draw it.
+            </p>
+          </div>
+          <h1 class="title">
+            <span class="l1">AWS DevOps, fully automated.</span>
+            <span class="l2">Down to the subnet.</span>
+          </h1>
+        </div>
+
+        <section class="notes" aria-label="What Stacktape does">
+          <div class="note">
+            <p class="note__label"><span class="note__num">Note 01</span> The job</p>
+            <p class="note__body">
+              <code>npx stacktape init</code> reads your repository on your machine and writes one config file. One
+              deploy compiles it to plain CloudFormation and builds the architecture drawn below in your own AWS account
+              — VPC, private subnets, TLS, autoscaling, least-privilege IAM.
+            </p>
+            <p class="note__body">
+              The first deploy is the smaller half. Pipelines, metrics, traces, logs, alarms, budgets and incident
+              response are attached to the same stack from the start, and stay attached for as long as it runs.
+            </p>
+          </div>
+
+          <div class="note">
+            <p class="note__label"><span class="note__num">Note 02</span> What it does not skip</p>
+            <ul class="depth">
+              <li>
+                <span class="depth__k">Networking</span>
+                <span class="depth__v"
+                >Multi-AZ VPCs, private-only services, NAT egress, bastion access, GPU and Spot workloads.</span>
+              </li>
+              <li>
+                <span class="depth__k">Governance</span>
+                <span class="depth__v"
+                >Roles and permissions, budgets, audit trails and 18 guardrail types, enforced per stage.</span>
+              </li>
+              <li>
+                <span class="depth__k">No lock-in</span>
+                <span class="depth__v"
+                >Plain CloudFormation out. Drop a CDK construct or raw CloudFormation in anywhere. Cancel Stacktape and
+                  the stack keeps running.</span>
+              </li>
+              <li>
+                <span class="depth__k">Already on AWS</span>
+                <span class="depth__v"
+                >It reads Docker Compose, Dockerfiles, Procfiles, Serverless, SAM, SST, CDK and Terraform, so it starts
+                  from what you have.</span>
+              </li>
+            </ul>
+          </div>
+
+          <div class="note note--cta">
+            <p class="note__label"><span class="note__num">Note 03</span> Start</p>
+            <div class="cta-slot">
+              <CtaCommand client:visible defaultMethod="npx" />
+            </div>
+            <div class="cta-row">
+              <a class="btn btn--solid" href="https://console.stacktape.com/sign-up">
+                Deploy in the Console
+                <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
+                  <path
+                    d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                  </path>
+                </svg>
+              </a>
+              <a class="btn btn--ghost" href="https://cal.com/stacktape/30min">Book a demo</a>
+            </div>
+            <p class="fine">
+              The CLI and the framework are open source. The wizard runs on your machine, sends no code to Stacktape and
+              creates nothing on AWS — it writes one file.
+            </p>
+          </div>
+        </section>
+
+        <figure class="plate">
+          <figcaption class="plate__head">
+            <span>Plan view — acme-project / production</span>
+            <span class="plate__head-r">Generated from stacktape.yml · not drawn by hand</span>
+          </figcaption>
+
+          <div class="plate__canvas">
+            <svg
+              viewBox="0 0 1440 404"
+              role="img"
+              aria-label="Plan view of the AWS architecture generated from one Stacktape config: a WAF and CDN at the edge, an application load balancer and NAT gateways in public subnets, Fargate services and a Lambda worker in private application subnets across two availability zones, Aurora PostgreSQL with a failover reader and a Redis cache in private data subnets, and metrics, traces, logs, alarms and incidents wired alongside."
+            >
+              <defs>
+                <marker
+                  id="hc3-arw"
+                  viewBox="0 0 8 8"
+                  refX="7.2"
+                  refY="4"
+                  markerWidth="6"
+                  markerHeight="6"
+                  orient="auto"
+                >
+                  <path d="M0 1 L7 4 L0 7 Z" fill="rgba(255,255,255,0.34)"></path>
+                </marker>
+              </defs>
+
+              <g class="layer-frame">
+                <text class="bp-t" x="14" y="21">Your AWS account · eu-west-1 · your IAM, your bill</text>
+                <text class="bp-t bp-end" x="1428" y="21">Plan view · sheet 1 of 1</text>
+                <rect class="bp-acct" x="12" y="30" width="1416" height="362" rx="7"></rect>
+                <rect class="bp-vpc" x="204" y="50" width="1024" height="316" rx="6"></rect>
+                <rect class="bp-knock" x="216" y="42" width="152" height="16"></rect>
+                <text class="bp-t bp-vpclabel" x="222" y="54">VPC · 10.0.0.0/16</text>
+              </g>
+
+              <g class="layer-bands">
+                <rect class="bp-band" x="224" y="96" width="180" height="240" rx="5"></rect>
+                <rect class="bp-band" x="428" y="96" width="360" height="240" rx="5"></rect>
+                <rect class="bp-band" x="812" y="96" width="404" height="240" rx="5"></rect>
+                <rect class="bp-band" x="1252" y="96" width="164" height="240" rx="5"></rect>
+                <line class="bp-az-line" x1="210" y1="212" x2="1222" y2="212"></line>
+                <text class="bp-col" x="32" y="88">Edge</text>
+                <text class="bp-col" x="224" y="88">Public subnets</text>
+                <text class="bp-col" x="428" y="88">Private subnets · application</text>
+                <text class="bp-col" x="812" y="88">Private subnets · data</text>
+                <text class="bp-col" x="1252" y="88">Observability</text>
+                <text class="bp-az" transform="rotate(-90 214 152)" x="214" y="152">eu-west-1a</text>
+                <text class="bp-az" transform="rotate(-90 214 282)" x="214" y="282">eu-west-1b</text>
+              </g>
+
+              <g class="layer-conn">
+                <path class="bp-dash" d="M110 174 V250"></path>
+                <text class="bp-note" x="118" y="216">attached</text>
+                <path class="bp-line" d="M188 278 H210 V206 H232" marker-end="url(#hc3-arw)"></path>
+                <path class="bp-line" d="M312 206 H416 V146 H436" marker-end="url(#hc3-arw)"></path>
+                <path class="bp-line" d="M312 206 H416 V278 H436" marker-end="url(#hc3-arw)"></path>
+                <path class="bp-line" d="M620 146 H820" marker-end="url(#hc3-arw)"></path>
+                <path class="bp-line" d="M620 278 H632" marker-end="url(#hc3-arw)"></path>
+                <path class="bp-line" d="M776 278 H820" marker-end="url(#hc3-arw)"></path>
+                <path class="bp-line" d="M530 306 V322 H900 V310" marker-end="url(#hc3-arw)"></path>
+                <path class="bp-line" d="M1000 278 H1020" marker-end="url(#hc3-arw)"></path>
+                <path class="bp-dash" d="M1228 212 H1252"></path>
+              </g>
+
+              <g class="layer-node">
+                <rect class="bp-n" x="32" y="118" width="156" height="56" rx="4"></rect>
+                <text class="bp-nt" x="44" y="142">firewall</text>
+                <text class="bp-ns" x="44" y="158">WAF · managed rules</text>
+
+                <rect class="bp-n" x="32" y="250" width="156" height="56" rx="4"></rect>
+                <text class="bp-nt" x="44" y="274">web</text>
+                <text class="bp-ns" x="44" y="290">Next.js · CDN + server</text>
+
+                <rect class="bp-n bp-n--edge" x="236" y="118" width="76" height="188" rx="4"></rect>
+                <text class="bp-nt bp-mid" x="274" y="198">ALB</text>
+                <text class="bp-ns bp-mid" x="274" y="214">TLS · ACM</text>
+
+                <rect class="bp-n" x="324" y="118" width="72" height="56" rx="4"></rect>
+                <text class="bp-nt bp-mid" x="360" y="142">NAT</text>
+                <text class="bp-ns bp-mid" x="360" y="158">egress</text>
+
+                <rect class="bp-n" x="324" y="250" width="72" height="56" rx="4"></rect>
+                <text class="bp-nt bp-mid" x="360" y="274">NAT</text>
+                <text class="bp-ns bp-mid" x="360" y="290">egress</text>
+
+                <rect class="bp-n" x="440" y="118" width="180" height="56" rx="4"></rect>
+                <text class="bp-nt" x="452" y="142">apiService</text>
+                <text class="bp-ns" x="452" y="158">Fargate · 0.5 vCPU / 1 GB</text>
+
+                <rect class="bp-n" x="440" y="250" width="180" height="56" rx="4"></rect>
+                <text class="bp-nt" x="452" y="274">apiService</text>
+                <text class="bp-ns" x="452" y="290">replica · other AZ</text>
+
+                <rect class="bp-n" x="636" y="250" width="140" height="56" rx="4"></rect>
+                <text class="bp-nt" x="648" y="274">worker</text>
+                <text class="bp-ns" x="648" y="290">Lambda · jobs</text>
+
+                <rect class="bp-n" x="824" y="118" width="176" height="56" rx="4"></rect>
+                <text class="bp-nt" x="836" y="142">cache</text>
+                <text class="bp-ns" x="836" y="158">Redis 7 · cache.t3.micro</text>
+
+                <rect class="bp-n" x="824" y="250" width="176" height="56" rx="4"></rect>
+                <text class="bp-nt" x="836" y="274">mainDatabase</text>
+                <text class="bp-ns" x="836" y="290">Aurora PG 16.4 · writer</text>
+
+                <rect class="bp-n" x="1024" y="250" width="176" height="56" rx="4"></rect>
+                <text class="bp-nt" x="1036" y="274">mainDatabase</text>
+                <text class="bp-ns" x="1036" y="290">reader · failover</text>
+              </g>
+
+              <g class="layer-anno">
+                <text class="bp-note bp-mid" x="530" y="192">scale 2 → 6 tasks</text>
+                <text class="bp-note bp-teal" x="1024" y="134">Private only</text>
+                <text class="bp-note" x="1024" y="148">reachable from the application</text>
+                <text class="bp-note" x="1024" y="162">subnets, and nowhere else</text>
+                <text class="bp-note" x="1024" y="176">accessibilityMode: vpc</text>
+
+                <line class="bp-dim" x1="210" y1="352" x2="1222" y2="352"></line>
+                <line class="bp-dim" x1="210" y1="346" x2="210" y2="358"></line>
+                <line class="bp-dim" x1="1222" y1="346" x2="1222" y2="358"></line>
+                <rect class="bp-knock" x="502" y="344" width="428" height="16"></rect>
+                <text class="bp-t bp-mid" x="716" y="356">
+                  3 subnet tiers · 2 availability zones · no public IP on any workload
+                </text>
+              </g>
+
+              <g class="layer-ops">
+                <rect class="bp-ops" x="1266" y="110" width="136" height="26" rx="3"></rect>
+                <text class="bp-ns bp-ops-t" x="1278" y="127">metrics</text>
+                <rect class="bp-ops" x="1266" y="146" width="136" height="26" rx="3"></rect>
+                <text class="bp-ns bp-ops-t" x="1278" y="163">traces</text>
+                <rect class="bp-ops" x="1266" y="182" width="136" height="26" rx="3"></rect>
+                <text class="bp-ns bp-ops-t" x="1278" y="199">logs</text>
+                <rect class="bp-ops" x="1266" y="218" width="136" height="26" rx="3"></rect>
+                <text class="bp-ns bp-ops-t" x="1278" y="235">alarms</text>
+                <rect class="bp-ops bp-ops--hot" x="1266" y="254" width="136" height="26" rx="3"></rect>
+                <line class="bp-tick" x1="1267" y1="256" x2="1267" y2="278"></line>
+                <text class="bp-ns bp-ops-t bp-teal" x="1278" y="271">incidents</text>
+                <text class="bp-note" x="1266" y="300">wired at deploy</text>
+                <text class="bp-note" x="1266" y="314">no second vendor</text>
+              </g>
+            </svg>
+          </div>
+
+          <div class="rev">
+            <p class="rev__stamp">Rev. 8 · prepared by the agent — awaiting sign-off</p>
+            <p class="rev__text">
+              When production breaks, the agent starts from this drawing: the config, the release diff, the traces, the
+              logs and the account itself. It files the fix as a change you can read, and you sign it off. Letting it
+              sign for itself is a setting, and it ships off.
+            </p>
+          </div>
+
+          <dl class="tblock">
+            <div>
+              <dt>Declared</dt>
+              <dd>6 resources in stacktape.yml</dd>
+            </div>
+            <div>
+              <dt>Emitted</dt>
+              <dd>33 CloudFormation resources</dd>
+            </div>
+            <div>
+              <dt>Account</dt>
+              <dd>Yours. AWS bills you directly, with no markup.</dd>
+            </div>
+            <div>
+              <dt>Pipeline</dt>
+              <dd>EC2 runner in your account — typically 2–5× faster than CodeBuild.</dd>
+            </div>
+            <div>
+              <dt>Operations</dt>
+              <dd>Metrics, traces, logs, alarms and costs on the same stack.</dd>
+            </div>
+          </dl>
+        </figure>
+      </div>
+    </main>
+  </div>
+</BaseLayout>
+
+<style>
+.hc3 {
+  --ink: rgba(255, 255, 255, 0.93);
+  --ink-2: rgba(255, 255, 255, 0.63);
+  --ink-3: rgba(255, 255, 255, 0.4);
+  --line: rgba(255, 255, 255, 0.1);
+  --line-2: rgba(255, 255, 255, 0.06);
+  --teal: var(--stp-color-brand);
+  --teal-lit: color-mix(in srgb, var(--stp-color-brand) 84%, #eafffb);
+  --cell: rgb(20, 25, 25);
+  position: relative;
+  isolation: isolate;
+  overflow-x: clip;
+}
+
+.hc3::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(880px 520px at 10% -8%, rgba(54, 190, 190, 0.11), transparent 62%),
+    radial-gradient(720px 440px at 94% 2%, rgba(34, 87, 122, 0.16), transparent 66%),
+    linear-gradient(rgba(255, 255, 255, 0.016) 1px, transparent 1px) 0 0 / 64px 64px,
+    linear-gradient(90deg, rgba(255, 255, 255, 0.016) 1px, transparent 1px) 0 0 / 64px 64px;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 52%, transparent 96%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 52%, transparent 96%);
+}
+
+.wrap {
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 clamp(20px, 3vw, 48px);
+}
+
+.nav {
+  border-bottom: 1px solid var(--line-2);
+}
+
+.nav__inner {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  height: 66px;
+}
+
+.nav__brand {
+  display: inline-flex;
+  align-items: center;
+}
+
+.nav__links {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  margin-left: auto;
+  font-size: 13.5px;
+  color: var(--ink-2);
+}
+
+.nav__links a:hover {
+  color: var(--ink);
+}
+
+.nav__cta {
+  font-size: 13px;
+  font-weight: 550;
+  color: #08201f;
+  background: var(--teal);
+  border-radius: var(--stp-radius-medium);
+  padding: 8px 15px;
+  line-height: 1;
+  transition: filter var(--stp-motion-duration-fast) var(--stp-motion-easing);
+}
+
+.nav__cta:hover {
+  filter: brightness(1.08);
+}
+
+.hero {
+  padding-bottom: clamp(40px, 7vh, 84px);
+}
+
+.masthead {
+  padding-top: clamp(34px, 5.5vh, 66px);
+}
+
+.masthead__top {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 40px;
+  flex-wrap: wrap;
+}
+
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin: 0;
+  font-family: var(--font-geist-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.eyebrow::before {
+  content: '';
+  width: 24px;
+  height: 1px;
+  background: var(--teal);
+}
+
+.strapline {
+  margin: 0;
+  max-width: 46ch;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-2);
+  text-align: right;
+}
+
+.title {
+  margin: clamp(18px, 2.6vh, 30px) 0 0;
+  font-size: clamp(2.35rem, 5.6vw, 4.6rem);
+  line-height: 1.02;
+  letter-spacing: -0.036em;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.l1,
+.l2 {
+  display: block;
+}
+
+.l2 {
+  position: relative;
+  width: fit-content;
+  color: var(--teal-lit);
+  padding-bottom: 16px;
+}
+
+.l2::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 6px;
+  height: 1px;
+  background: linear-gradient(90deg, var(--teal), rgba(54, 190, 190, 0) 96%);
+  opacity: 0.6;
+}
+
+.l2::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 2px;
+  width: 1px;
+  height: 9px;
+  background: var(--teal);
+  opacity: 0.6;
+}
+
+.notes {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1.25fr;
+  margin-top: clamp(26px, 4vh, 44px);
+  border-top: 1px solid var(--line);
+}
+
+.note {
+  padding: 22px 32px 26px 0;
+  border-right: 1px solid var(--line-2);
+}
+
+.note + .note {
+  padding-left: 32px;
+}
+
+.note:last-child {
+  border-right: 0;
+  padding-right: 0;
+}
+
+.note__label {
+  margin: 0 0 14px;
+  font-family: var(--font-geist-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.note__num {
+  color: var(--teal);
+  margin-right: 9px;
+}
+
+.note__body {
+  margin: 0 0 12px;
+  font-size: 14px;
+  line-height: 1.62;
+  color: var(--ink-2);
+  max-width: 44ch;
+}
+
+.note__body:last-child {
+  margin-bottom: 0;
+}
+
+.note__body code {
+  font-family: var(--font-geist-mono);
+  font-size: 12.5px;
+  color: var(--teal-lit);
+  background: rgba(54, 190, 190, 0.08);
+  border-radius: var(--stp-radius-small);
+  padding: 1px 5px;
+}
+
+.depth {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.depth li {
+  padding: 10px 0;
+  border-top: 1px solid var(--line-2);
+}
+
+.depth li:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.depth__k {
+  display: block;
+  font-family: var(--font-geist-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-bottom: 4px;
+}
+
+.depth__v {
+  display: block;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+.cta-slot {
+  margin-bottom: 16px;
+}
+
+.cta-slot :global(.cta-command) {
+  display: flex;
+  width: 100%;
+}
+
+.cta-slot :global(.cta-command__code) {
+  font-size: 12.5px;
+}
+
+.cta-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 16px;
+  border-radius: var(--stp-radius-medium);
+  font-size: 13.5px;
+  font-weight: 550;
+  line-height: 1;
+  transition:
+    background var(--stp-motion-duration-fast) var(--stp-motion-easing),
+    border-color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+}
+
+.btn--solid {
+  color: var(--ink);
+  background: rgba(54, 190, 190, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(54, 190, 190, 0.34);
+}
+
+.btn--solid:hover {
+  background: rgba(54, 190, 190, 0.17);
+}
+
+.btn--ghost {
+  color: var(--ink-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.btn--ghost:hover {
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--line-2), inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.fine {
+  margin: 16px 0 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--ink-3);
+  max-width: 52ch;
+}
+
+.plate {
+  margin: clamp(28px, 4.5vh, 52px) 0 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.024), rgba(0, 0, 0, 0.2));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 34px 90px -46px rgba(0, 0, 0, 0.95);
+}
+
+.plate__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--line-2);
+  font-family: var(--font-geist-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.plate__head-r {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.plate__canvas {
+  overflow-x: auto;
+  padding: 12px 0 6px;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.plate__canvas svg {
+  display: block;
+  width: 100%;
+  min-width: 1080px;
+  height: auto;
+}
+
+.bp-acct {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.13);
+  stroke-width: 1;
+  stroke-dasharray: 5 4;
+}
+
+.bp-vpc {
+  fill: rgba(255, 255, 255, 0.008);
+  stroke: rgba(255, 255, 255, 0.2);
+  stroke-width: 1;
+}
+
+.bp-band {
+  fill: rgba(255, 255, 255, 0.014);
+  stroke: rgba(255, 255, 255, 0.075);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+}
+
+.bp-knock {
+  fill: rgb(21, 26, 26);
+}
+
+.bp-az-line {
+  stroke: rgba(255, 255, 255, 0.09);
+  stroke-width: 1;
+  stroke-dasharray: 2 5;
+}
+
+.bp-n {
+  fill: rgba(255, 255, 255, 0.035);
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-width: 1;
+}
+
+.bp-n--edge {
+  fill: rgba(54, 190, 190, 0.06);
+  stroke: rgba(54, 190, 190, 0.3);
+}
+
+.bp-line {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.24);
+  stroke-width: 1;
+}
+
+.bp-dash {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.18);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.bp-dim {
+  stroke: rgba(54, 190, 190, 0.42);
+  stroke-width: 1;
+}
+
+.bp-tick {
+  stroke: var(--teal);
+  stroke-width: 2;
+}
+
+.bp-ops {
+  fill: rgba(255, 255, 255, 0.03);
+  stroke: rgba(255, 255, 255, 0.09);
+  stroke-width: 1;
+}
+
+.bp-ops--hot {
+  fill: rgba(54, 190, 190, 0.07);
+  stroke: rgba(54, 190, 190, 0.24);
+}
+
+.bp-t,
+.bp-col,
+.bp-ns,
+.bp-note,
+.bp-az {
+  font-family: var(--font-geist-mono);
+}
+
+.bp-t {
+  font-size: 10px;
+  letter-spacing: 0.11em;
+  fill: rgba(255, 255, 255, 0.36);
+}
+
+.bp-vpclabel {
+  fill: rgba(255, 255, 255, 0.52);
+}
+
+.bp-col {
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  fill: rgba(255, 255, 255, 0.42);
+}
+
+.bp-az {
+  font-size: 8.5px;
+  letter-spacing: 0.08em;
+  fill: rgba(255, 255, 255, 0.3);
+  text-anchor: middle;
+}
+
+.bp-nt {
+  font-family: var(--font-geist);
+  font-size: 12.5px;
+  font-weight: 500;
+  fill: rgba(255, 255, 255, 0.9);
+}
+
+.bp-ns {
+  font-size: 9.5px;
+  fill: rgba(255, 255, 255, 0.42);
+}
+
+.bp-note {
+  font-size: 9.5px;
+  fill: rgba(255, 255, 255, 0.38);
+}
+
+.bp-teal {
+  fill: var(--teal-lit);
+}
+
+.bp-mid {
+  text-anchor: middle;
+}
+
+.bp-end {
+  text-anchor: end;
+}
+
+.bp-ops-t {
+  fill: rgba(255, 255, 255, 0.6);
+}
+
+.rev {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 16px 18px 18px;
+  border-top: 1px solid var(--line-2);
+  background: rgba(54, 190, 190, 0.035);
+}
+
+.rev__stamp {
+  margin: 2px 0 0;
+  flex: none;
+  transform: rotate(-1.4deg);
+  padding: 7px 11px;
+  border: 1px dashed rgba(54, 190, 190, 0.55);
+  border-radius: var(--stp-radius-small);
+  font-family: var(--font-geist-mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--teal-lit);
+}
+
+.rev__text {
+  margin: 0;
+  flex: 1 1 420px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--ink-2);
+  max-width: 88ch;
+}
+
+.tblock {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1px;
+  margin: 0;
+  background: rgba(255, 255, 255, 0.08);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.tblock > div {
+  background: var(--cell);
+  padding: 14px 18px 16px;
+}
+
+.tblock dt {
+  font-family: var(--font-geist-mono);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.tblock dd {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+@media (max-width: 1180px) {
+  .notes {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .note:nth-child(3) {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--line-2);
+    padding-left: 0;
+    padding-top: 22px;
+  }
+
+  .note:nth-child(2) {
+    border-right: 0;
+    padding-right: 0;
+  }
+
+  .tblock {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .strapline {
+    max-width: 40ch;
+  }
+}
+
+@media (max-width: 900px) {
+  .masthead__top {
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .strapline {
+    text-align: left;
+    max-width: 52ch;
+  }
+
+  .notes {
+    grid-template-columns: 1fr;
+  }
+
+  .note {
+    border-right: 0;
+    padding: 20px 0 22px;
+    border-top: 1px solid var(--line-2);
+  }
+
+  .note:first-child {
+    border-top: 0;
+    padding-top: 22px;
+  }
+
+  .note + .note {
+    padding-left: 0;
+  }
+
+  .tblock {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .nav__links a:nth-child(3) {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .eyebrow,
+  .strapline,
+  .title,
+  .notes,
+  .plate {
+    animation: hc3-rise 0.7s both cubic-bezier(0.22, 0.7, 0.28, 1);
+  }
+
+  .eyebrow {
+    animation-delay: 0.02s;
+  }
+
+  .strapline {
+    animation-delay: 0.1s;
+  }
+
+  .title {
+    animation-delay: 0.06s;
+  }
+
+  .notes {
+    animation-delay: 0.18s;
+  }
+
+  .plate {
+    animation-delay: 0.28s;
+  }
+
+  .bp-acct {
+    stroke-dasharray: 5 4;
+    animation: hc3-fade 0.9s 0.5s both;
+  }
+
+  .bp-vpc {
+    stroke-dasharray: 2700;
+    stroke-dashoffset: 2700;
+    animation: hc3-draw 1.5s 0.55s both cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .layer-bands {
+    animation: hc3-fade 0.7s 0.85s both;
+  }
+
+  .layer-node {
+    animation: hc3-pop 0.6s 1s both cubic-bezier(0.22, 0.7, 0.28, 1);
+  }
+
+  .layer-conn {
+    animation: hc3-fade 0.7s 1.35s both;
+  }
+
+  .layer-anno {
+    animation: hc3-fade 0.7s 1.55s both;
+  }
+
+  .layer-ops {
+    animation: hc3-fade 0.7s 1.7s both;
+  }
+
+  .rev__stamp {
+    animation: hc3-stamp 0.6s 2s both cubic-bezier(0.2, 1.5, 0.4, 1);
+  }
+}
+
+@keyframes hc3-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes hc3-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes hc3-pop {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes hc3-draw {
+  from {
+    stroke-dashoffset: 2700;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes hc3-stamp {
+  from {
+    opacity: 0;
+    transform: rotate(-9deg) scale(1.14);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(-1.4deg) scale(1);
+  }
+}
+</style>

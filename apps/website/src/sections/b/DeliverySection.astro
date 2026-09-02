@@ -1,0 +1,70 @@
+---
+/**
+ * Act II, section 06: one pull request, from opened to torn down.
+ *
+ * This is the section that answers the CTO's question rather than the developer's, so the notes
+ * under the pipeline are about process — where the runner lives, who reviews the pipeline, what
+ * happens to the environment nobody remembers to delete — not about features.
+ *
+ * The pipeline runs full width rather than in a column beside the notes: its six steps lay out
+ * horizontally above a 1000 px viewport, and squeezing them into two thirds of the page collides
+ * the step titles with each other. The runner numbers are chips on the surface itself, so the notes
+ * do not repeat them.
+ */
+import { CicdPanel } from '../../surfaces/CicdPanel';
+import SectionHead from './SectionHead.astro';
+---
+
+<section class="b-band b-band--deep" id="s06" data-act="1">
+  <div class="b-shell">
+    <SectionHead act="1" index="06" kicker="Console · CI/CD">
+      <Fragment slot="title">Every pull request gets its own AWS.</Fragment>
+      <Fragment slot="lede">
+        Open a PR and the pipeline builds it on a runner inside your own account, then deploys a stage called{' '}
+        <code>pr-128</code> with its own database, its own domain and its own everything. Merge it, and the stage
+        deletes itself.
+      </Fragment>
+    </SectionHead>
+
+    <figure class="b-figure b-reveal">
+      <div class="b-figure__stage site-panel">
+        <CicdPanel />
+      </div>
+      <figcaption class="b-figure__caption">
+        <b>The numbers in that chip row are why this is affordable to leave on.</b> A preview environment that costs a
+        build service per pull request gets switched off by the third sprint.
+      </figcaption>
+    </figure>
+
+    <ul class="b-notes b-notes--row b-reveal">
+      <li>
+        <h3>Reviewed like the rest of the code</h3>
+        <p>
+          The pipeline lives in the same config file as the infrastructure. A change to how you deploy arrives as a
+          diff, in a pull request, next to the change to what you deploy.
+        </p>
+      </li>
+      <li>
+        <h3>A real environment, not a mock</h3>
+        <p>
+          <code>pr-128</code> is a Stacktape stage like any other. The same resources, the same{' '}
+          <code>connectTo</code> wiring, the same commands — so "it worked in preview" means something.
+        </p>
+      </li>
+      <li>
+        <h3>Cleanup is the default</h3>
+        <p>
+          Teardown is part of the pipeline, not a Friday task. Orphaned stacks are the reason most teams stop doing
+          per-PR environments after a quarter.
+        </p>
+      </li>
+      <li>
+        <h3>Runners in your account</h3>
+        <p>
+          Builds run on EC2 inside your own AWS account, and the same runners can back self-hosted GitHub Actions
+          runners. Your source and your build cache never leave it.
+        </p>
+      </li>
+    </ul>
+  </div>
+</section>

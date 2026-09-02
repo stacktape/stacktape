@@ -1,0 +1,63 @@
+---
+/**
+ * The hero: the claim on the left, the product loop on the right.
+ *
+ * One component for all three versions. Everything structural — the eyebrow, the split, the bullet
+ * shape, the CTA block, the window beside it — is fixed here, and the only thing the `variant` prop
+ * changes is which set of words comes out of `copy.ts` and which fifth beat the loop plays. That is
+ * the experiment: if the three pages differed in any other way, the answer would not mean anything.
+ *
+ * Wiring follows the house rule — the snippet is rendered here, in frontmatter, and the island
+ * receives plain strings. `src/lib/snippets` must never be imported from a `.tsx` file.
+ */
+import { CtaCommand } from '../../components/CtaCommand';
+import { getSnippet } from '../../lib/snippets/snippets';
+import { CTA_MICROCOPY, HERO_COPY, HERO_EYEBROW, type HeroVariant } from './copy';
+import { DEMO_URL, SIGN_UP_URL } from './links';
+import { LoopWindow } from './LoopWindow';
+
+type Props = {
+  variant: HeroVariant;
+};
+
+const { variant } = Astro.props;
+
+const copy = HERO_COPY[variant];
+const config = await getSnippet('nextjs-postgres');
+---
+
+<section class="hl-hero">
+  <div class="hl-shell hl-hero__grid">
+    <div class="hl-hero__copy">
+      <p class="hl-hero__eyebrow">{HERO_EYEBROW}</p>
+
+      <h1 class="hl-hero__title">{copy.headline}</h1>
+
+      <p class="hl-hero__sub">{copy.subheadline}</p>
+
+      <ul class="hl-hero__points">
+        {copy.bullets.map((bullet) => <li><b>{bullet.lead}</b> {bullet.rest}</li>)}
+      </ul>
+
+      <div class="hl-hero__cta">
+        <CtaCommand client:visible />
+
+        <div class="hl-hero__cta-row">
+          <a class="hl-btn" href={SIGN_UP_URL}>Sign up</a>
+          <a class="hl-link-arrow" href={DEMO_URL}>Book a demo<span aria-hidden="true">→</span></a>
+        </div>
+
+        <p class="hl-hero__microcopy">{CTA_MICROCOPY}</p>
+      </div>
+    </div>
+
+    <div class="hl-hero__stage">
+      <LoopWindow
+        client:visible
+        variant={variant}
+        configHtml={config.yaml.html}
+        configLineCount={config.yaml.lineCount}
+      />
+    </div>
+  </div>
+</section>

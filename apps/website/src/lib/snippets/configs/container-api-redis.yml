@@ -1,0 +1,19 @@
+resources:
+  apiService:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: ./src/server.ts
+      resources:
+        cpu: 0.5
+        memory: 1024
+      connectTo:
+        - cache
+
+  cache:
+    type: redis-cluster
+    properties:
+      instanceSize: cache.t4g.micro
+      defaultUserPassword: $Secret('acme-cache.password')

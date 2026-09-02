@@ -1,0 +1,93 @@
+/*
+ * Window chrome, shared by every product surface.
+ *
+ * The visual rule for all of them is the init wizard's, not the docs site's: a panel is a
+ * near-transparent plane lifted by an inset hairline, never a hard border. Brand colour appears on
+ * exactly one thing per surface. Motion is 150–250 ms and comes from the shared motion tokens, so
+ * these surfaces feel like the product they are recreating.
+ */
+@layer components {
+  .surface-frame {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: var(--stp-radius-large);
+    background: rgba(255, 255, 255, 0.02);
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+      0 24px 60px -24px rgba(0, 0, 0, 0.75);
+  }
+
+  .surface-frame__bar {
+    display: grid;
+    /* Three tracks with equal outer columns, so the title is centred on the window rather than on
+     * whatever is left over after the lights. */
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 12px;
+    height: 38px;
+    padding: 0 12px;
+    background: rgba(0, 0, 0, 0.22);
+    box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+  }
+
+  .surface-frame__lights {
+    display: flex;
+    gap: 6px;
+  }
+
+  .surface-frame__lights > span {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    /* The dots are bright; at 78% they sit in the window instead of on top of it. */
+    opacity: 0.78;
+  }
+
+  .surface-frame__title {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--color-fc-light);
+    font-size: 0.76rem;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+  }
+
+  .surface-frame__url {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    max-width: min(30rem, 60vw);
+    padding: 3px 12px;
+    overflow: hidden;
+    border-radius: var(--stp-radius-medium);
+    background: rgba(0, 0, 0, 0.3);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    color: var(--color-fc-lighter);
+    font-size: 0.72rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .surface-frame__actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .surface-frame__body {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .surface-frame--terminal .surface-frame__body {
+    background: rgba(0, 0, 0, 0.25);
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    line-height: 1.62;
+  }
+}

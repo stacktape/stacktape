@@ -1,0 +1,446 @@
+/*
+ * Metrics and traces.
+ *
+ * Both are read as data rather than as pictures, so the rules here are typographic before they are
+ * decorative: tabular numerals everywhere a figure could change, one type size for values and a
+ * smaller muted one for their labels, and colour reserved for the series and the services it
+ * identifies. Nothing on either surface is tinted for looks.
+ */
+@layer components {
+  /* ── Metrics ────────────────────────────────────────────────────────────────────────────────── */
+
+  .metrics {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 100%;
+  }
+
+  .metrics__toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .metrics__title {
+    margin: 0 auto 0 0;
+    color: var(--color-fc-primary);
+    font-size: 1rem;
+    font-weight: 620;
+  }
+
+  /* The closed trigger of a control that spends almost all of its life closed. */
+  .metrics__control {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 12px;
+    border-radius: var(--stp-radius-large);
+    background: rgba(255, 255, 255, 0.03);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+    color: var(--color-fc-lighter);
+    font-size: 0.8rem;
+  }
+
+  .metrics__glyph {
+    flex: none;
+    color: var(--color-fc-light);
+  }
+
+  .metrics__glyph--chevron {
+    margin-left: 2px;
+    color: var(--color-fc-ternary);
+  }
+
+  /*
+   * Two columns rather than the product's auto-fitting `minmax(350px, 1fr)`.
+   *
+   * The Console has a variable number of charts and no idea how wide it will be; this surface has
+   * exactly four and is embedded at a known width, where auto-fit lands on three across and leaves
+   * the fourth card alone on its own row. Four charts want a square.
+   */
+  .metrics__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+  }
+
+  @media (max-width: 720px) {
+    .metrics__grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  .metric-card {
+    display: flex;
+    flex-direction: column;
+    padding: 16px 18px 12px;
+    border-radius: var(--stp-radius-large);
+    background: rgba(255, 255, 255, 0.02);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  }
+
+  .metric-card__resource {
+    margin: 0;
+    color: var(--color-fc-ternary);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .metric-card__headline {
+    margin: 6px 0 0;
+    color: var(--color-fc-primary);
+    font-size: 0.875rem;
+    font-weight: 620;
+  }
+
+  /* Min / avg / max rather than one "current" number: a single figure from a time series is the
+   * least informative summary of it, and the product knows that. */
+  .metric-card__stats {
+    display: flex;
+    gap: 18px;
+    margin: 10px 0 0;
+  }
+
+  .metric-card__stats span {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    color: var(--color-fc-primary);
+    font-size: 0.82rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .metric-card__stats i {
+    color: var(--color-fc-ternary);
+    font-size: 0.65rem;
+    font-style: normal;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+  }
+
+  .metric-card__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    margin: 10px 0 0;
+  }
+
+  .metric-card__legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--color-fc-light);
+    font-size: 0.76rem;
+  }
+
+  .metric-card__legend-item b {
+    color: var(--color-fc-primary);
+    font-weight: 620;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .metric-card__swatch {
+    width: 8px;
+    height: 8px;
+    flex: none;
+    border-radius: 2px;
+    background: currentColor;
+  }
+
+  .metric-card__legend-item.is-brand,
+  .metric-card__series.is-brand {
+    color: #0ea29d;
+  }
+
+  .metric-card__legend-item.is-accent,
+  .metric-card__series.is-accent {
+    color: #7b8fe0;
+  }
+
+  .metric-card__legend-item.is-error,
+  .metric-card__series.is-error {
+    color: var(--color-error);
+  }
+
+  .metric-card__plot {
+    display: flex;
+    gap: 10px;
+    margin-top: 14px;
+  }
+
+  /* The y-axis is four labels in a column the same height as the plot, spaced by `space-between` —
+   * so they line up with the gridlines without either of them knowing the other's units. */
+  .metric-card__axis {
+    display: flex;
+    height: 132px;
+    flex: none;
+    flex-direction: column;
+    justify-content: space-between;
+    color: var(--color-fc-ternary);
+    font-size: 0.66rem;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+
+  .metric-card__axis span {
+    /* Half a line up, so a label sits on its gridline rather than under it. */
+    transform: translateY(-0.35em);
+  }
+
+  .metric-card__svg {
+    width: 100%;
+    height: 132px;
+    min-width: 0;
+    overflow: visible;
+  }
+
+  .metric-card__grid line {
+    stroke: rgba(255, 255, 255, 0.07);
+    stroke-dasharray: 3 3;
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .metric-card__bars rect {
+    fill: var(--color-error);
+    opacity: 0.85;
+  }
+
+  .metric-card__x-axis {
+    display: flex;
+    justify-content: space-between;
+    margin: 8px 0 0 34px;
+    color: var(--color-fc-ternary);
+    font-size: 0.66rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Trace waterfall ────────────────────────────────────────────────────────────────────────── */
+
+  .trace {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    padding: 18px 20px 20px;
+    border-radius: var(--stp-radius-large);
+    background: rgba(255, 255, 255, 0.02);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  }
+
+  .trace__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+  }
+
+  .trace__title {
+    margin: 0;
+    color: var(--color-fc-primary);
+    font-family: var(--font-mono);
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .trace__subtitle {
+    margin: 5px 0 0;
+    color: var(--color-fc-light);
+    font-size: 0.8rem;
+  }
+
+  .trace__status {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 11px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--color-success) 14%, transparent);
+    color: var(--color-success);
+    font-size: 0.76rem;
+    font-weight: 620;
+  }
+
+  .trace__status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: currentColor;
+  }
+
+  .trace__status-code {
+    color: var(--color-fc-light);
+    font-weight: 500;
+  }
+
+  .trace__summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 18px;
+    margin: 16px 0 0;
+    color: var(--color-fc-light);
+    font-size: 0.8rem;
+  }
+
+  .trace__summary b {
+    color: var(--color-fc-primary);
+    font-weight: 620;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .trace__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--color-fc-lighter);
+    font-size: 0.74rem;
+  }
+
+  .trace__swatch {
+    width: 8px;
+    height: 8px;
+    flex: none;
+    border-radius: 2px;
+  }
+
+  .trace__waterfall {
+    margin-top: 18px;
+  }
+
+  /*
+   * Three columns: the span, its bar, its duration. The name column is a percentage with a floor so
+   * deep nesting cannot squeeze it away, and the duration column is fixed so the figures line up
+   * whatever the bars do.
+   */
+  .trace__row {
+    display: grid;
+    grid-template-columns: minmax(180px, 34%) minmax(0, 1fr) 78px;
+    gap: 14px;
+    align-items: center;
+    padding: 7px 0;
+  }
+
+  .trace__row--head {
+    padding-bottom: 10px;
+    box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  .trace__col-label,
+  .trace__axis {
+    color: var(--color-fc-ternary);
+    font-size: 0.66rem;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+  }
+
+  .trace__axis {
+    display: flex;
+    justify-content: space-between;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+    text-transform: none;
+  }
+
+  .trace__name {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
+    color: var(--color-fc-lighter);
+    font-family: var(--font-mono);
+    font-size: 0.76rem;
+  }
+
+  .trace__name-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* The track carries the same 25% gridlines as the axis above it, so a bar can be read against the
+   * ticks without a ruler. */
+  .trace__track {
+    position: relative;
+    height: 15px;
+    background-image: linear-gradient(90deg, rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+    background-size: 25% 100%;
+  }
+
+  .trace__bar {
+    position: absolute;
+    top: 2px;
+    bottom: 2px;
+    border-radius: 3px;
+    opacity: 0.85;
+  }
+
+  /* Slow is amber and outlined rather than red and filled: the span succeeded, it just took too
+   * long, and colouring it like a failure would be a lie the reader can check. */
+  .trace__bar.is-slow {
+    box-shadow: 0 0 0 1px #e0a52e;
+    opacity: 1;
+  }
+
+  .trace__duration {
+    color: var(--color-fc-lighter);
+    font-family: var(--font-mono);
+    font-size: 0.76rem;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+
+  .trace__duration.is-slow {
+    color: #e0a52e;
+    font-weight: 600;
+  }
+
+  .trace__note {
+    display: flex;
+    align-items: baseline;
+    gap: 9px;
+    margin: 16px 0 0;
+    padding-top: 14px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    color: var(--color-fc-lighter);
+    font-size: 0.82rem;
+  }
+
+  .trace__note b {
+    color: var(--color-fc-primary);
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+
+  .trace__note-dot {
+    width: 6px;
+    height: 6px;
+    flex: none;
+    border-radius: 999px;
+    background: #e0a52e;
+    transform: translateY(-1px);
+  }
+
+  @media (max-width: 560px) {
+    .trace__row {
+      grid-template-columns: minmax(0, 1fr) 68px;
+      row-gap: 4px;
+    }
+
+    /* The bar keeps its meaning under the name rather than beside it; the axis header does not. */
+    .trace__row--head .trace__axis {
+      display: none;
+    }
+
+    .trace__track {
+      grid-column: 1 / -1;
+    }
+  }
+}

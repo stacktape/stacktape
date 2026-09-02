@@ -1,0 +1,84 @@
+---
+/**
+ * Day 0 — the run itself.
+ *
+ * These four bands are the `stacktape init` wizard's own, imported rather than rewritten. That is
+ * the point: the wizard's argument — nothing leaves your machine, nothing is billed yet, every
+ * choice cites the line of your code that caused it — is already the strongest thing this page can
+ * say, and marketing copy paraphrasing it would only make it weaker and less true.
+ *
+ * So this file adds almost no words. It supplies the anchors the rail needs, one beat between the
+ * review and the deploy, and the Review band's diagram at the size the diagram deserves.
+ *
+ * `InitWizardRun.astro` is not used as a whole because it brings its own masthead and its own rail,
+ * and this page already has a rail that spans both days. The bands are exported individually for
+ * exactly this reason.
+ *
+ * The diagram is `client:only` — its icon pack cannot be prerendered — so its canvas keeps a fixed
+ * height and nothing on the page moves when the island arrives.
+ */
+import { ACME_DIAGRAM_CONFIG } from '../../surfaces/InitWizardRun/acme-config';
+import { AnalyzeBand, DeployBand, ReviewDetails, ReviewIntro, StartBand } from '../../surfaces/InitWizardRun/bands';
+import DiagramIsland from '../../surfaces/InitWizardRun/DiagramIsland';
+import { DeployTerminal } from '../../surfaces/DeployTerminal';
+---
+
+<section class="a-day">
+  <div class="a-daymark a-daymark--first">
+    <p class="a-daymark__tag">Day 0</p>
+    <h2 class="a-daymark__title">The first hour</h2>
+    <p class="a-daymark__lede">
+      You have a repository and an AWS account. Nothing else is set up. This is what one command does with that, in
+      order — and nothing exists on AWS until the last step.
+    </p>
+  </div>
+
+  <div class="a-band" id="start">
+    <StartBand />
+  </div>
+
+  <div class="a-band" id="analyze">
+    <AnalyzeBand />
+  </div>
+
+  <section class="wizard-band a-band" id="review">
+    <ReviewIntro />
+
+    <div class="wizard-diagram a-diagram">
+      <div class="wizard-diagram__views">
+        <span class="wizard-diagram__view is-active">Diagram</span>
+        <span class="wizard-diagram__view">What &amp; why</span>
+        <span class="wizard-diagram__view">stacktape.yml</span>
+      </div>
+      <div class="wizard-diagram__canvas a-diagram__canvas">
+        <DiagramIsland
+          client:only="react"
+          ariaLabel="Diagram of the infrastructure this configuration creates"
+          config={ACME_DIAGRAM_CONFIG}
+        />
+      </div>
+    </div>
+
+    <p class="a-caption a-caption--between">
+      Six resources, and the 33 CloudFormation resources it takes to run them safely. This is the same diagram the
+      Console draws once the stack exists — it is not a picture made for this page.
+    </p>
+
+    <ReviewDetails />
+  </section>
+
+  <section class="a-band" id="deploy">
+    <p class="a-beat">You press Deploy. From here it is CloudFormation, and it tells you what it is doing.</p>
+
+    <DeployTerminal />
+
+    <p class="a-caption">
+      The real transcript: phases, the change summary CloudFormation returned, and which resources are still being
+      created. Packaging your code runs about <strong>7× faster</strong> than the same project through CDK.
+    </p>
+
+    <div class="a-surface">
+      <DeployBand />
+    </div>
+  </section>
+</section>

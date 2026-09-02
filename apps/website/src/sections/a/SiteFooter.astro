@@ -1,0 +1,35 @@
+---
+/**
+ * The footer.
+ *
+ * Four links and two facts. Everything a marketing footer usually carries — a sitemap, a newsletter,
+ * a second set of social icons — would be the first thing on this page that exists because footers
+ * usually have it, and the page above it has earned better than that.
+ */
+import Logo from '../../components/Logo.astro';
+---
+
+<footer class="a-footer">
+  <div class="a-footer__inner a-shell">
+    <Logo height={20} />
+
+    <nav aria-label="Footer" class="a-footer__links">
+      <a class="a-footer__link" href="https://docs.stacktape.com" rel="noopener noreferrer" target="_blank">Docs</a>
+      <a
+        class="a-footer__link"
+        href="https://github.com/stacktape/stacktape"
+        rel="noopener noreferrer"
+        target="_blank"
+      >
+        GitHub
+      </a>
+      <a class="a-footer__link" href="https://status.stacktape.com" rel="noopener noreferrer" target="_blank">Status</a>
+      <a class="a-footer__link" href="mailto:info@stacktape.com">Contact</a>
+    </nav>
+
+    <p class="a-footer__meta">
+      <span>© 2026 Stacktape</span>
+      <span>Made in EU</span>
+    </p>
+  </div>
+</footer>

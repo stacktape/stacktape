@@ -1,0 +1,25 @@
+---
+/**
+ * The nav these pages get, and no more than that.
+ *
+ * A hero test page is a page with one job. The nav exists so the hero is not floating in a void and
+ * so the two links a sceptical reader reaches for first — the docs and the source — are where they
+ * expect them; it carries no product menu, because there is no product page under it to open.
+ */
+import Logo from '../../components/Logo.astro';
+import { DOCS_URL, GITHUB_URL, SIGN_UP_URL } from './links';
+---
+
+<header class="hl-nav">
+  <div class="hl-shell hl-nav__inner">
+    <a class="hl-nav__home" href="#top" aria-label="Stacktape, back to top">
+      <Logo height={24} />
+    </a>
+
+    <nav class="hl-nav__links" aria-label="Primary">
+      <a class="hl-nav__link" href={DOCS_URL}>Docs</a>
+      <a class="hl-nav__link" href={GITHUB_URL}>GitHub</a>
+      <a class="hl-btn" href={SIGN_UP_URL}>Sign up</a>
+    </nav>
+  </div>
+</header>

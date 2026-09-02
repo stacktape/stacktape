@@ -1,0 +1,1047 @@
+---
+// concept: A full-width oversized headline sitting on top of a horizontal three-panel "control strip" (configure → deploy → operate) rendered as one continuous card with connecting flow lines, the copyable command docked into the headline block itself.
+// copy-angle: Name the automation plainly but expand it into an earned promise ("a DevOps team's output, without the team"), and play the AI agent boldly-but-gated — "it drafts the fix before you're awake; nothing runs without your approval."
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Logo from '../../components/Logo.astro';
+---
+
+<BaseLayout
+  title="Stacktape — AWS DevOps, fully automated"
+  description="Describe your stack in one config file. Stacktape generates it, deploys it to your AWS account, and runs the day-to-day ops — so a team of developers gets infrastructure a DevOps team would be proud of."
+  font="geist"
+  noindex
+>
+  <nav class="nav">
+    <a class="nav-brand" href="/" aria-label="Stacktape home">
+      <Logo height={26} />
+    </a>
+    <div class="nav-links">
+      <a href="https://docs.stacktape.com">Docs</a>
+      <a href="https://github.com/stacktape/stacktape">GitHub</a>
+      <a href="https://cal.com/stacktape/30min">Book a demo</a>
+      <a class="nav-cta" href="https://console.stacktape.com/sign-up">Sign up</a>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <div class="eyebrow">
+      <span class="eyebrow-dot"></span>
+      Open-source framework &middot; your AWS account &middot; plain CloudFormation underneath
+    </div>
+
+    <h1 class="headline">
+      AWS DevOps,<br />
+      <span class="headline-accent">fully automated.</span>
+    </h1>
+
+    <p class="sub">
+      Describe your stack in one config file. Stacktape writes it with you, compiles it to CloudFormation, deploys it
+      into <em>your</em> AWS account — and then runs the day-to-day: observability, CI/CD, costs, incidents. A team of
+      developers gets the output of a DevOps team. Better than an average one, actually.
+    </p>
+
+    <p class="agent-line">
+      <svg class="agent-icon" viewBox="0 0 16 16" width="15" height="15" fill="none" aria-hidden="true">
+        <circle cx="8" cy="8" r="6.4" stroke="currentColor" stroke-width="1.3" />
+        <path d="M8 4.8v3.4l2.3 1.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" />
+      </svg>
+      When something breaks, an agent reads the logs, correlates the failure with a release, and
+      <strong>drafts the fix before you're awake</strong>. It sees your whole stack — infrastructure, releases,
+      telemetry — so its fixes land far more often than a generic bot's would.
+      <span class="agent-gate">Nothing runs without your approval.</span>
+    </p>
+
+    <div class="cta-block">
+      <div class="command" data-command-root>
+        <div class="command-tabs" role="tablist" aria-label="Installation method">
+          <button
+            class="command-tab is-active"
+            role="tab"
+            aria-selected="true"
+            data-cmd="npx stacktape init"
+            data-label="npx (no install)"
+          >
+            npx
+          </button>
+          <button
+            class="command-tab"
+            role="tab"
+            aria-selected="false"
+            data-cmd="curl -L https://installs.stacktape.com/macos.sh | sh"
+            data-label="macOS install script"
+          >
+            macOS
+          </button>
+          <button
+            class="command-tab"
+            role="tab"
+            aria-selected="false"
+            data-cmd="curl -L https://installs.stacktape.com/linux.sh | sh"
+            data-label="Linux install script"
+          >
+            Linux
+          </button>
+          <button
+            class="command-tab"
+            role="tab"
+            aria-selected="false"
+            data-cmd="iwr https://installs.stacktape.com/windows.ps1 -useb | iex"
+            data-label="Windows install script"
+          >
+            Windows
+          </button>
+        </div>
+        <div class="command-body">
+          <span class="command-prompt" aria-hidden="true">$</span>
+          <code class="command-text" data-command-text>npx stacktape init</code>
+          <button class="copy-btn" data-copy aria-label="Copy command">
+            <span class="copy-label" data-copy-label>Copy</span>
+            <svg viewBox="0 0 16 16" width="13" height="13" fill="none" aria-hidden="true">
+              <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.3" />
+              <path d="M10.5 3.5h-6a1 1 0 0 0-1 1v6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" />
+            </svg>
+          </button>
+        </div>
+        <div class="command-hint" data-command-hint>
+          Runs the AI wizard on localhost — it reads your repo and generates your stack. No install needed.
+        </div>
+      </div>
+
+      <div class="secondary-ctas">
+        <a class="btn-secondary" href="https://console.stacktape.com/sign-up">
+          Deploy in Console
+          <svg viewBox="0 0 16 16" width="13" height="13" fill="none" aria-hidden="true">
+            <path
+              d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"
+              stroke="currentColor"
+              stroke-width="1.4"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </a>
+        <a class="btn-ghost" href="https://cal.com/stacktape/30min">Book a demo</a>
+      </div>
+    </div>
+
+    <!-- continuous control strip -->
+    <section class="strip" aria-label="How Stacktape works">
+      <div class="strip-rail">
+        <span class="strip-rail-label">Day 0</span>
+        <span class="strip-rail-line"></span>
+        <span class="strip-rail-label">Day 1</span>
+      </div>
+
+      <div class="strip-panels">
+        <!-- Panel 1: configure -->
+        <article class="panel">
+          <div class="panel-step">01</div>
+          <h3 class="panel-title">Configure</h3>
+          <p class="panel-copy">
+            The wizard reads your repository and writes the config — compute, database, networking, the lot.
+          </p>
+          <div class="panel-art art-code">
+            <div class="code-win"><span></span><span></span><span></span></div>
+            <pre><code><span class="c-kw">import</span> <span class="c-br">&#123;</span> Stacktape <span class="c-br">&#125;</span> <span class="c-kw">from</span> <span class="c-str">'stacktape'</span>;
+
+<span class="c-kw">export default</span> <span class="c-kw">new</span> Stacktape(<span class="c-str">'/api/**'</span>, <span class="c-br">&#123;</span>
+  compute: <span class="c-br">&#123;</span> type: <span class="c-str">'container'</span> <span class="c-br">&#125;</span>,
+  database: <span class="c-br">&#123;</span> type: <span class="c-str">'postgres'</span> <span class="c-br">&#125;</span>,
+<span class="c-br">&#125;</span>);</code></pre>
+            <div class="code-badge">generated in 40s</div>
+          </div>
+        </article>
+
+        <!-- Panel 2: deploy -->
+        <article class="panel">
+          <div class="panel-step">02</div>
+          <h3 class="panel-title">Deploy</h3>
+          <p class="panel-copy">
+            Compiled to CloudFormation, deployed into your own account. VPCs, private-only services, bastions, GPU —
+            your call.
+          </p>
+          <div class="panel-art art-diagram" aria-hidden="true">
+            <svg viewBox="0 0 280 150" width="100%" height="100%">
+              <defs>
+                <linearGradient id="g-fade" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="rgb(54,190,190)" stop-opacity="0.16" />
+                  <stop offset="1" stop-color="rgb(54,190,190)" stop-opacity="0.02" />
+                </linearGradient>
+              </defs>
+              <rect
+                x="30"
+                y="14"
+                width="220"
+                height="122"
+                rx="8"
+                fill="url(#g-fade)"
+                stroke="var(--stp-border-subtle)"
+              />
+              <text x="42" y="34" fill="var(--stp-text-faint)" font-size="9" font-family="var(--font-geist-mono)">
+                VPC · eu-west-1
+              </text>
+              <path
+                d="M92 58v14M188 58v14M140 92v16"
+                stroke="var(--stp-color-brand)"
+                stroke-width="1.4"
+                stroke-opacity="0.7"
+              />
+              <path d="M100 62h80" stroke="var(--stp-color-brand)" stroke-width="1.4" stroke-opacity="0.7" />
+              <g class="node">
+                <rect
+                  x="66"
+                  y="40"
+                  width="52"
+                  height="18"
+                  rx="4"
+                  fill="var(--stp-surface-input)"
+                  stroke="var(--stp-aws-category-network)"
+                />
+                <text
+                  x="92"
+                  y="52"
+                  text-anchor="middle"
+                  fill="var(--stp-text-muted)"
+                  font-size="8"
+                  font-family="var(--font-geist-mono)"
+                >
+                  load bal.
+                </text>
+              </g>
+              <g class="node">
+                <rect
+                  x="162"
+                  y="40"
+                  width="52"
+                  height="18"
+                  rx="4"
+                  fill="var(--stp-surface-input)"
+                  stroke="var(--stp-aws-category-compute)"
+                />
+                <text
+                  x="188"
+                  y="52"
+                  text-anchor="middle"
+                  fill="var(--stp-text-muted)"
+                  font-size="8"
+                  font-family="var(--font-geist-mono)"
+                >
+                  container
+                </text>
+              </g>
+              <g class="node">
+                <rect
+                  x="66"
+                  y="72"
+                  width="52"
+                  height="18"
+                  rx="4"
+                  fill="var(--stp-surface-input)"
+                  stroke="var(--stp-aws-category-integration)"
+                />
+                <text
+                  x="92"
+                  y="84"
+                  text-anchor="middle"
+                  fill="var(--stp-text-muted)"
+                  font-size="8"
+                  font-family="var(--font-geist-mono)"
+                >
+                  queue
+                </text>
+              </g>
+              <g class="node">
+                <rect
+                  x="162"
+                  y="72"
+                  width="52"
+                  height="18"
+                  rx="4"
+                  fill="var(--stp-surface-input)"
+                  stroke="var(--stp-aws-category-storage)"
+                />
+                <text
+                  x="188"
+                  y="84"
+                  text-anchor="middle"
+                  fill="var(--stp-text-muted)"
+                  font-size="8"
+                  font-family="var(--font-geist-mono)"
+                >
+                  bucket
+                </text>
+              </g>
+              <g class="node">
+                <rect
+                  x="112"
+                  y="108"
+                  width="56"
+                  height="18"
+                  rx="4"
+                  fill="var(--stp-surface-input)"
+                  stroke="var(--stp-aws-category-database)"
+                />
+                <text
+                  x="140"
+                  y="120"
+                  text-anchor="middle"
+                  fill="var(--stp-text-muted)"
+                  font-size="8"
+                  font-family="var(--font-geist-mono)"
+                >
+                  postgres
+                </text>
+              </g>
+              <path
+                d="M118 81l14 24M162 81l-14 24"
+                stroke="var(--stp-color-brand)"
+                stroke-width="1.2"
+                stroke-opacity="0.4"
+                stroke-dasharray="3 3"
+              />
+            </svg>
+            <div class="code-badge code-badge-success">CloudFormation · your account</div>
+          </div>
+        </article>
+
+        <!-- Panel 3: operate -->
+        <article class="panel">
+          <div class="panel-step">03</div>
+          <h3 class="panel-title">Operate</h3>
+          <p class="panel-copy">
+            Metrics, traces, logs and alarms in one place. Incidents correlated to releases — with the fix already
+            drafted.
+          </p>
+          <div class="panel-art art-ops">
+            <div class="ops-row">
+              <span class="ops-label">p99 latency</span>
+              <svg class="spark" viewBox="0 0 120 26" preserveAspectRatio="none" aria-hidden="true">
+                <path
+                  d="M0 16h10l6-4 8 10 8-12 8 8 8-2 8 6 8-10 8 4 8-6 8 8 8-3 8 2 8-6"
+                  fill="none"
+                  stroke="var(--stp-color-brand)"
+                  stroke-width="1.5"
+                />
+                <circle class="spark-alert" cx="70" cy="20" r="2.6" fill="var(--stp-status-error)" />
+              </svg>
+            </div>
+            <div class="ops-incident">
+              <div class="incident-head">
+                <span class="incident-sev">Incident</span>
+                <span class="incident-title">p99 spike — traced to release <code>4f2c1</code></span>
+              </div>
+              <div class="incident-agent">
+                <span class="incident-agent-tag">Agent</span>
+                <span>Fix drafted: rollback deploy + connection-pool limit</span>
+              </div>
+              <div class="incident-actions">
+                <span class="incident-approve">Review &amp; approve</span>
+                <span class="incident-dismiss">Dismiss</span>
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <footer class="hero-foot">
+      <span>No lock-in — raw CloudFormation and CDK escape hatches, always.</span>
+      <span class="foot-sep"></span>
+      <span>Governance built in: RBAC, SSO, budgets, audit logs.</span>
+      <span class="foot-sep"></span>
+      <a href="https://docs.stacktape.com">Read the docs →</a>
+    </footer>
+  </header>
+</BaseLayout>
+
+<style>
+:global(body) {
+  background: var(--stp-surface-page);
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 22px 32px 0;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  font-size: 13.5px;
+  color: var(--stp-text-muted);
+}
+
+.nav-links a {
+  color: inherit;
+  text-decoration: none;
+  transition: color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+}
+
+.nav-links a:hover {
+  color: var(--stp-text-primary);
+}
+
+.nav-cta {
+  padding: 7px 15px;
+  border: 1px solid var(--stp-border-subtle);
+  border-radius: var(--stp-radius-medium);
+  background: var(--stp-surface-element);
+  color: var(--stp-text-primary) !important;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+}
+
+.hero {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 72px 32px 64px;
+  position: relative;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(900px 380px at 50% -8%, rgba(54, 190, 190, 0.09), transparent 70%);
+  pointer-events: none;
+}
+
+.hero > * {
+  position: relative;
+}
+
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  justify-content: center;
+  font-family: var(--font-geist-mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--stp-text-secondary);
+  margin-bottom: 26px;
+}
+
+.eyebrow-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--stp-color-brand);
+  box-shadow: 0 0 8px rgba(54, 190, 190, 0.8);
+  animation: dot-pulse 2.6s var(--stp-motion-easing) infinite;
+}
+
+@keyframes dot-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+.headline {
+  font-family: var(--font-geist);
+  font-weight: 640;
+  font-size: clamp(46px, 7.2vw, 84px);
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+  text-align: center;
+  color: var(--stp-text-primary);
+  margin: 0 0 24px;
+}
+
+.headline-accent {
+  color: var(--stp-color-brand);
+}
+
+.sub {
+  max-width: 660px;
+  margin: 0 auto 22px;
+  text-align: center;
+  font-size: 17.5px;
+  line-height: 1.62;
+  color: var(--stp-text-muted);
+}
+
+.sub em {
+  font-style: normal;
+  color: var(--stp-text-primary);
+}
+
+.agent-line {
+  max-width: 680px;
+  margin: 0 auto 42px;
+  padding: 14px 18px;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--stp-text-subtle);
+  border: 1px solid var(--stp-border-subtle);
+  border-radius: var(--stp-radius-large);
+  background: linear-gradient(180deg, rgba(54, 190, 190, 0.05), rgba(54, 190, 190, 0.015));
+}
+
+.agent-line .agent-icon {
+  color: var(--stp-color-brand);
+  vertical-align: -2px;
+  margin-right: 4px;
+}
+
+.agent-line strong {
+  color: var(--stp-text-primary);
+  font-weight: 560;
+}
+
+.agent-gate {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--font-geist-mono);
+  font-size: 12px;
+  color: var(--stp-text-secondary);
+}
+
+/* CTA block */
+.cta-block {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 64px;
+}
+
+.command {
+  width: min(560px, 100%);
+  border: 1px solid var(--stp-border-subtle);
+  border-radius: var(--stp-radius-large);
+  background: var(--stp-surface-input);
+  box-shadow:
+    0 12px 40px -18px rgba(0, 0, 0, 0.7),
+    0 0 0 1px rgba(54, 190, 190, 0.06) inset;
+  overflow: hidden;
+}
+
+.command-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 6px 6px 0;
+  background: var(--stp-surface-element);
+  border-bottom: 1px solid var(--stp-border-subtle);
+}
+
+.command-tab {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--stp-text-faint);
+  font-family: var(--font-geist-mono);
+  font-size: 11.5px;
+  padding: 7px 12px 8px;
+  border-radius: var(--stp-radius-small) var(--stp-radius-small) 0 0;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+}
+
+.command-tab:hover {
+  color: var(--stp-text-muted);
+}
+
+.command-tab.is-active {
+  color: var(--stp-color-brand);
+  border-bottom-color: var(--stp-color-brand);
+  background: var(--stp-surface-input);
+}
+
+.command-body {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px 16px;
+}
+
+.command-prompt {
+  color: var(--stp-color-brand);
+  font-family: var(--font-geist-mono);
+  font-size: 14px;
+  user-select: none;
+}
+
+.command-text {
+  flex: 1;
+  font-family: var(--font-geist-mono);
+  font-size: 14.5px;
+  color: var(--stp-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  appearance: none;
+  border: 1px solid var(--stp-border-subtle);
+  background: var(--stp-surface-element);
+  color: var(--stp-text-muted);
+  font-family: var(--font-geist);
+  font-size: 12px;
+  padding: 6px 11px;
+  border-radius: var(--stp-radius-medium);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    color var(--stp-motion-duration-fast) var(--stp-motion-easing),
+    border-color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+}
+
+.copy-btn:hover {
+  color: var(--stp-text-primary);
+  border-color: var(--stp-field-focus-border);
+}
+
+.copy-btn.is-copied {
+  color: var(--stp-status-success);
+  border-color: rgba(24, 153, 144, 0.4);
+}
+
+.command-hint {
+  padding: 0 16px 12px;
+  font-size: 12px;
+  color: var(--stp-text-faint);
+  line-height: 1.5;
+}
+
+.secondary-ctas {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  justify-content: center;
+  min-width: 200px;
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 18px;
+  border-radius: var(--stp-radius-large);
+  background: var(--stp-interactive-primary-light);
+  color: rgb(10, 26, 26);
+  font-weight: 560;
+  font-size: 14.5px;
+  text-decoration: none;
+  transition: filter var(--stp-motion-duration-fast) var(--stp-motion-easing);
+}
+
+.btn-secondary:hover {
+  filter: brightness(1.08);
+}
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 18px;
+  border-radius: var(--stp-radius-large);
+  border: 1px solid var(--stp-border-subtle);
+  color: var(--stp-text-muted);
+  font-size: 14px;
+  text-decoration: none;
+  transition:
+    color var(--stp-motion-duration-fast) var(--stp-motion-easing),
+    border-color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+}
+
+.btn-ghost:hover {
+  color: var(--stp-text-primary);
+  border-color: var(--stp-field-focus-border);
+}
+
+/* Control strip */
+.strip {
+  position: relative;
+}
+
+.strip-rail {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
+  max-width: 980px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.strip-rail-label {
+  font-family: var(--font-geist-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--stp-text-faint);
+}
+
+.strip-rail-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--stp-color-brand), var(--stp-border-subtle) 55%, var(--stp-border-subtle));
+}
+
+.strip-panels {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+.panel {
+  border: 1px solid var(--stp-border-subtle);
+  border-radius: var(--stp-radius-large);
+  background: var(--stp-surface-element);
+  padding: 22px 22px 24px;
+  position: relative;
+  box-shadow: 0 18px 50px -30px rgba(0, 0, 0, 0.8);
+}
+
+.panel-step {
+  position: absolute;
+  top: 18px;
+  right: 20px;
+  font-family: var(--font-geist-mono);
+  font-size: 11px;
+  color: var(--stp-text-faint);
+}
+
+.panel-title {
+  margin: 0 0 8px;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--stp-text-primary);
+}
+
+.panel-copy {
+  margin: 0 0 18px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--stp-text-muted);
+  min-height: 63px;
+}
+
+.panel-art {
+  border: 1px solid var(--stp-border-subtle);
+  border-radius: var(--stp-radius-medium);
+  background: var(--stp-surface-input);
+  overflow: hidden;
+  position: relative;
+}
+
+/* code art */
+.art-code .code-win {
+  display: flex;
+  gap: 5px;
+  padding: 9px 11px 0;
+}
+
+.art-code .code-win span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--stp-border-subtle);
+}
+
+.art-code pre {
+  margin: 8px 0 0;
+  padding: 4px 13px 13px;
+  font-family: var(--font-geist-mono);
+  font-size: 10.6px;
+  line-height: 1.62;
+  color: var(--stp-text-muted);
+  overflow: hidden;
+}
+
+.c-kw { color: var(--stp-color-brand); }
+.c-str { color: rgb(230, 180, 105); }
+.c-br { color: var(--stp-text-faint); }
+
+.code-badge {
+  position: absolute;
+  bottom: 9px;
+  right: 9px;
+  font-family: var(--font-geist-mono);
+  font-size: 9.5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(54, 190, 190, 0.35);
+  color: var(--stp-text-secondary);
+  background: rgba(20, 26, 26, 0.9);
+}
+
+.code-badge-success {
+  border-color: rgba(24, 153, 144, 0.4);
+  color: var(--stp-status-success);
+}
+
+.art-diagram {
+  padding: 8px 6px;
+}
+
+.node rect {
+  transition: stroke-opacity var(--stp-motion-duration-base) var(--stp-motion-easing);
+}
+
+/* ops art */
+.art-ops {
+  padding: 13px 14px;
+}
+
+.ops-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.ops-label {
+  font-family: var(--font-geist-mono);
+  font-size: 10.5px;
+  color: var(--stp-text-faint);
+  white-space: nowrap;
+}
+
+.spark {
+  flex: 1;
+  height: 26px;
+}
+
+.spark-alert {
+  animation: alert-pulse 1.8s var(--stp-motion-easing) infinite;
+}
+
+@keyframes alert-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.ops-incident {
+  border: 1px solid rgba(235, 97, 97, 0.28);
+  border-radius: var(--stp-radius-medium);
+  background: rgba(235, 97, 97, 0.05);
+  padding: 10px 12px;
+}
+
+.incident-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.incident-sev {
+  font-family: var(--font-geist-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(235, 97, 97, 0.16);
+  color: var(--stp-status-error);
+}
+
+.incident-title {
+  font-size: 11.5px;
+  color: var(--stp-text-muted);
+}
+
+.incident-title code {
+  font-family: var(--font-geist-mono);
+  font-size: 10.5px;
+  color: var(--stp-text-secondary);
+}
+
+.incident-agent {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--stp-text-subtle);
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+
+.incident-agent-tag {
+  font-family: var(--font-geist-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(54, 190, 190, 0.4);
+  color: var(--stp-color-brand);
+  flex-shrink: 0;
+}
+
+.incident-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.incident-approve,
+.incident-dismiss {
+  font-size: 11px;
+  padding: 5px 11px;
+  border-radius: var(--stp-radius-small);
+}
+
+.incident-approve {
+  background: var(--stp-interactive-primary-light);
+  color: rgb(10, 26, 26);
+  font-weight: 560;
+}
+
+.incident-dismiss {
+  border: 1px solid var(--stp-border-subtle);
+  color: var(--stp-text-faint);
+}
+
+.hero-foot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-top: 44px;
+  font-size: 12.5px;
+  color: var(--stp-text-faint);
+}
+
+.hero-foot a {
+  color: var(--stp-text-secondary);
+  text-decoration: none;
+}
+
+.hero-foot a:hover {
+  color: var(--stp-color-brand);
+}
+
+.foot-sep {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--stp-border-subtle);
+}
+
+@media (max-width: 1024px) {
+  .strip-panels {
+    grid-template-columns: 1fr;
+    max-width: 560px;
+  }
+
+  .panel-copy {
+    min-height: 0;
+  }
+
+  .headline {
+    font-size: clamp(42px, 8vw, 62px);
+  }
+}
+
+@media (max-width: 900px) {
+  .nav-links {
+    gap: 16px;
+    font-size: 12.5px;
+  }
+
+  .nav-links a[href='https://github.com/stacktape/stacktape'] {
+    display: none;
+  }
+
+  .hero {
+    padding-top: 52px;
+  }
+
+  .secondary-ctas {
+    flex-direction: row;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .secondary-ctas a {
+    flex: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eyebrow-dot,
+  .spark-alert {
+    animation: none;
+  }
+
+  * {
+    transition: none !important;
+  }
+}
+</style>
+
+<script>
+const root = document.querySelector('[data-command-root]');
+  if (root) {
+    const tabs = Array.from(root.querySelectorAll('.command-tab'));
+    const text = root.querySelector('[data-command-text]');
+    const hint = root.querySelector('[data-command-hint]');
+    const hints: Record<string, string> = {
+      'npx stacktape init':
+        'Runs the AI wizard on localhost — it reads your repo and generates your stack. No install needed.',
+      'curl -L https://installs.stacktape.com/macos.sh | sh':
+        'Installs the Stacktape CLI. Then run: stacktape init',
+      'curl -L https://installs.stacktape.com/linux.sh | sh':
+        'Installs the Stacktape CLI. Then run: stacktape init',
+      'iwr https://installs.stacktape.com/windows.ps1 -useb | iex':
+        'Installs the Stacktape CLI. Then run: stacktape init',
+    };
+
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        tabs.forEach((t) => {
+          t.classList.remove('is-active');
+          t.setAttribute('aria-selected', 'false');
+        });
+        tab.classList.add('is-active');
+        tab.setAttribute('aria-selected', 'true');
+        const cmd = tab.getAttribute('data-cmd') || '';
+        if (text) text.textContent = cmd;
+        if (hint) hint.textContent = hints[cmd] || '';
+      });
+    });
+
+    const copyBtn = root.querySelector('[data-copy]');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', async () => {
+        const cmd = text ? text.textContent : '';
+        try {
+          await navigator.clipboard.writeText(cmd || '');
+        } catch {
+          const ta = document.createElement('textarea');
+          ta.value = cmd || '';
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          ta.remove();
+        }
+        copyBtn.classList.add('is-copied');
+        const label = copyBtn.querySelector('[data-copy-label]');
+        if (label) label.textContent = 'Copied';
+        setTimeout(() => {
+          copyBtn.classList.remove('is-copied');
+          if (label) label.textContent = 'Copy';
+        }, 1800);
+      });
+    }
+  }
+</script>

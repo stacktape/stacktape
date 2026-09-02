@@ -1,0 +1,54 @@
+---
+/**
+ * Homepage variant A — "the run".
+ *
+ * The whole page is one continuous run of the product: `npx stacktape init` at the top, a bill at
+ * the bottom, and a rail down the left saying where in it you are. Set in Inter, the family the init
+ * wizard uses, because the wizard's own bands are embedded here and the page is meant to read as a
+ * larger version of the same document rather than as a site that quotes one.
+ *
+ * The rail lives at page level rather than inside any section, which is why `.a-run` is composed
+ * here: it is a two-column grid whose left column is the rail spanning both day rows, and Day 0 and
+ * Day 1 are the two rows. Splitting that grid across files would put the layout in a place where
+ * neither half of it is visible.
+ *
+ * `noindex` while the variants are unfinished — these routes exist so sections can be built and
+ * compared, not so search engines can find two homepages.
+ */
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import '../../sections/a/a.css';
+import DayOneSection from '../../sections/a/DayOneSection.astro';
+import DayZeroSection from '../../sections/a/DayZeroSection.astro';
+import FinalCta from '../../sections/a/FinalCta.astro';
+import HeroSection from '../../sections/a/HeroSection.astro';
+import RunRail from '../../sections/a/RunRail.astro';
+import SiteFooter from '../../sections/a/SiteFooter.astro';
+import SiteNav from '../../sections/a/SiteNav.astro';
+import TrustSection from '../../sections/a/TrustSection.astro';
+---
+
+<BaseLayout
+  title="Stacktape — All of AWS. 3% of the complexity."
+  description="Describe your application in one file. Stacktape works out the AWS resources it needs, compiles them to CloudFormation, and deploys them into an account you own."
+  font="inter"
+  noindex
+>
+  <div class="a-page">
+    <SiteNav />
+
+    <main>
+      <HeroSection />
+
+      <div class="a-run a-shell">
+        <RunRail />
+        <DayZeroSection />
+        <DayOneSection />
+      </div>
+
+      <TrustSection />
+      <FinalCta />
+    </main>
+
+    <SiteFooter />
+  </div>
+</BaseLayout>

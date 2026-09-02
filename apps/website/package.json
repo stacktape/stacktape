@@ -5,18 +5,33 @@
   "type": "module",
   "scripts": {
     "build": "astro build",
-    "dev": "astro dev",
+    "dev": "astro dev --port 9002",
+    "preview": "astro preview --port 9002",
     "typecheck": "astro check"
   },
   "dependencies": {
+    "@astrojs/react": "6.0.2",
     "@stacktape/analytics": "workspace:*",
+    "@stacktape/config": "workspace:*",
+    "@stacktape/config-authoring": "workspace:*",
     "@stacktape/design-tokens": "workspace:*",
+    "@stacktape/ui-react": "workspace:*",
     "astro": "catalog:",
-    "posthog-js": "1.398.0"
+    "marked": "16.4.2",
+    "posthog-js": "1.422.5",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "shiki": "4.3.1",
+    "yaml": "2.9.0"
   },
   "devDependencies": {
     "@astrojs/check": "catalog:",
-    "@posthog/rollup-plugin": "^1.4.7",
+    "@posthog/rollup-plugin": "^1.5.1",
+    "@tailwindcss/vite": "4.3.3",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "tailwindcss": "4.3.3",
     "typescript": "catalog:"
   }
 }

@@ -1,0 +1,22 @@
+resources:
+  jobsQueue:
+    type: sqs-queue
+    properties:
+      visibilityTimeoutSeconds: 120
+
+  worker:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/worker.ts
+      memory: 2048
+      timeout: 60
+      connectTo:
+        - jobsQueue
+      events:
+        - type: sqs
+          properties:
+            sqsQueueName: jobsQueue
+            batchSize: 10

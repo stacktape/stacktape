@@ -1,0 +1,1426 @@
+/*
+ * The hero lab — three test pages for one hero, imported only from `src/pages/hero/*.astro`.
+ *
+ * One stylesheet for all three, because that is the experiment: the pages must be indistinguishable
+ * except for their words, and three stylesheets would eventually make that untrue. Every selector is
+ * prefixed `hl-`, and the file is deliberately unlayered — which is what lets the handful of
+ * overrides on Shiki's output (`.line`, `.stp-hover`) win over `@layer components` without
+ * `!important`.
+ *
+ * It reaches into no shared surface. The product miniatures inside the loop are drawn here from
+ * scratch, at a size where the real surfaces would be unreadable.
+ */
+
+/* ── Page shell ─────────────────────────────────────────────────────────────────────────────── */
+
+.hl-page {
+  --hl-max: 1380px;
+  --hl-gut: clamp(20px, 3.6vw, 48px);
+  --hl-nav-h: 60px;
+
+  --hl-hair: rgba(255, 255, 255, 0.08);
+  --hl-hair-soft: rgba(255, 255, 255, 0.045);
+
+  /* The window's own planes: the frame, its title bar, and the stage the miniatures sit on. */
+  --hl-window: color-mix(in srgb, var(--color-page) 90%, black);
+  --hl-window-bar: rgba(0, 0, 0, 0.26);
+  --hl-window-stage: rgba(0, 0, 0, 0.16);
+
+  /*
+   * The page's only decoration: one soft light from the top. It is painted as a background layer on
+   * the page rather than as a positioned element, so it cannot contribute to the scroll width.
+   */
+  background:
+    radial-gradient(120% 62% at 50% -8%, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 62%), var(--color-page);
+
+  /*
+   * The brand glow behind the loop window is wider than its column on purpose. `clip` rather than
+   * `hidden` because it creates no scroll container, so the sticky nav still sticks to the viewport.
+   */
+  overflow-x: clip;
+}
+
+.hl-shell {
+  width: 100%;
+  max-width: var(--hl-max);
+  margin-inline: auto;
+  padding-inline: var(--hl-gut);
+}
+
+/* ── Nav ────────────────────────────────────────────────────────────────────────────────────── */
+
+.hl-nav {
+  position: sticky;
+  z-index: 40;
+  top: 0;
+  border-bottom: 1px solid var(--hl-hair-soft);
+  background: color-mix(in srgb, var(--color-page) 82%, transparent);
+  backdrop-filter: blur(14px);
+}
+
+.hl-nav__inner {
+  display: flex;
+  min-height: var(--hl-nav-h);
+  align-items: center;
+  gap: 18px;
+}
+
+.hl-nav__home {
+  display: inline-flex;
+  align-items: center;
+}
+
+.hl-nav__links {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  gap: clamp(14px, 2vw, 28px);
+}
+
+.hl-nav__link {
+  color: var(--color-fc-light);
+  font-size: 0.9rem;
+  transition: color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+}
+
+.hl-nav__link:hover {
+  color: var(--color-fc-primary);
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────────────────────────────── */
+
+/*
+ * The one saturated fill on the page. The copyable command above it is the true primary action —
+ * it already carries the brand ring — so this button is the second step, not the first.
+ */
+.hl-btn {
+  display: inline-flex;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  padding-inline: 18px;
+  border-radius: var(--stp-radius-medium);
+  background: var(--color-brand);
+  color: #08100f;
+  font-size: 0.9rem;
+  font-weight: 550;
+  white-space: nowrap;
+  transition:
+    background-color var(--stp-motion-duration-fast) var(--stp-motion-easing),
+    transform var(--stp-motion-duration-fast) var(--stp-motion-easing),
+    box-shadow var(--stp-motion-duration-fast) var(--stp-motion-easing);
+}
+
+.hl-btn:hover {
+  background: color-mix(in srgb, var(--color-brand) 88%, white);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--color-brand) 22%, transparent);
+  transform: translateY(-1px);
+}
+
+.hl-link-arrow {
+  color: var(--color-fc-light);
+  font-size: 0.9rem;
+  transition: color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+}
+
+.hl-link-arrow:hover {
+  color: var(--color-fc-primary);
+}
+
+.hl-link-arrow span {
+  display: inline-block;
+  margin-left: 6px;
+  font-family: var(--font-geist-mono);
+  transition: transform var(--stp-motion-duration-fast) var(--stp-motion-easing);
+}
+
+.hl-link-arrow:hover span {
+  transform: translateX(3px);
+}
+
+/* ── Hero ───────────────────────────────────────────────────────────────────────────────────── */
+
+.hl-hero {
+  padding-block: clamp(44px, 5.6vw, 88px) clamp(56px, 7vw, 104px);
+}
+
+.hl-hero__grid {
+  display: grid;
+  align-items: center;
+  gap: clamp(36px, 4.4vw, 72px);
+  /* The 52 / 48 split the copy and the window were written for. */
+  grid-template-columns: minmax(0, 1.04fr) minmax(0, 0.96fr);
+}
+
+.hl-hero__copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.hl-hero__eyebrow {
+  margin: 0 0 20px;
+  color: var(--color-brand);
+  font-family: var(--font-geist-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+/*
+ * Weight 600 rather than the 650 the direction asks for: this page loads Geist at 400/500/600/700,
+ * and CSS font matching resolves any weight above 600 up to 700 — which at 4.3rem reads heavier
+ * than "quietly premium" intends. 600 is the nearest instance that actually exists.
+ */
+.hl-hero__title {
+  margin: 0;
+  font-size: clamp(3rem, 5.2vw, 4.3rem);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.03;
+  text-wrap: balance;
+}
+
+.hl-hero__sub {
+  margin: 22px 0 0;
+  max-width: 58ch;
+  color: var(--color-fc-lighter);
+  font-size: 1.08rem;
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+
+.hl-hero__points {
+  display: flex;
+  margin: 30px 0 0;
+  flex-direction: column;
+  padding: 0;
+  gap: 13px;
+  list-style: none;
+}
+
+.hl-hero__points li {
+  position: relative;
+  max-width: 56ch;
+  padding-left: 24px;
+  color: var(--color-fc-lighter);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+/* A drawn tick rather than a browser marker: two borders on an empty box, rotated. */
+.hl-hero__points li::before {
+  position: absolute;
+  top: 0.34em;
+  left: 2px;
+  width: 5px;
+  height: 9px;
+  border-right: 1.6px solid var(--color-brand);
+  border-bottom: 1.6px solid var(--color-brand);
+  content: '';
+  transform: rotate(42deg);
+}
+
+.hl-hero__points b {
+  color: var(--color-fc-primary);
+  font-weight: 550;
+}
+
+.hl-hero__cta {
+  width: 100%;
+  max-width: 32rem;
+  margin-top: 34px;
+}
+
+.hl-hero__cta-row {
+  display: flex;
+  align-items: center;
+  margin-top: 18px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.hl-hero__microcopy {
+  margin: 16px 0 0;
+  color: var(--color-fc-ternary);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+/*
+ * The stage the window floats on. The brand glow is its own layer behind the window — large, faint,
+ * and the only place on the page where the brand appears as light rather than as ink.
+ */
+.hl-hero__stage {
+  position: relative;
+  min-width: 0;
+}
+
+.hl-hero__stage::before {
+  position: absolute;
+  z-index: 0;
+  top: 4%;
+  left: 50%;
+  width: 112%;
+  height: 104%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--color-brand) 40%, transparent), transparent 76%);
+  content: '';
+  opacity: 0.18;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+/* ── The loop window ────────────────────────────────────────────────────────────────────────── */
+
+/*
+ * The hero's object. Three rings and one ambient shadow: an inset white hairline so it reads as a
+ * plane, an outer brand hairline so it reads as ours, and a long soft shadow so it reads as
+ * floating above the page rather than printed on it.
+ */
+.hl-loop {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--stp-radius-large);
+  background: var(--hl-window);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 0 0 1px color-mix(in srgb, var(--color-brand) 18%, transparent),
+    0 24px 80px rgba(0, 0, 0, 0.5);
+}
+
+.hl-loop__bar {
+  display: flex;
+  height: 38px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  background: var(--hl-window-bar);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.hl-loop__lights {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+
+.hl-loop__lights > span {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  opacity: 0.78;
+}
+
+.hl-loop__title {
+  min-width: 0;
+  flex: 1;
+  margin: 0;
+  overflow: hidden;
+  color: var(--color-fc-light);
+  font-size: 0.76rem;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The pause affordance. It is chrome, not content: it says the loop is waiting, not why. */
+.hl-loop__pause {
+  flex: none;
+  padding: 3px 8px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px var(--hl-hair);
+  color: var(--color-fc-ternary);
+  font-family: var(--font-geist-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  opacity: 0;
+  text-transform: uppercase;
+  transition: opacity var(--stp-motion-duration-base) var(--stp-motion-easing);
+}
+
+.hl-loop[data-paused='true'] .hl-loop__pause {
+  opacity: 1;
+}
+
+/* ── Step row ───────────────────────────────────────────────────────────────────────────────── */
+
+.hl-loop__steps {
+  display: flex;
+  min-inline-size: 0;
+  margin: 0;
+  padding: 7px 8px 8px;
+  border: 0;
+  gap: 2px;
+  box-shadow: inset 0 -1px 0 var(--hl-hair-soft);
+}
+
+.hl-loop__step {
+  position: relative;
+  flex: 1;
+  padding: 5px 4px 8px;
+  border: 0;
+  border-radius: var(--stp-radius-small);
+  background: none;
+  color: var(--color-fc-ternary);
+  cursor: pointer;
+  font-family: var(--font-geist-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  transition: color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+}
+
+.hl-loop__step:hover {
+  color: var(--color-fc-light);
+}
+
+.hl-loop__step.is-active {
+  color: var(--color-brand);
+}
+
+/* The rail every step carries, so the active one's fill runs along something rather than appearing
+ * out of nowhere. */
+.hl-loop__step::after {
+  position: absolute;
+  right: 6px;
+  bottom: 2px;
+  left: 6px;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  content: '';
+}
+
+.hl-loop__step-fill {
+  position: absolute;
+  z-index: 1;
+  right: 6px;
+  bottom: 2px;
+  left: 6px;
+  height: 2px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-brand) 60%, transparent);
+  animation: hl-step-fill linear both;
+  transform-origin: left center;
+}
+
+/*
+ * The fill's duration is the beat's duration, declared here rather than passed as an inline style —
+ * the timings live in `loop-data.ts` and these five lines are the stylesheet agreeing with them.
+ */
+.hl-loop[data-step='0'] .hl-loop__step-fill {
+  animation-duration: 3000ms;
+}
+
+.hl-loop[data-step='1'] .hl-loop__step-fill,
+.hl-loop[data-step='2'] .hl-loop__step-fill,
+.hl-loop[data-step='3'] .hl-loop__step-fill {
+  animation-duration: 2500ms;
+}
+
+.hl-loop[data-step='4'] .hl-loop__step-fill {
+  animation-duration: 4500ms;
+}
+
+@keyframes hl-step-fill {
+  from {
+    transform: scaleX(0);
+  }
+
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/*
+ * Pausing stops the clock, not the drawing.
+ *
+ * Only this bar freezes, because it is the clock made visible and the two must agree. The beat's own
+ * animations are deliberately left running: someone who hovers — or clicks a step, which focuses it
+ * and so pauses too — wants to hold a beat and look at it, and freezing a jumped-to beat at its
+ * first frame would hand them an empty pane instead. Every beat finishes drawing well inside its own
+ * duration, so what they hold is always the finished picture.
+ */
+.hl-loop[data-paused='true'] .hl-loop__step-fill {
+  animation-play-state: paused;
+}
+
+/* Without autoplay there is no elapsed time to show, and a bar that never moves is a lie. */
+.hl-loop[data-reduced='true'] .hl-loop__step-fill {
+  display: none;
+}
+
+/* ── Beat panes ─────────────────────────────────────────────────────────────────────────────── */
+
+.hl-loop__content {
+  position: relative;
+  height: clamp(360px, 30vw, 420px);
+  background: var(--hl-window-stage);
+}
+
+.hl-loop__pane {
+  position: absolute;
+  inset: 0;
+  padding: 14px 16px;
+  opacity: 0;
+  transition:
+    opacity 300ms var(--stp-motion-easing),
+    transform 300ms var(--stp-motion-easing),
+    visibility 0s linear 300ms;
+  transform: translateY(4px);
+  visibility: hidden;
+}
+
+.hl-loop__pane.is-active {
+  opacity: 1;
+  transition-delay: 0s;
+  transform: none;
+  visibility: visible;
+}
+
+/* The status line. A fixed minimum height so a one-line and a two-line caption do not resize the
+ * window between beats. */
+.hl-loop__caption {
+  min-height: 3.05rem;
+  margin: 0;
+  padding: 11px 16px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  color: var(--color-fc-light);
+  font-size: 0.76rem;
+  line-height: 1.5;
+  animation: hl-fade-in 320ms var(--stp-motion-easing) both;
+}
+
+@keyframes hl-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes hl-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* A left-to-right wipe. Used wherever something should read as being written rather than shown. */
+@keyframes hl-typewrite {
+  from {
+    clip-path: inset(0 100% 0 0);
+    opacity: 0.4;
+  }
+
+  to {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+  }
+}
+
+/* ── Beat 1 · Write ─────────────────────────────────────────────────────────────────────────── */
+
+.hl-write {
+  --hl-code-size: 0.7rem;
+  --hl-code-line: 1.6;
+  --hl-gutter-w: 2.2rem;
+
+  position: relative;
+  height: 100%;
+}
+
+.hl-write__pane {
+  position: relative;
+  display: flex;
+  height: 100%;
+  padding-top: 4px;
+  overflow: hidden;
+}
+
+.hl-write__gutter {
+  display: flex;
+  width: var(--hl-gutter-w);
+  flex: none;
+  flex-direction: column;
+  padding-right: 10px;
+  color: var(--color-fc-ternary);
+  font-family: var(--font-mono);
+  font-size: var(--hl-code-size);
+  line-height: var(--hl-code-line);
+  opacity: 0.4;
+  text-align: right;
+  user-select: none;
+}
+
+.hl-write__code {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+/*
+ * Shiki's own metrics, brought down to miniature scale. `min-height` has to come down with the line
+ * height or the lines would stay 1.7em tall and the config would not fit the window.
+ *
+ * `white-space: normal` on the `<code>` is the load-bearing one. Shiki separates its `.line` spans
+ * with real newline text nodes, and under the `<pre>`'s inherited `white-space: pre` each of those
+ * is a line box of its own — which silently doubles the block's height. Collapsing whitespace at
+ * this level discards them; `.line` keeps `pre` (from `snippets.css`) so indentation inside a line
+ * is still preserved, which is the only place it matters.
+ */
+.hl-write .stp-code code {
+  font-size: var(--hl-code-size);
+  line-height: var(--hl-code-line);
+  white-space: normal;
+}
+
+.hl-write .stp-code .line {
+  min-height: calc(var(--hl-code-line) * 1em);
+  animation: hl-typewrite 240ms var(--stp-motion-easing) both;
+}
+
+/* The schema hover layer belongs to the full-size editor. Here it would only put a popup nobody
+ * asked for over a window that pauses when you touch it. */
+.hl-write .stp-hover {
+  border-bottom: 0;
+  cursor: default;
+}
+
+.hl-write .stp-hover-popup {
+  display: none;
+}
+
+/*
+ * Fourteen lines typed one at a time, 95 ms apart, and then the tail of the config settling in as a
+ * block. Written out rather than computed because the markup is Shiki's and there is nowhere to
+ * hang a per-line custom property.
+ */
+.hl-write .line:nth-child(1) {
+  animation-delay: 0ms;
+}
+
+.hl-write .line:nth-child(2) {
+  animation-delay: 95ms;
+}
+
+.hl-write .line:nth-child(3) {
+  animation-delay: 190ms;
+}
+
+.hl-write .line:nth-child(4) {
+  animation-delay: 285ms;
+}
+
+.hl-write .line:nth-child(5) {
+  animation-delay: 380ms;
+}
+
+.hl-write .line:nth-child(6) {
+  animation-delay: 475ms;
+}
+
+.hl-write .line:nth-child(7) {
+  animation-delay: 570ms;
+}
+
+.hl-write .line:nth-child(8) {
+  animation-delay: 665ms;
+}
+
+.hl-write .line:nth-child(9) {
+  animation-delay: 760ms;
+}
+
+.hl-write .line:nth-child(10) {
+  animation-delay: 855ms;
+}
+
+.hl-write .line:nth-child(11) {
+  animation-delay: 950ms;
+}
+
+.hl-write .line:nth-child(12) {
+  animation-delay: 1045ms;
+}
+
+.hl-write .line:nth-child(13) {
+  animation-delay: 1140ms;
+}
+
+.hl-write .line:nth-child(14) {
+  animation-delay: 1235ms;
+}
+
+.hl-write .line:nth-child(n + 15) {
+  animation-name: hl-fade-in;
+  animation-duration: 460ms;
+  animation-delay: 1420ms;
+}
+
+/*
+ * The caret, stepping down one line per typed line and blinking while it goes. `steps(14,
+ * jump-none)` gives fourteen positions including both ends, so it starts on line 1 and arrives on
+ * line 14 exactly as that line begins.
+ */
+.hl-write__cursor {
+  position: absolute;
+  top: calc(4px + 0.3em);
+  left: var(--hl-gutter-w);
+  width: 0.5em;
+  height: 1.02em;
+  background: color-mix(in srgb, var(--color-brand) 65%, transparent);
+  font-size: var(--hl-code-size);
+  animation:
+    hl-cursor-step 1235ms steps(14, jump-none) both,
+    hl-cursor-blink 900ms linear infinite,
+    hl-fade-out 260ms var(--stp-motion-easing) 1400ms forwards;
+}
+
+@keyframes hl-cursor-step {
+  from {
+    transform: translateY(0);
+  }
+
+  to {
+    transform: translateY(calc(13 * var(--hl-code-line) * 1em));
+  }
+}
+
+@keyframes hl-cursor-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes hl-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* Overlaid on the editor rather than placed under it: the window is 420 px tall and the config
+ * needs all of them. */
+.hl-write__chip {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  right: 0;
+  margin: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-brand) 12%, var(--hl-window));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-brand) 26%, transparent);
+  color: var(--color-brand);
+  font-family: var(--font-geist-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.03em;
+  animation: hl-rise 320ms var(--stp-motion-easing) 1700ms both;
+}
+
+/* ── Beat 2 · Review ────────────────────────────────────────────────────────────────────────── */
+
+.hl-arch {
+  position: relative;
+  height: 100%;
+}
+
+.hl-arch__svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/*
+ * `stroke-dashoffset: 0` is the resting value and the undrawn state lives in the keyframe, not the
+ * other way round. Every animated element on these pages follows that rule: if the animation never
+ * runs, what is left on screen has to be the finished picture rather than an empty one.
+ */
+.hl-arch__links line {
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  stroke-width: 1.5;
+  animation: hl-draw 380ms var(--stp-motion-easing) both;
+}
+
+@keyframes hl-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.hl-arch__links line:nth-child(1) {
+  animation-delay: 620ms;
+}
+
+.hl-arch__links line:nth-child(2) {
+  animation-delay: 690ms;
+}
+
+.hl-arch__links line:nth-child(3) {
+  animation-delay: 760ms;
+}
+
+.hl-arch__links line:nth-child(4) {
+  animation-delay: 830ms;
+}
+
+.hl-arch__links line:nth-child(5) {
+  animation-delay: 900ms;
+}
+
+.hl-arch__links line:nth-child(6) {
+  animation-delay: 970ms;
+}
+
+.hl-arch__block {
+  animation: hl-rise 420ms var(--stp-motion-easing) both;
+}
+
+.hl-arch__blocks g:nth-child(1) {
+  animation-delay: 0ms;
+}
+
+.hl-arch__blocks g:nth-child(2) {
+  animation-delay: 100ms;
+}
+
+.hl-arch__blocks g:nth-child(3) {
+  animation-delay: 200ms;
+}
+
+.hl-arch__blocks g:nth-child(4) {
+  animation-delay: 300ms;
+}
+
+.hl-arch__blocks g:nth-child(5) {
+  animation-delay: 400ms;
+}
+
+.hl-arch__blocks g:nth-child(6) {
+  animation-delay: 500ms;
+}
+
+/*
+ * The category colours the product itself assigns. `cache` is the one departure: its type is a
+ * Redis cluster, so the icon catalogue calls it database blue, but two blue slabs beside each other
+ * read as one resource — it is mixed towards network violet to separate them.
+ */
+.hl-arch__block.is-firewall {
+  --hl-tone: var(--color-aws-security);
+}
+
+.hl-arch__block.is-web {
+  --hl-tone: var(--color-aws-network);
+}
+
+.hl-arch__block.is-api,
+.hl-arch__block.is-worker {
+  --hl-tone: var(--color-aws-compute);
+}
+
+.hl-arch__block.is-cache {
+  --hl-tone: color-mix(in srgb, var(--color-aws-network) 62%, var(--color-aws-database));
+}
+
+.hl-arch__block.is-database {
+  --hl-tone: var(--color-aws-database);
+}
+
+.hl-arch__top {
+  fill: color-mix(in srgb, var(--hl-tone) 34%, transparent);
+  stroke: color-mix(in srgb, var(--hl-tone) 72%, transparent);
+  stroke-width: 1.2;
+}
+
+.hl-arch__side {
+  fill: color-mix(in srgb, var(--hl-tone) 13%, transparent);
+  stroke: color-mix(in srgb, var(--hl-tone) 34%, transparent);
+  stroke-width: 1;
+}
+
+.hl-arch__side.is-lit {
+  fill: color-mix(in srgb, var(--hl-tone) 21%, transparent);
+}
+
+.hl-arch__label {
+  fill: var(--color-fc-light);
+  font-family: var(--font-geist-mono);
+  font-size: 13px;
+  text-anchor: middle;
+}
+
+.hl-arch__price {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  margin: 0;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.32);
+  box-shadow: inset 0 0 0 1px var(--hl-hair);
+  color: var(--color-fc-primary);
+  font-family: var(--font-geist-mono);
+  font-size: 0.68rem;
+  animation: hl-rise 320ms var(--stp-motion-easing) 1450ms both;
+}
+
+/* ── Beat 3 · Deploy ────────────────────────────────────────────────────────────────────────── */
+
+.hl-deploy {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  gap: 12px;
+  font-family: var(--font-geist-mono);
+  font-size: 0.74rem;
+  line-height: 1.5;
+}
+
+.hl-deploy__command {
+  margin: 0;
+  color: var(--color-fc-primary);
+  animation: hl-typewrite 300ms var(--stp-motion-easing) both;
+}
+
+.hl-deploy__prompt {
+  margin-right: 8px;
+  color: var(--color-brand);
+  font-weight: 700;
+}
+
+.hl-deploy__meter-row {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  gap: 12px;
+}
+
+/*
+ * Two identical rows of cells, one dim and one brand-coloured, stacked. The coloured row is
+ * revealed by a stepped clip, which is what makes the meter advance a whole cell at a time — the
+ * way CloudFormation reports whole resources rather than a percentage.
+ */
+.hl-deploy__meter {
+  position: relative;
+  min-width: 0;
+  flex: 1;
+}
+
+.hl-deploy__meter-track,
+.hl-deploy__meter-fill {
+  display: flex;
+  gap: 2px;
+}
+
+.hl-deploy__meter-track i {
+  height: 9px;
+  flex: 1;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.hl-deploy__meter-fill {
+  position: absolute;
+  inset: 0;
+  animation: hl-meter 980ms steps(24) 320ms both;
+}
+
+.hl-deploy__meter-fill i {
+  height: 9px;
+  flex: 1;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--color-brand) 78%, transparent);
+}
+
+@keyframes hl-meter {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.hl-deploy__percent {
+  flex: none;
+  color: var(--color-brand);
+  font-weight: 600;
+  animation: hl-fade-in 260ms var(--stp-motion-easing) 1250ms both;
+}
+
+.hl-deploy__summary {
+  margin: 0;
+  color: var(--color-fc-lighter);
+  animation: hl-fade-in 280ms var(--stp-motion-easing) 1400ms both;
+}
+
+.hl-deploy__rows {
+  display: flex;
+  margin: 4px 0 0;
+  flex-direction: column;
+  padding: 0;
+  gap: 9px;
+  list-style: none;
+}
+
+.hl-deploy__rows li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  animation: hl-rise 280ms var(--stp-motion-easing) both;
+}
+
+.hl-deploy__rows li:nth-child(1) {
+  animation-delay: 1550ms;
+}
+
+.hl-deploy__rows li:nth-child(2) {
+  animation-delay: 1700ms;
+}
+
+.hl-deploy__rows li:nth-child(3) {
+  animation-delay: 1850ms;
+}
+
+.hl-deploy__tick {
+  flex: none;
+  color: var(--color-success);
+}
+
+.hl-deploy__name {
+  flex: none;
+  min-width: 7.5rem;
+  color: var(--color-fc-primary);
+}
+
+.hl-deploy__detail {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--color-fc-ternary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hl-deploy__state {
+  flex: none;
+  color: var(--color-fc-light);
+}
+
+/* ── Beat 4 · Observe ───────────────────────────────────────────────────────────────────────── */
+
+.hl-observe {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.hl-observe__charts {
+  display: grid;
+  flex: 1;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.hl-observe__chart {
+  display: flex;
+  margin: 0;
+  flex-direction: column;
+  padding: 12px 12px 10px;
+  border-radius: var(--stp-radius-medium);
+  background: rgba(255, 255, 255, 0.02);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  color: var(--color-brand);
+}
+
+.hl-observe__chart-head {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.hl-observe__chart-resource {
+  color: var(--color-fc-ternary);
+  font-family: var(--font-geist-mono);
+  font-size: 0.64rem;
+}
+
+.hl-observe__chart-label {
+  color: var(--color-fc-primary);
+  font-size: 0.76rem;
+  font-weight: 550;
+}
+
+/*
+ * The wipe lives on this box rather than on the SVG inside it. `inset()` measures against a border
+ * box, which an HTML element has and an SVG element does not.
+ */
+.hl-observe__plot {
+  flex: 1;
+  min-height: 0;
+  margin-top: 10px;
+  animation: hl-wipe 700ms var(--stp-motion-easing) both;
+}
+
+.hl-observe__plot svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+@keyframes hl-wipe {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.hl-observe__chart:nth-child(1) .hl-observe__plot {
+  animation-delay: 200ms;
+}
+
+.hl-observe__chart:nth-child(2) .hl-observe__plot {
+  animation-delay: 380ms;
+}
+
+.hl-observe__chips {
+  display: flex;
+  margin: 0;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.hl-observe__chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-success) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-success) 30%, transparent);
+  color: color-mix(in srgb, var(--color-success) 72%, white);
+  font-family: var(--font-geist-mono);
+  font-size: 0.63rem;
+  animation: hl-rise 280ms var(--stp-motion-easing) both;
+}
+
+.hl-observe__chip:nth-child(1) {
+  animation-delay: 1250ms;
+}
+
+.hl-observe__chip:nth-child(2) {
+  animation-delay: 1400ms;
+}
+
+/* ── Beat 5 · Incident ──────────────────────────────────────────────────────────────────────── */
+
+.hl-incident {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  padding: 14px;
+  border-radius: var(--stp-radius-medium);
+  background: rgba(255, 255, 255, 0.02);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.hl-incident__head {
+  display: flex;
+  align-items: baseline;
+  margin: 0 0 14px;
+  gap: 10px;
+  box-shadow: inset 0 -1px 0 var(--hl-hair-soft);
+  padding-bottom: 11px;
+}
+
+.hl-incident__head-kicker {
+  color: var(--color-fc-primary);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.hl-incident__head-target {
+  color: var(--color-fc-ternary);
+  font-family: var(--font-geist-mono);
+  font-size: 0.66rem;
+}
+
+.hl-incident__lines {
+  display: flex;
+  margin: 0;
+  flex: 1;
+  flex-direction: column;
+  padding: 0;
+  gap: 11px;
+  list-style: none;
+}
+
+.hl-incident__line {
+  font-family: var(--font-geist-mono);
+  font-size: 0.72rem;
+  line-height: 1.45;
+  animation: hl-typewrite 380ms var(--stp-motion-easing) both;
+}
+
+.hl-incident__line:nth-child(1) {
+  animation-delay: 120ms;
+}
+
+.hl-incident__line:nth-child(2) {
+  animation-delay: 760ms;
+}
+
+.hl-incident__line:nth-child(3) {
+  animation-delay: 1500ms;
+}
+
+.hl-incident__line:nth-child(4) {
+  animation-delay: 2240ms;
+}
+
+.hl-incident__line:nth-child(5) {
+  animation-delay: 2980ms;
+}
+
+/* The alarm is the only red on the page, and it is red because CloudWatch made it red. */
+.hl-incident__line.is-alarm {
+  padding: 7px 10px;
+  border-radius: var(--stp-radius-small);
+  background: color-mix(in srgb, var(--color-error) 10%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-error) 26%, transparent);
+  color: color-mix(in srgb, var(--color-error) 88%, white);
+}
+
+.hl-incident__line.is-agent,
+.hl-incident__line.is-context {
+  padding-left: 14px;
+  color: var(--color-fc-lighter);
+  text-indent: -14px;
+}
+
+.hl-incident__line.is-agent::before,
+.hl-incident__line.is-context::before {
+  margin-right: 6px;
+  color: color-mix(in srgb, var(--color-brand) 70%, transparent);
+  content: '›';
+}
+
+/* A state, not a line of output — so it arrives as an object rather than as more typing. */
+.hl-incident__line.is-approval,
+.hl-incident__line.is-resolved {
+  align-self: flex-start;
+  padding: 5px 11px;
+  border-radius: 999px;
+  animation-name: hl-rise;
+}
+
+.hl-incident__line.is-approval {
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px var(--hl-hair);
+  color: var(--color-fc-primary);
+}
+
+.hl-incident__line.is-resolved {
+  background: color-mix(in srgb, var(--color-success) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-success) 34%, transparent);
+  color: color-mix(in srgb, var(--color-success) 74%, white);
+}
+
+.hl-incident__clear {
+  display: flex;
+  align-items: center;
+  margin: 12px 0 0;
+  gap: 8px;
+  color: color-mix(in srgb, var(--color-success) 70%, white);
+  font-family: var(--font-geist-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  animation: hl-fade-in 340ms var(--stp-motion-easing) 3560ms both;
+}
+
+.hl-incident__clear-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--color-success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success) 18%, transparent);
+}
+
+/* ── Depth-proof strip ──────────────────────────────────────────────────────────────────────── */
+
+.hl-proof {
+  border-top: 1px solid var(--hl-hair-soft);
+  padding-block: clamp(34px, 4vw, 54px) clamp(40px, 5vw, 66px);
+}
+
+.hl-proof__row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+/* Hairlines rather than boxes. These are meant to read as engraved facts, not as feature cards. */
+.hl-proof__item {
+  padding-inline: clamp(16px, 2vw, 30px);
+  border-left: 1px solid var(--hl-hair-soft);
+}
+
+.hl-proof__item:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.hl-proof__keyword {
+  margin: 0 0 9px;
+  color: var(--color-brand);
+  font-family: var(--font-geist-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+}
+
+.hl-proof__sentence {
+  margin: 0;
+  color: var(--color-fc-lighter);
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+/* ── Footer ─────────────────────────────────────────────────────────────────────────────────── */
+
+.hl-footer {
+  border-top: 1px solid var(--hl-hair-soft);
+  padding-block: 26px 34px;
+}
+
+.hl-footer__line {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: var(--color-fc-ternary);
+  font-size: 0.82rem;
+}
+
+.hl-footer__line a {
+  color: var(--color-fc-light);
+  transition: color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+}
+
+.hl-footer__line a:hover {
+  color: var(--color-fc-primary);
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 1100px) {
+  .hl-hero__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .hl-hero__copy {
+    max-width: 42rem;
+  }
+
+  .hl-loop__content {
+    height: 420px;
+  }
+
+  .hl-proof__row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 26px;
+  }
+
+  .hl-proof__item:nth-child(odd) {
+    padding-left: 0;
+    border-left: 0;
+  }
+}
+
+@media (max-width: 620px) {
+  .hl-loop__content {
+    height: 380px;
+  }
+
+  .hl-loop__step {
+    font-size: 0.55rem;
+    letter-spacing: 0.06em;
+  }
+
+  .hl-observe__charts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .hl-proof__row {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 22px;
+  }
+
+  .hl-proof__item {
+    padding-inline: 0;
+    border-left: 0;
+  }
+}
+
+/* ── Reduced motion ─────────────────────────────────────────────────────────────────────────── */
+
+/*
+ * Every animated element's static style is already its finished state, so collapsing the durations
+ * to nothing leaves each beat looking complete rather than empty. The component stops autoplaying
+ * separately, which turns the step row into a manual stepper.
+ *
+ * Last in the file on purpose: these selectors tie with the ones above them on specificity, so
+ * order is what decides.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .hl-loop *,
+  .hl-loop *::before,
+  .hl-loop *::after {
+    animation-delay: 0ms;
+    animation-duration: 1ms;
+    animation-iteration-count: 1;
+    transition-duration: 1ms;
+  }
+
+  .hl-write__cursor {
+    display: none;
+  }
+
+  .hl-btn,
+  .hl-link-arrow span {
+    transition: none;
+  }
+
+  .hl-btn:hover {
+    transform: none;
+  }
+
+  .hl-link-arrow:hover span {
+    transform: none;
+  }
+}

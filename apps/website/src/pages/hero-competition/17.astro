@@ -1,0 +1,883 @@
+---
+// concept: A blueprint hero — headline and CTAs in a left column beside a full-height isometric architecture diagram rendered from the real example config, framed like a technical plot with corner brackets, mono corner tags, a dotted grid and a dashed-leader annotation legend; a full-width capability band runs beneath.
+// copy-angle: Names the automation outright ("AWS DevOps, on autopilot") while playing the AI claim almost not at all — the agent appears exactly once, as an opt-in pill in the capability band; the trust case is ownership and visibility: your own AWS account, plain CloudFormation, no lock-in.
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Logo from '../../components/Logo.astro';
+import { CtaCommand } from '../../components/CtaCommand';
+import { ACME_DIAGRAM_CONFIG } from '../../surfaces/InitWizardRun/acme-config';
+import DiagramIsland from '../../surfaces/InitWizardRun/DiagramIsland';
+---
+
+<BaseLayout
+  title="Stacktape — AWS DevOps, on autopilot"
+  description="Stacktape turns one config file into a complete AWS stack — VPC, database, CDN, CI/CD, observability — deployed into your own account and operated day to day. The kind of infrastructure that normally takes a dedicated DevOps team, now the default."
+  font="geist"
+  noindex
+>
+  <div class="page">
+    <header class="nav">
+      <a class="nav__logo" href="https://stacktape.com" aria-label="Stacktape home">
+        <Logo height={22} />
+      </a>
+      <div class="nav__links">
+        <a class="nav__link" href="https://docs.stacktape.com">Docs</a>
+        <a class="nav__link" href="https://github.com/stacktape/stacktape">GitHub</a>
+        <a class="nav__signup" href="https://console.stacktape.com/sign-up">Sign up</a>
+      </div>
+    </header>
+
+    <main class="hero">
+      <div class="hero__grid">
+        <div class="hero__copy">
+          <p class="hero__eyebrow">
+            <span class="hero__dot" aria-hidden="true"></span>
+            AWS infrastructure &amp; DevOps platform
+          </p>
+
+          <h1 class="hero__title">
+            AWS DevOps,<br />
+            <span class="site-gradient-text">on autopilot.</span>
+          </h1>
+
+          <p class="hero__sub">
+            Stacktape turns one config file into a complete AWS stack — VPC, database, CDN, CI/CD, observability —
+            deployed into your own account and operated day to day. The kind of infrastructure that normally takes a
+            dedicated DevOps team, now the default.
+          </p>
+
+          <div class="hero__cmd">
+            <CtaCommand client:visible defaultMethod="npx" />
+          </div>
+
+          <div class="hero__row">
+            <a class="btn" href="https://console.stacktape.com/sign-up">Sign up</a>
+            <a class="link-demo" href="https://cal.com/stacktape/30min">
+              Book a demo
+              <svg viewBox="0 0 16 16" width="13" height="13" fill="none" aria-hidden="true">
+                <path
+                  d="M3 8h10M9 4l4 4-4 4"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </a>
+          </div>
+
+          <ul class="hero__trust">
+            <li>
+              <svg viewBox="0 0 16 16" width="15" height="15" fill="none" aria-hidden="true">
+                <circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.4" />
+                <path
+                  d="m5 8.2 2.1 2.1 4-4.3"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              Deploys into your own AWS account
+            </li>
+            <li>
+              <svg viewBox="0 0 16 16" width="15" height="15" fill="none" aria-hidden="true">
+                <circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.4" />
+                <path
+                  d="m5 8.2 2.1 2.1 4-4.3"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              Plain CloudFormation output
+            </li>
+            <li>
+              <svg viewBox="0 0 16 16" width="15" height="15" fill="none" aria-hidden="true">
+                <circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.4" />
+                <path
+                  d="m5 8.2 2.1 2.1 4-4.3"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              No lock-in
+            </li>
+          </ul>
+        </div>
+
+        <div class="hero__stage">
+          <div class="stage__canvas">
+            <div class="stage__diagram">
+              <DiagramIsland
+                client:only="react"
+                ariaLabel="Isometric diagram of the AWS infrastructure Stacktape generates from the example configuration"
+                config={ACME_DIAGRAM_CONFIG}
+              />
+            </div>
+
+            <span class="stage__tag stage__tag--tl">
+              <span class="stage__tag-square" aria-hidden="true"></span>
+              acme-project · eu-west-1
+            </span>
+            <span class="stage__tag stage__tag--tr">stacktape.yml → 33 AWS resources</span>
+
+            <span class="stage__corners" aria-hidden="true">
+              <i></i><i></i><i></i><i></i>
+            </span>
+            <span class="stage__scan" aria-hidden="true"></span>
+          </div>
+
+          <ol class="stage__legend">
+            <li class="legend__item">
+              <p class="legend__head">
+                <span class="legend__num">01</span>
+                <span class="legend__icon">
+                  <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
+                    <circle cx="8" cy="8" r="6.3" stroke="currentColor" stroke-width="1.4" />
+                    <path d="M1.7 8h12.6" stroke="currentColor" stroke-width="1.4" />
+                    <path
+                      d="M8 1.7c2.1 2.1 2.1 10.5 0 12.6M8 1.7c-2.1 2.1-2.1 10.5 0 12.6"
+                      stroke="currentColor"
+                      stroke-width="1.4"
+                    />
+                  </svg>
+                </span>
+              </p>
+              <p class="legend__title">Edge</p>
+              <p class="legend__sub">CDN + Web App Firewall in front.</p>
+            </li>
+            <li class="legend__item">
+              <p class="legend__head">
+                <span class="legend__num">02</span>
+                <span class="legend__icon">
+                  <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
+                    <path
+                      d="M1.5 8.5h2.5l1.9-4.3 3 8.6 1.9-4.3h3.7"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </span>
+              </p>
+              <p class="legend__title">API service</p>
+              <p class="legend__sub">Fargate, auto-scaling 2 → 6 instances.</p>
+            </li>
+            <li class="legend__item">
+              <p class="legend__head">
+                <span class="legend__num">03</span>
+                <span class="legend__icon">
+                  <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
+                    <rect x="4.6" y="7.3" width="6.8" height="5.4" rx="1.4" stroke="currentColor" stroke-width="1.4" />
+                    <path
+                      d="M5.9 7.3V5.5a2.1 2.1 0 0 1 4.2 0v1.8"
+                      stroke="currentColor"
+                      stroke-width="1.4"
+                      stroke-linecap="round"
+                    />
+                  </svg>
+                </span>
+              </p>
+              <p class="legend__title">Data layer</p>
+              <p class="legend__sub">Aurora + Redis, reachable only inside the VPC.</p>
+            </li>
+            <li class="legend__item">
+              <p class="legend__head">
+                <span class="legend__num">04</span>
+                <span class="legend__icon">
+                  <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
+                    <path d="M9.1 1.6 3.8 8.9h3.5l-.9 5.5 5.5-7.3H8.4L9.1 1.6Z" fill="currentColor" />
+                  </svg>
+                </span>
+              </p>
+              <p class="legend__title">Background work</p>
+              <p class="legend__sub">Lambda functions, from the same config.</p>
+            </li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="band">
+        <p class="band__label">Also in the box</p>
+        <ul class="band__pills">
+          <li class="pill">
+            <p class="pill__head">
+              <span class="pill__icon">
+                <svg viewBox="0 0 16 16" width="15" height="15" fill="none" aria-hidden="true">
+                  <circle cx="5" cy="3" r="1.6" stroke="currentColor" stroke-width="1.4" />
+                  <circle cx="5" cy="13" r="1.6" stroke="currentColor" stroke-width="1.4" />
+                  <circle cx="11.5" cy="6.5" r="1.6" stroke="currentColor" stroke-width="1.4" />
+                  <path d="M5 4.6v6.8" stroke="currentColor" stroke-width="1.4" />
+                  <path
+                    d="M5 8h4.3a2.2 2.2 0 0 1 2.2 2.2v.7"
+                    stroke="currentColor"
+                    stroke-width="1.4"
+                    stroke-linecap="round"
+                  />
+                </svg>
+              </span>
+              <b class="pill__name">CI/CD</b>
+            </p>
+            <span class="pill__sub">EC2 runners inside your account</span>
+          </li>
+          <li class="pill">
+            <p class="pill__head">
+              <span class="pill__icon">
+                <svg viewBox="0 0 16 16" width="15" height="15" fill="none" aria-hidden="true">
+                  <path
+                    d="M1.5 8.5h2.7l1.9-4.5 3.1 9 2-4.5h3.3"
+                    stroke="currentColor"
+                    stroke-width="1.4"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </span>
+              <b class="pill__name">Observability</b>
+            </p>
+            <span class="pill__sub">Metrics, traces, logs, alarms</span>
+          </li>
+          <li class="pill">
+            <p class="pill__head">
+              <span class="pill__icon">
+                <svg viewBox="0 0 16 16" width="15" height="15" fill="none" aria-hidden="true">
+                  <circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.4" />
+                  <path d="M8 4.6v6.8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+                  <path
+                    d="M9.7 6.3c0-.9-.9-1.5-1.7-1.5s-1.7.6-1.7 1.5c0 2.7 3.4 1.8 3.4 4.4 0 .9-.9 1.5-1.7 1.5s-1.7-.6-1.7-1.5"
+                    stroke="currentColor"
+                    stroke-width="1.4"
+                    stroke-linecap="round"
+                  />
+                </svg>
+              </span>
+              <b class="pill__name">Costs</b>
+            </p>
+            <span class="pill__sub">Per-resource spend, from Cost Explorer</span>
+          </li>
+          <li class="pill">
+            <p class="pill__head">
+              <span class="pill__icon">
+                <svg viewBox="0 0 16 16" width="15" height="15" fill="none" aria-hidden="true">
+                  <path
+                    d="M8 1.9 13.6 4v4.1c0 3.3-2.3 5.3-5.6 6.5C4.7 13.4 2.4 11.4 2.4 8.1V4L8 1.9Z"
+                    stroke="currentColor"
+                    stroke-width="1.4"
+                    stroke-linejoin="round"
+                  />
+                  <path
+                    d="m5.9 8 1.5 1.5 2.9-3"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </span>
+              <b class="pill__name">Governance</b>
+            </p>
+            <span class="pill__sub">SSO, RBAC, guardrails</span>
+          </li>
+          <li class="pill">
+            <p class="pill__head">
+              <span class="pill__icon">
+                <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true">
+                  <path d="M8 1.4c.35 2.7.9 4.4 1.85 5.35C10.8 7.7 12.5 8.25 15.2 8.6c-2.7.35-4.4.9-5.35 1.85C8.9 11.4 8.35 13.1 8 15.8c-.35-2.7-.9-4.4-1.85-5.35C5.2 9.5 3.5 8.95.8 8.6c2.7-.35 4.4-.9 5.35-1.85C7.1 5.8 7.65 4.1 8 1.4Z" />
+                </svg>
+              </span>
+              <b class="pill__name">Incidents</b>
+              <span class="pill__tag">optional</span>
+            </p>
+            <span class="pill__sub">AI agent can resolve — opt-in</span>
+          </li>
+        </ul>
+      </div>
+    </main>
+  </div>
+</BaseLayout>
+
+<style>
+/* ── Shell ─────────────────────────────────────────────────────────────────────────────── */
+
+.page {
+  max-width: 1200px;
+  margin-inline: auto;
+  padding-inline: 32px;
+}
+
+/* ── Nav ───────────────────────────────────────────────────────────────────────────────── */
+
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 0 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.nav__logo {
+  display: flex;
+  align-items: center;
+}
+
+.nav__links {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+}
+
+.nav__link {
+  font-size: 0.86rem;
+  color: var(--color-fc-light);
+  transition: color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+}
+
+.nav__link:hover {
+  color: var(--color-fc-primary);
+}
+
+.nav__signup {
+  padding: 7px 14px;
+  border-radius: var(--stp-radius-large);
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  color: var(--color-fc-primary);
+  font-size: 0.84rem;
+  font-weight: 600;
+  transition:
+    background var(--stp-motion-duration-fast) var(--stp-motion-easing),
+    box-shadow var(--stp-motion-duration-fast) var(--stp-motion-easing);
+}
+
+.nav__signup:hover {
+  background: rgba(255, 255, 255, 0.09);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    0 0 0 4px rgba(255, 255, 255, 0.03);
+}
+
+/* ── Hero grid ─────────────────────────────────────────────────────────────────────────── */
+
+.hero {
+  padding-top: clamp(56px, 7vw, 88px);
+  background: radial-gradient(58% 44% at 50% 0%, rgba(54, 190, 190, 0.055), transparent 72%);
+}
+
+.hero__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  gap: clamp(40px, 5vw, 64px);
+  align-items: start;
+}
+
+/* ── Copy column ───────────────────────────────────────────────────────────────────────── */
+
+.hero__eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 22px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-fc-lighter);
+}
+
+.hero__dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  background: var(--color-brand);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--color-brand) 65%, transparent);
+}
+
+.hero__title {
+  margin: 0;
+  font-size: clamp(2.6rem, 4.6vw, 4.1rem);
+  font-weight: 700;
+  line-height: 1.04;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+  color: var(--color-fc-headline);
+}
+
+.hero__sub {
+  margin: 22px 0 0;
+  max-width: 36em;
+  font-size: clamp(0.98rem, 1.05vw, 1.07rem);
+  line-height: 1.66;
+  color: var(--color-fc-light);
+}
+
+.hero__cmd {
+  margin-top: 30px;
+}
+
+.hero__row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 22px;
+  border-radius: var(--stp-radius-large);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 1px 0 rgba(255, 255, 255, 0.05);
+  color: var(--color-fc-primary);
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition:
+    background var(--stp-motion-duration-fast) var(--stp-motion-easing),
+    box-shadow var(--stp-motion-duration-fast) var(--stp-motion-easing);
+}
+
+.btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.2),
+    0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+.link-demo {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 4px;
+  color: var(--color-fc-light);
+  font-size: 0.9rem;
+  font-weight: 550;
+  transition: color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+}
+
+.link-demo svg {
+  transition: transform var(--stp-motion-duration-base) var(--stp-motion-easing);
+}
+
+.link-demo:hover {
+  color: var(--color-fc-primary);
+}
+
+.link-demo:hover svg {
+  transform: translateX(3px);
+}
+
+.hero__trust {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin: 28px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hero__trust li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-fc-lighter);
+  font-size: 0.8rem;
+}
+
+.hero__trust svg {
+  flex: none;
+  color: var(--color-brand);
+}
+
+/* ── Stage column: the plot ─────────────────────────────────────────────────────────────── */
+
+.stage__canvas {
+  position: relative;
+  height: clamp(21rem, 36vw, 29rem);
+  overflow: hidden;
+  border-radius: 16px;
+  background-image:
+    radial-gradient(62% 72% at 50% 42%, rgba(54, 190, 190, 0.08), transparent 72%),
+    radial-gradient(rgba(255, 255, 255, 0.055) 1px, transparent 1.3px);
+  background-size:
+    100% 100%,
+    22px 22px;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.07),
+    0 34px 90px -44px rgba(0, 0, 0, 0.85);
+}
+
+.stage__diagram {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.stage__tag {
+  position: absolute;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px;
+  border-radius: 7px;
+  background: rgba(8, 13, 13, 0.6);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(4px);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  color: var(--color-fc-light);
+  pointer-events: none;
+}
+
+.stage__tag--tl {
+  top: 12px;
+  left: 12px;
+}
+
+.stage__tag--tr {
+  top: 12px;
+  right: 12px;
+}
+
+.stage__tag-square {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 1.5px;
+  background: var(--color-brand);
+}
+
+.stage__corners {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.stage__corners i {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border: 0 solid rgba(255, 255, 255, 0.3);
+}
+
+.stage__corners i:nth-child(1) {
+  top: 8px;
+  left: 8px;
+  border-top-width: 1.5px;
+  border-left-width: 1.5px;
+  border-top-left-radius: 8px;
+}
+
+.stage__corners i:nth-child(2) {
+  top: 8px;
+  right: 8px;
+  border-top-width: 1.5px;
+  border-right-width: 1.5px;
+  border-top-right-radius: 8px;
+}
+
+.stage__corners i:nth-child(3) {
+  bottom: 8px;
+  left: 8px;
+  border-bottom-width: 1.5px;
+  border-left-width: 1.5px;
+  border-bottom-left-radius: 8px;
+}
+
+.stage__corners i:nth-child(4) {
+  right: 8px;
+  bottom: 8px;
+  border-right-width: 1.5px;
+  border-bottom-width: 1.5px;
+  border-bottom-right-radius: 8px;
+}
+
+.stage__scan {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, rgba(54, 190, 190, 0.05) 50%, transparent);
+  background-repeat: no-repeat;
+  background-size: 100% 200px;
+}
+
+/* ── Annotation legend ──────────────────────────────────────────────────────────────────── */
+
+.stage__legend {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 26px;
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legend__item {
+  position: relative;
+}
+
+.legend__item::before {
+  content: '';
+  position: absolute;
+  top: -20px;
+  left: 7px;
+  width: 0;
+  height: 14px;
+  border-left: 1px dashed rgba(255, 255, 255, 0.22);
+}
+
+.legend__item::after {
+  content: '';
+  position: absolute;
+  top: -24px;
+  left: 4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-brand);
+  opacity: 0.85;
+  transition: background var(--stp-motion-duration-fast) var(--stp-motion-easing);
+}
+
+.legend__item:hover::after {
+  background: #ffffff;
+}
+
+.legend__head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+}
+
+.legend__num {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  color: var(--color-fc-ternary);
+}
+
+.legend__icon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  color: var(--color-brand);
+}
+
+.legend__title {
+  margin: 10px 0 0;
+  font-size: 0.83rem;
+  font-weight: 600;
+  color: var(--color-fc-primary);
+}
+
+.legend__sub {
+  margin: 3px 0 0;
+  font-size: 0.73rem;
+  line-height: 1.5;
+  color: var(--color-fc-lighter);
+}
+
+/* ── Capability band ────────────────────────────────────────────────────────────────────── */
+
+.band {
+  margin-top: clamp(52px, 6.5vw, 76px);
+  padding-bottom: clamp(48px, 6vw, 72px);
+}
+
+.band__label {
+  margin: 0 0 12px;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-fc-ternary);
+}
+
+.band__pills {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 18px 50px -30px rgba(0, 0, 0, 0.8);
+}
+
+.pill {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 16px 18px;
+  background: var(--stp-surface-page);
+  transition: background var(--stp-motion-duration-fast) var(--stp-motion-easing);
+}
+
+.pill:hover {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.pill__head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  min-width: 0;
+}
+
+.pill__icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  color: var(--color-brand);
+}
+
+.pill__name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-fc-primary);
+}
+
+.pill__tag {
+  flex: none;
+  margin-left: auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-brand) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-brand) 32%, transparent);
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-brand);
+}
+
+.pill__sub {
+  font-size: 0.73rem;
+  line-height: 1.5;
+  color: var(--color-fc-lighter);
+}
+
+/* ── Motion ─────────────────────────────────────────────────────────────────────────────── */
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scan {
+  0% {
+    background-position: 0 -120%;
+  }
+  55%,
+  100% {
+    background-position: 0 200%;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hero__copy > * {
+    animation: rise 0.7s cubic-bezier(0.16, 0.7, 0.2, 1) both;
+  }
+  .hero__copy > :nth-child(1) {
+    animation-delay: 0.04s;
+  }
+  .hero__copy > :nth-child(2) {
+    animation-delay: 0.1s;
+  }
+  .hero__copy > :nth-child(3) {
+    animation-delay: 0.16s;
+  }
+  .hero__copy > :nth-child(4) {
+    animation-delay: 0.22s;
+  }
+  .hero__copy > :nth-child(5) {
+    animation-delay: 0.28s;
+  }
+  .hero__copy > :nth-child(6) {
+    animation-delay: 0.34s;
+  }
+  .hero__stage {
+    animation: rise 0.8s 0.18s cubic-bezier(0.16, 0.7, 0.2, 1) both;
+  }
+  .band {
+    animation: rise 0.8s 0.3s cubic-bezier(0.16, 0.7, 0.2, 1) both;
+  }
+  .stage__scan {
+    animation: scan 7s linear infinite;
+  }
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 1120px) {
+  .stage__legend {
+    grid-template-columns: repeat(2, 1fr);
+    row-gap: 22px;
+  }
+  .legend__item::before,
+  .legend__item::after {
+    display: none;
+  }
+}
+
+@media (max-width: 1020px) {
+  .hero__grid {
+    grid-template-columns: 1fr;
+  }
+  .hero__stage {
+    margin-top: 8px;
+  }
+  .stage__canvas {
+    height: clamp(19rem, 58vw, 26rem);
+  }
+  .band__pills {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .nav__links {
+    gap: 16px;
+  }
+  .band__pills {
+    grid-template-columns: 1fr;
+  }
+  .hero__row {
+    flex-wrap: wrap;
+  }
+}
+</style>

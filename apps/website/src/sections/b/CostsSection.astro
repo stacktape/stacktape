@@ -1,0 +1,33 @@
+---
+/**
+ * Act II, section 07: the bill, and the last thing Act II owes the reader.
+ *
+ * It closes the act on the question a platform tool is usually least willing to answer, which is
+ * why it goes last rather than being folded into the Console section.
+ */
+import { CostsPanel } from '../../surfaces/CostsPanel';
+import SectionHead from './SectionHead.astro';
+---
+
+<section class="b-band" id="s07" data-act="1">
+  <div class="b-shell">
+    <SectionHead act="1" index="07" kicker="Console · costs">
+      <Fragment slot="title">The bill, with nothing added to it.</Fragment>
+      <Fragment slot="lede">
+        The dashboard reads your own Cost Explorer data and breaks the stage down by resource, so "the database is most
+        of it" is a thing you can see rather than suspect. AWS invoices you directly. Stacktape does not resell your
+        infrastructure and takes no percentage of it.
+      </Fragment>
+    </SectionHead>
+
+    <figure class="b-figure b-reveal">
+      <div class="b-figure__stage site-panel">
+        <CostsPanel />
+      </div>
+      <figcaption class="b-figure__caption">
+        <b>Month to date, one stage, six resources.</b> The same breakdown exists per stage, which is how a preview
+        environment stops being an unknown.
+      </figcaption>
+    </figure>
+  </div>
+</section>

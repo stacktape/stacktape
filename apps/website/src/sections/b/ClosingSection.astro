@@ -1,0 +1,40 @@
+---
+/**
+ * The last call to action, and the footer under it.
+ *
+ * It returns to Day 0 on purpose: the page has just spent Act II arguing about production, and the
+ * step it is asking for is still the first command. The same `CtaCommand` the hero uses, so the
+ * reader is asked for exactly one thing twice rather than two things once.
+ */
+import { CtaCommand } from '../../components/CtaCommand';
+import { DEMO_URL, SIGN_UP_URL } from './links';
+---
+
+<section class="b-close" data-act="none">
+  <div class="b-shell">
+    <div class="b-close__inner">
+      <p class="b-act__kicker">Back to day 0</p>
+
+      <h2 class="b-close__title">Start with the first command.</h2>
+
+      <p class="b-close__lede">
+        <code>npx stacktape init</code> reads the repository you already have and writes the config for it. Nothing is
+        created on AWS, and nothing is billed, until you say so.
+      </p>
+
+      <div class="b-close__cta">
+        <CtaCommand client:visible />
+
+        <div class="b-hero__cta-row">
+          <a class="b-btn b-btn--solid" href={SIGN_UP_URL}>Sign up</a>
+          <a class="b-link-arrow" href={DEMO_URL}>Book a demo<span aria-hidden="true">→</span></a>
+        </div>
+      </div>
+
+      <p class="b-close__note">
+        The CLI and the framework are open source. The Console — the pipelines, the issues, the costs, everything in
+        Act II — is the paid product.
+      </p>
+    </div>
+  </div>
+</section>

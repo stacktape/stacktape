@@ -1,0 +1,60 @@
+---
+/**
+ * The document shell every page shares: the dark html/body, the stylesheet, the fonts and the SEO
+ * head. It deliberately owns nothing visual below <body> — the page composes its own sections.
+ *
+ * Fonts: both families the two homepage variants use are loaded here from Google Fonts in one
+ * request, the same mechanism the documentation site uses. `display=swap` so text is never
+ * invisible while a face downloads — the fallback stacks in global.css render until then. A page
+ * picks its family with the `font` prop, which sets `--site-font-sans` on <html>; every `font-sans`
+ * utility and the `body` default follow it.
+ */
+import PostHogAnalytics from '../components/PostHogAnalytics.astro';
+import '../styles/global.css';
+
+type Props = {
+  title: string;
+  description: string;
+  /** Which sans family this page is set in. Mono is always Geist Mono. */
+  font?: 'geist' | 'inter';
+  /** Keep unfinished variant routes out of the index. */
+  noindex?: boolean;
+};
+
+const { title, description, font = 'geist', noindex = false } = Astro.props;
+
+const canonical = new URL(Astro.url.pathname, Astro.site ?? 'https://stacktape.com').href;
+---
+
+<!DOCTYPE html>
+<html lang="en" style={`--site-font-sans: var(--font-${font});`}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    {noindex ? <meta name="robots" content="noindex, follow" /> : <link rel="canonical" href={canonical} />}
+
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:site_name" content="Stacktape" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap"
+    />
+
+    <PostHogAnalytics />
+    <slot name="head" />
+  </head>
+
+  <body>
+    <slot />
+  </body>
+</html>

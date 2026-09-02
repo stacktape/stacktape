@@ -1,0 +1,46 @@
+---
+/**
+ * Variant A's navigation.
+ *
+ * Three destinations and a sign-up, because there are three things a reader of this page might
+ * plausibly want that are not on it: the reference, the source, and an account. A products/pricing/
+ * solutions menu would be a promise of pages that do not exist yet, and the page below is one
+ * continuous scroll — an in-page menu would compete with the rail that already indexes it.
+ *
+ * The sign-up is deliberately NOT the brand-filled button. The hero's command is the primary action
+ * and carries the only brand ring above the fold; a second saturated control 200px away would split
+ * the one thing this page wants a reader to do.
+ *
+ * Written out rather than mapped over a list: `dprint` cannot stably format multi-line JSX inside a
+ * `.map()` in an `.astro` template, and two links do not need a loop.
+ */
+import Logo from '../../components/Logo.astro';
+---
+
+<header class="a-nav">
+  <div class="a-nav__inner a-shell">
+    <a aria-label="Stacktape home" class="a-nav__home" href="/">
+      <Logo height={24} />
+    </a>
+
+    <nav aria-label="Main" class="a-nav__links">
+      <a class="a-nav__link" href="https://docs.stacktape.com" rel="noopener noreferrer" target="_blank">Docs</a>
+      <a
+        class="a-nav__link"
+        href="https://github.com/stacktape/stacktape"
+        rel="noopener noreferrer"
+        target="_blank"
+      >
+        GitHub
+      </a>
+      <a
+        class="a-btn a-btn--quiet a-nav__cta"
+        href="https://console.stacktape.com/sign-up"
+        rel="noopener noreferrer"
+        target="_blank"
+      >
+        Sign up
+      </a>
+    </nav>
+  </div>
+</header>

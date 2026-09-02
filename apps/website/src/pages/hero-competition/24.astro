@@ -1,0 +1,1404 @@
+---
+// concept: A full-width operations roster turns the hero into a live shift board, with every AWS DevOps discipline visibly staffed by automation beneath an oversized headline.
+// copy-angle: Present Stacktape as one automated system covering the whole DevOps function, use enterprise depth as proof, and keep automatic incident resolution as an explicit opt-in footnote instead of the lead claim.
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Logo from '../../components/Logo.astro';
+import { CtaCommand } from '../../components/CtaCommand';
+---
+
+<BaseLayout
+  title="Stacktape — Every AWS DevOps discipline, automated"
+  description="Turn your application into production-ready AWS infrastructure, delivery and operations with Stacktape."
+  font="geist"
+  noindex
+>
+  <div class="page">
+    <nav class="nav" aria-label="Primary navigation">
+      <a class="nav__logo" href="/" aria-label="Stacktape home">
+        <Logo height={27} />
+      </a>
+
+      <div class="nav__links">
+        <a href="https://docs.stacktape.com">Docs</a>
+        <a href="https://github.com/stacktape/stacktape">
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <path
+              fill="currentColor"
+              d="M10 .9a9.3 9.3 0 0 0-2.94 18.13c.47.08.64-.2.64-.45v-1.8c-2.62.57-3.17-1.11-3.17-1.11-.43-1.1-1.05-1.4-1.05-1.4-.86-.59.06-.58.06-.58.95.07 1.45.98 1.45.98.85 1.45 2.22 1.03 2.76.79.09-.61.33-1.03.6-1.27-2.09-.24-4.29-1.05-4.29-4.65 0-1.03.37-1.87.97-2.53-.1-.24-.42-1.2.09-2.5 0 0 .79-.26 2.56.96A8.9 8.9 0 0 1 10 5.16a8.9 8.9 0 0 1 2.33.31c1.77-1.22 2.56-.97 2.56-.97.51 1.3.19 2.27.09 2.51.6.66.97 1.5.97 2.53 0 3.61-2.2 4.4-4.3 4.64.34.3.64.87.64 1.75v2.65c0 .25.17.54.65.45A9.3 9.3 0 0 0 10 .9Z"
+            >
+            </path>
+          </svg>
+          GitHub
+        </a>
+      </div>
+
+      <a class="nav__signup" href="https://console.stacktape.com/sign-up">
+        Sign up
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M3.5 8h8.5M8.5 4.5 12 8l-3.5 3.5"></path>
+        </svg>
+      </a>
+    </nav>
+
+    <main>
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero__eyebrow">
+          <span class="eyebrow__signal" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span>AWS DevOps / automated end to end</span>
+          <span class="eyebrow__rule" aria-hidden="true"></span>
+          <span class="eyebrow__meta">Open-source framework · Managed Console</span>
+        </div>
+
+        <h1 id="hero-title">
+          <span>Every AWS DevOps discipline.</span>
+          <span class="headline-accent">One automated system.</span>
+        </h1>
+
+        <div class="hero__intro">
+          <div class="intro__copy">
+            <p>
+              Stacktape turns your repository into production AWS, deploys it through plain CloudFormation, and keeps
+              architecture, delivery, observability, governance and incidents in one connected operating context.
+            </p>
+            <div class="ownership">
+              <span aria-hidden="true"></span>
+              Your infrastructure stays in your AWS account.
+            </div>
+          </div>
+
+          <div class="hero__actions">
+            <span class="actions__label">Start with your repository</span>
+            <CtaCommand
+              client:visible
+              defaultMethod="npx"
+              className="hero-command"
+            />
+            <div class="actions__secondary">
+              <a class="button-secondary" href="https://console.stacktape.com/sign-up">
+                Deploy in Console
+              </a>
+              <a class="text-link" href="https://cal.com/stacktape/30min">
+                Book a demo
+                <svg viewBox="0 0 16 16" aria-hidden="true">
+                  <path d="M3.5 8h8.5M8.5 4.5 12 8l-3.5 3.5"></path>
+                </svg>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <section class="roster" aria-labelledby="roster-title">
+          <div class="roster__rail" aria-hidden="true">
+            <span>STP / AWS</span>
+            <strong>Automation roster</strong>
+            <span class="rail__status"><i></i> Ready</span>
+          </div>
+
+          <div class="roster__body">
+            <header class="roster__header">
+              <div>
+                <span class="roster__serial">OPERATING FUNCTION / 01</span>
+                <h2 id="roster-title">The infrastructure work is already assigned.</h2>
+              </div>
+              <div class="roster__account">
+                <span>Workload destination</span>
+                <strong><i aria-hidden="true"></i>Your AWS account</strong>
+              </div>
+            </header>
+
+            <div class="roster__columns" aria-hidden="true">
+              <span>Discipline</span>
+              <span>Automated work</span>
+              <span>Depth when needed</span>
+              <span>Stacktape</span>
+            </div>
+
+            <ol class="roster__rows">
+              <li
+                class="roster-row"
+                style="--row-accent: var(--stp-aws-category-network); --row-order: 1;"
+              >
+                <div class="discipline">
+                  <span class="discipline__number">01</span>
+                  <span class="discipline__icon icon-network" aria-hidden="true">
+                    <i></i><i></i><i></i>
+                  </span>
+                  <strong>Architecture</strong>
+                </div>
+                <p>Maps application requirements to a production AWS architecture.</p>
+                <div class="depth">
+                  <span>VPCs</span>
+                  <span>private services</span>
+                  <span>bastions</span>
+                  <span>GPU / Spot</span>
+                </div>
+                <span class="state"><i aria-hidden="true"></i>Designs</span>
+              </li>
+
+              <li
+                class="roster-row"
+                style="--row-accent: var(--stp-aws-category-storage); --row-order: 2;"
+              >
+                <div class="discipline">
+                  <span class="discipline__number">02</span>
+                  <span class="discipline__icon icon-stack" aria-hidden="true">
+                    <i></i><i></i><i></i>
+                  </span>
+                  <strong>Infrastructure</strong>
+                </div>
+                <p>Compiles the stack and deploys it directly into your account.</p>
+                <div class="depth">
+                  <span>CloudFormation</span>
+                  <span>CDK constructs</span>
+                  <span>raw CFN</span>
+                </div>
+                <span class="state"><i aria-hidden="true"></i>Deploys</span>
+              </li>
+
+              <li
+                class="roster-row"
+                style="--row-accent: var(--stp-aws-category-integration); --row-order: 3;"
+              >
+                <div class="discipline">
+                  <span class="discipline__number">03</span>
+                  <span class="discipline__icon icon-delivery" aria-hidden="true">
+                    <i></i><i></i><i></i>
+                  </span>
+                  <strong>CI/CD</strong>
+                </div>
+                <p>Builds and promotes releases across every application stage.</p>
+                <div class="depth">
+                  <span>GitHub Actions</span>
+                  <span>EC2 runners</span>
+                  <span>guardrails</span>
+                </div>
+                <span class="state"><i aria-hidden="true"></i>Delivers</span>
+              </li>
+
+              <li
+                class="roster-row"
+                style="--row-accent: var(--stp-aws-category-compute); --row-order: 4;"
+              >
+                <div class="discipline">
+                  <span class="discipline__number">04</span>
+                  <span class="discipline__icon icon-observe" aria-hidden="true">
+                    <i></i><i></i><i></i><i></i>
+                  </span>
+                  <strong>Observability</strong>
+                </div>
+                <p>Connects each release to metrics, traces, logs and alarms.</p>
+                <div class="depth">
+                  <span>full-stack signals</span>
+                  <span>release context</span>
+                  <span>costs</span>
+                </div>
+                <span class="state"><i aria-hidden="true"></i>Observes</span>
+              </li>
+
+              <li
+                class="roster-row"
+                style="--row-accent: var(--stp-aws-category-security); --row-order: 5;"
+              >
+                <div class="discipline">
+                  <span class="discipline__number">05</span>
+                  <span class="discipline__icon icon-control" aria-hidden="true">
+                    <i></i>
+                  </span>
+                  <strong>Governance</strong>
+                </div>
+                <p>Applies access, policy and spend controls across the team.</p>
+                <div class="depth">
+                  <span>RBAC</span>
+                  <span>SSO</span>
+                  <span>budgets</span>
+                  <span>audit</span>
+                </div>
+                <span class="state"><i aria-hidden="true"></i>Governs</span>
+              </li>
+
+              <li
+                class="roster-row roster-row--agent"
+                style="--row-accent: var(--stp-color-brand); --row-order: 6;"
+              >
+                <div class="discipline">
+                  <span class="discipline__number">06</span>
+                  <span class="discipline__icon icon-incident" aria-hidden="true">
+                    <i></i><i></i>
+                  </span>
+                  <strong>Incidents</strong>
+                </div>
+                <p>Correlates failures with releases and the full runtime picture.</p>
+                <div class="depth">
+                  <span>agent context</span>
+                  <span>fix + redeploy</span>
+                </div>
+                <span class="state state--optional"><i aria-hidden="true"></i>Can resolve*</span>
+              </li>
+            </ol>
+
+            <footer class="roster__footer">
+              <span class="footer__label">Built for long-term fit</span>
+              <div class="adoption-proof">
+                <div>
+                  <span>Adopt</span>
+                  <strong>Bring existing infrastructure</strong>
+                </div>
+                <div>
+                  <span>Extend</span>
+                  <strong>Use CDK or raw CloudFormation</strong>
+                </div>
+                <div>
+                  <span>Own</span>
+                  <strong>Keep plain CloudFormation in your account</strong>
+                </div>
+              </div>
+            </footer>
+          </div>
+        </section>
+
+        <p class="agent-note">
+          <span>*</span>
+          Automatic incident resolution is opt-in and stays off until your team enables it.
+        </p>
+      </section>
+    </main>
+  </div>
+</BaseLayout>
+
+<style>
+.page {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 86% 9%, rgba(54, 190, 190, 0.11), transparent 25rem),
+    radial-gradient(circle at 12% 62%, rgba(77, 115, 244, 0.055), transparent 30rem),
+    var(--stp-surface-page);
+}
+
+.page::before {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(to bottom, black, transparent 72%);
+  content: '';
+  pointer-events: none;
+}
+
+.page::after {
+  position: absolute;
+  top: 4rem;
+  right: -14rem;
+  width: 38rem;
+  height: 38rem;
+  border: 1px solid rgba(54, 190, 190, 0.08);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 5rem rgba(54, 190, 190, 0.016),
+    0 0 0 10rem rgba(54, 190, 190, 0.01);
+  content: '';
+  pointer-events: none;
+}
+
+.nav,
+.hero {
+  position: relative;
+  z-index: 1;
+  width: min(100% - 64px, 1480px);
+  margin-inline: auto;
+}
+
+.nav {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  height: 84px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.075);
+}
+
+.nav__logo {
+  display: inline-flex;
+  width: fit-content;
+}
+
+.nav__links {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  color: var(--stp-text-muted);
+  font-size: 0.84rem;
+  font-weight: 500;
+}
+
+.nav__links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  transition: color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+}
+
+.nav__links a:hover {
+  color: var(--stp-text-primary);
+}
+
+.nav__links svg {
+  width: 15px;
+  height: 15px;
+}
+
+.nav__signup {
+  display: inline-flex;
+  justify-self: end;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--stp-radius-medium);
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--stp-text-primary);
+  font-size: 0.82rem;
+  font-weight: 600;
+  transition:
+    border-color var(--stp-motion-duration-fast) var(--stp-motion-easing),
+    background var(--stp-motion-duration-fast) var(--stp-motion-easing);
+}
+
+.nav__signup:hover {
+  border-color: rgba(54, 190, 190, 0.38);
+  background: rgba(54, 190, 190, 0.09);
+}
+
+.nav__signup svg,
+.text-link svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.hero {
+  padding: 54px 0 70px;
+}
+
+.hero__eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  color: var(--stp-text-muted);
+  font-family: var(--font-geist-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  animation: enter 650ms 80ms both;
+}
+
+.eyebrow__signal {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  width: 14px;
+  height: 10px;
+}
+
+.eyebrow__signal i {
+  width: 2px;
+  border-radius: 1px;
+  background: var(--stp-color-brand);
+}
+
+.eyebrow__signal i:nth-child(1) {
+  height: 4px;
+}
+
+.eyebrow__signal i:nth-child(2) {
+  height: 9px;
+}
+
+.eyebrow__signal i:nth-child(3) {
+  height: 6px;
+}
+
+.eyebrow__rule {
+  width: 44px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.eyebrow__meta {
+  color: var(--stp-text-faint);
+}
+
+h1 {
+  max-width: 1380px;
+  margin: 31px 0 38px;
+  color: var(--stp-text-primary);
+  font-size: clamp(3.9rem, 6.55vw, 6.75rem);
+  font-weight: 500;
+  letter-spacing: -0.064em;
+  line-height: 0.93;
+}
+
+h1 > span {
+  display: block;
+  animation: enter 750ms both;
+}
+
+h1 > span:first-child {
+  animation-delay: 130ms;
+}
+
+h1 > span:last-child {
+  animation-delay: 210ms;
+}
+
+.headline-accent {
+  width: fit-content;
+  padding-right: 0.07em;
+  background: linear-gradient(
+    105deg,
+    #f0f5f4 0%,
+    #a5ded5 42%,
+    var(--stp-color-brand) 78%,
+    #4aa6dc 115%
+  );
+  background-clip: text;
+  color: transparent;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.hero__intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(390px, 0.85fr);
+  gap: clamp(50px, 9vw, 150px);
+  align-items: start;
+  padding: 0 0 52px clamp(0px, 8.2vw, 124px);
+}
+
+.intro__copy {
+  max-width: 700px;
+  animation: enter 700ms 290ms both;
+}
+
+.intro__copy p {
+  margin: 0;
+  color: var(--stp-text-muted);
+  font-size: clamp(1.05rem, 1.35vw, 1.26rem);
+  letter-spacing: -0.018em;
+  line-height: 1.58;
+}
+
+.ownership {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 20px;
+  color: rgba(255, 255, 255, 0.72);
+  font-family: var(--font-geist-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.035em;
+}
+
+.ownership > span {
+  width: 7px;
+  height: 7px;
+  border: 1px solid rgba(54, 190, 190, 0.7);
+  border-radius: 50%;
+  background: rgba(54, 190, 190, 0.2);
+  box-shadow: 0 0 14px rgba(54, 190, 190, 0.35);
+}
+
+.hero__actions {
+  min-width: 0;
+  animation: enter 700ms 350ms both;
+}
+
+.actions__label {
+  display: block;
+  margin-bottom: 13px;
+  color: var(--stp-text-faint);
+  font-family: var(--font-geist-mono);
+  font-size: 0.67rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+:global(.hero-command.cta-command) {
+  display: flex;
+  width: 100%;
+}
+
+:global(.hero-command .cta-command__row) {
+  width: 100%;
+  min-height: 50px;
+  border-radius: var(--stp-radius-medium);
+  background: rgba(6, 11, 11, 0.76);
+  box-shadow:
+    inset 0 0 0 1px rgba(54, 190, 190, 0.34),
+    0 12px 36px rgba(0, 0, 0, 0.2);
+}
+
+:global(.hero-command .cta-command__code) {
+  flex: 1;
+  font-size: 0.82rem;
+}
+
+:global(.hero-command .cta-command__methods) {
+  background: rgba(5, 10, 10, 0.42);
+}
+
+.actions__secondary {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  margin-top: 17px;
+}
+
+.button-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 15px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: var(--stp-radius-medium);
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--stp-text-primary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  transition:
+    border-color var(--stp-motion-duration-fast) var(--stp-motion-easing),
+    background var(--stp-motion-duration-fast) var(--stp-motion-easing);
+}
+
+.button-secondary:hover {
+  border-color: rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.075);
+}
+
+.text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--stp-text-muted);
+  font-size: 0.79rem;
+  font-weight: 600;
+  transition: color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+}
+
+.text-link:hover {
+  color: var(--stp-text-primary);
+}
+
+.roster {
+  position: relative;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 12px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.025), transparent 34%),
+    rgba(17, 23, 23, 0.9);
+  box-shadow:
+    0 30px 90px rgba(0, 0, 0, 0.25),
+    inset 0 1px rgba(255, 255, 255, 0.025);
+  animation: enter 760ms 420ms both;
+  isolation: isolate;
+}
+
+.roster::after {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  bottom: 0;
+  left: -30%;
+  width: 22%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(54, 190, 190, 0.035),
+    transparent
+  );
+  content: '';
+  pointer-events: none;
+  animation: scan 9s 2s infinite linear;
+}
+
+.roster__rail {
+  display: flex;
+  z-index: 3;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 17px 0 19px;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(7, 12, 12, 0.42);
+  color: var(--stp-text-faint);
+  font-family: var(--font-geist-mono);
+  font-size: 0.56rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.roster__rail > span:first-child,
+.roster__rail strong {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
+.roster__rail strong {
+  color: rgba(255, 255, 255, 0.55);
+  font-weight: 600;
+  letter-spacing: 0.16em;
+}
+
+.rail__status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  writing-mode: vertical-rl;
+}
+
+.rail__status i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--stp-color-brand);
+  box-shadow: 0 0 8px rgba(54, 190, 190, 0.65);
+}
+
+.roster__body {
+  min-width: 0;
+}
+
+.roster__header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 32px;
+  min-height: 120px;
+  padding: 27px 30px 25px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.075);
+}
+
+.roster__serial,
+.roster__account > span,
+.footer__label {
+  color: var(--stp-text-faint);
+  font-family: var(--font-geist-mono);
+  font-size: 0.61rem;
+  font-weight: 600;
+  letter-spacing: 0.115em;
+  text-transform: uppercase;
+}
+
+.roster__header h2 {
+  margin: 12px 0 0;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: clamp(1.35rem, 2vw, 1.8rem);
+  font-weight: 500;
+  letter-spacing: -0.035em;
+}
+
+.roster__account {
+  flex: none;
+  text-align: right;
+}
+
+.roster__account strong {
+  display: flex;
+  align-items: center;
+  justify-content: end;
+  gap: 8px;
+  margin-top: 9px;
+  color: rgba(255, 255, 255, 0.72);
+  font-family: var(--font-geist-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.roster__account strong i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--stp-color-brand);
+  box-shadow: 0 0 12px rgba(54, 190, 190, 0.5);
+}
+
+.roster__columns,
+.roster-row {
+  display: grid;
+  grid-template-columns:
+    minmax(190px, 1.1fr)
+    minmax(270px, 1.75fr)
+    minmax(250px, 1.5fr)
+    minmax(112px, 0.65fr);
+  column-gap: 24px;
+  align-items: center;
+}
+
+.roster__columns {
+  min-height: 36px;
+  padding: 0 30px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+  color: rgba(255, 255, 255, 0.27);
+  font-family: var(--font-geist-mono);
+  font-size: 0.55rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.roster__rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.roster-row {
+  position: relative;
+  min-height: 71px;
+  padding: 12px 30px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--row-accent) 2%, transparent), transparent 34%);
+  animation: row-enter 520ms both;
+  animation-delay: calc(470ms + var(--row-order) * 55ms);
+  transition: background var(--stp-motion-duration-fast) var(--stp-motion-easing);
+}
+
+.roster-row::before {
+  position: absolute;
+  top: 18px;
+  bottom: 18px;
+  left: 0;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--row-accent);
+  box-shadow: 0 0 13px color-mix(in srgb, var(--row-accent) 45%, transparent);
+  content: '';
+  opacity: 0.72;
+}
+
+.roster-row:hover {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--row-accent) 7%, transparent),
+    rgba(255, 255, 255, 0.012) 55%,
+    transparent
+  );
+}
+
+.discipline {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.discipline__number {
+  width: 29px;
+  color: rgba(255, 255, 255, 0.27);
+  font-family: var(--font-geist-mono);
+  font-size: 0.59rem;
+}
+
+.discipline strong {
+  margin-left: 11px;
+  color: rgba(255, 255, 255, 0.79);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.discipline__icon {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 25px;
+  height: 25px;
+  border: 1px solid color-mix(in srgb, var(--row-accent) 28%, transparent);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--row-accent) 7%, transparent);
+  color: var(--row-accent);
+}
+
+.icon-network i {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+}
+
+.icon-network i:nth-child(1) {
+  top: 5px;
+}
+
+.icon-network i:nth-child(2) {
+  bottom: 5px;
+  left: 5px;
+}
+
+.icon-network i:nth-child(3) {
+  right: 5px;
+  bottom: 5px;
+}
+
+.icon-network::before,
+.icon-network::after {
+  position: absolute;
+  top: 11px;
+  width: 8px;
+  height: 1px;
+  background: currentColor;
+  content: '';
+  opacity: 0.7;
+}
+
+.icon-network::before {
+  left: 5px;
+  transform: rotate(-57deg);
+}
+
+.icon-network::after {
+  right: 5px;
+  transform: rotate(57deg);
+}
+
+.icon-stack {
+  flex-direction: column;
+  gap: 2px;
+}
+
+.icon-stack i {
+  width: 12px;
+  height: 3px;
+  border: 1px solid currentColor;
+  border-radius: 1px;
+}
+
+.icon-delivery i {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+}
+
+.icon-delivery i:nth-child(1) {
+  left: 4px;
+}
+
+.icon-delivery i:nth-child(2) {
+  left: 10px;
+}
+
+.icon-delivery i:nth-child(3) {
+  right: 4px;
+}
+
+.icon-delivery::before {
+  width: 13px;
+  height: 1px;
+  background: currentColor;
+  content: '';
+  opacity: 0.65;
+}
+
+.icon-observe {
+  align-items: end;
+  gap: 2px;
+  padding-bottom: 5px;
+}
+
+.icon-observe i {
+  width: 2px;
+  border-radius: 1px;
+  background: currentColor;
+}
+
+.icon-observe i:nth-child(1) {
+  height: 5px;
+}
+
+.icon-observe i:nth-child(2) {
+  height: 10px;
+}
+
+.icon-observe i:nth-child(3) {
+  height: 7px;
+}
+
+.icon-observe i:nth-child(4) {
+  height: 12px;
+}
+
+.icon-control i {
+  width: 10px;
+  height: 12px;
+  border: 1px solid currentColor;
+  border-radius: 6px 6px 4px 4px;
+}
+
+.icon-control i::after {
+  position: absolute;
+  top: 10px;
+  left: 11px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  content: '';
+}
+
+.icon-incident i:first-child {
+  width: 12px;
+  height: 12px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+}
+
+.icon-incident i:last-child {
+  position: absolute;
+  width: 3px;
+  height: 7px;
+  border-top: 1px solid currentColor;
+  border-bottom: 1px solid currentColor;
+}
+
+.roster-row > p {
+  margin: 0;
+  color: var(--stp-text-muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.depth {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.depth span {
+  padding: 3px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.065);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.025);
+  color: rgba(255, 255, 255, 0.47);
+  font-family: var(--font-geist-mono);
+  font-size: 0.57rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.state {
+  display: inline-flex;
+  justify-self: start;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 7px;
+  border: 1px solid color-mix(in srgb, var(--row-accent) 18%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--row-accent) 5%, transparent);
+  color: color-mix(in srgb, var(--row-accent) 72%, white);
+  font-family: var(--font-geist-mono);
+  font-size: 0.56rem;
+  font-weight: 600;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.state i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 7px currentColor;
+}
+
+.state--optional {
+  border-style: dashed;
+  color: rgba(126, 226, 211, 0.82);
+}
+
+.roster__footer {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.65fr) minmax(0, 3fr);
+  gap: 28px;
+  align-items: center;
+  min-height: 84px;
+  padding: 18px 30px;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.adoption-proof {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+}
+
+.adoption-proof > div {
+  min-width: 0;
+  padding: 0 20px;
+  border-left: 1px solid rgba(255, 255, 255, 0.075);
+}
+
+.adoption-proof span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--stp-color-brand);
+  font-family: var(--font-geist-mono);
+  font-size: 0.55rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.adoption-proof strong {
+  display: block;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.69rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.agent-note {
+  display: flex;
+  gap: 8px;
+  justify-content: end;
+  margin: 13px 2px 0;
+  color: var(--stp-text-faint);
+  font-family: var(--font-geist-mono);
+  font-size: 0.61rem;
+  line-height: 1.5;
+  text-align: right;
+}
+
+.agent-note span {
+  color: var(--stp-color-brand);
+}
+
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes row-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-9px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scan {
+  0% {
+    transform: translateX(0);
+  }
+
+  60%,
+  100% {
+    transform: translateX(700%);
+  }
+}
+
+@media (max-width: 1120px) {
+  .nav,
+  .hero {
+    width: min(100% - 42px, 1480px);
+  }
+
+  h1 {
+    font-size: clamp(3.6rem, 6.5vw, 5.3rem);
+  }
+
+  .hero__intro {
+    gap: 50px;
+    padding-left: 0;
+  }
+
+  .roster__columns,
+  .roster-row {
+    grid-template-columns:
+      minmax(175px, 1fr)
+      minmax(235px, 1.45fr)
+      minmax(210px, 1.25fr)
+      minmax(102px, 0.62fr);
+    column-gap: 17px;
+  }
+
+  .roster-row,
+  .roster__columns {
+    padding-inline: 22px;
+  }
+
+  .discipline strong {
+    margin-left: 8px;
+    font-size: 0.8rem;
+  }
+
+  .depth span {
+    font-size: 0.53rem;
+  }
+}
+
+@media (max-width: 980px) {
+  .nav,
+  .hero {
+    width: min(100% - 36px, 1480px);
+  }
+
+  .hero {
+    padding-top: 45px;
+  }
+
+  .hero__eyebrow {
+    flex-wrap: wrap;
+  }
+
+  .eyebrow__rule,
+  .eyebrow__meta {
+    display: none;
+  }
+
+  h1 {
+    margin-top: 25px;
+    font-size: clamp(3.35rem, 7.1vw, 4.4rem);
+  }
+
+  .hero__intro {
+    grid-template-columns: 1fr 390px;
+    gap: 34px;
+  }
+
+  .roster {
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+
+  .roster__columns {
+    display: none;
+  }
+
+  .roster-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 9px 20px;
+    min-height: 112px;
+    padding: 15px 22px;
+  }
+
+  .discipline {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .state {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .roster-row > p {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .depth {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+
+  .roster-row::before {
+    top: 16px;
+    bottom: 16px;
+  }
+
+  .roster__footer {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}
+
+@media (max-width: 760px) {
+  .nav {
+    grid-template-columns: 1fr auto;
+  }
+
+  .nav__links {
+    display: none;
+  }
+
+  .hero__intro {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+
+  .hero__actions {
+    max-width: 500px;
+  }
+
+  .roster {
+    grid-template-columns: 1fr;
+  }
+
+  .roster__rail {
+    display: none;
+  }
+
+  .roster__header {
+    align-items: start;
+    flex-direction: column;
+    min-height: 0;
+    padding: 24px 20px;
+  }
+
+  .roster__account {
+    text-align: left;
+  }
+
+  .roster__account strong {
+    justify-content: start;
+  }
+
+  .roster-row {
+    padding-inline: 20px;
+  }
+
+  .roster__footer {
+    padding-inline: 20px;
+  }
+
+  .adoption-proof {
+    grid-template-columns: 1fr;
+    gap: 13px;
+  }
+
+  .adoption-proof > div {
+    padding-left: 13px;
+  }
+}
+
+@media (max-width: 540px) {
+  .nav,
+  .hero {
+    width: min(100% - 28px, 1480px);
+  }
+
+  .nav {
+    height: 72px;
+  }
+
+  .nav__signup {
+    padding-inline: 12px;
+  }
+
+  .hero {
+    padding-top: 37px;
+  }
+
+  h1 {
+    margin-bottom: 31px;
+    font-size: clamp(2.75rem, 13vw, 3.55rem);
+    line-height: 0.98;
+  }
+
+  .intro__copy p {
+    font-size: 1rem;
+  }
+
+  .ownership {
+    align-items: flex-start;
+    font-size: 0.65rem;
+    line-height: 1.5;
+  }
+
+  .ownership > span {
+    flex: none;
+    margin-top: 3px;
+  }
+
+  :global(.hero-command .cta-command__copy-label) {
+    display: none;
+  }
+
+  :global(.hero-command .cta-command__method) {
+    padding-inline: 7px;
+    font-size: 0.66rem;
+  }
+
+  .actions__secondary {
+    flex-wrap: wrap;
+  }
+
+  .roster__header h2 {
+    font-size: 1.25rem;
+  }
+
+  .roster-row {
+    gap: 10px;
+  }
+
+  .discipline__number {
+    width: 24px;
+  }
+
+  .discipline strong {
+    font-size: 0.75rem;
+  }
+
+  .state {
+    padding-inline: 5px;
+    font-size: 0.49rem;
+  }
+
+  .roster-row > p {
+    font-size: 0.73rem;
+  }
+
+  .agent-note {
+    justify-content: start;
+    text-align: left;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero__eyebrow,
+  h1 > span,
+  .intro__copy,
+  .hero__actions,
+  .roster,
+  .roster-row,
+  .roster::after {
+    animation: none;
+  }
+
+  .nav__links a,
+  .nav__signup,
+  .button-secondary,
+  .text-link,
+  .roster-row {
+    transition: none;
+  }
+}
+</style>

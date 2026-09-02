@@ -1,0 +1,27 @@
+---
+/**
+ * One testimonial card.
+ *
+ * Extracted only so `ProofSection`'s list can call it on a single line: the `.astro` formatter in
+ * this repository cannot stably wrap a multi-line JSX body inside a `.map()` in markup, and a short
+ * component call is the shape it does format deterministically.
+ */
+type Props = {
+  /** A contiguous span of the customer's own words. Never stitched across an ellipsis. */
+  text: string;
+  name: string;
+  role: string;
+};
+
+const { text, name, role } = Astro.props;
+---
+
+<li>
+  <figure class="site-panel">
+    <blockquote><p>{text}</p></blockquote>
+    <figcaption>
+      <b>{name}</b>
+      {role}
+    </figcaption>
+  </figure>
+</li>

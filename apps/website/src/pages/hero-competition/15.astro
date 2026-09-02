@@ -1,0 +1,1080 @@
+---
+// concept: A three-band hero — a magazine-style headline/deck row (no boxed graphic opposite the headline), a full-width CTA band where each secondary action carries its own one-line reason, and a full-bleed lifecycle rail as the hero's floor: seven stations from "reads your repo" to "a fix is waiting", a light travelling the line, and the timeline continuing past the last node.
+// copy-angle: Continuity — "Day one is the easy part" — so the automation claim covers the permanent job rather than the first deploy; the AI claim is played mid-bold on mechanism (Stacktape already holds the account, the release, the traces and the infrastructure, so the drafted fix is grounded in all four) with unattended apply named plainly as a switch that ships off.
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Logo from '../../components/Logo.astro';
+import { CtaCommand } from '../../components/CtaCommand';
+
+/**
+ * The hero's floor: one application's whole life, left to right.
+ *
+ * Every detail is the site's own `acme-project` story, taken from the surfaces so a reader who
+ * scrolls further finds the same numbers — 842 ms and the 288 ms query come from the trace
+ * waterfall, `worker.ts:64` and the 47 occurrences from the issues inbox, the six resources and
+ * `eu-west-1` from the story module. Nothing here is a performance claim.
+ */
+const STATIONS = [
+  {
+    no: '01',
+    phase: 'reads',
+    title: 'Your repository',
+    lines: ['acme/acme-project', 'Next.js · Postgres · a queue worker'],
+    tone: 'plain',
+    weight: 1
+  },
+  {
+    no: '02',
+    phase: 'writes',
+    title: 'stacktape.yml',
+    lines: ['Six resources, one file', 'TypeScript or YAML'],
+    tone: 'plain',
+    weight: 1
+  },
+  {
+    no: '03',
+    phase: 'ships',
+    title: 'Into your AWS account',
+    lines: ['Plain CloudFormation', 'VPC · private subnets · WAF'],
+    tone: 'plain',
+    weight: 1.05
+  },
+  {
+    no: '04',
+    phase: 'runs',
+    title: 'Operations, on by default',
+    lines: ['Pipelines · dashboards · alarms', 'Logs · traces · budgets'],
+    tone: 'plain',
+    weight: 1.1
+  },
+  {
+    no: '05',
+    phase: 'catches',
+    title: 'Checkout got slower',
+    lines: ['842 ms p95 on POST /api/checkout', 'SELECT orders — 288 ms of it'],
+    tone: 'warn',
+    weight: 1.15
+  },
+  {
+    no: '06',
+    phase: 'drafts',
+    title: 'A fix is waiting for you',
+    lines: ['worker.ts:64 — order.items undefined', '47 occurrences since 15:24'],
+    tone: 'brand',
+    weight: 1.65
+  }
+] as const;
+
+const EYEBROW = ['Open-source CLI', 'Your own AWS account', 'Plain CloudFormation out'];
+
+const ALSO_HANDLED = [
+  'private-only VPCs, bastions, GPU and Spot',
+  'RBAC, SSO, guardrails, budgets, audit',
+  'raw CloudFormation and CDK escape hatches',
+  'migrating what you already run'
+];
+
+const SIGN_UP = 'https://console.stacktape.com/sign-up';
+const DEMO = 'https://cal.com/stacktape/30min';
+const DOCS = 'https://docs.stacktape.com';
+const GITHUB = 'https://github.com/stacktape/stacktape';
+---
+
+<BaseLayout
+  title="Stacktape — AWS DevOps, fully automated"
+  description="Describe your app in one config file. Stacktape compiles it to CloudFormation, deploys it into your own AWS account, and keeps running it — pipelines, observability, incidents, and the fix waiting for your approval."
+  font="geist"
+  noindex
+>
+  <div class="page">
+    <span class="page__hairline" aria-hidden="true"></span>
+
+    <header class="nav">
+      <div class="shell nav__inner">
+        <a class="nav__brand" href="/" aria-label="Stacktape home">
+          <Logo height={23} />
+        </a>
+
+        <nav class="nav__links" aria-label="Primary">
+          <a href={DOCS}>Docs</a>
+          <a href={GITHUB}>GitHub</a>
+        </nav>
+
+        <div class="nav__actions">
+          <a class="nav__ghost" href={DEMO}>Book a demo</a>
+          <a class="nav__cta" href={SIGN_UP}>
+            Open the Console
+            <span aria-hidden="true">→</span>
+          </a>
+        </div>
+      </div>
+    </header>
+
+    <main class="hero">
+      <div class="shell">
+        <ul class="eyebrow" aria-label="What Stacktape is">
+          {
+            EYEBROW.map((item) => (
+              <li class="eyebrow__item">
+                <span class="eyebrow__dot" aria-hidden="true" />
+                {item}
+              </li>
+            ))
+          }
+        </ul>
+
+        <div class="lede">
+          <div class="lede__main">
+            <h1 class="title">
+              AWS DevOps,<br />
+              <span class="title__grad">fully automated.</span>
+            </h1>
+            <p class="kicker">Day one is the easy part.</p>
+          </div>
+
+          <div class="lede__side">
+            <p class="deck">
+              Describe the app once. Stacktape compiles it to CloudFormation and stands it up in your own AWS
+              account — private networking, autoscaling, pipelines, dashboards, alarms, budgets, the lot.
+            </p>
+            <p class="deck deck--dim">
+              Then it keeps doing the job nobody demos: shipping every release, watching the traces, and naming
+              the deploy that caused the regression.
+            </p>
+
+            <p class="agent">
+              <svg class="agent__spark" viewBox="0 0 16 16" aria-hidden="true">
+                <path
+                  d="M8 1.2 9.5 6.5 14.8 8 9.5 9.5 8 14.8 6.5 9.5 1.2 8 6.5 6.5Z"
+                  fill="currentColor"
+                  opacity="0.9"></path>
+              </svg>
+              <span>
+                When something breaks, the agent isn't guessing. Stacktape already holds the account, the
+                release, the traces and the infrastructure — so the fix it drafts is grounded in all four.
+                <b>Letting it apply that fix unattended is a switch, and it ships off.</b>
+              </span>
+            </p>
+          </div>
+        </div>
+
+        <div class="cta">
+          <div class="cta__primary">
+            <CtaCommand client:visible defaultMethod="npx" className="cta__command" />
+            <p class="cta__note">
+              Opens a wizard on localhost. It reads the repo, writes the config and draws the architecture
+              before a single resource exists.
+            </p>
+          </div>
+
+          <div class="cta__secondary">
+            <a class="option" href={SIGN_UP}>
+              <span class="option__reason">Rather start in a browser?</span>
+              <span class="option__action">
+                Deploy from the Console
+                <span class="option__arrow" aria-hidden="true">→</span>
+              </span>
+            </a>
+            <a class="option" href={DEMO}>
+              <span class="option__reason">Rather be walked through it?</span>
+              <span class="option__action">
+                Book a 30-minute demo
+                <span class="option__arrow" aria-hidden="true">→</span>
+              </span>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <section class="rail" aria-labelledby="rail-title">
+        <div class="rail__glow" aria-hidden="true"></div>
+
+        <div class="shell">
+          <div class="rail__head">
+            <h2 class="rail__title" id="rail-title">One application, first commit to the fix waiting for you</h2>
+            <p class="rail__meta"><span>acme-project</span><span>eu-west-1</span><span>production</span></p>
+          </div>
+
+          <div class="rail__viewport">
+            <ol class="rail__track" id="rail-track">
+              <span class="rail__line" aria-hidden="true"></span>
+
+              {
+                STATIONS.map((station) => (
+                  <li class={`station is-${station.tone}`} style={`--w: ${station.weight};`}>
+                    <span class="station__head">
+                      <span class="station__no">{station.no}</span>
+                      <span class="station__phase">{station.phase}</span>
+                    </span>
+
+                    <span class="station__node" aria-hidden="true" />
+
+                    <div class="station__card">
+                      <p class="station__title">{station.title}</p>
+                      {station.lines.map((line) => (
+                        <p class="station__line">{line}</p>
+                      ))}
+
+                      {station.tone === 'brand' && (
+                        <div class="fix">
+                          <span class="fix__apply">Apply fix</span>
+                          <span class="fix__switch">
+                            <span class="fix__toggle" aria-hidden="true" />
+                            auto-apply · off
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </li>
+                ))
+              }
+
+              <li class="station station--tail" style="--w: 0.8;">
+                <span class="station__head">
+                  <span class="station__phase">then again</span>
+                </span>
+                <span class="station__node" aria-hidden="true"></span>
+                <div class="station__card">
+                  <p class="station__title">The next commit</p>
+                  <p class="station__line">And all of it happens again.</p>
+                </div>
+              </li>
+            </ol>
+          </div>
+        </div>
+      </section>
+
+      <div class="shell">
+        <p class="handled">
+          <span class="handled__label">Also handled</span>
+          {
+            ALSO_HANDLED.map((item) => (
+              <span class="handled__item">
+                <span class="handled__dot" aria-hidden="true" />
+                {item}
+              </span>
+            ))
+          }
+        </p>
+      </div>
+    </main>
+  </div>
+</BaseLayout>
+
+<style>
+  .page {
+    position: relative;
+    display: flex;
+    min-height: 100vh;
+    flex-direction: column;
+    overflow-x: clip;
+
+    --ink: rgba(255, 255, 255, 0.93);
+    --ink-2: rgba(255, 255, 255, 0.66);
+    --ink-3: rgba(255, 255, 255, 0.44);
+    --ink-4: rgba(255, 255, 255, 0.3);
+    --hair: rgba(255, 255, 255, 0.08);
+    --hair-lit: rgba(255, 255, 255, 0.16);
+    --brand: var(--stp-color-brand);
+    --warn: #e2a martial;
+    --warn: #e0a23c;
+
+    background:
+      radial-gradient(1180px 560px at 8% -14%, rgba(54, 190, 190, 0.11), transparent 62%),
+      radial-gradient(920px 480px at 96% -6%, rgba(74, 166, 220, 0.075), transparent 60%);
+  }
+
+  .page__hairline {
+    position: absolute;
+    z-index: 3;
+    top: 0;
+    right: 0;
+    left: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(54, 190, 190, 0.55) 22%, rgba(74, 166, 220, 0.4) 62%, transparent);
+    opacity: 0.8;
+  }
+
+  .shell {
+    width: 100%;
+    max-width: 1360px;
+    margin: 0 auto;
+    padding-inline: clamp(20px, 3.6vw, 48px);
+  }
+
+  /* ── Nav ──────────────────────────────────────────────────────────────────────────────────── */
+
+  .nav {
+    position: relative;
+    z-index: 2;
+    padding-block: 20px;
+  }
+
+  .nav__inner {
+    display: flex;
+    align-items: center;
+    gap: clamp(18px, 3vw, 44px);
+  }
+
+  .nav__brand {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+  }
+
+  .nav__links {
+    display: flex;
+    gap: 26px;
+    margin-right: auto;
+    font-size: 0.86rem;
+    color: var(--ink-2);
+  }
+
+  .nav__links a {
+    transition: color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+  }
+
+  .nav__links a:hover {
+    color: var(--ink);
+  }
+
+  .nav__actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .nav__ghost {
+    padding: 7px 12px;
+    border-radius: var(--stp-radius-large);
+    color: var(--ink-2);
+    font-size: 0.84rem;
+    transition:
+      background var(--stp-motion-duration-fast) var(--stp-motion-easing),
+      color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+  }
+
+  .nav__ghost:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--ink);
+  }
+
+  .nav__cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 14px;
+    border-radius: var(--stp-radius-large);
+    background: rgba(54, 190, 190, 0.09);
+    box-shadow: inset 0 0 0 1px rgba(54, 190, 190, 0.32);
+    color: #a9efe4;
+    font-size: 0.84rem;
+    font-weight: 550;
+    white-space: nowrap;
+    transition:
+      background var(--stp-motion-duration-fast) var(--stp-motion-easing),
+      box-shadow var(--stp-motion-duration-fast) var(--stp-motion-easing);
+  }
+
+  .nav__cta:hover {
+    background: rgba(54, 190, 190, 0.15);
+    box-shadow: inset 0 0 0 1px rgba(54, 190, 190, 0.5);
+  }
+
+  /* ── Hero: the lede band ──────────────────────────────────────────────────────────────────── */
+
+  .hero {
+    position: relative;
+    z-index: 1;
+    padding-top: clamp(34px, 6vh, 72px);
+    padding-bottom: clamp(28px, 4vh, 44px);
+  }
+
+  .eyebrow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 22px;
+    margin: 0 0 clamp(22px, 3.4vw, 34px);
+    padding: 0;
+    list-style: none;
+  }
+
+  .eyebrow__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--ink-3);
+    font-family: var(--font-mono);
+    font-size: 0.71rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .eyebrow__dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--brand);
+    opacity: 0.75;
+  }
+
+  .lede {
+    display: grid;
+    align-items: end;
+    gap: clamp(26px, 4.5vw, 76px);
+    grid-template-columns: minmax(0, 1.06fr) minmax(0, 0.94fr);
+  }
+
+  .title {
+    margin: 0;
+    color: #f4f4f5;
+    font-size: clamp(2.6rem, 5.9vw, 4.4rem);
+    font-weight: 600;
+    letter-spacing: -0.038em;
+    line-height: 0.99;
+  }
+
+  .title__grad {
+    background: linear-gradient(101deg, #7fe8d4 0%, #36bebe 44%, #4aa6dc 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+
+  .kicker {
+    margin: clamp(16px, 2vw, 22px) 0 0;
+    padding-top: clamp(14px, 1.8vw, 20px);
+    border-top: 1px solid var(--hair);
+    max-width: 30ch;
+    color: var(--ink-2);
+    font-size: clamp(1rem, 1.35vw, 1.15rem);
+    letter-spacing: -0.01em;
+  }
+
+  .lede__side {
+    padding-bottom: 3px;
+  }
+
+  .deck {
+    margin: 0;
+    color: var(--ink);
+    font-size: clamp(0.95rem, 1.12vw, 1.02rem);
+    line-height: 1.62;
+  }
+
+  .deck--dim {
+    margin-top: 14px;
+    color: var(--ink-2);
+  }
+
+  .agent {
+    display: flex;
+    gap: 11px;
+    margin: 20px 0 0;
+    padding: 14px 16px;
+    border-radius: var(--stp-radius-large);
+    background: linear-gradient(120deg, rgba(54, 190, 190, 0.09), rgba(74, 166, 220, 0.045));
+    box-shadow: inset 0 0 0 1px rgba(54, 190, 190, 0.2);
+    color: #c9e9e4;
+    font-size: 0.885rem;
+    line-height: 1.58;
+  }
+
+  .agent b {
+    color: #a9efe4;
+    font-weight: 600;
+  }
+
+  .agent__spark {
+    width: 14px;
+    height: 14px;
+    flex: none;
+    margin-top: 4px;
+    color: var(--brand);
+  }
+
+  /* ── Hero: the CTA band ───────────────────────────────────────────────────────────────────── */
+
+  .cta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 26px clamp(30px, 4vw, 64px);
+    margin-top: clamp(30px, 4.2vw, 48px);
+    padding-top: clamp(24px, 3vw, 32px);
+    border-top: 1px solid var(--hair);
+  }
+
+  .cta__primary {
+    flex: 1 1 380px;
+    min-width: 0;
+  }
+
+  .cta__note {
+    max-width: 46ch;
+    margin: 14px 0 0;
+    color: var(--ink-3);
+    font-size: 0.815rem;
+    line-height: 1.55;
+  }
+
+  .cta__secondary {
+    display: flex;
+    flex: 1 1 400px;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .option {
+    display: flex;
+    flex: 1 1 0;
+    min-width: 0;
+    flex-direction: column;
+    gap: 7px;
+    padding: 14px 16px;
+    border-radius: var(--stp-radius-large);
+    background: rgba(255, 255, 255, 0.018);
+    box-shadow: inset 0 0 0 1px var(--hair);
+    transition:
+      background var(--stp-motion-duration-base) var(--stp-motion-easing),
+      box-shadow var(--stp-motion-duration-base) var(--stp-motion-easing),
+      transform var(--stp-motion-duration-base) var(--stp-motion-easing);
+  }
+
+  .option:hover {
+    background: rgba(255, 255, 255, 0.045);
+    box-shadow: inset 0 0 0 1px var(--hair-lit);
+    transform: translateY(-1px);
+  }
+
+  .option__reason {
+    color: var(--ink-4);
+    font-size: 0.755rem;
+    letter-spacing: 0.01em;
+  }
+
+  .option__action {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--ink);
+    font-size: 0.9rem;
+    font-weight: 550;
+    letter-spacing: -0.012em;
+  }
+
+  .option__arrow {
+    color: var(--brand);
+    transition: transform var(--stp-motion-duration-base) var(--stp-motion-easing);
+  }
+
+  .option:hover .option__arrow {
+    transform: translateX(3px);
+  }
+
+  /* ── Hero: the lifecycle rail ─────────────────────────────────────────────────────────────── */
+
+  .rail {
+    position: relative;
+    margin-top: clamp(38px, 5.4vw, 66px);
+    padding-top: clamp(22px, 3vw, 30px);
+    padding-bottom: clamp(24px, 3vw, 34px);
+    border-top: 1px solid var(--hair);
+    border-bottom: 1px solid var(--hair);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.016), rgba(255, 255, 255, 0));
+  }
+
+  .rail__glow {
+    position: absolute;
+    z-index: 0;
+    top: 30%;
+    right: -10%;
+    left: -10%;
+    height: 320px;
+    background: radial-gradient(58% 100% at 50% 100%, rgba(54, 190, 190, 0.13), transparent 72%);
+    pointer-events: none;
+  }
+
+  .rail__head {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px 24px;
+    margin-bottom: clamp(20px, 2.6vw, 28px);
+  }
+
+  .rail__title {
+    margin: 0;
+    color: var(--ink-2);
+    font-size: 0.875rem;
+    font-weight: 500;
+    letter-spacing: -0.008em;
+  }
+
+  .rail__meta {
+    display: flex;
+    gap: 16px;
+    margin: 0;
+    color: var(--ink-4);
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.03em;
+  }
+
+  .rail__meta span + span::before {
+    content: '·';
+    margin-right: 16px;
+    color: rgba(255, 255, 255, 0.18);
+  }
+
+  .rail__viewport {
+    position: relative;
+    z-index: 1;
+  }
+
+  .rail__track {
+    position: relative;
+    display: flex;
+    gap: 14px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .rail__line {
+    position: absolute;
+    top: 32px;
+    right: 0;
+    left: 0;
+    height: 1px;
+    background:
+      linear-gradient(90deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.14)) no-repeat,
+      linear-gradient(90deg, transparent, rgba(126, 232, 212, 0.95) 42%, rgba(74, 166, 220, 0.6) 62%, transparent)
+        no-repeat;
+    background-size:
+      100% 1px,
+      240px 1px;
+    background-position:
+      0 0,
+      -260px 0;
+    animation: rail-sweep 11s linear infinite;
+  }
+
+  @keyframes rail-sweep {
+    from {
+      background-position:
+        0 0,
+        -260px 0;
+    }
+    to {
+      background-position:
+        0 0,
+        calc(100% + 260px) 0;
+    }
+  }
+
+  .station {
+    position: relative;
+    display: grid;
+    flex: var(--w, 1) 1 0;
+    min-width: 0;
+    grid-template-rows: 22px 22px auto;
+    justify-items: start;
+  }
+
+  .station__head {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    white-space: nowrap;
+  }
+
+  .station__no {
+    color: rgba(255, 255, 255, 0.24);
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+  }
+
+  .station__phase {
+    color: var(--ink-4);
+    font-family: var(--font-mono);
+    font-size: 0.665rem;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    transition: color var(--stp-motion-duration-base) var(--stp-motion-easing);
+  }
+
+  .station__node {
+    position: relative;
+    z-index: 1;
+    width: 7px;
+    height: 7px;
+    align-self: center;
+    margin-left: 2px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    box-shadow: 0 0 0 4px var(--stp-surface-page);
+    transition:
+      background var(--stp-motion-duration-base) var(--stp-motion-easing),
+      transform var(--stp-motion-duration-base) var(--stp-motion-easing);
+  }
+
+  .station__card {
+    width: 100%;
+    min-height: 96px;
+    margin-top: 14px;
+    padding: 12px 13px 13px;
+    border-radius: var(--stp-radius-large);
+    background: rgba(255, 255, 255, 0.02);
+    box-shadow: inset 0 0 0 1px var(--hair);
+    transition:
+      background var(--stp-motion-duration-base) var(--stp-motion-easing),
+      box-shadow var(--stp-motion-duration-base) var(--stp-motion-easing);
+  }
+
+  .station__title {
+    margin: 0 0 8px;
+    color: var(--ink);
+    font-size: 0.855rem;
+    font-weight: 550;
+    letter-spacing: -0.014em;
+    line-height: 1.3;
+  }
+
+  .station__line {
+    margin: 0 0 4px;
+    color: var(--ink-3);
+    font-family: var(--font-mono);
+    font-size: 0.685rem;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+
+  .station.is-warn .station__node {
+    background: var(--warn);
+  }
+
+  .station.is-warn .station__title {
+    color: #f0c67c;
+  }
+
+  .station.is-brand .station__node {
+    background: var(--brand);
+    box-shadow:
+      0 0 0 4px var(--stp-surface-page),
+      0 0 0 7px rgba(54, 190, 190, 0.22);
+  }
+
+  .station.is-brand .station__card {
+    background: linear-gradient(150deg, rgba(54, 190, 190, 0.085), rgba(255, 255, 255, 0.012));
+    box-shadow: inset 0 0 0 1px rgba(54, 190, 190, 0.26);
+  }
+
+  .station.is-brand .station__phase,
+  .station.is-brand .station__title {
+    color: #a9efe4;
+  }
+
+  .station--tail {
+    opacity: 0.5;
+  }
+
+  .station--tail .station__node {
+    width: 5px;
+    height: 5px;
+    background: transparent;
+    box-shadow:
+      0 0 0 4px var(--stp-surface-page),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.45);
+  }
+
+  .station--tail .station__card {
+    background: none;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.045);
+  }
+
+  .station.is-active .station__card {
+    background: rgba(255, 255, 255, 0.05);
+    box-shadow: inset 0 0 0 1px var(--hair-lit);
+  }
+
+  .station.is-active.is-brand .station__card {
+    background: linear-gradient(150deg, rgba(54, 190, 190, 0.14), rgba(255, 255, 255, 0.02));
+    box-shadow: inset 0 0 0 1px rgba(54, 190, 190, 0.42);
+  }
+
+  .station.is-active .station__node {
+    transform: scale(1.45);
+  }
+
+  .station.is-active .station__phase {
+    color: var(--ink-2);
+  }
+
+  /* The drafted fix and the switch that stays off. */
+  .fix {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+    margin-top: 11px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(54, 190, 190, 0.18);
+  }
+
+  .fix__apply {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 11px;
+    border-radius: var(--stp-radius-medium);
+    background: rgba(54, 190, 190, 0.18);
+    box-shadow: inset 0 0 0 1px rgba(54, 190, 190, 0.42);
+    color: #ccfaf1;
+    font-size: 0.735rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .fix__switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--ink-4);
+    font-family: var(--font-mono);
+    font-size: 0.655rem;
+    white-space: nowrap;
+  }
+
+  .fix__toggle {
+    position: relative;
+    width: 20px;
+    height: 11px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.09);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  }
+
+  .fix__toggle::after {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.45);
+    content: '';
+  }
+
+  /* ── Hero: the closing strip ──────────────────────────────────────────────────────────────── */
+
+  .handled {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 20px;
+    margin: clamp(20px, 2.6vw, 28px) 0 0;
+    color: var(--ink-4);
+    font-size: 0.775rem;
+  }
+
+  .handled__label {
+    color: var(--ink-3);
+    font-family: var(--font-mono);
+    font-size: 0.665rem;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+  }
+
+  .handled__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+  }
+
+  .handled__dot {
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--brand);
+    opacity: 0.55;
+  }
+
+  /* ── The CTA command island, scaled to this hero ──────────────────────────────────────────── */
+
+  .cta__primary :global(.cta-command) {
+    width: 100%;
+    max-width: 460px;
+    gap: 12px;
+  }
+
+  .cta__primary :global(.cta-command__row) {
+    width: 100%;
+    padding: 13px 11px 13px 17px;
+  }
+
+  .cta__primary :global(.cta-command__code),
+  .cta__primary :global(.cta-command__prompt) {
+    font-size: 0.9rem;
+  }
+
+  /* ── Responsive: the rail turns vertical before anything can crowd ────────────────────────── */
+
+  @media (max-width: 1100px) {
+    .rail__track {
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .rail__line {
+      top: 10px;
+      right: auto;
+      bottom: 12px;
+      left: 85px;
+      width: 1px;
+      height: auto;
+      background: rgba(255, 255, 255, 0.14);
+      background-size: auto;
+      background-position: 0 0;
+      animation: none;
+    }
+
+    .station {
+      grid-template-rows: auto;
+      grid-template-columns: 76px 18px minmax(0, 1fr);
+      align-items: start;
+      padding-block: 5px;
+    }
+
+    .station__head {
+      grid-row: 1;
+      grid-column: 1;
+      justify-content: flex-start;
+      padding-top: 15px;
+    }
+
+    .station__node {
+      grid-row: 1;
+      grid-column: 2;
+      align-self: start;
+      justify-self: center;
+      margin: 18px 0 0;
+    }
+
+    .station__card {
+      min-height: 0;
+      grid-row: 1;
+      grid-column: 3;
+      margin-top: 0;
+    }
+  }
+
+  @media (max-width: 940px) {
+    .lede {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 28px;
+    }
+
+    .kicker {
+      max-width: none;
+    }
+
+    .cta__secondary {
+      flex-wrap: wrap;
+    }
+
+    .option {
+      flex-basis: 220px;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .nav__links {
+      display: none;
+    }
+
+    .nav__inner {
+      justify-content: space-between;
+    }
+
+    .station {
+      grid-template-columns: 62px 18px minmax(0, 1fr);
+    }
+
+    .rail__line {
+      left: 71px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .rail__line {
+      animation: none;
+      background: rgba(255, 255, 255, 0.14);
+      background-size: auto;
+      background-position: 0 0;
+    }
+
+    .option,
+    .option__arrow,
+    .station__card,
+    .station__node,
+    .station__phase {
+      transition: none;
+    }
+
+    .option:hover {
+      transform: none;
+    }
+  }
+</style>
+
+<script>
+  /*
+   * The rail reads left to right on its own, one station at a time, so the eye is walked through the
+   * lifecycle instead of being handed seven cards at once. Pointing at a station takes over; moving
+   * away hands it back. With reduced motion the walk never starts and the drafted fix — the end of
+   * the story and the point of the section — is the one that stays lit.
+   */
+  const track = document.getElementById('rail-track');
+
+  if (track) {
+    const stations = Array.from(track.querySelectorAll('.station'));
+    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+    const light = (index: number) => {
+      stations.forEach((station, position) => station.classList.toggle('is-active', position === index));
+    };
+
+    if (prefersReduced.matches) {
+      light(stations.length - 2);
+    } else {
+      let current = 0;
+      let held = false;
+
+      light(current);
+
+      window.setInterval(() => {
+        if (held || document.visibilityState !== 'visible') return;
+        current = (current + 1) % stations.length;
+        light(current);
+      }, 2400);
+
+      stations.forEach((station, position) => {
+        station.addEventListener('pointerenter', () => {
+          held = true;
+          current = position;
+          light(position);
+        });
+      });
+
+      track.addEventListener('pointerleave', () => {
+        held = false;
+      });
+    }
+  }
+</script>

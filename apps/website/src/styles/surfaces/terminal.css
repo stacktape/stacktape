@@ -1,0 +1,284 @@
+/*
+ * The deploy transcript.
+ *
+ * The palette is the CLI's: white for what you typed, brand for what is happening now, green for
+ * what finished, and everything else pushed back to a muted grey so the two colours mean something.
+ * Column alignment in the resource list is done with a grid rather than padded strings, so a long
+ * resource name cannot shear the layout the way it would in a real fixed-width terminal.
+ */
+@layer components {
+  .deploy-terminal {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: 100%;
+  }
+
+  .deploy-terminal__body {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 20px 22px 16px;
+    color: var(--color-fc-lighter);
+  }
+
+  .deploy-terminal__body p,
+  .deploy-terminal__body ul {
+    margin: 0;
+  }
+
+  .deploy-terminal__body ul {
+    padding: 0;
+    list-style: none;
+  }
+
+  .deploy-terminal__command {
+    color: var(--color-fc-primary);
+  }
+
+  .deploy-terminal__prompt {
+    margin-right: 6px;
+    color: var(--color-brand);
+    font-weight: 700;
+  }
+
+  /* The status line. `flex-wrap` rather than `white-space: nowrap`: at a narrow embed width the
+   * elapsed time drops to its own row instead of pushing the frame into a sideways scroll. */
+  .deploy-terminal__status {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 10px;
+  }
+
+  .deploy-terminal__verb {
+    color: var(--color-brand);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+  }
+
+  .deploy-terminal__target {
+    color: var(--color-fc-primary);
+    font-weight: 600;
+  }
+
+  .deploy-terminal__arrow,
+  .deploy-terminal__region {
+    color: var(--color-fc-ternary);
+  }
+
+  /* Pushed to the far edge of the line, where a terminal would right-align it. */
+  .deploy-terminal__elapsed {
+    margin-left: auto;
+    color: var(--color-fc-light);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .deploy-terminal__phases {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .deploy-terminal__phase {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+
+  .deploy-terminal__phase-glyph,
+  .deploy-terminal__resource-glyph {
+    display: inline-block;
+    width: 0.9em;
+    flex: none;
+  }
+
+  .deploy-terminal__phase.is-done .deploy-terminal__phase-glyph {
+    color: var(--color-success);
+  }
+
+  .deploy-terminal__phase.is-done .deploy-terminal__phase-label {
+    color: var(--color-fc-lighter);
+  }
+
+  .deploy-terminal__phase.is-running .deploy-terminal__phase-glyph,
+  .deploy-terminal__phase.is-running .deploy-terminal__phase-label {
+    color: var(--color-brand);
+  }
+
+  .deploy-terminal__phase.is-pending .deploy-terminal__phase-label {
+    color: var(--color-fc-ternary);
+  }
+
+  .deploy-terminal__phase-note {
+    color: var(--color-fc-ternary);
+  }
+
+  .deploy-terminal__change {
+    margin-top: 4px;
+  }
+
+  .deploy-terminal__change strong {
+    color: var(--color-fc-primary);
+    font-weight: 700;
+  }
+
+  .deploy-terminal__change-count {
+    color: var(--color-fc-ternary);
+  }
+
+  .deploy-terminal__meter-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  /* One cell per CloudFormation resource, with a hairline gap between them: the meter reads as a
+   * count of things rather than as a percentage, which is what it is. */
+  .deploy-terminal__meter {
+    display: flex;
+    gap: 1px;
+    width: min(280px, 46%);
+    height: 13px;
+    overflow: hidden;
+    border-radius: 2px;
+  }
+
+  .deploy-terminal__meter > span {
+    flex: 1;
+  }
+
+  .deploy-terminal__meter > span.is-filled {
+    background: #24d16b;
+  }
+
+  .deploy-terminal__meter > span.is-empty {
+    background: rgba(255, 255, 255, 0.09);
+  }
+
+  .deploy-terminal__percent {
+    color: var(--color-fc-primary);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .deploy-terminal__count {
+    color: var(--color-fc-light);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /*
+   * The resource table. Four columns, and the middle one is `minmax(0, …)` so a long engine name
+   * truncates instead of shoving the status past the right edge of the window.
+   */
+  .deploy-terminal__resources {
+    display: flex;
+    flex-direction: column;
+    margin-top: 4px;
+  }
+
+  .deploy-terminal__resource {
+    display: grid;
+    grid-template-columns: 0.9em minmax(6rem, 8rem) minmax(0, 1fr) 6rem;
+    gap: 10px;
+    align-items: baseline;
+  }
+
+  .deploy-terminal__resource-name {
+    color: var(--color-fc-primary);
+    font-weight: 600;
+  }
+
+  .deploy-terminal__resource-detail {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .deploy-terminal__resource.is-created .deploy-terminal__resource-glyph {
+    color: var(--color-success);
+  }
+
+  .deploy-terminal__resource.is-created .deploy-terminal__resource-state {
+    color: var(--color-fc-light);
+  }
+
+  .deploy-terminal__resource.is-creating .deploy-terminal__resource-glyph,
+  .deploy-terminal__resource.is-creating .deploy-terminal__resource-state {
+    color: var(--color-brand);
+  }
+
+  /* The key bar. Separated by a hairline rather than by whitespace: in the real thing it is pinned
+   * to the bottom of the viewport and reads as chrome, not as output. */
+  .deploy-terminal__keys {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 22px;
+    margin-top: 6px;
+    padding-top: 12px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    color: var(--color-fc-ternary);
+    font-size: 0.78rem;
+  }
+
+  .deploy-terminal__keys kbd {
+    margin-right: 5px;
+    color: var(--color-fc-lighter);
+    font: inherit;
+    font-weight: 700;
+  }
+
+  /* ── The code-only redeploy ─────────────────────────────────────────────────────────────────── */
+
+  .deploy-terminal__redeploy {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 14px 18px;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+  }
+
+  .deploy-terminal__redeploy-line {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin: 0;
+    color: var(--color-fc-primary);
+  }
+
+  .deploy-terminal__redeploy-line.is-result {
+    color: var(--color-fc-lighter);
+  }
+
+  .deploy-terminal__redeploy-line.is-result .deploy-terminal__resource-glyph {
+    color: var(--color-success);
+  }
+
+  .deploy-terminal__redeploy-line strong {
+    color: var(--color-fc-primary);
+    font-weight: 600;
+  }
+
+  .deploy-terminal__redeploy-note {
+    margin: 5px 0 0;
+    color: var(--color-fc-light);
+    font-family: var(--font-sans);
+    font-size: 0.82rem;
+  }
+
+  @media (max-width: 640px) {
+    .deploy-terminal__body {
+      padding: 16px 14px 12px;
+      font-size: 0.74rem;
+    }
+
+    .deploy-terminal__resource {
+      grid-template-columns: 0.9em minmax(0, 1fr) 5.5rem;
+    }
+
+    /* Three columns on a phone: the engine name is the one the reader can infer from the name. */
+    .deploy-terminal__resource-detail {
+      display: none;
+    }
+  }
+}

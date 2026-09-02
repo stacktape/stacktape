@@ -1,0 +1,1026 @@
+---
+// concept: A centered editorial hero above a full-width "run sheet" — a minute-by-minute instrument of one deploy: a labelled track from npx stacktape init to an agent-proposed fix, with timestamps, per-step artifacts and an animated runner that stops at each station.
+// copy-angle: Names the automation outright ("AWS DevOps, fully automated") and plays the AI claim boldly but opt-in: the run sheet's final station is the agent's fix awaiting the human's approve, and the supporting copy makes the trust case — every step automatic, the last one yours.
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Logo from '../../components/Logo.astro';
+import { CtaCommand } from '../../components/CtaCommand';
+---
+
+<BaseLayout
+  title="Stacktape — AWS DevOps, fully automated"
+  description="Stacktape takes your repository and automates the entire AWS lifecycle — infrastructure, deployment, CI/CD, observability and incident resolution — inside your own AWS account."
+  font="geist"
+  noindex
+>
+  <header class="nav">
+    <div class="nav-inner">
+      <a href="/" class="nav-logo" aria-label="Stacktape — home">
+        <Logo height={22} />
+      </a>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="https://docs.stacktape.com">Docs</a>
+        <a href="https://github.com/stacktape/stacktape">GitHub</a>
+        <a class="nav-signup" href="https://console.stacktape.com/sign-up">Sign up</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="hero">
+    <div class="hero-inner">
+      <section class="hero-head">
+        <span class="eyebrow">
+          <span class="eyebrow-dot" aria-hidden="true"></span>
+          Infrastructure · CI/CD · Observability · Incidents
+        </span>
+        <h1>AWS DevOps,<br /><span class="site-gradient-text">fully automated.</span></h1>
+        <p class="sub">
+          Stacktape takes your repository and runs the entire AWS lifecycle — it writes the infrastructure, deploys
+          into your own AWS account, then operates the app: releases, observability, incidents. When something breaks,
+          an agent finds the cause and prepares the fix — you approve what ships.
+        </p>
+        <div class="cta-block">
+          <div class="cta-command-wrap">
+            <CtaCommand client:visible defaultMethod="npx" />
+            <p class="cta-hint">Runs locally · opens the wizard · generates your stacktape.yml</p>
+          </div>
+          <div class="cta-row">
+            <a class="btn btn--primary" href="https://console.stacktape.com/sign-up">Sign up</a>
+            <a class="btn btn--ghost" href="https://cal.com/stacktape/30min">Book a demo</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="runsheet" aria-labelledby="runsheet-title">
+        <div class="runsheet__head">
+          <div class="runsheet__titles">
+            <p class="runsheet__kicker">Run sheet</p>
+            <h2 id="runsheet-title" class="runsheet__title">One deploy, from repository to fix-ready</h2>
+            <p class="runsheet__sub">Every step automatic — the last one is yours.</p>
+          </div>
+          <div class="runsheet__meta">
+            <span class="runsheet__meta-line">npx stacktape init → fix proposed · 47 min</span>
+            <div class="legend" aria-hidden="true">
+              <span class="legend__item"><span class="legend__dot legend__dot--auto"></span>automated by
+                Stacktape</span>
+              <span class="legend__item"><span class="legend__dot legend__dot--agent"></span>agent-proposed · you
+                approve</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="runsheet__track">
+          <div class="track-line" aria-hidden="true"></div>
+          <div class="track-runner" aria-hidden="true"><span class="track-runner__dot"></span></div>
+          <span class="track-note track-note--1" aria-hidden="true">reads the repo</span>
+          <span class="track-note track-note--2" aria-hidden="true">generates cloudformation</span>
+          <span class="track-note track-note--3" aria-hidden="true">metrics &amp; alarms on</span>
+          <span class="track-note track-note--4" aria-hidden="true">finds cause · proposes fix</span>
+
+          <ol class="stations">
+            <li class="station">
+              <span class="station__node" aria-hidden="true"></span>
+              <time class="station__time" datetime="09:00">09:00</time>
+              <h3 class="station__name">Point it at the repo</h3>
+              <p class="station__detail">
+                npx stacktape init opens the wizard, which reads your project and proposes the stack.
+              </p>
+              <div class="station__artifact">
+                <div class="artifact">
+                  <span class="artifact__line"><span class="artifact__prompt">$</span> npx stacktape init</span>
+                  <span class="artifact__line artifact__line--ok">✓ repo read · nextjs + postgres</span>
+                </div>
+              </div>
+            </li>
+
+            <li class="station">
+              <span class="station__node" aria-hidden="true"></span>
+              <time class="station__time" datetime="09:01">09:01</time>
+              <h3 class="station__name">The config is written</h3>
+              <p class="station__detail">
+                One stacktape.yml describes the whole app — services, database, networking.
+              </p>
+              <div class="station__artifact">
+                <div class="artifact artifact--code">
+                  <span class="artifact__label">generated by the wizard</span>
+                  <pre class="artifact__yaml"><code>app: nextjs-postgres
+services:
+  web: next.js
+  db: postgres</code></pre>
+                </div>
+              </div>
+            </li>
+
+            <li class="station">
+              <span class="station__node" aria-hidden="true"></span>
+              <time class="station__time" datetime="09:04">09:04</time>
+              <h3 class="station__name">Deployed into your account</h3>
+              <p class="station__detail">
+                The config compiles to CloudFormation and deploys into your own AWS account — plain, portable output.
+              </p>
+              <div class="station__artifact">
+                <div class="artifact">
+                  <span class="artifact__line">config → cloudformation</span>
+                  <span class="artifact__line artifact__line--ok">✓ deployed · your aws account</span>
+                </div>
+              </div>
+            </li>
+
+            <li class="station">
+              <span class="station__node" aria-hidden="true"></span>
+              <time class="station__time" datetime="09:05">09:05</time>
+              <h3 class="station__name">Live — and watched</h3>
+              <p class="station__detail">
+                Metrics, traces, logs and alarms come on by default. Nothing to install, nothing to wire up.
+              </p>
+              <div class="station__artifact">
+                <div class="artifact">
+                  <svg
+                    class="artifact__spark"
+                    viewBox="0 0 96 26"
+                    width="96"
+                    height="26"
+                    fill="none"
+                    aria-hidden="true"
+                  >
+                    <line
+                      x1="0"
+                      y1="14"
+                      x2="96"
+                      y2="14"
+                      stroke="rgba(255,255,255,0.10)"
+                      stroke-width="1"
+                      stroke-dasharray="3 4"
+                    />
+                    <path
+                      d="M0 21 L12 19 L24 20 L36 13 L48 15 L60 9 L72 11 L84 5 L96 7"
+                      stroke="rgba(54,190,190,0.9)"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                    <path
+                      d="M0 21 L12 19 L24 20 L36 13 L48 15 L60 9 L72 11 L84 5 L96 7 L96 26 L0 26 Z"
+                      fill="rgba(54,190,190,0.10)"
+                    />
+                  </svg>
+                  <span class="artifact__row">
+                    <span class="artifact__line">p95 · 48 ms</span>
+                    <span class="artifact__line artifact__line--ok">alarms armed</span>
+                  </span>
+                </div>
+              </div>
+            </li>
+
+            <li class="station station--agent">
+              <span class="station__node" aria-hidden="true"></span>
+              <time class="station__time" datetime="09:47">09:47</time>
+              <h3 class="station__name">The agent proposes the fix</h3>
+              <p class="station__detail">
+                Search latency spiked after release 482. The agent correlated the failure, wrote the patch, and opened
+                it for review.
+              </p>
+              <div class="station__artifact">
+                <div class="artifact artifact--agent">
+                  <span class="artifact__row">
+                    <span class="artifact__line">incident · search p95</span>
+                    <span class="artifact__badge">agent</span>
+                  </span>
+                  <span class="artifact__row">
+                    <span class="artifact__line">cause · release 482</span>
+                    <span class="artifact__line artifact__line--ok">patch ready</span>
+                  </span>
+                  <span class="approve-chip" aria-hidden="true">Approve &amp; deploy</span>
+                  <span class="artifact__fine">opt-in · the last step that needs a human</span>
+                </div>
+              </div>
+            </li>
+          </ol>
+        </div>
+
+        <div class="runsheet__notes">
+          <div class="note">
+            <span class="note__icon" aria-hidden="true">
+              <svg
+                width="17"
+                height="17"
+                viewBox="0 0 17 17"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.4"
+                stroke-linejoin="round"
+                stroke-linecap="round"
+              >
+                <path d="M8.5 2 15 5.4 8.5 8.8 2 5.4 8.5 2Z" />
+                <path d="M2 8.6 8.5 12l6.5-3.4" />
+                <path d="M2 11.8 8.5 15.2 15 11.8" />
+              </svg>
+            </span>
+            <div>
+              <p class="note__title">Your AWS. No lock-in.</p>
+              <p class="note__text">
+                Deploys into your own AWS account and compiles to plain CloudFormation — the output is yours,
+                portable, and yours to take.
+              </p>
+            </div>
+          </div>
+          <div class="note">
+            <span class="note__icon" aria-hidden="true">
+              <svg
+                width="17"
+                height="17"
+                viewBox="0 0 17 17"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.4"
+                stroke-linejoin="round"
+                stroke-linecap="round"
+              >
+                <rect x="3.5" y="3.5" width="10" height="10" rx="1.6" />
+                <path d="M7 1.8v1.7M10 1.8v1.7M7 13.5v1.7M10 13.5v1.7M1.8 7h1.7M1.8 10h1.7M13.5 7h1.7M13.5 10h1.7" />
+              </svg>
+            </span>
+            <div>
+              <p class="note__title">Hard problems included.</p>
+              <p class="note__text">
+                VPCs, private-only services, bastions, GPU and Spot instances, autoscaling — real AWS depth, without
+                the hand-rolling.
+              </p>
+            </div>
+          </div>
+          <div class="note">
+            <span class="note__icon" aria-hidden="true">
+              <svg
+                width="17"
+                height="17"
+                viewBox="0 0 17 17"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.4"
+                stroke-linejoin="round"
+                stroke-linecap="round"
+              >
+                <path d="M8.5 1.8 14.6 4.2v4.4c0 3.8-2.6 6.3-6.1 7.6-3.5-1.3-6.1-3.8-6.1-7.6V4.2L8.5 1.8Z" />
+                <path d="M6 8.6l1.8 1.8L11.2 6.6" />
+              </svg>
+            </span>
+            <div>
+              <p class="note__title">Governance built in.</p>
+              <p class="note__text">
+                RBAC, SSO, budgets, guardrails and audit — the controls an organization needs before it trusts a
+                platform.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</BaseLayout>
+
+<style>
+.hero {
+  --agent: #5db9e8;
+  position: relative;
+  padding: 84px 24px 100px;
+  overflow-x: clip;
+  background:
+    radial-gradient(1100px 520px at 50% -140px, rgba(54, 190, 190, 0.1), transparent 62%),
+    radial-gradient(760px 420px at 88% 108%, rgba(93, 185, 232, 0.05), transparent 60%);
+}
+
+/* A faint engineering grid fading out at the top of the page. */
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 560px;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1.4px);
+  background-size: 26px 26px;
+  -webkit-mask-image: radial-gradient(ellipse 65% 55% at 50% 0%, black 20%, transparent 70%);
+  mask-image: radial-gradient(ellipse 65% 55% at 50% 0%, black 20%, transparent 70%);
+  pointer-events: none;
+}
+
+.hero-inner {
+  position: relative;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* ── Nav ──────────────────────────────────────────────────────────────── */
+
+.nav {
+  padding: 24px 32px 0;
+}
+
+.nav-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.nav-logo {
+  display: inline-flex;
+  align-items: center;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+}
+
+.nav-links a {
+  font-size: 0.86rem;
+  font-weight: 500;
+  color: var(--color-fc-light);
+  transition: color 0.15s ease;
+}
+
+.nav-links a:hover {
+  color: var(--color-fc-primary);
+}
+
+.nav-signup {
+  padding: 8px 16px;
+  border-radius: 10px;
+  background: var(--color-brand);
+  color: #032322 !important;
+  font-weight: 600;
+  box-shadow: 0 10px 26px -12px color-mix(in srgb, var(--color-brand) 65%, transparent);
+  transition:
+    filter 0.15s ease,
+    transform 0.15s ease !important;
+}
+
+.nav-signup:hover {
+  filter: brightness(1.07);
+  transform: translateY(-1px);
+}
+
+/* ── Headline block ───────────────────────────────────────────────────── */
+
+.hero-head {
+  text-align: center;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.03);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-fc-lighter);
+  white-space: nowrap;
+}
+
+.eyebrow-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-brand);
+  box-shadow: 0 0 0 0 rgba(54, 190, 190, 0.45);
+  animation: pulse-glow 2.6s ease-out infinite;
+}
+
+.hero-head h1 {
+  margin: 22px 0 0;
+  font-size: clamp(2.9rem, 6.2vw, 5.1rem);
+  font-weight: 700;
+  line-height: 1.01;
+  letter-spacing: -0.035em;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.sub {
+  max-width: 660px;
+  margin: 22px auto 0;
+  font-size: 1.13rem;
+  line-height: 1.6;
+  color: var(--color-fc-lighter);
+}
+
+/* ── CTAs ─────────────────────────────────────────────────────────────── */
+
+.cta-block {
+  margin-top: 36px;
+}
+
+.cta-command-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.cta-hint {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+  color: var(--color-fc-ternary);
+}
+
+.cta-row {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 26px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 22px;
+  border-radius: 12px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease;
+}
+
+.btn--primary {
+  background: var(--color-brand);
+  color: #032322;
+  box-shadow: 0 12px 32px -12px color-mix(in srgb, var(--color-brand) 60%, transparent);
+}
+
+.btn--primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 40px -12px color-mix(in srgb, var(--color-brand) 70%, transparent);
+}
+
+.btn--ghost {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--color-fc-primary);
+}
+
+.btn--ghost:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* ── Run sheet panel ──────────────────────────────────────────────────── */
+
+.runsheet {
+  margin-top: 76px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012));
+  box-shadow: 0 48px 110px -60px rgba(0, 0, 0, 0.8);
+}
+
+.runsheet__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 18px 24px;
+  padding: 28px 32px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.runsheet__kicker {
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--color-brand);
+}
+
+.runsheet__title {
+  margin: 8px 0 0;
+  font-size: 1.3rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.runsheet__sub {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+  color: var(--color-fc-lighter);
+}
+
+.runsheet__meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.runsheet__meta-line {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--color-fc-light);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.72rem;
+  color: var(--color-fc-light);
+}
+
+.legend__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.legend__dot--auto {
+  background: var(--color-brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand) 18%, transparent);
+}
+
+.legend__dot--agent {
+  background: var(--agent);
+  box-shadow: 0 0 0 3px rgba(93, 185, 232, 0.16);
+}
+
+/* ── The track ────────────────────────────────────────────────────────── */
+
+.runsheet__track {
+  position: relative;
+  padding: 46px 32px 6px;
+}
+
+.track-line {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  top: 23px;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.track-line::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    90deg,
+    rgba(54, 190, 190, 0.55) 0 8px,
+    transparent 8px 16px
+  );
+}
+
+.track-runner {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  top: 16px;
+  height: 16px;
+  pointer-events: none;
+}
+
+.track-runner__dot {
+  position: absolute;
+  top: 3px;
+  left: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #8ff0dd;
+  box-shadow: 0 0 14px 3px rgba(54, 190, 190, 0.55);
+  animation: run 24s linear infinite;
+}
+
+.track-note {
+  position: absolute;
+  top: 2px;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.02em;
+  color: var(--color-fc-light);
+  white-space: nowrap;
+}
+
+.track-note--1 { left: 20%; }
+.track-note--2 { left: 40%; }
+.track-note--3 { left: 60%; }
+.track-note--4 { left: 80%; }
+
+/* ── Stations ─────────────────────────────────────────────────────────── */
+
+.stations {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.station {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  text-align: left;
+}
+
+.station__node {
+  position: absolute;
+  top: 17px;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  border-radius: 50%;
+  background: var(--color-brand);
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--color-brand) 16%, transparent),
+    inset 0 0 0 2px rgba(6, 22, 22, 0.85);
+}
+
+.station__time {
+  display: block;
+  margin-top: 28px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--color-brand);
+}
+
+.station__name {
+  margin: 7px 0 0;
+  font-size: 0.94rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.station__detail {
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--color-fc-lighter);
+}
+
+.station__artifact {
+  margin-top: auto;
+  padding-top: 14px;
+}
+
+/* The agent station: hollow node, pulsing ring, tinted card. */
+.station--agent {
+  padding: 10px 14px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(93, 185, 232, 0.16);
+  background: linear-gradient(180deg, rgba(93, 185, 232, 0.07), rgba(93, 185, 232, 0.02));
+}
+
+.station--agent .station__time {
+  color: var(--agent);
+}
+
+.station--agent .station__name {
+  color: #a8dbf7;
+}
+
+.station--agent .station__node {
+  background: transparent;
+  box-shadow: none;
+  border: 2px solid var(--agent);
+}
+
+.station--agent .station__node::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--agent);
+}
+
+.station--agent .station__node::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  border: 1px solid rgba(93, 185, 232, 0.55);
+  animation: pulse-ring 2.4s ease-out infinite;
+}
+
+/* ── Artifacts ────────────────────────────────────────────────────────── */
+
+.artifact {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.artifact__line {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--color-fc-lighter);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.artifact__line--ok {
+  color: var(--color-brand);
+}
+
+.artifact__prompt {
+  color: var(--color-brand);
+  font-weight: 600;
+}
+
+.artifact__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.artifact__label {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-fc-ternary);
+}
+
+.artifact__yaml {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.8);
+  white-space: pre;
+}
+
+.artifact__spark {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.artifact__badge {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8fd4f5;
+  background: rgba(93, 185, 232, 0.12);
+  border: 1px solid rgba(93, 185, 232, 0.25);
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+.artifact--agent {
+  background: rgba(13, 26, 32, 0.5);
+  border-color: rgba(93, 185, 232, 0.22);
+}
+
+.approve-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 7px 13px;
+  border-radius: 9px;
+  background: var(--color-brand);
+  color: #032322;
+  font-size: 0.74rem;
+  font-weight: 600;
+  box-shadow: 0 8px 20px -10px color-mix(in srgb, var(--color-brand) 60%, transparent);
+}
+
+.artifact__fine {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--color-fc-ternary);
+}
+
+/* ── Notes row ────────────────────────────────────────────────────────── */
+
+.runsheet__notes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 26px;
+  padding: 22px 32px 28px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.note {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  min-width: 0;
+}
+
+.note__icon {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--color-brand);
+}
+
+.note__title {
+  margin: 1px 0 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.note__text {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--color-fc-lighter);
+}
+
+/* ── Motion ───────────────────────────────────────────────────────────── */
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes run {
+  0% { left: 0; }
+  10% { left: 25%; }
+  22% { left: 25%; }
+  32% { left: 50%; }
+  44% { left: 50%; }
+  54% { left: 75%; }
+  66% { left: 75%; }
+  76% { left: calc(100% - 10px); }
+  100% { left: calc(100% - 10px); }
+}
+
+@keyframes pulse-glow {
+  0% { box-shadow: 0 0 0 0 rgba(54, 190, 190, 0.45); }
+  70% { box-shadow: 0 0 0 7px rgba(54, 190, 190, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(54, 190, 190, 0); }
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(1); opacity: 0.7; }
+  70%, 100% { transform: scale(2.2); opacity: 0; }
+}
+
+.hero-head > * {
+  animation: rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.hero-head .eyebrow { animation-delay: 0.05s; }
+.hero-head h1 { animation-delay: 0.12s; }
+.hero-head .sub { animation-delay: 0.2s; }
+.hero-head .cta-block { animation-delay: 0.28s; }
+
+.runsheet {
+  animation: rise 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.36s both;
+}
+
+/* ── Responsive ───────────────────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+  .hero {
+    padding: 64px 18px 70px;
+  }
+
+  .runsheet__head {
+    flex-direction: column;
+  }
+
+  .runsheet__meta {
+    align-items: flex-start;
+  }
+
+  .runsheet__track {
+    padding: 26px 24px 8px 40px;
+  }
+
+  .track-line {
+    left: 14px;
+    right: auto;
+    top: 4px;
+    bottom: 4px;
+    width: 2px;
+    height: auto;
+  }
+
+  .track-line::after {
+    background-image: repeating-linear-gradient(
+      180deg,
+      rgba(54, 190, 190, 0.55) 0 8px,
+      transparent 8px 16px
+    );
+  }
+
+  .track-runner,
+  .track-note {
+    display: none;
+  }
+
+  .stations {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .station {
+    padding: 0 0 30px 0;
+  }
+
+  .station__node {
+    top: 4px;
+    left: -32px;
+    margin-left: 0;
+  }
+
+  .station__time {
+    margin-top: 0;
+  }
+
+  .station--agent {
+    margin-bottom: 6px;
+  }
+}
+
+@media (max-width: 860px) {
+  .runsheet__notes {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+}
+
+@media (max-width: 720px) {
+  .nav {
+    padding: 20px 20px 0;
+  }
+
+  .nav-links {
+    gap: 18px;
+  }
+
+  .nav-links a:not(.nav-signup) {
+    display: none;
+  }
+
+  .hero-head h1 {
+    font-size: clamp(2.5rem, 11vw, 3.2rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-head > *,
+  .runsheet {
+    animation: none;
+  }
+
+  .track-runner__dot,
+  .eyebrow-dot,
+  .station--agent .station__node::before {
+    animation: none !important;
+  }
+}
+</style>

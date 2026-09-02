@@ -1,0 +1,968 @@
+---
+// concept: A centred, symmetric hero — eyebrow, two-tone headline, deck and a brand-tinted agent claim stacked down the middle over the CTA cluster, with a full-width "day 0" stage beneath it that shows the generated stacktape.yml compiling across a lit spine into the real isometric architecture diagram, closed by a day-1 status floor and a four-column spec bar.
+// copy-angle: Lead on completeness — "all of it, including the hard parts" — so the automation claim reads as capability rather than convenience, and play the AI claim boldly on mechanism ("the fix is already being written", because Stacktape holds the release, the diff, the traces and the infrastructure at once) while stating in the same breath that unattended apply is opt-in and off by default.
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Logo from '../../components/Logo.astro';
+import { CtaCommand } from '../../components/CtaCommand';
+import DiagramIsland from '../../surfaces/InitWizardRun/DiagramIsland';
+import { ACME_DIAGRAM_CONFIG } from '../../surfaces/InitWizardRun/acme-config';
+import { getSnippet } from '../../lib/snippets/snippets';
+
+/**
+ * The config in the stage is the canonical one the whole site tells its story with, rendered at
+ * build time. The diagram beside it draws the same project's full configuration, so the code panel
+ * ends with the resources the excerpt leaves out rather than pretending the two are the same length.
+ */
+const config = await getSnippet('nextjs-postgres');
+
+const OMITTED_RESOURCES = 'apiService, worker, cache, firewall';
+
+/** What Stacktape keeps doing after the deploy. Short enough to read as one line of chips. */
+const DAY_ONE = ['pipelines', 'metrics', 'traces', 'logs', 'alarms', 'cost', 'rollbacks'];
+
+/**
+ * The floor. These four are the answers a CTO evaluating the platform is looking for, in the order
+ * they usually ask them: whose account, what happens if we leave, how deep does the networking go,
+ * and who is allowed to press what.
+ */
+const SPECS = [
+  { title: 'Your own AWS account', body: 'Resources live in your account, on your bill, under your organisation’s controls.' },
+  { title: 'No lock-in by construction', body: 'Output is plain CloudFormation. CDK constructs and raw CloudFormation are first-class escape hatches.' },
+  { title: 'Real network topology', body: 'VPCs, private-only services, bastions, load balancers, GPU and Spot capacity.' },
+  { title: 'Governance that holds', body: 'RBAC, SSO, deployment guardrails, budgets and an audit trail across every stage.' }
+];
+---
+
+<BaseLayout
+  title="Stacktape — all of AWS DevOps, automated"
+  description="Stacktape writes your infrastructure config, compiles it to plain CloudFormation, deploys it into your own AWS account, and then operates it: pipelines, observability, cost and incidents with the fix already written."
+  font="geist"
+  noindex
+>
+  <div class="page">
+    <div class="aura" aria-hidden="true"></div>
+    <div class="mesh" aria-hidden="true"></div>
+
+    <header class="nav">
+      <a class="brand" href="/" aria-label="Stacktape home">
+        <Logo height={24} />
+      </a>
+
+      <nav class="nav-links" aria-label="Primary">
+        <a href="https://docs.stacktape.com">Docs</a>
+        <a href="https://github.com/stacktape/stacktape">GitHub</a>
+        <a class="nav-demo" href="https://cal.com/stacktape/30min">Book a demo</a>
+      </nav>
+
+      <a class="nav-cta" href="https://console.stacktape.com/sign-up">
+        Sign up
+        <svg viewBox="0 0 12 12" width="11" height="11" fill="none" aria-hidden="true">
+          <path d="M2.5 6h7M6.5 3l3 3-3 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>
+      </a>
+    </header>
+
+    <main class="hero">
+      <section class="lede">
+        <p class="eyebrow">
+          <span>AI config generation</span>
+          <i aria-hidden="true"></i>
+          <span>built-in observability</span>
+          <i aria-hidden="true"></i>
+          <span>agent-assisted incidents</span>
+        </p>
+
+        <h1 class="headline">
+          All of AWS DevOps, <em>automated</em>.
+          <span class="headline-second">Including the hard parts.</span>
+        </h1>
+
+        <p class="deck">
+          Point Stacktape at a repository. It writes the infrastructure config, compiles it to plain
+          CloudFormation, deploys it into your own AWS account — and then keeps it running: pipelines,
+          metrics, traces, logs, alarms, cost and one-command rollbacks.
+        </p>
+
+        <div class="claim">
+          <span class="claim-glyph" aria-hidden="true">
+            <svg viewBox="0 0 16 16" width="15" height="15" fill="none">
+              <path
+                d="M8 1.6c.35 2.6 1.4 3.65 4 4-2.6.35-3.65 1.4-4 4-.35-2.6-1.4-3.65-4-4 2.6-.35 3.65-1.4 4-4Z"
+                fill="currentColor"
+                opacity="0.92"></path>
+              <path
+                d="M12.6 9.9c.2 1.35.75 1.9 2.1 2.1-1.35.2-1.9.75-2.1 2.1-.2-1.35-.75-1.9-2.1-2.1 1.35-.2 1.9-.75 2.1-2.1Z"
+                fill="currentColor"
+                opacity="0.6"></path>
+            </svg>
+          </span>
+          <div>
+            <strong>When something breaks, the fix is already being written.</strong>
+            <p>
+              Stacktape manages the infrastructure and the telemetry, so the agent working an incident
+              gets the whole picture at once — the release that shipped, the config diff, the traces,
+              the logs — and comes back with a root cause and a patch. You approve it.
+              <span class="claim-opt">Applying it unattended is opt-in, and off by default.</span>
+            </p>
+          </div>
+        </div>
+
+        <div class="cta">
+          <div class="cmd-slot">
+            <CtaCommand client:visible defaultMethod="npx" />
+          </div>
+          <p class="cmd-note">
+            Opens a local wizard that reads your repo, proposes the infrastructure and deploys it with
+            your own AWS credentials. The CLI is open source.
+          </p>
+        </div>
+
+        <div class="paths">
+          <a class="path" href="https://console.stacktape.com/sign-up">
+            <span>Rather start in the browser?</span>
+            <strong>
+              Deploy from the Console
+              <svg class="arrow" viewBox="0 0 12 12" width="11" height="11" fill="none" aria-hidden="true">
+                <path d="M2.5 6h7M6.5 3l3 3-3 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path>
+              </svg>
+            </strong>
+          </a>
+          <a class="path" href="https://cal.com/stacktape/30min">
+            <span>Want it walked through first?</span>
+            <strong>
+              Book a 30-minute demo
+              <svg class="arrow" viewBox="0 0 12 12" width="11" height="11" fill="none" aria-hidden="true">
+                <path d="M2.5 6h7M6.5 3l3 3-3 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path>
+              </svg>
+            </strong>
+          </a>
+        </div>
+      </section>
+
+      <section class="stage" aria-label="What Stacktape generates and deploys">
+        <div class="stage-bar">
+          <span class="stage-project">
+            <span class="stage-dot" aria-hidden="true"></span>
+            example project — acme-project
+          </span>
+          <span class="stage-phase">Day 0 · written, compiled, deployed</span>
+        </div>
+
+        <div class="stage-body">
+          <div class="file">
+            <div class="file-bar">
+              <svg viewBox="0 0 12 14" width="11" height="12" fill="none" aria-hidden="true">
+                <path d="M2.75 1.25h4L10 4.5v8.25H2.75z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" opacity="0.7"></path>
+                <path d="M6.75 1.5V4.5H9.75" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" opacity="0.7"></path>
+              </svg>
+              stacktape.yml
+              <span class="file-tag">written by the wizard</span>
+            </div>
+
+            <div class="file-body">
+              <div class="gutter" aria-hidden="true">
+                {Array.from({ length: config.yaml.lineCount }, (_, index) => <span>{index + 1}</span>)}
+              </div>
+              <div class="code stp-code" set:html={config.yaml.html} />
+            </div>
+
+            <p class="file-more">… + {OMITTED_RESOURCES}</p>
+          </div>
+
+          <div class="spine" aria-hidden="true">
+            <span class="spine-line"></span>
+            <span class="spine-dot"></span>
+            <span class="spine-badge">
+              <svg viewBox="0 0 12 12" width="11" height="11" fill="none">
+                <path d="M2.5 6h7M6.5 3l3 3-3 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path>
+              </svg>
+            </span>
+          </div>
+
+          <div class="canvas-col">
+            <div class="canvas-head">
+              <span>Compiled to CloudFormation — what it actually creates</span>
+              <span class="canvas-region">eu-west-1</span>
+            </div>
+            <div class="canvas">
+              <DiagramIsland
+                client:only="react"
+                config={ACME_DIAGRAM_CONFIG}
+                ariaLabel="Isometric diagram of the infrastructure this configuration creates"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div class="stage-foot">
+          <div class="foot-left">
+            <span class="foot-label">Day 1 — and then it runs it</span>
+            <span class="chips">
+              {DAY_ONE.map((item) => <span class="chip">{item}</span>)}
+            </span>
+          </div>
+          <span class="live">
+            <span class="pulse" aria-hidden="true"></span>
+            production · live · watched
+          </span>
+        </div>
+      </section>
+
+      <section class="floor" aria-label="Platform guarantees">
+        {
+          SPECS.map((spec) => (
+            <div class="spec">
+              <h2>
+                <svg viewBox="0 0 14 14" width="13" height="13" fill="none" aria-hidden="true">
+                  <path d="M2.75 7.4 5.6 10.2l5.65-6.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+                </svg>
+                {spec.title}
+              </h2>
+              <p>{spec.body}</p>
+            </div>
+          ))
+        }
+      </section>
+    </main>
+  </div>
+</BaseLayout>
+
+<style>
+  /* ── Page shell and atmosphere ──────────────────────────────────────────────────────────────── */
+
+  /*
+   * `overflow-x: clip` rather than `hidden`: the config panel's schema popups are allowed to escape
+   * their panel (that is the whole affordance), and clip stops one near the viewport edge from
+   * inventing a horizontal scrollbar without turning the vertical axis into a scroll container.
+   */
+  .page {
+    position: relative;
+    overflow-x: clip;
+    isolation: isolate;
+  }
+
+  /* Two lights: the brand one directly behind the headline, a cold one off to the right so the
+   * stage below sits in a slightly different temperature than the copy above it. */
+  .aura {
+    position: absolute;
+    inset: 0 0 auto;
+    z-index: -2;
+    height: 1180px;
+    background:
+      radial-gradient(1180px 640px at 50% -8%, color-mix(in srgb, var(--color-brand) 17%, transparent), transparent 68%),
+      radial-gradient(900px 520px at 84% 6%, color-mix(in srgb, var(--color-secondary) 34%, transparent), transparent 70%),
+      radial-gradient(760px 420px at 8% 22%, color-mix(in srgb, var(--color-brand) 8%, transparent), transparent 72%);
+  }
+
+  /* A 68px lattice, faded out well before the fold so it reads as depth rather than as pattern. */
+  .mesh {
+    position: absolute;
+    inset: 0 0 auto;
+    z-index: -1;
+    height: 1180px;
+    background-image:
+      linear-gradient(to right, rgba(255, 255, 255, 0.032) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.032) 1px, transparent 1px);
+    background-size: 68px 68px;
+    mask-image: radial-gradient(1200px 700px at 50% 0%, #000 5%, transparent 78%);
+  }
+
+  /* ── Nav ────────────────────────────────────────────────────────────────────────────────────── */
+
+  .nav {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 22px 32px 8px;
+  }
+
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    margin-right: auto;
+  }
+
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 26px;
+    font-size: 0.875rem;
+    color: var(--color-fc-lighter);
+  }
+
+  .nav-links a {
+    transition: color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+  }
+
+  .nav-links a:hover {
+    color: var(--color-fc-primary);
+  }
+
+  .nav-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 15px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+    color: var(--color-fc-primary);
+    font-size: 0.83rem;
+    font-weight: 550;
+    white-space: nowrap;
+    transition:
+      background var(--stp-motion-duration-fast) var(--stp-motion-easing),
+      box-shadow var(--stp-motion-duration-fast) var(--stp-motion-easing);
+  }
+
+  .nav-cta:hover {
+    background: color-mix(in srgb, var(--color-brand) 14%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-brand) 45%, transparent);
+  }
+
+  /* ── Hero copy column ───────────────────────────────────────────────────────────────────────── */
+
+  .hero {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 46px 32px 96px;
+  }
+
+  .lede {
+    max-width: 62rem;
+    margin: 0 auto;
+    text-align: center;
+  }
+
+  .eyebrow {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 0;
+    color: var(--color-fc-light);
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    text-transform: lowercase;
+  }
+
+  .eyebrow i {
+    width: 3px;
+    height: 3px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--color-brand) 70%, transparent);
+  }
+
+  /*
+   * Two tones, one sentence each. The bright line names the automation; the dim line is the promise
+   * to the reader who has been told "automated" before and stopped believing it.
+   */
+  .headline {
+    margin: 20px 0 0;
+    font-size: clamp(2.3rem, 5vw, 3.95rem);
+    font-weight: 600;
+    line-height: 1.05;
+    letter-spacing: -0.032em;
+    color: var(--color-fc-primary);
+    text-wrap: balance;
+  }
+
+  .headline em {
+    font-style: normal;
+    color: var(--color-brand);
+  }
+
+  .headline-second {
+    display: block;
+    color: rgba(255, 255, 255, 0.38);
+  }
+
+  .deck {
+    max-width: 46rem;
+    margin: 22px auto 0;
+    font-size: clamp(1rem, 0.95rem + 0.2vw, 1.1rem);
+    line-height: 1.62;
+    color: var(--color-fc-lighter);
+    text-wrap: pretty;
+  }
+
+  /* ── The agent claim ────────────────────────────────────────────────────────────────────────── */
+
+  .claim {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 14px;
+    max-width: 47rem;
+    margin: 28px auto 0;
+    padding: 15px 18px 16px;
+    border-radius: 14px;
+    text-align: left;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--color-brand) 9%, transparent), rgba(255, 255, 255, 0.015));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-brand) 24%, transparent);
+  }
+
+  .claim-glyph {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--color-brand) 16%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-brand) 34%, transparent);
+    color: var(--color-brand);
+  }
+
+  .claim strong {
+    display: block;
+    color: var(--color-fc-primary);
+    font-size: 1.01rem;
+    font-weight: 600;
+    letter-spacing: -0.011em;
+  }
+
+  .claim p {
+    margin: 6px 0 0;
+    color: var(--color-fc-light);
+    font-size: 0.86rem;
+    line-height: 1.58;
+  }
+
+  .claim-opt {
+    color: var(--color-fc-ternary);
+  }
+
+  /* ── CTAs ───────────────────────────────────────────────────────────────────────────────────── */
+
+  .cta {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 32px;
+  }
+
+  /* The component lays itself out left-aligned for a left-aligned hero; this one is centred. */
+  .cmd-slot :global(.cta-command) {
+    align-items: center;
+  }
+
+  .cmd-note {
+    max-width: 34rem;
+    margin: 12px 0 0;
+    color: var(--color-fc-ternary);
+    font-size: 0.79rem;
+    line-height: 1.55;
+  }
+
+  /*
+   * The two secondary actions, each labelled by the reader it is for rather than by its verb. Which
+   * one someone takes depends on how they prefer to be sold to, so the question is the useful part.
+   */
+  .paths {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 22px;
+  }
+
+  .path {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 15.5rem;
+    padding: 11px 16px 12px;
+    border-radius: 12px;
+    text-align: left;
+    background: rgba(255, 255, 255, 0.02);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    transition:
+      background var(--stp-motion-duration-fast) var(--stp-motion-easing),
+      box-shadow var(--stp-motion-duration-fast) var(--stp-motion-easing);
+  }
+
+  .path span {
+    color: var(--color-fc-ternary);
+    font-size: 0.74rem;
+  }
+
+  .path strong {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--color-fc-primary);
+    font-size: 0.91rem;
+    font-weight: 550;
+  }
+
+  .path:hover {
+    background: rgba(255, 255, 255, 0.05);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.17);
+  }
+
+  .path .arrow {
+    color: var(--color-brand);
+    transition: transform var(--stp-motion-duration-fast) var(--stp-motion-easing);
+  }
+
+  .path:hover .arrow {
+    transform: translateX(3px);
+  }
+
+  /* ── The stage: config → CloudFormation → running infrastructure ────────────────────────────── */
+
+  /* No `overflow: hidden` on the panel — the schema popups have to leave it — so the bars round
+   * their own outer corners instead. */
+  .stage {
+    max-width: 1180px;
+    margin: 58px auto 0;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.02);
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.07),
+      0 44px 100px -46px rgba(0, 0, 0, 0.95);
+  }
+
+  .stage-bar,
+  .stage-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 0 16px;
+    background: rgba(0, 0, 0, 0.24);
+    font-size: 0.75rem;
+    color: var(--color-fc-light);
+  }
+
+  .stage-bar {
+    height: 42px;
+    border-radius: 18px 18px 0 0;
+    box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+  }
+
+  .stage-project {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    font-family: var(--font-mono);
+    letter-spacing: 0.01em;
+  }
+
+  .stage-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--color-brand) 75%, transparent);
+  }
+
+  .stage-phase {
+    color: var(--color-fc-ternary);
+  }
+
+  .stage-body {
+    display: grid;
+    grid-template-columns: minmax(0, 400px) 68px minmax(0, 1fr);
+    align-items: stretch;
+    padding: 18px;
+  }
+
+  /* The config panel. A darker plane than the stage so the code reads as a file inside a surface. */
+  .file {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.3);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  }
+
+  .file-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 12px;
+    box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+    color: var(--color-fc-light);
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+  }
+
+  .file-tag {
+    margin-left: auto;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--color-brand) 13%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-brand) 28%, transparent);
+    color: var(--color-brand);
+    font-family: var(--font-sans);
+    font-size: 0.67rem;
+    font-weight: 550;
+    letter-spacing: 0.01em;
+  }
+
+  .file-body {
+    display: flex;
+    flex: 1;
+    padding: 12px 0 6px;
+  }
+
+  .gutter {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    padding: 0 11px 0 14px;
+    color: var(--color-fc-ternary);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    line-height: 1.7;
+    text-align: right;
+    user-select: none;
+    opacity: 0.45;
+  }
+
+  .code {
+    min-width: 0;
+    flex: 1;
+    padding-right: 14px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+  }
+
+  /* The excerpt is shorter than the project the diagram draws; say so rather than let a reader
+   * count boxes and find four extra. */
+  .file-more {
+    margin: 0;
+    padding: 8px 14px 11px;
+    color: var(--color-fc-ternary);
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+  }
+
+  /* The compile spine: a lit thread from the file to the picture, with one travelling packet. */
+  .spine {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .spine-line {
+    position: absolute;
+    top: 12%;
+    bottom: 12%;
+    width: 1px;
+    background: linear-gradient(
+      180deg,
+      transparent,
+      color-mix(in srgb, var(--color-brand) 55%, transparent) 30%,
+      color-mix(in srgb, var(--color-brand) 55%, transparent) 70%,
+      transparent
+    );
+  }
+
+  .spine-dot {
+    position: absolute;
+    left: 50%;
+    width: 5px;
+    height: 5px;
+    margin-left: -2.5px;
+    border-radius: 999px;
+    background: var(--color-brand);
+    box-shadow: 0 0 12px 2px color-mix(in srgb, var(--color-brand) 65%, transparent);
+    animation: spine-travel-y 3.6s var(--stp-motion-easing) infinite;
+  }
+
+  .spine-badge {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    background: var(--color-page);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-brand) 40%, transparent);
+    color: var(--color-brand);
+  }
+
+  @keyframes spine-travel-y {
+    0% {
+      top: 12%;
+      opacity: 0;
+    }
+    18% {
+      opacity: 1;
+    }
+    82% {
+      opacity: 1;
+    }
+    100% {
+      top: 86%;
+      opacity: 0;
+    }
+  }
+
+  @keyframes spine-travel-x {
+    0% {
+      left: 10%;
+      opacity: 0;
+    }
+    18% {
+      opacity: 1;
+    }
+    82% {
+      opacity: 1;
+    }
+    100% {
+      left: 88%;
+      opacity: 0;
+    }
+  }
+
+  .canvas-col {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+  }
+
+  .canvas-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 2px 4px 9px;
+    color: var(--color-fc-ternary);
+    font-size: 0.73rem;
+  }
+
+  .canvas-region {
+    font-family: var(--font-mono);
+  }
+
+  /* Fixed height, because the diagram is a client-only island: nothing on the page may move when it
+   * arrives. The dot field keeps the space deliberate-looking while it loads. */
+  .canvas {
+    position: relative;
+    flex: 1;
+    height: clamp(17rem, 26vw, 22.5rem);
+    overflow: hidden;
+    border-radius: 12px;
+    background:
+      radial-gradient(circle at center, rgba(255, 255, 255, 0.035) 1px, transparent 1px) 0 0 / 22px 22px,
+      rgba(0, 0, 0, 0.18);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  }
+
+  .stage-foot {
+    padding: 12px 16px;
+    border-radius: 0 0 18px 18px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+
+  .foot-left {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .foot-label {
+    color: var(--color-fc-primary);
+    font-size: 0.79rem;
+    font-weight: 600;
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .chip {
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+    color: var(--color-fc-light);
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+  }
+
+  .live {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    color: var(--color-fc-lighter);
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+  }
+
+  .pulse {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--color-brand);
+    animation: pulse 2.4s var(--stp-motion-easing) infinite;
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-brand) 55%, transparent);
+    }
+    60% {
+      box-shadow: 0 0 0 6px transparent;
+    }
+  }
+
+  /* ── The floor: the four questions an engineering lead asks before adopting a platform ──────── */
+
+  .floor {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 26px 30px;
+    max-width: 1180px;
+    margin: 34px auto 0;
+    padding-top: 26px;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+  }
+
+  .spec h2 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    color: var(--color-fc-primary);
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+  }
+
+  .spec h2 svg {
+    flex: none;
+    color: var(--color-brand);
+  }
+
+  .spec p {
+    margin: 6px 0 0 21px;
+    color: var(--color-fc-ternary);
+    font-size: 0.79rem;
+    line-height: 1.55;
+  }
+
+  /* ── Responsive ─────────────────────────────────────────────────────────────────────────────── */
+
+  @media (max-width: 1120px) {
+    /* The spine turns from a column between two panels into a rail between two stacked ones. */
+    .stage-body {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .spine {
+      height: 58px;
+      width: 100%;
+    }
+
+    .spine-line {
+      top: 50%;
+      right: 8%;
+      bottom: auto;
+      left: 8%;
+      width: auto;
+      height: 1px;
+      background: linear-gradient(
+        90deg,
+        transparent,
+        color-mix(in srgb, var(--color-brand) 55%, transparent) 30%,
+        color-mix(in srgb, var(--color-brand) 55%, transparent) 70%,
+        transparent
+      );
+    }
+
+    .spine-dot {
+      top: 50%;
+      margin-top: -2.5px;
+      animation-name: spine-travel-x;
+    }
+
+    .spine-badge {
+      transform: rotate(90deg);
+    }
+
+    .canvas {
+      height: clamp(16rem, 42vw, 21rem);
+    }
+  }
+
+  @media (max-width: 920px) {
+    .hero {
+      padding: 36px 22px 76px;
+    }
+
+    .nav {
+      padding: 20px 22px 8px;
+      gap: 18px;
+    }
+
+    .nav-demo {
+      display: none;
+    }
+
+    .floor {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .stage-body {
+      padding: 14px;
+    }
+  }
+
+  @media (max-width: 680px) {
+    .nav-links {
+      gap: 18px;
+    }
+
+    .claim {
+      padding: 14px;
+    }
+
+    .path {
+      min-width: 0;
+      width: 100%;
+    }
+
+    .floor {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 20px;
+    }
+
+    .stage-foot {
+      gap: 10px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .spine-dot {
+      animation: none;
+      top: 50%;
+      opacity: 1;
+    }
+
+    .pulse {
+      animation: none;
+    }
+
+    .path,
+    .path .arrow,
+    .nav-cta {
+      transition: none;
+    }
+  }
+</style>

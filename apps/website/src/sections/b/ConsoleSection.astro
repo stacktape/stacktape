@@ -1,0 +1,35 @@
+---
+/**
+ * Act II, section 03: the Console overview — and the act's opening image.
+ *
+ * It gets the widest shell on the page because the Console recreation is a three-column product
+ * screen that keeps its density down to about 1000 px and scrolls sideways inside its own window
+ * below that. Reflowing it to one column would turn a picture of the product into a picture of
+ * nothing.
+ */
+import { StageOverview } from '../../surfaces/StageOverview/StageOverview';
+import SectionHead from './SectionHead.astro';
+---
+
+<section class="b-band" id="s03" data-act="1">
+  <div class="b-shell b-shell--wide">
+    <SectionHead act="1" index="03" kicker="Console · overview">
+      <Fragment slot="title">This is your project now.</Fragment>
+      <Fragment slot="lede">
+        Two stages, six resources, the URLs they serve and the repository behind them. Not eleven AWS consoles and a
+        runbook explaining which of them to open — one page that already knows what you deployed, who deployed it and
+        what it is doing right now.
+      </Fragment>
+    </SectionHead>
+
+    <figure class="b-figure b-reveal">
+      <div class="b-figure__stage b-figure__stage--bare">
+        <StageOverview />
+      </div>
+      <figcaption class="b-figure__caption">
+        <b>acme-project, staging.</b> Production is mid-deploy in the background, which is the normal state of a project
+        with more than one stage.
+      </figcaption>
+    </figure>
+  </div>
+</section>

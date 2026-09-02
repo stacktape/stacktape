@@ -1,0 +1,19 @@
+---
+/**
+ * The depth-proof strip: four facts, identical on all three pages.
+ *
+ * It is the counterweight to the hero. Everything above it is a claim about how little work there
+ * is; these four lines are what a senior reader checks before they believe any of it — the output
+ * is ordinary CloudFormation, the account is theirs, the hard architectures are supported, and a
+ * platform team can still hold the rules.
+ *
+ * Set as engraved lines between hairlines rather than as feature cards, because they are not
+ * features and a row of boxes would read as marketing rather than as facts.
+ */
+import { PROOF_ITEMS } from './copy';
+import ProofItem from './ProofItem.astro';
+---
+
+<section class="hl-proof" aria-label="What the product actually is">
+  <div class="hl-shell hl-proof__row">{PROOF_ITEMS.map((item) => <ProofItem item={item} />)}</div>
+</section>
