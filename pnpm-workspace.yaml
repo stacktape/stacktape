@@ -8,6 +8,7 @@ packages:
   # would demand a package.json of every one of them. Both paths are simply absent in a public-only
   # checkout, which pnpm and sherif already tolerate.
   - apps/console/api
+  - apps/console/bitbucket-forge
   - apps/console/ui
   - packages/*
 

@@ -159,6 +159,31 @@ const generatePKCE = () => {
 
 const OAUTH_CALLBACK_PORT = 19835;
 
+export const createGoogleAuthorizationUrl = ({
+  redirectUri,
+  challenge,
+  state
+}: {
+  redirectUri: string;
+  challenge: string;
+  state: string;
+}) => {
+  const authUrl = new URL(`https://${COGNITO_CONFIG.domain}/oauth2/authorize`);
+  authUrl.searchParams.set('client_id', COGNITO_CONFIG.clientId);
+  authUrl.searchParams.set('response_type', 'code');
+  authUrl.searchParams.set('scope', 'openid email profile');
+  authUrl.searchParams.set('redirect_uri', redirectUri);
+  authUrl.searchParams.set('identity_provider', 'Google');
+  authUrl.searchParams.set('code_challenge', challenge);
+  authUrl.searchParams.set('code_challenge_method', 'S256');
+  authUrl.searchParams.set('state', state);
+  // A cached Cognito managed-login session can otherwise mint a new token without returning to
+  // Google. Besides making `login` genuinely re-authenticate, the fresh federation round trip
+  // ensures newly-added or changed Google attribute mappings are applied to the user profile.
+  authUrl.searchParams.set('prompt', 'login');
+  return authUrl;
+};
+
 const findAvailablePort = (): Promise<number> => {
   return new Promise((resolve, reject) => {
     const server = http.createServer();
@@ -275,15 +300,7 @@ export const authenticateWithGoogle = async (): Promise<OAuthResult> => {
       );
     });
 
-    const authUrl = new URL(`https://${COGNITO_CONFIG.domain}/oauth2/authorize`);
-    authUrl.searchParams.set('client_id', COGNITO_CONFIG.clientId);
-    authUrl.searchParams.set('response_type', 'code');
-    authUrl.searchParams.set('scope', 'openid email profile');
-    authUrl.searchParams.set('redirect_uri', redirectUri);
-    authUrl.searchParams.set('identity_provider', 'Google');
-    authUrl.searchParams.set('code_challenge', challenge);
-    authUrl.searchParams.set('code_challenge_method', 'S256');
-    authUrl.searchParams.set('state', state);
+    const authUrl = createGoogleAuthorizationUrl({ redirectUri, challenge, state });
 
     try {
       await openBrowser(authUrl.toString());

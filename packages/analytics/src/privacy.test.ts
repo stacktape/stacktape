@@ -14,6 +14,22 @@ describe('telemetry redaction', () => {
     );
   });
 
+  test('redacts OAuth and provider-pairing values embedded in analytics URLs', () => {
+    expect(
+      redactTelemetryText(
+        'https://console.stacktape.com/after-gitlab-app-install?code=oauth-code&state=oauth-state&safe=value'
+      )
+    ).toBe('https://console.stacktape.com/after-gitlab-app-install?code=[REDACTED]&state=[REDACTED]&safe=value');
+    expect(
+      redactTelemetryText(
+        'https://console.stacktape.com/git-integrations?bitbucketPairingState=pairing-secret&org=org-1'
+      )
+    ).toBe('https://console.stacktape.com/git-integrations?bitbucketPairingState=[REDACTED]&org=org-1');
+    expect(
+      redactTelemetryText('https://console.stacktape.com/sign-in?redirectTo=git-integrations%3FpairBitbucket%3D1')
+    ).toBe('https://console.stacktape.com/sign-in?redirectTo=[REDACTED]');
+  });
+
   test('redacts nested exception payloads and handles cycles', () => {
     const payload: Record<string, unknown> = { message: 'token=secret-value' };
     payload.self = payload;

@@ -85,18 +85,36 @@ export const getAwsConnectionStatusInputSchema = z.object({
   connectionId: z.string()
 });
 
-export const getGitProviderConnectionStatusInputSchema = z.object({
-  organizationId: z.string(),
-  provider: z.enum(['GITHUB', 'GITLAB', 'BITBUCKET'])
-});
+export const getGitProviderConnectionStatusInputSchema = z
+  .object({
+    organizationId: z.string(),
+    provider: z.enum(['GITHUB', 'GITLAB', 'BITBUCKET']),
+    owner: z
+      .string()
+      .trim()
+      .min(1)
+      .max(512)
+      .regex(/^[a-zA-Z0-9_.-]+(?:\/[a-zA-Z0-9_.-]+)*$/u),
+    repository: z
+      .string()
+      .trim()
+      .min(1)
+      .max(255)
+      .regex(/^[a-zA-Z0-9_.-]+$/u)
+  })
+  .superRefine((input, context) => {
+    if (input.provider !== 'GITLAB' && input.owner.includes('/')) {
+      context.addIssue({ code: 'custom', path: ['owner'], message: 'Only GitLab repository owners can be nested.' });
+    }
+  });
 
 export const createGitDeploymentConfigFromCliInputSchema = z.object({
   organizationId: z.string(),
   projectId: z.string(),
+  gitProviderInstallationId: z.string().min(1),
+  gitProviderRepositoryId: z.string().min(1),
   awsAccountConnectionId: z.string(),
   branch: z.string(),
-  owner: z.string(),
-  repository: z.string(),
   targetRegion: z.string(),
   stage: z.string(),
   configSource: z.enum(['GIT_REPOSITORY', 'STACKTAPE_DATABASE']),
@@ -509,6 +527,7 @@ export type GetAwsConnectionStatusResponse = {
 export type GetGitProviderConnectionStatusResponse = {
   isConnected: boolean;
   installationId?: string;
+  providerRepositoryId?: string;
 };
 
 export type CreateGitDeploymentConfigFromCliResponse = {

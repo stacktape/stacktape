@@ -51,6 +51,7 @@ import { runAuthFlow } from '../../commands/_utils/auth';
 import type { StacktapeConfig } from '@stacktape/config';
 import type { CurrentUserAndOrgDataResponse } from '@stacktape/console-api/api-key';
 import { selectAwsCredentialProfile } from './credential-source';
+import { getPersistedApiKey, withPersistedApiKey } from './api-key-storage';
 
 const CREDENTIAL_REFRESH_LEAD_TIME_MS = 5 * 60 * 1000;
 const CREDENTIAL_REFRESH_RETRY_DELAY_MS = 30 * 1000;
@@ -181,7 +182,7 @@ export class GlobalStateManager {
     if (!persistedSystemId) {
       await this.saveSystemId();
     }
-    this.apiKey = process.env.STACKTAPE_API_KEY || this.persistedState?.otherDefaults?.apiKey;
+    this.apiKey = process.env.STACKTAPE_API_KEY || getPersistedApiKey({ persistedState: this.persistedState });
     if (!this.apiKey && !commandsNotRequiringApiKey.includes(this.command)) {
       if (process.stdout.isTTY) {
         // Run interactive auth flow (sign up, login, or Google OAuth)
@@ -310,10 +311,8 @@ export class GlobalStateManager {
   };
 
   saveApiKey = async ({ apiKey }: { apiKey: string }) => {
-    return savePersistedState({
-      ...this.persistedState,
-      otherDefaults: { ...this.persistedState.otherDefaults, apiKey }
-    });
+    this.persistedState = withPersistedApiKey({ persistedState: this.persistedState, apiKey });
+    return savePersistedState(this.persistedState);
   };
 
   loadUserCredentials = async () => {

@@ -40,10 +40,7 @@ import {
 import { initDevAgentCredentials } from './dev-agent-credentials';
 import { registerDevServerCleanupHook } from './dev-server';
 import { deployDevStack } from './dev-stack-deployer';
-import {
-  emailSenderBindingsNeedDevStackUpdate,
-  getEmailSenderBindingsFingerprint
-} from '@domain-services/email-sender-manager/bindings-fingerprint';
+import { devStackConfigNeedsUpdate, getDevStackConfigFingerprint } from './dev-stack-config-fingerprint';
 import {
   getLocalEmulateableResources,
   getRemoteResourceNames,
@@ -553,26 +550,20 @@ export const commandDev = async () => {
     }
   }
 
-  const desiredEmailSenderBindingsFingerprint = getEmailSenderBindingsFingerprint({
-    resources: configManager.allResourcesIncludingNested,
-    senders: configManager.emailSenders
-  });
-  const emailSenderBindingsChanged = emailSenderBindingsNeedDevStackUpdate({
-    deployedFingerprint: deployedStackOverviewManager.getStackMetadata(
-      stackMetadataNames.emailSenderBindingsFingerprint()
-    ),
-    desiredFingerprint: desiredEmailSenderBindingsFingerprint,
-    hasEmailSenders: configManager.emailSenders.length > 0
+  const desiredDevStackConfigFingerprint = getDevStackConfigFingerprint(configManager.config);
+  const devStackConfigChanged = devStackConfigNeedsUpdate({
+    deployedFingerprint: deployedStackOverviewManager.getStackMetadata(stackMetadataNames.devStackConfigFingerprint()),
+    desiredFingerprint: desiredDevStackConfigFingerprint
   });
 
-  // New dev stacks always deploy. Existing dev stacks redeploy only when their email-sender bindings changed; old
-  // no-email dev stacks deliberately stay fast even though they predate this metadata key.
-  if (!stackManager.existingStackDetails || emailSenderBindingsChanged) {
+  // A resolved-config fingerprint keeps warm starts fast while still refreshing IAM roles and other support
+  // infrastructure after configuration changes. Stacks created before this metadata existed refresh once.
+  if (!stackManager.existingStackDetails || devStackConfigChanged) {
     if (agentEnabled) {
       // Agent mode: plain text output for dev stack deployment
       tuiManager.info('[~] Deploying dev stack (minimal stack for dev mode)...');
       try {
-        await deployDevStack();
+        await deployDevStack({ configFingerprint: desiredDevStackConfigFingerprint });
         tuiManager.success('[+] Dev stack deployed successfully');
       } catch (err) {
         tuiManager.error('[x] Dev stack deployment failed');
@@ -590,7 +581,7 @@ export const commandDev = async () => {
       });
       tuiManager.start();
       try {
-        await deployDevStack();
+        await deployDevStack({ configFingerprint: desiredDevStackConfigFingerprint });
       } finally {
         await tuiManager.stop();
         operationReporter.setSilentMode(true);

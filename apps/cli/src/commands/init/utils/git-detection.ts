@@ -64,32 +64,53 @@ export const detectGitInfo = (cwd: string = process.cwd()): GitInfo => {
  * Detects git provider from remote URL
  */
 export const detectProviderFromUrl = (url: string): GitProvider => {
-  const normalizedUrl = url.toLowerCase();
-
-  if (normalizedUrl.includes('github.com')) return 'github';
-  if (normalizedUrl.includes('gitlab.com')) return 'gitlab';
-  if (normalizedUrl.includes('bitbucket.org')) return 'bitbucket';
-
-  return null;
+  return parseGitRemote(url)?.provider || null;
 };
 
 /**
  * Parses owner and repository from git URL
  */
 export const parseGitUrl = (url: string): { owner: string | null; repository: string | null } => {
-  // Handle HTTPS URLs: https://github.com/owner/repo.git
-  const httpsMatch = url.match(/https?:\/\/[^/]+\/([^/]+)\/([^/]+?)(?:\.git)?$/);
-  if (httpsMatch) {
-    return { owner: httpsMatch[1], repository: httpsMatch[2] };
-  }
+  const parsed = parseGitRemote(url);
+  return parsed ? { owner: parsed.owner, repository: parsed.repository } : { owner: null, repository: null };
+};
 
-  // Handle SSH URLs: git@github.com:owner/repo.git
-  const sshMatch = url.match(/git@[^:]+:([^/]+)\/([^/]+?)(?:\.git)?$/);
-  if (sshMatch) {
-    return { owner: sshMatch[1], repository: sshMatch[2] };
-  }
+const PROVIDER_BY_HOST: Readonly<Record<string, Exclude<GitProvider, null>>> = {
+  'github.com': 'github',
+  'gitlab.com': 'gitlab',
+  'bitbucket.org': 'bitbucket'
+};
 
-  return { owner: null, repository: null };
+const parseGitRemote = (
+  remoteUrl: string
+): { provider: Exclude<GitProvider, null>; owner: string; repository: string } | null => {
+  const scpStyle = /^[^@\s]+@([^:\s]+):(.+)$/u.exec(remoteUrl);
+  let host: string;
+  let path: string;
+  if (scpStyle) {
+    host = scpStyle[1].toLowerCase();
+    path = scpStyle[2];
+  } else {
+    try {
+      const url = new URL(remoteUrl);
+      host = url.hostname.toLowerCase();
+      path = url.pathname.replace(/^\/+|\/+$/gu, '');
+    } catch {
+      return null;
+    }
+  }
+  const provider = PROVIDER_BY_HOST[host];
+  if (!provider) return null;
+  const segments = path.split('/').filter(Boolean);
+  const repositoryWithSuffix = segments.at(-1);
+  const ownerSegments =
+    provider === 'gitlab' ? segments.slice(0, -1) : segments.length === 2 ? segments.slice(0, 1) : [];
+  if (!repositoryWithSuffix || !ownerSegments.length) return null;
+  const repository = repositoryWithSuffix.endsWith('.git')
+    ? repositoryWithSuffix.slice(0, -'.git'.length)
+    : repositoryWithSuffix;
+  if (!repository) return null;
+  return { provider, owner: ownerSegments.join('/'), repository };
 };
 
 /**

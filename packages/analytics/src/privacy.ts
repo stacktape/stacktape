@@ -3,6 +3,7 @@ const SENSITIVE_ASSIGNMENT =
 const BEARER_TOKEN = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi;
 const AWS_ACCESS_KEY_ID = /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g;
 const URL_CREDENTIALS = /(https?:\/\/)[^/@\s:]+:[^/@\s]+@/gi;
+const URL_CONNECTION_CALLBACK_VALUE = /([?&](?:code|state|bitbucketPairingState|redirectTo)=)[^&#\s]*/gi;
 const PRIVATE_KEY = /-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?-----END [^-]*PRIVATE KEY-----/g;
 const EMAIL_ADDRESS = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
 const AWS_ACCOUNT_ID = /\b\d{12}\b/g;
@@ -13,6 +14,7 @@ export const redactTelemetryText = (value: string) =>
   value
     .replace(PRIVATE_KEY, '[REDACTED_PRIVATE_KEY]')
     .replace(URL_CREDENTIALS, '$1[REDACTED]@')
+    .replace(URL_CONNECTION_CALLBACK_VALUE, '$1[REDACTED]')
     .replace(SENSITIVE_ASSIGNMENT, '$1$2[REDACTED]')
     .replace(BEARER_TOKEN, 'Bearer [REDACTED]')
     .replace(AWS_ACCESS_KEY_ID, '[REDACTED_AWS_ACCESS_KEY_ID]');
