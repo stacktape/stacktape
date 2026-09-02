@@ -1,0 +1,67 @@
+---
+/**
+ * The `stacktape init` wizard run, composed.
+ *
+ * This surface is an `.astro` file rather than a `.tsx` for one reason: the isometric diagram in the
+ * Review band is the only genuinely heavy thing on the site, and a client directive is how Astro
+ * defers it. Everything around it is a server-rendered React band from `bands.tsx`, so the whole
+ * document is HTML by the time the browser sees it and the diagram's chunk is the only JavaScript
+ * this surface can ever cost.
+ *
+ * `client:only` rather than `client:visible`, and not by preference. The diagram's icon pack
+ * (`@isoflow/isopacks`) is CommonJS whose `module.exports` carries `__esModule`, so a default import
+ * of it only resolves to the icon table under a bundler that honours that flag. Browser builds do;
+ * Node's own ESM interop does not, which means any attempt to prerender the diagram fails on
+ * `.icons is not iterable`. Console and the init wizard render it client-side for the same reason,
+ * so this matches how the product itself loads it. The canvas around it has a fixed height, so
+ * nothing on the page moves when the island arrives.
+ *
+ * The diagram's configuration is resolved here, in frontmatter, and crosses into the island as a
+ * plain JSON prop — the same rule the hero follows.
+ */
+import { ACME_DIAGRAM_CONFIG } from './acme-config';
+import { AnalyzeBand, DeployBand, ReviewDetails, ReviewIntro, StartBand, WizardMasthead, WizardRail } from './bands';
+import DiagramIsland from './DiagramIsland';
+
+type Props = {
+  class?: string;
+};
+
+const { class: className } = Astro.props;
+---
+
+<section class:list={['wizard-run', className]}>
+  <WizardMasthead />
+
+  <div class="wizard-run__page">
+    <WizardRail />
+
+    <div class="wizard-run__flow">
+      <StartBand />
+      <AnalyzeBand />
+
+      <section class="wizard-band">
+        <ReviewIntro />
+
+        <div class="wizard-diagram">
+          <div class="wizard-diagram__views">
+            <span class="wizard-diagram__view is-active">Diagram</span>
+            <span class="wizard-diagram__view">What &amp; why</span>
+            <span class="wizard-diagram__view">stacktape.yml</span>
+          </div>
+          <div class="wizard-diagram__canvas">
+            <DiagramIsland
+              client:only="react"
+              ariaLabel="Diagram of the infrastructure this configuration creates"
+              config={ACME_DIAGRAM_CONFIG}
+            />
+          </div>
+        </div>
+
+        <ReviewDetails />
+      </section>
+
+      <DeployBand />
+    </div>
+  </div>
+</section>

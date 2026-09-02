@@ -1,0 +1,61 @@
+---
+/**
+ * The variant's navigation, plus the page's act indicator.
+ *
+ * The indicator is the one piece of chrome that carries variant B's structure: the page is two
+ * acts, and the reader should always be able to tell which one they are in without scrolling back
+ * to the divider. It is set from a marker element inside each act rather than from scroll offsets,
+ * so it stays correct when section heights change.
+ */
+import Logo from '../../components/Logo.astro';
+import { DOCS_URL, GITHUB_URL, SIGN_UP_URL } from './links';
+---
+
+<header class="b-nav">
+  <div class="b-shell b-shell--wide b-nav__inner">
+    <a class="b-nav__home" href="#top" aria-label="Stacktape, back to top">
+      <Logo height={24} />
+    </a>
+
+    <p class="b-nav__act" aria-hidden="true">
+      <span class="b-nav__act-0"><b>Day 0</b> — ship it</span>
+      <span class="b-nav__act-1"><b>Day 1</b> — run it</span>
+    </p>
+
+    <nav class="b-nav__links" aria-label="Primary">
+      <a class="b-nav__link" href={DOCS_URL}>Docs</a>
+      <a class="b-nav__link" href={GITHUB_URL}>GitHub</a>
+      <a class="b-btn b-btn--solid" href={SIGN_UP_URL}>Sign up</a>
+    </nav>
+  </div>
+</header>
+
+<script>
+/*
+ * Which act is on screen.
+ *
+ * Every act marks itself with `data-act`, and the band closest to the middle of the viewport wins —
+ * that is what the symmetrical `rootMargin` does, by shrinking the observer's viewport to a thin
+ * strip across the centre of the screen. Sections outside both acts carry `data-act="none"`, which
+ * the stylesheet renders as no indicator at all.
+ *
+ * No scroll listener, and nothing runs while the page is still.
+ */
+const nav = document.querySelector<HTMLElement>('.b-nav');
+const marked = document.querySelectorAll<HTMLElement>('[data-act]');
+
+if (nav !== null && marked.length > 0) {
+  const observer = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        const target = entry.target;
+        if (!entry.isIntersecting || !(target instanceof HTMLElement)) continue;
+        nav.dataset.act = target.dataset.act ?? 'none';
+      }
+    },
+    { rootMargin: '-45% 0px -45% 0px' }
+  );
+
+  for (const element of marked) observer.observe(element);
+}
+</script>

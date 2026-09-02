@@ -1,0 +1,350 @@
+/*
+ * Error tracking.
+ *
+ * One rule governs the whole surface: exactly one thing is brand-coloured and filled, and it is the
+ * autofix button. Statuses are tinted text, the counters are plain numerals, the selected row is a
+ * lighter plane — so when the eye lands on the one saturated rectangle on the screen, it has landed
+ * where the surface wanted it to.
+ */
+@layer components {
+  .issues {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    padding: 18px 20px 20px;
+    border-radius: var(--stp-radius-large);
+    background: rgba(255, 255, 255, 0.02);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  }
+
+  .issues__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .issues__title {
+    margin: 0;
+    color: var(--color-fc-primary);
+    font-size: 1rem;
+    font-weight: 620;
+  }
+
+  .issues__counts {
+    display: inline-flex;
+    gap: 18px;
+  }
+
+  .issues__count {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    color: var(--color-fc-light);
+    font-size: 0.78rem;
+  }
+
+  .issues__count b {
+    font-size: 0.95rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .issues__count.is-open b {
+    color: var(--color-error);
+  }
+
+  .issues__count.is-resolved b {
+    color: var(--color-success);
+  }
+
+  .issues__count.is-ignored b {
+    color: var(--color-fc-light);
+  }
+
+  .issues__filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .issues__filter,
+  .issue-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 11px;
+    border-radius: var(--stp-radius-medium);
+    background: rgba(255, 255, 255, 0.03);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+    color: var(--color-fc-ternary);
+    font-size: 0.75rem;
+  }
+
+  .issues__filter b {
+    color: var(--color-fc-primary);
+    font-weight: 600;
+  }
+
+  /* List and detail side by side, at a ratio that lets the detail hold a stack trace without
+   * wrapping every frame. */
+  .issues__split {
+    display: grid;
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+    gap: 18px;
+    margin-top: 16px;
+  }
+
+  .issues__list {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  /* `min-width: 0` on both the column and the row is what lets the message below actually ellipsise:
+   * a flex item defaults to `min-width: auto`, so without it the row grows to fit the longest error
+   * message and pushes the whole panel wider than the space it was given. */
+  .issue-row {
+    min-width: 0;
+    padding: 11px 13px;
+    border-radius: var(--stp-radius-large);
+    transition: background var(--stp-motion-duration-base) var(--stp-motion-easing);
+  }
+
+  .issue-row:hover {
+    background: rgba(255, 255, 255, 0.025);
+  }
+
+  .issue-row.is-selected {
+    background: rgba(255, 255, 255, 0.05);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  }
+
+  .issue-row__message {
+    margin: 0;
+    overflow: hidden;
+    color: var(--color-fc-primary);
+    font-family: var(--font-mono);
+    font-size: 0.76rem;
+    line-height: 1.45;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .issue-row__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 7px 0 0;
+    font-size: 0.7rem;
+  }
+
+  .issue-row__resource {
+    color: var(--color-fc-lighter);
+    font-weight: 600;
+  }
+
+  .issue-row__runtime {
+    padding: 2px 7px;
+    border-radius: var(--stp-radius-small);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--color-fc-light);
+    font-family: var(--font-mono);
+  }
+
+  .issue-row__count {
+    color: var(--color-fc-light);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .issue-row__seen {
+    margin: 5px 0 0;
+    color: var(--color-fc-ternary);
+    font-size: 0.7rem;
+  }
+
+  .issue-status {
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+  }
+
+  .issue-status.is-open {
+    color: var(--color-error);
+  }
+
+  .issue-status.is-resolved {
+    color: var(--color-success);
+  }
+
+  .issue-status.is-ignored {
+    color: var(--color-fc-ternary);
+  }
+
+  /* ── Detail ─────────────────────────────────────────────────────────────────────────────────── */
+
+  .issue-detail {
+    min-width: 0;
+    padding: 16px 18px 18px;
+    border-radius: var(--stp-radius-large);
+    background: rgba(0, 0, 0, 0.18);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  }
+
+  .issue-detail__kind {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    color: var(--color-fc-light);
+    font-size: 0.76rem;
+  }
+
+  .issue-detail__message {
+    margin: 8px 0 0;
+    color: var(--color-fc-primary);
+    font-family: var(--font-mono);
+    font-size: 0.86rem;
+    font-weight: 600;
+    line-height: 1.45;
+  }
+
+  .issue-detail__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 16px;
+  }
+
+  /*
+   * The one saturated, filled control on the surface — and the only place on the site where a
+   * gradient and a glow are spent on a button. Sized a step above the secondaries beside it so the
+   * hierarchy survives even in a screenshot at thumbnail size.
+   */
+  .issue-autofix {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 10px 18px;
+    border-radius: var(--stp-radius-large);
+    background: linear-gradient(120deg, rgb(24, 168, 168), rgb(19, 132, 148));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.18),
+      0 0 0 4px color-mix(in srgb, var(--color-brand) 12%, transparent);
+    color: #fff;
+    font-size: 0.88rem;
+    font-weight: 650;
+    letter-spacing: -0.005em;
+  }
+
+  .issue-autofix__glyph {
+    flex: none;
+  }
+
+  .issue-detail__facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+    gap: 14px 18px;
+    margin: 20px 0 0;
+  }
+
+  .issue-detail__facts dt {
+    margin: 0 0 3px;
+    color: var(--color-fc-ternary);
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+  }
+
+  .issue-detail__facts dd {
+    margin: 0;
+    color: var(--color-fc-primary);
+    font-size: 0.82rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .issue-detail__section-label {
+    margin: 22px 0 8px;
+    color: var(--color-fc-ternary);
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+  }
+
+  /* Zero-count hours keep a faint tick rather than disappearing, so the gap before the burst reads
+   * as "quiet" instead of as missing data. */
+  .issue-spark {
+    display: block;
+    width: 100%;
+    height: 46px;
+  }
+
+  .issue-spark rect {
+    fill: var(--color-error);
+    opacity: 0.85;
+  }
+
+  .issue-trace {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0;
+    padding: 12px 14px;
+    border-radius: var(--stp-radius-medium);
+    background: rgba(0, 0, 0, 0.28);
+    list-style: none;
+  }
+
+  .issue-trace__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 10px;
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+  }
+
+  .issue-trace__fn {
+    color: var(--color-fc-primary);
+  }
+
+  /* A `node_modules/...` frame is longer than a narrow embed is wide and has no break opportunity a
+   * browser will take on its own, so it is allowed to break anywhere. A wrapped path still reads;
+   * a horizontal scrollbar inside a stack trace inside a panel does not. */
+  .issue-trace__loc {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    color: var(--color-fc-ternary);
+  }
+
+  /* The line that threw, quoted under its frame. */
+  .issue-trace__source {
+    margin: 4px 0 8px;
+    padding: 6px 10px;
+    border-radius: var(--stp-radius-small);
+    background: rgba(235, 97, 97, 0.08);
+    box-shadow: inset 2px 0 0 var(--color-error);
+    color: var(--color-fc-lighter);
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  @media (max-width: 860px) {
+    .issues__split {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+}

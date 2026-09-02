@@ -1,0 +1,419 @@
+/*
+ * The pipeline and the bill: the two surfaces about what happens after the first deploy.
+ *
+ * The pipeline is a row that becomes a column, and the connector between its steps is the thing
+ * carrying the meaning — brand-coloured behind you, faint ahead of you. The cost panel spends its
+ * only colour on the bars, and takes it from the AWS category tokens rather than from a palette
+ * invented for the chart, so the same resource is the same colour here as its icon is in the
+ * Console.
+ */
+@layer components {
+  /* ── Pipeline ───────────────────────────────────────────────────────────────────────────────── */
+
+  .cicd {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    padding: 18px 20px 20px;
+    border-radius: var(--stp-radius-large);
+    background: rgba(255, 255, 255, 0.02);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  }
+
+  .cicd__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .cicd__title {
+    margin: 0;
+    color: var(--color-fc-primary);
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+
+  .cicd__runner {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--color-fc-ternary);
+    font-size: 0.74rem;
+  }
+
+  .cicd__runner b {
+    color: var(--color-fc-primary);
+    font-weight: 600;
+  }
+
+  .cicd__flow {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 18px;
+    margin: 22px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .cicd-step {
+    position: relative;
+    min-width: 0;
+  }
+
+  /*
+   * The connector, drawn from each step's marker across the gap to the next one. It belongs to the
+   * step on its left, so its colour says "this step finished" rather than "the next one started".
+   */
+  .cicd-step:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    left: 26px;
+    right: -22px;
+    top: 8px;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .cicd-step.is-done::after {
+    background: color-mix(in srgb, var(--color-brand) 45%, transparent);
+  }
+
+  .cicd-step__marker {
+    display: grid;
+    place-items: center;
+    width: 17px;
+    height: 17px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+    color: var(--color-page);
+    font-size: 0.62rem;
+    font-weight: 800;
+  }
+
+  .cicd-step.is-done .cicd-step__marker {
+    background: var(--color-brand);
+    box-shadow: none;
+  }
+
+  /* The running step breathes rather than spins: one moving thing on the screen, not six. */
+  .cicd-step.is-running .cicd-step__marker {
+    background: var(--color-brand);
+    box-shadow: none;
+    animation: cicd-breathe 1.6s ease-in-out infinite;
+  }
+
+  .cicd-step__title {
+    margin: 12px 0 0;
+    color: var(--color-fc-primary);
+    font-size: 0.85rem;
+    font-weight: 620;
+  }
+
+  .cicd-step.is-queued .cicd-step__title {
+    color: var(--color-fc-light);
+    font-weight: 500;
+  }
+
+  .cicd-step__detail {
+    margin: 4px 0 0;
+    color: var(--color-fc-lighter);
+    font-size: 0.78rem;
+    line-height: 1.45;
+  }
+
+  .cicd-step__meta {
+    margin: 5px 0 0;
+    color: var(--color-fc-ternary);
+    font-size: 0.72rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .cicd-step.is-running .cicd-step__meta {
+    color: var(--color-brand);
+  }
+
+  .cicd-step__badge {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    color: var(--color-fc-light);
+    font-size: 0.66rem;
+    font-weight: 600;
+  }
+
+  .cicd__facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 26px 0 0;
+    padding: 18px 0 0;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    list-style: none;
+  }
+
+  .cicd__fact {
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.03);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+    color: var(--color-fc-lighter);
+    font-size: 0.76rem;
+  }
+
+  @keyframes cicd-breathe {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.35;
+    }
+  }
+
+  /* Six steps in a row stops being legible well before the viewport does; below this width the flow
+   * becomes the vertical timeline it already is semantically. */
+  @media (max-width: 1000px) {
+    .cicd__flow {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 22px;
+    }
+
+    .cicd-step {
+      padding-left: 30px;
+    }
+
+    .cicd-step__marker {
+      position: absolute;
+      left: 0;
+      top: 1px;
+    }
+
+    .cicd-step:not(:last-child)::after {
+      left: 8px;
+      right: auto;
+      top: 22px;
+      bottom: -24px;
+      width: 1px;
+      height: auto;
+    }
+
+    .cicd-step__title {
+      margin-top: 0;
+    }
+  }
+
+  /* ── Costs ──────────────────────────────────────────────────────────────────────────────────── */
+
+  .costs {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    padding: 18px 20px 20px;
+    border-radius: var(--stp-radius-large);
+    background: rgba(255, 255, 255, 0.02);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  }
+
+  .costs__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .costs__label {
+    margin: 0;
+    color: var(--color-fc-ternary);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .costs__total {
+    margin: 6px 0 0;
+    color: var(--color-fc-primary);
+    font-size: 2rem;
+    font-weight: 660;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .costs__delta {
+    margin: 4px 0 0;
+    color: var(--color-fc-light);
+    font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .costs__filters {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .costs__filter {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 11px;
+    border-radius: var(--stp-radius-medium);
+    background: rgba(255, 255, 255, 0.03);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+    color: var(--color-fc-ternary);
+    font-size: 0.75rem;
+  }
+
+  .costs__filter b {
+    color: var(--color-fc-primary);
+    font-weight: 600;
+  }
+
+  .costs__rows {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 22px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .cost-row {
+    display: grid;
+    grid-template-columns: minmax(8rem, 11rem) minmax(0, 1fr) 5rem;
+    gap: 16px;
+    align-items: center;
+    padding: 8px 10px;
+    border-radius: var(--stp-radius-medium);
+    transition: background var(--stp-motion-duration-base) var(--stp-motion-easing);
+  }
+
+  .cost-row:hover {
+    background: rgba(255, 255, 255, 0.025);
+  }
+
+  .cost-row__identity {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .cost-row__name {
+    overflow: hidden;
+    color: var(--color-fc-primary);
+    font-size: 0.84rem;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .cost-row__type {
+    color: var(--color-fc-ternary);
+    font-size: 0.72rem;
+  }
+
+  .cost-row__track {
+    height: 9px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .cost-row__bar {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    opacity: 0.85;
+  }
+
+  .cost-row__amount {
+    color: var(--color-fc-primary);
+    font-size: 0.84rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+
+  .costs__trend {
+    margin-top: 22px;
+  }
+
+  .costs__section-label {
+    margin: 0 0 10px;
+    color: var(--color-fc-ternary);
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+  }
+
+  .costs__trend-bars {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 10px;
+    align-items: end;
+    height: 112px;
+  }
+
+  .costs__trend-bar {
+    display: flex;
+    height: 100%;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 7px;
+  }
+
+  /*
+   * Narrow bars, and the axis still starts at zero.
+   *
+   * Six months that only span $161–$212 make a nearly flat chart, and the honest fix for that is
+   * thinner bars — not a truncated baseline, which would turn a 30% rise into a picture of a
+   * fourfold one. The shape is undramatic because the spend is.
+   */
+  .costs__trend-fill {
+    display: block;
+    width: 100%;
+    max-width: 44px;
+    border-radius: 3px 3px 0 0;
+    background: color-mix(in srgb, var(--color-brand) 42%, transparent);
+  }
+
+  /* The month in progress is drawn hollow: the bar is a running total, not a result. */
+  .costs__trend-bar.is-partial .costs__trend-fill {
+    background: repeating-linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--color-brand) 55%, transparent) 0 4px,
+      transparent 4px 8px
+    );
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-brand) 50%, transparent);
+  }
+
+  .costs__trend-month {
+    color: var(--color-fc-ternary);
+    font-size: 0.68rem;
+    text-align: center;
+  }
+
+  .costs__banner {
+    margin: 22px 0 0;
+    padding-top: 16px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    color: var(--color-fc-lighter);
+    font-size: 0.85rem;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cicd-step.is-running .cicd-step__marker {
+      animation: none;
+    }
+  }
+}

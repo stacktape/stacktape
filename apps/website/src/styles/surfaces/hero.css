@@ -1,0 +1,280 @@
+/*
+ * The hero surfaces: the config editor window and the install command under it.
+ *
+ * Both are interactive islands, so their styles carry the states the React components toggle
+ * (`.is-active`, `:disabled`) rather than describing a static picture.
+ */
+@layer components {
+  /* Toggle groups are `<fieldset>`s (a real grouping element rather than `role="group"` on a div),
+   * so every one of them has to shed the browser's default fieldset chrome. */
+  .hero-editor__langs,
+  .cta-command__methods {
+    border: 0;
+    margin: 0;
+    min-inline-size: 0;
+  }
+
+  /* ── Hero config editor ─────────────────────────────────────────────────────────────────────── */
+
+  .hero-editor {
+    width: 100%;
+  }
+
+  .hero-editor__filename {
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+    color: var(--color-fc-lighter);
+  }
+
+  /* Language toggle: two cells in a recessed well, the active one lifted. */
+  .hero-editor__langs {
+    display: inline-flex;
+    gap: 2px;
+    padding: 2px;
+  }
+
+  .hero-editor__lang {
+    padding: 2px 8px;
+    border: 0;
+    border-radius: calc(var(--stp-radius-large) - 3px);
+    background: none;
+    color: var(--color-fc-light);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+    transition:
+      background var(--stp-motion-duration-fast) var(--stp-motion-easing),
+      color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+  }
+
+  .hero-editor__lang:hover:not(:disabled) {
+    color: var(--color-fc-primary);
+  }
+
+  .hero-editor__lang.is-active {
+    background: rgba(255, 255, 255, 0.09);
+    color: var(--color-fc-primary);
+  }
+
+  .hero-editor__lang:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  /* Use-case strip. Scrolls horizontally rather than wrapping: a second row of tabs would change
+   * the window's height when the viewport narrows, and this sits next to a headline. */
+  .hero-editor__tabs {
+    display: flex;
+    gap: 2px;
+    margin: 10px 10px 0;
+    padding: 3px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .hero-editor__tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .hero-editor__tab {
+    flex: none;
+    padding: 5px 10px;
+    border: 0;
+    border-radius: calc(var(--stp-radius-large) - 3px);
+    background: none;
+    color: var(--color-fc-light);
+    font-size: 0.74rem;
+    font-weight: 550;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      background var(--stp-motion-duration-fast) var(--stp-motion-easing),
+      color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+  }
+
+  .hero-editor__tab:hover {
+    color: var(--color-fc-primary);
+  }
+
+  .hero-editor__tab.is-active {
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+    color: var(--color-fc-primary);
+  }
+
+  /*
+   * The code pane. A fixed minimum height keeps the window from resizing as the reader moves
+   * between tabs of different lengths — the surface should feel like an editor, not a accordion.
+   */
+  .hero-editor__pane {
+    display: flex;
+    min-height: 21rem;
+    padding: 14px 0 16px;
+    /* Popups escape the pane, so nothing here may clip. */
+    overflow: visible;
+    animation: hero-editor-swap 200ms var(--stp-motion-easing);
+  }
+
+  .hero-editor__gutter {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    padding: 0 12px 0 16px;
+    color: var(--color-fc-ternary);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    line-height: 1.7;
+    text-align: right;
+    user-select: none;
+    opacity: 0.55;
+  }
+
+  .hero-editor__code {
+    min-width: 0;
+    flex: 1;
+    padding-right: 16px;
+    /* Long TypeScript lines scroll inside the pane; the page never scrolls sideways. */
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+  }
+
+  .hero-editor__caption {
+    margin: 0;
+    padding: 11px 16px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    color: var(--color-fc-light);
+    font-size: 0.76rem;
+  }
+
+  .hero-editor__hint {
+    color: var(--color-fc-ternary);
+  }
+
+  @keyframes hero-editor-swap {
+    from {
+      opacity: 0;
+      transform: translateY(3px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* ── CTA command ────────────────────────────────────────────────────────────────────────────── */
+
+  .cta-command {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  /*
+   * The command line itself. This is the page's primary action, so it gets the one brand-tinted
+   * ring on the surface — it reads as a button without pretending the text is not selectable.
+   */
+  .cta-command__row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 100%;
+    padding: 10px 10px 10px 16px;
+    border-radius: var(--stp-radius-large);
+    background: rgba(0, 0, 0, 0.3);
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--color-brand) 30%, transparent),
+      0 0 0 4px color-mix(in srgb, var(--color-brand) 7%, transparent);
+    transition: box-shadow var(--stp-motion-duration-base) var(--stp-motion-easing);
+  }
+
+  .cta-command__row:hover {
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--color-brand) 45%, transparent),
+      0 0 0 5px color-mix(in srgb, var(--color-brand) 11%, transparent);
+  }
+
+  .cta-command__prompt {
+    flex: none;
+    color: var(--color-brand);
+    font-family: var(--font-mono);
+    font-size: 0.86rem;
+    font-weight: 700;
+  }
+
+  .cta-command__code {
+    min-width: 0;
+    overflow-x: auto;
+    color: var(--color-fc-primary);
+    font-family: var(--font-mono);
+    font-size: 0.86rem;
+    white-space: pre;
+    scrollbar-width: none;
+  }
+
+  .cta-command__code::-webkit-scrollbar {
+    display: none;
+  }
+
+  .cta-command__copy {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 11px;
+    border: 0;
+    border-radius: var(--stp-radius-medium);
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    color: var(--color-fc-lighter);
+    font-size: 0.76rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+      background var(--stp-motion-duration-fast) var(--stp-motion-easing),
+      color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+  }
+
+  .cta-command__copy:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--color-fc-primary);
+  }
+
+  .cta-command__methods {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+  }
+
+  .cta-command__method {
+    padding: 4px 10px;
+    border: 0;
+    border-radius: calc(var(--stp-radius-large) - 3px);
+    background: none;
+    color: var(--color-fc-light);
+    font-size: 0.73rem;
+    font-weight: 550;
+    cursor: pointer;
+    transition:
+      background var(--stp-motion-duration-fast) var(--stp-motion-easing),
+      color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+  }
+
+  .cta-command__method:hover {
+    color: var(--color-fc-primary);
+  }
+
+  .cta-command__method.is-active {
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+    color: var(--color-fc-primary);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hero-editor__pane {
+      animation: none;
+    }
+  }
+}

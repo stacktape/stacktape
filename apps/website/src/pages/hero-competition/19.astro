@@ -1,0 +1,1333 @@
+---
+// concept: Asymmetric split hero — headline, command CTA and trust rail on the left; on the right a live "operations panel" for the example project where every discipline a DevOps team owns is listed as already handled, ending in an incident with a fix waiting for approval; a slow capability marquee forms the hero's floor.
+// copy-angle: Name the automation plainly ("AWS DevOps, fully automated"), prove it by enumerating the disciplines rather than adjectives, and play the AI claim confidently but honestly — the agent finds the root cause and prepares the fix, the human presses the button, auto-resolve is opt-in.
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Logo from '../../components/Logo.astro';
+
+/**
+ * Verbatim from the CLI's own installation instructions. `npx` is the default: it is the only one
+ * that needs nothing installed first, and it lands the visitor in the wizard in one step. The other
+ * three install the binary and then tell you to run `stacktape init`, so the note under the command
+ * changes with the method — a switcher that lies about the next step is worse than no switcher.
+ */
+const INSTALL_METHODS = [
+  {
+    id: 'npx',
+    label: 'npx',
+    command: 'npx stacktape init',
+    note: 'Opens the wizard on localhost. It reads your repository and writes the config.'
+  },
+  {
+    id: 'macos',
+    label: 'macOS',
+    command: 'curl -L https://installs.stacktape.com/macos.sh | sh',
+    note: 'Installs the CLI, then run stacktape init in your project.'
+  },
+  {
+    id: 'linux',
+    label: 'Linux',
+    command: 'curl -L https://installs.stacktape.com/linux.sh | sh',
+    note: 'Installs the CLI, then run stacktape init in your project.'
+  },
+  {
+    id: 'windows',
+    label: 'Windows',
+    command: 'iwr https://installs.stacktape.com/windows.ps1 -useb | iex',
+    note: 'Installs the CLI, then run stacktape init in your project.'
+  }
+];
+
+/**
+ * The panel rows: one per discipline a DevOps team owns, in the order the work happens. The example
+ * project, its resource names and its month-to-date figure are the site's shared story cast
+ * (`src/surfaces/story.ts`), so a reader who scrolls on meets the same application again.
+ */
+const OPS_ROWS = [
+  {
+    icon: 'network',
+    name: 'Networking',
+    detail: 'VPC · 3 AZs · private subnets · NAT · bastion',
+    status: 'provisioned',
+    tone: 'ok'
+  },
+  {
+    icon: 'branch',
+    name: 'Delivery',
+    detail: 'acme/acme-project · build → migrate → deploy',
+    status: 'passing',
+    tone: 'ok'
+  },
+  {
+    icon: 'trend',
+    name: 'Runtime & scaling',
+    detail: 'apiService 2 → 6 tasks · Aurora 16 · Redis 7',
+    status: 'healthy',
+    tone: 'ok'
+  },
+  {
+    icon: 'pulse',
+    name: 'Observability',
+    detail: 'metrics · traces · logs · 24 alarms armed',
+    status: 'all green',
+    tone: 'ok'
+  },
+  {
+    icon: 'bars',
+    name: 'Cost',
+    detail: 'month to date $212.47 · billed by AWS, no markup',
+    status: 'on budget',
+    tone: 'quiet'
+  }
+];
+
+const NAV_LINKS = [
+  { label: 'Docs', href: 'https://docs.stacktape.com' },
+  { label: 'Pricing', href: '/pricing' },
+  { label: 'GitHub', href: 'https://github.com/stacktape/stacktape' }
+];
+
+/**
+ * The depth rail. Every entry is a capability a visitor evaluating "can this survive our hardest
+ * problem" is looking for; it is a list of things Stacktape does, not a list of adjectives.
+ */
+const CAPABILITIES = [
+  'Private-only networking',
+  'Bastion access',
+  'Fargate, Lambda & EC2',
+  'GPU and Spot',
+  'Aurora, RDS, DynamoDB',
+  'SQS & EventBridge',
+  'Web application firewall',
+  'SSO, RBAC & audit log',
+  'Budgets & guardrails',
+  'CDK constructs inline',
+  'Raw CloudFormation escape hatch',
+  'Bring existing infrastructure'
+];
+---
+
+<BaseLayout
+  title="Stacktape — AWS DevOps, fully automated"
+  description="Point Stacktape at your repository. It writes the infrastructure, deploys it into your own AWS account, then runs it: CI/CD, private networking, autoscaling, observability, cost and incidents."
+  font="geist"
+  noindex
+>
+  <div class="shell">
+    <div class="backdrop" aria-hidden="true">
+      <span class="backdrop__grid"></span>
+      <span class="backdrop__glow backdrop__glow--brand"></span>
+      <span class="backdrop__glow backdrop__glow--cool"></span>
+      <span class="backdrop__horizon"></span>
+    </div>
+
+    <header class="nav">
+      <div class="nav__inner">
+        <a class="nav__brand" href="/" aria-label="Stacktape home">
+          <Logo height={24} />
+        </a>
+
+        <nav class="nav__links" aria-label="Primary">
+          {
+            NAV_LINKS.map((link) => (
+              <a class="nav__link" href={link.href}>
+                {link.label}
+              </a>
+            ))
+          }
+        </nav>
+
+        <div class="nav__actions">
+          <a class="nav__signin" href="https://console.stacktape.com/sign-up">Sign in</a>
+          <a class="btn btn--soft btn--sm" href="https://console.stacktape.com/sign-up">Sign up</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="hero">
+      <div class="hero__inner">
+        <div class="hero__copy">
+          <p class="eyebrow">
+            <span class="eyebrow__dot" aria-hidden="true"></span>
+            <span class="eyebrow__new">New</span>
+            <span class="eyebrow__text">AI-generated config · incidents an agent can resolve</span>
+          </p>
+
+          <h1 class="headline">
+            AWS DevOps,<br />
+            <span class="headline__accent">fully automated.</span>
+          </h1>
+
+          <p class="sub">
+            Point Stacktape at your repository. It writes the infrastructure, deploys it into your own AWS account, then
+            runs it — CI/CD, private networking, autoscaling, observability, cost and incidents. Everything a DevOps
+            team would build for you, without hiring one.
+          </p>
+
+          <div class="cmd" data-cmd>
+            <div class="cmd__head">
+              <span class="cmd__label">Start in your terminal</span>
+              <div class="cmd__methods" role="group" aria-label="Installation method">
+                {
+                  INSTALL_METHODS.map((method, index) => (
+                    <button
+                      type="button"
+                      class:list={['cmd__method', index === 0 && 'is-active']}
+                      aria-pressed={index === 0 ? 'true' : 'false'}
+                      data-method={method.id}
+                      data-command={method.command}
+                      data-note={method.note}
+                    >
+                      {method.label}
+                    </button>
+                  ))
+                }
+              </div>
+            </div>
+
+            <div class="cmd__bar">
+              <span class="cmd__prompt" aria-hidden="true">$</span>
+              <code class="cmd__code" data-cmd-code>npx stacktape init</code>
+              <button type="button" class="cmd__copy" data-cmd-copy aria-label="Copy npx stacktape init">
+                <svg class="cmd__glyph cmd__glyph--copy" viewBox="0 0 14 14" width="13" height="13" aria-hidden="true">
+                  <rect x="4.75" y="1.75" width="7.5" height="7.5" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.2"></rect>
+                  <path d="M9.25 12.25h-6a1.5 1.5 0 0 1-1.5-1.5v-6" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"></path>
+                </svg>
+                <svg class="cmd__glyph cmd__glyph--check" viewBox="0 0 14 14" width="13" height="13" aria-hidden="true">
+                  <path d="M2.75 7.5 5.75 10.5 11.25 4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+                </svg>
+                <span class="cmd__copy-label" data-cmd-copy-label>Copy</span>
+              </button>
+            </div>
+
+            <p class="cmd__note" data-cmd-note>
+              Opens the wizard on localhost. It reads your repository and writes the config.
+            </p>
+          </div>
+
+          <div class="ctas">
+            <a class="btn btn--outline" href="https://console.stacktape.com/sign-up">
+              Deploy from the Console
+              <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                <path d="M3 8h9.5M8.5 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+              </svg>
+            </a>
+            <a class="btn btn--ghost" href="https://cal.com/stacktape/30min">Book a 30-min demo</a>
+          </div>
+
+          <ul class="trust">
+            <li class="trust__item">
+              <svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true"
+                ><path d="M2.5 7.4 5.4 10.3 11.5 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg
+              >
+              Open-source CLI
+            </li>
+            <li class="trust__item">
+              <svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true"
+                ><path d="M2.5 7.4 5.4 10.3 11.5 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg
+              >
+              Runs in your own AWS account
+            </li>
+            <li class="trust__item">
+              <svg viewBox="0 0 14 14" width="12" height="12" aria-hidden="true"
+                ><path d="M2.5 7.4 5.4 10.3 11.5 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg
+              >
+              Compiles to plain CloudFormation
+            </li>
+          </ul>
+        </div>
+
+        <figure class="hero__panel">
+          <div class="panel">
+            <header class="panel__bar">
+              <span class="panel__live" aria-hidden="true"></span>
+              <span class="panel__title">
+                acme-project<span class="panel__slash">/</span><span class="panel__stage">production</span>
+              </span>
+              <span class="panel__region">eu-west-1</span>
+              <span class="panel__badge">Stacktape</span>
+            </header>
+
+            <ul class="rows">
+              {
+                OPS_ROWS.map((row, index) => (
+                  <li class="row" style={`--i: ${index}`}>
+                    <span class="row__icon" aria-hidden="true">
+                      {row.icon === 'network' && (
+                        <svg viewBox="0 0 16 16" width="15" height="15">
+                          <path
+                            d="M6.9 4.9 4 11.1M9.1 4.9 12 11.1M4.9 12.8h6.2"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.3"
+                            stroke-linecap="round"
+                          />
+                          <circle cx="8" cy="3.3" r="1.8" fill="none" stroke="currentColor" stroke-width="1.3" />
+                          <circle cx="3.2" cy="12.7" r="1.8" fill="none" stroke="currentColor" stroke-width="1.3" />
+                          <circle cx="12.8" cy="12.7" r="1.8" fill="none" stroke="currentColor" stroke-width="1.3" />
+                        </svg>
+                      )}
+                      {row.icon === 'branch' && (
+                        <svg viewBox="0 0 16 16" width="15" height="15">
+                          <path
+                            d="M4.6 5.2v5.6M4.6 10.8c0-2.7 1.3-4.4 5.1-4.4"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.3"
+                            stroke-linecap="round"
+                          />
+                          <circle cx="4.6" cy="3.5" r="1.7" fill="none" stroke="currentColor" stroke-width="1.3" />
+                          <circle cx="4.6" cy="12.5" r="1.7" fill="none" stroke="currentColor" stroke-width="1.3" />
+                          <circle cx="11.6" cy="6.4" r="1.7" fill="none" stroke="currentColor" stroke-width="1.3" />
+                        </svg>
+                      )}
+                      {row.icon === 'trend' && (
+                        <svg viewBox="0 0 16 16" width="15" height="15">
+                          <path
+                            d="M2 11.6 5.6 8l2.5 2.5L14 4.6M10.4 4.6H14V8.2"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.35"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          />
+                        </svg>
+                      )}
+                      {row.icon === 'pulse' && (
+                        <svg viewBox="0 0 16 16" width="15" height="15">
+                          <path
+                            d="M1.4 8.2h2.9l1.8-4.6L9 12.4l1.8-4.2h3.8"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.35"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          />
+                        </svg>
+                      )}
+                      {row.icon === 'bars' && (
+                        <svg viewBox="0 0 16 16" width="15" height="15">
+                          <path
+                            d="M3.2 13.2V7.6M8 13.2V2.9M12.8 13.2V9.6"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                          />
+                        </svg>
+                      )}
+                    </span>
+
+                    <span class="row__body">
+                      <span class="row__name">{row.name}</span>
+                      <span class="row__detail">{row.detail}</span>
+                    </span>
+
+                    <span class:list={['chip', row.tone === 'quiet' && 'chip--quiet']}>
+                      <i class="chip__dot" aria-hidden="true" />
+                      {row.status}
+                    </span>
+                  </li>
+                ))
+              }
+
+              <li class="row row--focus" style="--i: 5">
+                <span class="row__icon" aria-hidden="true">
+                  <svg viewBox="0 0 16 16" width="15" height="15">
+                    <path d="M8 2.6 14.4 13.4H1.6z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"></path>
+                    <path d="M8 6.4v3.1" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path>
+                    <circle cx="8" cy="11.5" r="0.8" fill="currentColor"></circle>
+                  </svg>
+                </span>
+                <span class="row__body">
+                  <span class="row__name">Incidents</span>
+                  <span class="row__detail">worker · 8 timeouts since release a41f0c2</span>
+                </span>
+                <span class="chip chip--action">
+                  <i class="chip__dot" aria-hidden="true"></i>
+                  fix ready
+                </span>
+              </li>
+            </ul>
+
+            <div class="fix" style="--i: 6">
+              <p class="fix__line">
+                <span class="fix__tag">Root cause</span>
+                <span class="fix__text">
+                  <code>mainDatabase</code> connection pool exhausted — <code>maxConnections: 5</code> shipped in
+                  <code>a41f0c2</code>. Traces, logs, alarms and the release diff all point at the same commit.
+                </span>
+              </p>
+              <div class="fix__actions">
+                <span class="fix__btn fix__btn--primary">Apply fix &amp; redeploy</span>
+                <span class="fix__btn">Review the diff</span>
+                <span class="fix__note">Auto-resolve is opt-in</span>
+              </div>
+            </div>
+
+            <span class="panel__scan" aria-hidden="true"></span>
+          </div>
+
+          <figcaption class="panel__caption">
+            An example project. Every line above was configured, shipped, watched and priced by Stacktape — nothing here
+            was wired by hand.
+          </figcaption>
+        </figure>
+      </div>
+
+      <div class="rail" aria-label="Capabilities">
+        <div class="rail__track">
+          {
+            [0, 1].map((copy) => (
+              <ul class="rail__list" aria-hidden={copy === 1 ? 'true' : 'false'}>
+                {CAPABILITIES.map((capability) => (
+                  <li class="rail__item">{capability}</li>
+                ))}
+              </ul>
+            ))
+          }
+        </div>
+      </div>
+    </main>
+  </div>
+</BaseLayout>
+
+<style>
+  /* ─────────────────────────────────────────────────────────────────────────
+     Page shell and backdrop
+     Every decoration lives inside a clipped absolute layer, so nothing a glow
+     or the grid does can widen the document at any viewport.
+     ───────────────────────────────────────────────────────────────────────── */
+  .shell {
+    --edge: rgba(255, 255, 255, 0.07);
+    --edge-soft: rgba(255, 255, 255, 0.045);
+    --plane: rgba(255, 255, 255, 0.022);
+    --brand: var(--stp-color-brand);
+    --brand-bright: #7fe8d4;
+    --cool: #4aa6dc;
+    --gutter: clamp(20px, 4.4vw, 52px);
+
+    position: relative;
+    isolation: isolate;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .backdrop {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  .backdrop__grid {
+    position: absolute;
+    inset: -10% -10% 0;
+    background-image:
+      linear-gradient(to right, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+    background-size: 72px 72px;
+    -webkit-mask-image: radial-gradient(90% 70% at 30% 6%, #000 0%, transparent 76%);
+    mask-image: radial-gradient(90% 70% at 30% 6%, #000 0%, transparent 76%);
+    opacity: 0.9;
+  }
+
+  .backdrop__glow {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(10px);
+  }
+
+  .backdrop__glow--brand {
+    inset: -34vh auto auto -18vw;
+    width: 78vw;
+    height: 78vh;
+    background: radial-gradient(closest-side, rgba(54, 190, 190, 0.19), rgba(54, 190, 190, 0.05) 55%, transparent 74%);
+  }
+
+  .backdrop__glow--cool {
+    inset: -18vh -24vw auto auto;
+    width: 66vw;
+    height: 72vh;
+    background: radial-gradient(closest-side, rgba(34, 87, 122, 0.42), rgba(34, 87, 122, 0.1) 58%, transparent 76%);
+  }
+
+  .backdrop__horizon {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08) 22%, rgba(54, 190, 190, 0.28) 50%, rgba(255, 255, 255, 0.08) 78%, transparent);
+  }
+
+  /* ─── Navigation ───────────────────────────────────────────────────────── */
+  .nav {
+    position: relative;
+    z-index: 2;
+  }
+
+  .nav__inner {
+    max-width: 1280px;
+    margin-inline: auto;
+    padding: 22px var(--gutter);
+    display: flex;
+    align-items: center;
+    gap: 28px;
+  }
+
+  .nav__brand {
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+  }
+
+  .nav__links {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 14px;
+  }
+
+  .nav__link {
+    padding: 7px 12px;
+    border-radius: var(--stp-radius-medium);
+    font-size: 0.875rem;
+    color: var(--stp-text-muted);
+    transition: color var(--stp-motion-duration-fast) var(--stp-motion-easing),
+      background-color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+  }
+
+  .nav__link:hover {
+    color: var(--stp-text-primary);
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .nav__actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .nav__signin {
+    font-size: 0.875rem;
+    color: var(--stp-text-muted);
+    padding: 7px 4px;
+    transition: color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+  }
+
+  .nav__signin:hover {
+    color: var(--stp-text-primary);
+  }
+
+  /* ─── Buttons ──────────────────────────────────────────────────────────── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 44px;
+    padding: 0 20px;
+    border-radius: 10px;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    transition: background-color var(--stp-motion-duration-fast) var(--stp-motion-easing),
+      box-shadow var(--stp-motion-duration-fast) var(--stp-motion-easing),
+      color var(--stp-motion-duration-fast) var(--stp-motion-easing),
+      transform var(--stp-motion-duration-fast) var(--stp-motion-easing);
+  }
+
+  .btn--sm {
+    height: 34px;
+    padding: 0 14px;
+    font-size: 0.8125rem;
+  }
+
+  .btn--soft {
+    color: var(--stp-text-primary);
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: inset 0 0 0 1px var(--edge);
+  }
+
+  .btn--soft:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .btn--outline {
+    color: var(--stp-text-primary);
+    background: rgba(54, 190, 190, 0.07);
+    box-shadow:
+      inset 0 0 0 1px rgba(54, 190, 190, 0.34),
+      inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  }
+
+  .btn--outline:hover {
+    background: rgba(54, 190, 190, 0.13);
+    box-shadow:
+      inset 0 0 0 1px rgba(54, 190, 190, 0.55),
+      inset 0 1px 0 rgba(255, 255, 255, 0.12),
+      0 10px 30px -14px rgba(54, 190, 190, 0.5);
+    transform: translateY(-1px);
+  }
+
+  .btn--ghost {
+    color: var(--stp-text-muted);
+    padding-inline: 12px;
+  }
+
+  .btn--ghost:hover {
+    color: var(--stp-text-primary);
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  /* ─── Hero layout ──────────────────────────────────────────────────────── */
+  .hero {
+    position: relative;
+    z-index: 1;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .hero__inner {
+    max-width: 1280px;
+    width: 100%;
+    margin-inline: auto;
+    padding: clamp(28px, 5vh, 64px) var(--gutter) clamp(36px, 6vh, 72px);
+    display: grid;
+    grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr);
+    align-items: center;
+    gap: clamp(36px, 5vw, 68px);
+  }
+
+  .hero__copy {
+    min-width: 0;
+    max-width: 620px;
+  }
+
+  /* ─── Eyebrow ──────────────────────────────────────────────────────────── */
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    margin: 0 0 26px;
+    padding: 5px 14px 5px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.035);
+    box-shadow: inset 0 0 0 1px var(--edge);
+    font-size: 0.8125rem;
+    color: var(--stp-text-muted);
+    max-width: 100%;
+  }
+
+  .eyebrow__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--brand-bright);
+    box-shadow: 0 0 0 3px rgba(54, 190, 190, 0.16);
+    flex: none;
+  }
+
+  .eyebrow__new {
+    color: var(--brand-bright);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  .eyebrow__text {
+    color: var(--stp-text-subtle);
+  }
+
+  /* ─── Headline and subheadline ─────────────────────────────────────────── */
+  .headline {
+    margin: 0;
+    font-size: clamp(2.7rem, 5vw, 4.35rem);
+    line-height: 1.03;
+    letter-spacing: -0.035em;
+    font-weight: 600;
+    color: #f2f5f5;
+  }
+
+  .headline__accent {
+    display: inline-block;
+    padding-bottom: 0.06em;
+    background: linear-gradient(104deg, #a8f3e3 0%, var(--brand) 46%, var(--cool) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+
+  .sub {
+    margin: 22px 0 0;
+    max-width: 34em;
+    font-size: clamp(1rem, 1.15vw, 1.0625rem);
+    line-height: 1.62;
+    color: var(--stp-text-muted);
+  }
+
+  /* ─── Command CTA ──────────────────────────────────────────────────────── */
+  .cmd {
+    margin-top: 32px;
+    max-width: 520px;
+    padding: 12px;
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.015));
+    box-shadow:
+      inset 0 0 0 1px var(--edge),
+      inset 0 1px 0 rgba(255, 255, 255, 0.07),
+      0 26px 60px -34px rgba(0, 0, 0, 0.9);
+  }
+
+  .cmd__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 2px 4px 10px;
+  }
+
+  .cmd__label {
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.11em;
+    color: var(--stp-text-faint);
+  }
+
+  .cmd__methods {
+    display: flex;
+    gap: 2px;
+    padding: 2px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.3);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  }
+
+  .cmd__method {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: var(--stp-text-faint);
+    font-size: 0.75rem;
+    padding: 4px 9px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: color var(--stp-motion-duration-fast) var(--stp-motion-easing),
+      background-color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+  }
+
+  .cmd__method:hover {
+    color: var(--stp-text-primary);
+  }
+
+  .cmd__method.is-active {
+    color: #0c1414;
+    background: var(--brand);
+    font-weight: 600;
+  }
+
+  .cmd__bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 8px 0 14px;
+    height: 52px;
+    border-radius: 11px;
+    background: rgba(6, 11, 11, 0.72);
+    box-shadow:
+      inset 0 0 0 1px rgba(54, 190, 190, 0.22),
+      0 0 34px -14px rgba(54, 190, 190, 0.55);
+  }
+
+  .cmd__prompt {
+    color: var(--brand);
+    font-family: var(--font-geist-mono);
+    font-size: 0.9375rem;
+    flex: none;
+  }
+
+  .cmd__code {
+    flex: 1;
+    min-width: 0;
+    overflow-x: auto;
+    white-space: nowrap;
+    font-family: var(--font-geist-mono);
+    font-size: clamp(0.8125rem, 1.05vw, 0.9375rem);
+    color: #e7f2f1;
+    scrollbar-width: none;
+  }
+
+  .cmd__code::-webkit-scrollbar {
+    display: none;
+  }
+
+  .cmd__copy {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 36px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 8px;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    color: var(--stp-text-muted);
+    font-size: 0.8125rem;
+    transition: color var(--stp-motion-duration-fast) var(--stp-motion-easing),
+      background-color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+  }
+
+  .cmd__copy:hover {
+    color: var(--stp-text-primary);
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .cmd__glyph--check,
+  .cmd.is-copied .cmd__glyph--copy {
+    display: none;
+  }
+
+  .cmd.is-copied .cmd__glyph--check {
+    display: block;
+  }
+
+  .cmd.is-copied .cmd__copy {
+    color: var(--brand-bright);
+  }
+
+  .cmd__note {
+    margin: 10px 4px 2px;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--stp-text-faint);
+  }
+
+  /* ─── Secondary CTAs and trust rail ────────────────────────────────────── */
+  .ctas {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-top: 20px;
+  }
+
+  .trust {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+    margin: 26px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .trust__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.8125rem;
+    color: var(--stp-text-faint);
+  }
+
+  .trust__item svg {
+    color: var(--brand);
+    flex: none;
+  }
+
+  /* ─── Operations panel ─────────────────────────────────────────────────── */
+  .hero__panel {
+    margin: 0;
+    min-width: 0;
+  }
+
+  .panel {
+    position: relative;
+    overflow: hidden;
+    border-radius: 18px;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.014) 34%, rgba(255, 255, 255, 0.02)),
+      rgba(12, 18, 18, 0.72);
+    box-shadow:
+      inset 0 0 0 1px var(--edge),
+      inset 0 1px 0 rgba(255, 255, 255, 0.09),
+      0 46px 90px -46px rgba(0, 0, 0, 0.95);
+    backdrop-filter: blur(6px);
+  }
+
+  .panel__bar {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--edge-soft);
+    font-size: 0.8125rem;
+  }
+
+  .panel__live {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--brand-bright);
+    flex: none;
+    animation: pulse 2.6s var(--stp-motion-easing) infinite;
+  }
+
+  .panel__title {
+    color: var(--stp-text-primary);
+    font-weight: 500;
+    letter-spacing: -0.005em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .panel__slash {
+    color: var(--stp-text-faint);
+    margin-inline: 5px;
+  }
+
+  .panel__stage {
+    color: var(--brand-bright);
+  }
+
+  .panel__region {
+    font-family: var(--font-geist-mono);
+    font-size: 0.6875rem;
+    color: var(--stp-text-faint);
+    padding: 3px 7px;
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.045);
+    white-space: nowrap;
+  }
+
+  .panel__badge {
+    margin-left: auto;
+    font-size: 0.625rem;
+    text-transform: uppercase;
+    letter-spacing: 0.13em;
+    color: var(--stp-text-faint);
+    white-space: nowrap;
+  }
+
+  .rows {
+    margin: 0;
+    padding: 6px;
+    list-style: none;
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    padding: 11px 12px;
+    border-radius: 11px;
+    animation: rise 620ms var(--stp-motion-easing) backwards;
+    animation-delay: calc(120ms + var(--i) * 70ms);
+  }
+
+  .row + .row {
+    box-shadow: inset 0 1px 0 var(--edge-soft);
+  }
+
+  .row__icon {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    flex: none;
+    border-radius: 9px;
+    color: var(--brand);
+    background: rgba(54, 190, 190, 0.09);
+    box-shadow: inset 0 0 0 1px rgba(54, 190, 190, 0.18);
+  }
+
+  .row__body {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .row__name {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--stp-text-primary);
+    letter-spacing: -0.005em;
+  }
+
+  .row__detail {
+    font-family: var(--font-geist-mono);
+    font-size: 0.6875rem;
+    line-height: 1.4;
+    color: var(--stp-text-faint);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .row--focus {
+    background: linear-gradient(90deg, rgba(54, 190, 190, 0.11), rgba(54, 190, 190, 0.03));
+    box-shadow: inset 0 0 0 1px rgba(54, 190, 190, 0.24);
+  }
+
+  .row--focus .row__icon {
+    color: #ffd7a1;
+    background: rgba(237, 160, 60, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(237, 160, 60, 0.28);
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: none;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.6875rem;
+    letter-spacing: 0.01em;
+    color: var(--brand-bright);
+    background: rgba(54, 190, 190, 0.1);
+    box-shadow: inset 0 0 0 1px rgba(54, 190, 190, 0.2);
+    white-space: nowrap;
+  }
+
+  .chip__dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: currentColor;
+    flex: none;
+  }
+
+  .chip--quiet {
+    color: var(--stp-text-subtle);
+    background: rgba(255, 255, 255, 0.045);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  }
+
+  .chip--action {
+    color: #08120f;
+    font-weight: 600;
+    background: linear-gradient(120deg, var(--brand-bright), var(--brand));
+    box-shadow: 0 0 22px -8px rgba(54, 190, 190, 0.8);
+  }
+
+  /* ─── The fix the agent has already prepared ───────────────────────────── */
+  .fix {
+    margin: 0 12px 14px;
+    padding: 13px 14px;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.28);
+    box-shadow: inset 0 0 0 1px var(--edge-soft);
+    animation: rise 620ms var(--stp-motion-easing) backwards;
+    animation-delay: calc(120ms + var(--i) * 70ms);
+  }
+
+  .fix__line {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.6;
+    color: var(--stp-text-muted);
+  }
+
+  .fix__tag {
+    display: inline-block;
+    margin-right: 8px;
+    font-size: 0.625rem;
+    text-transform: uppercase;
+    letter-spacing: 0.11em;
+    color: var(--stp-text-faint);
+  }
+
+  .fix__line code {
+    font-family: var(--font-geist-mono);
+    font-size: 0.75rem;
+    color: var(--brand-bright);
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: rgba(54, 190, 190, 0.09);
+  }
+
+  .fix__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .fix__btn {
+    display: inline-flex;
+    align-items: center;
+    height: 30px;
+    padding: 0 12px;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    color: var(--stp-text-muted);
+    background: rgba(255, 255, 255, 0.05);
+    box-shadow: inset 0 0 0 1px var(--edge);
+  }
+
+  .fix__btn--primary {
+    color: #08120f;
+    font-weight: 600;
+    background: linear-gradient(120deg, var(--brand-bright), var(--brand));
+    box-shadow: 0 12px 26px -14px rgba(54, 190, 190, 0.85);
+  }
+
+  .fix__note {
+    margin-left: auto;
+    font-size: 0.6875rem;
+    color: var(--stp-text-faint);
+    white-space: nowrap;
+  }
+
+  /* The slow sweep that says "this thing is watching", not "this thing is a GIF". */
+  .panel__scan {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 130px;
+    pointer-events: none;
+    background: linear-gradient(180deg, transparent, rgba(54, 190, 190, 0.055) 62%, rgba(126, 232, 212, 0.14) 96%, transparent);
+    animation: scan 9s linear infinite;
+  }
+
+  .panel__caption {
+    margin: 14px 4px 0;
+    font-size: 0.75rem;
+    line-height: 1.55;
+    color: var(--stp-text-faint);
+    max-width: 46em;
+  }
+
+  /* ─── Capability rail (the hero's floor) ───────────────────────────────── */
+  .rail {
+    position: relative;
+    z-index: 1;
+    overflow: hidden;
+    padding: 16px 0 22px;
+    border-top: 1px solid var(--edge-soft);
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 9%, #000 91%, transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 9%, #000 91%, transparent);
+  }
+
+  .rail__track {
+    display: flex;
+    width: max-content;
+    animation: drift 58s linear infinite;
+  }
+
+  .rail__list {
+    display: flex;
+    align-items: center;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .rail__item {
+    display: inline-flex;
+    align-items: center;
+    padding-inline: 20px;
+    font-size: 0.75rem;
+    letter-spacing: 0.02em;
+    color: rgba(255, 255, 255, 0.34);
+    white-space: nowrap;
+  }
+
+  .rail__item::before {
+    content: '';
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: rgba(54, 190, 190, 0.5);
+    margin-right: 12px;
+  }
+
+  /* ─── Motion ───────────────────────────────────────────────────────────── */
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 rgba(126, 232, 212, 0.42);
+    }
+    60% {
+      box-shadow: 0 0 0 7px rgba(126, 232, 212, 0);
+    }
+  }
+
+  @keyframes scan {
+    0% {
+      transform: translateY(-140px);
+      opacity: 0;
+    }
+    12% {
+      opacity: 1;
+    }
+    74% {
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(620px);
+      opacity: 0;
+    }
+  }
+
+  @keyframes drift {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+
+  /* ─── Responsive ───────────────────────────────────────────────────────── */
+  @media (max-width: 1080px) {
+    .hero__inner {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 40px;
+      padding-top: 24px;
+    }
+
+    .hero__copy {
+      max-width: 640px;
+    }
+
+    .hero__panel {
+      max-width: 640px;
+    }
+
+    .headline {
+      font-size: clamp(2.6rem, 6.6vw, 3.6rem);
+    }
+  }
+
+  @media (max-width: 760px) {
+    .nav__links {
+      display: none;
+    }
+
+    .cmd__head {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .cmd__copy-label {
+      display: none;
+    }
+
+    .row__detail {
+      font-size: 0.625rem;
+    }
+
+    .fix__note {
+      margin-left: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .row,
+    .fix,
+    .panel__live,
+    .panel__scan,
+    .rail__track {
+      animation: none;
+    }
+
+    .panel__scan {
+      display: none;
+    }
+
+    .btn:hover {
+      transform: none;
+    }
+  }
+</style>
+
+<script>
+  /*
+   * The install-method switcher and the copy button — the only interactive part of the hero.
+   *
+   * It never creates elements, only swaps text and classes, so Astro's scoped styles (which are
+   * applied at build time to the markup above) keep applying. The server already rendered the
+   * default method's command, so the CTA is correct and copyable-by-hand before this runs.
+   */
+  const root = document.querySelector<HTMLElement>('[data-cmd]');
+
+  if (root) {
+    const code = root.querySelector<HTMLElement>('[data-cmd-code]');
+    const note = root.querySelector<HTMLElement>('[data-cmd-note]');
+    const copyButton = root.querySelector<HTMLButtonElement>('[data-cmd-copy]');
+    const copyLabel = root.querySelector<HTMLElement>('[data-cmd-copy-label]');
+    const methods = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-method]'));
+
+    let resetTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const select = (chosen: HTMLButtonElement) => {
+      const command = chosen.getAttribute('data-command') ?? '';
+
+      for (const method of methods) {
+        const isActive = method === chosen;
+        method.classList.toggle('is-active', isActive);
+        method.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+      }
+
+      if (code) code.textContent = command;
+      if (note) note.textContent = chosen.getAttribute('data-note') ?? '';
+      copyButton?.setAttribute('aria-label', `Copy ${command}`);
+
+      // Switching methods mid-confirmation must not leave a stale "Copied" against a new command.
+      clearTimeout(resetTimer);
+      root.classList.remove('is-copied');
+      if (copyLabel) copyLabel.textContent = 'Copy';
+    };
+
+    for (const method of methods) {
+      method.addEventListener('click', () => select(method));
+    }
+
+    copyButton?.addEventListener('click', async () => {
+      const command = code?.textContent ?? '';
+      try {
+        await navigator.clipboard.writeText(command);
+      } catch {
+        // Clipboard access is denied in insecure or embedded contexts. The command is selectable
+        // text either way, so there is nothing to recover — just don't claim it was copied.
+        return;
+      }
+
+      root.classList.add('is-copied');
+      if (copyLabel) copyLabel.textContent = 'Copied';
+      copyButton.setAttribute('aria-label', 'Command copied');
+
+      clearTimeout(resetTimer);
+      resetTimer = setTimeout(() => {
+        root.classList.remove('is-copied');
+        if (copyLabel) copyLabel.textContent = 'Copy';
+        copyButton.setAttribute('aria-label', `Copy ${command}`);
+      }, 1600);
+    });
+  }
+</script>

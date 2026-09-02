@@ -1,0 +1,22 @@
+---
+/**
+ * One fact in the depth-proof strip: a mono keyword and the sentence under it.
+ *
+ * A component rather than markup inlined into the strip's loop, for the formatter reason this
+ * repository has already written down once (see `sections/a/RailStep.astro`): `dprint`'s markup
+ * plugin cannot reach a stable result for multi-line JSX inside a `.map()` in an `.astro` template.
+ * A single-line `.map()` body is stable, so a repeated block this long gets extracted.
+ */
+import type { ProofItem } from './copy';
+
+type Props = {
+  item: ProofItem;
+};
+
+const { item } = Astro.props;
+---
+
+<div class="hl-proof__item">
+  <p class="hl-proof__keyword">{item.keyword}</p>
+  <p class="hl-proof__sentence">{item.sentence}</p>
+</div>

@@ -1,0 +1,106 @@
+---
+/**
+ * The page's spine.
+ *
+ * The init wizard's own rail, lifted to page scale: it says where in the run you are, and every step
+ * is reachable because it is a guide rather than a gate. That is the one structural idea this
+ * variant is built on — the homepage is not a stack of features, it is a single run of the product
+ * from `npx stacktape init` to a bill, and the rail is what makes that legible while you are inside
+ * it.
+ *
+ * Two groups, because the run has two halves a reader values differently: Day 0 is the developer's
+ * ("can I get this up at all?") and Day 1 is the CTO's ("does it survive contact with a team?").
+ * Splitting them in the rail states that up front, before either half has to argue for itself.
+ *
+ * The steps are real anchors, unlike the recreated controls inside the product surfaces — they
+ * navigate, so they are links and they take focus.
+ */
+import RailStep from './RailStep.astro';
+
+type Step = {
+  /** Matches the `id` of the band it indexes; the scroll spy below joins them on it. */
+  id: string;
+  label: string;
+  /** The one-line record of what happened at that step, as the wizard's own rail keeps. */
+  note: string;
+};
+
+const DAY_ZERO: readonly Step[] = [
+  { id: 'start', label: 'Start', note: 'one command' },
+  { id: 'analyze', label: 'Analyze', note: 'your own code' },
+  { id: 'review', label: 'Review', note: '6 resources' },
+  { id: 'deploy', label: 'Deploy', note: 'it’s live' }
+];
+
+const DAY_ONE: readonly Step[] = [
+  { id: 'stages', label: 'Stages', note: 'staging, prod' },
+  { id: 'observe', label: 'Observe', note: 'metrics, traces' },
+  { id: 'fix', label: 'Fix', note: 'errors' },
+  { id: 'ship', label: 'Ship', note: 'pull requests' },
+  { id: 'spend', label: 'Spend', note: 'the bill' }
+];
+---
+
+<nav aria-label="The run" class="a-rail">
+  <div class="a-rail__group">
+    <p class="a-rail__day">Day 0</p>
+    <ol class="a-rail__steps">{DAY_ZERO.map((step) => <RailStep step={step} />)}</ol>
+  </div>
+
+  <div class="a-rail__group">
+    <p class="a-rail__day">Day 1</p>
+    <ol class="a-rail__steps">{DAY_ONE.map((step) => <RailStep step={step} />)}</ol>
+  </div>
+</nav>
+
+<script>
+/*
+ * The scroll spy: which band the reader is in.
+ *
+ * Vanilla and inline rather than a React island — it is a dozen lines of DOM work, and shipping a
+ * framework runtime so that nine list items can change class would cost more than the whole rest of
+ * this page's JavaScript. It reads position rather than using IntersectionObserver because the
+ * question is "which band did I last pass?", which is a comparison against one line on the screen;
+ * an observer answers "what is visible", which is a different and, with nine tall sections, an
+ * ambiguous question.
+ *
+ * If the markup and the anchors ever disagree the whole thing opts out, leaving a rail that is still
+ * a working table of contents.
+ */
+const steps = [...document.querySelectorAll<HTMLElement>('[data-run-step]')];
+const sections = steps
+  .map((step) => document.getElementById(step.dataset.runStep ?? ''))
+  .filter((section): section is HTMLElement => section !== null);
+
+if (steps.length > 0 && steps.length === sections.length) {
+  let queued = false;
+
+  const paint = () => {
+    queued = false;
+    /* The reading line sits at 40% of the viewport: a band counts as "the one you are in" once its
+     * heading has climbed past the upper third, which is where a heading is when you are reading
+     * what follows it rather than approaching it. */
+    const line = globalThis.innerHeight * 0.4;
+    let current = -1;
+
+    sections.forEach((section, index) => {
+      if (section.getBoundingClientRect().top <= line) current = index;
+    });
+
+    steps.forEach((step, index) => {
+      step.classList.toggle('is-done', current > -1 && index < current);
+      step.classList.toggle('is-current', index === current);
+    });
+  };
+
+  const request = () => {
+    if (queued) return;
+    queued = true;
+    globalThis.requestAnimationFrame(paint);
+  };
+
+  paint();
+  globalThis.addEventListener('scroll', request, { passive: true });
+  globalThis.addEventListener('resize', request);
+}
+</script>

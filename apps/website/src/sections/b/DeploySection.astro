@@ -1,0 +1,64 @@
+---
+/**
+ * Act I, section 02: `stacktape deploy`.
+ *
+ * The transcript sits beside a four-phase read of what it is doing, because the argument of this
+ * section is not "there is a nice terminal" — it is that one command owns packaging, the change
+ * set, the rollout and the outputs, and tells you which of them it is in.
+ *
+ * The hot-swap beat is the caption. The surface already renders the second deploy under the
+ * transcript; the caption says why it is there rather than repeating what it says.
+ */
+import { DeployTerminal } from '../../surfaces/DeployTerminal';
+import SectionHead from './SectionHead.astro';
+---
+
+<section class="b-band b-band--deep" id="s02" data-act="0">
+  <div class="b-shell">
+    <SectionHead act="0" index="02" kicker="stacktape deploy">
+      <Fragment slot="title">One command carries the whole pipeline.</Fragment>
+      <Fragment slot="lede">
+        Packaging, the CloudFormation change set, the rollout and the outputs. It is your account and your stack the
+        whole way — Stacktape is the thing that wrote the template and is watching it apply.
+      </Fragment>
+    </SectionHead>
+
+    <div class="b-figure b-split b-reveal">
+      <figure class="b-figure b-figure--flush">
+        <div class="b-figure__stage b-figure__stage--bare">
+          <DeployTerminal />
+        </div>
+        <figcaption class="b-figure__caption">
+          <b>The panel under the transcript is the next deploy.</b> When only your code changed, Stacktape skips
+          CloudFormation and swaps the artifact in seconds — so the three minutes above is a first deploy, not a
+          habit.
+        </figcaption>
+      </figure>
+
+      <ol class="b-notes">
+        <li>
+          <h3><i>01</i> Initialize</h3>
+          <p>Resolves the config, the stage and the AWS account, and diffs what is already deployed.</p>
+        </li>
+        <li>
+          <h3><i>02</i> Package</h3>
+          <p>
+            Builds every function and container image, with shared dependencies lifted into a Lambda layer. Measured at
+            roughly <b>7× faster than AWS CDK</b> on 15 Lambdas with shared dependencies.
+          </p>
+        </li>
+        <li>
+          <h3><i>03</i> Deploy</h3>
+          <p>
+            One CloudFormation change set, applied and reported resource by resource. <code>c</code> cancels and rolls
+            back; a failed stack rolls itself back the way CloudFormation always has.
+          </p>
+        </li>
+        <li>
+          <h3><i>04</i> Outputs</h3>
+          <p>The URLs, the connection details, and a link into the Console — which is where Act II starts.</p>
+        </li>
+      </ol>
+    </div>
+  </div>
+</section>

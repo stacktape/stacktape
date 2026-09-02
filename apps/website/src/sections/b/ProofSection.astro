@@ -1,0 +1,93 @@
+---
+/**
+ * After both acts: the claims, with their sources, and three customers.
+ *
+ * Every figure here carries the measurement that produced it in the line underneath. That is the
+ * point of the section — a stats row without provenance is decoration, and this page has just spent
+ * seven sections asking the reader to believe screenshots.
+ *
+ * The quotes are trimmed to contiguous spans of the originals. Nothing is stitched together across
+ * an ellipsis, and the attributions are the ones the customers gave.
+ */
+import ProofQuote from './ProofQuote.astro';
+import ProofStat from './ProofStat.astro';
+
+type Stat = {
+  figure: string;
+  claim: string;
+  source: string;
+};
+
+const STATS: Stat[] = [
+  {
+    figure: '~7×',
+    claim: 'faster packaging than AWS CDK.',
+    source: '15 Lambda functions with shared dependencies, build settings equalized. Measured July 2026.'
+  },
+  {
+    figure: '2–5×',
+    claim: 'faster builds than AWS CodeBuild.',
+    source: 'On Stacktape EC2 build runners, which wake from hibernation in about 10 seconds and cost about $3 a month idle.'
+  },
+  {
+    figure: '0%',
+    claim: 'markup on your AWS spend.',
+    source: 'The cost dashboard reads your own Cost Explorer data. AWS invoices you directly, at your own rates.'
+  },
+  {
+    figure: '8 min',
+    claim: 'median first response from support.',
+    source: 'Our own measure of how long it takes to get a human reply.'
+  }
+];
+
+type Quote = {
+  text: string;
+  name: string;
+  role: string;
+};
+
+const QUOTES: Quote[] = [
+  {
+    text: 'With Stacktape, we fast-tracked our AWS deployment process. Our development and production environments were operational in just two days.',
+    name: 'Eric Allam',
+    role: 'CTO & Founder, Trigger.dev'
+  },
+  {
+    text: 'They abstract away so much of the complexity of AWS, and let us focus on our application logic, instead of infrastructure configuration. The team is second to none, hopping in to be true partners with us on our development journey.',
+    name: 'Henry Garrett',
+    role: 'Founding Engineer, Receipts'
+  },
+  {
+    text: 'It has allowed our small team to efficiently handle environments using GitOps, all while keeping a tight rein on costs.',
+    name: 'Rhys Williams',
+    role: 'CTO & Founder, Lastmyle'
+  }
+];
+---
+
+<section class="b-band b-band--deep" id="proof" data-act="none">
+  <div class="b-shell">
+    <header class="b-head b-reveal">
+      <p class="b-head__marker">
+        <span class="b-head__index">08</span>
+        <span class="b-head__kicker">Measured, not asserted</span>
+        <span class="b-head__rule" aria-hidden="true"></span>
+      </p>
+
+      <h2 class="b-head__title">Four numbers, and where each one comes from.</h2>
+      <p class="b-head__lede">
+        Two of these are benchmarks we ran and will re-run. One is a pricing decision. One is a promise about answering
+        you. None of them is a round number picked because it looked good on a homepage.
+      </p>
+    </header>
+
+    <dl class="b-stats b-reveal">
+      {STATS.map((s) => <ProofStat figure={s.figure} claim={s.claim} source={s.source} />)}
+    </dl>
+
+    <ul class="b-quotes b-reveal">
+      {QUOTES.map((q) => <ProofQuote text={q.text} name={q.name} role={q.role} />)}
+    </ul>
+  </div>
+</section>

@@ -1,0 +1,224 @@
+/*
+ * Styles for markup this site generates rather than writes.
+ *
+ * Two producers: Shiki (`.stp-code`, its `.line` spans and inline colour styles) and the schema
+ * hover layer (`.stp-hover`, `.stp-hover-popup`). Both emit plain DOM with no classes we control,
+ * so these are descendant selectors in `@layer components` rather than utilities.
+ */
+@layer components {
+  /* ── Shiki output ───────────────────────────────────────────────────────────────────────────── */
+
+  .stp-code pre {
+    margin: 0;
+    padding: 0;
+    /* The theme paints its own near-black; the panel underneath is the one we want to see. */
+    background: transparent !important;
+    overflow: visible;
+  }
+
+  .stp-code code {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    line-height: 1.7;
+    /* Shiki separates its `.line` spans with literal "\n" text nodes. Under the `pre` ancestor's
+     * inherited `white-space: pre` each of those newlines becomes its own line box, doubling the
+     * block's height and drifting the gutter off the code. Lines keep `white-space: pre` below;
+     * the separators must collapse. */
+    white-space: normal;
+    /* `--` in a flag would otherwise ligate into one wide glyph and break column alignment. */
+    font-variant-ligatures: none;
+    font-feature-settings:
+      'liga' 0,
+      'calt' 0;
+  }
+
+  .stp-code .line {
+    display: block;
+    min-height: 1.7em;
+    white-space: pre;
+  }
+
+  /* ── The hover layer ────────────────────────────────────────────────────────────────────────── */
+
+  /*
+   * A documented key. The underline only appears once the reader is over the block, so a static
+   * screenshot of the hero is clean and the affordance still arrives before anyone looks for it.
+   */
+  .stp-hover {
+    position: relative;
+    border-bottom: 1px dotted transparent;
+    transition: border-color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+    cursor: help;
+  }
+
+  .stp-code:hover .stp-hover,
+  .stp-hover:focus-visible {
+    border-bottom-color: color-mix(in srgb, var(--color-brand) 55%, transparent);
+  }
+
+  .stp-hover:hover,
+  .stp-hover:focus-visible {
+    border-bottom-color: var(--color-brand);
+  }
+
+  /*
+   * The popup. Shown by `:hover`/`:focus-within` alone — the island's only job is to write
+   * `--stp-hover-shift` and `data-stp-hover-above` when the popup would leave the viewport.
+   *
+   * `display: none` at rest, not `visibility: hidden`: a hidden-but-laid-out popup still counts
+   * toward the scrollable overflow of the nearest scroll container (the code pane scrolls long
+   * lines horizontally, which makes it one), so dozens of invisible popups turned the pane into a
+   * phantom wheel target that swallowed page scroll. With no box at rest there is nothing to
+   * inflate. The island can still measure: it reads the rect on `pointerenter`/`focusin`, when
+   * `:hover`/`:focus-within` already applies and the box exists again.
+   */
+  .stp-hover-popup {
+    position: absolute;
+    z-index: 40;
+    top: calc(100% + 6px);
+    left: var(--stp-hover-shift, 0px);
+    display: none;
+    flex-direction: column;
+    width: max-content;
+    min-width: 17rem;
+    max-width: min(28rem, calc(100vw - 2rem));
+    padding: 0;
+    border-radius: var(--stp-radius-medium);
+    background: rgb(24 30 30 / 0.98);
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.09),
+      0 18px 48px rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(8px);
+    color: var(--color-fc-primary);
+    font-family: var(--font-sans);
+    font-size: 0.78rem;
+    line-height: 1.55;
+    text-align: left;
+    white-space: normal;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-3px);
+    transition:
+      opacity var(--stp-motion-duration-fast) var(--stp-motion-easing),
+      transform var(--stp-motion-duration-fast) var(--stp-motion-easing),
+      visibility 0s linear var(--stp-motion-duration-fast);
+    pointer-events: none;
+  }
+
+  .stp-hover:hover > .stp-hover-popup,
+  .stp-hover:focus-within > .stp-hover-popup {
+    display: flex;
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+    transition-delay: 0s;
+    pointer-events: auto;
+
+    /* The box appears out of `display: none`, so the fade needs its "from" state spelled out. */
+    @starting-style {
+      opacity: 0;
+      transform: translateY(-3px);
+    }
+  }
+
+  /* Not enough room below: open upwards instead. Set by the island, never by the stylesheet. */
+  .stp-hover[data-stp-hover-above] > .stp-hover-popup {
+    top: auto;
+    bottom: calc(100% + 6px);
+  }
+
+  .stp-hover-popup-title {
+    padding: 8px 12px 7px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    color: var(--color-brand);
+    font-family: var(--font-mono);
+    font-size: 0.76rem;
+    font-weight: 600;
+  }
+
+  .stp-hover-popup-docs {
+    display: block;
+    max-height: 20rem;
+    padding: 10px 12px;
+    overflow-y: auto;
+    color: var(--color-fc-lighter);
+  }
+
+  .stp-hover-popup-docs > :first-child {
+    margin-top: 0;
+  }
+
+  .stp-hover-popup-docs > :last-child {
+    margin-bottom: 0;
+  }
+
+  .stp-hover-popup-docs p,
+  .stp-hover-popup-docs ul,
+  .stp-hover-popup-docs ol,
+  .stp-hover-popup-docs pre {
+    margin: 0 0 7px;
+  }
+
+  .stp-hover-popup-docs ul,
+  .stp-hover-popup-docs ol {
+    padding-left: 1.1rem;
+  }
+
+  .stp-hover-popup-docs h1,
+  .stp-hover-popup-docs h2,
+  .stp-hover-popup-docs h3,
+  .stp-hover-popup-docs h4 {
+    margin: 0 0 6px;
+    color: var(--color-fc-primary);
+    font-size: 0.82rem;
+    font-weight: 600;
+  }
+
+  .stp-hover-popup-docs strong {
+    color: var(--color-fc-primary);
+    font-weight: 600;
+  }
+
+  .stp-hover-popup-docs code {
+    padding: 1px 4px;
+    border-radius: var(--stp-radius-small);
+    background: rgba(255, 255, 255, 0.08);
+    font-family: var(--font-mono);
+    font-size: 0.92em;
+  }
+
+  .stp-hover-popup-docs pre {
+    padding: 8px 10px;
+    overflow-x: auto;
+    border-radius: var(--stp-radius-small);
+    background: rgba(0, 0, 0, 0.35);
+    font-size: 0.92em;
+  }
+
+  .stp-hover-popup-docs pre code {
+    padding: 0;
+    background: none;
+  }
+
+  .stp-hover-popup-docs a {
+    color: var(--color-brand);
+  }
+
+  .stp-hover-popup-docs a:hover {
+    text-decoration: underline;
+  }
+
+  .stp-hover-popup-docs hr {
+    margin: 8px 0;
+    border: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .stp-hover-popup {
+      transition-duration: 0s;
+      transform: none;
+    }
+  }
+}

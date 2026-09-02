@@ -1,0 +1,29 @@
+resources:
+  apiGateway:
+    type: http-api-gateway
+    properties: {}
+
+  ordersTable:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: orderId
+          type: string
+
+  createOrder:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/create-order.ts
+      memory: 1024
+      connectTo:
+        - ordersTable
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: apiGateway
+            method: POST
+            path: /orders

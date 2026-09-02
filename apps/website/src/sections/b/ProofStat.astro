@@ -1,0 +1,24 @@
+---
+/**
+ * One sourced figure: the number, what it claims, and how it was arrived at.
+ *
+ * A separate component for the same reason `ProofQuote` is one — the repository's `.astro`
+ * formatter only handles a single-line component call inside a `.map()` deterministically.
+ */
+type Props = {
+  figure: string;
+  claim: string;
+  /** The measurement, the pricing fact or the definition behind the figure. Never optional. */
+  source: string;
+};
+
+const { figure, claim, source } = Astro.props;
+---
+
+<div>
+  <dt>{figure}</dt>
+  <dd>
+    {claim}
+    <small>{source}</small>
+  </dd>
+</div>

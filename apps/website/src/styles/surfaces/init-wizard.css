@@ -1,0 +1,527 @@
+/*
+ * The init-wizard run.
+ *
+ * Ported from `apps/init-ui/src/styles.css` rather than reinvented: same measure, same rail, same
+ * borderless bands, same single accent. The differences are the ones a marketing embed forces — the
+ * bands do not animate in (the whole run is present at once, so eight staggered fades would be
+ * noise), and no band is muted (there is no "current" step to contrast against).
+ */
+@layer components {
+  .wizard-run {
+    /* One measure for every column of prose on the surface, exactly as the wizard sets it. */
+    --wizard-measure: 62ch;
+
+    width: 100%;
+  }
+
+  .wizard-eyebrow {
+    margin: 0;
+    color: var(--color-brand);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .wizard-lede {
+    margin: 12px 0 0;
+    max-width: var(--wizard-measure);
+    color: var(--color-fc-lighter);
+  }
+
+  .wizard-lede--tight {
+    margin-top: 6px;
+    font-size: 0.92rem;
+  }
+
+  .wizard-masthead {
+    max-width: var(--wizard-measure);
+    margin-bottom: 44px;
+  }
+
+  .wizard-title {
+    margin: 10px 0 0;
+    font-size: clamp(1.6rem, 2.6vw, 2.1rem);
+    font-weight: 660;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+  }
+
+  /* The rail is 168px because the labels are one word and a summary; wider and it starts competing
+   * with the content it is supposed to be indexing. */
+  .wizard-run__page {
+    display: grid;
+    grid-template-columns: 168px minmax(0, 1fr);
+    gap: 48px;
+    align-items: start;
+  }
+
+  .wizard-run__flow {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+  }
+
+  /* ── The guide rail ─────────────────────────────────────────────────────────────────────────── */
+
+  .wizard-rail {
+    position: sticky;
+    top: 40px;
+  }
+
+  .wizard-rail ol {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .wizard-rail__step {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 9px 0 22px;
+    color: var(--color-fc-lighter);
+    font-size: 0.92rem;
+  }
+
+  /* The connector, drawn from each marker to the next. It stops at the last step rather than
+   * trailing off into nothing, which would imply a fifth band. */
+  .wizard-rail__step:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 26px;
+    bottom: 4px;
+    width: 1px;
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .wizard-rail__marker {
+    display: grid;
+    place-items: center;
+    width: 11px;
+    height: 11px;
+    margin-top: 6px;
+    flex: none;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.14);
+    color: transparent;
+    font-size: 0.5rem;
+    font-weight: 800;
+  }
+
+  .wizard-rail__step.is-done .wizard-rail__marker {
+    background: color-mix(in srgb, var(--color-brand) 55%, transparent);
+  }
+
+  .wizard-rail__step.is-current {
+    color: var(--color-fc-primary);
+    font-weight: 600;
+  }
+
+  .wizard-rail__step.is-current .wizard-rail__marker {
+    background: var(--color-brand);
+    transform: scale(1.35);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-brand) 16%, transparent);
+  }
+
+  .wizard-rail__label {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .wizard-rail__summary {
+    color: var(--color-fc-ternary);
+    font-size: 0.75rem;
+    font-weight: 400;
+  }
+
+  /* ── Bands ──────────────────────────────────────────────────────────────────────────────────── */
+
+  .wizard-band {
+    padding: 0 0 52px;
+  }
+
+  .wizard-band--last {
+    padding-bottom: 0;
+  }
+
+  .wizard-band__header {
+    margin-bottom: 20px;
+  }
+
+  .wizard-band__title {
+    margin: 8px 0 0;
+    font-size: 1.3rem;
+    font-weight: 640;
+    letter-spacing: -0.01em;
+  }
+
+  .wizard-subsection {
+    margin-top: 32px;
+  }
+
+  .wizard-subheading {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 620;
+  }
+
+  /* ── Start: the promises ────────────────────────────────────────────────────────────────────── */
+
+  .wizard-promises {
+    counter-reset: promise;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin: 0;
+    padding: 0;
+    max-width: var(--wizard-measure);
+    list-style: none;
+    color: var(--color-fc-lighter);
+  }
+
+  .wizard-promises li {
+    position: relative;
+    padding-left: 34px;
+    font-size: 0.95rem;
+    line-height: 1.55;
+  }
+
+  .wizard-promises li::before {
+    counter-increment: promise;
+    content: counter(promise);
+    position: absolute;
+    left: 0;
+    top: 1px;
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    color: var(--color-brand);
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+
+  .wizard-promises strong,
+  .wizard-recap strong {
+    color: var(--color-fc-primary);
+    font-weight: 600;
+  }
+
+  .wizard-action {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+    margin: 28px 0 0;
+  }
+
+  /* Drawn as the product's primary button, but a span: a recreation must not offer a focus stop
+   * that leads nowhere. */
+  .wizard-button.is-primary {
+    display: inline-flex;
+    align-items: center;
+    padding: 9px 18px;
+    border-radius: var(--stp-radius-large);
+    background: rgb(20, 150, 150);
+    color: #fff;
+    font-size: 0.92rem;
+    font-weight: 600;
+  }
+
+  .wizard-action__aside {
+    color: var(--color-fc-light);
+    font-size: 0.9rem;
+  }
+
+  /* ── Analyze: findings and their evidence ───────────────────────────────────────────────────── */
+
+  .wizard-recap {
+    margin: 0 0 18px;
+    max-width: var(--wizard-measure);
+    color: var(--color-fc-lighter);
+  }
+
+  .wizard-findings {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  /*
+   * No card and no border: a list of findings is a list, and five bordered boxes in a column is a
+   * fence. The hover tint is enough to show which row you are on.
+   */
+  .wizard-finding {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    gap: 16px;
+    align-items: baseline;
+    padding: 11px 14px;
+    border-radius: var(--stp-radius-large);
+    transition: background var(--stp-motion-duration-base) var(--stp-motion-easing);
+  }
+
+  .wizard-finding:hover {
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .wizard-finding__claim {
+    color: var(--color-fc-primary);
+    font-size: 0.94rem;
+  }
+
+  .wizard-finding__cite {
+    display: flex;
+    min-width: 0;
+    gap: 12px;
+    font-family: var(--font-mono);
+    font-size: 0.76rem;
+  }
+
+  /* Path and line first: it is what the reader scans for, and it is what they would type into their
+   * editor to go and look. */
+  .wizard-finding__file {
+    flex: none;
+    color: var(--color-fc-ternary);
+  }
+
+  .wizard-finding__quote {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--color-fc-light);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* ── Review: summary, diagram, cost, decisions ──────────────────────────────────────────────── */
+
+  .wizard-summary {
+    margin: 0;
+    max-width: var(--wizard-measure);
+    font-size: 1.05rem;
+    line-height: 1.55;
+    color: var(--color-fc-primary);
+  }
+
+  .wizard-summary strong {
+    font-weight: 620;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* The config-editor frame the wizard shows the diagram in: a view switcher over a fixed stage, so
+   * the page below it never moves. */
+  .wizard-diagram {
+    margin: 24px 0 26px;
+    overflow: hidden;
+    border-radius: var(--stp-radius-large);
+    background: rgba(255, 255, 255, 0.02);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  }
+
+  .wizard-diagram__views {
+    display: flex;
+    gap: 2px;
+    padding: 8px 10px;
+    box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  .wizard-diagram__view {
+    padding: 5px 12px;
+    border-radius: var(--stp-radius-medium);
+    color: var(--color-fc-light);
+    font-size: 0.8rem;
+  }
+
+  .wizard-diagram__view.is-active {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--color-fc-primary);
+    font-weight: 600;
+  }
+
+  /*
+   * The stage. A fixed height matters more here than anywhere else on the site: the diagram is an
+   * island, and a container that sizes to its content would collapse to nothing before the island
+   * renders and then shove the rest of the page down when it does.
+   */
+  .wizard-diagram__canvas {
+    height: clamp(20rem, 46vw, 28rem);
+  }
+
+  .wizard-total-cost {
+    margin: 0;
+    max-width: var(--wizard-measure);
+    font-size: 0.9rem;
+    color: var(--color-fc-lighter);
+  }
+
+  .wizard-total-cost strong {
+    color: var(--color-fc-primary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .wizard-decisions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 18px;
+  }
+
+  .wizard-decision {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 16px;
+    border-radius: var(--stp-radius-large);
+    background: rgba(255, 255, 255, 0.02);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  }
+
+  /* The ones that bite later get an accent edge — one hairline, not a colour wash, because they are
+   * worth a glance rather than an alarm. */
+  .wizard-decision.is-notable {
+    box-shadow:
+      inset 3px 0 0 color-mix(in srgb, var(--color-brand) 70%, transparent),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  }
+
+  .wizard-decision__text {
+    min-width: 0;
+  }
+
+  .wizard-decision__summary {
+    margin: 0;
+    color: var(--color-fc-primary);
+    font-weight: 560;
+  }
+
+  .wizard-decision__detail {
+    margin: 4px 0 0;
+    max-width: var(--wizard-measure);
+    font-size: 0.9rem;
+    color: var(--color-fc-lighter);
+  }
+
+  .wizard-decision__toggle {
+    flex: none;
+    padding: 4px 10px;
+    border-radius: var(--stp-radius-medium);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--color-fc-lighter);
+    font-size: 0.82rem;
+  }
+
+  /* ── Deploy ─────────────────────────────────────────────────────────────────────────────────── */
+
+  .wizard-live {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+  }
+
+  .wizard-live__dot {
+    width: 8px;
+    height: 8px;
+    flex: none;
+    border-radius: 999px;
+    background: var(--color-success);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-success) 18%, transparent);
+  }
+
+  .wizard-live__url {
+    color: var(--color-brand);
+    font-size: 1.15rem;
+    font-weight: 600;
+  }
+
+  .wizard-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 28px;
+    margin: 24px 0 0;
+  }
+
+  .wizard-facts dt {
+    margin: 0 0 2px;
+    color: var(--color-fc-ternary);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .wizard-facts dd {
+    margin: 0;
+    color: var(--color-fc-primary);
+    font-size: 0.94rem;
+  }
+
+  .wizard-next {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin: 26px 0 0;
+    color: var(--color-fc-lighter);
+    font-size: 0.9rem;
+  }
+
+  .wizard-next code {
+    padding: 6px 12px;
+    border-radius: var(--stp-radius-medium);
+    background: rgba(0, 0, 0, 0.3);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+    color: var(--color-fc-primary);
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+  }
+
+  @media (max-width: 820px) {
+    /* A 168px rail beside content is not a layout on a phone, it is two columns of nothing. It
+     * becomes a row of markers above the flow, which still says how many bands there are. */
+    .wizard-run__page {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 24px;
+    }
+
+    .wizard-rail {
+      position: static;
+    }
+
+    .wizard-rail ol {
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: 18px;
+    }
+
+    .wizard-rail__step {
+      padding: 0;
+    }
+
+    .wizard-rail__step:not(:last-child)::before {
+      display: none;
+    }
+
+    .wizard-rail__summary {
+      display: none;
+    }
+
+    .wizard-finding {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 5px;
+    }
+  }
+}

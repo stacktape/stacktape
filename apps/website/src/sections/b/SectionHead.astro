@@ -1,0 +1,34 @@
+---
+/**
+ * The numbered head every section inside an act uses.
+ *
+ * The marker is the variant's running motif: an act tag, the section's number, its kicker, and a
+ * rule that runs out to the right margin. It is what turns eight product surfaces into a numbered
+ * argument rather than a list of screenshots — `D1 / 06` tells the reader where they are even if
+ * they arrived at that section from the act's agenda links.
+ *
+ * `title` and `lede` are slots rather than props because both carry inline `<code>` and `<b>`.
+ */
+type Props = {
+  /** Which act this section belongs to. Rendered as the `D0` / `D1` tag. */
+  act: '0' | '1';
+  /** Two digits, continuous across both acts. */
+  index: string;
+  /** The short mono label: usually the command or the product screen the section is about. */
+  kicker: string;
+};
+
+const { act, index, kicker } = Astro.props;
+---
+
+<header class="b-head b-reveal">
+  <p class="b-head__marker">
+    <span class="b-head__act">D{act}</span>
+    <span class="b-head__index">{index}</span>
+    <span class="b-head__kicker">{kicker}</span>
+    <span class="b-head__rule" aria-hidden="true"></span>
+  </p>
+
+  <h2 class="b-head__title"><slot name="title" /></h2>
+  <p class="b-head__lede"><slot name="lede" /></p>
+</header>

@@ -1,0 +1,35 @@
+---
+/**
+ * Act II, section 05: error tracking, and the Autofix beat.
+ *
+ * The copy describes what the surface shows and stops there. Autofix is stated as the context it
+ * assembles — the grouped error, the stack trace, the release, the repository — rather than as a
+ * promise about what comes back, because the honest claim is the one about the context.
+ */
+import { IssuesInbox } from '../../surfaces/IssuesInbox/IssuesInbox';
+import SectionHead from './SectionHead.astro';
+---
+
+<section class="b-band" id="s05" data-act="1">
+  <div class="b-shell">
+    <SectionHead act="1" index="05" kicker="Console · error tracking">
+      <Fragment slot="title">When it breaks, you get the frame that threw it.</Fragment>
+      <Fragment slot="lede">
+        Errors are grouped across every runtime in the stage, counted, and pinned to the release they appeared in. The
+        detail pane carries the stack trace with your own source frames marked. <b>Autofix with Claude</b> hands all of
+        that — the grouped error, the trace, the release, the repository it came from — to Claude in one step,
+        instead of making you assemble it from four tabs.
+      </Fragment>
+    </SectionHead>
+
+    <figure class="b-figure b-reveal">
+      <div class="b-figure__stage site-panel">
+        <IssuesInbox />
+      </div>
+      <figcaption class="b-figure__caption">
+        <b>Two open issues on production.</b> The occurrences sparkline is the same burst the metrics above show, an
+        hour wide.
+      </figcaption>
+    </figure>
+  </div>
+</section>

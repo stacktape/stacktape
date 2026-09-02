@@ -1,0 +1,93 @@
+---
+/**
+ * Homepage variant B — "Two acts: Day 0 / Day 1".
+ *
+ * The page is one argument in two halves. Act I is the half every infrastructure product shows: a
+ * repo, two commands, something running on AWS. Act II is the half they skip, and it is where this
+ * variant spends most of its length — the console, the metrics, the traces, the errors, the
+ * pipeline and the bill — because that is the half a team actually lives in and the half a CTO is
+ * deciding about.
+ *
+ * The act dividers, the running act indicator in the nav and the continuous section numbering are
+ * the structure made visible. Nothing on the page is a section "because homepages have one".
+ *
+ * `noindex` while the variants are being compared: these routes exist so two directions can be read
+ * side by side, not so search engines find two homepages.
+ *
+ * `b.css` is imported here and only here, so it is bundled onto this route alone. Every selector in
+ * it is `b-` prefixed; the shared surfaces and variant A are untouched by it.
+ */
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ActDivider from '../../sections/b/ActDivider.astro';
+import ClosingSection from '../../sections/b/ClosingSection.astro';
+import ConsoleSection from '../../sections/b/ConsoleSection.astro';
+import CostsSection from '../../sections/b/CostsSection.astro';
+import DeliverySection from '../../sections/b/DeliverySection.astro';
+import DeploySection from '../../sections/b/DeploySection.astro';
+import HeroSection from '../../sections/b/HeroSection.astro';
+import IssuesSection from '../../sections/b/IssuesSection.astro';
+import ObservabilitySection from '../../sections/b/ObservabilitySection.astro';
+import ProofSection from '../../sections/b/ProofSection.astro';
+import SiteFooter from '../../sections/b/SiteFooter.astro';
+import SiteNav from '../../sections/b/SiteNav.astro';
+import WizardSection from '../../sections/b/WizardSection.astro';
+import '../../sections/b/b.css';
+---
+
+<BaseLayout
+  title="Ship it to AWS on day 0. Run it there on day 1."
+  description="One config file, TypeScript or YAML, compiled to plain CloudFormation and deployed into an AWS account you own. The console, metrics, traces, preview environments and costs come with it."
+  font="geist"
+  noindex
+>
+  <div class="b-page" id="top">
+    <SiteNav />
+
+    <main>
+      <HeroSection />
+
+      <ActDivider
+        act="0"
+        id="day-0"
+        kicker="Act I"
+        day="Day 0"
+        title="Ship it."
+        lede="From a repository with no infrastructure to a running stack in your own AWS account. Two commands, and you see everything — the diagram, the decisions, the monthly cost — before any of it exists."
+        beats={[
+          { index: '01', label: 'The wizard writes the config', href: 's01' },
+          { index: '02', label: 'One command deploys it', href: 's02' }
+        ]}
+      />
+
+      <WizardSection />
+      <DeploySection />
+
+      <ActDivider
+        act="1"
+        id="day-1"
+        kicker="Act II"
+        day="Day 1"
+        title="Run it."
+        lede="Most demos end at the deploy. This is the part your team lives in: one console for every stage, metrics and traces when something is slow, grouped errors when something breaks, an environment per pull request, and a bill with nothing added to it."
+        beats={[
+          { index: '03', label: 'The console', href: 's03' },
+          { index: '04', label: 'When it is slow', href: 's04' },
+          { index: '05', label: 'When it breaks', href: 's05' },
+          { index: '06', label: 'Every pull request', href: 's06' },
+          { index: '07', label: 'The bill', href: 's07' }
+        ]}
+      />
+
+      <ConsoleSection />
+      <ObservabilitySection />
+      <IssuesSection />
+      <DeliverySection />
+      <CostsSection />
+
+      <ProofSection />
+      <ClosingSection />
+    </main>
+
+    <SiteFooter />
+  </div>
+</BaseLayout>

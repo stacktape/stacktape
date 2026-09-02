@@ -1,0 +1,984 @@
+---
+// concept: A split "system view" hero — editorial headline and CTAs on the left; on the right one live control panel: the real stacktape.yml with schema hover docs, a dotted bus mapping config lines to the AWS resources they become, and a runtime strip (deploy pipeline, p95 latency, an incident the agent auto-resolved).
+// copy-angle: Names the automation outright ("The whole AWS lifecycle, automated") and plays the AI claim boldly but grounded: the agent appears as a concrete, resolved incident inside the live panel, while the subhead argues the trust case — Stacktape holds the whole picture (config, account, observability), so the automation is never a black box.
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Logo from '../../components/Logo.astro';
+import { getSnippet } from '../../lib/snippets/snippets.ts';
+
+const snippet = await getSnippet('nextjs-postgres');
+const gutter = Array.from({ length: snippet.yaml.lineCount }, (_, index) => index + 1);
+---
+
+<BaseLayout
+  title="Stacktape — The whole AWS lifecycle, automated"
+  description="Stacktape writes your AWS infrastructure from one config file, deploys it into your own account, and runs the DevOps layer from then on — CI/CD, observability, costs, and an agent that can fix incidents."
+  font="geist"
+  noindex
+>
+  <header class="nav">
+    <div class="nav__inner">
+      <a class="nav__logo" href="/" aria-label="Stacktape — home">
+        <Logo height={22} />
+      </a>
+      <nav class="nav__links" aria-label="Documentation and source">
+        <a href="https://docs.stacktape.com">Docs</a>
+        <a href="https://github.com/stacktape/stacktape">GitHub</a>
+      </nav>
+      <div class="nav__cta">
+        <a class="nav__signin" href="https://console.stacktape.com">Sign in</a>
+        <a class="nav__demo" href="https://cal.com/stacktape/30min">Book a demo</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="hero">
+    <div class="hero__bg" aria-hidden="true">
+      <div class="hero__bg-grid"></div>
+      <div class="hero__bg-glow"></div>
+    </div>
+
+    <div class="hero__inner">
+      <div class="hero__grid">
+        <div class="hero__copy">
+          <p class="eyebrow reveal">
+            <span class="eyebrow__dot" aria-hidden="true"></span>
+            One file → your account → production
+          </p>
+
+          <h1 class="headline reveal reveal--1">
+            The whole AWS lifecycle,
+            <span class="headline__accent">automated.</span>
+          </h1>
+
+          <p class="sub reveal reveal--2">
+            Point Stacktape at your repository — it writes the infrastructure config and deploys the whole stack into
+            <strong>your own AWS account</strong>: networking, databases, CI/CD. Then it stays on the job:
+            observability, costs, and <strong>an agent that can resolve an incident and ship the fix</strong>.
+          </p>
+
+          <div class="cta reveal reveal--3" data-cta>
+            <div class="cta__cmd">
+              <span class="cta__prompt" aria-hidden="true">$</span>
+              <code class="cta__code" data-cmd-code>npx stacktape init</code>
+              <button class="cta__copy" type="button" data-cmd-copy aria-label="Copy npx stacktape init">
+                <svg viewBox="0 0 14 14" width="13" height="13" fill="none" aria-hidden="true">
+                  <rect x="4.75" y="1.75" width="7.5" height="7.5" rx="1.6" stroke="currentColor" stroke-width="1.2" />
+                  <path
+                    d="M9.25 12.25h-6a1.5 1.5 0 0 1-1.5-1.5v-6"
+                    stroke="currentColor"
+                    stroke-width="1.2"
+                    stroke-linecap="round"
+                  />
+                </svg>
+                <span data-cmd-copy-label>Copy</span>
+              </button>
+            </div>
+            <div class="cta__row">
+              <fieldset class="cta__methods" aria-label="Installation method">
+                <button class="cta__method is-active" type="button" data-method="npx" aria-pressed="true">npx</button>
+                <button class="cta__method" type="button" data-method="macos" aria-pressed="false">macOS</button>
+                <button class="cta__method" type="button" data-method="linux" aria-pressed="false">Linux</button>
+                <button class="cta__method" type="button" data-method="windows" aria-pressed="false">Windows</button>
+              </fieldset>
+              <p class="cta__hint" data-cmd-hint>
+                Runs the AI setup wizard straight from the registry — nothing to install.
+              </p>
+            </div>
+            <div class="cta__buttons">
+              <a class="btn btn--primary" href="https://console.stacktape.com/sign-up">
+                Sign up free
+                <svg viewBox="0 0 14 14" width="13" height="13" fill="none" aria-hidden="true">
+                  <path
+                    d="M2.5 7h9M8 3.5l3.5 3.5L8 10.5"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </a>
+              <a class="btn btn--ghost" href="https://cal.com/stacktape/30min">Book a demo</a>
+            </div>
+            <p class="cta__alt">
+              Or <a href="https://console.stacktape.com">explore the Console first</a> — CI/CD, observability and
+              costs, in one place.
+            </p>
+          </div>
+
+          <ul class="trust reveal reveal--4">
+            <li title="Everything deploys into your own AWS account">
+              <svg viewBox="0 0 14 14" width="13" height="13" fill="none" aria-hidden="true">
+                <path
+                  d="M7 1.2 12.5 3v3.9c0 3.1-2.2 5.4-5.5 6.4-3.3-1-5.5-3.3-5.5-6.4V3L7 1.2Z"
+                  stroke="currentColor"
+                  stroke-width="1.2"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              Your own AWS account
+            </li>
+            <li title="Stacktape emits plain CloudFormation you keep">
+              <svg viewBox="0 0 14 14" width="13" height="13" fill="none" aria-hidden="true">
+                <path
+                  d="m7 2 5 2.3-5 2.3L2 4.3 7 2Z"
+                  stroke="currentColor"
+                  stroke-width="1.2"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="m2 7.2 5 2.3 5-2.3M2 9.9l5 2.3 5-2.3"
+                  stroke="currentColor"
+                  stroke-width="1.2"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              Plain CloudFormation output
+            </li>
+            <li title="CDK constructs and raw CloudFormation escape hatches">
+              <svg viewBox="0 0 14 14" width="13" height="13" fill="none" aria-hidden="true">
+                <rect x="2.5" y="6.5" width="9" height="5.8" rx="1.4" stroke="currentColor" stroke-width="1.2" />
+                <path
+                  d="M4.8 6.5V4.7a2.2 2.2 0 0 1 4.3-.6"
+                  stroke="currentColor"
+                  stroke-width="1.2"
+                  stroke-linecap="round"
+                />
+              </svg>
+              No lock-in
+            </li>
+          </ul>
+        </div>
+
+        <div class="hero__visual reveal reveal--5">
+          <div class="view">
+            <div class="view__bar">
+              <span class="view__file">
+                <svg viewBox="0 0 12 14" width="11" height="12" fill="none" aria-hidden="true">
+                  <path
+                    d="M2.75 1.25h4L10 4.5v8.25H2.75Z"
+                    stroke="currentColor"
+                    stroke-width="1.1"
+                    stroke-linejoin="round"
+                    opacity="0.7"
+                  />
+                  <path
+                    d="M6.75 1.5v3h3"
+                    stroke="currentColor"
+                    stroke-width="1.1"
+                    stroke-linejoin="round"
+                    opacity="0.7"
+                  />
+                </svg>
+                stacktape.yml
+              </span>
+              <span class="view__meta"><span class="view__live" aria-hidden="true"></span>acme-project · prod</span>
+            </div>
+
+            <div class="sys">
+              <div class="sys__gutter" aria-hidden="true">
+                {gutter.map((n) => <span>{n}</span>)}
+              </div>
+              <div class="sys__code" data-code-pane>
+                <div class="stp-code" set:html={snippet.yaml.html}></div>
+              </div>
+              <div class="sys__annot">
+                <span class="annot__cap">expands to</span>
+                <svg class="bus" viewBox="0 0 14 100" preserveAspectRatio="none" aria-hidden="true">
+                  <line
+                    x1="7"
+                    y1="0"
+                    x2="7"
+                    y2="100"
+                    stroke="rgba(255,255,255,0.16)"
+                    stroke-width="1"
+                    stroke-dasharray="2 5"
+                  />
+                </svg>
+                <span class="bus__dot" aria-hidden="true"></span>
+
+                <div class="annot__chip" style="top: 36.4px">
+                  <div class="annot__chip-head">
+                    <span class="annot__chip-dot" style="background: var(--stp-aws-category-compute)"></span>
+                    <span class="annot__chip-line">L2</span>
+                  </div>
+                  <div class="annot__chip-name">web</div>
+                  <div class="annot__chip-sub">→ CDN · server Lambda · assets</div>
+                </div>
+
+                <div class="annot__chip" style="top: 158.8px">
+                  <div class="annot__chip-head">
+                    <span class="annot__chip-dot" style="background: var(--stp-aws-category-network)"></span>
+                    <span class="annot__chip-line">L8</span>
+                  </div>
+                  <div class="annot__chip-name">connectTo</div>
+                  <div class="annot__chip-sub">→ private net + DB credentials</div>
+                </div>
+
+                <div class="annot__chip" style="top: 220px">
+                  <div class="annot__chip-head">
+                    <span class="annot__chip-dot" style="background: var(--stp-aws-category-database)"></span>
+                    <span class="annot__chip-line">L11</span>
+                  </div>
+                  <div class="annot__chip-name">mainDatabase</div>
+                  <div class="annot__chip-sub">→ managed Postgres (RDS)</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="strip">
+              <div class="cell">
+                <div class="cell__head">
+                  <span class="cell__label">Deploy</span>
+                  <span class="chip chip--brand">in progress</span>
+                </div>
+                <div class="stages">
+                  <span class="stage stage--done">
+                    <svg viewBox="0 0 10 10" width="9" height="9" fill="none" aria-hidden="true">
+                      <path
+                        d="m2 5.2 2.1 2.1L8 2.8"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                    build
+                  </span>
+                  <span class="stage stage--done">
+                    <svg viewBox="0 0 10 10" width="9" height="9" fill="none" aria-hidden="true">
+                      <path
+                        d="m2 5.2 2.1 2.1L8 2.8"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                    test
+                  </span>
+                  <span class="stage stage--active"><span class="stage__dot" aria-hidden="true"></span>deploy</span>
+                </div>
+                <div class="bar"><div class="bar__fill"></div></div>
+                <div class="cell__cap"><span>main · 2f41a9e</span><span>3 stages</span></div>
+              </div>
+
+              <div class="cell">
+                <div class="cell__head">
+                  <span class="cell__label">p95 latency</span>
+                  <span class="chip chip--ok">healthy</span>
+                </div>
+                <svg class="spark" viewBox="0 0 120 34" preserveAspectRatio="none" aria-hidden="true">
+                  <defs>
+                    <linearGradient id="stp-hero-spark" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0" stop-color="rgba(54,190,190,0.32)" />
+                      <stop offset="1" stop-color="rgba(54,190,190,0)" />
+                    </linearGradient>
+                  </defs>
+                  <path
+                    d="M0 25 L12 24 L24 24.5 L36 23 L48 23.5 L58 14 L64 7 L70 12 L76 16 L88 22 L100 24.5 L112 25 L120 25 L120 34 L0 34 Z"
+                    fill="url(#stp-hero-spark)"
+                  />
+                  <path
+                    d="M0 25 L12 24 L24 24.5 L36 23 L48 23.5 L58 14 L64 7 L70 12 L76 16 L88 22 L100 24.5 L112 25 L120 25"
+                    fill="none"
+                    stroke="var(--stp-color-brand)"
+                    stroke-width="1.5"
+                    stroke-linejoin="round"
+                    stroke-linecap="round"
+                  />
+                </svg>
+                <div class="cell__cap"><span>last 24 h</span><span>no alarms</span></div>
+              </div>
+
+              <div class="cell">
+                <div class="cell__head">
+                  <span class="cell__label">incident · #1284</span>
+                  <span class="chip chip--ok">resolved</span>
+                </div>
+                <p class="cell3__msg">p95 latency spiked after the 4.2.1 deploy.</p>
+                <p class="cell3__detail">
+                  The agent traced it to a bad migration, rolled the release back, and shipped the fix.
+                </p>
+                <div class="cell3__foot">
+                  <span class="cell3__agent">
+                    <svg viewBox="0 0 14 14" width="12" height="12" fill="none" aria-hidden="true">
+                      <rect x="2.6" y="5.6" width="8.8" height="6" rx="1.8" stroke="currentColor" stroke-width="1.1" />
+                      <path
+                        d="M7 3.5v-1.3M7 2.2 5.5 1M7 2.2l1.5-1.2"
+                        stroke="currentColor"
+                        stroke-width="1.1"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                      <circle cx="5.2" cy="8.6" r="0.7" fill="currentColor" />
+                      <circle cx="8.8" cy="8.6" r="0.7" fill="currentColor" />
+                    </svg>
+                    autofix with Claude
+                  </span>
+                  <span class="cell3__live">fix live</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</BaseLayout>
+
+<style>
+/* ── nav ─────────────────────────────────────────────────────────────────── */
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(22, 28, 28, 0.72);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.nav__inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 32px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+.nav__logo { display: flex; }
+.nav__links { display: flex; gap: 24px; margin-left: 4px; }
+.nav__links a {
+  font-size: 13.5px;
+  color: rgba(255, 255, 255, 0.55);
+  transition: color 150ms ease;
+}
+.nav__links a:hover { color: rgba(255, 255, 255, 0.92); }
+.nav__cta { margin-left: auto; display: flex; align-items: center; gap: 18px; }
+.nav__signin { font-size: 13.5px; color: rgba(255, 255, 255, 0.7); transition: color 150ms ease; }
+.nav__signin:hover { color: #fff; }
+.nav__demo {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+  padding: 7px 15px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  transition: border-color 150ms ease, color 150ms ease;
+}
+.nav__demo:hover { border-color: rgba(54, 190, 190, 0.6); color: #fff; }
+@media (max-width: 720px) {
+  .nav__links { display: none; }
+}
+
+/* ── hero shell ──────────────────────────────────────────────────────────── */
+.hero { position: relative; overflow: hidden; }
+.hero__bg { position: absolute; inset: 0; pointer-events: none; }
+.hero__bg-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.026) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.026) 1px, transparent 1px);
+  background-size: 54px 54px;
+  -webkit-mask-image: radial-gradient(75% 70% at 62% 30%, #000 25%, transparent 78%);
+  mask-image: radial-gradient(75% 70% at 62% 30%, #000 25%, transparent 78%);
+}
+.hero__bg-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(44% 48% at 74% 34%, rgba(54, 190, 190, 0.12), transparent 70%);
+}
+.hero__inner {
+  position: relative;
+  z-index: 1;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: clamp(52px, 7vh, 88px) 32px clamp(72px, 10vh, 120px);
+}
+.hero__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 5.2fr) minmax(0, 6fr);
+  gap: clamp(48px, 5.5vw, 84px);
+  align-items: center;
+}
+@media (max-width: 1079px) {
+  .hero__grid { grid-template-columns: minmax(0, 1fr); }
+  .hero__visual { max-width: 680px; }
+}
+
+/* ── left column ─────────────────────────────────────────────────────────── */
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  max-width: 100%;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+  padding: 6px 13px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+}
+.eyebrow__dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--stp-color-brand);
+  animation: stp-pulse 2.6s ease-in-out infinite;
+}
+
+.headline {
+  margin: 22px 0 0;
+  font-size: clamp(2.5rem, 4.4vw, 3.6rem);
+  line-height: 1.04;
+  letter-spacing: -0.032em;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.94);
+}
+.headline__accent {
+  background: linear-gradient(105deg, #8eead8 0%, var(--stp-color-brand) 55%, #55a8dd 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.sub {
+  margin: 20px 0 0;
+  max-width: 46ch;
+  font-size: 1.03rem;
+  line-height: 1.62;
+  color: rgba(255, 255, 255, 0.6);
+}
+.sub strong { color: rgba(255, 255, 255, 0.88); font-weight: 500; }
+
+/* ── CTA cluster ─────────────────────────────────────────────────────────── */
+.cta { margin-top: 30px; }
+.cta__cmd {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 11px 11px 16px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.32);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.09);
+}
+.cta__prompt { font-family: var(--font-mono); font-size: 13px; color: var(--stp-color-brand); }
+.cta__code {
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  color: rgba(255, 255, 255, 0.92);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cta__copy {
+  margin-left: auto;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.75);
+  padding: 6px 10px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.09);
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease, box-shadow 150ms ease;
+}
+.cta__copy:hover { background: rgba(255, 255, 255, 0.09); color: #fff; }
+.cta__copy.is-copied {
+  color: #9be8d9;
+  box-shadow: inset 0 0 0 1px rgba(54, 190, 190, 0.4);
+}
+.cta__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px 14px;
+  margin-top: 10px;
+}
+.cta__methods {
+  display: inline-flex;
+  gap: 2px;
+  margin: 0;
+  padding: 3px;
+  border: 0;
+  min-width: 0;
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.25);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+.cta__method {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.5);
+  padding: 5px 11px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  transition: color 150ms ease, background 150ms ease, box-shadow 150ms ease;
+}
+.cta__method:hover { color: rgba(255, 255, 255, 0.85); }
+.cta__method.is-active {
+  color: #9be8d9;
+  background: rgba(54, 190, 190, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(54, 190, 190, 0.28);
+}
+.cta__hint {
+  flex: 1;
+  min-width: 180px;
+  margin: 5px 0 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.42);
+}
+.cta__buttons { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 10px 18px;
+  border-radius: 9px;
+  transition: transform 150ms ease, background 150ms ease, box-shadow 150ms ease, color 150ms ease;
+}
+.btn--primary {
+  background: var(--stp-color-brand);
+  color: #062121;
+  box-shadow: 0 10px 26px -12px rgba(54, 190, 190, 0.55);
+}
+.btn--primary:hover { background: #4cc8c8; transform: translateY(-1px); }
+.btn--ghost {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.02);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+}
+.btn--ghost:hover {
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.32);
+}
+.cta__alt { margin: 14px 0 0; font-size: 12.5px; color: rgba(255, 255, 255, 0.4); }
+.cta__alt a {
+  color: rgba(255, 255, 255, 0.7);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.22);
+  transition: color 150ms ease, border-color 150ms ease;
+}
+.cta__alt a:hover { color: var(--stp-color-brand); border-color: var(--stp-color-brand); }
+
+.trust {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  margin: 28px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.trust li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.5);
+}
+.trust svg { color: rgba(255, 255, 255, 0.38); flex: none; }
+
+/* ── right column: the system view ───────────────────────────────────────── */
+.hero__visual { position: relative; }
+.hero__visual::before {
+  content: "";
+  position: absolute;
+  inset: -12% -14% -22%;
+  background: radial-gradient(50% 55% at 50% 40%, rgba(54, 190, 190, 0.12), transparent 72%);
+  pointer-events: none;
+}
+
+.view {
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.014));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 44px 90px -36px rgba(0, 0, 0, 0.85),
+    0 18px 40px -24px rgba(0, 0, 0, 0.6);
+}
+.view__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 40px;
+  padding: 0 14px;
+  background: rgba(0, 0, 0, 0.24);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+}
+.view__file {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.62);
+}
+.view__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.4);
+}
+.view__live {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--stp-color-brand);
+  animation: stp-pulse 2.6s ease-in-out infinite;
+}
+
+/* ── config area ─────────────────────────────────────────────────────────── */
+.sys { display: grid; grid-template-columns: 32px minmax(0, 1fr) 160px; }
+.sys__gutter {
+  padding: 16px 10px 16px 0;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.22);
+  user-select: none;
+}
+.sys__gutter span { display: block; }
+.sys__code {
+  position: relative;
+  padding: 16px 0 16px 12px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.sys__code::-webkit-scrollbar { display: none; }
+.sys__code .stp-code code { font-size: 0.75rem; }
+.sys__code .stp-hover-popup { max-width: 22rem; }
+
+.sys__annot { position: relative; min-width: 0; }
+.annot__cap {
+  position: absolute;
+  top: 0;
+  left: 18px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.28);
+}
+.bus { position: absolute; top: 18px; bottom: 18px; left: 0; width: 14px; }
+.bus__dot {
+  position: absolute;
+  left: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--stp-color-brand);
+  box-shadow: 0 0 10px rgba(54, 190, 190, 0.8);
+  animation: stp-bus 8s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+}
+.annot__chip {
+  position: absolute;
+  left: 18px;
+  right: 0;
+  padding: 8px 10px 9px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  transition: background 150ms ease, box-shadow 150ms ease;
+}
+.annot__chip:hover {
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(54, 190, 190, 0.35);
+}
+.annot__chip-head { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
+.annot__chip-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.annot__chip-line { margin-left: auto; font-family: var(--font-mono); font-size: 9.5px; color: rgba(255, 255, 255, 0.3); }
+.annot__chip-name { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; color: rgba(255, 255, 255, 0.9); }
+.annot__chip-sub { margin-top: 2px; font-size: 10.5px; line-height: 1.45; color: rgba(255, 255, 255, 0.45); }
+
+/* ── runtime strip ───────────────────────────────────────────────────────── */
+.strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+.cell { display: flex; flex-direction: column; min-width: 0; padding: 14px 16px 13px; }
+.cell + .cell { border-left: 1px solid rgba(255, 255, 255, 0.07); }
+.cell__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cell__label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  white-space: nowrap;
+  padding: 2.5px 8px;
+  border-radius: 999px;
+}
+.chip--brand {
+  color: #9be8d9;
+  background: rgba(54, 190, 190, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(54, 190, 190, 0.25);
+}
+.chip--ok {
+  color: color-mix(in srgb, var(--stp-status-success) 72%, white);
+  background: rgba(24, 153, 144, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(24, 153, 144, 0.3);
+}
+
+.stages { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 11px; }
+.stage {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: rgba(255, 255, 255, 0.45);
+  padding: 2.5px 7px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+.stage--done { color: rgba(255, 255, 255, 0.68); }
+.stage--done svg { color: var(--stp-status-success); }
+.stage--active {
+  color: #9be8d9;
+  background: rgba(54, 190, 190, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(54, 190, 190, 0.3);
+}
+.stage__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: stp-blink 1.6s ease-in-out infinite;
+}
+.bar {
+  height: 3px;
+  margin-top: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.bar__fill {
+  height: 100%;
+  width: 66%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(54, 190, 190, 0.55), var(--stp-color-brand));
+  animation: stp-grow 1.2s cubic-bezier(0.22, 0.8, 0.3, 1) 0.35s both;
+}
+.cell__cap {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 9px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: rgba(255, 255, 255, 0.32);
+}
+.spark { width: 100%; height: 34px; margin-top: 12px; display: block; }
+
+.cell3__msg { margin: 11px 0 0; font-size: 12px; line-height: 1.45; color: rgba(255, 255, 255, 0.85); }
+.cell3__detail { margin: 4px 0 0; font-size: 11px; line-height: 1.5; color: rgba(255, 255, 255, 0.5); }
+.cell3__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 10px;
+}
+.cell3__agent {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: #9be8d9;
+}
+.cell3__live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: color-mix(in srgb, var(--stp-status-success) 72%, white);
+}
+.cell3__live::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* ── responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 1079px) {
+  .sys { grid-template-columns: 30px minmax(0, 1fr); }
+  .sys__annot {
+    grid-column: 1 / -1;
+    position: static;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 2px 14px 14px;
+  }
+  .annot__chip { position: static; flex: 1 1 150px; }
+  .bus, .bus__dot, .annot__cap { display: none; }
+}
+@media (max-width: 640px) {
+  .strip { grid-template-columns: minmax(0, 1fr); }
+  .cell + .cell { border-left: 0; border-top: 1px solid rgba(255, 255, 255, 0.07); }
+  .hero__inner { padding-left: 20px; padding-right: 20px; }
+  .nav__inner { padding-left: 20px; padding-right: 20px; }
+}
+
+/* ── motion ──────────────────────────────────────────────────────────────── */
+@keyframes stp-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(54, 190, 190, 0.45); }
+  55% { box-shadow: 0 0 0 6px rgba(54, 190, 190, 0); }
+}
+@keyframes stp-bus {
+  from { top: 0; }
+  to { top: calc(100% - 6px); }
+}
+@keyframes stp-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+@keyframes stp-grow {
+  from { width: 0; }
+}
+@keyframes stp-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+.reveal { animation: stp-rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.reveal--1 { animation-delay: 0.06s; }
+.reveal--2 { animation-delay: 0.12s; }
+.reveal--3 { animation-delay: 0.18s; }
+.reveal--4 { animation-delay: 0.24s; }
+.reveal--5 { animation-delay: 0.22s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .eyebrow__dot, .view__live, .bus__dot, .stage__dot { animation: none; }
+  .bar__fill { animation: none; }
+  .reveal { animation: none; }
+}
+</style>
+
+<script>
+// Install-method switcher + copy button.
+  const cta = document.querySelector('[data-cta]');
+  if (cta) {
+    const METHODS = {
+      npx: 'npx stacktape init',
+      macos: 'curl -L https://installs.stacktape.com/macos.sh | sh',
+      linux: 'curl -L https://installs.stacktape.com/linux.sh | sh',
+      windows: 'iwr https://installs.stacktape.com/windows.ps1 -useb | iex'
+    };
+    const HINTS = {
+      npx: 'Runs the AI setup wizard straight from the registry — nothing to install.',
+      macos: 'Installs the CLI — it finishes by running stacktape init for you.',
+      linux: 'Installs the CLI — it finishes by running stacktape init for you.',
+      windows: 'Installs the CLI — it finishes by running stacktape init for you.'
+    };
+    const codeEl = cta.querySelector('[data-cmd-code]');
+    const hintEl = cta.querySelector('[data-cmd-hint]');
+    const copyBtn = cta.querySelector('[data-cmd-copy]');
+    const copyLabel = cta.querySelector('[data-cmd-copy-label]');
+    const methodButtons = Array.from(cta.querySelectorAll('[data-method]'));
+    let current = 'npx';
+    let resetTimer = undefined;
+
+    const setMethod = (id) => {
+      current = id;
+      codeEl.textContent = METHODS[id];
+      hintEl.textContent = HINTS[id];
+      copyBtn.classList.remove('is-copied');
+      copyLabel.textContent = 'Copy';
+      copyBtn.setAttribute('aria-label', `Copy ${METHODS[id]}`);
+      for (const button of methodButtons) {
+        const active = button.dataset.method === id;
+        button.classList.toggle('is-active', active);
+        button.setAttribute('aria-pressed', String(active));
+      }
+    };
+
+    for (const button of methodButtons) {
+      button.addEventListener('click', () => setMethod(button.dataset.method));
+    }
+
+    copyBtn.addEventListener('click', async () => {
+      if (!navigator.clipboard) return;
+      try {
+        await navigator.clipboard.writeText(METHODS[current]);
+      } catch {
+        return;
+      }
+      copyBtn.classList.add('is-copied');
+      copyLabel.textContent = 'Copied';
+      copyBtn.setAttribute('aria-label', 'Command copied');
+      clearTimeout(resetTimer);
+      resetTimer = setTimeout(() => {
+        copyBtn.classList.remove('is-copied');
+        copyLabel.textContent = 'Copy';
+        copyBtn.setAttribute('aria-label', `Copy ${METHODS[current]}`);
+      }, 1600);
+    });
+  }
+
+  // Keep schema hover popups inside the code pane and the viewport.
+  const pane = document.querySelector('[data-code-pane]');
+  if (pane) {
+    const measure = (hover) => {
+      const popup = hover.querySelector('.stp-hover-popup');
+      if (!popup) return;
+      popup.style.removeProperty('--stp-hover-shift');
+      hover.removeAttribute('data-stp-hover-above');
+      const anchor = hover.getBoundingClientRect();
+      const rect = popup.getBoundingClientRect();
+      const paneRect = pane.getBoundingClientRect();
+      const margin = 12;
+      const overflowRight = rect.right - (window.innerWidth - margin);
+      const maxShift = Math.max(0, anchor.left - margin);
+      if (overflowRight > 0) {
+        popup.style.setProperty('--stp-hover-shift', `${-Math.min(overflowRight, maxShift)}px`);
+      }
+      const fitsBelow = rect.bottom <= paneRect.bottom - margin;
+      const fitsAbove = anchor.top - paneRect.top >= rect.height + margin;
+      if (!fitsBelow && fitsAbove) hover.setAttribute('data-stp-hover-above', 'true');
+    };
+    const onEnter = (event) => {
+      const target = event.target;
+      const hover = typeof target.closest === 'function' ? target.closest('.stp-hover') : null;
+      if (hover && pane.contains(hover)) measure(hover);
+    };
+    pane.addEventListener('pointerenter', onEnter, true);
+    pane.addEventListener('focusin', onEnter);
+  }
+</script>

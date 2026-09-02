@@ -1,0 +1,29 @@
+---
+/**
+ * One marker on the run's spine.
+ *
+ * A component rather than markup inlined into `RunRail`'s loop, for a formatter reason worth writing
+ * down: `dprint`'s markup plugin cannot reach a stable result for multi-line JSX inside a `.map()`
+ * in an `.astro` template — it reformats the same file differently on every pass and bails. A
+ * single-line `.map()` body is stable, so anything repeated on this page is either written out
+ * literally or extracted to a component like this one.
+ *
+ * `is-done` and `is-current` are added at runtime by the scroll spy in `RunRail.astro`; nothing here
+ * assumes a starting state, so with JavaScript off this stays a plain, working table of contents.
+ */
+type Props = {
+  step: { id: string; label: string; note: string };
+};
+
+const { step } = Astro.props;
+---
+
+<li class="a-rail__step" data-run-step={step.id}>
+  <a class="a-rail__link" href={`#${step.id}`}>
+    <span aria-hidden="true" class="a-rail__marker"></span>
+    <span class="a-rail__label">
+      {step.label}
+      <span class="a-rail__note">{step.note}</span>
+    </span>
+  </a>
+</li>

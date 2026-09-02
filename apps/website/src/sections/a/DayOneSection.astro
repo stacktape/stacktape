@@ -1,0 +1,131 @@
+---
+/**
+ * Day 1 — the run continues.
+ *
+ * Day 0 is one document, so it is set as one: bands, no frames, no captions between them. Day 1 is a
+ * set of screens someone will actually be looking at for years, so it is set as a set — a heading
+ * and a lede saying why this screen is next, the screen itself, and one caption pointing at the
+ * detail that joins it to the screen before.
+ *
+ * The order is an argument, not a feature list. What is deployed → what it is doing → what broke →
+ * how the next change gets there → what it costs. Each surface is the same fictional project seen
+ * from a different angle, and the captions are where that is made explicit: the worker's error spike
+ * in the metrics is the issue in the inbox, and the checkout request in the trace is the one the
+ * database read is slow in.
+ *
+ * Every surface here is server-rendered React. None of them takes a client directive.
+ */
+import { CicdPanel } from '../../surfaces/CicdPanel';
+import { CostsPanel } from '../../surfaces/CostsPanel';
+import { IssuesInbox } from '../../surfaces/IssuesInbox/IssuesInbox';
+import { MetricsPanel } from '../../surfaces/MetricsPanel';
+import { StageOverview } from '../../surfaces/StageOverview/StageOverview';
+import { TraceWaterfall } from '../../surfaces/TraceWaterfall';
+---
+
+<section class="a-day">
+  <div class="a-daymark">
+    <p class="a-daymark__tag">Day 1</p>
+    <h2 class="a-daymark__title">The run does not end at the first deploy</h2>
+    <p class="a-daymark__lede">
+      Same file, same command, every day after. The Console picks up where the CLI left off: what is deployed, what it
+      is doing, what broke, how the next change gets there, and what all of it costs.
+    </p>
+  </div>
+
+  <section class="a-band a-band--spaced" id="stages">
+    <p class="a-eyebrow">Stages</p>
+    <h3 class="a-title">Every stage in one place</h3>
+    <p class="a-lede">
+      <strong>staging</strong> and <strong>production</strong> are the same configuration with different values. Add a
+      third by naming it. The Console lists what exists, what changed and what is deploying right now.
+    </p>
+
+    <div class="a-surface a-reveal">
+      <StageOverview />
+    </div>
+
+    <p class="a-caption">
+      The resource cards carry the names your config file uses, so the thing you wrote and the thing that is running are
+      never two different vocabularies.
+    </p>
+  </section>
+
+  <section class="a-band a-band--spaced" id="observe">
+    <p class="a-eyebrow">Observe</p>
+    <h3 class="a-title">Metrics and traces you did not have to wire up</h3>
+    <p class="a-lede">
+      Every resource reports from the moment it exists. Nothing to install, no dashboard to assemble, no second vendor
+      holding your logs.
+    </p>
+
+    <div class="a-surface a-reveal">
+      <MetricsPanel />
+    </div>
+
+    <p class="a-caption">The worker’s error spike just after 16:00 is the incident the next section is about.</p>
+
+    <div class="a-surface a-reveal">
+      <TraceWaterfall />
+    </div>
+
+    <p class="a-caption">
+      One checkout request, span by span, across the gateway, the API, the database, Stripe and the worker. 288 ms of
+      842 ms is a single query — which is a thing you can only see laid out like this.
+    </p>
+  </section>
+
+  <section class="a-band a-band--spaced" id="fix">
+    <p class="a-eyebrow">Fix</p>
+    <h3 class="a-title">Errors arrive with the line that threw them</h3>
+    <p class="a-lede">
+      Grouped by cause, kept with their stack trace, their occurrence history and the resource that raised them. And
+      with one more action on the toolbar than you are used to.
+    </p>
+
+    <div class="a-surface a-reveal">
+      <IssuesInbox />
+    </div>
+
+    <p class="a-caption">
+      Autofix takes the issue to Claude — the stack trace, the resource, the code it points at — and comes back with
+      a change. The workflow you already have stays where it was.
+    </p>
+  </section>
+
+  <section class="a-band a-band--spaced" id="ship">
+    <p class="a-eyebrow">Ship</p>
+    <h3 class="a-title">A pull request gets its own environment</h3>
+    <p class="a-lede">
+      Open a PR and Stacktape deploys a whole stage for it: its own database, its own URL, its own everything. Merge and
+      it goes to production. Close it and the stage is torn down without anyone remembering to.
+    </p>
+
+    <div class="a-surface a-reveal">
+      <CicdPanel />
+    </div>
+
+    <p class="a-caption">
+      Builds run on EC2 runners inside your own AWS account, so the machine that has your source code is a machine you
+      control. They also power your GitHub Actions runners, if you would rather keep those.
+    </p>
+  </section>
+
+  <section class="a-band" id="spend">
+    <p class="a-eyebrow">Spend</p>
+    <h3 class="a-title">The bill, per resource, all month</h3>
+    <p class="a-lede">
+      Month-to-date cost for every resource in the stage, read from your own Cost Explorer data. Which is the only place
+      it could honestly come from.
+    </p>
+
+    <div class="a-surface a-reveal">
+      <CostsPanel />
+    </div>
+
+    <p class="a-caption">
+      AWS bills you directly. Stacktape never sits between you and the invoice, so there is no markup for you to go
+      looking for.
+    </p>
+  </section>
+</section>

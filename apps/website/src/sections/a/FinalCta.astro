@@ -1,0 +1,38 @@
+---
+/**
+ * The loop closes.
+ *
+ * Same command as the hero, on purpose — the page is one run, and a run you have now watched end to
+ * end starts the same way it did before you knew what it did. This is also the one place on the page
+ * with a brand-filled button: the reader has read everything, so there is nothing left for a second
+ * saturated control to compete with.
+ */
+import { CtaCommand } from '../../components/CtaCommand';
+---
+
+<section class="a-close a-shell">
+  <p class="a-eyebrow">Start the run</p>
+  <h2 class="a-close__title">It takes one command to find out</h2>
+  <p class="a-close__lede">
+    It reads your project, shows you what it would build on AWS and what that costs per month. Nothing is created until
+    you say so.
+  </p>
+
+  <div class="a-close__actions">
+    <CtaCommand client:visible />
+  </div>
+
+  <div class="a-close__actions a-close__actions--second">
+    <a
+      class="a-btn a-btn--brand"
+      href="https://console.stacktape.com/sign-up"
+      rel="noopener noreferrer"
+      target="_blank"
+    >
+      Sign up
+    </a>
+    <a class="a-btn a-btn--text" href="https://cal.com/stacktape/30min" rel="noopener noreferrer" target="_blank">
+      Book a demo →
+    </a>
+  </div>
+</section>

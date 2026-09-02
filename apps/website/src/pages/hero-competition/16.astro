@@ -1,0 +1,1349 @@
+---
+// concept: A centered typographic manifesto drops into a wide, interactive authority console that visualizes complete incident context meeting a user-controlled decision gate.
+// copy-angle: Make control—not convenience—the promise: automate AWS operations deeply, and show autonomous incident resolution openly but only behind a boundary the team chooses.
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Logo from '../../components/Logo.astro';
+import { CtaCommand } from '../../components/CtaCommand.tsx';
+---
+
+<BaseLayout
+  title="AWS DevOps, automated — Stacktape"
+  description="Automate AWS infrastructure, delivery, observability and incident response while keeping control over what an agent can resolve and deploy."
+  font="inter"
+  noindex
+>
+  <div class="competition-page">
+    <header class="site-header">
+      <nav class="site-nav" aria-label="Main navigation">
+        <a class="brand-link" href="/" aria-label="Stacktape home">
+          <Logo height={25} />
+        </a>
+
+        <div class="nav-context" aria-hidden="true">
+          <span class="nav-context__dot"></span>
+          Built for AWS
+        </div>
+
+        <div class="nav-links">
+          <a href="https://docs.stacktape.com">Docs</a>
+          <a href="https://github.com/stacktape/stacktape">
+            GitHub
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M5 11 11 5M6 5h5v5"></path>
+            </svg>
+          </a>
+          <a class="nav-signup" href="https://console.stacktape.com/sign-up">Sign up</a>
+        </div>
+      </nav>
+    </header>
+
+    <main class="hero">
+      <div class="hero-glow hero-glow--left" aria-hidden="true"></div>
+      <div class="hero-glow hero-glow--right" aria-hidden="true"></div>
+
+      <section class="hero-intro" aria-labelledby="hero-title">
+        <div class="eyebrow">
+          <span class="eyebrow__mark" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+          </span>
+          Full-lifecycle AWS automation
+        </div>
+
+        <h1 id="hero-title">
+          <span class="headline-line">AWS DevOps, automated.</span>
+          <span class="headline-line headline-line--accent">The final say stays yours.</span>
+        </h1>
+
+        <p class="hero-lede">
+          Stacktape’s AI wizard turns your repository into one config. From there, the platform handles
+          infrastructure, delivery, observability and incident context in your AWS account. You choose whether an agent
+          prepares the fix—or resolves and deploys it.
+        </p>
+
+        <div class="launch-area">
+          <p class="launch-label">
+            <span></span>
+            Start with the AI wizard
+          </p>
+
+          <div class="hero-command">
+            <CtaCommand defaultMethod="npx" client:visible />
+          </div>
+
+          <div class="secondary-actions">
+            <a class="secondary-link secondary-link--console" href="https://console.stacktape.com/sign-up">
+              Create Console account
+              <svg viewBox="0 0 18 18" aria-hidden="true">
+                <path d="M4 9h10M10 5l4 4-4 4"></path>
+              </svg>
+            </a>
+            <a class="secondary-link" href="https://cal.com/stacktape/30min">
+              Book a demo
+              <svg viewBox="0 0 18 18" aria-hidden="true">
+                <path d="M4 9h10M10 5l4 4-4 4"></path>
+              </svg>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section class="authority-console" aria-label="Stacktape automation authority">
+        <header class="console-header">
+          <div class="console-title">
+            <span class="console-glyph" aria-hidden="true">
+              <i></i>
+              <i></i>
+              <i></i>
+            </span>
+            <span>Automation control</span>
+            <span class="console-divider">/</span>
+            <span class="console-section">Incident response</span>
+          </div>
+
+          <div class="console-state">
+            <span class="console-state__dot"></span>
+            Context assembled
+          </div>
+        </header>
+
+        <div class="authority-grid">
+          <article class="authority-column context-column">
+            <header class="column-heading">
+              <span class="column-index">01 / INPUT</span>
+              <h2>The whole operating picture</h2>
+            </header>
+
+            <div class="context-map" aria-label="Infrastructure, release and observability context">
+              <svg class="context-lines" viewBox="0 0 100 60" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M50 30 L14 11"></path>
+                <path d="M50 30 L86 11"></path>
+                <path d="M50 30 L13 49"></path>
+                <path d="M50 30 L87 49"></path>
+                <path d="M50 30 L50 55"></path>
+                <path class="context-line--flow" d="M14 11 L50 30 L87 49"></path>
+              </svg>
+
+              <span class="context-node context-node--release">Release</span>
+              <span class="context-node context-node--traces">Traces</span>
+              <span class="context-node context-node--logs">Logs</span>
+              <span class="context-node context-node--aws">AWS resources</span>
+              <span class="context-node context-node--metrics">Metrics</span>
+
+              <div class="context-core">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m6 7 6-3 6 3-6 3-6-3Z"></path>
+                  <path d="m6 12 6 3 6-3M6 17l6 3 6-3"></path>
+                </svg>
+                <span>
+                  <strong>Incident context</strong>
+                  <small>One connected view</small>
+                </span>
+              </div>
+            </div>
+
+            <p class="column-note">Infrastructure, changes and telemetry arrive together.</p>
+          </article>
+
+          <article class="authority-column agent-column">
+            <header class="column-heading">
+              <span class="column-index">02 / AGENT</span>
+              <h2>A fix grounded in your system</h2>
+            </header>
+
+            <div class="agent-brief">
+              <div class="agent-brief__title">
+                <span class="agent-spark" aria-hidden="true">
+                  <i></i>
+                  <i></i>
+                </span>
+                Resolution brief
+                <span class="brief-status">Ready</span>
+              </div>
+
+              <ul>
+                <li>
+                  <span class="check" aria-hidden="true">
+                    <svg viewBox="0 0 14 14"><path d="m3 7 2.5 2.5L11 4"></path></svg>
+                  </span>
+                  Failure linked to its release
+                </li>
+                <li>
+                  <span class="check" aria-hidden="true">
+                    <svg viewBox="0 0 14 14"><path d="m3 7 2.5 2.5L11 4"></path></svg>
+                  </span>
+                  Affected AWS resources mapped
+                </li>
+                <li>
+                  <span class="check" aria-hidden="true">
+                    <svg viewBox="0 0 14 14"><path d="m3 7 2.5 2.5L11 4"></path></svg>
+                  </span>
+                  Relevant traces and logs attached
+                </li>
+              </ul>
+            </div>
+
+            <p class="column-note">The agent starts with the system—not an isolated prompt.</p>
+          </article>
+
+          <article class="authority-column boundary-column" data-agent-boundary>
+            <header class="column-heading">
+              <span class="column-index">03 / AUTHORITY</span>
+              <h2>Choose where automation stops</h2>
+            </header>
+
+            <div class="mode-switch" role="group" aria-label="Agent action">
+              <button type="button" class="mode-button is-active" data-agent-mode="review" aria-pressed="true">
+                Prepare for review
+              </button>
+              <button type="button" class="mode-button" data-agent-mode="auto" aria-pressed="false">
+                Resolve + deploy
+                <span>Opt-in</span>
+              </button>
+            </div>
+
+            <div class="decision-state" aria-live="polite">
+              <div class="decision-state__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1">
+                  </path>
+                  <circle cx="12" cy="12" r="3.5"></circle>
+                </svg>
+              </div>
+              <div>
+                <strong data-decision-title>Prepared for your review</strong>
+                <p data-decision-copy>The agent proposes the change. You decide when it deploys.</p>
+              </div>
+            </div>
+
+            <div class="boundary-footer">
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <rect x="3.5" y="7" width="9" height="6.5" rx="2"></rect>
+                <path d="M5.5 7V5.5a2.5 2.5 0 0 1 5 0V7"></path>
+              </svg>
+              <span data-boundary-footer>Default boundary · review first</span>
+            </div>
+          </article>
+        </div>
+
+        <footer class="proof-strip" aria-label="Platform assurances">
+          <div class="proof-item">
+            <span class="proof-check" aria-hidden="true">✓</span>
+            Runs in your AWS account
+          </div>
+          <div class="proof-item">
+            <span class="proof-check" aria-hidden="true">✓</span>
+            Plain CloudFormation
+          </div>
+          <div class="proof-item">
+            <span class="proof-check" aria-hidden="true">✓</span>
+            TypeScript or YAML
+          </div>
+          <div class="proof-item">
+            <span class="proof-check" aria-hidden="true">✓</span>
+            Open-source CLI
+          </div>
+        </footer>
+      </section>
+    </main>
+  </div>
+</BaseLayout>
+
+<style>
+.competition-page {
+  position: relative;
+  min-height: 100svh;
+  overflow: hidden;
+  overflow: clip;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 50% -16%, rgba(54, 190, 190, 0.13), transparent 37rem),
+    linear-gradient(180deg, rgba(10, 14, 14, 0.3), transparent 32rem),
+    var(--stp-surface-page);
+}
+
+.competition-page::before {
+  position: absolute;
+  z-index: -2;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: linear-gradient(to bottom, black, transparent 70%);
+  content: '';
+  pointer-events: none;
+}
+
+.competition-page::after {
+  position: absolute;
+  z-index: -1;
+  top: 5rem;
+  left: 50%;
+  width: min(88vw, 76rem);
+  height: 34rem;
+  border: 1px solid rgba(54, 190, 190, 0.055);
+  border-radius: 50%;
+  filter: blur(0.1px);
+  content: '';
+  pointer-events: none;
+  transform: translateX(-50%) rotate(-5deg);
+}
+
+.site-header {
+  position: relative;
+  z-index: 10;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.065);
+  background: rgba(16, 21, 21, 0.68);
+  backdrop-filter: blur(18px);
+}
+
+.site-nav {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  width: min(100%, 84rem);
+  min-height: 4.65rem;
+  margin-inline: auto;
+  padding-inline: clamp(1.25rem, 4vw, 2.5rem);
+}
+
+.brand-link {
+  display: inline-flex;
+  justify-self: start;
+  align-items: center;
+}
+
+.nav-context {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--stp-text-faint);
+  font-family: var(--font-geist-mono);
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.nav-context__dot {
+  width: 0.36rem;
+  height: 0.36rem;
+  border-radius: 50%;
+  background: var(--stp-color-brand);
+  box-shadow: 0 0 0 4px rgba(54, 190, 190, 0.09);
+}
+
+.nav-links {
+  display: flex;
+  justify-self: end;
+  align-items: center;
+  gap: 1.35rem;
+  color: var(--stp-text-muted);
+  font-size: 0.84rem;
+  font-weight: 500;
+}
+
+.nav-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  transition: color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+}
+
+.nav-links a:hover {
+  color: var(--stp-text-primary);
+}
+
+.nav-links svg {
+  width: 0.86rem;
+  height: 0.86rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.4;
+}
+
+.nav-links .nav-signup {
+  min-height: 2.25rem;
+  padding: 0.48rem 0.85rem;
+  border: 1px solid rgba(54, 190, 190, 0.3);
+  border-radius: var(--stp-radius-large);
+  background: rgba(54, 190, 190, 0.08);
+  color: rgba(206, 249, 242, 0.92);
+}
+
+.nav-links .nav-signup:hover {
+  border-color: rgba(54, 190, 190, 0.52);
+  background: rgba(54, 190, 190, 0.13);
+}
+
+.hero {
+  position: relative;
+  width: min(100%, 84rem);
+  margin-inline: auto;
+  padding: clamp(4.6rem, 8vw, 7rem) clamp(1.25rem, 4vw, 2.5rem) clamp(3rem, 6vw, 5.5rem);
+}
+
+.hero-glow {
+  position: absolute;
+  z-index: -1;
+  border-radius: 50%;
+  filter: blur(75px);
+  opacity: 0.38;
+  pointer-events: none;
+}
+
+.hero-glow--left {
+  top: 16rem;
+  left: -12rem;
+  width: 28rem;
+  height: 22rem;
+  background: rgba(54, 190, 190, 0.13);
+}
+
+.hero-glow--right {
+  top: 25rem;
+  right: -15rem;
+  width: 32rem;
+  height: 25rem;
+  background: rgba(77, 115, 244, 0.09);
+}
+
+.hero-intro {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  text-align: center;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 1.55rem;
+  color: rgba(168, 225, 216, 0.78);
+  font-family: var(--font-geist-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.eyebrow__mark {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  width: 0.92rem;
+  height: 0.9rem;
+}
+
+.eyebrow__mark span {
+  width: 2px;
+  border-radius: 2px;
+  background: var(--stp-color-brand);
+}
+
+.eyebrow__mark span:nth-child(1) {
+  height: 42%;
+}
+
+.eyebrow__mark span:nth-child(2) {
+  height: 100%;
+}
+
+.eyebrow__mark span:nth-child(3) {
+  height: 68%;
+}
+
+h1 {
+  max-width: 75rem;
+  margin: 0;
+  color: rgba(248, 252, 251, 0.94);
+  font-size: clamp(3.5rem, 7vw, 6.8rem);
+  font-weight: 600;
+  letter-spacing: -0.068em;
+  line-height: 0.91;
+  text-wrap: balance;
+}
+
+.headline-line {
+  display: block;
+}
+
+.headline-line--accent {
+  margin-top: 0.15em;
+  background: linear-gradient(104deg, #82e0d1 4%, var(--stp-color-brand) 48%, #4faac3 96%);
+  background-size: 170% 100%;
+  background-clip: text;
+  color: transparent;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: accent-drift 9s ease-in-out infinite alternate;
+}
+
+.hero-lede {
+  max-width: 51rem;
+  margin: 2rem auto 0;
+  color: rgba(213, 221, 220, 0.7);
+  font-size: clamp(1rem, 1.55vw, 1.18rem);
+  line-height: 1.68;
+  text-wrap: balance;
+}
+
+.launch-area {
+  display: flex;
+  align-items: center;
+  width: min(100%, 42rem);
+  margin-top: 2.35rem;
+  flex-direction: column;
+}
+
+.launch-label {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0 0 0.75rem;
+  color: var(--stp-text-faint);
+  font-family: var(--font-geist-mono);
+  font-size: 0.67rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.launch-label span {
+  width: 1.5rem;
+  height: 1px;
+  background: rgba(54, 190, 190, 0.55);
+}
+
+.hero-command {
+  width: 100%;
+}
+
+.hero-command :global(.cta-command) {
+  width: 100%;
+  align-items: center;
+}
+
+.hero-command :global(.cta-command__row) {
+  width: 100%;
+  min-height: 3.75rem;
+  padding: 0.72rem 0.75rem 0.72rem 1.1rem;
+  border-radius: 0.8rem;
+  background: rgba(5, 10, 10, 0.78);
+  box-shadow:
+    inset 0 0 0 1px rgba(54, 190, 190, 0.32),
+    0 0 0 5px rgba(54, 190, 190, 0.055),
+    0 1.4rem 3.4rem rgba(0, 0, 0, 0.25);
+}
+
+.hero-command :global(.cta-command__code) {
+  font-size: 0.92rem;
+}
+
+.hero-command :global(.cta-command__copy) {
+  min-height: 2.2rem;
+  border-radius: 0.48rem;
+}
+
+.hero-command :global(.cta-command__methods) {
+  margin-top: 0.1rem;
+}
+
+.secondary-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  margin-top: 1.15rem;
+  flex-wrap: wrap;
+}
+
+.secondary-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 2.55rem;
+  padding: 0.62rem 0.9rem;
+  border: 1px solid transparent;
+  border-radius: var(--stp-radius-large);
+  color: var(--stp-text-muted);
+  font-size: 0.82rem;
+  font-weight: 550;
+  transition:
+    border-color var(--stp-motion-duration-fast) var(--stp-motion-easing),
+    background var(--stp-motion-duration-fast) var(--stp-motion-easing),
+    color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+}
+
+.secondary-link:hover {
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--stp-text-primary);
+}
+
+.secondary-link--console {
+  border-color: rgba(255, 255, 255, 0.085);
+  background: rgba(255, 255, 255, 0.025);
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.secondary-link svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+}
+
+.authority-console {
+  position: relative;
+  margin-top: clamp(3.5rem, 7vw, 5.6rem);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 1.15rem;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.038), transparent 32%),
+    rgba(15, 20, 20, 0.88);
+  box-shadow:
+    inset 0 1px rgba(255, 255, 255, 0.035),
+    0 2.6rem 6rem rgba(0, 0, 0, 0.29);
+  backdrop-filter: blur(18px);
+  animation: console-enter 700ms cubic-bezier(0.2, 0.7, 0.25, 1) both;
+}
+
+.authority-console::before {
+  position: absolute;
+  top: 0;
+  left: 7%;
+  width: 38%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(54, 190, 190, 0.76), transparent);
+  content: '';
+}
+
+.console-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 3.15rem;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(0, 0, 0, 0.17);
+  color: var(--stp-text-faint);
+  font-family: var(--font-geist-mono);
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.console-title,
+.console-state {
+  display: flex;
+  align-items: center;
+}
+
+.console-title {
+  min-width: 0;
+  gap: 0.65rem;
+}
+
+.console-glyph {
+  display: flex;
+  gap: 2px;
+}
+
+.console-glyph i {
+  width: 3px;
+  height: 0.7rem;
+  border-radius: 2px;
+  background: rgba(54, 190, 190, 0.75);
+}
+
+.console-glyph i:nth-child(2) {
+  opacity: 0.62;
+}
+
+.console-glyph i:nth-child(3) {
+  opacity: 0.34;
+}
+
+.console-divider {
+  color: rgba(255, 255, 255, 0.16);
+}
+
+.console-section {
+  color: rgba(255, 255, 255, 0.48);
+}
+
+.console-state {
+  flex: none;
+  gap: 0.5rem;
+  color: rgba(170, 226, 216, 0.68);
+}
+
+.console-state__dot {
+  width: 0.38rem;
+  height: 0.38rem;
+  border-radius: 50%;
+  background: var(--stp-color-brand);
+  box-shadow: 0 0 0 4px rgba(54, 190, 190, 0.09);
+  animation: state-pulse 2.5s ease-in-out infinite;
+}
+
+.authority-grid {
+  display: grid;
+  grid-template-columns: 1.08fr 0.96fr 1.06fr;
+}
+
+.authority-column {
+  min-width: 0;
+  padding: clamp(1.4rem, 2.5vw, 2rem);
+}
+
+.authority-column + .authority-column {
+  border-left: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.column-heading {
+  min-height: 4.25rem;
+}
+
+.column-index {
+  display: block;
+  margin-bottom: 0.55rem;
+  color: rgba(54, 190, 190, 0.73);
+  font-family: var(--font-geist-mono);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+}
+
+.column-heading h2 {
+  margin: 0;
+  color: rgba(242, 248, 247, 0.88);
+  font-size: clamp(0.98rem, 1.35vw, 1.12rem);
+  font-weight: 570;
+  letter-spacing: -0.018em;
+}
+
+.context-map {
+  position: relative;
+  height: 10.6rem;
+  margin-top: 0.85rem;
+}
+
+.context-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  fill: none;
+  stroke: rgba(136, 191, 182, 0.19);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.context-line--flow {
+  stroke: rgba(54, 190, 190, 0.45);
+  stroke-dasharray: 2 7;
+  animation: context-flow 5s linear infinite;
+}
+
+.context-node {
+  position: absolute;
+  z-index: 2;
+  padding: 0.3rem 0.48rem;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: 0.36rem;
+  background: rgba(7, 12, 12, 0.88);
+  color: var(--stp-text-subtle);
+  font-family: var(--font-geist-mono);
+  font-size: 0.57rem;
+  white-space: nowrap;
+}
+
+.context-node::before {
+  display: inline-block;
+  width: 0.3rem;
+  height: 0.3rem;
+  margin-right: 0.36rem;
+  border-radius: 50%;
+  background: rgba(54, 190, 190, 0.7);
+  content: '';
+  vertical-align: 0.04rem;
+}
+
+.context-node--release {
+  top: 0;
+  left: 0;
+}
+
+.context-node--traces {
+  top: 0;
+  right: 0;
+}
+
+.context-node--logs {
+  bottom: 0.45rem;
+  left: 0;
+}
+
+.context-node--aws {
+  right: 0;
+  bottom: 0.45rem;
+}
+
+.context-node--aws::before {
+  background: var(--stp-aws-category-compute);
+}
+
+.context-node--metrics {
+  bottom: -0.15rem;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.context-core {
+  position: absolute;
+  z-index: 3;
+  top: 49%;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 9rem;
+  padding: 0.63rem 0.72rem;
+  border: 1px solid rgba(54, 190, 190, 0.35);
+  border-radius: 0.55rem;
+  background: rgba(20, 45, 43, 0.92);
+  box-shadow:
+    0 0 0 4px rgba(54, 190, 190, 0.05),
+    0 0.75rem 1.8rem rgba(0, 0, 0, 0.25);
+  transform: translate(-50%, -50%);
+}
+
+.context-core svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex: none;
+  fill: none;
+  stroke: var(--stp-color-brand);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.35;
+}
+
+.context-core span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.context-core strong {
+  color: rgba(233, 250, 247, 0.9);
+  font-size: 0.66rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.context-core small {
+  margin-top: 0.08rem;
+  color: rgba(175, 211, 205, 0.55);
+  font-family: var(--font-geist-mono);
+  font-size: 0.5rem;
+}
+
+.column-note {
+  margin: 1.05rem 0 0;
+  color: var(--stp-text-faint);
+  font-size: 0.74rem;
+  line-height: 1.5;
+}
+
+.agent-brief {
+  margin-top: 0.85rem;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: 0.68rem;
+  background: rgba(5, 10, 10, 0.42);
+}
+
+.agent-brief__title {
+  display: flex;
+  align-items: center;
+  gap: 0.52rem;
+  min-height: 2.75rem;
+  padding: 0.65rem 0.78rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.065);
+  color: rgba(240, 246, 245, 0.77);
+  font-size: 0.73rem;
+  font-weight: 580;
+}
+
+.agent-spark {
+  position: relative;
+  width: 0.8rem;
+  height: 0.8rem;
+}
+
+.agent-spark i {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0.75rem;
+  height: 1px;
+  background: var(--stp-color-brand);
+  transform: translate(-50%, -50%);
+}
+
+.agent-spark i:nth-child(2) {
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+
+.brief-status {
+  margin-left: auto;
+  padding: 0.2rem 0.4rem;
+  border: 1px solid rgba(54, 190, 190, 0.2);
+  border-radius: 999px;
+  background: rgba(54, 190, 190, 0.07);
+  color: rgba(144, 224, 211, 0.75);
+  font-family: var(--font-geist-mono);
+  font-size: 0.52rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.agent-brief ul {
+  display: flex;
+  margin: 0;
+  padding: 0.62rem 0.72rem 0.72rem;
+  flex-direction: column;
+  gap: 0.18rem;
+  list-style: none;
+}
+
+.agent-brief li {
+  display: flex;
+  align-items: center;
+  gap: 0.52rem;
+  min-height: 2rem;
+  padding: 0.35rem;
+  border-radius: 0.42rem;
+  color: var(--stp-text-subtle);
+  font-size: 0.68rem;
+}
+
+.agent-brief li:hover {
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--stp-text-muted);
+}
+
+.check {
+  display: grid;
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+  place-items: center;
+  border: 1px solid rgba(54, 190, 190, 0.2);
+  border-radius: 50%;
+  background: rgba(54, 190, 190, 0.07);
+}
+
+.check svg {
+  width: 0.62rem;
+  height: 0.62rem;
+  fill: none;
+  stroke: rgba(124, 218, 203, 0.86);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+}
+
+.mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.25rem;
+  margin-top: 0.85rem;
+  padding: 0.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.065);
+  border-radius: 0.65rem;
+  background: rgba(0, 0, 0, 0.27);
+}
+
+.mode-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 2.55rem;
+  padding: 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 0.46rem;
+  background: transparent;
+  color: var(--stp-text-faint);
+  font-size: 0.65rem;
+  font-weight: 570;
+  cursor: pointer;
+  transition:
+    border-color var(--stp-motion-duration-fast) var(--stp-motion-easing),
+    background var(--stp-motion-duration-fast) var(--stp-motion-easing),
+    color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+}
+
+.mode-button:hover {
+  color: var(--stp-text-muted);
+}
+
+.mode-button.is-active {
+  border-color: rgba(255, 255, 255, 0.075);
+  background: rgba(255, 255, 255, 0.065);
+  color: rgba(242, 248, 247, 0.84);
+  box-shadow: 0 0.35rem 0.8rem rgba(0, 0, 0, 0.16);
+}
+
+.mode-button span {
+  padding: 0.15rem 0.3rem;
+  border-radius: 999px;
+  background: rgba(54, 190, 190, 0.09);
+  color: rgba(123, 215, 201, 0.78);
+  font-family: var(--font-geist-mono);
+  font-size: 0.47rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.decision-state {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+  min-height: 5.8rem;
+  margin-top: 0.75rem;
+  padding: 0.9rem;
+  border: 1px solid rgba(54, 190, 190, 0.16);
+  border-radius: 0.65rem;
+  background: linear-gradient(135deg, rgba(54, 190, 190, 0.075), rgba(54, 190, 190, 0.02));
+  transition:
+    border-color var(--stp-motion-duration-base) var(--stp-motion-easing),
+    background var(--stp-motion-duration-base) var(--stp-motion-easing);
+}
+
+.boundary-column.is-auto .decision-state {
+  border-color: rgba(54, 190, 190, 0.38);
+  background: linear-gradient(135deg, rgba(54, 190, 190, 0.13), rgba(54, 190, 190, 0.035));
+}
+
+.decision-state__icon {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  flex: none;
+  place-items: center;
+  border-radius: 0.52rem;
+  background: rgba(54, 190, 190, 0.1);
+  color: var(--stp-color-brand);
+}
+
+.decision-state__icon svg {
+  width: 1.05rem;
+  height: 1.05rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 1.35;
+}
+
+.decision-state strong {
+  display: block;
+  margin-top: 0.12rem;
+  color: rgba(238, 247, 245, 0.86);
+  font-size: 0.73rem;
+  font-weight: 590;
+}
+
+.decision-state p {
+  margin: 0.4rem 0 0;
+  color: var(--stp-text-faint);
+  font-size: 0.66rem;
+  line-height: 1.45;
+}
+
+.boundary-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.72rem;
+  color: var(--stp-text-faint);
+  font-family: var(--font-geist-mono);
+  font-size: 0.55rem;
+}
+
+.boundary-footer svg {
+  width: 0.8rem;
+  height: 0.8rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.2;
+}
+
+.proof-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.proof-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 3.25rem;
+  padding: 0.75rem;
+  color: rgba(181, 191, 190, 0.68);
+  font-family: var(--font-geist-mono);
+  font-size: 0.61rem;
+  font-weight: 550;
+  letter-spacing: 0.02em;
+  text-align: center;
+}
+
+.proof-item + .proof-item {
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.proof-check {
+  display: grid;
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(54, 190, 190, 0.09);
+  color: rgba(113, 214, 198, 0.8);
+  font-size: 0.55rem;
+}
+
+@keyframes accent-drift {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes console-enter {
+  from {
+    opacity: 0;
+    transform: translateY(1rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes state-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 4px rgba(54, 190, 190, 0.08);
+  }
+  50% {
+    box-shadow: 0 0 0 7px rgba(54, 190, 190, 0.015);
+  }
+}
+
+@keyframes context-flow {
+  to {
+    stroke-dashoffset: -36;
+  }
+}
+
+@media (max-width: 1040px) {
+  .authority-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .boundary-column {
+    grid-column: 1 / -1;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    border-left: 0 !important;
+  }
+
+  .boundary-column .column-heading {
+    min-height: auto;
+  }
+
+  .boundary-column .mode-switch {
+    max-width: 34rem;
+  }
+
+  .decision-state {
+    max-width: 42rem;
+  }
+}
+
+@media (max-width: 760px) {
+  .site-nav {
+    grid-template-columns: 1fr auto;
+  }
+
+  .nav-context {
+    display: none;
+  }
+
+  .nav-links {
+    gap: 0.85rem;
+  }
+
+  .nav-links > a:not(.nav-signup) {
+    display: none;
+  }
+
+  .hero {
+    padding-top: 3.9rem;
+  }
+
+  h1 {
+    font-size: clamp(3rem, 13vw, 4.5rem);
+    letter-spacing: -0.06em;
+  }
+
+  .hero-lede {
+    text-wrap: pretty;
+  }
+
+  .authority-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .authority-column + .authority-column {
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    border-left: 0;
+  }
+
+  .boundary-column {
+    grid-column: auto;
+  }
+
+  .proof-strip {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .proof-item:nth-child(3) {
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    border-left: 0;
+  }
+
+  .proof-item:nth-child(4) {
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+}
+
+@media (max-width: 500px) {
+  .console-section,
+  .console-divider {
+    display: none;
+  }
+
+  .console-state {
+    font-size: 0;
+  }
+
+  .console-state__dot {
+    margin-right: 0.1rem;
+  }
+
+  .hero-command :global(.cta-command__copy-label) {
+    display: none;
+  }
+
+  .hero-command :global(.cta-command__method) {
+    padding-inline: 0.47rem;
+  }
+
+  .mode-switch {
+    grid-template-columns: 1fr;
+  }
+
+  .secondary-actions {
+    width: 100%;
+  }
+
+  .secondary-link {
+    justify-content: center;
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .headline-line--accent,
+  .authority-console,
+  .console-state__dot,
+  .context-line--flow {
+    animation: none;
+  }
+
+  .nav-links a,
+  .secondary-link,
+  .mode-button,
+  .decision-state {
+    transition: none;
+  }
+}
+</style>
+
+<script>
+const boundary = document.querySelector('[data-agent-boundary]');
+
+  if (boundary) {
+    const buttons = boundary.querySelectorAll('[data-agent-mode]');
+    const title = boundary.querySelector('[data-decision-title]');
+    const copy = boundary.querySelector('[data-decision-copy]');
+    const footer = boundary.querySelector('[data-boundary-footer]');
+
+    const setAgentMode = (mode) => {
+      const isAuto = mode === 'auto';
+
+      buttons.forEach((button) => {
+        const isActive = button.getAttribute('data-agent-mode') === mode;
+        button.classList.toggle('is-active', isActive);
+        button.setAttribute('aria-pressed', String(isActive));
+      });
+
+      boundary.classList.toggle('is-auto', isAuto);
+
+      if (title) {
+        title.textContent = isAuto ? 'Allowed to resolve and deploy' : 'Prepared for your review';
+      }
+
+      if (copy) {
+        copy.textContent = isAuto
+          ? 'Autonomous action happens only after you explicitly opt in.'
+          : 'The agent proposes the change. You decide when it deploys.';
+      }
+
+      if (footer) {
+        footer.textContent = isAuto ? 'Opt-in boundary · autonomous resolution' : 'Default boundary · review first';
+      }
+    };
+
+    buttons.forEach((button) => {
+      button.addEventListener('click', () => {
+        setAgentMode(button.getAttribute('data-agent-mode') || 'review');
+      });
+    });
+  }
+</script>

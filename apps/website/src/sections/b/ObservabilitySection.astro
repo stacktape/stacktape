@@ -1,0 +1,49 @@
+---
+/**
+ * Act II, section 04: metrics, then one trace.
+ *
+ * Two surfaces, in that order, because that is the order the question arrives in: a chart tells you
+ * that something changed, and only a waterfall tells you where the time went. The hinge sentence
+ * between them exists so the second surface reads as an answer rather than as another panel.
+ */
+import { MetricsPanel } from '../../surfaces/MetricsPanel';
+import { TraceWaterfall } from '../../surfaces/TraceWaterfall';
+import SectionHead from './SectionHead.astro';
+---
+
+<section class="b-band b-band--deep" id="s04" data-act="1">
+  <div class="b-shell">
+    <SectionHead act="1" index="04" kicker="Console · metrics & traces">
+      <Fragment slot="title">When it is slow, the answer is already on the page.</Fragment>
+      <Fragment slot="lede">
+        Per-resource metrics on the axes the service actually reports — CPU and memory for the Fargate service,
+        invocations and errors for the Lambda, connections for the database. No dashboards to build first, and no second
+        vendor to send your telemetry to.
+      </Fragment>
+    </SectionHead>
+
+    <figure class="b-figure b-reveal">
+      <div class="b-figure__stage site-panel">
+        <MetricsPanel />
+      </div>
+      <figcaption class="b-figure__caption">
+        <b>Three hours, one stage.</b> The error spike on <code>worker</code> is the same incident section 05 is looking
+        at, from further away.
+      </figcaption>
+    </figure>
+
+    <p class="b-hinge b-reveal">
+      A chart tells you that something changed. It does not tell you which of six services spent the time.
+    </p>
+
+    <figure class="b-figure b-reveal">
+      <div class="b-figure__stage site-panel">
+        <TraceWaterfall />
+      </div>
+      <figcaption class="b-figure__caption">
+        <b>One checkout request, 842 ms.</b> 288 ms of it is a single database read, and no amount of staring at the CPU
+        chart would have said so.
+      </figcaption>
+    </figure>
+  </div>
+</section>

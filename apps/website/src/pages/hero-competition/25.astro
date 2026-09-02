@@ -1,0 +1,820 @@
+---
+// concept: Interactive split hero pairing an authoritative value proposition with an Autopilot DevOps Engine preview demonstrating AI config generation, CloudFormation synthesis, and autonomous incident remediation.
+// copy-angle: Bold "AWS DevOps, fully automated" stance that balances developer velocity with enterprise-grade AWS depth, featuring opt-in AI agent remediation powered by full-system observability.
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Logo from '../../components/Logo.astro';
+---
+
+<BaseLayout
+  title="Stacktape — AWS DevOps, Fully Automated"
+  description="Deploy, observe, and manage production-grade infrastructure in your own AWS account. From AI config generation to autonomous incident remediation."
+  font="geist"
+  noindex
+>
+  <!-- Background Glow & Grid Canvas -->
+  <div class="fixed inset-0 pointer-events-none overflow-hidden z-0" aria-hidden="true">
+    <div class="hero-glow-primary"></div>
+    <div class="hero-glow-secondary"></div>
+    <div class="hero-grid-pattern"></div>
+  </div>
+
+  <div class="relative z-10 flex flex-col min-h-screen text-slate-100 selection:bg-emerald-500/30 selection:text-emerald-200">
+    <!-- Navigation Header -->
+    <header class="w-full border-b border-white/[0.07] bg-[#07090E]/80 backdrop-blur-xl sticky top-0 z-50">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+        <!-- Logo & Brand Badge -->
+        <div class="flex items-center gap-3">
+          <a
+            href="/"
+            class="flex items-center gap-2.5 transition-opacity hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 rounded-md"
+          >
+            <Logo height={26} class="text-white" />
+          </a>
+          <span
+            class="hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-medium tracking-wide uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full font-mono"
+          >
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            v2.0
+          </span>
+        </div>
+
+        <!-- Navigation Links -->
+        <nav class="hidden md:flex items-center gap-7 text-sm font-medium text-slate-300" aria-label="Main Navigation">
+          <a href="#how-it-works" class="hover:text-white transition-colors">How it works</a>
+          <a href="#architecture" class="hover:text-white transition-colors">Architecture</a>
+          <a href="#observability" class="hover:text-white transition-colors">Observability</a>
+          <a
+            href="https://docs.stacktape.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="hover:text-white transition-colors inline-flex items-center gap-1"
+          >
+            Docs
+            <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+              />
+            </svg>
+          </a>
+          <a
+            href="https://github.com/stacktape/stacktape"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="hover:text-white transition-colors inline-flex items-center gap-1.5"
+          >
+            <svg class="w-4 h-4 text-slate-400 fill-current" viewBox="0 0 24 24">
+              <path
+                fill-rule="evenodd"
+                clip-rule="evenodd"
+                d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
+              />
+            </svg>
+            GitHub
+          </a>
+        </nav>
+
+        <!-- CTAs Header -->
+        <div class="flex items-center gap-3">
+          <a
+            href="https://cal.com/stacktape/30min"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="hidden sm:inline-flex items-center justify-center px-3.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white border border-white/10 hover:border-white/20 bg-white/[0.02] hover:bg-white/[0.05] rounded-lg transition-all"
+          >
+            Book demo
+          </a>
+          <a
+            href="https://console.stacktape.com/sign-up"
+            class="inline-flex items-center justify-center px-4 py-1.5 text-xs font-semibold text-slate-950 bg-emerald-400 hover:bg-emerald-300 rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.35)] hover:shadow-[0_0_20px_rgba(16,185,129,0.5)] transition-all"
+          >
+            Deploy in Console
+          </a>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Hero Container -->
+    <main class="flex-1 flex flex-col justify-center max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-16 lg:pt-14 lg:pb-20">
+      <!-- Top Announcement Badge -->
+      <div class="flex items-center justify-start lg:justify-start mb-6">
+        <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-emerald-500/25 bg-emerald-950/30 text-xs text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.15)]">
+          <span class="flex h-2 w-2 relative">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <span class="font-medium">AI Wizard + Observability + Incident Auto-Fix</span>
+          <span class="text-emerald-500/40">|</span>
+          <span class="text-slate-400 hidden sm:inline">Zero AWS lock-in</span>
+        </div>
+      </div>
+
+      <!-- Hero Two-Column Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-8 items-center">
+        <!-- Left Column: Copy & Interactive CLI Terminal -->
+        <div class="lg:col-span-6 flex flex-col items-start text-left">
+          <h1 class="text-4xl sm:text-5xl lg:text-[3.4rem] font-extrabold tracking-tight text-white leading-[1.1] mb-5">
+            AWS DevOps,<br />
+            <span class="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400">
+              fully automated.
+            </span>
+          </h1>
+
+          <p class="text-base sm:text-lg text-slate-300/95 leading-relaxed max-w-xl mb-7 font-normal">
+            Give developers the infrastructure depth, security, and runtime governance of an elite AWS DevOps team. From
+            AI repo-to-config synthesis to automated CloudFormation compilation and opt-in incident self-healing.
+          </p>
+
+          <!-- Interactive CLI Installation Switcher -->
+          <div class="w-full max-w-xl rounded-xl border border-white/10 bg-[#0B0F19]/90 shadow-2xl p-3.5 mb-6 backdrop-blur-md">
+            <div class="flex items-center justify-between pb-2.5 mb-2.5 border-b border-white/[0.08] text-xs">
+              <span class="text-slate-400 font-mono flex items-center gap-1.5">
+                <svg
+                  class="w-3.5 h-3.5 text-emerald-400"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <polyline points="4 17 10 11 4 5"></polyline>
+                  <line x1="12" y1="19" x2="20" y2="19"></line>
+                </svg>
+                Deploy in seconds via CLI wizard
+              </span>
+
+              <!-- Command Mode Tabs -->
+              <div
+                class="flex items-center gap-1 bg-black/40 p-0.5 rounded-lg border border-white/[0.06]"
+                id="cli-tabs"
+              >
+                <button
+                  type="button"
+                  data-cmd="npx"
+                  class="cli-tab-btn active px-2.5 py-1 rounded text-[11px] font-mono font-medium transition-all text-emerald-400 bg-white/10 shadow-sm"
+                >
+                  npx
+                </button>
+                <button
+                  type="button"
+                  data-cmd="macos"
+                  class="cli-tab-btn px-2.5 py-1 rounded text-[11px] font-mono font-medium transition-all text-slate-400 hover:text-slate-200"
+                >
+                  macOS
+                </button>
+                <button
+                  type="button"
+                  data-cmd="linux"
+                  class="cli-tab-btn px-2.5 py-1 rounded text-[11px] font-mono font-medium transition-all text-slate-400 hover:text-slate-200"
+                >
+                  Linux
+                </button>
+                <button
+                  type="button"
+                  data-cmd="win"
+                  class="cli-tab-btn px-2.5 py-1 rounded text-[11px] font-mono font-medium transition-all text-slate-400 hover:text-slate-200"
+                >
+                  Win
+                </button>
+              </div>
+            </div>
+
+            <!-- Terminal Output Row with Copy Action -->
+            <div class="flex items-center justify-between gap-3 bg-black/60 rounded-lg px-3.5 py-2.5 border border-white/[0.05]">
+              <div class="flex items-center gap-2 font-mono text-xs sm:text-sm text-slate-200 overflow-x-auto select-all scrollbar-none">
+                <span class="text-emerald-400 select-none font-bold">$</span>
+                <code id="cli-command-text" class="text-emerald-300 font-mono">npx stacktape init</code>
+              </div>
+              <button
+                type="button"
+                id="copy-btn"
+                aria-label="Copy installation command"
+                class="shrink-0 flex items-center gap-1.5 px-2.5 py-1 text-xs font-mono font-medium bg-white/10 hover:bg-white/15 text-slate-200 rounded border border-white/10 hover:border-white/20 transition-all active:scale-95"
+              >
+                <svg
+                  id="copy-icon"
+                  class="w-3.5 h-3.5 text-slate-300"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"></path>
+                </svg>
+                <span id="copy-label">Copy</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Secondary Action Row -->
+          <div class="flex flex-wrap items-center gap-3.5 w-full max-w-xl mb-8">
+            <a
+              href="https://console.stacktape.com/sign-up"
+              class="flex-1 min-w-[160px] inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-slate-950 bg-emerald-400 hover:bg-emerald-300 rounded-lg transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_25px_rgba(16,185,129,0.45)] active:translate-y-0.5"
+            >
+              <span>Deploy in Console</span>
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M5 12h14M12 5l7 7-7 7" />
+              </svg>
+            </a>
+            <a
+              href="https://cal.com/stacktape/30min"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium text-slate-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-white/20 rounded-lg transition-all"
+            >
+              <svg class="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                />
+              </svg>
+              <span>Book 30-min Demo</span>
+            </a>
+          </div>
+
+          <!-- Trust & Capabilities Checklist -->
+          <div class="grid grid-cols-2 gap-y-2.5 gap-x-4 text-xs text-slate-400 font-medium">
+            <div class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-emerald-400 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                <path
+                  fill-rule="evenodd"
+                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                  clip-rule="evenodd"
+                />
+              </svg>
+              <span>100% in your AWS account</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-emerald-400 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                <path
+                  fill-rule="evenodd"
+                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                  clip-rule="evenodd"
+                />
+              </svg>
+              <span>Pure CloudFormation + CDK escape hatches</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-emerald-400 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                <path
+                  fill-rule="evenodd"
+                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                  clip-rule="evenodd"
+                />
+              </svg>
+              <span>Multi-VPC, Fargate, Aurora & GPU</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-emerald-400 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                <path
+                  fill-rule="evenodd"
+                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                  clip-rule="evenodd"
+                />
+              </svg>
+              <span>Telemetry + AI agent incident fix</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: Interactive DevOps Engine Showcase -->
+        <div class="lg:col-span-6 w-full">
+          <div class="relative rounded-2xl border border-white/10 bg-[#0B0F19]/95 shadow-2xl overflow-hidden backdrop-blur-xl transition-all duration-300 hover:border-emerald-500/30 group">
+            <!-- Window Titlebar & Live Stage Selector -->
+            <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-[#080B13] border-b border-white/[0.08]">
+              <!-- Window Control Dots -->
+              <div class="flex items-center gap-2">
+                <div class="flex items-center gap-1.5">
+                  <span class="w-3 h-3 rounded-full bg-[#EF4444]/80 border border-red-500/30"></span>
+                  <span class="w-3 h-3 rounded-full bg-[#F59E0B]/80 border border-amber-500/30"></span>
+                  <span class="w-3 h-3 rounded-full bg-[#10B981]/80 border border-emerald-500/30"></span>
+                </div>
+                <span class="text-xs font-mono text-slate-400 ml-2 hidden sm:inline-flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                  production-aws · us-east-1
+                </span>
+              </div>
+
+              <!-- Interactive Engine Phase Tabs -->
+              <div
+                class="flex items-center gap-1 bg-black/50 p-1 rounded-lg border border-white/[0.07]"
+                id="stage-tabs"
+              >
+                <button
+                  type="button"
+                  data-stage="0"
+                  class="stage-nav-btn active flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium text-emerald-300 bg-emerald-950/60 border border-emerald-500/30 transition-all"
+                >
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                  <span>01 · AI Config</span>
+                </button>
+                <button
+                  type="button"
+                  data-stage="1"
+                  class="stage-nav-btn flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium text-slate-400 hover:text-slate-200 transition-all"
+                >
+                  <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+                  <span>02 · Deploy</span>
+                </button>
+                <button
+                  type="button"
+                  data-stage="2"
+                  class="stage-nav-btn flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium text-slate-400 hover:text-slate-200 transition-all"
+                >
+                  <span class="w-1.5 h-1.5 rounded-full bg-purple-400"></span>
+                  <span>03 · Auto-Fix</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Panel 1: AI Config Synthesis (Active by default) -->
+            <div id="panel-stage-0" class="stage-panel block p-5 sm:p-6 space-y-4">
+              <div class="flex items-center justify-between text-xs">
+                <div class="flex items-center gap-2 text-emerald-300 font-mono">
+                  <svg
+                    class="w-4 h-4 animate-spin text-emerald-400"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                  >
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path
+                      class="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    >
+                    </path>
+                  </svg>
+                  <span>AI Wizard: Inspecting repository architecture...</span>
+                </div>
+                <span class="text-slate-500 font-mono text-[11px]">stacktape.ts (generated)</span>
+              </div>
+
+              <!-- Visual Architecture Blueprint Nodes -->
+              <div class="p-3.5 rounded-xl bg-black/40 border border-white/[0.06] grid grid-cols-3 gap-2.5 text-center">
+                <div class="p-2.5 rounded-lg bg-emerald-950/20 border border-emerald-500/20">
+                  <div class="text-[10px] uppercase font-mono text-emerald-400 mb-1">Web Tier</div>
+                  <div class="text-xs font-semibold text-slate-100">Next.js Edge</div>
+                  <div class="text-[10px] text-slate-400 mt-0.5">CDN + Global SSL</div>
+                </div>
+                <div class="p-2.5 rounded-lg bg-cyan-950/20 border border-cyan-500/20">
+                  <div class="text-[10px] uppercase font-mono text-cyan-400 mb-1">Compute</div>
+                  <div class="text-xs font-semibold text-slate-100">ECS Fargate</div>
+                  <div class="text-[10px] text-slate-400 mt-0.5">Auto-scale 2-12 tasks</div>
+                </div>
+                <div class="p-2.5 rounded-lg bg-indigo-950/20 border border-indigo-500/20">
+                  <div class="text-[10px] uppercase font-mono text-indigo-400 mb-1">Database</div>
+                  <div class="text-xs font-semibold text-slate-100">Aurora Postgres</div>
+                  <div class="text-[10px] text-slate-400 mt-0.5">Serverless v2 + Redis</div>
+                </div>
+              </div>
+
+              <!-- High-fidelity Code Snippet -->
+              <div class="rounded-lg bg-black/70 border border-white/[0.06] p-3.5 font-mono text-xs text-slate-300 leading-relaxed overflow-x-auto">
+                <pre class="text-[11px] sm:text-xs"><code><span class="text-purple-400">import</span> &#123; defineConfig &#125; <span class="text-purple-400">from</span> <span class="text-emerald-300">'stacktape'</span>;
+
+<span class="text-purple-400">export default</span> defineConfig(&#123;
+  <span class="text-sky-300">resources</span>: &#123;
+    <span class="text-slate-400">// Automatically synthesized multi-tier VPC &amp; compute</span>
+    <span class="text-amber-300">apiServer</span>: &#123;
+      <span class="text-cyan-300">type</span>: <span class="text-emerald-300">'container-service'</span>,
+      <span class="text-cyan-300">properties</span>: &#123;
+        <span class="text-cyan-300">packaging</span>: &#123; <span class="text-cyan-300">type</span>: <span class="text-emerald-300">'dockerfile'</span> &#125;,
+        <span class="text-cyan-300">scaling</span>: &#123; <span class="text-cyan-300">minInstances</span>: <span class="text-amber-300">2</span>, <span class="text-cyan-300">maxInstances</span>: <span class="text-amber-300">12</span> &#125;,
+        <span class="text-cyan-300">connectTo</span>: [<span class="text-emerald-300">'mainDb'</span>, <span class="text-emerald-300">'sessionCache'</span>]
+      &#125;
+    &#125;,
+    <span class="text-amber-300">mainDb</span>: &#123; <span class="text-cyan-300">type</span>: <span class="text-emerald-300">'relational-database'</span>, <span class="text-cyan-300">engine</span>: <span class="text-emerald-300">'aurora-postgresql'</span> &#125;
+  &#125;
+&#125;);</code></pre>
+              </div>
+
+              <div class="flex items-center justify-between text-xs text-slate-400 pt-1">
+                <span class="flex items-center gap-1.5 text-emerald-400">
+                  <svg class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path
+                      fill-rule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                      clip-rule="evenodd"
+                    />
+                  </svg>
+                  Synthesized 28 AWS resources with least-privilege IAM
+                </span>
+                <button
+                  type="button"
+                  class="text-emerald-400 hover:underline font-mono text-[11px]"
+                  data-action="next-stage"
+                >
+                  Simulate Deploy →
+                </button>
+              </div>
+            </div>
+
+            <!-- Panel 2: CloudFormation Compile & Deploy Engine -->
+            <div id="panel-stage-1" class="stage-panel hidden p-5 sm:p-6 space-y-4">
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-emerald-400 font-mono flex items-center gap-1.5 font-semibold">
+                  <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                  Compiling to Native AWS CloudFormation
+                </span>
+                <span class="text-slate-400 font-mono text-[11px]">Stack: st-production-v2</span>
+              </div>
+
+              <!-- Terminal Stream Simulation -->
+              <div class="rounded-lg bg-black/80 border border-white/[0.08] p-3.5 font-mono text-xs text-slate-200 space-y-2">
+                <div class="flex items-center justify-between text-slate-400 pb-1 border-b border-white/[0.05]">
+                  <span>Resource Synthesis</span>
+                  <span class="text-emerald-400">28 / 28 Created</span>
+                </div>
+                <div class="space-y-1.5 text-[11px]">
+                  <div class="flex items-center justify-between text-slate-300">
+                    <span class="flex items-center gap-2"><span class="text-emerald-400">✔</span> AWS::EC2::VPC &amp;
+                      3 Subnets (Multi-AZ)</span>
+                    <span class="text-slate-500">synced</span>
+                  </div>
+                  <div class="flex items-center justify-between text-slate-300">
+                    <span class="flex items-center gap-2"><span class="text-emerald-400">✔</span> AWS::RDS::DBCluster
+                      (Aurora Serverless)</span>
+                    <span class="text-slate-500">synced</span>
+                  </div>
+                  <div class="flex items-center justify-between text-slate-300">
+                    <span class="flex items-center gap-2"><span class="text-emerald-400">✔</span> AWS::ECS::Service
+                      (Fargate TaskDefinition)</span>
+                    <span class="text-slate-500">synced</span>
+                  </div>
+                  <div class="flex items-center justify-between text-slate-300">
+                    <span class="flex items-center gap-2"><span class="text-emerald-400">✔</span>
+                      AWS::ElasticLoadBalancingV2::TargetGroup</span>
+                    <span class="text-slate-500">synced</span>
+                  </div>
+                  <div class="flex items-center justify-between text-slate-300">
+                    <span class="flex items-center gap-2"><span class="text-emerald-400">✔</span> AWS::IAM::Role
+                      (Least-Privilege auto-scoped)</span>
+                    <span class="text-slate-500">synced</span>
+                  </div>
+                </div>
+
+                <!-- Progress Bar -->
+                <div class="pt-2">
+                  <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                    <div class="bg-gradient-to-r from-emerald-500 to-teal-400 h-1.5 rounded-full w-full"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="p-3 rounded-lg bg-emerald-950/20 border border-emerald-500/20 flex items-center justify-between text-xs">
+                <div class="flex items-center gap-2 text-emerald-300">
+                  <svg class="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Stack deployed to AWS account in <strong>3m 42s</strong></span>
+                </div>
+                <a href="https://console.stacktape.com" class="text-emerald-400 font-mono text-[11px] hover:underline"
+                >View in AWS Console ↗</a>
+              </div>
+            </div>
+
+            <!-- Panel 3: Autonomous Day-1 Ops & Auto-Fix -->
+            <div id="panel-stage-2" class="stage-panel hidden p-5 sm:p-6 space-y-4">
+              <!-- Observability Metrics Summary -->
+              <div class="grid grid-cols-3 gap-2 text-center font-mono">
+                <div class="p-2.5 rounded-lg bg-black/40 border border-white/[0.06]">
+                  <div class="text-[10px] text-slate-400">P99 LATENCY</div>
+                  <div class="text-sm font-bold text-emerald-400 mt-0.5">14.2 ms</div>
+                </div>
+                <div class="p-2.5 rounded-lg bg-black/40 border border-white/[0.06]">
+                  <div class="text-[10px] text-slate-400">THROUGHPUT</div>
+                  <div class="text-sm font-bold text-slate-100 mt-0.5">2,840 req/s</div>
+                </div>
+                <div class="p-2.5 rounded-lg bg-black/40 border border-white/[0.06]">
+                  <div class="text-[10px] text-slate-400">ERROR RATE</div>
+                  <div class="text-sm font-bold text-amber-400 mt-0.5">0.02% (1 inc)</div>
+                </div>
+              </div>
+
+              <!-- Correlated Incident & Agent Card -->
+              <div class="rounded-xl border border-purple-500/30 bg-purple-950/20 p-3.5 space-y-3">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="flex items-center gap-2">
+                    <span
+                      class="px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-red-500/20 text-red-400 border border-red-500/30"
+                    >
+                      INCIDENT #104
+                    </span>
+                    <span class="text-xs font-semibold text-slate-200">DB Connection Spike (Postgres pool limit)</span>
+                  </div>
+                  <span class="text-[10px] font-mono text-purple-300 shrink-0">Claude 3.7 Agent Ready</span>
+                </div>
+
+                <p class="text-xs text-slate-300 leading-relaxed">
+                  Stacktape correlates logs + traces with Release <code class="text-purple-300 font-mono"
+                  >v2.14.0</code>: connection pool configured below burst traffic load.
+                </p>
+
+                <!-- Agent Proposal Block -->
+                <div class="p-2.5 rounded bg-black/60 border border-white/[0.08] text-[11px] font-mono text-emerald-300 flex items-center justify-between">
+                  <span>Fix proposed: scale pool maxConnections 20 → 80 in stacktape.ts</span>
+                  <span class="text-slate-400 text-[10px]">Opt-in</span>
+                </div>
+
+                <!-- Action Button Simulation -->
+                <div class="flex items-center gap-2 pt-1" id="agent-action-box">
+                  <button
+                    type="button"
+                    id="apply-fix-btn"
+                    class="flex-1 py-1.5 px-3 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-medium font-mono flex items-center justify-center gap-1.5 transition-all shadow-[0_0_12px_rgba(168,85,247,0.3)]"
+                  >
+                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+                    </svg>
+                    <span>Approve &amp; Auto-Deploy Fix</span>
+                  </button>
+                  <a
+                    href="https://docs.stacktape.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="py-1.5 px-3 bg-white/5 hover:bg-white/10 text-slate-300 rounded-lg text-xs font-mono transition-all border border-white/10"
+                  >
+                    Inspect Traces
+                  </a>
+                </div>
+              </div>
+
+              <div class="text-[11px] text-slate-400 flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5 text-emerald-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path
+                    fill-rule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+                <span>Complete context: Stacktape supplies full telemetry graph to agent</span>
+              </div>
+            </div>
+
+            <!-- Footer Meta Bar of Showcase Window -->
+            <div class="px-5 py-3 bg-[#06080E] border-t border-white/[0.06] flex items-center justify-between text-[11px] text-slate-400 font-mono">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                <span>Telemetry: 100% Native OpenTelemetry + AWS CloudWatch</span>
+              </div>
+              <span class="text-slate-500 hidden sm:inline">Zero agent lock-in</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom Value Grid: 4 Core Pillars -->
+      <div class="mt-16 pt-12 border-t border-white/[0.08] grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <!-- Pillar 1 -->
+        <div class="p-5 rounded-xl bg-white/[0.02] border border-white/[0.06] hover:border-emerald-500/30 transition-colors group">
+          <div class="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+              <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+              <line x1="6" y1="6" x2="6.01" y2="6"></line>
+              <line x1="6" y1="18" x2="6.01" y2="18"></line>
+            </svg>
+          </div>
+          <h2 class="text-sm font-semibold text-white mb-1.5">Zero DevOps Overhead</h2>
+          <p class="text-xs text-slate-400 leading-relaxed">
+            Engineers describe requirements in simple TypeScript or YAML. Stacktape provisions VPCs, subnets, and
+            autoscaling containers automatically.
+          </p>
+        </div>
+
+        <!-- Pillar 2 -->
+        <div class="p-5 rounded-xl bg-white/[0.02] border border-white/[0.06] hover:border-emerald-500/30 transition-colors group">
+          <div class="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+          </div>
+          <h2 class="text-sm font-semibold text-white mb-1.5">No Vendor Lock-In</h2>
+          <p class="text-xs text-slate-400 leading-relaxed">
+            Everything runs in your own AWS account as transparent CloudFormation stacks. Inject raw CloudFormation or
+            CDK constructs anytime.
+          </p>
+        </div>
+
+        <!-- Pillar 3 -->
+        <div class="p-5 rounded-xl bg-white/[0.02] border border-white/[0.06] hover:border-emerald-500/30 transition-colors group">
+          <div class="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+            </svg>
+          </div>
+          <h2 class="text-sm font-semibold text-white mb-1.5">Unified Observability</h2>
+          <p class="text-xs text-slate-400 leading-relaxed">
+            Auto-instrumented metrics, distributed traces, and log aggregation with zero configuration or third-party
+            agent installation fees.
+          </p>
+        </div>
+
+        <!-- Pillar 4 -->
+        <div class="p-5 rounded-xl bg-white/[0.02] border border-white/[0.06] hover:border-purple-500/30 transition-colors group">
+          <div class="w-8 h-8 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z">
+              </path>
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+              <line x1="12" y1="22.08" x2="12" y2="12"></line>
+            </svg>
+          </div>
+          <h2 class="text-sm font-semibold text-white mb-1.5">High-Context AI Healing</h2>
+          <p class="text-xs text-slate-400 leading-relaxed">
+            When incidents occur, AI agents receive the exact architecture diagram, deployment diff, and trace logs to
+            formulate verifiable fixes.
+          </p>
+        </div>
+      </div>
+    </main>
+  </div>
+</BaseLayout>
+
+<style>
+/* Custom Hero Background Glows & Grid Pattern */
+.hero-glow-primary {
+  position: absolute;
+  top: -120px;
+  left: 25%;
+  width: 650px;
+  height: 450px;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.12) 0%, rgba(6, 78, 59, 0.04) 50%, transparent 75%);
+  filter: blur(80px);
+  border-radius: 9999px;
+}
+
+.hero-glow-secondary {
+  position: absolute;
+  top: 15%;
+  right: 5%;
+  width: 500px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.08) 0%, rgba(168, 85, 247, 0.03) 50%, transparent 75%);
+  filter: blur(90px);
+  border-radius: 9999px;
+}
+
+.hero-grid-pattern {
+  position: absolute;
+  inset: 0;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, #000 30%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, #000 30%, transparent 80%);
+}
+
+/* CLI Switcher active styling */
+.cli-tab-btn.active {
+  color: #34d399;
+  background-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+/* Stage Selector active styling */
+.stage-nav-btn.active {
+  color: #6ee7b7;
+  background-color: rgba(6, 78, 59, 0.5);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+/* Hide scrollbar utility */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse,
+  .animate-ping,
+  .animate-spin {
+    animation: none !important;
+  }
+}
+</style>
+
+<script>
+// Commands map for CLI switch
+  const commands: Record<string, string> = {
+    npx: 'npx stacktape init',
+    macos: 'curl -L https://installs.stacktape.com/macos.sh | sh',
+    linux: 'curl -L https://installs.stacktape.com/linux.sh | sh',
+    win: 'iwr https://installs.stacktape.com/windows.ps1 -useb | iex'
+  };
+
+  // CLI Tabs Handling
+  const cliTabButtons = document.querySelectorAll<HTMLButtonElement>('.cli-tab-btn');
+  const cliText = document.getElementById('cli-command-text');
+  const copyBtn = document.getElementById('copy-btn');
+  const copyLabel = document.getElementById('copy-label');
+
+  let currentCmd = 'npx stacktape init';
+
+  cliTabButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const type = btn.getAttribute('data-cmd') || 'npx';
+      cliTabButtons.forEach((b) => b.classList.remove('active', 'text-emerald-400', 'bg-white/10'));
+      btn.classList.add('active', 'text-emerald-400', 'bg-white/10');
+      
+      currentCmd = commands[type] || commands.npx;
+      if (cliText) {
+        cliText.textContent = currentCmd;
+      }
+    });
+  });
+
+  // Copy Button Handling
+  if (copyBtn) {
+    copyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(currentCmd);
+        if (copyLabel) copyLabel.textContent = 'Copied!';
+        copyBtn.classList.add('bg-emerald-500/20', 'border-emerald-500/40', 'text-emerald-300');
+        
+        setTimeout(() => {
+          if (copyLabel) copyLabel.textContent = 'Copy';
+          copyBtn.classList.remove('bg-emerald-500/20', 'border-emerald-500/40', 'text-emerald-300');
+        }, 2000);
+      } catch (e) {
+        if (copyLabel) copyLabel.textContent = 'Copied!';
+      }
+    });
+  }
+
+  // Interactive Engine Stage Selector Handling
+  const stageButtons = document.querySelectorAll<HTMLButtonElement>('.stage-nav-btn');
+  const panels = [
+    document.getElementById('panel-stage-0'),
+    document.getElementById('panel-stage-1'),
+    document.getElementById('panel-stage-2')
+  ];
+
+  function setStage(index: number) {
+    stageButtons.forEach((b, idx) => {
+      if (idx === index) {
+        b.classList.add('active');
+        b.classList.remove('text-slate-400');
+      } else {
+        b.classList.remove('active');
+        b.classList.add('text-slate-400');
+      }
+    });
+
+    panels.forEach((p, idx) => {
+      if (p) {
+        if (idx === index) {
+          p.classList.remove('hidden');
+          p.classList.add('block');
+        } else {
+          p.classList.add('hidden');
+          p.classList.remove('block');
+        }
+      }
+    });
+  }
+
+  stageButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const stageIdx = parseInt(btn.getAttribute('data-stage') || '0', 10);
+      setStage(stageIdx);
+    });
+  });
+
+  // Action link trigger inside Stage 0
+  const nextStageTrigger = document.querySelector('[data-action="next-stage"]');
+  if (nextStageTrigger) {
+    nextStageTrigger.addEventListener('click', () => {
+      setStage(1);
+    });
+  }
+
+  // Auto-Fix Button Interaction Simulation
+  const applyFixBtn = document.getElementById('apply-fix-btn');
+  const actionBox = document.getElementById('agent-action-box');
+  if (applyFixBtn && actionBox) {
+    applyFixBtn.addEventListener('click', () => {
+      actionBox.innerHTML = `
+        <div class="w-full p-2.5 rounded bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-xs font-mono flex items-center justify-between animate-fadeIn">
+          <span class="flex items-center gap-2">
+            <svg class="w-4 h-4 text-emerald-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+            </svg>
+            Fix applied &amp; deployed: Pool scaled, 0 errors.
+          </span>
+          <span class="text-emerald-400 text-[10px]">Healthy</span>
+        </div>
+      `;
+    });
+  }
+</script>

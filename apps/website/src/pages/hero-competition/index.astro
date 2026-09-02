@@ -1,0 +1,162 @@
+---
+/*
+ * Review board for the hero competition. Blind by default: cards show the page number and the
+ * page's own `// concept:` / `// copy-angle:` lines (parsed from its frontmatter), never the author.
+ * The number → player key lives outside the site (.agents/prompts/hero-competition-runs/key.json);
+ * it is read here only to power the "reveal players" toggle, which stays off until clicked.
+ */
+import { readdirSync, readFileSync, existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join, resolve } from 'node:path';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const here = dirname(fileURLToPath(import.meta.url));
+// The key lives in the private console repo (a submodule that public-only checkouts lack), so the
+// board degrades to fully blind when it is absent.
+const keyPath = resolve(here, '../../../../console/documents/website/hero-competition/runs/key.json');
+const key: { number: string; player: string; version: number }[] = existsSync(keyPath)
+  ? JSON.parse(readFileSync(keyPath, 'utf8'))
+  : [];
+const playerOf = new Map(key.map((k) => [k.number, `${k.player} · v${k.version}`]));
+
+const pages = readdirSync(here)
+  .filter((f) => /^\d\d\.astro$/.test(f))
+  .sort()
+  .map((f) => {
+    const src = readFileSync(join(here, f), 'utf8');
+    const concept = /\/\/\s*concept:\s*(.+)/.exec(src)?.[1]?.trim() ?? '';
+    const angle = /\/\/\s*copy-angle:\s*(.+)/.exec(src)?.[1]?.trim() ?? '';
+    const title = /title="([^"]+)"/.exec(src)?.[1] ?? '';
+    const n = f.replace('.astro', '');
+    return { n, concept, angle, title, player: playerOf.get(n) ?? 'unknown' };
+  });
+
+const expected = key.length || 28;
+---
+
+<BaseLayout title="Hero competition" description="Hero candidates for stacktape.com" font="geist" noindex>
+  <main class="wrap">
+    <header class="head">
+      <div>
+        <h1>Hero competition</h1>
+        <p class="lede">{pages.length} of {expected} pages present · blind by default</p>
+      </div>
+      <label class="reveal"><input type="checkbox" id="reveal" /> reveal players</label>
+    </header>
+
+    <ol class="grid">
+      {pages.map((p) => (
+        <li class="card">
+          <a href={`/hero-competition/${p.n}`}>
+            <div class="row">
+              <span class="num">{p.n}</span>
+              <span class="who" data-who>{p.player}</span>
+            </div>
+            <p class="title">{p.title}</p>
+            <p class="concept">{p.concept}</p>
+            <p class="angle">{p.angle}</p>
+          </a>
+        </li>
+      ))}
+    </ol>
+  </main>
+</BaseLayout>
+
+<style>
+  .wrap {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 56px 24px 96px;
+  }
+  .head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 28px;
+  }
+  h1 {
+    margin: 0 0 6px;
+    font-size: 1.6rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  .lede {
+    margin: 0;
+    color: var(--stp-text-muted);
+  }
+  .reveal {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--stp-text-muted);
+    font-size: 0.86rem;
+    cursor: pointer;
+    user-select: none;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .card a {
+    display: block;
+    height: 100%;
+    padding: 16px 18px 18px;
+    border-radius: var(--stp-radius-large);
+    background: rgba(255, 255, 255, 0.02);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    color: var(--stp-text-primary);
+    text-decoration: none;
+    transition: background var(--stp-motion-duration-fast) var(--stp-motion-easing);
+  }
+  .card a:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+  .row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .num {
+    font-family: var(--font-geist-mono);
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--stp-color-brand);
+  }
+  .who {
+    font-family: var(--font-geist-mono);
+    font-size: 0.72rem;
+    color: var(--stp-text-muted);
+    visibility: hidden;
+  }
+  :global(body.is-revealed) .who {
+    visibility: visible;
+  }
+  .title {
+    margin: 0 0 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    line-height: 1.35;
+  }
+  .concept,
+  .angle {
+    margin: 0;
+    color: var(--stp-text-muted);
+    font-size: 0.8rem;
+    line-height: 1.45;
+  }
+  .angle {
+    margin-top: 6px;
+    color: var(--stp-text-subtle);
+  }
+</style>
+
+<script>
+  const box = document.getElementById('reveal') as HTMLInputElement | null;
+  box?.addEventListener('change', () => document.body.classList.toggle('is-revealed', box.checked));
+</script>

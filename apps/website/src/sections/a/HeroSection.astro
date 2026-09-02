@@ -1,0 +1,75 @@
+---
+/**
+ * The start of the run.
+ *
+ * Split horizontally: the argument on the left, the artefact on the right. The artefact is the
+ * config editor rather than a screenshot of the product, because the file is the thing a reader has
+ * to believe in before anything else on this page matters — everything below is what happens to it.
+ *
+ * Build-time data is resolved HERE, in `.astro` frontmatter, and handed to the island as plain
+ * props. `src/lib/snippets` must never be imported from a `.tsx` file — it reaches for `node:fs`,
+ * Shiki and a 3.5 MB schema.
+ *
+ * The four points are the four objections in the order they occur: what it costs to write, what it
+ * leaves behind, who owns the account, and whether any of it survives the first deploy.
+ */
+import { CtaCommand } from '../../components/CtaCommand';
+import { getSnippets } from '../../lib/snippets/snippets';
+import { HeroConfigEditor } from '../../surfaces/HeroConfigEditor/HeroConfigEditor';
+
+const snippets = await getSnippets();
+---
+
+<section class="a-hero a-shell">
+  <div class="a-hero__copy">
+    <h1 class="a-hero__title">
+      All of AWS.<br />
+      <span class="site-gradient-text">3% of the complexity.</span>
+    </h1>
+
+    <p class="a-hero__sub">
+      Describe your application once. Stacktape works out the AWS resources it needs, compiles them to CloudFormation,
+      and deploys them into an account you own.
+    </p>
+
+    <ul class="a-hero__points">
+      <li>
+        <strong>One config file.</strong> TypeScript or YAML, 30+ resource types — Lambda, Fargate, Aurora, Redis,
+        queues, CDNs.
+      </li>
+      <li>
+        <strong>Compiles to plain CloudFormation.</strong> Read the template, diff it, keep it. Nothing proprietary runs
+        in your account.
+      </li>
+      <li>
+        <strong>Deploys to your own AWS account.</strong> Under your IAM, in your region. AWS bills you directly, with
+        no markup from us.
+      </li>
+      <li>
+        <strong>Day one is covered too.</strong> Preview environments per pull request, metrics, traces, error tracking,
+        cost per resource.
+      </li>
+    </ul>
+
+    <div class="a-hero__actions">
+      <CtaCommand client:visible />
+      <a
+        class="a-btn a-btn--quiet"
+        href="https://console.stacktape.com/sign-up"
+        rel="noopener noreferrer"
+        target="_blank"
+      >
+        Sign up
+      </a>
+      <a class="a-btn a-btn--text" href="https://cal.com/stacktape/30min" rel="noopener noreferrer" target="_blank">
+        Book a demo →
+      </a>
+    </div>
+
+    <p class="a-hero__note">The CLI is open source. Nothing is created on AWS until you say so.</p>
+  </div>
+
+  <div class="a-hero__surface">
+    <HeroConfigEditor client:visible snippets={snippets} />
+  </div>
+</section>

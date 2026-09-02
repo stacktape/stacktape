@@ -1,0 +1,811 @@
+/*
+ * Variant A — "the run".
+ *
+ * The whole page is one continuous run of the product, so it is styled as one document rather than
+ * as a stack of independent sections: a single measure for prose, a single light from the top, a
+ * rail down the left saying where in the run you are, and the brand colour reserved for the four
+ * places it means something (eyebrows, rail markers, the CTA's ring, the last button on the page).
+ *
+ * The vocabulary is `apps/init-ui/src/styles.css` at page scale — borderless planes lifted by inset
+ * hairlines, muted lede under a tight title, motion only where something genuinely changed. Where a
+ * value is copied from there (the top light, the rail marker geometry, the 68ch measure) it is
+ * copied exactly, so the wizard bands this page embeds sit in a page that looks like their own.
+ *
+ * Imported once, from `src/pages/variants/a.astro`, and nowhere else. Every selector is prefixed
+ * `a-` so it cannot collide with a surface's own classes; the file is deliberately unlayered, which
+ * is what lets the handful of surface overrides at the end (the diagram's canvas height) win over
+ * `@layer components` without `!important`.
+ */
+
+/* ── Page shell ─────────────────────────────────────────────────────────────────────────────── */
+
+.a-page {
+  --a-max: 1280px;
+  --a-pad: 28px;
+  --a-rail-w: 150px;
+  --a-rail-gap: 46px;
+  --a-nav-h: 64px;
+  /* One measure for every column of prose on the page, the wizard's own. `--wizard-measure` is
+   * restated because the Day 0 bands are used outside `.wizard-run`, which is where they normally
+   * inherit it from — without this their `max-width` computes to `none` and the prose runs wide. */
+  --a-measure: 66ch;
+  --wizard-measure: 66ch;
+
+  /* A single, very soft light from the top of the page. It gives the sections something to sit on
+   * without any of them needing a border. Verbatim from the wizard. */
+  background-image: radial-gradient(120% 60% at 50% -10%, rgba(255, 255, 255, 0.045), transparent 70%);
+  background-attachment: fixed;
+}
+
+.a-shell {
+  max-width: var(--a-max);
+  margin: 0 auto;
+  padding: 0 var(--a-pad);
+}
+
+/* ── Shared type ────────────────────────────────────────────────────────────────────────────── */
+
+/* Matched to `.wizard-eyebrow` on purpose: the Day 0 bands render their own, and two eyebrow
+ * treatments in one document would say the page is two documents. */
+.a-eyebrow {
+  margin: 0;
+  color: var(--color-brand);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.a-title {
+  margin: 8px 0 0;
+  font-size: 1.3rem;
+  font-weight: 640;
+  letter-spacing: -0.01em;
+}
+
+/* A movement rather than a band. Used twice, after the run ends and the page opens back out to full
+ * width — the size change is part of how that shift is announced. */
+.a-title--movement {
+  font-size: clamp(1.45rem, 2vw, 1.75rem);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.a-lede {
+  margin: 12px 0 0;
+  max-width: var(--a-measure);
+  color: var(--color-fc-lighter);
+}
+
+.a-lede strong {
+  color: var(--color-fc-primary);
+  font-weight: 600;
+}
+
+/*
+ * A beat: one line of stage direction between two sections, indented to the measure and set small.
+ * It is what keeps the page reading as a sequence rather than a list — the sentence that answers
+ * "why is this next?" without pretending to be a heading.
+ */
+.a-beat {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0 0 30px;
+  color: var(--color-fc-light);
+  font-size: 0.9rem;
+}
+
+.a-beat::before {
+  content: '';
+  width: 22px;
+  height: 1px;
+  flex: none;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* ── Controls ───────────────────────────────────────────────────────────────────────────────── */
+
+.a-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: var(--stp-radius-large);
+  font-size: 0.92rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition:
+    background var(--stp-motion-duration-base) var(--stp-motion-easing),
+    color var(--stp-motion-duration-base) var(--stp-motion-easing);
+}
+
+.a-btn--quiet {
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.09);
+  color: var(--color-fc-primary);
+}
+
+.a-btn--quiet:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* The one filled brand button on the page. It is the last one, where the run loops. */
+.a-btn--brand {
+  background: rgb(20, 150, 150);
+  color: #fff;
+}
+
+.a-btn--brand:hover {
+  background: rgb(24, 168, 168);
+}
+
+.a-btn--text {
+  padding: 10px 2px;
+  color: var(--color-fc-lighter);
+  font-weight: 550;
+}
+
+.a-btn--text:hover {
+  color: var(--color-fc-primary);
+}
+
+/* ── Nav ────────────────────────────────────────────────────────────────────────────────────── */
+
+.a-nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: color-mix(in srgb, var(--color-page) 82%, transparent);
+  backdrop-filter: blur(14px);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.a-nav__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  height: var(--a-nav-h);
+}
+
+.a-nav__home {
+  display: inline-flex;
+  align-items: center;
+}
+
+.a-nav__links {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.a-nav__link {
+  padding: 8px 12px;
+  border-radius: var(--stp-radius-medium);
+  color: var(--color-fc-lighter);
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+}
+
+.a-nav__link:hover {
+  color: var(--color-fc-primary);
+}
+
+.a-nav__cta {
+  margin-left: 6px;
+  padding: 8px 15px;
+  font-size: 0.88rem;
+}
+
+/* ── Hero ───────────────────────────────────────────────────────────────────────────────────── */
+
+.a-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+  gap: 56px;
+  /* Top-aligned rather than centred, because the editor is a real file and real files are long. The
+   * argument has to start at the top of the screen; the file is allowed to run past the fold. */
+  align-items: start;
+  padding-top: 76px;
+  padding-bottom: 96px;
+}
+
+/*
+ * The copy stays with the file as it scrolls by, then releases. It is the same idea the rail below
+ * introduces properly — something that says where you are while the thing you are looking at moves —
+ * stated once, quietly, before the reader has been asked to care about it.
+ */
+.a-hero__copy {
+  position: sticky;
+  top: calc(var(--a-nav-h) + 40px);
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.a-hero__title {
+  margin: 0;
+  font-size: clamp(2.2rem, 3.6vw, 3.15rem);
+  font-weight: 650;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+}
+
+.a-hero__sub {
+  margin: 20px 0 0;
+  max-width: 34rem;
+  color: var(--color-fc-lighter);
+  font-size: 1.05rem;
+  line-height: 1.6;
+}
+
+.a-hero__points {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  margin: 28px 0 0;
+  padding: 0;
+  max-width: 34rem;
+  list-style: none;
+}
+
+.a-hero__points li {
+  position: relative;
+  padding-left: 26px;
+  color: var(--color-fc-lighter);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+/* Two hairlines rotated into a tick, rather than a filled glyph. Drawn rather than typed so it can
+ * be thin: a solid ✓ four times in a column is the loudest thing in the hero, which it should not
+ * be. The 5×9 box is what makes it a tick and not a symmetrical chevron. */
+.a-hero__points li::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 0.34em;
+  width: 5px;
+  height: 9px;
+  border-right: 1.5px solid color-mix(in srgb, var(--color-brand) 70%, transparent);
+  border-bottom: 1.5px solid color-mix(in srgb, var(--color-brand) 70%, transparent);
+  transform: rotate(45deg);
+}
+
+.a-hero__points strong {
+  color: var(--color-fc-primary);
+  font-weight: 600;
+}
+
+.a-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 34px;
+}
+
+.a-hero__note {
+  margin: 16px 0 0;
+  color: var(--color-fc-ternary);
+  font-size: 0.82rem;
+}
+
+.a-hero__surface {
+  min-width: 0;
+}
+
+/* ── The run: rail and flow ─────────────────────────────────────────────────────────────────── */
+
+.a-run {
+  display: grid;
+  grid-template-columns: var(--a-rail-w) minmax(0, 1fr);
+  gap: 0 var(--a-rail-gap);
+  align-items: start;
+}
+
+/*
+ * The rail spans both flow rows — Day 0 and Day 1 — so it stays stuck for the whole run rather than
+ * releasing at the seam between them. `align-items: start` above is what gives `position: sticky`
+ * a taller containing block than the rail itself, which is the whole trick.
+ */
+.a-rail {
+  position: sticky;
+  top: calc(var(--a-nav-h) + 34px);
+  grid-column: 1;
+  grid-row: 1 / span 2;
+}
+
+.a-rail__group + .a-rail__group {
+  margin-top: 26px;
+  padding-top: 22px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+.a-rail__day {
+  margin: 0 0 12px;
+  color: var(--color-fc-ternary);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.a-rail__steps {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.a-rail__link {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 7px 0 17px;
+  color: var(--color-fc-light);
+  font-size: 0.9rem;
+  transition: color var(--stp-motion-duration-base) var(--stp-motion-easing);
+}
+
+.a-rail__link:hover {
+  color: var(--color-fc-primary);
+}
+
+/* The connector, drawn from each marker to the next. It stops at the last step of a group rather
+ * than trailing into the group heading below it. */
+.a-rail__step:not(:last-child) .a-rail__link::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 22px;
+  bottom: 3px;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.a-rail__marker {
+  width: 11px;
+  height: 11px;
+  margin-top: 5px;
+  flex: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  transition:
+    background var(--stp-motion-duration-base) var(--stp-motion-easing),
+    box-shadow var(--stp-motion-duration-base) var(--stp-motion-easing),
+    transform var(--stp-motion-duration-base) var(--stp-motion-easing);
+}
+
+.a-rail__label {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.a-rail__note {
+  color: var(--color-fc-ternary);
+  font-size: 0.73rem;
+  font-weight: 400;
+}
+
+.a-rail__step.is-done .a-rail__marker {
+  background: color-mix(in srgb, var(--color-brand) 55%, transparent);
+}
+
+.a-rail__step.is-done .a-rail__link {
+  color: var(--color-fc-lighter);
+}
+
+.a-rail__step.is-current .a-rail__link {
+  color: var(--color-fc-primary);
+  font-weight: 600;
+}
+
+.a-rail__step.is-current .a-rail__marker {
+  background: var(--color-brand);
+  transform: scale(1.35);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-brand) 16%, transparent);
+}
+
+.a-day {
+  grid-column: 2;
+  min-width: 0;
+}
+
+/* ── Day markers ────────────────────────────────────────────────────────────────────────────── */
+
+.a-daymark {
+  padding: 44px 0 40px;
+}
+
+.a-daymark--first {
+  padding-top: 0;
+}
+
+.a-daymark__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: var(--color-fc-light);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.a-daymark__tag::after {
+  content: '';
+  width: 46px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.a-daymark__title {
+  margin: 14px 0 0;
+  max-width: var(--a-measure);
+  font-size: clamp(1.7rem, 2.5vw, 2.15rem);
+  font-weight: 650;
+  line-height: 1.14;
+  letter-spacing: -0.022em;
+}
+
+.a-daymark__lede {
+  margin: 14px 0 0;
+  max-width: var(--a-measure);
+  color: var(--color-fc-lighter);
+  font-size: 1.02rem;
+  line-height: 1.6;
+}
+
+/* ── Bands ──────────────────────────────────────────────────────────────────────────────────── */
+
+.a-band {
+  scroll-margin-top: calc(var(--a-nav-h) + 24px);
+}
+
+.a-band--spaced {
+  padding-bottom: 52px;
+}
+
+.a-surface {
+  margin-top: 22px;
+}
+
+.a-caption {
+  margin: 13px 0 0;
+  max-width: var(--a-measure);
+  color: var(--color-fc-light);
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.a-caption strong {
+  color: var(--color-fc-lighter);
+  font-weight: 600;
+}
+
+/* A caption with more band under it. The wizard's own paragraphs carry no top margin — they are
+ * spaced by their band — so anything placed between two of them has to bring its own. */
+.a-caption--between {
+  margin-bottom: 26px;
+}
+
+/*
+ * The Review moment. The diagram is the one thing on this page the owner wants seen before anything
+ * else, so it gets the tallest box on the page and nothing beside it. The chrome is the wizard's own
+ * `.wizard-diagram`; only the stage height is ours.
+ */
+.a-diagram__canvas {
+  height: clamp(26rem, 44vw, 40rem);
+}
+
+/* ── Trust ──────────────────────────────────────────────────────────────────────────────────── */
+
+.a-trust {
+  padding: 96px 0 0;
+}
+
+.a-trust__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 30px;
+}
+
+/* Four planes rather than one box with dividers: the surface recipe already reads as a group, and
+ * separate planes let the light from the top fall across them instead of stopping at a border. */
+.a-trust__item {
+  padding: 20px 22px 22px;
+  border-radius: var(--stp-radius-large);
+  background: rgba(255, 255, 255, 0.02);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.a-trust__term {
+  margin: 0;
+  color: var(--color-fc-primary);
+  font-size: 0.94rem;
+  font-weight: 620;
+}
+
+.a-trust__desc {
+  margin: 7px 0 0;
+  color: var(--color-fc-lighter);
+  font-size: 0.87rem;
+  line-height: 1.5;
+}
+
+.a-voices {
+  padding: 76px 0 0;
+}
+
+.a-voices__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 30px;
+}
+
+.a-voice {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 24px 26px 22px;
+  border-radius: var(--stp-radius-large);
+  background: rgba(255, 255, 255, 0.02);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.a-voice__quote {
+  margin: 0;
+  color: var(--color-fc-primary);
+  font-size: 0.98rem;
+  line-height: 1.6;
+}
+
+.a-voice__by {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.a-voice__name {
+  color: var(--color-fc-primary);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.a-voice__role {
+  color: var(--color-fc-ternary);
+  font-size: 0.82rem;
+}
+
+/* ── Final call ─────────────────────────────────────────────────────────────────────────────── */
+
+.a-close {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 116px 0 108px;
+  text-align: center;
+}
+
+.a-close__title {
+  margin: 14px 0 0;
+  font-size: clamp(1.9rem, 3vw, 2.5rem);
+  font-weight: 650;
+  line-height: 1.12;
+  letter-spacing: -0.025em;
+}
+
+.a-close__lede {
+  margin: 16px 0 0;
+  max-width: 46ch;
+  color: var(--color-fc-lighter);
+  font-size: 1.02rem;
+  line-height: 1.6;
+}
+
+.a-close__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 34px;
+}
+
+/* The command is the action; these two are the ways round it. Close enough to read as one group. */
+.a-close__actions--second {
+  margin-top: 20px;
+}
+
+/* ── Footer ─────────────────────────────────────────────────────────────────────────────────── */
+
+.a-footer {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.a-footer__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding-top: 30px;
+  padding-bottom: 44px;
+}
+
+.a-footer__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+}
+
+.a-footer__link {
+  color: var(--color-fc-lighter);
+  font-size: 0.88rem;
+  transition: color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+}
+
+.a-footer__link:hover {
+  color: var(--color-fc-primary);
+}
+
+.a-footer__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  color: var(--color-fc-ternary);
+  font-size: 0.82rem;
+}
+
+/* ── Motion ─────────────────────────────────────────────────────────────────────────────────── */
+
+/*
+ * Scroll-linked, and only where the browser can do it without JavaScript. The reveal starts at 0.3
+ * rather than 0 deliberately: if a browser ever advertises `animation-timeline` and then computes
+ * the range differently, the failure mode is a dimmed section rather than an invisible one.
+ */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .a-reveal {
+      animation: a-reveal-in linear both;
+      animation-timeline: view();
+      /* `cover` rather than `entry`: an `entry` range is as long as the element, so a tall console
+       * screenshot and a short trust card would resolve at completely different points on screen.
+       * `cover` measures against the viewport too, which keeps the two within about 150px. */
+      animation-range: cover 2% cover 22%;
+    }
+
+    @keyframes a-reveal-in {
+      from {
+        opacity: 0.3;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
+  }
+}
+
+/*
+ * Everything else this page moves is a hover or a rail marker changing state. They are short
+ * transitions rather than animations, but a reader who has asked for no motion has asked for no
+ * motion, and a marker that snaps is not worse than one that eases.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .a-rail__marker,
+  .a-rail__link,
+  .a-nav__link,
+  .a-footer__link,
+  .a-btn {
+    transition: none;
+  }
+}
+
+/* ── Narrow ─────────────────────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 1100px) {
+  /*
+   * A 150px rail beside a column that now needs every pixel is two columns of nothing. It becomes a
+   * static index above the run — still saying how many steps there are and what they are called,
+   * just no longer tracking. The surfaces get the full width back, which matters more.
+   */
+  .a-run {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .a-rail {
+    position: static;
+    grid-column: 1;
+    grid-row: auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 40px;
+    padding-bottom: 24px;
+    margin-bottom: 34px;
+    box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.07);
+  }
+
+  .a-day {
+    grid-column: 1;
+  }
+
+  .a-rail__group + .a-rail__group {
+    margin-top: 0;
+    padding-top: 0;
+    box-shadow: none;
+  }
+
+  .a-rail__steps {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+  }
+
+  .a-rail__link {
+    padding: 0;
+  }
+
+  .a-rail__step:not(:last-child) .a-rail__link::before {
+    display: none;
+  }
+
+  .a-rail__marker {
+    margin-top: 6px;
+  }
+
+  .a-rail__note {
+    display: none;
+  }
+}
+
+@media (max-width: 980px) {
+  .a-hero {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 44px;
+    padding-top: 56px;
+    padding-bottom: 64px;
+  }
+
+  .a-trust__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .a-voices__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .a-page {
+    --a-pad: 18px;
+  }
+
+  .a-nav__link {
+    padding: 8px 8px;
+  }
+
+  .a-trust__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .a-close {
+    padding: 88px 0 80px;
+  }
+}

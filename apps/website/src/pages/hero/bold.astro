@@ -1,0 +1,34 @@
+---
+/**
+ * Hero test page — "autopilot", the strongest of the three claims.
+ *
+ * This version says the loop closes without a person in it: the agent investigates and ships the
+ * fix, and the reader's job is to decide how much it is allowed to do. Everything except the words
+ * and the fifth beat of the loop is shared with `/hero/balanced` and `/hero/safe`.
+ *
+ * `noindex`, because three pages making three different promises about one product is a message
+ * test, not a site.
+ */
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { HERO_COPY } from '../../sections/hero-lab/copy';
+import HeroLabFooter from '../../sections/hero-lab/HeroLabFooter.astro';
+import HeroLabNav from '../../sections/hero-lab/HeroLabNav.astro';
+import HeroSection from '../../sections/hero-lab/HeroSection.astro';
+import ProofStrip from '../../sections/hero-lab/ProofStrip.astro';
+import '../../styles/hero-lab.css';
+
+const copy = HERO_COPY.bold;
+---
+
+<BaseLayout title={copy.documentTitle} description={copy.metaDescription} font="geist" noindex>
+  <div class="hl-page" id="top">
+    <HeroLabNav />
+
+    <main>
+      <HeroSection variant="bold" />
+      <ProofStrip />
+    </main>
+
+    <HeroLabFooter />
+  </div>
+</BaseLayout>

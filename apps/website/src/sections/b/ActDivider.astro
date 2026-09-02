@@ -1,0 +1,52 @@
+---
+/**
+ * An act divider: the page's largest typographic moment, and the thing that makes the structure
+ * impossible to miss.
+ *
+ * It also does two structural jobs. `data-act` is what the nav's observer reads to set the running
+ * indicator, and the agenda at the bottom is a real table of contents — each beat links to the
+ * numbered section it names, so a reader who only wants the CI/CD part can get there.
+ *
+ * The oversized numeral is decoration: `aria-hidden`, unselectable, and clipped by the band, which
+ * is why it can be set at 32rem without ever widening the document.
+ */
+type Beat = {
+  /** The section's number, matching the `index` its `SectionHead` prints. */
+  index: string;
+  label: string;
+  /** Fragment id of the section, without the `#`. */
+  href: string;
+};
+
+type Props = {
+  /** `0` is Act I (ship it); `1` is Act II (run it). */
+  act: '0' | '1';
+  id: string;
+  kicker: string;
+  day: string;
+  title: string;
+  lede: string;
+  beats: Beat[];
+};
+
+const { act, id, kicker, day, title, lede, beats } = Astro.props;
+---
+
+<section class:list={['b-act', act === '1' ? 'b-act--one' : 'b-act--zero']} id={id} data-act={act}>
+  <span class="b-act__ghost" aria-hidden="true">{act}</span>
+
+  <div class="b-shell b-shell--wide">
+    <div class="b-act__inner">
+      <p class="b-act__kicker">{kicker}</p>
+      <h2 class="b-act__title">
+        <span class="b-act__day">{day}</span>
+        {title}
+      </h2>
+      <p class="b-act__lede">{lede}</p>
+
+      <ol class="b-act__beats">
+        {beats.map((b) => <li><a href={`#${b.href}`}><i>{b.index}</i>{b.label}</a></li>)}
+      </ol>
+    </div>
+  </div>
+</section>

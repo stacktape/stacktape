@@ -1,0 +1,69 @@
+---
+/**
+ * Variant B's hero: the two-act promise on the left, a real config on the right.
+ *
+ * The headline is the page's thesis in nine words, so the subheadline and the bullets carry the
+ * whole "what is this" load. That is the trade this variant makes deliberately — the editor beside
+ * it answers "what does it look like" before anyone has scrolled.
+ *
+ * Wiring follows the house rule: build-time snippet rendering happens here, in frontmatter, and the
+ * island receives plain props. `src/lib/snippets` must never be imported from a `.tsx` file.
+ */
+import { CtaCommand } from '../../components/CtaCommand';
+import { getSnippets } from '../../lib/snippets/snippets';
+import { HeroConfigEditor } from '../../surfaces/HeroConfigEditor/HeroConfigEditor';
+import { DEMO_URL, SIGN_UP_URL } from './links';
+
+const snippets = await getSnippets();
+---
+
+<section class="b-hero" data-act="none">
+  <div class="b-shell b-shell--hero b-hero__grid">
+    <div class="b-hero__copy">
+      <p class="b-hero__eyebrow">AWS infrastructure for teams without a platform team</p>
+
+      <h1 class="b-hero__title">
+        Ship it to AWS on <span class="b-hero__day">day 0</span>.<br />
+        Run it there on <span class="b-hero__day">day 1</span>.
+      </h1>
+
+      <p class="b-hero__sub">
+        One config file, TypeScript or YAML, compiles to plain CloudFormation and deploys into an AWS account you own.
+        What comes after that deploy is included: the console, metrics and traces, a preview environment per pull
+        request, and a bill with nothing added to it.
+      </p>
+
+      <ul class="b-hero__points">
+        <li>
+          <b>Your account, your CloudFormation.</b> The output is a plain template in your own AWS account. Nothing of
+          yours is proxied and nothing of yours is held.
+        </li>
+        <li>
+          <b>30+ resource types, wired in one line.</b> Lambdas, Fargate services, Aurora, Redis, queues, Next.js.{' '}
+          <code>connectTo</code> grants the scoped IAM, opens the security group and injects the environment variables.
+        </li>
+        <li>
+          <b>A dev mode that matches production.</b> Databases run locally in Docker, Lambdas run in real AWS with logs
+          streamed to your terminal, and the same <code>STP_*</code> variables are set in both.
+        </li>
+        <li>
+          <b>Day 1 is not an add-on.</b> Preview environments, error tracking, build runners and cost dashboards are the
+          same product, configured in the same file.
+        </li>
+      </ul>
+
+      <div class="b-hero__cta">
+        <CtaCommand client:visible />
+
+        <div class="b-hero__cta-row">
+          <a class="b-btn b-btn--solid" href={SIGN_UP_URL}>Sign up</a>
+          <a class="b-link-arrow" href={DEMO_URL}>Book a demo<span aria-hidden="true">→</span></a>
+        </div>
+      </div>
+    </div>
+
+    <div class="b-hero__surface">
+      <HeroConfigEditor client:visible snippets={snippets} />
+    </div>
+  </div>
+</section>
