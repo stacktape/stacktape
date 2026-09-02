@@ -1,0 +1,25 @@
+resources:
+  retryAdvisor:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/retry-advisor.ts
+      url:
+        enabled: true
+        authMode: NONE
+      environment:
+        - name: CANARY_REVISION
+          value: ec2-runner
+      memory: 128
+      timeout: 10
+
+stackConfig:
+  tags:
+    - name: stacktape-canary-owner
+      value: ec2-runner-smoke
+  outputs:
+    - name: retryAdvisorUrl
+      value: $ResourceParam('retryAdvisor', 'url')
+      description: Function URL for the EC2 runner smoke test. Append ?status=503.
