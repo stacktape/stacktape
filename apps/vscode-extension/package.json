@@ -32,7 +32,7 @@
     "dev": "node scripts/build.ts --dev --watch",
     "lint": "oxlint src scripts --deny-warnings --report-unused-disable-directives",
     "typecheck": "tsc --noEmit",
-    "test": "bun test src && node scripts/smoke.ts",
+    "test": "bun test src && pnpm build && node scripts/smoke.ts",
     "package": "pnpm build && vsce package --no-dependencies",
     "publish:vscode": "pnpm build && vsce publish --no-dependencies",
     "login:vscode": "vsce login stacktape"

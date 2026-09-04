@@ -30,6 +30,9 @@ const readWorkspaceBunVersion = async () => {
   return manifest.engines.bun;
 };
 
+const readWorkspaceNodeVersion = async () =>
+  (await readFile(join(process.cwd(), '..', '..', '.node-version'), 'utf8')).trim();
+
 const getWorkflowVersions = ({ workflow, key }: { workflow: string; key: string }) =>
   [...workflow.matchAll(new RegExp(`^\\s+${key}:\\s*([^\\s#]+)`, 'gm'))].map((match) => match[1]);
 
@@ -246,14 +249,21 @@ describe('release candidate workflow', () => {
     const workflow = await readReleaseWorkflow();
     const actionUses = [...workflow.matchAll(/^\s+- uses: ([^\s#]+)/gm)].map((match) => match[1]);
     const workspaceBunVersion = await readWorkspaceBunVersion();
+    const workspaceNodeVersion = await readWorkspaceNodeVersion();
 
     expect(actionUses.length).toBeGreaterThan(0);
     for (const action of actionUses) {
       expect(action).toMatch(/@[a-f0-9]{40}$/);
     }
     expect(workflow).toContain('version: 11.17.0');
-    expect(workflow).toContain('node-version: 24');
-    expect(workspaceBunVersion).toBe('1.4.0');
+    expect(workspaceNodeVersion).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(getWorkflowVersions({ workflow, key: 'node-version-file' })).toEqual(
+      getWorkflowVersions({ workflow, key: 'node-version-file' }).map(() => '.node-version')
+    );
+    expect(getWorkflowVersions({ workflow: await readCiWorkflow(), key: 'node-version-file' })).toEqual([
+      '.node-version'
+    ]);
+    expect(workspaceBunVersion).toBe('1.4.1');
     expect(getWorkflowVersions({ workflow, key: 'bun-version' })).toEqual(
       getWorkflowVersions({ workflow, key: 'bun-version' }).map(() => workspaceBunVersion)
     );

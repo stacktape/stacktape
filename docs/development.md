@@ -2,12 +2,16 @@
 
 For importer, packaging, runtime, and guarded live-deployment qualification against real or synthetic applications, see
 [`project-qualification.md`](project-qualification.md). The repeatable agent workflow is in
-[`hardening-work-instructions.md`](hardening-work-instructions.md).
+[`hardening-work-instructions.md`](hardening-work-instructions.md). Use [`testing.md`](testing.md) to choose the test
+boundary for a change and record sufficient evidence.
 
 ## Setup and checks
 
-Install Node 24+, pnpm 11.17 and Bun 1.4.0. Docker is needed only for packaging tests and local database emulation. The
-private `apps/console` submodule is optional for public work.
+Install Node 24.15 or newer within the Node 24 release line, pnpm 11.17.0, and Bun 1.4.1. Docker is needed only for
+packaging tests, isolated Console database tests, and local database emulation. The private `apps/console` submodule is
+optional for public work. Run `pnpm test:doctor` to find a missing or mismatched prerequisite before a long check. When
+the Console doctor reports a missing Prisma client, run `pnpm --filter @stacktape/console-api-app generate`; the
+generated client is intentionally ignored.
 
 ```sh
 pnpm install --frozen-lockfile
@@ -96,9 +100,9 @@ the migration automatically.
 Run `pnpm dev:cli login` for a human Stacktape session. Use `STACKTAPE_API_KEY` only for automation that cannot log in.
 The local `package`, `synth`, and `validate` commands do not need Console authentication.
 
-Full Console dev mode additionally requires Docker, AWS CLI v2, and AWS credentials for account `977946299200`. Startup
-fails closed before creating the `devlocal` support stack if the active account differs. The SSM Session Manager helper
-used for database tunneling ships with the source-built Stacktape CLI; a separate global plugin is not required. Inspect
+Full Console dev mode additionally requires Docker and AWS credentials for account `977946299200`. Startup fails closed
+before creating the `devlocal` support stack if the active account differs. The SSM Session Manager helper used for
+database tunneling ships with the source-built Stacktape CLI; a separate global plugin is not required. Inspect
 parameter presence without reading values with `pnpm parameters:check:console:dev` and
 `pnpm parameters:check:console:devlocal`.
 

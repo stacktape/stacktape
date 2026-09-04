@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import assert from 'node:assert/strict';
-import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { after, before, test } from 'node:test';
@@ -35,7 +35,7 @@ const configureHooks = (cwd: string) => {
 };
 
 before(async () => {
-  fixtureRoot = await mkdtemp(path.join(os.tmpdir(), 'stacktape-hooks-'));
+  fixtureRoot = await realpath(await mkdtemp(path.join(os.tmpdir(), 'stacktape-hooks-')));
   repository = path.join(fixtureRoot, 'repository');
   linkedWorktree = path.join(fixtureRoot, 'linked');
   unconfiguredWorktree = path.join(fixtureRoot, 'unconfigured');
@@ -54,7 +54,7 @@ before(async () => {
 
 after(async () => {
   const resolved = path.resolve(fixtureRoot);
-  assert.ok(resolved.startsWith(path.resolve(os.tmpdir())));
+  assert.ok(resolved.startsWith(await realpath(os.tmpdir())));
   await rm(resolved, { force: true, recursive: true });
 });
 

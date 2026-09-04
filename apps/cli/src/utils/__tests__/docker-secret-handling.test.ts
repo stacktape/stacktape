@@ -201,7 +201,7 @@ beforeAll(async () => {
   mkdirSync(emptyPathDirectory, { recursive: true });
   mkdirSync(dockerOnPathDirectory, { recursive: true });
   // Never executed — `execStub` substitutes the child — but it is a real file the PATH preflight can find.
-  writeFileSync(dockerOnPathStub, 'exit 1\n');
+  writeFileSync(dockerOnPathStub, 'exit 1\n', { mode: 0o755 });
 });
 
 afterAll(() => {

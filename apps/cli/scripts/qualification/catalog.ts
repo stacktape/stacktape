@@ -16,7 +16,7 @@ export const SMOKE_CASE_IDS = [
 
 export type AwsQualificationScenario = {
   id: string;
-  runner: 'packaging' | 'init';
+  runner: 'packaging' | 'init' | 'observability';
   fixture?: 'express-basic' | 'express-postgres-migration' | 'vite-static' | 'fastapi-basic';
   policy: 'routine' | 'periodic' | 'deep';
   costClass: 'negligible' | 'low' | 'medium' | 'high';
@@ -33,6 +33,23 @@ export const AWS_QUALIFICATION_SCENARIOS: readonly AwsQualificationScenario[] = 
     coverage: ['lambda', 'function-url', 'shared-layer', 'no-op-update', 'environment-update', 'cleanup'],
     reason:
       'The existing packaging canary proves artifact identity, live invocation, no-op redeploy, update, and cleanup.'
+  },
+  {
+    id: 'observability-signal-path',
+    runner: 'observability',
+    policy: 'periodic',
+    costClass: 'medium',
+    coverage: [
+      'lambda-tracing',
+      'container-tracing',
+      'uptime-manifests',
+      'browser-synthetic',
+      'api-synthetic',
+      'alarms',
+      'artifacts',
+      'cleanup'
+    ],
+    reason: 'The observability canary proves the AWS-produced signals and artifacts that local tests cannot emulate.'
   },
   {
     id: 'init-static-site',

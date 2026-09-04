@@ -36,6 +36,16 @@ test('accepts pushed Console commits and rejects commits that exist only in a di
     assert.equal(pushed.status, 0, pushed.stderr);
     assert.match(pushed.stdout, /is recoverable from: origin\/main/);
 
+    run('git', ['config', 'remote.origin.fetch', '+refs/heads/main:refs/remotes/origin/main'], consoleRoot);
+    run('git', ['switch', '-c', 'codex/private-change'], consoleRoot);
+    await writeFile(path.join(consoleRoot, 'feature.txt'), 'pushed feature\n');
+    run('git', ['add', 'feature.txt'], consoleRoot);
+    run('git', ['commit', '-m', 'feature'], consoleRoot);
+    run('git', ['push', 'origin', 'codex/private-change'], consoleRoot);
+    const feature = spawnSync(process.execPath, [script, repository], { encoding: 'utf8' });
+    assert.equal(feature.status, 0, feature.stderr);
+    assert.match(feature.stdout, /is recoverable from: origin\/codex\/private-change/);
+
     await writeFile(path.join(consoleRoot, 'private-change.txt'), 'not pushed\n');
     run('git', ['add', 'private-change.txt'], consoleRoot);
     run('git', ['commit', '-m', 'local only'], consoleRoot);

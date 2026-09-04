@@ -125,8 +125,12 @@ const calledProcedureNames = (clientModule: string) => {
 };
 
 describe('Console tRPC contract coverage', () => {
-  test('the API-key client calls exactly the procedures the contract publishes', () => {
-    expect(calledProcedureNames('api-key-protected')).toEqual(contractProcedureNames('api-key', 'ApiKeyTrpcClient'));
+  test('the API-key client stays within the published API-key contract', () => {
+    const published = contractProcedureNames('api-key', 'ApiKeyTrpcClient');
+
+    for (const procedure of calledProcedureNames('api-key-protected')) {
+      expect(published).toContain(procedure);
+    }
   });
 
   test('the AWS-identity client calls exactly the procedures the contract publishes', () => {

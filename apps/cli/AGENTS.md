@@ -70,6 +70,11 @@ the rule that detects them, preserve lower-level failures as `cause`, and do not
 
 ## Tests
 
+Read [`../../docs/testing.md`](../../docs/testing.md) before choosing a lane. In particular, `pnpm dev:cli <command>`
+means “run the current CLI source against the dev control plane”; `pnpm dev:cli dev ...` is the product's local-runtime
+command. Neither spelling chooses a deployment stage, so mutating tests must pass the stage, region, project name, and
+credential mode explicitly.
+
 Use the narrowest useful command while working:
 
 ```sh
@@ -84,5 +89,7 @@ pnpm --filter @stacktape/cli run generate:check
 The full `test` script covers source, characterization, generation, release/security, MCP, helper-Lambda and compiled
 CLI behavior. Bun module mocks are process-wide, so `test:src` keeps per-file isolation.
 
-Normal tests must not contact AWS. Docker packaging tests and guarded real-AWS canaries are separate, explicit lanes.
-See `scripts/real-aws/README.md` before running a deployment test.
+Normal tests must not contact AWS. Docker packaging tests and guarded real-AWS canaries are separate, explicit lanes. An
+implementation-detail unit test is not sufficient for a changed CLI command, package artifact, AWS contract, or customer
+workflow. See `scripts/real-aws/README.md` before running a deployment test. Agents may run its guarded development
+canaries without asking again, but must preserve their account, ownership, cost, state, and verified-cleanup guards.

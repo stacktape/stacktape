@@ -9,7 +9,7 @@ deploy-selectively strategy and commands.
 
 ## Guardrails
 
-The runners support Windows, Linux, and macOS. Both runners refuse implicit credentials, AWS endpoint overrides, unsafe
+The runners support Windows, Linux, and macOS. Every runner refuses implicit credentials, AWS endpoint overrides, unsafe
 project names, and an account-id mismatch.
 
 Before starting:
@@ -37,6 +37,34 @@ export STP_AWS_CANARY_PROFILE='<profile>'
 export STP_AWS_CANARY_PROJECT_NAME="v4canary-$(date -u +%s)"
 export STP_AWS_CANARY_OWNER="local-$(date -u +%s)"
 pnpm --filter @stacktape/cli run test:real-aws-canary
+```
+
+## Observability canary
+
+This deploys `_test-stacks/observability-smoke` and proves the complete AWS-owned signal path: live Lambda and container
+responses, separate spans from both instrumented workloads in `aws/spans`, three regional uptime manifests, passing API
+and browser synthetic runs, their alarms, the failure-notification rule, and a browser screenshot artifact. The
+synthetic tests call the fixture's own deployed endpoints. The runner always deletes the exact owned stack and verifies
+its absence.
+
+Use the same environment contract as the packaging canary, with a unique `v4canary-` project and owner:
+
+```sh
+export STACKTAPE_API_KEY='<development API key>'
+export STP_AWS_CANARY_DEPLOY=1
+export STP_AWS_CANARY_CONFIRM_DISPOSABLE=this-is-a-disposable-test-account
+export STP_AWS_CANARY_EXPECTED_ACCOUNT_ID='<12-digit account id>'
+export STP_AWS_CANARY_CREDENTIAL_MODE=profile
+export STP_AWS_CANARY_PROFILE='<profile>'
+export STP_AWS_CANARY_PROJECT_NAME="v4canary-observe-$(date -u +%s)"
+export STP_AWS_CANARY_OWNER="local-observe-$(date -u +%s)"
+pnpm test:aws -- --aws-scenario=observability-signal-path
+```
+
+If cleanup is interrupted, restore the same environment and run:
+
+```sh
+pnpm --filter @stacktape/cli run test:real-aws-observability-canary -- --cleanup-only
 ```
 
 ## Init canary

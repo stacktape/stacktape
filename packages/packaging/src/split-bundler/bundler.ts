@@ -692,7 +692,8 @@ const findAllChunksFromMetafile = (outputPath: string, metafile: BuildMetafile):
 /** Bun records metafile entrypoints relative to the process working directory, even when its build root differs. */
 const canonicalizeEntrypointPath = (path: string): string => {
   const absolutePath = isAbsolute(path) ? resolve(path) : resolve(process.cwd(), path);
-  const normalizedPath = transformToUnixPath(absolutePath);
+  const canonicalPath = existsSync(absolutePath) ? realpathSync(absolutePath) : absolutePath;
+  const normalizedPath = transformToUnixPath(canonicalPath);
   return process.platform === 'win32' ? normalizedPath.toLowerCase() : normalizedPath;
 };
 

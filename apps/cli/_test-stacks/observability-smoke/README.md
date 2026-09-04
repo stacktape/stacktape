@@ -21,25 +21,19 @@ test.
 
 Run `bun install` in this folder once (the container app bundles its own OpenTelemetry SDK).
 
-## Deploy
+## Automated proof
 
-Run only after verifying the exact AWS account, and use a unique project name:
-
-```sh
-project_name="obsmoke-$(date -u +%m%d%H%M)"
-
-pnpm dev:cli deploy \
-  --configPath _test-stacks/observability-smoke/stacktape.ts \
-  --projectName "$project_name" --stage dev --region eu-west-1 --agent
-```
-
-Then invoke the `api` function URL and the `web` service URL a few times, wait ~2 minutes, and verify via
-`pnpm dev:cli aws:call`: spans in `aws/spans` (logs `FilterLogEvents`), canary Lambdas and alarms
-(`lambda`/`cloudwatch`), screenshots (`s3 ListObjectsV2` under `synthetics/`), uptime manifests
-(`ssm GetParametersByPath /stacktape/uptime-checks/<stackName>` in each prober region).
-
-## Cleanup
+Use the guarded runner instead of reproducing checks by hand. It verifies the exact account and owner, records recovery
+state, waits for every signal and artifact, deletes the exact stack in `finally`, and verifies deletion:
 
 ```sh
-pnpm dev:cli delete --projectName "$project_name" --stage dev --region eu-west-1 --agent
+pnpm test:aws -- --aws-scenario=observability-signal-path
 ```
+
+The required environment variables and exact cleanup-only recovery command are in
+[`../../scripts/real-aws/README.md`](../../scripts/real-aws/README.md).
+
+For diagnosis, the runner checks spans in `aws/spans`, Synthetics runs and alarms, screenshots under `synthetics/`, and
+SSM manifests under `/stacktape/uptime-checks/<stackName>` in each prober region. Transaction Search and the shared
+uptime-prober infrastructure are account-level prerequisites; stack deletion intentionally leaves those shared
+facilities available to other workloads.

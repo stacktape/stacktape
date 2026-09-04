@@ -1,6 +1,6 @@
 /* eslint-disable no-await-in-loop -- Fixture package trees are created sequentially for readable failure boundaries. */
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { copyTracedNodeRuntimeFiles, resolveInstalledNodePackage } from './node-runtime-files';
@@ -163,7 +163,7 @@ describe('Node SSR runtime file tracing', () => {
       })
     ).toEqual({
       name: 'native-runtime',
-      path: nativeRoot,
+      path: await realpath(nativeRoot),
       version: '2.3.4'
     });
   });

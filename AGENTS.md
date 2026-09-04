@@ -19,7 +19,8 @@ obsolete v3 behavior by default.
 1. Read the nearest `AGENTS.md` and package manifest.
 2. Check Git status here and, when initialized, in `apps/console`. Preserve unrelated changes.
 3. Identify generated files, package boundaries, and behavior that the change can affect.
-4. Run focused checks while working and the relevant repository gate before handoff.
+4. Run `pnpm test:plan` (or `pnpm test:plan -- --since=<ref>`) and choose evidence for each affected failure boundary.
+5. Run focused checks while working and the relevant repository gate before handoff.
 
 Use pnpm for workspace orchestration and Bun where package scripts already use it.
 
@@ -35,6 +36,8 @@ pnpm test
 
 [`docs/development.md`](docs/development.md) covers local apps and the source-built CLI. Real AWS tests are opt-in and
 documented in [`apps/cli/scripts/real-aws/README.md`](apps/cli/scripts/real-aws/README.md).
+[`docs/testing.md`](docs/testing.md) is the canonical test-selection, Console E2E, live-AWS, cost, cleanup, and evidence
+policy. Read it before adding a test or running a live scenario.
 
 For Console work, `pnpm dev:console:ui` is only for UI changes that can use the deployed dev API. Use `pnpm dev:console`
 for every API change, API/UI contract change, or behavioral API test. It runs the UI and API locally against the shared
@@ -68,9 +71,16 @@ known-violations file.
 
 ## Tests and external systems
 
-Prefer tests that prove user-visible behavior or a risky contract. Use semantic assertions instead of large snapshots.
-Tests must fail closed rather than contact AWS. Do not deploy, publish, rotate credentials, or run costed cloud tests
-unless the task explicitly authorizes it.
+Tests must prove user-visible behavior or a risky contract at the boundary where it can fail. Do not accept mock call
+choreography, source-text inspection, or a unit test as the only evidence for behavior that crosses a process, database,
+browser, provider, artifact-runtime, or AWS boundary. Use semantic assertions instead of large snapshots. Run
+`pnpm test:doctor` before a long lane and report commands with the behavior each one proved.
+
+Normal test commands must fail closed rather than contact AWS. The repository owner has authorized agents to run
+development-only Console deployments, `devlocal` refreshes, test AMI builds, and explicitly named disposable AWS stacks
+without asking for every run. These operations must verify the account and region, use unique owned resources, minimize
+expensive resource lifetime, record recovery state, clean up after success or failure, and verify deletion. Production
+deployment, migration, publishing, and credential rotation still require explicit authorization.
 
 Never print, copy, commit, or document secret values. Prisma production changes use migrations and
 `prisma migrate deploy`; do not use destructive schema push options.

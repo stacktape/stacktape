@@ -255,7 +255,10 @@ export const generateZodSchema = async (jsonSchema: object, outputPath = ZOD_SCH
   let zodSchemaCode = jsonSchemaToZod(dereferencedSchema as any, {
     module: 'esm',
     name: 'stacktapeConfigSchema',
-    type: true
+    // Inferring and exporting the type of this 100k-line expression makes every consumer ask
+    // TypeScript to materialize an enormous recursive Zod type. The CLI consumes only safeParse;
+    // authored config types come from @stacktape/config-authoring.
+    type: false
   });
 
   // Step 4: Post-process the generated code
@@ -273,6 +276,15 @@ export const generateZodSchema = async (jsonSchema: object, outputPath = ZOD_SCH
   zodSchemaCode = fixObjectDefaults(zodSchemaCode);
   zodSchemaCode = addNumberCoercion(zodSchemaCode);
   zodSchemaCode = addBooleanCoercion(zodSchemaCode);
+  zodSchemaCode = zodSchemaCode.replace(
+    'export const stacktapeConfigSchema =',
+    'export const stacktapeConfigSchema: z.ZodType<Record<string, unknown>> ='
+  );
+  // The generated expression is exercised as executable validation code. Asking TypeScript to
+  // semantically walk all 100k generated lines consumes multiple gigabytes without checking any
+  // authored decision; the explicit public type keeps consumers checked while parsing still
+  // catches malformed generated TypeScript.
+  zodSchemaCode = `// @ts-nocheck\n${zodSchemaCode}`;
 
   logInfo('Formatting Zod schema...');
   // Add line breaks for readability without full prettier (too slow on large files)
@@ -305,7 +317,9 @@ export const generateZodSchema = async (jsonSchema: object, outputPath = ZOD_SCH
 
       return result;
     })
-    .join('\n');
+    .join('\n')
+    .trimEnd()
+    .concat('\n');
 
   logInfo('Writing Zod schema...');
   await ensureDir(dirname(outputPath));

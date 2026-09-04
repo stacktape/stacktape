@@ -18,7 +18,9 @@ try {
     throw new Error('apps/console is not initialized. Run: git submodule update --init apps/console');
   }
 
-  runGit(consoleRoot, ['fetch', '--quiet', '--prune', 'origin']);
+  // Submodules may have been initialized with a main-only fetch refspec. Verify all remote branches,
+  // including the just-pushed feature branch, without changing the user's persistent fetch configuration.
+  runGit(consoleRoot, ['fetch', '--quiet', '--prune', 'origin', '+refs/heads/*:refs/remotes/origin/*']);
   const privateHead = runGit(consoleRoot, ['rev-parse', 'HEAD']);
   const containingRemoteBranches = runGit(consoleRoot, [
     'branch',

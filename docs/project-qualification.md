@@ -170,13 +170,14 @@ and cost failures dominate the signal.
 Instead, deploy explicit archetypes selected across five dimensions: workload runtime, packaging path, stateful AWS
 resource, network topology, and init-specific behavior such as generated secrets or migrations. Current scenarios are:
 
-| Scenario                  | Policy        | Main evidence                                                                                           |
-| ------------------------- | ------------- | ------------------------------------------------------------------------------------------------------- |
-| `lambda-packaging-update` | Routine       | Lambda artifacts, shared layer, live invocation, exact no-op redeploy, code/environment update, cleanup |
-| `init-static-site`        | Routine       | Init, Vite, hosting bucket, CloudFront, HTTPS response, cleanup                                         |
-| `init-node-container`     | Periodic      | Init, Node buildpack/container, web service, load balancer, health, cleanup                             |
-| `init-python-container`   | Periodic      | Init, Python container path, web service, health, cleanup                                               |
-| `init-postgres-migration` | Release-depth | Init, VPC, RDS, generated secret, migration, application health, cleanup                                |
+| Scenario                    | Policy        | Main evidence                                                                                           |
+| --------------------------- | ------------- | ------------------------------------------------------------------------------------------------------- |
+| `lambda-packaging-update`   | Routine       | Lambda artifacts, shared layer, live invocation, exact no-op redeploy, code/environment update, cleanup |
+| `observability-signal-path` | Periodic      | Lambda/container traces, uptime manifests, synthetic browser/API runs, alarms, screenshot, cleanup      |
+| `init-static-site`          | Routine       | Init, Vite, hosting bucket, CloudFront, HTTPS response, cleanup                                         |
+| `init-node-container`       | Periodic      | Init, Node buildpack/container, web service, load balancer, health, cleanup                             |
+| `init-python-container`     | Periodic      | Init, Python container path, web service, health, cleanup                                               |
+| `init-postgres-migration`   | Release-depth | Init, VPC, RDS, generated secret, migration, application health, cleanup                                |
 
 No preset or `--lanes=aws` command chooses a scenario automatically. A real-AWS run requires both an explicit scenario
 and the canary's independent guardrails: mutation opt-in, disposable-account phrase, exact account ID, explicit

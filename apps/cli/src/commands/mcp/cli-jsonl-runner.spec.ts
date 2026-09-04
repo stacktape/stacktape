@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, realpath, rm } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { runStacktapeCommandJsonl } from './cli-jsonl-runner';
@@ -39,6 +39,7 @@ describe('MCP Stacktape agent subprocess runner', () => {
     const cwd = await mkdtemp(join(tmpdir(), 'stacktape-mcp-runner-cwd-'));
     try {
       await mkdir(join(cwd, 'app'));
+      const canonicalCwd = await realpath(cwd);
       const result = await runStacktapeCommandJsonl({
         command: fixturePath,
         cwd,
@@ -47,12 +48,12 @@ describe('MCP Stacktape agent subprocess runner', () => {
 
       expect(result.ok).toBe(true);
       expect(result.data).toMatchObject({
-        cwd,
-        currentWorkingDirectory: join(cwd, 'app')
+        cwd: canonicalCwd,
+        currentWorkingDirectory: join(canonicalCwd, 'app')
       });
       expect(result.resolvedContext).toEqual({
-        cwd,
-        currentWorkingDirectory: join(cwd, 'app')
+        cwd: canonicalCwd,
+        currentWorkingDirectory: join(canonicalCwd, 'app')
       });
     } finally {
       await rm(cwd, { recursive: true, force: true });

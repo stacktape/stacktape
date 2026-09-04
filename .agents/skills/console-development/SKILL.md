@@ -27,7 +27,7 @@ changing code. Check Git status in both repositories.
 
 1. Builds the source CLI artifacts.
 2. verifies the Stacktape login;
-3. verifies AWS CLI credentials belong to account `977946299200`;
+3. verifies the standard AWS SDK credential chain belongs to account `977946299200`;
 4. reads current non-secret database and Cognito identifiers from `console-app-dev`;
 5. opens an SSM tunnel through `bastionHost` to the shared dev `mainDatabase`;
 6. starts the local API container and UI against the shared dev data plane; and
@@ -44,7 +44,7 @@ Cognito IDs, API keys, or provider tokens into files or chat.
 ## Prerequisites and recovery
 
 - Stacktape login: `pnpm dev:cli login`
-- AWS CLI v2 credentials for the expected account
+- AWS credentials for the expected account (environment, shared profile, or another standard SDK source)
 - Docker Desktop
 - Required parameter names:
   - `pnpm parameters:check:console:dev`

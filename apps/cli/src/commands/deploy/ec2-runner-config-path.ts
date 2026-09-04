@@ -7,11 +7,16 @@ export const resolveEc2RunnerConfigPath = ({
   configPath: string;
   repositoryRoot: string;
 }) => {
-  const pathApi = win32.isAbsolute(configPath) || win32.isAbsolute(repositoryRoot) ? win32 : posix;
+  const looksWindowsAbsolute = (path: string) => /^[a-z]:[\\/]/i.test(path) || path.startsWith('\\\\');
+  const pathApi = looksWindowsAbsolute(configPath) || looksWindowsAbsolute(repositoryRoot) ? win32 : posix;
   const relativeConfigPath = pathApi.relative(pathApi.resolve(repositoryRoot), pathApi.resolve(configPath));
-  const firstSegment = relativeConfigPath.split(pathApi.sep)[0];
 
-  if (!relativeConfigPath || pathApi.isAbsolute(relativeConfigPath) || firstSegment === '..') {
+  if (
+    !relativeConfigPath ||
+    pathApi.isAbsolute(relativeConfigPath) ||
+    relativeConfigPath === '..' ||
+    relativeConfigPath.startsWith(`..${pathApi.sep}`)
+  ) {
     throw new Error('The Stacktape config file is outside the Git repository.');
   }
 

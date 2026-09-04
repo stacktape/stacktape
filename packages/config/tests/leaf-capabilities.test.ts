@@ -48,11 +48,13 @@ describe('relational database engine normalization', () => {
 });
 
 describe('configuration schema inspection', () => {
-  test('preserves resource count, forced order, and category assignments', () => {
+  test('covers every resource type exactly once while preserving forced order and category assignments', () => {
     const resources = getStacktapeResourceDefinitions();
+    const resourceTypes = resources.map(({ type }) => type);
 
-    expect(resources).toHaveLength(50);
-    expect(new Set(STACKTAPE_RESOURCE_TYPES)).toEqual(new Set(resources.map(({ type }) => type)));
+    expect(resources.length).toBeGreaterThan(0);
+    expect(new Set(resourceTypes).size).toBe(resourceTypes.length);
+    expect(new Set(STACKTAPE_RESOURCE_TYPES)).toEqual(new Set(resourceTypes));
     expect(resources.slice(0, 3).map(({ type }) => type)).toEqual(['function', 'hosting-bucket', 'web-service']);
     expect(resources.find(({ type }) => type === 'relational-database')?.category).toBe('database-resource');
     expect(resources.find(({ type }) => type === 'dsql-database')?.category).toBe('database-resource');

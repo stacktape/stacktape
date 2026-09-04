@@ -1,11 +1,12 @@
 import type { ChildProcess } from 'node:child_process';
+import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
+import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { spawn } from 'node:child_process';
-import { createRequire } from 'node:module';
 import { createConnection, createServer } from 'node:net';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildCliDevArtifacts, type CapturedProcess, runCapturedProcess } from './child-process.ts';
 
-const require = createRequire(import.meta.url);
 const workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const consoleApiDirectory = join(workspaceRoot, 'apps', 'console', 'api');
 const consoleConfigPath = join(consoleApiDirectory, 'stacktape.ts');
@@ -21,12 +22,6 @@ const EXPECTED_AWS_ACCOUNT_ID = '977946299200';
 const DATABASE_RESOURCE = 'mainDatabase';
 const BASTION_RESOURCE = 'bastionHost';
 const FIRST_TUNNEL_PORT = 15433;
-
-type CapturedProcess = {
-  code: number;
-  stderr: string;
-  stdout: string;
-};
 
 type ProcessExit = { code: number | null; signal: NodeJS.Signals | null };
 
@@ -62,34 +57,7 @@ const runCaptured = async (
   args: string[],
   cwd: string,
   env: NodeJS.ProcessEnv = process.env
-): Promise<CapturedProcess> => {
-  const child = spawn(command, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
-  let stdout = '';
-  let stderr = '';
-  child.stdout?.setEncoding('utf8');
-  child.stderr?.setEncoding('utf8');
-  child.stdout?.on('data', (chunk: string) => {
-    stdout += chunk;
-  });
-  child.stderr?.on('data', (chunk: string) => {
-    stderr += chunk;
-  });
-  return new Promise<CapturedProcess>((resolveExit, reject) => {
-    child.once('error', reject);
-    child.once('exit', (code) => resolveExit({ code: code ?? 1, stderr, stdout }));
-  });
-};
-
-const runInherited = async (command: string, args: string[], cwd: string): Promise<number> => {
-  const child = spawn(command, args, { cwd, env: process.env, stdio: 'inherit', windowsHide: true });
-  return new Promise<number>((resolveExit, reject) => {
-    child.once('error', reject);
-    child.once('exit', (code, signal) => {
-      if (signal) reject(new Error(`Command exited after receiving ${signal}.`));
-      else resolveExit(code ?? 1);
-    });
-  });
-};
+): Promise<CapturedProcess> => runCapturedProcess({ args, command, cwd, env, rejectOnSpawnError: true });
 
 const childExit = (child: ChildProcess): Promise<ProcessExit> =>
   new Promise<ProcessExit>((resolveExit, reject) => {
@@ -250,12 +218,7 @@ const main = async () => {
     throw new Error('This helper must be run through Bun. Use `pnpm dev:console`.');
   }
 
-  const turboBin = require.resolve('turbo/bin/turbo');
-  const buildExitCode = await runInherited(
-    process.env.npm_node_execpath || 'node',
-    [turboBin, 'run', 'build:dev-artifacts', '--filter=@stacktape/cli'],
-    workspaceRoot
-  );
+  const buildExitCode = await buildCliDevArtifacts(workspaceRoot);
   if (buildExitCode !== 0) {
     process.exitCode = buildExitCode;
     return;
@@ -269,26 +232,30 @@ const main = async () => {
   const loginResult = parseStacktapeJsonlResult(loginCheck.stdout);
   if (loginCheck.code !== 0 || loginResult.ok !== true) throw new Error(getStacktapeFailureMessage(loginResult));
 
-  const identity = await runCaptured('aws', ['sts', 'get-caller-identity', '--output', 'json'], workspaceRoot);
-  if (identity.code !== 0) {
-    throw new Error('AWS authentication failed. Configure AWS CLI credentials for the Stacktape account and retry.');
+  let identity;
+  try {
+    identity = await new STSClient({ region: REGION }).send(new GetCallerIdentityCommand({}));
+  } catch {
+    throw new Error(
+      'AWS authentication failed. Configure credentials for the Console dev account through the standard AWS SDK credential chain and retry.'
+    );
   }
-  const identityJson: unknown = JSON.parse(identity.stdout);
-  if (!isRecord(identityJson) || identityJson.Account !== EXPECTED_AWS_ACCOUNT_ID) {
-    const account =
-      isRecord(identityJson) && typeof identityJson.Account === 'string' ? identityJson.Account : 'unknown';
+  if (identity.Account !== EXPECTED_AWS_ACCOUNT_ID) {
+    const account = identity.Account || 'unknown';
     throw new Error(
       `Refusing to start Console dev mode in AWS account ${account}; expected ${EXPECTED_AWS_ACCOUNT_ID}.`
     );
   }
 
-  const stackDetails = await runCaptured(
-    'aws',
-    ['cloudformation', 'describe-stacks', '--region', REGION, '--stack-name', SHARED_DEV_STACK, '--output', 'json'],
-    workspaceRoot
-  );
-  if (stackDetails.code !== 0) throw new Error(`Could not read the ${SHARED_DEV_STACK} shared data plane.`);
-  const dataPlane = extractConsoleDevDataPlane(JSON.parse(stackDetails.stdout));
+  let stackDetails;
+  try {
+    stackDetails = await new CloudFormationClient({ region: REGION }).send(
+      new DescribeStacksCommand({ StackName: SHARED_DEV_STACK })
+    );
+  } catch {
+    throw new Error(`Could not inspect ${SHARED_DEV_STACK} in ${REGION}. Confirm the stack exists and is readable.`);
+  }
+  const dataPlane = extractConsoleDevDataPlane(stackDetails);
   const tunnelPort = await findTunnelPort();
   const devEnvironment: NodeJS.ProcessEnv = {
     ...process.env,

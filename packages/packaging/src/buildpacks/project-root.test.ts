@@ -44,8 +44,8 @@ describe('buildpack project roots', () => {
   });
 
   test('resolves an explicit project file relative to cwd', () => {
-    expect(resolveExplicitProjectRoot({ cwd: 'C:/repo', projectFile: 'services/api/pom.xml' })).toBe(
-      join('C:/repo', 'services', 'api')
+    expect(resolveExplicitProjectRoot({ cwd: '/repo', projectFile: 'services/api/pom.xml' })).toBe(
+      join('/repo', 'services', 'api')
     );
   });
 

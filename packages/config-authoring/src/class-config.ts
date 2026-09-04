@@ -342,6 +342,7 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES = [
     propsType: 'UptimeCheckProps',
     interfaceName: 'UptimeCheck',
     sourceFile: 'uptime-checks.d.ts',
+    supportsOverrides: false,
     canConnectTo: []
   },
   {

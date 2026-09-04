@@ -2,10 +2,11 @@
   "//": [
     "Type-checks the committed TypeScript owned by the config-schema generator.",
     "The main CLI project excludes `@generated`, so this standard nested project keeps generated sources",
-    "editor-discoverable and prevents invalid generated TypeScript from remaining hidden.",
-    "`types: []` keeps unrelated ambient packages out of the program; `skipLibCheck` is off because",
-    "the generated declarations themselves are the files under test. `DOM` supplies the standard URL type used",
-    "by Zod's public declarations without loading unrelated ambient packages."
+    "editor-discoverable and checks that the generated module parses. The schema itself uses `@ts-nocheck` because",
+    "semantically checking a 100k-line generated Zod expression consumes gigabytes without validating authored code;",
+    "runtime config-validation tests prove its behavior and its explicit ZodType annotation keeps consumers checked.",
+    "`types: []` keeps unrelated ambient packages out of the program. `DOM` supplies the standard URL type used by",
+    "Zod's public declarations without loading unrelated ambient packages."
   ],
   "compilerOptions": {
     "target": "ES2022",
