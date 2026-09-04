@@ -65,15 +65,27 @@ export const loadAwsCredentialsFileContent = async (): Promise<{
   return res;
 };
 
-export const listAwsProfiles = async () => {
-  const credsFileContent = (await getIniFileContent(fsPaths.awsCredentialsFilePath())) || [];
+export const listAwsProfiles = async (credentialsFilePath = fsPaths.awsCredentialsFilePath()) => {
+  const credsFileContent = (await getIniFileContent(credentialsFilePath)) || {};
 
-  return Object.entries(credsFileContent || {}).map(([profile, data]) => {
+  return Object.entries(credsFileContent).flatMap(([profile, data]) => {
+    if (
+      typeof data !== 'object' ||
+      data === null ||
+      !('aws_access_key_id' in data) ||
+      !('aws_secret_access_key' in data) ||
+      typeof data.aws_access_key_id !== 'string' ||
+      typeof data.aws_secret_access_key !== 'string'
+    ) {
+      return [];
+    }
     const { aws_access_key_id, aws_secret_access_key } = data;
-    return {
-      profile,
-      AWS_ACCESS_KEY_ID: aws_access_key_id,
-      AWS_SECRET_ACCESS_KEY: aws_secret_access_key
-    };
+    return [
+      {
+        profile,
+        AWS_ACCESS_KEY_ID: aws_access_key_id,
+        AWS_SECRET_ACCESS_KEY: aws_secret_access_key
+      }
+    ];
   });
 };
