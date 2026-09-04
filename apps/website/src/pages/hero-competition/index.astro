@@ -13,11 +13,16 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 const here = dirname(fileURLToPath(import.meta.url));
 // The key lives in the private console repo (a submodule that public-only checkouts lack), so the
 // board degrades to fully blind when it is absent.
-const keyPath = resolve(here, '../../../../console/documents/website/hero-competition/runs/key.json');
-const key: { number: string; player: string; version: number }[] = existsSync(keyPath)
-  ? JSON.parse(readFileSync(keyPath, 'utf8'))
-  : [];
-const playerOf = new Map(key.map((k) => [k.number, `${k.player} · v${k.version}`]));
+type KeyEntry = { number: string; player: string; version: number };
+const readKey = (path: string): KeyEntry[] => (existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : []);
+// Round 2 (29+) was written on this side of the submodule boundary, so its numbers live in the public
+// copy of the key; the console copy still wins for any number both files know.
+const key: KeyEntry[] = [
+  ...readKey(resolve(here, '../../../../console/documents/website/hero-competition/runs/key.json')),
+  ...readKey(resolve(here, '../../../../../.agents/prompts/hero-competition-runs/key.json'))
+];
+const playerOf = new Map<string, string>();
+for (const k of key) if (!playerOf.has(k.number)) playerOf.set(k.number, `${k.player} · v${k.version}`);
 
 const pages = readdirSync(here)
   .filter((f) => /^\d\d\.astro$/.test(f))
@@ -27,8 +32,10 @@ const pages = readdirSync(here)
     const concept = /\/\/\s*concept:\s*(.+)/.exec(src)?.[1]?.trim() ?? '';
     const angle = /\/\/\s*copy-angle:\s*(.+)/.exec(src)?.[1]?.trim() ?? '';
     const title = /title="([^"]+)"/.exec(src)?.[1] ?? '';
+    // Round-2 pages declare whether they follow the owner's chosen direction or deliberately reject it.
+    const direction = /\/\/\s*direction:\s*(fits|rejects)/.exec(src)?.[1] ?? '';
     const n = f.replace('.astro', '');
-    return { n, concept, angle, title, player: playerOf.get(n) ?? 'unknown' };
+    return { n, concept, angle, title, direction, player: playerOf.get(n) ?? 'unknown' };
   });
 
 const expected = key.length || 28;
@@ -50,6 +57,7 @@ const expected = key.length || 28;
           <a href={`/hero-competition/${p.n}`}>
             <div class="row">
               <span class="num">{p.n}</span>
+              {p.direction && <span class={`dir dir--${p.direction}`}>{p.direction === 'fits' ? 'round 2 · fits direction' : 'round 2 · rejects direction'}</span>}
               <span class="who" data-who>{p.player}</span>
             </div>
             <p class="title">{p.title}</p>
@@ -127,6 +135,21 @@ const expected = key.length || 28;
     font-size: 1.15rem;
     font-weight: 600;
     color: var(--stp-color-brand);
+  }
+  .dir {
+    margin-left: auto;
+    margin-right: 10px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-family: var(--font-geist-mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.04em;
+    color: var(--stp-text-muted);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  }
+  .dir--fits {
+    color: var(--stp-color-brand);
+    box-shadow: inset 0 0 0 1px rgba(54, 190, 190, 0.35);
   }
   .who {
     font-family: var(--font-geist-mono);

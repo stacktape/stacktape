@@ -1,0 +1,733 @@
+---
+// concept: Left column copy and CTAs; right column one editor window with five use-case tabs whose highlighted YAML sits directly above the isometric diagram of that same config, so switching a tab switches both the file and the architecture it creates.
+// copy-angle: Breadth as proof — whatever the team builds (a Next.js app, a Lambda API, containers, an AI agent, a queue worker), the AWS around it is generated, deployed into their own account and operated for them; the automation is named plainly and the AI incident fix is one sentence, opt-in with human approval.
+// direction: fits
+import { parse } from 'yaml';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Logo from '../../components/Logo.astro';
+import { CtaCommand } from '../../components/CtaCommand';
+import DiagramIsland from '../../surfaces/InitWizardRun/DiagramIsland';
+import { getSnippets } from '../../lib/snippets/snippets';
+import type { SnippetId } from '../../lib/snippets/types';
+import nextjsRaw from '../../lib/snippets/configs/nextjs-postgres.yml?raw';
+import lambdaRaw from '../../lib/snippets/configs/lambda-api-dynamodb.yml?raw';
+import containerRaw from '../../lib/snippets/configs/container-api-redis.yml?raw';
+import agentRaw from '../../lib/snippets/configs/ai-agent.yml?raw';
+import workerRaw from '../../lib/snippets/configs/worker-sqs.yml?raw';
+
+/** The five use cases, highlighted at build time with their schema hover documentation. */
+const snippets = await getSnippets();
+
+/**
+ * Each tab's diagram is drawn from the very file the tab shows, parsed the way the CLI parses it.
+ * The diagram adds what Stacktape synthesizes around the declared resources (the VPC, a CDN and
+ * server function for an SSR web, the gateway in front of a container service).
+ */
+const DIAGRAM_CONFIGS: Record<SnippetId, unknown> = {
+  'nextjs-postgres': parse(nextjsRaw),
+  'lambda-api-dynamodb': parse(lambdaRaw),
+  'container-api-redis': parse(containerRaw),
+  'ai-agent': parse(agentRaw),
+  'worker-sqs': parse(workerRaw)
+};
+
+/** The code pane is sized to the longest file so switching tabs never moves the diagram below it. */
+const maxLines = Math.max(...snippets.map((snippet) => snippet.yaml.lineCount));
+
+const proof = [
+  {
+    key: 'Networking',
+    text: 'A VPC with private subnets, least-privilege IAM per resource, databases reachable only from inside it. Bastions, GPU and Spot jobs when a project needs them.'
+  },
+  {
+    key: 'Control',
+    text: 'Plain CloudFormation in your own AWS account: read it, diff it, keep it. CDK constructs and raw CloudFormation for anything the config does not cover; SSO, role-based access, budgets and an audit trail for the team. Infrastructure you already run can be migrated.'
+  },
+  {
+    key: 'Operations',
+    text: 'Pipelines, metrics, traces, logs and alarms come with the deploy. Incidents are matched to the release that caused them — and, if you opt in, handed to an agent that proposes a fix for you to approve.'
+  }
+];
+---
+
+<BaseLayout
+  title="AWS DevOps, automated. Whatever you're building. — Stacktape"
+  description="A Next.js app, a Lambda API, a container service, an AI agent, a queue worker: each is a short config file. Stacktape generates the AWS around it, deploys it into your own account as plain CloudFormation, and operates it."
+  font="geist"
+  noindex
+>
+  <div class="page">
+    <header class="nav">
+      <a href="/" aria-label="Stacktape home"><Logo height={22} /></a>
+      <nav aria-label="Primary">
+        <a href="https://docs.stacktape.com">Docs</a>
+        <a href="https://github.com/stacktape/stacktape">GitHub</a>
+        <a class="nav-pill" href="https://cal.com/stacktape/30min">Book a demo</a>
+      </nav>
+    </header>
+
+    <main class="hero">
+      <div class="copy">
+        <p class="eyebrow"><span class="eyebrow-dot" aria-hidden="true"></span>Five configs, five architectures</p>
+        <h1>AWS DevOps, automated.<br /><span class="h1-muted">Whatever you're building.</span></h1>
+        <p class="sub">
+          A Next.js app, a Lambda API, a container service, an AI agent, a queue worker: each is a short config file.
+          Stacktape generates the AWS around it — VPC and private subnets, load balancers, least-privilege IAM, managed
+          databases — deploys it into your own AWS account as plain CloudFormation, and then operates it: pipelines,
+          metrics, traces, logs, alarms and incidents.
+        </p>
+
+        <div class="ctas">
+          <CtaCommand client:visible defaultMethod="npx" />
+          <div class="ctas-row">
+            <a class="btn-demo" href="https://cal.com/stacktape/30min">Book a demo <span aria-hidden="true">→</span></a>
+            <p class="ctas-note">
+              Runs on your machine. It reads the repository, writes the config, and deploys only when you confirm.
+            </p>
+          </div>
+        </div>
+
+        <ul class="proof" aria-label="What the generated infrastructure covers">
+          {proof.map((item, index) => (
+            <li class="proof-item" style={`--i: ${index}`}>
+              <span class="proof-k">{item.key}</span>
+              <span class="proof-v">{item.text}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <section class="showcase" id="showcase" aria-label="Five example configurations and the architecture each one creates">
+        <div class="window">
+          <div class="bar">
+            <span class="lights" aria-hidden="true"><span></span><span></span><span></span></span>
+            <div class="tabs" role="tablist" aria-label="Example projects">
+              {snippets.map((snippet, index) => (
+                <button
+                  type="button"
+                  role="tab"
+                  id={`tab-${snippet.id}`}
+                  class={`tab${index === 0 ? ' is-active' : ''}`}
+                  aria-selected={index === 0 ? 'true' : 'false'}
+                  aria-controls={`code-${snippet.id} scene-${snippet.id}`}
+                  tabindex={index === 0 ? 0 : -1}
+                  data-tab={snippet.id}
+                >
+                  {snippet.label}
+                </button>
+              ))}
+            </div>
+            <span class="filename">
+              <svg viewBox="0 0 12 14" width="11" height="12" fill="none" aria-hidden="true">
+                <path d="M2.75 1.25h4L10 4.5v8.25H2.75z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" />
+                <path d="M6.75 1.5V4.5H9.75" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" />
+              </svg>
+              stacktape.yml
+            </span>
+          </div>
+
+          <div class="code" style={`--lines: ${maxLines}`}>
+            {snippets.map((snippet, index) => (
+              <div
+                class="pane"
+                id={`code-${snippet.id}`}
+                role="tabpanel"
+                aria-labelledby={`tab-${snippet.id}`}
+                data-pane={snippet.id}
+                hidden={index !== 0}
+              >
+                <div class="gutter" aria-hidden="true">
+                  {Array.from({ length: snippet.yaml.lineCount }, (_, line) => <span>{line + 1}</span>)}
+                </div>
+                <div class="stp-code">
+                  <Fragment set:html={snippet.yaml.html} />
+                </div>
+              </div>
+            ))}
+            <p class="code-hint">Hover a key for its documentation.</p>
+          </div>
+
+          <div class="divider" aria-hidden="true">
+            <span class="divider-chip">What this file creates</span>
+          </div>
+
+          <div class="diagram">
+            {snippets.map((snippet, index) => (
+              <div class="scene" id={`scene-${snippet.id}`} data-pane={snippet.id} hidden={index !== 0}>
+                <div class="canvas">
+                  <DiagramIsland
+                    client:only="react"
+                    config={DIAGRAM_CONFIGS[snippet.id]}
+                    ariaLabel={`Isometric diagram of the AWS resources the ${snippet.label} configuration creates`}
+                  />
+                </div>
+                <p class="caption">
+                  <span class="caption-k">Deploys</span>
+                  <span class="caption-v">{snippet.summary}</span>
+                  <span class="caption-hint">Drag to pan · scroll to zoom</span>
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</BaseLayout>
+
+<style>
+  .page {
+    --ink: var(--stp-text-primary);
+    --ink-2: rgb(198, 206, 206);
+    --ink-3: rgb(136, 146, 146);
+    --line: rgba(255, 255, 255, 0.07);
+    --brand: var(--stp-color-brand);
+    --code-size: 0.74rem;
+    --code-lh: 1.55;
+    --diagram-h: clamp(15rem, 21vw, 18.5rem);
+    position: relative;
+    min-height: 100vh;
+    /* `clip`, not `hidden`: the schema popups leave the window and must not turn the page into a
+       horizontal scroller, but a scroll container would clip them entirely. */
+    overflow-x: clip;
+  }
+  .page::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(52% 44% at 74% 34%, rgba(54, 190, 190, 0.11), transparent 70%),
+      radial-gradient(40% 36% at 12% 8%, rgba(54, 190, 190, 0.05), transparent 70%);
+    pointer-events: none;
+  }
+
+  /* ── Nav ──────────────────────────────────────────────────────────────────── */
+  .nav {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 1340px;
+    margin: 0 auto;
+    padding: 20px 28px;
+  }
+  .nav nav {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+  .nav a {
+    color: var(--ink-2);
+    font-size: 0.9rem;
+    transition: color 150ms ease;
+  }
+  .nav a:hover {
+    color: var(--ink);
+  }
+  .nav-pill {
+    padding: 7px 14px;
+    border-radius: 999px;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+    color: var(--ink);
+  }
+  .nav-pill:hover {
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+  }
+
+  /* ── Hero grid ────────────────────────────────────────────────────────────── */
+  .hero {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(340px, 0.86fr) minmax(0, 1.14fr);
+    gap: 48px;
+    align-items: start;
+    max-width: 1340px;
+    margin: 0 auto;
+    padding: 20px 28px 96px;
+  }
+
+  /* ── Copy ─────────────────────────────────────────────────────────────────── */
+  .copy {
+    padding-top: 26px;
+  }
+  .eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin: 0 0 18px;
+    color: var(--brand);
+    font-family: var(--font-geist-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  .eyebrow-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--brand);
+    box-shadow: 0 0 0 4px rgba(54, 190, 190, 0.16);
+  }
+  h1 {
+    margin: 0;
+    color: var(--ink);
+    font-size: clamp(2.3rem, 3.5vw, 3.15rem);
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    line-height: 1.04;
+  }
+  .h1-muted {
+    color: var(--ink-3);
+  }
+  .sub {
+    max-width: 54ch;
+    margin: 22px 0 0;
+    color: var(--ink-2);
+    font-size: 1rem;
+    line-height: 1.62;
+  }
+
+  .ctas {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    margin-top: 28px;
+  }
+  .ctas-row {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+  .btn-demo {
+    flex: none;
+    padding: 9px 16px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+    color: var(--ink);
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition:
+      background 150ms ease,
+      box-shadow 150ms ease;
+  }
+  .btn-demo:hover {
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+  }
+  .ctas-note {
+    max-width: 36ch;
+    margin: 0;
+    color: var(--ink-3);
+    font-size: 0.78rem;
+    line-height: 1.45;
+  }
+
+  .proof {
+    margin: 34px 0 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--line);
+  }
+  .proof-item {
+    display: grid;
+    grid-template-columns: 92px minmax(0, 1fr);
+    gap: 14px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
+  .proof-k {
+    padding-top: 3px;
+    color: var(--ink-3);
+    font-family: var(--font-geist-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .proof-v {
+    color: var(--ink-2);
+  }
+
+  /* ── The window: tabs, code, diagram ──────────────────────────────────────── */
+  .showcase {
+    position: relative;
+    min-width: 0;
+  }
+  .window {
+    position: relative;
+    border-radius: 16px;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012) 30%),
+      var(--stp-surface-page);
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+      0 30px 80px rgba(0, 0, 0, 0.5),
+      0 0 140px rgba(54, 190, 190, 0.07);
+  }
+
+  .bar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    height: 46px;
+    padding: 0 14px;
+    border-radius: 16px 16px 0 0;
+    background: rgba(0, 0, 0, 0.22);
+    box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+  }
+  .lights {
+    display: flex;
+    flex: none;
+    gap: 6px;
+  }
+  .lights span {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    opacity: 0.78;
+  }
+  .lights span:nth-child(1) {
+    background: #ff5f57;
+  }
+  .lights span:nth-child(2) {
+    background: #febc2e;
+  }
+  .lights span:nth-child(3) {
+    background: #28c840;
+  }
+
+  /* The use-case strip scrolls sideways rather than wrapping: a second row would change the
+     window's height, and everything below it is positioned by that height. */
+  .tabs {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 9px;
+    background: rgba(0, 0, 0, 0.28);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .tab {
+    flex: none;
+    padding: 5px 11px;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: var(--ink-3);
+    font-size: 0.75rem;
+    font-weight: 550;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      background 150ms ease,
+      color 150ms ease,
+      box-shadow 150ms ease;
+  }
+  .tab:hover {
+    color: var(--ink);
+  }
+  .tab.is-active {
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 40%, transparent);
+    color: var(--ink);
+  }
+  .filename {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    color: var(--ink-3);
+    font-family: var(--font-geist-mono);
+    font-size: 0.72rem;
+  }
+
+  /* Fixed height, sized for the longest file, so the diagram never moves when a tab changes.
+     Nothing here may clip: the schema popups have to leave the pane. */
+  .code {
+    position: relative;
+    height: calc(var(--lines) * var(--code-size) * var(--code-lh) + 40px);
+    padding: 12px 0 0;
+    background: rgba(0, 0, 0, 0.16);
+    overflow: visible;
+  }
+  .pane {
+    display: flex;
+  }
+  /* The script toggles the `hidden` attribute; state it here so it does not depend on preflight. */
+  .pane[hidden],
+  .scene[hidden] {
+    display: none;
+  }
+  .gutter {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    width: 44px;
+    padding-right: 12px;
+    color: var(--ink-3);
+    font-family: var(--font-geist-mono);
+    font-size: var(--code-size);
+    line-height: var(--code-lh);
+    text-align: right;
+    opacity: 0.5;
+    user-select: none;
+  }
+  .gutter span {
+    display: block;
+    min-height: calc(var(--code-lh) * 1em);
+  }
+  .pane :global(.stp-code) {
+    flex: 1;
+    min-width: 0;
+    padding-right: 14px;
+  }
+  .pane :global(.stp-code code) {
+    font-size: var(--code-size);
+    line-height: var(--code-lh);
+  }
+  .pane :global(.stp-code .line) {
+    min-height: calc(var(--code-lh) * 1em);
+  }
+  .code-hint {
+    position: absolute;
+    right: 14px;
+    bottom: 8px;
+    margin: 0;
+    color: var(--ink-3);
+    font-size: 0.68rem;
+    opacity: 0.8;
+    pointer-events: none;
+  }
+
+  .divider {
+    position: relative;
+    height: 1px;
+    background: var(--line);
+  }
+  .divider-chip {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    padding: 4px 11px;
+    border-radius: 999px;
+    background: rgb(29, 35, 35);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.09);
+    color: var(--ink-3);
+    font-family: var(--font-geist-mono);
+    font-size: 0.64rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    transform: translate(-50%, -50%);
+  }
+  .divider-chip::before {
+    content: '↓ ';
+    color: var(--brand);
+  }
+
+  .diagram {
+    position: relative;
+    border-radius: 0 0 16px 16px;
+    background: rgba(0, 0, 0, 0.16);
+    overflow: hidden;
+  }
+  .canvas {
+    position: relative;
+    height: var(--diagram-h);
+  }
+  .canvas :global(.stp-diagram) {
+    background: transparent;
+  }
+  .caption {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin: 0;
+    padding: 10px 14px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    color: var(--ink-2);
+    font-size: 0.78rem;
+    white-space: nowrap;
+  }
+  .caption-k {
+    flex: none;
+    color: var(--brand);
+    font-family: var(--font-geist-mono);
+    font-size: 0.64rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .caption-v {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .caption-hint {
+    flex: none;
+    margin-left: auto;
+    color: var(--ink-3);
+    font-size: 0.68rem;
+  }
+
+  /* ── Motion ───────────────────────────────────────────────────────────────── */
+  @media (prefers-reduced-motion: no-preference) {
+    .window {
+      opacity: 0;
+      transform: translateY(10px);
+      animation: arrive 700ms cubic-bezier(0.2, 0.8, 0.2, 1) 180ms forwards;
+    }
+    .proof-item {
+      opacity: 0;
+      animation: arrive 420ms ease forwards;
+      animation-delay: calc(500ms + var(--i) * 90ms);
+    }
+    .pane,
+    .scene {
+      animation: swap 220ms ease;
+    }
+  }
+  @keyframes arrive {
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes swap {
+    from {
+      opacity: 0;
+      transform: translateY(3px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* ── Widths ───────────────────────────────────────────────────────────────── */
+  @media (max-width: 1240px) {
+    .filename {
+      display: none;
+    }
+    .caption-hint {
+      display: none;
+    }
+  }
+  @media (max-width: 1080px) {
+    .hero {
+      grid-template-columns: 1fr;
+      gap: 40px;
+    }
+    .page {
+      --diagram-h: 20rem;
+    }
+    .copy {
+      padding-top: 8px;
+    }
+    .sub {
+      max-width: 62ch;
+    }
+    .filename {
+      display: inline-flex;
+    }
+    .caption-hint {
+      display: inline;
+    }
+  }
+  @media (max-width: 720px) {
+    .filename,
+    .caption-hint {
+      display: none;
+    }
+    .ctas-row {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    .proof-item {
+      grid-template-columns: 1fr;
+      gap: 4px;
+    }
+  }
+</style>
+
+<script>
+  const root = document.getElementById('showcase') as HTMLElement | null;
+
+  if (root) {
+    const tabs = Array.from(root.querySelectorAll<HTMLButtonElement>('[role="tab"][data-tab]'));
+    const panes = Array.from(root.querySelectorAll<HTMLElement>('[data-pane]'));
+
+    // One tab controls two panes: the file and the diagram of what that file creates.
+    const select = (id: string, moveFocus: boolean) => {
+      for (const tab of tabs) {
+        const isActive = tab.dataset.tab === id;
+        tab.classList.toggle('is-active', isActive);
+        tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        tab.tabIndex = isActive ? 0 : -1;
+        if (isActive && moveFocus) tab.focus();
+      }
+      for (const pane of panes) pane.hidden = pane.dataset.pane !== id;
+    };
+
+    for (const tab of tabs) {
+      tab.addEventListener('click', () => select(tab.dataset.tab ?? '', false));
+    }
+
+    const tablist = root.querySelector<HTMLElement>('[role="tablist"]');
+    tablist?.addEventListener('keydown', (event: KeyboardEvent) => {
+      const index = tabs.findIndex((tab) => tab === document.activeElement);
+      if (index < 0) return;
+      let next = index;
+      if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
+      else if (event.key === 'ArrowLeft') next = (index - 1 + tabs.length) % tabs.length;
+      else if (event.key === 'Home') next = 0;
+      else if (event.key === 'End') next = tabs.length - 1;
+      else return;
+      event.preventDefault();
+      const target = tabs[next];
+      if (target) select(target.dataset.tab ?? '', true);
+    });
+
+    // Keeps a schema popup inside the viewport: how far it must slide left, and whether it must
+    // open upwards. Measured on pointerenter/focusin, when the popup already exists.
+    const clamp = (hover: HTMLElement) => {
+      const popup = hover.querySelector<HTMLElement>('.stp-hover-popup');
+      if (!popup) return;
+
+      popup.style.removeProperty('--stp-hover-shift');
+      hover.removeAttribute('data-stp-hover-above');
+
+      const anchor = hover.getBoundingClientRect();
+      const rect = popup.getBoundingClientRect();
+      const margin = 12;
+
+      const overflowRight = rect.right - (window.innerWidth - margin);
+      const maxShift = Math.max(0, anchor.left - margin);
+      if (overflowRight > 0) popup.style.setProperty('--stp-hover-shift', `${-Math.min(overflowRight, maxShift)}px`);
+
+      const spaceBelow = window.innerHeight - anchor.bottom;
+      if (rect.height > spaceBelow - margin && anchor.top > spaceBelow) {
+        hover.setAttribute('data-stp-hover-above', 'true');
+      }
+    };
+
+    const onEnter = (event: Event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const hover = target.closest<HTMLElement>('.stp-hover');
+      if (hover) clamp(hover);
+    };
+
+    // Capture, because pointerenter does not bubble and one listener beats one per documented key.
+    root.addEventListener('pointerenter', onEnter, true);
+    root.addEventListener('focusin', onEnter);
+  }
+</script>

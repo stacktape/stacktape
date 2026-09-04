@@ -1,0 +1,823 @@
+---
+// concept: The review sheet — copy, the self-typing install command and a spec list on the left; on the right one window styled like the init wizard's Review step, whose Diagram / stacktape.yml / stacktape.ts switcher shows the same six-resource acme-project as the real isometric diagram and as the generated config with schema hovers.
+// copy-angle: Conservative and enterprise-deep — "All of AWS DevOps, automated. Generated, deployed, operated." names the whole lifecycle from generated config to correlated incidents; human approval is stated plainly and the AI fix is played moderately, as a proposal an agent drafts and applies only where you opt in.
+// direction: fits
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Logo from '../../components/Logo.astro';
+import DiagramIsland from '../../surfaces/InitWizardRun/DiagramIsland.tsx';
+import { ACME_DIAGRAM_CONFIG } from '../../surfaces/InitWizardRun/acme-config.ts';
+import { stringify } from 'yaml';
+import { renderSnippet } from '../../lib/snippets/render';
+import { getSnippet } from '../../lib/snippets/snippets';
+import type { RenderedCode, RenderedSnippet } from '../../lib/snippets/types';
+
+/**
+ * The same acme-project the diagram draws, rendered as its config: Shiki YAML with the schema
+ * hover popups, plus the TypeScript twin. The YAML is the diagram's own object serialised, so the
+ * two views can never disagree. The `id` is nominal (it has to be a SnippetId).
+ */
+const loadAcmeSnippet = async (): Promise<{ snippet: RenderedSnippet; isFallback: boolean }> => {
+  try {
+    const snippet = await renderSnippet({
+      id: 'nextjs-postgres',
+      label: 'acme-project',
+      summary: '',
+      yaml: stringify(ACME_DIAGRAM_CONFIG)
+    });
+    return { snippet, isFallback: false };
+  } catch (error) {
+    console.warn('[hero-competition/29] Rendering the acme config failed; showing nextjs-postgres instead.', error);
+    return { snippet: await getSnippet('nextjs-postgres'), isFallback: true };
+  }
+};
+const { snippet: acme, isFallback } = await loadAcmeSnippet();
+
+/** Verbatim from the CLI's own installation instructions. */
+const installMethods = [
+  { id: 'npx', label: 'npx', command: 'npx stacktape init' },
+  { id: 'macos', label: 'macOS', command: 'curl -L https://installs.stacktape.com/macos.sh | sh' },
+  { id: 'linux', label: 'Linux', command: 'curl -L https://installs.stacktape.com/linux.sh | sh' },
+  { id: 'windows', label: 'Windows', command: 'iwr https://installs.stacktape.com/windows.ps1 -useb | iex' }
+];
+const defaultMethod = installMethods[0];
+
+const specs = [
+  ['Config', 'Generated from your repository, on your machine, as YAML or TypeScript. Every key documented.'],
+  ['Network', 'VPC across two availability zones, private subnets, databases reachable only from inside, bastion on demand.'],
+  ['Compute', 'Fargate services, Lambda functions, GPU and Spot jobs. Aurora PostgreSQL, Redis and S3 — encrypted, backed up.'],
+  ['Delivery', 'Plain CloudFormation into your account. CI/CD with EC2 GitHub Actions runners; CDK and raw CloudFormation escape hatches.'],
+  ['Operations', 'Metrics, traces, logs, alarms, costs. Incidents correlated with releases; an agent may propose the fix — applying it is opt-in.'],
+  ['Governance', 'SSO, RBAC, guardrails, budgets, audit trail. Existing infrastructure migrates in — and, as plain CloudFormation, could migrate out.']
+];
+
+/** The window opens on the config the wizard wrote; the script flips it to the diagram once. */
+const initialView = 'yaml';
+const views = [
+  { id: 'diagram', label: 'Diagram', hint: 'pan · zoom · hover a resource' },
+  { id: 'yaml', label: 'stacktape.yml', hint: `${acme.hoverCount} documented keys · hover one` },
+  { id: 'typescript', label: 'stacktape.ts', hint: 'the same config, typed' }
+].filter((view) => view.id !== 'typescript' || acme.typescript !== null);
+
+const codePanes: { id: 'yaml' | 'typescript'; code: RenderedCode }[] = [{ id: 'yaml', code: acme.yaml }];
+if (acme.typescript) codePanes.push({ id: 'typescript', code: acme.typescript });
+---
+
+<BaseLayout
+  title="All of AWS DevOps, automated — Stacktape"
+  description="Stacktape generates your AWS infrastructure config from your repository, deploys it into your own account as plain CloudFormation, and operates it: pipelines, metrics, traces, logs, alarms, and incidents correlated with releases. Every change is yours to approve."
+  font="geist"
+  noindex
+>
+  <header class="nav">
+    <a href="/" aria-label="Stacktape home"><Logo height={22} /></a>
+    <nav>
+      <a href="https://docs.stacktape.com">Docs</a>
+      <a href="https://github.com/stacktape/stacktape">GitHub</a>
+      <a class="nav-cta" href="https://cal.com/stacktape/30min">Book a demo</a>
+    </nav>
+  </header>
+
+  <main class="hero">
+    <div class="copy">
+      <p class="eyebrow">One config file · one command · your own AWS account</p>
+      <h1>All of AWS DevOps, automated.<br /><span class="muted">Generated, deployed, operated.</span></h1>
+      <p class="sub">
+        The wizard reads your repository on your machine and writes the config: a VPC with private subnets, Fargate
+        services, Lambda functions, Aurora PostgreSQL, least-privilege IAM. One deploy builds it in your own AWS
+        account as plain CloudFormation. Then Stacktape operates it — pipelines, metrics, traces, logs, alarms — and
+        correlates each incident with the release behind it. An agent can propose the fix. Applying it stays a human
+        decision unless you opt in.
+      </p>
+
+      <div class="ctas">
+        <div class="cmd">
+          <div class="cta-command__row cmd-row" id="cmd-row">
+            <span class="cta-command__prompt" aria-hidden="true">$</span>
+            <code class="cta-command__code cmd-code" id="cmd-code" data-command={defaultMethod.command}
+              >{defaultMethod.command}</code
+            >
+            <button type="button" class="cta-command__copy" id="cmd-copy" aria-label={`Copy ${defaultMethod.command}`}>
+              <svg viewBox="0 0 14 14" width="13" height="13" fill="none" aria-hidden="true">
+                <rect x="4.75" y="1.75" width="7.5" height="7.5" rx="1.6" stroke="currentColor" stroke-width="1.2"></rect>
+                <path
+                  d="M9.25 12.25h-6a1.5 1.5 0 0 1-1.5-1.5v-6"
+                  stroke="currentColor"
+                  stroke-width="1.2"
+                  stroke-linecap="round"></path>
+              </svg>
+              <span class="cta-command__copy-label" id="cmd-copy-label">Copy</span>
+            </button>
+          </div>
+          <div class="cta-command__methods site-well" role="group" aria-label="Installation method">
+            {
+              installMethods.map((method, index) => (
+                <button
+                  type="button"
+                  class={`cta-command__method${index === 0 ? ' is-active' : ''}`}
+                  aria-pressed={index === 0 ? 'true' : 'false'}
+                  data-method={method.id}
+                  data-command={method.command}
+                >
+                  {method.label}
+                </button>
+              ))
+            }
+          </div>
+        </div>
+        <a class="btn-quiet" href="https://cal.com/stacktape/30min">Book a demo <span aria-hidden="true">→</span></a>
+      </div>
+
+      <dl class="specs">
+        {
+          specs.map(([term, detail], index) => (
+            <div class="spec" style={`--i: ${index}`}>
+              <dt>{term}</dt>
+              <dd>{detail}</dd>
+            </div>
+          ))
+        }
+      </dl>
+    </div>
+
+    <section
+      class="sheet"
+      id="review-sheet"
+      aria-label="The init wizard's review step for acme-project"
+      data-snippet-source={isFallback ? 'fallback' : 'acme'}
+    >
+      <div class="sheet-bar">
+        <ol class="rail" aria-label="Wizard steps">
+          <li class="is-done"><span class="dot" aria-hidden="true"></span>Start</li>
+          <li class="is-done"><span class="dot" aria-hidden="true"></span>Analyze</li>
+          <li class="is-current" aria-current="step"><span class="dot" aria-hidden="true"></span>Review</li>
+          <li><span class="dot" aria-hidden="true"></span>Deploy</li>
+        </ol>
+        <p class="bar-meta">acme-project <span class="dim">/ staging / eu-west-1</span></p>
+      </div>
+
+      <div class="sheet-head">
+        <p class="sheet-eyebrow">Review</p>
+        <h2 class="sheet-title">Here’s your app on AWS</h2>
+        <p class="sheet-summary">
+          A Next.js app with an Express API and a background worker, using a Postgres database and a Redis cache. About
+          <strong>$118/mo</strong> to run.
+        </p>
+      </div>
+
+      <div class="frame">
+        <div class="views" role="tablist" aria-label="Views of the generated infrastructure">
+          {
+            views.map((view) => (
+              <button
+                type="button"
+                role="tab"
+                id={`tab-${view.id}`}
+                class={`view${view.id === initialView ? ' is-active' : ''}`}
+                aria-selected={view.id === initialView ? 'true' : 'false'}
+                aria-controls={`pane-${view.id}`}
+                tabindex={view.id === initialView ? 0 : -1}
+                data-view-tab={view.id}
+              >
+                {view.label}
+              </button>
+            ))
+          }
+          {
+            views.map((view) => (
+              <span class="views-hint" data-view-hint={view.id} hidden={view.id !== initialView}>
+                {view.hint}
+              </span>
+            ))
+          }
+        </div>
+
+        <div class="stage">
+          <div
+            class="pane pane-diagram"
+            id="pane-diagram"
+            role="tabpanel"
+            aria-labelledby="tab-diagram"
+            data-view-pane="diagram"
+            hidden
+          >
+            <DiagramIsland
+              client:only="react"
+              config={ACME_DIAGRAM_CONFIG}
+              ariaLabel="Isometric diagram of the generated architecture: a VPC with public and private subnets, a Next.js site behind a CDN, a Fargate API, a Lambda worker, Aurora PostgreSQL, Redis and a web application firewall"
+            />
+          </div>
+          {
+            codePanes.map((pane) => (
+              <div
+                class="pane pane-code"
+                id={`pane-${pane.id}`}
+                role="tabpanel"
+                aria-labelledby={`tab-${pane.id}`}
+                data-view-pane={pane.id}
+                hidden={pane.id !== initialView}
+              >
+                <div class="gutter" aria-hidden="true">
+                  {Array.from({ length: pane.code.lineCount }, (_, index) => (
+                    <span>{index + 1}</span>
+                  ))}
+                </div>
+                <div class="code stp-code">
+                  <Fragment set:html={pane.code.html} />
+                </div>
+              </div>
+            ))
+          }
+        </div>
+      </div>
+
+      <div class="sheet-foot">
+        <p class="foot-note">
+          Nothing runs on AWS and nothing is billed until you press Deploy. Change anything above; the file and the
+          price follow.
+        </p>
+        <span class="deploy" aria-hidden="true">Deploy</span>
+      </div>
+    </section>
+  </main>
+</BaseLayout>
+
+<style>
+  :root {
+    --ink: var(--stp-text-primary);
+    --ink-2: rgb(196, 204, 204);
+    --ink-3: rgb(138, 148, 148);
+    --line: rgba(255, 255, 255, 0.07);
+    --brand: var(--stp-color-brand);
+    /* One code line, as snippets.css sizes it (0.8125rem × 1.7), so the gutter cannot drift. */
+    --code-line: calc(0.8125rem * 1.7);
+  }
+
+  /* ── Nav ─────────────────────────────────────────────────────────────── */
+  .nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 22px 28px;
+  }
+  .nav nav {
+    display: flex;
+    align-items: center;
+    gap: 26px;
+  }
+  .nav a {
+    color: var(--ink-2);
+    font-size: 0.92rem;
+    text-decoration: none;
+  }
+  .nav a:hover {
+    color: var(--ink);
+  }
+  .nav-cta {
+    padding: 8px 14px;
+    border-radius: 999px;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+    color: var(--ink) !important;
+  }
+
+  /* ── Hero grid ───────────────────────────────────────────────────────── */
+  .hero {
+    display: grid;
+    grid-template-columns: minmax(360px, 0.84fr) minmax(0, 1.16fr);
+    gap: 44px;
+    align-items: start;
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 36px 28px 96px;
+  }
+  .copy {
+    padding-top: 18px;
+  }
+  .eyebrow {
+    margin: 0 0 18px;
+    color: var(--brand);
+    font-family: var(--font-geist-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  h1 {
+    margin: 0;
+    font-size: clamp(2.2rem, 3.1vw, 2.9rem);
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    line-height: 1.04;
+    color: var(--ink);
+  }
+  .muted {
+    color: var(--ink-3);
+  }
+  .sub {
+    margin: 22px 0 0;
+    color: var(--ink-2);
+    font-size: 1rem;
+    line-height: 1.62;
+  }
+
+  /* ── CTAs ────────────────────────────────────────────────────────────── */
+  .ctas {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    align-items: flex-start;
+    margin-top: 28px;
+  }
+  .cmd {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-start;
+    width: 100%;
+    max-width: 560px;
+  }
+  .cmd-row {
+    width: 100%;
+  }
+  .cmd-code {
+    flex: 1;
+  }
+  /* The caret exists only while the command is typing itself; afterwards the line is plain text. */
+  .cmd-row.is-typing .cmd-code::after {
+    content: '';
+    display: inline-block;
+    width: 2px;
+    height: 1em;
+    margin-left: 2px;
+    vertical-align: -0.12em;
+    border-radius: 1px;
+    background: var(--brand);
+    animation: caret 1s steps(2, start) infinite;
+  }
+  @keyframes caret {
+    to {
+      visibility: hidden;
+    }
+  }
+  .cta-command__copy.is-done {
+    color: var(--brand);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 45%, transparent);
+  }
+  .btn-quiet {
+    color: var(--ink-2);
+    font-weight: 500;
+    text-decoration: none;
+  }
+  .btn-quiet:hover {
+    color: var(--ink);
+  }
+
+  /* ── Spec list ───────────────────────────────────────────────────────── */
+  .specs {
+    margin: 34px 0 0;
+    padding-top: 6px;
+    border-top: 1px solid var(--line);
+  }
+  .spec {
+    display: grid;
+    grid-template-columns: 92px minmax(0, 1fr);
+    gap: 14px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.84rem;
+    line-height: 1.45;
+  }
+  .spec dt {
+    padding-top: 3px;
+    color: var(--ink-3);
+    font-family: var(--font-geist-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .spec dd {
+    margin: 0;
+    color: var(--ink-2);
+  }
+
+  /* ── The review sheet: one window, styled like the wizard's Review step ─ */
+  .sheet {
+    position: relative;
+    overflow: hidden;
+    border-radius: 18px;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.015)),
+      var(--stp-surface-page);
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+      0 30px 80px rgba(0, 0, 0, 0.45),
+      0 0 140px rgba(54, 190, 190, 0.07);
+  }
+  .sheet-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 16px;
+    padding: 12px 18px;
+    background: rgba(0, 0, 0, 0.22);
+    box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+  }
+  .rail {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--ink-3);
+    font-size: 0.78rem;
+  }
+  .rail li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .dot {
+    width: 9px;
+    height: 9px;
+    flex: none;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.14);
+  }
+  .rail .is-done .dot {
+    background: color-mix(in srgb, var(--brand) 55%, transparent);
+  }
+  .rail .is-current {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .rail .is-current .dot {
+    background: var(--brand);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 16%, transparent);
+  }
+  .bar-meta {
+    margin: 0;
+    color: var(--ink-2);
+    font-family: var(--font-geist-mono);
+    font-size: 0.74rem;
+    white-space: nowrap;
+  }
+  .dim {
+    color: var(--ink-3);
+  }
+  .sheet-head {
+    padding: 18px 20px 14px;
+  }
+  .sheet-eyebrow {
+    margin: 0;
+    color: var(--brand);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .sheet-title {
+    margin: 6px 0 0;
+    color: var(--ink);
+    font-size: 1.22rem;
+    font-weight: 640;
+    letter-spacing: -0.01em;
+  }
+  .sheet-summary {
+    margin: 8px 0 0;
+    color: var(--ink-2);
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+  .sheet-summary strong {
+    color: var(--ink);
+    font-weight: 620;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* The view switcher over a fixed stage: the wizard's own frame, so the page below never moves. */
+  .frame {
+    margin: 0 14px;
+    overflow: hidden;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.02);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  }
+  .views {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 8px 10px;
+    box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+  }
+  .view {
+    padding: 5px 12px;
+    border: 0;
+    border-radius: var(--stp-radius-medium);
+    background: none;
+    color: var(--ink-3);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition:
+      background var(--stp-motion-duration-fast) var(--stp-motion-easing),
+      color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+  }
+  .view:hover {
+    color: var(--ink);
+  }
+  .view.is-active {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .views-hint {
+    min-width: 0;
+    margin-left: auto;
+    padding-right: 4px;
+    overflow: hidden;
+    color: var(--ink-3);
+    font-family: var(--font-geist-mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.02em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .stage {
+    position: relative;
+    height: clamp(22rem, 34vw, 30rem);
+  }
+  .pane {
+    position: absolute;
+    inset: 0;
+  }
+  .pane[hidden] {
+    display: none !important;
+  }
+  .pane-diagram {
+    background: radial-gradient(60% 60% at 50% 45%, rgba(54, 190, 190, 0.06), transparent 70%);
+  }
+  /* The island paints the page colour behind itself; the frame's own plane should show instead. */
+  .pane-diagram :global(.stp-diagram) {
+    background: transparent;
+  }
+  .pane-code {
+    display: flex;
+    overflow: auto;
+    padding: 12px 0 14px;
+    background: rgba(0, 0, 0, 0.18);
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+  }
+  .gutter {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    padding: 0 12px 0 14px;
+    color: var(--ink-3);
+    font-family: var(--font-geist-mono);
+    font-size: 0.74rem;
+    text-align: right;
+    opacity: 0.55;
+    user-select: none;
+  }
+  .gutter span {
+    display: block;
+    height: var(--code-line);
+    line-height: var(--code-line);
+  }
+  .code {
+    flex: 1;
+    min-width: 0;
+    padding-right: 16px;
+  }
+
+  .sheet-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 20px 16px;
+  }
+  .foot-note {
+    max-width: 54ch;
+    margin: 0;
+    color: var(--ink-3);
+    font-size: 0.8rem;
+    line-height: 1.45;
+  }
+  /* Drawn as the wizard's primary button, but a span: a recreation must not offer a focus stop
+     that leads nowhere. */
+  .deploy {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    padding: 8px 16px;
+    border-radius: var(--stp-radius-large);
+    background: rgb(20, 150, 150);
+    color: #fff;
+    font-size: 0.86rem;
+    font-weight: 600;
+  }
+
+  /* ── Motion ──────────────────────────────────────────────────────────── */
+  @media (prefers-reduced-motion: no-preference) {
+    .sheet {
+      opacity: 0;
+      transform: translateY(10px);
+      animation: arrive 700ms cubic-bezier(0.2, 0.8, 0.2, 1) 200ms forwards;
+    }
+    .spec {
+      opacity: 0;
+      animation: arrive 420ms ease forwards;
+      animation-delay: calc(600ms + var(--i) * 90ms);
+    }
+    .pane:not([hidden]) {
+      animation: pane-in 260ms var(--stp-motion-easing);
+    }
+  }
+  @keyframes arrive {
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes pane-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @media (max-width: 1040px) {
+    .hero {
+      grid-template-columns: 1fr;
+    }
+    .copy {
+      padding-top: 0;
+    }
+  }
+</style>
+
+<script>
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ── Views: Diagram / stacktape.yml / stacktape.ts ─────────────────────
+  // Three pre-rendered panes; the switcher only toggles `hidden`. The stage has a fixed height,
+  // so nothing below the window moves when the view changes.
+  const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-view-tab]'));
+  const panes = Array.from(document.querySelectorAll<HTMLElement>('[data-view-pane]'));
+  const hints = Array.from(document.querySelectorAll<HTMLElement>('[data-view-hint]'));
+  let userChoseView = false;
+
+  const showView = (id: string) => {
+    for (const tab of tabs) {
+      const isActive = tab.dataset.viewTab === id;
+      tab.classList.toggle('is-active', isActive);
+      tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+      tab.tabIndex = isActive ? 0 : -1;
+    }
+    for (const pane of panes) pane.hidden = pane.dataset.viewPane !== id;
+    for (const hint of hints) hint.hidden = hint.dataset.viewHint !== id;
+  };
+
+  tabs.forEach((tab, index) => {
+    tab.addEventListener('click', () => {
+      userChoseView = true;
+      showView(tab.dataset.viewTab ?? '');
+    });
+    tab.addEventListener('keydown', (event: KeyboardEvent) => {
+      const delta = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+      if (delta === 0) return;
+      event.preventDefault();
+      const next = tabs[(index + delta + tabs.length) % tabs.length];
+      if (!next) return;
+      userChoseView = true;
+      showView(next.dataset.viewTab ?? '');
+      next.focus();
+    });
+  });
+
+  // First load: the config the wizard wrote, then the picture it draws — once. Reduced motion
+  // goes straight to the diagram, and a click during the pause wins over the flip.
+  if (reducedMotion) {
+    showView('diagram');
+  } else {
+    window.setTimeout(() => {
+      if (!userChoseView) showView('diagram');
+    }, 2200);
+  }
+
+  // ── Hover popups inside a scrolling pane ──────────────────────────────
+  // The popups open in pure CSS; this only answers what the stylesheet cannot: how far a popup
+  // must slide left, and whether it must open upwards, to stay inside the pane that clips it.
+  const clampPopup = (pane: HTMLElement, hover: HTMLElement) => {
+    const popup = hover.querySelector<HTMLElement>('.stp-hover-popup');
+    if (!popup) return;
+
+    popup.style.removeProperty('--stp-hover-shift');
+    hover.removeAttribute('data-stp-hover-above');
+
+    const bounds = pane.getBoundingClientRect();
+    const anchor = hover.getBoundingClientRect();
+    const rect = popup.getBoundingClientRect();
+    const margin = 10;
+
+    const overflowRight = rect.right - (bounds.right - margin);
+    const maxShift = Math.max(0, anchor.left - bounds.left - margin);
+    if (overflowRight > 0) popup.style.setProperty('--stp-hover-shift', `${-Math.min(overflowRight, maxShift)}px`);
+
+    const spaceBelow = bounds.bottom - anchor.bottom;
+    const spaceAbove = anchor.top - bounds.top;
+    if (rect.height > spaceBelow - margin && spaceAbove > spaceBelow) {
+      hover.setAttribute('data-stp-hover-above', 'true');
+    }
+  };
+
+  for (const pane of panes) {
+    if (!pane.classList.contains('pane-code')) continue;
+    const onEnter = (event: Event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const hover = target.closest<HTMLElement>('.stp-hover');
+      if (hover && pane.contains(hover)) clampPopup(pane, hover);
+    };
+    // Capture, because `pointerenter` does not bubble and one listener per pane beats one per key.
+    pane.addEventListener('pointerenter', onEnter, true);
+    pane.addEventListener('focusin', onEnter);
+  }
+
+  // ── The command: types itself once, then stays a plain, copyable line ─
+  const commandRow = document.getElementById('cmd-row') as HTMLElement | null;
+  const commandCode = document.getElementById('cmd-code') as HTMLElement | null;
+  const copyButton = document.getElementById('cmd-copy') as HTMLButtonElement | null;
+  const copyLabel = document.getElementById('cmd-copy-label') as HTMLElement | null;
+  const methodButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-method]'));
+
+  let activeCommand = commandCode?.dataset.command ?? 'npx stacktape init';
+  let typingRun = 0;
+
+  const typeCommand = (row: HTMLElement, code: HTMLElement, text: string) => {
+    typingRun += 1;
+    const run = typingRun;
+    row.classList.add('is-typing');
+    code.textContent = '';
+    let length = 0;
+    const tick = () => {
+      if (run !== typingRun) return;
+      length += 1;
+      code.textContent = text.slice(0, length);
+      if (length < text.length) {
+        window.setTimeout(tick, 36 + Math.random() * 34);
+        return;
+      }
+      row.classList.remove('is-typing');
+    };
+    window.setTimeout(tick, 420);
+  };
+
+  if (commandRow && commandCode && !reducedMotion) typeCommand(commandRow, commandCode, activeCommand);
+
+  for (const button of methodButtons) {
+    button.addEventListener('click', () => {
+      const command = button.dataset.command ?? '';
+      activeCommand = command;
+      // Switching a method cancels any typing still in flight; the new command lands whole.
+      typingRun += 1;
+      if (commandRow && commandCode) {
+        commandRow.classList.remove('is-typing');
+        commandCode.textContent = command;
+        commandCode.dataset.command = command;
+      }
+      for (const other of methodButtons) {
+        const isActive = other === button;
+        other.classList.toggle('is-active', isActive);
+        other.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+      }
+      copyButton?.setAttribute('aria-label', `Copy ${command}`);
+    });
+  }
+
+  if (copyButton && copyLabel) {
+    let resetTimer = 0;
+    copyButton.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(activeCommand);
+      } catch {
+        // Clipboard access can be denied; the command is selectable text either way.
+        return;
+      }
+      copyButton.classList.add('is-done');
+      copyButton.setAttribute('aria-label', 'Command copied');
+      copyLabel.textContent = 'Copied';
+      window.clearTimeout(resetTimer);
+      resetTimer = window.setTimeout(() => {
+        copyButton.classList.remove('is-done');
+        copyButton.setAttribute('aria-label', `Copy ${activeCommand}`);
+        copyLabel.textContent = 'Copy';
+      }, 1600);
+    });
+  }
+</script>

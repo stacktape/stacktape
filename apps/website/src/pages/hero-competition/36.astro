@@ -1,0 +1,489 @@
+---
+// concept: Full-bleed — the real isometric acme-project diagram fills the entire hero edge to edge as the environment the page lives in (no editor window, no columns); the copy floats top-left in a glass title block, the command and "Book a demo" sit bottom-left in a glass strip, a small legend bottom-right names what is on screen, and the reader can hover, drag and zoom the architecture itself.
+// copy-angle: "This is what one command builds, and keeps running" — the architecture on screen is the argument: only nouns the reader can see (VPC, CDN, firewall, Fargate, Lambda, Aurora only the VPC can reach, least-privilege IAM), the automation named plainly in the headline, human approval stated, the agent-fix claim kept to one quiet opt-in sentence.
+// direction: rejects
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Logo from '../../components/Logo.astro';
+import { CtaCommand } from '../../components/CtaCommand';
+import DiagramIsland from '../../surfaces/InitWizardRun/DiagramIsland.tsx';
+import { ACME_DIAGRAM_CONFIG } from '../../surfaces/InitWizardRun/acme-config.ts';
+
+/*
+ * The legend names what the diagram actually draws for this configuration (the picture derives the CDN,
+ * the API gateway, the SSR Lambda and the assets bucket itself). Colours are the literals the scene
+ * builder paints with, so the dots match the pedestals exactly rather than the design-token approximations.
+ */
+type LegendItem = { color: string; name: string; what: string; zone?: boolean };
+const legend: LegendItem[] = [
+  { color: '#A166FF', name: 'web', what: 'Next.js on CloudFront (CDN)' },
+  { color: '#FF5252', name: 'firewall', what: 'AWS WAF in front of the CDN' },
+  { color: '#FF9900', name: 'apiService', what: 'API on Fargate, 2–6 tasks' },
+  { color: '#FF9900', name: 'worker', what: 'Lambda function' },
+  { color: '#527FFF', name: 'mainDatabase', what: 'Aurora PostgreSQL 16, VPC only' },
+  { color: '#527FFF', name: 'cache', what: 'Redis (ElastiCache), VPC only' },
+  { color: 'rgba(54, 190, 190, 0.9)', name: 'VPC', what: 'subnets across 3 availability zones', zone: true }
+];
+
+const diagramLabel =
+  'Isometric diagram of the acme-project architecture: a VPC with public subnets holding a Fargate API, Aurora PostgreSQL and Redis; a Next.js site behind a CloudFront CDN and a web application firewall; a Lambda worker; and an HTTP API gateway, an SSR Lambda and an assets bucket that Stacktape creates automatically.';
+---
+
+<BaseLayout
+  title="This is AWS DevOps, fully automated — Stacktape"
+  description="One command reads your repository and writes the infrastructure you see: a VPC, a CDN and a firewall, an API on Fargate, a Lambda worker, Aurora only the VPC can reach. Deployed into your own AWS account as plain CloudFormation and run for you. Every deploy waits for your approval."
+  font="geist"
+  noindex
+>
+  <div class="page">
+    <header class="nav">
+      <a href="/" aria-label="Stacktape home"><Logo height={22} /></a>
+      <nav aria-label="Primary">
+        <a href="https://docs.stacktape.com">Docs</a>
+        <a href="https://github.com/stacktape/stacktape">GitHub</a>
+        <a class="nav-demo" href="https://cal.com/stacktape/30min">Book a demo</a>
+      </nav>
+    </header>
+
+    <main class="stage" id="stage">
+      <div class="diagram">
+        <DiagramIsland client:only="react" config={ACME_DIAGRAM_CONFIG} ariaLabel={diagramLabel} />
+      </div>
+      <div class="vignette" aria-hidden="true"></div>
+
+      <section class="block block--title" aria-labelledby="hero-title">
+        <p class="eyebrow">acme-project · config generated from the repository by <span class="eyebrow-cmd">npx stacktape init</span></p>
+        <h1 id="hero-title">This is AWS DevOps,<br /><span class="site-gradient-text">fully automated.</span></h1>
+        <p class="sub">
+          The wizard read a repository and wrote what you see: a Next.js site behind a CDN and a firewall, an API on
+          Fargate, a Lambda worker, Aurora PostgreSQL that only the VPC can reach, and least-privilege IAM between
+          them. One deploy put it in your own AWS account as plain CloudFormation. Stacktape now runs it: pipelines,
+          metrics, traces, alarms, incidents.
+        </p>
+      </section>
+
+      <section class="block block--cta" aria-label="Get started">
+        <CtaCommand client:visible defaultMethod="npx" className="cmd" />
+        <div class="cta-side">
+          <a class="btn-demo" href="https://cal.com/stacktape/30min">Book a demo <span aria-hidden="true">→</span></a>
+          <p class="note">
+            Every deploy waits for your approval. Opt in, and an agent that sees the whole system proposes fixes.
+          </p>
+        </div>
+      </section>
+
+      <aside class="block block--legend" aria-label="What is on screen">
+        <p class="legend-title">What you are looking at</p>
+        <ul class="legend">
+          {legend.map((item, i) => (
+            <li style={`--c: ${item.color}; --i: ${i}`}>
+              <span class={item.zone ? 'dot dot--zone' : 'dot'} aria-hidden="true"></span>
+              <span class="legend-name">{item.name}</span>
+              <span class="legend-what">{item.what}</span>
+            </li>
+          ))}
+        </ul>
+        <p class="legend-hint">Hover anything for details · drag to pan · ⌘ or Ctrl + scroll to zoom</p>
+      </aside>
+    </main>
+  </div>
+</BaseLayout>
+
+<style>
+  .page {
+    --ink: var(--stp-text-primary);
+    --ink-2: rgb(200, 208, 208);
+    --ink-3: rgb(142, 152, 152);
+    --brand: var(--stp-color-brand);
+    --page-bg: var(--stp-surface-page);
+    --glass: rgba(22, 28, 28, 0.64);
+    --line: rgba(255, 255, 255, 0.08);
+    /*
+     * Where the diagram's picture is fitted inside the full-bleed container: a left offset (the title block
+     * lives there), a top and bottom offset (the CTA strip lives at the bottom), and a crop factor. The
+     * values per breakpoint were chosen by computing the scene's node positions against the block sizes,
+     * so no resource sits under a block at 1100–1920 wide and 720–950 tall.
+     */
+    --pl: 0px;
+    --pt: 0px;
+    --pb: 0px;
+    --k: 1;
+  }
+
+  /* ── Nav ─────────────────────────────────────────────────────────────────────────────────── */
+  .nav {
+    position: relative;
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 64px;
+    padding: 0 28px;
+  }
+  .nav nav {
+    display: flex;
+    align-items: center;
+    gap: 26px;
+  }
+  .nav a {
+    color: var(--ink-2);
+    font-size: 0.92rem;
+    text-decoration: none;
+  }
+  .nav a:hover {
+    color: var(--ink);
+  }
+  .nav-demo {
+    padding: 8px 14px;
+    border-radius: 999px;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+    color: var(--ink) !important;
+  }
+
+  /* ── The stage: the diagram is the environment, everything else floats on it ─────────────── */
+  .stage {
+    position: relative;
+    isolation: isolate;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    overflow: hidden;
+    background:
+      radial-gradient(55% 60% at 64% 42%, rgba(54, 190, 190, 0.09), transparent 70%),
+      radial-gradient(40% 50% at 28% 92%, rgba(161, 102, 255, 0.05), transparent 70%),
+      var(--page-bg);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+
+  /* The island renders nothing on the server, so the band reserves its height before hydration. */
+  .diagram {
+    position: relative;
+    order: 2;
+    height: clamp(360px, 46vw, 520px);
+    overflow: hidden;
+  }
+  .diagram :global(.stp-diagram) {
+    background: transparent;
+  }
+  /* The picture is fitted into an offset box inside the container (see the --pl/--pt/--pb/--k notes). */
+  .diagram :global(.stp-diagram__canvas) {
+    position: absolute;
+    left: calc(var(--pl) - (100% - var(--pl)) * (var(--k) - 1) / 2);
+    top: calc(var(--pt) - (100% - var(--pt) - var(--pb)) * (var(--k) - 1) / 2);
+    width: calc((100% - var(--pl)) * var(--k));
+    height: calc((100% - var(--pt) - var(--pb)) * var(--k));
+  }
+  .diagram :global(.stp-diagram__controls),
+  .diagram :global(.stp-diagram__hint) {
+    z-index: 4;
+  }
+  .diagram :global(.stp-diagram__hint) {
+    font-family: var(--font-geist-mono);
+    font-size: 10px;
+    letter-spacing: 0.04em;
+  }
+
+  .vignette {
+    display: none;
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background:
+      linear-gradient(90deg, rgba(22, 28, 28, 0.78) 0%, rgba(22, 28, 28, 0.3) 18%, rgba(22, 28, 28, 0) 34%),
+      linear-gradient(180deg, rgba(22, 28, 28, 0.55) 0%, rgba(22, 28, 28, 0) 9%),
+      linear-gradient(0deg, rgba(22, 28, 28, 0.7) 0%, rgba(22, 28, 28, 0) 16%);
+  }
+
+  /* ── Glass blocks ────────────────────────────────────────────────────────────────────────── */
+  .block {
+    position: relative;
+    z-index: 3;
+    border-radius: 14px;
+    background: var(--glass);
+    -webkit-backdrop-filter: blur(18px) saturate(1.15);
+    backdrop-filter: blur(18px) saturate(1.15);
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04),
+      0 30px 70px -30px rgba(0, 0, 0, 0.8);
+  }
+
+  .block--title {
+    order: 1;
+    max-width: 40rem;
+    margin: 28px 24px 0;
+    padding: 24px 28px 26px;
+  }
+  .eyebrow {
+    margin: 0 0 12px;
+    color: var(--brand);
+    font-family: var(--font-geist-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  .eyebrow-cmd {
+    letter-spacing: 0.02em;
+    text-transform: none;
+  }
+  h1 {
+    margin: 0;
+    font-size: 2.75rem;
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    line-height: 1.04;
+    color: var(--ink);
+  }
+  .sub {
+    margin: 14px 0 0;
+    color: var(--ink-2);
+    font-size: 0.97rem;
+    line-height: 1.5;
+  }
+
+  .block--cta {
+    order: 3;
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+    width: fit-content;
+    max-width: calc(100% - 48px);
+    margin: 20px 24px 28px;
+    padding: 16px;
+  }
+  /* Long install commands scroll inside the command row; the strip keeps one width. */
+  .block--cta :global(.cta-command) {
+    flex: none;
+    max-width: 22rem;
+  }
+  .cta-side {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 13rem;
+    padding-top: 2px;
+  }
+  .btn-demo {
+    width: fit-content;
+    padding: 9px 14px;
+    border-radius: 10px;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+    color: var(--ink);
+    font-size: 0.88rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: box-shadow 150ms ease;
+  }
+  .btn-demo:hover {
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 60%, transparent);
+  }
+  .note {
+    margin: 0;
+    color: var(--ink-3);
+    font-size: 0.76rem;
+    line-height: 1.45;
+  }
+
+  .block--legend {
+    display: none;
+    width: 300px;
+    padding: 14px 16px 12px;
+  }
+  .legend-title {
+    margin: 0 0 8px;
+    color: var(--ink-3);
+    font-family: var(--font-geist-mono);
+    font-size: 0.64rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  .legend {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .legend li {
+    display: grid;
+    grid-template-columns: 10px auto minmax(0, 1fr);
+    gap: 8px;
+    align-items: baseline;
+    padding: 3px 0;
+    font-size: 0.74rem;
+    line-height: 1.35;
+  }
+  .dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--c);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 25%, transparent);
+    transform: translateY(-1px);
+  }
+  .dot--zone {
+    border-radius: 2px;
+    background: transparent;
+    box-shadow: inset 0 0 0 1.5px var(--c);
+  }
+  .legend-name {
+    color: var(--ink);
+    font-family: var(--font-geist-mono);
+    font-size: 0.7rem;
+  }
+  .legend-what {
+    color: var(--ink-3);
+  }
+  .legend-hint {
+    margin: 8px 0 0;
+    padding-top: 8px;
+    border-top: 1px solid var(--line);
+    color: var(--ink-3);
+    font-family: var(--font-geist-mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.02em;
+  }
+
+  /* ── Wide: everything floats on the full-bleed diagram ───────────────────────────────────── */
+  @media (min-width: 1100px) {
+    .page {
+      --pl: 260px;
+      --pt: 30px;
+      --pb: 110px;
+    }
+    .stage {
+      display: block;
+      height: calc(100vh - 64px);
+      height: clamp(720px, calc(100svh - 64px), 900px);
+    }
+    .diagram {
+      position: absolute;
+      inset: 0;
+      height: auto;
+    }
+    .diagram :global(.stp-diagram__controls) {
+      top: 20px;
+      right: 24px;
+      bottom: auto;
+      flex-direction: row;
+    }
+    .diagram :global(.stp-diagram__hint) {
+      left: auto;
+      right: 24px;
+      top: 54px;
+      bottom: auto;
+      text-align: right;
+    }
+    .vignette {
+      display: block;
+    }
+    .block {
+      position: absolute;
+    }
+    .block--title {
+      top: 28px;
+      left: 28px;
+      max-width: 30rem;
+      margin: 0;
+    }
+    h1 {
+      font-size: 2.5rem;
+    }
+    .sub {
+      font-size: 0.94rem;
+    }
+    .block--cta {
+      bottom: 24px;
+      left: 28px;
+      margin: 0;
+    }
+  }
+
+  @media (min-width: 1400px) {
+    .page {
+      --pl: 18vw;
+      --pt: 16px;
+      --pb: 130px;
+    }
+    .block--title {
+      max-width: 36rem;
+    }
+    h1 {
+      font-size: 2.75rem;
+    }
+    .sub {
+      font-size: 0.97rem;
+    }
+    .block--legend {
+      display: block;
+      right: 24px;
+      bottom: 24px;
+    }
+  }
+
+  /* Phones and tablets: a vertical swipe on the diagram must scroll the page, not pan the picture. */
+  @media (pointer: coarse) {
+    .diagram :global(.stp-diagram) {
+      touch-action: pan-y pinch-zoom;
+    }
+  }
+
+  /* ── Motion ──────────────────────────────────────────────────────────────────────────────── */
+  @media (prefers-reduced-motion: no-preference) {
+    .block--title,
+    .block--cta,
+    .block--legend {
+      opacity: 0;
+      transform: translateY(10px);
+      animation: arrive 700ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    }
+    .block--cta {
+      animation-delay: 160ms;
+    }
+    .block--legend {
+      animation-delay: 320ms;
+    }
+    .legend li {
+      opacity: 0;
+      animation: arrive 420ms ease forwards;
+      animation-delay: calc(560ms + var(--i) * 70ms);
+    }
+    /* On the SVG, not the container: a filling opacity animation on the container would make it a stacking
+       context and trap the diagram's tooltip beneath the glass blocks. The SVG only exists after hydration,
+       so the fade runs when the picture actually appears. */
+    .diagram :global(.stp-diagram__canvas) {
+      opacity: 0;
+      animation: fade-in 900ms ease forwards;
+    }
+  }
+  @keyframes arrive {
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes fade-in {
+    to {
+      opacity: 1;
+    }
+  }
+</style>
+
+<script>
+  /*
+   * Plain scrolling must scroll the page even with the pointer over the full-bleed diagram. The renderer's own
+   * wheel handler zooms and calls preventDefault on every wheel event, so it is only let through for a pinch
+   * or a ⌘/Ctrl-scroll. A capturing listener on the stage runs before the renderer's; stopping propagation
+   * there keeps the event, and the page scroll, intact. The listener is passive: it never prevents the default.
+   */
+  const stage = document.getElementById('stage') as HTMLElement | null;
+  if (stage) {
+    stage.addEventListener(
+      'wheel',
+      (event: WheelEvent) => {
+        if (event.ctrlKey || event.metaKey) return;
+        event.stopPropagation();
+      },
+      { capture: true, passive: true }
+    );
+  }
+</script>
