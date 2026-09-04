@@ -756,6 +756,8 @@ const diagramLabel =
         line.append(edCaret);
         // Follow the caret the way an editor does; the reader gets the top of the file back below.
         pane.scrollTop = pane.scrollHeight;
+        // Sequential timing is the animation: each source line appears before the next delay.
+        // oxlint-disable-next-line no-await-in-loop
         await sleep((cadence[i] ?? 56) * (0.85 + Math.random() * 0.3));
       }
 

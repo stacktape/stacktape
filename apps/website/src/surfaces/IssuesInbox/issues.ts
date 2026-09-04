@@ -11,7 +11,7 @@
  * open in another tab should see the same words.
  */
 
-export type IssueStatus = 'OPEN' | 'RESOLVED' | 'IGNORED';
+type IssueStatus = 'OPEN' | 'RESOLVED' | 'IGNORED';
 
 export type Issue = {
   id: string;

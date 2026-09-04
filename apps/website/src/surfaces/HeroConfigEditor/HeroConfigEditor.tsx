@@ -19,7 +19,7 @@ const FILENAME: Record<Language, string> = {
   typescript: 'stacktape.ts'
 };
 
-export type HeroConfigEditorProps = {
+type HeroConfigEditorProps = {
   /** Rendered at build time by `getSnippets()`. Tab order is array order. */
   snippets: RenderedSnippet[];
 };

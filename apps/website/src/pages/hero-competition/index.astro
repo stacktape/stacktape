@@ -26,7 +26,7 @@ for (const k of key) if (!playerOf.has(k.number)) playerOf.set(k.number, `${k.pl
 
 const pages = readdirSync(here)
   .filter((f) => /^\d\d\.astro$/.test(f))
-  .sort()
+  .toSorted()
   .map((f) => {
     const src = readFileSync(join(here, f), 'utf8');
     const concept = /\/\/\s*concept:\s*(.+)/.exec(src)?.[1]?.trim() ?? '';

@@ -834,6 +834,8 @@ const checks = [
      * and writes both back in the form `snippets.css` already understands. Measured on `pointerenter`
      * and `focusin`, when `:hover`/`:focus-within` already applies and the popup has a box to measure.
      */
+    // Kept beside the page-specific listeners it serves instead of adding a script-global helper.
+    // oxlint-disable-next-line unicorn/consistent-function-scoping
     const measure = (hover: HTMLElement) => {
       const popup = hover.querySelector<HTMLElement>('.stp-hover-popup');
       if (!popup) return;

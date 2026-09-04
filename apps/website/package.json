@@ -17,11 +17,13 @@
     "@stacktape/design-tokens": "workspace:*",
     "@stacktape/ui-react": "workspace:*",
     "astro": "catalog:",
+    "cookie": "2.0.1",
     "marked": "16.4.2",
     "posthog-js": "1.422.5",
     "react": "catalog:",
     "react-dom": "catalog:",
     "shiki": "4.3.1",
+    "tailwindcss": "4.3.3",
     "yaml": "2.9.0"
   },
   "devDependencies": {
@@ -31,7 +33,7 @@
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "tailwindcss": "4.3.3",
+    "rollup": "4.63.1",
     "typescript": "catalog:"
   }
 }

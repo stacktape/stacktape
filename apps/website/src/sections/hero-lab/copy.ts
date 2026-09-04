@@ -16,7 +16,7 @@ export type HeroVariant = 'bold' | 'balanced' | 'safe';
  * A bullet, split at the point where its weight changes. The lead phrase is the claim and is set in
  * the primary text colour; the remainder is the evidence and stays muted.
  */
-export type HeroBullet = {
+type HeroBullet = {
   lead: string;
   rest: string;
 };

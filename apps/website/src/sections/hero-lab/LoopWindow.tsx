@@ -51,7 +51,7 @@ const TRAFFIC_LIGHTS = ['#ff5f57', '#febc2e', '#28c840'] as const;
 /** SVG ids are document-global, so the diagram's accessible name gets a namespaced one. */
 const ARCH_TITLE_ID = 'hl-arch-title';
 
-export type LoopWindowProps = {
+type LoopWindowProps = {
   /** Which version of beat 5 to play. Everything else is identical across the three. */
   variant: HeroVariant;
   /** Shiki's HTML for `nextjs-postgres`, rendered in `.astro` frontmatter and passed down. */

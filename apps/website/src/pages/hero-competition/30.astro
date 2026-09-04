@@ -698,6 +698,8 @@ const proof = [
 
     // Keeps a schema popup inside the viewport: how far it must slide left, and whether it must
     // open upwards. Measured on pointerenter/focusin, when the popup already exists.
+    // Kept beside the page-specific listeners it serves instead of adding a script-global helper.
+    // oxlint-disable-next-line unicorn/consistent-function-scoping
     const clamp = (hover: HTMLElement) => {
       const popup = hover.querySelector<HTMLElement>('.stp-hover-popup');
       if (!popup) return;

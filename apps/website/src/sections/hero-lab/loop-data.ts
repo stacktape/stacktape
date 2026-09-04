@@ -62,7 +62,6 @@ export const captionFor = (beat: BeatId, variant: HeroVariant): string =>
 /* ── Beat 1 · Write ───────────────────────────────────────────────────────────────────────────── */
 
 /** How many lines type in one at a time before the remainder settles in as a block. */
-export const TYPED_LINES = 14;
 
 export const WRITE_CHIP = 'written by the wizard from your repo';
 
