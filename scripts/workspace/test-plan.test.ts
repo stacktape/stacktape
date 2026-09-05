@@ -107,9 +107,11 @@ test('parses explicit paths without also accepting a Git baseline', () => {
   assert.throws(() => parseTestPlanArgs(['--paths=a', '--since=main']), /either/);
 });
 
-test('preserves the first character of staged, unstaged, and untracked Git paths', () => {
+test('preserves staged, unstaged, untracked, unusual and both renamed Git paths', () => {
   assert.deepEqual(
-    parsePorcelainStatusPaths(' M AGENTS.md\nM  package.json\n?? scripts/new.ts\nR  old.ts -> new.ts\n'),
-    ['AGENTS.md', 'package.json', 'scripts/new.ts', 'new.ts']
+    parsePorcelainStatusPaths(
+      ' M AGENTS.md\0M  package.json\0?? scripts/new.ts\0R  new.ts\0old.ts\0?? scripts/a -> b\nž.ts\0'
+    ),
+    ['AGENTS.md', 'package.json', 'scripts/new.ts', 'new.ts', 'old.ts', 'scripts/a -> b\nž.ts']
   );
 });

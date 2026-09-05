@@ -223,7 +223,7 @@ const credentialProvider = (selection: CredentialSelection): AwsCredentialIdenti
 
 const createAwsClients = (options: CanaryOptions): AwsClients => {
   const credentials = credentialProvider(options.credentials);
-  const clientConfig = { credentials, maxAttempts: 6, region: options.region };
+  const clientConfig = { credentials, ignoreConfiguredEndpointUrls: true, maxAttempts: 6, region: options.region };
   return {
     cloudFormation: new CloudFormationClient(clientConfig),
     lambda: new LambdaClient(clientConfig),
@@ -659,14 +659,23 @@ const closeClients = (clients: AwsClients) => {
   clients.sts.destroy();
 };
 
-export const runPackagingCanary = async ({ cleanupOnly = false }: { cleanupOnly?: boolean } = {}) => {
-  const options = resolveCanaryOptions();
+export const runPackagingCanary = async ({
+  cleanupOnly = false,
+  env = process.env
+}: { cleanupOnly?: boolean; env?: Environment } = {}) => {
+  const options = resolveCanaryOptions({ env });
   const clients = createAwsClients(options);
   const stackName = `${options.projectName}-${stage}`;
   const invocationId = `aws-canary-${Date.now().toString(36)}-${randomBytes(4).toString('hex')}`;
   const initialRevision = `initial-${invocationId}`;
   const updatedRevision = `updated-${invocationId}`;
-  const initialEnv = buildCanaryEnvironment({ options, revision: initialRevision, invocationId });
+  const initialEnv = buildCanaryEnvironment({
+    options,
+    revision: initialRevision,
+    invocationId,
+    inheritedEnvironment: env
+  });
+  let deploymentAttempted = false;
   let bodyError: unknown;
   let cleanupError: unknown;
   let interruptedSignal: NodeJS.Signals | undefined;
@@ -692,6 +701,9 @@ export const runPackagingCanary = async ({ cleanupOnly = false }: { cleanupOnly?
     await writeCanaryState(options, { accountId: options.expectedAccountId, owner: options.owner, stackName });
     await verifyCliBinary(options, initialEnv);
 
+    if (interruptedSignal) throw new Error(`Canary interrupted by ${interruptedSignal}.`);
+    // A rejected preflight grants no deletion authority, even when the name or owner happens to match.
+    deploymentAttempted = true;
     const initialDeploy = await runCliProcess({
       options,
       args: ['deploy', ...commonCliArgs(options)],
@@ -713,7 +725,12 @@ export const runPackagingCanary = async ({ cleanupOnly = false }: { cleanupOnly?
     assertNoOpSnapshot(initialSnapshot, noOpSnapshot);
     await assertDataPlane(noOpSnapshot, options, initialRevision);
 
-    const updatedEnv = buildCanaryEnvironment({ options, revision: updatedRevision, invocationId });
+    const updatedEnv = buildCanaryEnvironment({
+      options,
+      revision: updatedRevision,
+      invocationId,
+      inheritedEnvironment: env
+    });
     await runCliProcess({ options, args: ['deploy', ...commonCliArgs(options)], env: updatedEnv });
     const updatedSnapshot = await waitForRevision(clients, options, updatedRevision);
     assertUpdatedSnapshot(initialSnapshot, updatedSnapshot, updatedRevision);
@@ -724,7 +741,7 @@ export const runPackagingCanary = async ({ cleanupOnly = false }: { cleanupOnly?
   } catch (error) {
     bodyError = error;
   } finally {
-    if (!cleanupOnly) {
+    if (!cleanupOnly && deploymentAttempted) {
       try {
         await cleanup(clients, options, initialEnv);
       } catch (error) {

@@ -43,11 +43,17 @@ export const runCapturedProcess = ({
       if (rejectOnSpawnError) rejectRun(error);
       else resolveRun({ code: 1, stderr: error.message, stdout });
     });
-    child.once('exit', (code) => resolveRun({ code: code ?? 1, stderr, stdout }));
+    // exit can precede the final pipe reads. Callers parse complete JSONL output.
+    child.once('close', (code) => resolveRun({ code: code ?? 1, stderr, stdout }));
   });
 
 export const runInheritedProcess = (command: string, args: string[], cwd: string): Promise<number> => {
-  const child = spawn(command, args, { cwd, env: process.env, stdio: 'inherit', windowsHide: true });
+  const child = spawn(command, args, {
+    cwd,
+    env: process.env,
+    stdio: 'inherit',
+    windowsHide: true
+  });
   return new Promise<number>((resolveExit, rejectExit) => {
     child.once('error', rejectExit);
     child.once('exit', (code, signal) => {

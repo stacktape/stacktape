@@ -1,39 +1,34 @@
-# Observability smoke stack
+# Observability smoke fixture — qualification pending
 
-This disposable stack proves the observability suite against real AWS: Lambda tracing on the default runtime, container
-tracing through the collector sidecar, uptime checks, and both synthetic-test flavors with their alarms.
+This disposable fixture is intended to exercise Lambda tracing, container tracing through the collector sidecar, uptime
+checks, and both synthetic-test flavors. It has not completed a live qualification run. No automated observability
+scenario is registered in the qualification runner yet.
 
-A valid run proves:
+## Acceptance checklist
 
-- the Transaction Search custom resource enables span storage (the `aws/spans` log group exists and receives spans);
-- the traced Lambda (default runtime + AWS-managed OTel layer) produces spans carrying the `stacktape.project` resource
-  attribute;
-- the traced container service's own OpenTelemetry SDK reaches the collector sidecar and its spans arrive in `aws/spans`
-  too;
-- prober Lambdas and SSM manifests exist in the three uptime regions, and the check reports to the Console;
-- both canaries run and pass (their `SuccessPercent` alarms settle in `OK`), the browser run stores a screenshot under
-  `synthetics/` in the deployment bucket, and the failure notification rule exists.
+A valid run must prove all of the following, not merely deploy successfully:
 
-The function URL and web service are public and unauthenticated; they return static JSON. Delete the stack after the
-test.
+- Invoke the fixture's Lambda and container endpoints with a unique run identifier and assert their responses.
+- Query `aws/spans` within the run's time window. Parse spans and assert the exact project, service, and run identifiers
+  for each workload separately; a substring match or the existence of a shared log group is insufficient.
+- Verify the uptime manifests in all three prober regions and a resulting check through Console ingestion, storage, API,
+  and UI. Assert organization isolation and a recovery signal.
+- Wait for both API and browser synthetic runs to pass against this fixture's endpoints. Assert their alarm states, the
+  failure-notification rule, and an actual screenshot object under `synthetics/` in the deployment bucket.
 
-## Setup
+The endpoints are public and unauthenticated and return static JSON. Install this fixture's dependencies with
+`bun install` in this folder before packaging its instrumented container.
 
-Run `bun install` in this folder once (the container app bundles its own OpenTelemetry SDK).
+## Ownership and cleanup
 
-## Automated proof
+Use the exact-account, unique-name, ownership, and recovery-state contract in
+[`../../scripts/real-aws/README.md`](../../scripts/real-aws/README.md). Record account, region, stack ID, owner, and
+every out-of-stack resource before mutation. A failed preflight must never trigger deletion.
 
-Use the guarded runner instead of reproducing checks by hand. It verifies the exact account and owner, records recovery
-state, waits for every signal and artifact, deletes the exact stack in `finally`, and verifies deletion:
+Use the source-built CLI to delete the owned stack, then query AWS to verify its absence and reconcile owned log groups,
+S3 artifacts, regional SSM manifests, and retained Console test data. Preserve recovery state until every owned resource
+is accounted for. A raw CloudFormation fallback does not prove application-level cleanup.
 
-```sh
-pnpm test:aws -- --aws-scenario=observability-signal-path
-```
-
-The required environment variables and exact cleanup-only recovery command are in
-[`../../scripts/real-aws/README.md`](../../scripts/real-aws/README.md).
-
-For diagnosis, the runner checks spans in `aws/spans`, Synthetics runs and alarms, screenshots under `synthetics/`, and
-SSM manifests under `/stacktape/uptime-checks/<stackName>` in each prober region. Transaction Search and the shared
-uptime-prober infrastructure are account-level prerequisites; stack deletion intentionally leaves those shared
-facilities available to other workloads.
+Transaction Search and uptime probers can be shared account-level facilities. Inventory them before the run, leave
+pre-existing shared facilities untouched, and report any newly created retained facilities and their cost explicitly. Do
+not claim that everything was removed based only on the stack reaching DELETE_COMPLETE.

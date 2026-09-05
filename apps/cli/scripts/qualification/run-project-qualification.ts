@@ -811,12 +811,7 @@ const runGlobalLanes = async (options: ParsedOptions): Promise<QualificationStep
         : process.platform === 'win32'
           ? `$env:STP_INIT_CANARY_FIXTURE = '${scenario.fixture}'; `
           : `STP_INIT_CANARY_FIXTURE=${scenario.fixture} `;
-    const script =
-      scenario.runner === 'init'
-        ? 'test:real-aws-init-canary'
-        : scenario.runner === 'observability'
-          ? 'test:real-aws-observability-canary'
-          : 'test:real-aws-canary';
+    const script = scenario.runner === 'init' ? 'test:real-aws-init-canary' : 'test:real-aws-canary';
     const inheritedFixture = process.env.STP_INIT_CANARY_FIXTURE;
     if (scenario.fixture !== undefined) process.env.STP_INIT_CANARY_FIXTURE = scenario.fixture;
     try {

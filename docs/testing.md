@@ -71,12 +71,17 @@ lanes prove that they run.
 ### Console API and PostgreSQL
 
 The Console API exposes a server factory so HTTP/tRPC adapter tests can use Fastify injection without binding a port.
-Use `pnpm --filter @stacktape/console-api-app test` for that lane.
+Use `pnpm --filter @stacktape/console-api-app test` for that lane. The current adapter test covers transport and error
+serialization using a small test router, not production authentication or every application route. Add a request through
+the relevant real router/context when changing those behaviors. Bun isolates test files so module mocks do not leak
+between suites; do not add mutable production call tables merely to work around mock leakage.
 
-Use `pnpm --filter @stacktape/console-api-app test:db` for schema adoption, migration, constraint, transaction, or raw
-SQL changes. It starts an isolated PostgreSQL container, creates scratch databases, runs the real migration-adoption
-path, and removes the container in a `finally` block. It never points at the shared dev database. This is distinct from
-`pnpm dev:console`, whose purpose is to exercise real Console behavior against the shared dev data plane.
+Use `pnpm --filter @stacktape/console-api-app test:db` for schema adoption and migration changes. It starts an isolated
+PostgreSQL container, creates scratch databases, runs the real migration-adoption path, and verifies container removal
+in a `finally` block. The current suite covers migration/adoption only; it does not automatically test application
+queries, constraints, or transactions. Add real-query regression coverage for those changes. It never points at the
+shared dev database. This is distinct from `pnpm dev:console`, whose purpose is to exercise real Console behavior
+against the shared dev data plane.
 
 After a schema change passes locally, apply its committed migration with `pnpm migrate:console:dev` and test the
 affected Console flow. Production migration remains separately authorized.
@@ -95,8 +100,8 @@ Choose the smallest valid mode:
 Agents may run all three development operations without asking again. They may also let `pnpm dev:console` refresh its
 minimal `console-app-devlocal` support stack. Production remains prohibited unless the user explicitly requests it.
 
-For a UI-only change, one command starts the UI, waits for it, runs Chromium against the deployed dev API, and stops the
-UI afterward:
+For a UI-only change, one command starts the current UI, waits for it, runs authenticated Chromium navigation against
+the deployed dev API, and stops the UI afterward. It refuses to reuse an existing server:
 
 ```sh
 pnpm test:console:browser:dev-api
@@ -110,11 +115,17 @@ pnpm dev:console
 pnpm --filter @stacktape/console-ui test:e2e
 ```
 
-The committed smoke checks cover the anonymous shell. Authenticated scenarios require `STP_CONSOLE_E2E_USER_EMAIL` and
-`STP_CONSOLE_E2E_USER_PASSWORD`; keep those values in a password manager or masked environment, never a repository file
-or report. Use the dedicated E2E user and organization, not a personal account. Persistent provider fixtures should use
-clearly labelled disposable repositories and a dedicated connected AWS account. Scenario cleanup removes resources
-created by the scenario, but it must not delete the reusable identity, organization, connection, or repositories.
+Use `pnpm test:console:browser:smoke` for the separate anonymous shell check. It is not a substitute for authenticated
+coverage. Both browser modes verify the running UI's API target before entering credentials; a local-API test cannot
+silently use the deployed dev API. The authenticated lane currently covers login and projects navigation, not complete
+feature acceptance. Missing credentials fail the lane instead of skipping it. Authenticated traces, screenshots, and
+videos are disabled to avoid storing credentials, tokens, or private account data.
+
+Authenticated scenarios require `STP_CONSOLE_E2E_USER_EMAIL` and `STP_CONSOLE_E2E_USER_PASSWORD`; keep those values in a
+password manager or masked environment, never a repository file or report. Use the dedicated E2E user and organization,
+not a personal account. Persistent provider fixtures should use clearly labelled disposable repositories and a dedicated
+connected AWS account. Scenario cleanup removes resources created by the scenario, but it must not delete the reusable
+identity, organization, connection, or repositories.
 
 The fixture inventory format and readiness check are documented in
 [`../apps/console/e2e/README.md`](../apps/console/e2e/README.md).
@@ -125,16 +136,17 @@ organization isolation, cancellation or retry, and stale-state behavior when rel
 
 ### Live AWS
 
-Development AWS operations have standing authorization for this repository: agents may deploy unique disposable stacks,
-deploy `console-app-dev`, refresh `console-app-devlocal`, and build test AMIs without asking for each run. This
-authorization never includes production.
+Agents may run development AWS operations without asking again: they may deploy unique disposable stacks, deploy
+`console-app-dev`, refresh `console-app-devlocal`, and build test AMIs without asking for each run. This authorization
+never includes production.
 
 Every live scenario must enforce these rules in code:
 
 1. Resolve the active AWS account and region before mutation and compare the account with an explicit expected ID.
 2. Use a unique project/stage or resource name and ownership tags. Never discover cleanup targets from a broad prefix.
 3. Write recovery state before or immediately after creating each resource.
-4. Clean up in `finally` after success and failure, then query AWS to verify that the owned resources are gone.
+4. Once resource creation has been attempted, clean up in `finally` after success and failure, then query AWS to verify
+   that owned resources are gone. A rejected account, name, or ownership preflight must never authorize cleanup.
 5. If cleanup is interrupted, preserve the state file and print one exact `--cleanup-only` command. Run cleanup before
    starting another scenario.
 6. Keep credentials and parameter values out of commands, logs, reports, and Git.
@@ -154,6 +166,11 @@ The required disposable-account confirmation, exact account ID, credential selec
 contract are documented in [`../apps/cli/scripts/real-aws/README.md`](../apps/cli/scripts/real-aws/README.md).
 
 ## Feature acceptance plans
+
+The following sections define required evidence, not completed automated coverage. Packaging and init have existing AWS
+runners. Observability has an unqualified fixture and checklist; security, runner, and provider journeys still need
+scenario-specific execution. A dev deployment only makes code reachable. It does not prove delivery, ingestion,
+authorization, or cleanup. Fixture readiness also checks local configuration, not whether provider grants work.
 
 ### Observability
 

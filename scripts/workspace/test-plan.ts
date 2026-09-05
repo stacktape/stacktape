@@ -83,7 +83,8 @@ const RULES: Rule[] = [
   },
   {
     id: 'console-database',
-    proves: 'Migrations and database behavior run against an isolated real PostgreSQL server.',
+    proves:
+      'Migration/adoption coverage on isolated PostgreSQL. Add real-query tests for changed constraints, transactions, or queries; this command does not cover them automatically.',
     commands: ['pnpm --filter @stacktape/console-api-app test:db'],
     matches: (path) =>
       path.startsWith('apps/console/api/prisma/') ||
@@ -101,19 +102,22 @@ const RULES: Rule[] = [
   },
   {
     id: 'console-browser-local-api',
-    proves: 'A customer-visible Console flow works through a real browser and the changed local API.',
+    proves:
+      'Authenticated projects navigation through the local API. Extend the browser scenario to cover the changed customer flow and its durable result.',
     commands: ['pnpm dev:console', 'pnpm --filter @stacktape/console-ui test:e2e'],
     matches: (path) => path.startsWith('apps/console/api/src/') || path.startsWith('packages/console-api/')
   },
   {
     id: 'console-browser-dev-api',
-    proves: 'A customer-visible UI flow works in a real browser against the deployed dev API.',
+    proves:
+      'Authenticated projects navigation against the dev API. Extend the browser scenario to cover the changed customer flow.',
     commands: ['pnpm test:console:browser:dev-api'],
     matches: (path) => path.startsWith('apps/console/ui/src/') || path.startsWith('packages/ui-react/')
   },
   {
     id: 'console-deployed-dev',
-    proves: 'Externally delivered callbacks, events, jobs, or runner behavior reach the changed dev code.',
+    proves:
+      'Deployment makes changed dev code reachable; it is NOT a behavior test. Then send a real event and verify the resulting deployment, job, or recorded failure.',
     commands: ['pnpm deploy:console:dev'],
     matches: (path) =>
       hasPart(
@@ -172,7 +176,11 @@ export const parseTestPlanArgs = (args: string[]): TestPlanOptions => {
 
 const runGit = (args: string[], cwd = workspaceRoot): Promise<string> =>
   new Promise<string>((resolveRun, reject) => {
-    const child = spawn('git', args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+    const child = spawn('git', args, {
+      cwd,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true
+    });
     let stdout = '';
     let stderr = '';
     child.stdout.setEncoding('utf8');
@@ -190,18 +198,25 @@ const runGit = (args: string[], cwd = workspaceRoot): Promise<string> =>
     });
   });
 
-export const parsePorcelainStatusPaths = (output: string): string[] =>
-  output
-    .split(/\r?\n/)
-    .filter(Boolean)
-    .flatMap((line) => {
-      const rawPath = line.slice(3);
-      const path = rawPath.includes(' -> ') ? rawPath.split(' -> ').at(-1) : rawPath;
-      return path ? [path] : [];
-    });
+export const parsePorcelainStatusPaths = (output: string): string[] => {
+  const entries = output.split('\0');
+  const paths: string[] = [];
+  for (let index = 0; index < entries.length; index++) {
+    const entry = entries[index];
+    if (!entry) continue;
+    paths.push(entry.slice(3));
+    // In porcelain -z a rename/copy is destination NUL source. Both boundaries may need tests.
+    const source = entries[index + 1];
+    if (/[RC]/.test(entry.slice(0, 2)) && source) {
+      paths.push(source);
+      index++;
+    }
+  }
+  return paths;
+};
 
 const collectStatusPaths = async (cwd: string, prefix = '') => {
-  const output = await runGit(['status', '--porcelain=v1', '--untracked-files=all'], cwd);
+  const output = await runGit(['status', '--porcelain=v1', '-z', '--untracked-files=all'], cwd);
   return parsePorcelainStatusPaths(output).map((path) => `${prefix}${path}`);
 };
 

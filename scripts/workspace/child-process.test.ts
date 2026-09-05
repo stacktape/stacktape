@@ -37,6 +37,17 @@ test('reports a missing executable without crashing diagnostic callers', async (
   assert.match(result.stderr, /ENOENT|not found/i);
 });
 
+test('waits for all piped output before returning a successful child result', async () => {
+  const result = await runCapturedProcess({
+    command: process.execPath,
+    args: ['-e', "process.stdout.write('x'.repeat(1024 * 1024)); process.stderr.write('y'.repeat(1024 * 1024));"],
+    cwd: process.cwd()
+  });
+  assert.equal(result.code, 0);
+  assert.equal(result.stdout.length, 1024 * 1024);
+  assert.equal(result.stderr.length, 1024 * 1024);
+});
+
 test('can reject a missing executable for execution callers', async () => {
   await assert.rejects(
     runCapturedProcess({
