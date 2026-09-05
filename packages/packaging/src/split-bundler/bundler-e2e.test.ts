@@ -1,5 +1,6 @@
 /* eslint-disable no-await-in-loop -- These fixtures intentionally build and inspect each sequential generation. */
 import { afterEach, describe, expect, test } from 'bun:test';
+import { spawnSync } from 'node:child_process';
 import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -184,10 +185,14 @@ describe('split bundler end-to-end regressions', () => {
     });
 
     // Loading the bundle is the assertion: the broken output threw while evaluating the class declaration.
-    const bundle = (await import(pathToFileURL(join(root, 'dist', 'a', 'index.js')).href)) as {
-      handler: () => string;
-    };
-    expect(bundle.handler()).toBe('derived');
+    const entryUrl = pathToFileURL(join(root, 'dist', 'a', 'index.js')).href;
+    const execution = spawnSync(
+      process.env.npm_node_execpath || 'node',
+      ['--input-type=module', '--eval', `import { handler } from ${JSON.stringify(entryUrl)}; console.log(handler());`],
+      { cwd: root, encoding: 'utf8', timeout: 10_000 }
+    );
+    expect(execution.status, execution.stderr).toBe(0);
+    expect(execution.stdout.trim()).toBe('derived');
   });
 
   test('does not bake the packaging process NODE_ENV into split Lambda output', async () => {

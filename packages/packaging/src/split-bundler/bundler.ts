@@ -656,7 +656,7 @@ const categorizeOutputFiles = (
 };
 
 /** Find all chunks required by an output (direct + transitive) using metafile */
-const findAllChunksFromMetafile = (outputPath: string, metafile: BuildMetafile): Set<string> => {
+export const findAllChunksFromMetafile = (outputPath: string, metafile: BuildMetafile): Set<string> => {
   const allChunks = new Set<string>();
   const toProcess = [outputPath];
   const processed = new Set<string>();
@@ -676,7 +676,8 @@ const findAllChunksFromMetafile = (outputPath: string, metafile: BuildMetafile):
         // Find the full output path that matches this import
         const fullChunkPath = Object.keys(metafile.outputs).find((outPath) => {
           const normalizedOutPath = transformToUnixPath(outPath);
-          return normalizedOutPath.endsWith(normalizedPath) || normalizedPath.endsWith(basename(normalizedOutPath));
+          // A hash ending in "a" must not match the unrelated entrypoint a.js.
+          return basename(normalizedPath) === basename(normalizedOutPath);
         });
         if (fullChunkPath && !allChunks.has(fullChunkPath)) {
           allChunks.add(fullChunkPath);
