@@ -87,7 +87,10 @@ pnpm --filter @stacktape/cli run generate:check
 ```
 
 The full `test` script covers source, characterization, generation, release/security, MCP, helper-Lambda and compiled
-CLI behavior. Bun module mocks are process-wide, so `test:src` keeps per-file isolation.
+CLI behavior. `test:src` runs every source test file in a fresh Bun process with two workers and a two-minute per-file
+limit. This contains module mocks and avoids the intermittent import-time failures seen with Bun 1.4.1's in-process
+`--isolate`. Keep the network preload enabled. Run a single file with
+`pnpm --filter @stacktape/cli exec bun test ./src/...`.
 
 Normal tests must not contact AWS. Docker packaging tests and guarded real-AWS canaries are separate, explicit lanes. An
 implementation-detail unit test is not sufficient for a changed CLI command, package artifact, AWS contract, or customer
