@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildCliDevArtifacts, runInheritedProcess } from './child-process.ts';
+import { assertConsoleDevReservation } from './console-dev-reservation.ts';
 
 const workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const consoleApiDirectory = join(workspaceRoot, 'apps', 'console', 'api');
@@ -177,6 +178,12 @@ const main = async () => {
     overrides,
     invocationDirectory: process.env.INIT_CWD || process.cwd()
   });
+
+  // Shared dev scripts include deploy, UI sync, migrations and devlocal support refreshes.
+  // Keep these aliases under the same reservation as the canonical root commands.
+  if (scriptName.split(':').some((part) => part === 'dev' || part === 'devlocal') || scriptName === 'dev:lambda') {
+    await assertConsoleDevReservation();
+  }
 
   console.info(`Running Console script \`${scriptName}\` with the source-built Stacktape CLI.\n`);
   const buildExitCode = await buildCliDevArtifacts(workspaceRoot);

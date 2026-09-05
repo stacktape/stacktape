@@ -43,6 +43,10 @@ For Console work, `pnpm dev:console:ui` is only for UI changes that can use the 
 for every API change, API/UI contract change, or behavioral API test. It runs the UI and API locally against the shared
 dev data plane while deployed dev Lambdas continue to handle webhooks and background work.
 
+Shared dev deployments, migrations and full local API sessions require a task-owned `console:dev:reservation`, held
+through testing and cleanup. Follow the reservation procedure in `docs/testing.md`; do not reuse another task's ID or
+bypass the guard with raw CLI/AWS calls. The `stacktape-dev` AWS account also hosts production and is not disposable.
+
 ## Architecture and code
 
 - Keep applications as composition roots. Extract only stable, reusable capabilities into packages.

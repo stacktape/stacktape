@@ -6,6 +6,7 @@ import { createConnection, createServer } from 'node:net';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildCliDevArtifacts, type CapturedProcess, runCapturedProcess } from './child-process.ts';
+import { assertConsoleDevReservation } from './console-dev-reservation.ts';
 
 const workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const consoleApiDirectory = join(workspaceRoot, 'apps', 'console', 'api');
@@ -217,6 +218,8 @@ const main = async () => {
   if (!process.versions.bun) {
     throw new Error('This helper must be run through Bun. Use `pnpm dev:console`.');
   }
+
+  await assertConsoleDevReservation();
 
   const buildExitCode = await buildCliDevArtifacts(workspaceRoot);
   if (buildExitCode !== 0) {

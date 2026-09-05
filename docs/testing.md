@@ -100,6 +100,51 @@ Choose the smallest valid mode:
 Agents may run all three development operations without asking again. They may also let `pnpm dev:console` refresh its
 minimal `console-app-devlocal` support stack. Production remains prohibited unless the user explicitly requests it.
 
+### Shared dev reservation
+
+`stacktape-dev` (AWS account `977946299200`) contains both production and dev. It is not disposable. Reuse
+`console-app-dev` and the existing dev Stacktape organization for ordinary development. Do not create a full Console
+stack per agent. Separate test users, organizations and projects do not require another Console deployment.
+
+Before changing shared dev code/data or relying on its deployed version for an acceptance test, reserve it:
+
+```sh
+pnpm console:dev:reservation acquire "task-label"
+export STP_CONSOLE_DEV_RESERVATION=<the-successfully-acquired-id>
+pnpm deploy:console:dev # or pnpm dev:console / pnpm migrate:console:dev
+# Run the applicable source CLI, browser, provider or background-job tests.
+# Stop local dev processes, finish AWS operations and clean up owned test resources.
+pnpm console:dev:reservation release
+```
+
+The ID is a non-secret coordination handle. Keep it in the task's command environment, not a shared `.env` file. Another
+task must acquire its own reservation, never reuse the ID shown by `status`. The second acquisition fails with the
+current owner's task label and start time, including across PCs. Work on offline tests while dev is busy.
+
+The root deploy/migration commands, full local mode and source-run dev Console package scripts check the reservation
+before starting. It remains held through testing, not only deployment. UI-only development can continue without a
+reservation when changing backend/data does not matter to that work. Reserve dev for acceptance evidence that requires a
+stable deployed version. Raw CLI/AWS commands and installed binaries bypass these repository guards; do not use them to
+evade coordination. This is cooperative coordination, not an IAM security boundary.
+
+Reservations deliberately do not expire or release on process exit: CloudFormation, migrations and remote jobs can
+outlive an agent. After a crash, run `pnpm console:dev:reservation status`, contact the named task/owner, and confirm
+its local processes and remote operations have stopped. Only then release that exact ID. Never steal an old-looking
+reservation or delete the table. Record the reservation ID and relevant source revisions with live-test evidence.
+
+One persistent, deletion-protected, on-demand DynamoDB table, `stacktape-console-dev-coordination`, holds the
+reservation in `eu-west-1`. It is independent of Console deployment and has no TTL. Initial setup is
+`pnpm console:dev:reservation setup`. Conditional creation/deletion prevent concurrent acquisition and stale-owner
+release. To qualify those AWS semantics without touching the real reservation or any Console stack:
+
+```sh
+node scripts/workspace/qualify-console-dev-reservation.ts --live
+```
+
+This creates and removes one uniquely named test row. It is not part of normal tests.
+
+### Browser execution
+
 For a UI-only change, one command starts the current UI, waits for it, runs authenticated Chromium navigation against
 the deployed dev API, and stops the UI afterward. It refuses to reuse an existing server:
 
@@ -121,11 +166,17 @@ silently use the deployed dev API. The authenticated lane currently covers login
 feature acceptance. Missing credentials fail the lane instead of skipping it. Authenticated traces, screenshots, and
 videos are disabled to avoid storing credentials, tokens, or private account data.
 
-Authenticated scenarios require `STP_CONSOLE_E2E_USER_EMAIL` and `STP_CONSOLE_E2E_USER_PASSWORD`; keep those values in a
-password manager or masked environment, never a repository file or report. Use the dedicated E2E user and organization,
-not a personal account. Persistent provider fixtures should use clearly labelled disposable repositories and a dedicated
-connected AWS account. Scenario cleanup removes resources created by the scenario, but it must not delete the reusable
-identity, organization, connection, or repositories.
+Authenticated automation uses a dedicated email/password user in the dev Cognito pool. Invite it to the existing dev
+Stacktape organization with Developer access to the intended test projects. For interactive development, the owner's
+normal dev Google login is also supported; it is not the unattended browser test's credential source. Restricted-user
+and cross-organization tests need their own fixtures, not an Owner login. Destructive disconnect/revoke/delete tests
+must not target existing shared connections or the shared organization.
+
+Prefer `STP_CONSOLE_E2E_CREDENTIAL_SOURCE=ssm`. The Playwright worker verifies the AWS account and reads only
+`/stacktape/testing/console-dev/browser-user` as SecureString JSON with `email` and `password`. Credentials stay in that
+worker, never the Vite environment. Alternatively inject `STP_CONSOLE_E2E_USER_EMAIL` and
+`STP_CONSOLE_E2E_USER_PASSWORD` from a password manager; never put values in Git, shell arguments or reports. Missing
+credentials fail closed. Setup, project access and scenario-specific fixture ownership are documented below.
 
 The fixture inventory format and readiness check are documented in
 [`../apps/console/e2e/README.md`](../apps/console/e2e/README.md).

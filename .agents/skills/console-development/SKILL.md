@@ -11,6 +11,13 @@ description:
 Work from the public workspace root with `apps/console` initialized. Read the root and Console `AGENTS.md` files before
 changing code. Check Git status in both repositories.
 
+Before deploying, migrating, starting full local mode or running acceptance tests that need a stable dev backend,
+acquire the task-owned shared reservation described in `docs/testing.md#shared-dev-reservation`. Hold it through tests
+and cleanup. Do not reuse another task's reservation or treat an old timestamp as permission to release it.
+`stacktape-dev` hosts both production and dev; reuse the existing dev Stacktape organization, but never treat the
+account, organization or existing connections as disposable. For unattended browser user/SSM setup, read
+`apps/console/e2e/README.md`.
+
 ## Choose the smallest valid mode
 
 - Use `pnpm dev:console:ui` only for UI changes that the deployed dev API already supports. It serves the UI at
