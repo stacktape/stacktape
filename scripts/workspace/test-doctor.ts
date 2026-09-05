@@ -3,6 +3,7 @@ import { access } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { type CapturedProcess, runCapturedProcess } from './child-process.ts';
+import { parseStacktapeJsonlResult } from './run-console-dev.ts';
 
 const workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const EXPECTED_NODE = '24.15.0';
@@ -100,6 +101,30 @@ const addCommandCheck = async (checks: Check[], name: string, command: string, a
   return result;
 };
 
+export const summarizeDevLoginCheck = (processResult: CapturedProcess): Check => {
+  const name = 'Stacktape dev login';
+  try {
+    const result = parseStacktapeJsonlResult(processResult.stdout);
+    if (processResult.code === 0 && result.ok === true) {
+      return { name, status: 'pass', detail: 'authenticated against the dev API' };
+    }
+    if (result.ok === false && typeof result.code === 'string' && result.code.includes('API_KEY')) {
+      return {
+        name,
+        status: 'fail',
+        detail: 'login missing or rejected; run `pnpm dev:cli login` and finish the browser flow'
+      };
+    }
+  } catch {
+    // A build/startup failure is not evidence of a missing login. Do not copy identity data or raw logs into reports.
+  }
+  return {
+    name,
+    status: 'fail',
+    detail: 'CLI check did not complete successfully; inspect `pnpm dev:cli info:whoami --agent --outputFormat jsonl`'
+  };
+};
+
 const addPathCheck = async (checks: Check[], name: string, path: string) => {
   try {
     await access(join(workspaceRoot, path));
@@ -152,16 +177,8 @@ export const runDoctor = async ({ json, scope }: DoctorOptions): Promise<number>
   }
 
   if (scope === 'console' && !checks.some((check) => check.status === 'fail')) {
-    const loginCheck = await addCommandCheck(checks, 'Stacktape dev login', 'pnpm', [
-      'dev:cli',
-      'info:whoami',
-      '--agent',
-      '--outputFormat',
-      'jsonl'
-    ]);
-    if (loginCheck.code !== 0) {
-      checks.at(-1)!.detail = 'not logged in; run `pnpm dev:cli login` and finish the browser flow';
-    }
+    const loginCheck = await run('pnpm', ['dev:cli', 'info:whoami', '--agent', '--outputFormat', 'jsonl']);
+    checks.push(summarizeDevLoginCheck(loginCheck));
     await addCommandCheck(checks, 'Console dev parameters', 'pnpm', ['parameters:check:console:dev']);
     await addCommandCheck(checks, 'Console devlocal parameters', 'pnpm', ['parameters:check:console:devlocal']);
   }

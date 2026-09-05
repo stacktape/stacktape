@@ -218,6 +218,14 @@ contract are documented in [`../apps/cli/scripts/real-aws/README.md`](../apps/cl
 
 ## Feature acceptance plans
 
+The private Console [readiness ledger](../apps/console/e2e/readiness.md) records the verified setup and remaining
+fixture, local API, provider and live-AWS qualification work. Re-check it before relying on a lane. Run
+`pnpm test:doctor -- --for=console` for Console prerequisites; the default doctor checks workspace tools only.
+
+The older packaging/init canaries below require a genuinely disposable account. The authorization to deploy uniquely
+owned test resources in the shared Console hosting account does not make it disposable. Do not lie to the canary's
+account acknowledgement; use a separate test account or first qualify an explicitly scoped shared-account runner.
+
 The following sections define required evidence, not completed automated coverage. Packaging and init have existing AWS
 runners. Observability has an unqualified fixture and checklist; security, runner, and provider journeys still need
 scenario-specific execution. A dev deployment only makes code reachable. It does not prove delivery, ingestion,
