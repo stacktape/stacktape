@@ -9,7 +9,7 @@ deploy-selectively strategy and commands.
 
 ## Guardrails
 
-The runners support Windows, Linux, and macOS. Both runners refuse implicit credentials, AWS endpoint overrides, unsafe
+The runners support Windows, Linux, and macOS. Every runner refuses implicit credentials, AWS endpoint overrides, unsafe
 project names, and an account-id mismatch.
 
 Before starting:
@@ -38,6 +38,13 @@ export STP_AWS_CANARY_PROJECT_NAME="v4canary-$(date -u +%s)"
 export STP_AWS_CANARY_OWNER="local-$(date -u +%s)"
 pnpm --filter @stacktape/cli run test:real-aws-canary
 ```
+
+## Observability fixture (not yet qualified)
+
+`_test-stacks/observability-smoke` is a candidate fixture, not a verified end-to-end runner. Its
+[acceptance checklist](../../_test-stacks/observability-smoke/README.md) describes the signal, Console, and cleanup
+boundaries that still need a real AWS qualification run. There is no `observability-signal-path` automated scenario. Do
+not count a deployment, a matching span substring, or stack deletion alone as that proof.
 
 ## Init canary
 

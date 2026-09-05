@@ -68,8 +68,8 @@
     "test:real-aws-init-canary": "bun scripts/real-aws/init-canary.ts",
     "test:source-cli:aws-readonly": "bun scripts/verify-source-cli-aws-readonly.ts",
     "test:starter-projects": "bun test scripts/starter-projects src/commands/init/using-starter-project/utils.spec.ts",
-    "test:src": "bun test src --isolate",
-    "typecheck": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json && node ../../node_modules/typescript/bin/tsc -p tsconfig.build.json && node ../../node_modules/typescript/bin/tsc -p tests/tsconfig.json && node ../../node_modules/typescript/bin/tsc -p _test-stacks/config-loading-smoke/tsconfig.json && node ../../node_modules/typescript/bin/tsc -p _test-stacks/packaging-smoke/tsconfig.json && node ../../node_modules/typescript/bin/tsc -p @generated/tsconfig.json"
+    "test:src": "bun test scripts/run-source-tests.spec.ts && bun --no-orphans scripts/run-source-tests.ts",
+    "typecheck": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json && node ../../node_modules/typescript/bin/tsc -p tests/tsconfig.json && node ../../node_modules/typescript/bin/tsc -p _test-stacks/config-loading-smoke/tsconfig.json && node ../../node_modules/typescript/bin/tsc -p _test-stacks/packaging-smoke/tsconfig.json && node ../../node_modules/typescript/bin/tsc -p @generated/tsconfig.json"
   },
   "dependencies": {
     "@aws-cdk/cloudformation-diff": "2.187.4",

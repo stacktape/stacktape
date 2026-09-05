@@ -1314,7 +1314,7 @@ const boundary = document.querySelector('[data-agent-boundary]');
     const copy = boundary.querySelector('[data-decision-copy]');
     const footer = boundary.querySelector('[data-boundary-footer]');
 
-    const setAgentMode = (mode) => {
+    const setAgentMode = (mode: 'auto' | 'review') => {
       const isAuto = mode === 'auto';
 
       buttons.forEach((button) => {
@@ -1342,7 +1342,7 @@ const boundary = document.querySelector('[data-agent-boundary]');
 
     buttons.forEach((button) => {
       button.addEventListener('click', () => {
-        setAgentMode(button.getAttribute('data-agent-mode') || 'review');
+        setAgentMode(button.getAttribute('data-agent-mode') === 'auto' ? 'auto' : 'review');
       });
     });
   }

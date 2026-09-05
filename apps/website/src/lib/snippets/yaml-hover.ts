@@ -37,7 +37,7 @@ type HastChild = HastEl | HastText;
  * Stacktape schema descriptions are a single string in `short---long---docs-link` form; splitting
  * and rejoining is what turns them into readable prose.
  */
-export const formatHoverMarkdown = (description: string, defaultValue?: string): string => {
+const formatHoverMarkdown = (description: string, defaultValue?: string): string => {
   const [short, long, link] = description.split('---').map((s) => s.trim());
   const parts: string[] = [];
   if (short) parts.push(short);

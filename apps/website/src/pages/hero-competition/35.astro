@@ -1,0 +1,897 @@
+---
+// concept: Rejects the split and the editor — a centered headline and subheadline over ONE full-width terminal window that plays the whole product once as a typed transcript: `npx stacktape init` typed live as the primary CTA (copy button and install-method switcher docked in the title bar), the wizard's file reads and the six acme resources, `stacktape deploy --stage production` with CloudFormation progress, then the resulting URLs; a replay control, the finished transcript shown statically under reduced motion, Book a demo beneath.
+// copy-angle: "One command; then it is production; then it is operated" — developer-direct, concrete nouns, no adjectives, and no line the CLI does not print; the agent/incident claim is one closing line, opt-in with approval stated.
+// direction: rejects
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Logo from '../../components/Logo.astro';
+import { API_URL, PROJECT_NAME, REGION, RESOURCES, WEB_URL } from '../../surfaces/story';
+
+type Method = 'npx' | 'macos' | 'linux' | 'windows';
+/** Which install method a transcript line belongs to. `installed` = every method that is not npx. */
+type Only = Method | 'installed';
+
+/** Commands verbatim from the CLI's installation instructions. */
+const METHODS: readonly { id: Method; label: string; command: string }[] = [
+  { id: 'npx', label: 'npx', command: 'npx stacktape init' },
+  { id: 'macos', label: 'macOS', command: 'curl -L https://installs.stacktape.com/macos.sh | sh' },
+  { id: 'linux', label: 'Linux', command: 'curl -L https://installs.stacktape.com/linux.sh | sh' },
+  { id: 'windows', label: 'Windows', command: 'iwr https://installs.stacktape.com/windows.ps1 -useb | iex' }
+];
+
+/** The CloudFormation resource count the site's deploy surface carries for acme-project. */
+const TOTAL_RESOURCES = 33;
+
+/*
+ * Every printed line is a string the CLI prints, in the order it prints it: `stacktape init` in its
+ * terminal presentation (apps/cli/src/init/run-init.ts), the install scripts' closing lines
+ * (apps/cli/scripts/install-scripts) and the deploy stream presenter (apps/cli/src/app/tui-manager).
+ * Phases and milestones are trimmed, not invented. `gap` is the pause in ms before a line appears;
+ * typed lines add `cps` per character. The default play lands under eight seconds.
+ */
+type Line =
+  | { kind: 'cmd'; text: string; gap: number; cps: number; only?: Only }
+  | { kind: 'text'; text: string; gap: number; tone: 'muted' | 'primary' | 'success'; only?: Only }
+  | { kind: 'tool'; text: string; gap: number }
+  | { kind: 'blank'; gap: number; only?: Only }
+  | { kind: 'resource'; name: string; type: string; reason: string | undefined; gap: number }
+  | { kind: 'header'; gap: number }
+  | { kind: 'target'; gap: number }
+  | { kind: 'phase'; text: string; gap: number }
+  | { kind: 'activity'; label: string; result: string; gap: number }
+  | { kind: 'milestone'; count: number; names: string }
+  | { kind: 'live'; total: number; ms: number; gap: number }
+  | { kind: 'cfdone'; text: string; gap: number }
+  | { kind: 'done'; text: string; gap: number }
+  | { kind: 'link'; label: string; url: string; gap: number }
+  | { kind: 'prompt'; gap: number };
+
+/** The wizard's finding behind each resource, in the product's own wording. The firewall has none. */
+const REASONS = new Map<string, string>([
+  ['web', 'A Next.js app in ./web'],
+  ['apiService', 'An Express API with its own Dockerfile'],
+  ['worker', 'A worker that runs once per queued job'],
+  ['mainDatabase', 'Postgres — your Prisma schema names it'],
+  ['cache', 'Redis, used for sessions']
+]);
+
+const lines: Line[] = [
+  ...METHODS.filter((method) => method.id !== 'npx').map(
+    (method): Line => ({ kind: 'cmd', text: method.command, gap: 400, cps: 14, only: method.id })
+  ),
+  { kind: 'text', text: 'Stacktape was installed successfully!', gap: 360, tone: 'success', only: 'installed' },
+  { kind: 'text', text: 'To get started, run:', gap: 120, tone: 'muted', only: 'installed' },
+  { kind: 'text', text: '  stacktape init', gap: 80, tone: 'primary', only: 'installed' },
+  { kind: 'blank', gap: 200, only: 'installed' },
+  { kind: 'cmd', text: 'stacktape init', gap: 100, cps: 38, only: 'installed' },
+  { kind: 'cmd', text: 'npx stacktape init', gap: 400, cps: 38, only: 'npx' },
+  { kind: 'text', text: 'Using claude-code. Your code is read by your own subscription; it is not sent to Stacktape.', gap: 420, tone: 'muted' },
+  { kind: 'tool', text: 'read_file web/package.json', gap: 180 },
+  { kind: 'tool', text: 'read_file api/Dockerfile', gap: 140 },
+  { kind: 'tool', text: 'read_file api/prisma/schema.prisma', gap: 140 },
+  { kind: 'tool', text: 'read_file api/src/worker.ts', gap: 140 },
+  { kind: 'blank', gap: 200 },
+  { kind: 'text', text: `Found ${RESOURCES.length} resources:`, gap: 60, tone: 'primary' },
+  ...RESOURCES.map(
+    (resource): Line => ({ kind: 'resource', name: resource.name, type: resource.type, reason: REASONS.get(resource.name), gap: 95 })
+  ),
+  { kind: 'blank', gap: 150 },
+  { kind: 'text', text: `About $118/mo in ${REGION}, for what is in this file.`, gap: 60, tone: 'muted' },
+  { kind: 'blank', gap: 160 },
+  { kind: 'text', text: 'Wrote stacktape.yml', gap: 60, tone: 'primary' },
+  { kind: 'blank', gap: 380 },
+  { kind: 'cmd', text: 'stacktape deploy --stage production', gap: 100, cps: 24 },
+  { kind: 'header', gap: 380 },
+  { kind: 'target', gap: 40 },
+  { kind: 'blank', gap: 60 },
+  { kind: 'phase', text: 'Build & Package', gap: 120 },
+  { kind: 'activity', label: 'web', result: 'Lambda bundle · 4.1 MB (1.2 MB zipped)', gap: 160 },
+  { kind: 'activity', label: 'apiService', result: 'Container image · 188 MB', gap: 140 },
+  { kind: 'activity', label: 'worker', result: 'Lambda bundle · 612 kB (171 kB zipped)', gap: 130 },
+  { kind: 'phase', text: 'Deploy', gap: 140 },
+  { kind: 'milestone', count: 11, names: 'cache, worker +9' },
+  { kind: 'milestone', count: 22, names: 'web, apiService +9' },
+  { kind: 'milestone', count: TOTAL_RESOURCES, names: 'mainDatabase, firewall +9' },
+  { kind: 'live', total: TOTAL_RESOURCES, ms: 1200, gap: 80 },
+  { kind: 'cfdone', text: `${TOTAL_RESOURCES}/${TOTAL_RESOURCES} resources · ${TOTAL_RESOURCES} created`, gap: 60 },
+  { kind: 'blank', gap: 120 },
+  { kind: 'done', text: 'DEPLOYMENT SUCCESSFUL', gap: 60 },
+  { kind: 'link', label: 'web URL', url: WEB_URL, gap: 90 },
+  { kind: 'link', label: 'apiService URL', url: API_URL, gap: 80 },
+  { kind: 'prompt', gap: 200 }
+];
+---
+
+<BaseLayout
+  title="AWS DevOps, automated. It starts with one command. — Stacktape"
+  description="One command. Stacktape reads your repository, writes the infrastructure, deploys it into your AWS account as plain CloudFormation, and operates it: pipelines, metrics, traces, logs, alarms, incidents."
+  font="geist"
+  noindex
+>
+  <Fragment slot="head">
+    <script is:inline>
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        document.documentElement.classList.add('js-run');
+        window.stpRunFallback = setTimeout(() => document.documentElement.classList.remove('js-run'), 6000);
+      }
+    </script>
+  </Fragment>
+
+  <header class="nav">
+    <a href="/" aria-label="Stacktape home"><Logo height={22} /></a>
+    <nav>
+      <a href="https://docs.stacktape.com">Docs</a>
+      <a href="https://github.com/stacktape/stacktape">GitHub</a>
+      <a class="nav-demo" href="https://cal.com/stacktape/30min">Book a demo</a>
+    </nav>
+  </header>
+
+  <main class="hero">
+    <h1>
+      <span class="l1">AWS DevOps, automated.</span>
+      <span class="l2">It starts with one command.</span>
+    </h1>
+    <p class="sub">
+      Stacktape reads your repository and writes the infrastructure: a VPC with private subnets, Aurora PostgreSQL,
+      Redis, a Fargate service, a Lambda worker, least-privilege IAM. One deploy puts it in your AWS account as plain
+      CloudFormation. Then it operates the project: pipelines, metrics, traces, logs, alarms, incidents.
+    </p>
+
+    <section class="stage" aria-label="One run of Stacktape, as a terminal transcript">
+      <div class="run surface-frame surface-frame--terminal" id="run" data-method="npx">
+        <div class="surface-frame__bar run__bar">
+          <span class="surface-frame__lights" aria-hidden="true">
+            <span style="background: #ff5f57"></span>
+            <span style="background: #febc2e"></span>
+            <span style="background: #28c840"></span>
+          </span>
+
+          <div class="run__methods site-well" role="group" aria-label="Installation method">
+            {METHODS.map((method) => (
+              <button
+                type="button"
+                class={`run__method${method.id === 'npx' ? ' is-active' : ''}`}
+                data-method={method.id}
+                aria-pressed={method.id === 'npx' ? 'true' : 'false'}
+              >
+                {method.label}
+              </button>
+            ))}
+          </div>
+
+          <div class="surface-frame__actions run__actions">
+            <button type="button" class="run__copy" id="run-copy" aria-label="Copy npx stacktape init">
+              <svg viewBox="0 0 14 14" width="13" height="13" fill="none" aria-hidden="true">
+                <rect x="4.75" y="1.75" width="7.5" height="7.5" rx="1.6" stroke="currentColor" stroke-width="1.2"></rect>
+                <path d="M9.25 12.25h-6a1.5 1.5 0 0 1-1.5-1.5v-6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"></path>
+              </svg>
+              <span id="run-copy-label">Copy</span>
+            </button>
+            <button type="button" class="run__replay" id="run-replay" aria-label="Replay the transcript" title="Replay">
+              <svg viewBox="0 0 14 14" width="13" height="13" fill="none" aria-hidden="true">
+                <path d="M2.4 7a4.6 4.6 0 1 0 1.35-3.25" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></path>
+                <path d="M2.2 1.8v2.4h2.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="surface-frame__body run__body" id="run-body">
+          <ol class="run__lines" aria-label="Transcript">
+            {lines.map((line) => {
+              if (line.kind === 'cmd') {
+                return (
+                  <li class="ln ln--cmd" data-gap={line.gap} data-text={line.text} data-cps={line.cps} data-only={line.only}>
+                    <span class="ps" aria-hidden="true">$</span>
+                    <span class="typed">{line.text}</span>
+                    <span class="cursor" aria-hidden="true"></span>
+                  </li>
+                );
+              }
+              if (line.kind === 'text') {
+                return <li class={`ln ln--${line.tone}`} data-gap={line.gap} data-only={line.only}>{line.text}</li>;
+              }
+              if (line.kind === 'tool') return <li class="ln ln--tool" data-gap={line.gap}><span class="glyph arrow" aria-hidden="true">→</span>{line.text}</li>;
+              if (line.kind === 'blank') return <li class="ln" data-gap={line.gap} data-only={line.only}></li>;
+              if (line.kind === 'resource') {
+                return (
+                  <li class="ln ln--resource" data-gap={line.gap}>
+                    <span class="name">{line.name}</span>
+                    <span class="type">{line.type}</span>
+                    <span class="why">{line.reason}</span>
+                  </li>
+                );
+              }
+              if (line.kind === 'header') return <li class="ln" data-gap={line.gap}><span class="hb">stacktape</span> <b>deploy</b></li>;
+              if (line.kind === 'target') {
+                return (
+                  <li class="ln ln--target" data-gap={line.gap}>
+                    <b>{PROJECT_NAME}</b> <span class="dim">/</span> <b>production</b>
+                    <span class="dim">  · {REGION}</span>
+                  </li>
+                );
+              }
+              if (line.kind === 'phase') {
+                return (
+                  <li class="ln ln--phase" data-gap={line.gap}>
+                    <span aria-hidden="true">──</span>
+                    <span class="name">{line.text}</span>
+                    <span class="rule" aria-hidden="true"></span>
+                  </li>
+                );
+              }
+              if (line.kind === 'activity') {
+                return (
+                  <li class="ln" data-gap={line.gap}>
+                    <span class="glyph ok" aria-hidden="true">✓</span>
+                    <b>{line.label}</b> — {line.result}
+                  </li>
+                );
+              }
+              if (line.kind === 'milestone') {
+                return (
+                  <li class="ln ln--indent" data-milestone={line.count}>
+                    <span class="glyph dim" aria-hidden="true">·</span>
+                    <span class="n">{line.count}/{TOTAL_RESOURCES}</span> resources complete — {line.names}
+                  </li>
+                );
+              }
+              if (line.kind === 'live') {
+                return (
+                  <li class="ln ln--live" hidden data-gap={line.gap} data-tick={line.total} data-tick-ms={line.ms}>
+                    <span>
+                      <span class="glyph spin" aria-hidden="true">⠿</span>
+                      <b>CloudFormation create</b> <span class="dim">·</span> <span class="n count">0/{line.total}</span>
+                    </span>
+                    <span class="dim">  {line.total} create</span>
+                  </li>
+                );
+              }
+              if (line.kind === 'cfdone') {
+                return (
+                  <li class="ln" data-gap={line.gap}>
+                    <span class="glyph ok" aria-hidden="true">✓</span>
+                    <b>CloudFormation create</b> — {line.text}
+                  </li>
+                );
+              }
+              if (line.kind === 'done') return <li class="ln ln--done" data-gap={line.gap}><span class="glyph ok" aria-hidden="true">✓</span>{line.text}</li>;
+              if (line.kind === 'link') {
+                return (
+                  <li class="ln ln--indent" data-gap={line.gap}>
+                    <span class="dim">{line.label}:</span> <span class="n">{line.url}</span>
+                  </li>
+                );
+              }
+              return (
+                <li class="ln ln--cmd ln--prompt" data-gap={line.gap}>
+                  <span class="ps" aria-hidden="true">$</span>
+                  <span class="typed"></span>
+                  <span class="cursor" aria-hidden="true"></span>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <div class="after">
+      <p class="closing">
+        Incidents are correlated with the release that caused them. Opt in, and an agent with the same config, metrics,
+        traces and logs can fix and redeploy — after you approve the fix.
+      </p>
+      <a class="btn-demo" href="https://cal.com/stacktape/30min">Book a demo <span aria-hidden="true">→</span></a>
+    </div>
+  </main>
+</BaseLayout>
+
+<style>
+  :root {
+    --ink: var(--stp-text-primary);
+    --ink-2: rgb(196, 204, 204);
+    --ink-3: rgb(138, 148, 148);
+    --ink-4: rgb(96, 106, 106);
+    --brand: var(--stp-color-brand);
+    --ok: rgb(52, 199, 140);
+    --fast: var(--stp-motion-duration-fast) var(--stp-motion-easing);
+  }
+
+  /* ── Nav ─────────────────────────────────────────────────────────────── */
+  .nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 22px 28px;
+  }
+  .nav nav {
+    display: flex;
+    align-items: center;
+    gap: 26px;
+  }
+  .nav a {
+    color: var(--ink-2);
+    font-size: 0.92rem;
+    text-decoration: none;
+  }
+  .nav a:hover {
+    color: var(--ink);
+  }
+  .nav-demo {
+    padding: 8px 14px;
+    border-radius: 999px;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+    color: var(--ink) !important;
+  }
+
+  /* ── Hero ────────────────────────────────────────────────────────────── */
+  .hero {
+    position: relative;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 56px 28px 96px;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto;
+    height: 60%;
+    background: radial-gradient(48% 40% at 50% 0%, rgba(54, 190, 190, 0.11), transparent 70%);
+    pointer-events: none;
+  }
+  h1 {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.06em;
+    margin: 0 auto;
+    font-size: clamp(2.5rem, 4.6vw, 3.9rem);
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    line-height: 1.02;
+    text-align: center;
+    color: var(--ink);
+    text-wrap: balance;
+  }
+  .l2 {
+    color: var(--ink-3);
+  }
+  .sub {
+    position: relative;
+    max-width: 66ch;
+    margin: 22px auto 0;
+    color: var(--ink-2);
+    font-size: 1.06rem;
+    line-height: 1.6;
+    text-align: center;
+    text-wrap: pretty;
+  }
+
+  /* ── The terminal ────────────────────────────────────────────────────── */
+  .stage {
+    position: relative;
+    max-width: 1120px;
+    margin: 44px auto 0;
+  }
+  .stage::before {
+    content: '';
+    position: absolute;
+    left: 6%;
+    right: 6%;
+    top: -30px;
+    height: 220px;
+    background: radial-gradient(60% 60% at 50% 20%, rgba(54, 190, 190, 0.22), transparent 70%);
+    filter: blur(28px);
+    pointer-events: none;
+  }
+  .run {
+    position: relative;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01)),
+      rgb(14, 19, 19);
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.09),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      0 40px 90px -30px rgba(0, 0, 0, 0.8),
+      0 0 120px rgba(54, 190, 190, 0.06);
+  }
+  .run__bar {
+    height: 46px;
+    padding: 0 14px;
+  }
+
+  /* The switcher sits centred in the title bar, where a terminal prints its title. */
+  .run__methods {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    justify-self: center;
+  }
+  .run__method {
+    padding: 4px 11px;
+    border: 0;
+    border-radius: calc(var(--stp-radius-large) - 3px);
+    background: none;
+    color: var(--ink-3);
+    font-family: var(--font-geist);
+    font-size: 0.74rem;
+    font-weight: 550;
+    cursor: pointer;
+    transition: background var(--fast), color var(--fast);
+  }
+  .run__method:hover {
+    color: var(--ink);
+  }
+  .run__method.is-active {
+    background: rgba(255, 255, 255, 0.09);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    color: var(--ink);
+  }
+
+  .run__actions {
+    gap: 6px;
+  }
+  .run__copy,
+  .run__replay {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 28px;
+    padding: 0 11px;
+    border: 0;
+    border-radius: var(--stp-radius-medium);
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.09);
+    color: var(--ink-2);
+    font-family: var(--font-geist);
+    font-size: 0.74rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--fast), color var(--fast), box-shadow var(--fast);
+  }
+  .run__copy {
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 45%, transparent);
+    color: var(--ink);
+  }
+  .run__copy:hover,
+  .run__replay:hover {
+    background: rgba(255, 255, 255, 0.11);
+    color: var(--ink);
+  }
+  .run__copy.is-done {
+    color: var(--brand);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 70%, transparent);
+  }
+  .run__replay {
+    width: 28px;
+    padding: 0;
+  }
+
+  .run__body {
+    height: clamp(23rem, 50vh, 30rem);
+    padding: 18px 22px 20px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+    font-size: 0.8rem;
+    line-height: 1.6;
+  }
+  .run__lines {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  /* ── Lines: the CLI's palette — white for what you typed, brand for what is happening, green
+   *    for what finished, grey for the rest. ───────────────────────────────────────────────── */
+  .ln {
+    display: flex;
+    align-items: baseline;
+    min-height: 1.6em;
+    margin: 0;
+    color: var(--ink-3);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .ln[hidden] {
+    display: none !important;
+  }
+  .ln b,
+  .ln--cmd,
+  .ln--primary,
+  .ln--phase .name,
+  .ln--resource .name {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .ln--cmd,
+  .ln--primary {
+    font-weight: 400;
+  }
+  .ln--target,
+  .ln--resource .type {
+    color: var(--ink-2);
+  }
+  .dim {
+    color: var(--ink-4);
+  }
+  .glyph {
+    display: inline-block;
+    flex: none;
+    width: 1.3em;
+  }
+  .ok,
+  .ln--success,
+  .ln--done {
+    color: var(--ok);
+    font-weight: 700;
+  }
+  .arrow,
+  .spin,
+  .n,
+  .hb {
+    color: var(--brand);
+  }
+  .hb {
+    font-weight: 700;
+  }
+  .n {
+    font-variant-numeric: tabular-nums;
+  }
+  .ln--tool,
+  .ln--indent,
+  .ln--resource {
+    padding-left: 1.4em;
+  }
+
+  .ps {
+    flex: none;
+    margin-right: 0.6em;
+    color: var(--brand);
+    font-weight: 700;
+  }
+  .cursor {
+    display: none;
+    width: 0.55em;
+    height: 1.05em;
+    margin-left: 1px;
+    align-self: center;
+    background: var(--brand);
+  }
+  .ln--cmd.is-typing .cursor,
+  .ln--prompt .cursor {
+    display: inline-block;
+    animation: blink 1s steps(2, start) infinite;
+  }
+  @keyframes blink {
+    to {
+      visibility: hidden;
+    }
+  }
+
+  .ln--resource {
+    display: grid;
+    grid-template-columns: 9rem 11.5rem minmax(0, 1fr);
+    gap: 0 1.4rem;
+  }
+  .ln--phase {
+    gap: 0.6em;
+    align-items: center;
+    margin-top: 0.2em;
+    color: var(--ink-4);
+  }
+  .ln--phase .rule {
+    flex: 1;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.12);
+  }
+  .ln--live {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  /* ── Under the terminal ──────────────────────────────────────────────── */
+  .after {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 16px 32px;
+    max-width: 1120px;
+    margin: 30px auto 0;
+  }
+  .closing {
+    max-width: 62ch;
+    margin: 0;
+    color: var(--ink-3);
+    font-size: 0.92rem;
+    line-height: 1.55;
+    text-align: center;
+    text-wrap: pretty;
+  }
+  .btn-demo {
+    flex: none;
+    padding: 11px 20px;
+    border-radius: 10px;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+    color: var(--ink);
+    font-weight: 600;
+    text-decoration: none;
+    transition: background var(--fast), box-shadow var(--fast);
+  }
+  .btn-demo:hover {
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+  }
+
+  /* ── Motion ──────────────────────────────────────────────────────────── */
+  @media (prefers-reduced-motion: no-preference) {
+    /* Lines wait for their cue. The class comes from the inline script in <head>, only when motion
+     * is allowed, and it drops out on its own if the page script never runs — so the finished
+     * transcript is simply there without JavaScript. */
+    :global(html.js-run) .ln:not(.is-shown) {
+      display: none;
+    }
+    h1,
+    .sub,
+    .after {
+      opacity: 0;
+      transform: translateY(8px);
+      animation: arrive 620ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    }
+    .sub {
+      animation-delay: 100ms;
+    }
+    .stage {
+      opacity: 0;
+      animation: arrive 700ms cubic-bezier(0.2, 0.8, 0.2, 1) 180ms forwards;
+    }
+    .after {
+      animation-delay: 320ms;
+    }
+  }
+  @keyframes arrive {
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cursor {
+      animation: none;
+    }
+    .run__replay {
+      display: none;
+    }
+  }
+
+  /* ── Widths ──────────────────────────────────────────────────────────── */
+  @media (max-width: 860px) {
+    .ln--resource {
+      grid-template-columns: 8rem minmax(0, 1fr);
+    }
+    .ln--resource .why {
+      display: none;
+    }
+  }
+  @media (max-width: 640px) {
+    .run__bar {
+      padding: 0 10px;
+    }
+    .run__method {
+      padding: 4px 8px;
+      font-size: 0.7rem;
+    }
+    .run__copy span {
+      display: none;
+    }
+    .run__body {
+      padding: 14px 14px 16px;
+      font-size: 0.74rem;
+    }
+  }
+</style>
+
+<script>
+  type Method = 'npx' | 'macos' | 'linux' | 'windows';
+
+  const COMMANDS: Record<Method, string> = {
+    npx: 'npx stacktape init',
+    macos: 'curl -L https://installs.stacktape.com/macos.sh | sh',
+    linux: 'curl -L https://installs.stacktape.com/linux.sh | sh',
+    windows: 'iwr https://installs.stacktape.com/windows.ps1 -useb | iex'
+  };
+  const SPINNER = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+
+  const isMethod = (value: string | undefined): value is Method =>
+    value === 'npx' || value === 'macos' || value === 'linux' || value === 'windows';
+
+  // The page script is running, so the head script's safety net (which would reveal everything at
+  // once if this script never loaded) is no longer needed.
+  const fallback = (window as unknown as { stpRunFallback?: number }).stpRunFallback;
+  if (fallback !== undefined) window.clearTimeout(fallback);
+
+  const run = document.getElementById('run') as HTMLElement | null;
+  const body = document.getElementById('run-body') as HTMLElement | null;
+  const copyButton = document.getElementById('run-copy') as HTMLButtonElement | null;
+  const copyLabel = document.getElementById('run-copy-label') as HTMLElement | null;
+  const replayButton = document.getElementById('run-replay') as HTMLButtonElement | null;
+  const methodButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('button[data-method]'));
+  const prompts = Array.from(document.querySelectorAll<HTMLElement>('#run-body .ps'));
+  const lines = Array.from(document.querySelectorAll<HTMLElement>('#run-body .ln'));
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  let method: Method = 'npx';
+  let timers: number[] = [];
+  let generation = 0;
+  let copyTimer = 0;
+
+  /** Whether a line belongs to the transcript for the chosen install method. */
+  const appliesTo = (line: HTMLElement, current: Method): boolean => {
+    const only = line.dataset.only;
+    if (only === undefined) return true;
+    if (only === 'installed') return current !== 'npx';
+    return only === current;
+  };
+
+  const typedOf = (line: HTMLElement): HTMLElement | null => line.querySelector<HTMLElement>('.typed');
+
+  const scrollToEnd = () => {
+    if (body) body.scrollTop = body.scrollHeight;
+  };
+
+  const clearTimers = () => {
+    for (const id of timers) window.clearTimeout(id);
+    timers = [];
+  };
+
+  /** Runs `task` after `at` ms unless a newer play or reset has started since. */
+  const schedule = (at: number, current: number, task: () => void) => {
+    timers.push(
+      window.setTimeout(() => {
+        if (current === generation) task();
+      }, at)
+    );
+  };
+
+  const reveal = (line: HTMLElement) => {
+    const typing = body ? body.querySelector<HTMLElement>('.is-typing') : null;
+    if (typing) typing.classList.remove('is-typing');
+    line.classList.add('is-shown');
+    scrollToEnd();
+  };
+
+  /** The finished transcript, as the server rendered it: for reduced motion. */
+  const showFinished = () => {
+    clearTimers();
+    generation += 1;
+    for (const line of lines) {
+      line.classList.remove('is-typing');
+      line.classList.add('is-shown');
+      line.hidden = !appliesTo(line, method) || line.dataset.tick !== undefined;
+      const text = line.dataset.text;
+      const typed = typedOf(line);
+      if (text !== undefined && typed) typed.textContent = text;
+    }
+    scrollToEnd();
+  };
+
+  /** Plays the transcript once from the top, on the schedule the lines carry. */
+  const play = () => {
+    clearTimers();
+    generation += 1;
+    const current = generation;
+    const active: HTMLElement[] = [];
+
+    for (const line of lines) {
+      line.classList.remove('is-shown', 'is-typing');
+      const applies = appliesTo(line, method);
+      line.hidden = !applies || line.dataset.tick !== undefined;
+      if (applies) active.push(line);
+      const typed = typedOf(line);
+      if (line.dataset.text !== undefined && typed) typed.textContent = '';
+    }
+
+    let at = 0;
+    for (const line of active) {
+      // Milestones are printed by the CloudFormation counter, not by the clock.
+      if (line.dataset.milestone !== undefined) continue;
+      at += Number(line.dataset.gap ?? '0');
+
+      const text = line.dataset.text;
+      const tick = line.dataset.tick;
+
+      if (text !== undefined) {
+        const typed = typedOf(line);
+        const cps = Number(line.dataset.cps ?? '40');
+        const start = at;
+        schedule(start, current, () => {
+          reveal(line);
+          line.classList.add('is-typing');
+        });
+        for (let index = 1; index <= text.length; index += 1) {
+          const slice = text.slice(0, index);
+          schedule(start + index * cps, current, () => {
+            if (typed) typed.textContent = slice;
+          });
+        }
+        at = start + text.length * cps;
+      } else if (tick !== undefined) {
+        const total = Number(tick);
+        const duration = Number(line.dataset.tickMs ?? '1200');
+        const counter = line.querySelector<HTMLElement>('.count');
+        const spinner = line.querySelector<HTMLElement>('.spin');
+        const start = at;
+        schedule(start, current, () => {
+          line.hidden = false;
+          reveal(line);
+        });
+        for (let count = 1; count <= total; count += 1) {
+          const milestone = active.find((candidate) => Number(candidate.dataset.milestone) === count);
+          const frame = SPINNER[count % SPINNER.length];
+          schedule(start + Math.round((count * duration) / total), current, () => {
+            if (counter) counter.textContent = `${count}/${total}`;
+            if (spinner && frame !== undefined) spinner.textContent = frame;
+            if (milestone) milestone.classList.add('is-shown');
+            scrollToEnd();
+          });
+        }
+        at = start + duration;
+        schedule(at, current, () => {
+          line.hidden = true;
+        });
+      } else {
+        schedule(at, current, () => reveal(line));
+      }
+    }
+  };
+
+  const setMethod = (next: Method) => {
+    method = next;
+    for (const button of methodButtons) {
+      const active = button.dataset.method === next;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    }
+    const glyph = next === 'windows' ? '>' : '$';
+    for (const prompt of prompts) prompt.textContent = glyph;
+    if (run) run.dataset.method = next;
+    if (copyButton) copyButton.setAttribute('aria-label', `Copy ${COMMANDS[next]}`);
+    if (reduced) showFinished();
+    else play();
+  };
+
+  for (const button of methodButtons) {
+    button.addEventListener('click', () => {
+      const next = button.dataset.method;
+      if (isMethod(next) && next !== method) setMethod(next);
+    });
+  }
+
+  if (copyButton) {
+    copyButton.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(COMMANDS[method]);
+      } catch {
+        // Clipboard access can be denied in embedded contexts; the command stays selectable text.
+        return;
+      }
+      copyButton.classList.add('is-done');
+      if (copyLabel) copyLabel.textContent = 'Copied';
+      copyButton.setAttribute('aria-label', 'Command copied');
+      window.clearTimeout(copyTimer);
+      copyTimer = window.setTimeout(() => {
+        copyButton.classList.remove('is-done');
+        if (copyLabel) copyLabel.textContent = 'Copy';
+        copyButton.setAttribute('aria-label', `Copy ${COMMANDS[method]}`);
+      }, 1600);
+    });
+  }
+
+  if (replayButton) replayButton.addEventListener('click', () => play());
+
+  setMethod('npx');
+</script>

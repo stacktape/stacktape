@@ -680,8 +680,10 @@ export const buildEsCode = async ({
       }
     }
 
-    // Create package.json for ESM output
-    if (outputModuleFormat === 'esm' || splitting) {
+    // Plain `.js` ESM output and split chunks need a package boundary. An explicit `.mjs` entrypoint already
+    // carries its module format in the filename; writing package.json beside it can accidentally change unrelated
+    // CommonJS files in the same artifact directory into ESM.
+    if (splitting || (outputModuleFormat === 'esm' && !distPath?.endsWith('.mjs'))) {
       const outputDir = distDir || (distPath ? dirname(distPath) : cwd);
       await outputJSON(join(outputDir, 'package.json'), { type: 'module' });
     }

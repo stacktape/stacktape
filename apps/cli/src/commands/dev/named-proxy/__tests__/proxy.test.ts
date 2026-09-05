@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import type { Server as HttpServer } from 'node:http';
 import { createServer as createHttpServer } from 'node:http';
+import { request as httpsRequest } from 'node:https';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -599,9 +600,7 @@ const generateSelfSignedCert = (): { cert: Buffer; key: Buffer } => {
         'req',
         '-x509',
         '-newkey',
-        'ec',
-        '-pkeyopt',
-        'ec_paramgen_curve:prime256v1',
+        'rsa:2048',
         '-keyout',
         keyPath,
         '-out',
@@ -626,6 +625,35 @@ const generateSelfSignedCert = (): { cert: Buffer; key: Buffer } => {
     return { cert: Buffer.alloc(0), key: Buffer.alloc(0) };
   }
 };
+
+const fetchTlsJson = (port: number, path: string): Promise<{ body: Record<string, unknown>; status: number }> =>
+  new Promise((resolve, reject) => {
+    const request = httpsRequest(
+      {
+        headers: { host: 'secure.dev.localhost' },
+        host: '127.0.0.1',
+        path,
+        port,
+        rejectUnauthorized: false
+      },
+      (response) => {
+        const chunks: Buffer[] = [];
+        response.on('data', (chunk: Buffer) => chunks.push(chunk));
+        response.on('end', () => {
+          try {
+            resolve({
+              body: JSON.parse(Buffer.concat(chunks).toString()) as Record<string, unknown>,
+              status: response.statusCode ?? 0
+            });
+          } catch (error) {
+            reject(error);
+          }
+        });
+      }
+    );
+    request.on('error', reject);
+    request.end();
+  });
 
 describe('proxy - TLS / HTTPS', () => {
   let proxyServer: ProxyServer;
@@ -660,60 +688,17 @@ describe('proxy - TLS / HTTPS', () => {
   test('accepts TLS connections and proxies HTTPS requests', async () => {
     if (!hasCerts) return; // Skip if openssl not available
 
-    const res = await new Promise<{ status: string; body: string }>((resolve, reject) => {
-      const socket = tls.connect({ port: PROXY_PORT, host: '127.0.0.1', rejectUnauthorized: false }, () => {
-        socket.write(
-          'GET /api/test HTTP/1.1\r\n' + 'Host: secure.dev.localhost\r\n' + 'Connection: close\r\n' + '\r\n'
-        );
-      });
-
-      let data = '';
-      socket.on('data', (chunk: Buffer) => {
-        data += chunk.toString();
-      });
-      socket.on('end', () => {
-        const [head, ...bodyParts] = data.split('\r\n\r\n');
-        const status = head.split('\r\n')[0];
-        resolve({ status, body: bodyParts.join('\r\n\r\n') });
-      });
-      socket.on('error', reject);
-      setTimeout(() => {
-        socket.destroy();
-        reject(new Error('TLS test timeout'));
-      }, 5000);
-    });
-
-    expect(res.status).toContain('200');
-    const body = JSON.parse(res.body);
-    expect(body.body).toBe('tls-backend');
-    expect(body.url).toBe('/api/test');
+    const response = await fetchTlsJson(PROXY_PORT, '/api/test');
+    expect(response.status).toBe(200);
+    expect(response.body.body).toBe('tls-backend');
+    expect(response.body.url).toBe('/api/test');
   });
 
   test('TLS proxy sets x-forwarded-proto to https', async () => {
     if (!hasCerts) return;
 
-    const res = await new Promise<{ body: string }>((resolve, reject) => {
-      const socket = tls.connect({ port: PROXY_PORT, host: '127.0.0.1', rejectUnauthorized: false }, () => {
-        socket.write('GET / HTTP/1.1\r\n' + 'Host: secure.dev.localhost\r\n' + 'Connection: close\r\n' + '\r\n');
-      });
-
-      let data = '';
-      socket.on('data', (chunk: Buffer) => {
-        data += chunk.toString();
-      });
-      socket.on('end', () => {
-        const bodyStr = data.split('\r\n\r\n').slice(1).join('\r\n\r\n');
-        resolve({ body: bodyStr });
-      });
-      socket.on('error', reject);
-      setTimeout(() => {
-        socket.destroy();
-        reject(new Error('timeout'));
-      }, 5000);
-    });
-
-    const body = JSON.parse(res.body);
-    expect(body.xForwardedProto).toBe('https');
+    const response = await fetchTlsJson(PROXY_PORT, '/');
+    expect(response.body.xForwardedProto).toBe('https');
   });
 
   test('TLS proxy handles WebSocket upgrade over HTTPS', async () => {

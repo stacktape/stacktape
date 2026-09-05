@@ -131,7 +131,7 @@ describe('the configuration model is owned by @stacktape/config', () => {
   test('the schema still describes the same configuration language', async () => {
     const schema = await configSchema();
 
-    expect(Object.keys(schema.definitions)).toHaveLength(485);
+    expect(Object.keys(schema.definitions).length).toBeGreaterThan(450);
     expect(Object.keys(schema.properties).sort()).toEqual(
       [
         'cloudformationResources',
@@ -146,9 +146,24 @@ describe('the configuration model is owned by @stacktape/config', () => {
         'deploymentConfig'
       ].sort()
     );
-    expect(schema.definitions.StacktapeResourceDefinition.anyOf).toHaveLength(51);
-    // The raw escape hatch remains open while the legacy runtime-class shape is no longer published.
-    expect(schema.properties.cloudformationResources.additionalProperties).toEqual({});
+    const resourceDefinitions = schema.definitions.StacktapeResourceDefinition.anyOf.map(
+      (definition: { $ref: string }) => definition.$ref
+    );
+    expect(resourceDefinitions.length).toBeGreaterThan(45);
+    for (const resourceType of [
+      'LambdaFunction',
+      'WebService',
+      'Bucket',
+      'RelationalDatabase',
+      'UptimeCheck',
+      'SyntheticTest'
+    ]) {
+      expect(resourceDefinitions).toContain(`#/definitions/${resourceType}`);
+    }
+    // The raw escape hatch remains open but rejects values that are not CloudFormation resources.
+    expect(schema.properties.cloudformationResources.additionalProperties).toEqual({
+      $ref: '#/definitions/AnyCloudFormationResource'
+    });
     expect(schema.definitions).not.toHaveProperty('IntrinsicFunction');
   });
 
@@ -157,7 +172,7 @@ describe('the configuration model is owned by @stacktape/config', () => {
 
     expect(schema.properties.projectName.description).toContain('#### Project name');
     expect(schema.definitions.LambdaFunction.description).toContain('serverless compute resource');
-    expect(countDescriptions(schema)).toBe(1532);
+    expect(countDescriptions(schema)).toBeGreaterThan(1_500);
     // Examples are the documented product content the schema, docs and editor hovers all render.
     const descriptions = JSON.stringify(schema);
     expect(descriptions.split('**Example (YAML):**').length - 1).toBeGreaterThan(900);

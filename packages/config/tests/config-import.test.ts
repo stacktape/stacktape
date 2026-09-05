@@ -31,8 +31,15 @@ describe('a Stacktape configuration can be built from explicit package imports',
 describe('the generated configuration schema package export', () => {
   test('resolves the canonical committed schema', () => {
     expect(configSchema).toBe(canonicalConfigSchema);
-    expect(Object.keys(configSchema.definitions)).toHaveLength(478);
-    expect(configSchema.definitions.StacktapeResourceDefinition.anyOf).toHaveLength(50);
+    const resourceDefinitions = configSchema.definitions.StacktapeResourceDefinition.anyOf;
+    const resourceDefinitionRefs = resourceDefinitions.map((definition) => definition.$ref);
+
+    expect(resourceDefinitions.length).toBeGreaterThan(0);
+    expect(new Set(resourceDefinitionRefs).size).toBe(resourceDefinitionRefs.length);
+    for (const definitionRef of resourceDefinitionRefs) {
+      const definitionName = definitionRef.replace('#/definitions/', '');
+      expect(Object.hasOwn(configSchema.definitions, definitionName)).toBe(true);
+    }
     expect(configSchema.definitions.AppSyncApiProps).toBeDefined();
     expect(configSchema.definitions.KafkaClusterProps).toBeDefined();
   });

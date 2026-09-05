@@ -1,0 +1,871 @@
+---
+// concept: The workspace — on the right, a layered desk: a drafting-sheet panel holding the real isometric diagram of acme-project, with an editor window showing that same project's stacktape.yml overlapping the sheet's lower-left corner like a second window on a desk (the two stack below 1100px); on the left, the copy, the command CTA and a seven-point checklist of what a senior platform team would have set up.
+// copy-angle: Enterprise depth without lock-in — "AWS DevOps, fully automated. Yours to keep.": the automation named plainly and proven by the platform team's own checklist, all of it in the reader's account as plain CloudFormation with CDK and raw-CloudFormation escape hatches; the agent fix is stated with confidence but only ships after human approval.
+// direction: fits
+import { stringify } from 'yaml';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Logo from '../../components/Logo.astro';
+import { CtaCommand } from '../../components/CtaCommand';
+import DiagramIsland from '../../surfaces/InitWizardRun/DiagramIsland';
+import { ACME_DIAGRAM_CONFIG } from '../../surfaces/InitWizardRun/acme-config';
+import { renderSnippet } from '../../lib/snippets/render';
+import { getSnippet } from '../../lib/snippets/snippets';
+import type { RenderedSnippet } from '../../lib/snippets/types';
+
+/*
+ * The editor shows the very object the sheet draws: `ACME_DIAGRAM_CONFIG`, serialised to YAML and run
+ * through the same Shiki + schema-hover pipeline as the catalogue snippets. The catalogue's canonical
+ * `nextjs-postgres` config is the fallback if that render ever fails.
+ */
+let snippet: RenderedSnippet;
+let editorSource = 'acme-config';
+try {
+  snippet = await renderSnippet({
+    id: 'nextjs-postgres',
+    label: 'acme-project',
+    summary: '',
+    yaml: stringify(ACME_DIAGRAM_CONFIG)
+  });
+} catch (error) {
+  console.warn('[hero-competition/32] Rendering the acme config failed; showing the nextjs-postgres snippet.', error);
+  snippet = await getSnippet('nextjs-postgres');
+  editorSource = 'nextjs-postgres';
+}
+
+/**
+ * How many lines the editor window shows. The window is clipped by construction — the Shiki HTML is
+ * cut at line boundaries here, at build time — rather than by `overflow: hidden`, because the schema
+ * hover popups are absolutely positioned inside the code and any clipping box would cut them off.
+ */
+const VISIBLE_LINES = 17;
+const LINE_MARKER = '<span class="line">';
+
+const clipLines = (html: string, keep: number): string => {
+  const [head = '', ...lines] = html.split(LINE_MARKER);
+  const kept = lines
+    .slice(0, keep)
+    .map((line) => LINE_MARKER + line)
+    .join('')
+    .replace(/<\/code><\/pre>\s*$/, '');
+  return `${head}${kept}</code></pre>`;
+};
+
+type Pane = {
+  id: 'yaml' | 'typescript';
+  label: string;
+  file: string;
+  hint: string;
+  html: string;
+  shown: number;
+  total: number;
+};
+
+const yamlPane: Pane = {
+  id: 'yaml',
+  label: 'YAML',
+  file: 'stacktape.yml',
+  hint: 'Hover a key for its documentation',
+  html: clipLines(snippet.yaml.html, VISIBLE_LINES),
+  shown: Math.min(VISIBLE_LINES, snippet.yaml.lineCount),
+  total: snippet.yaml.lineCount
+};
+const typescriptPane: Pane | null = snippet.typescript
+  ? {
+      id: 'typescript',
+      label: 'TS',
+      file: 'stacktape.ts',
+      hint: 'The same six resources, typed',
+      html: clipLines(snippet.typescript.html, VISIBLE_LINES),
+      shown: Math.min(VISIBLE_LINES, snippet.typescript.lineCount),
+      total: snippet.typescript.lineCount
+    }
+  : null;
+const panes: Pane[] = typescriptPane ? [yamlPane, typescriptPane] : [yamlPane];
+
+const checks = [
+  ['Networking', 'VPC in two availability zones, private subnets, NAT, bastion on demand'],
+  ['IAM', 'One least-privilege role per resource, scoped to what it connects to'],
+  ['Data', 'Aurora PostgreSQL and Redis in the private tier, reachable only inside the VPC'],
+  ['Delivery', 'CI/CD pipelines per stage; GitHub Actions runners on your own EC2'],
+  ['Observability', 'Metrics, traces, logs and alarms wired to every resource'],
+  ['Incidents', 'Failures tied to the release that caused them; an agent can fix them, once you approve'],
+  ['Governance', 'RBAC, SSO, guardrails, budgets, audit']
+] as const;
+---
+
+<BaseLayout
+  title="AWS DevOps, fully automated. Yours to keep. — Stacktape"
+  description="Stacktape reads your repository, writes the infrastructure a senior platform team would have set up, deploys it into your own AWS account as plain CloudFormation and keeps it running — pipelines, observability, incidents — with every change waiting for your approval."
+  font="geist"
+  noindex
+>
+  <header class="nav">
+    <a href="/" aria-label="Stacktape home"><Logo height={22} /></a>
+    <nav aria-label="Primary">
+      <a href="https://docs.stacktape.com">Docs</a>
+      <a href="https://github.com/stacktape/stacktape">GitHub</a>
+      <a class="nav-pill" href="https://cal.com/stacktape/30min">Book a demo</a>
+    </nav>
+  </header>
+
+  <main class="hero">
+    <div class="copy">
+      <p class="eyebrow">Open source · plain CloudFormation · your AWS account</p>
+      <h1>
+        AWS DevOps,<br />fully automated.<br />
+        <span class="muted">Yours to keep.</span>
+      </h1>
+      <p class="sub">
+        The wizard reads your repository and writes the infrastructure a senior platform team would have set up —
+        private VPC networking, least-privilege IAM, Aurora, Fargate, GPU jobs — then deploys it into your own AWS
+        account as plain CloudFormation and keeps it running: pipelines, metrics, traces, alarms, incidents.
+      </p>
+      <p class="sub sub--quiet">
+        Existing infrastructure migrates in. CDK constructs and raw CloudFormation drop in where the abstraction
+        stops. Nothing changes without your approval.
+      </p>
+
+      <div class="ctas">
+        <CtaCommand client:visible defaultMethod="npx" />
+        <a class="demo" href="https://cal.com/stacktape/30min">Book a demo <span aria-hidden="true">→</span></a>
+      </div>
+
+      <section class="checklist" aria-labelledby="checklist-title">
+        <div class="checklist-head">
+          <h2 id="checklist-title">What a senior platform team would have set up</h2>
+          <span class="checklist-count">7 / 7 covered</span>
+        </div>
+        <ul>
+          {
+            checks.map(([name, detail], index) => (
+              <li style={`--i: ${index}`}>
+                <span class="tick" aria-hidden="true">
+                  <svg viewBox="0 0 14 14">
+                    <path d="M3 7.4 5.9 10.2 11.2 4.4" />
+                  </svg>
+                </span>
+                <span class="check-name">{name}</span>
+                <span class="check-detail">{detail}</span>
+              </li>
+            ))
+          }
+        </ul>
+      </section>
+    </div>
+
+    <div class="desk">
+      <section class="sheet" aria-label="The generated AWS architecture of acme-project, drawn as an isometric diagram">
+        <div class="sheet-head">
+          <p class="sheet-title">acme-project <span class="dim">/ production / eu-west-1</span></p>
+          <p class="sheet-meta">Generated from the repository by the wizard · 6 resources</p>
+        </div>
+        <div class="canvas">
+          <DiagramIsland
+            client:only="react"
+            config={ACME_DIAGRAM_CONFIG}
+            ariaLabel="Isometric diagram of the generated architecture of acme-project: a VPC with public and private subnets, a Next.js web behind a CDN and a firewall, a Fargate API, a Lambda worker, Aurora PostgreSQL and Redis"
+          />
+        </div>
+        <p class="stamp">
+          <span class="stamp-label">Output</span>
+          <span>Plain CloudFormation</span>
+          <span>in your AWS account</span>
+        </p>
+      </section>
+
+      <section
+        class="editor"
+        id="workspace-editor"
+        data-source={editorSource}
+        aria-label="The configuration the sheet is drawn from"
+      >
+        <div class="editor-bar">
+          <span class="lights" aria-hidden="true"><span></span><span></span><span></span></span>
+          <span class="filename">
+            <svg viewBox="0 0 12 14" aria-hidden="true">
+              <path d="M2.75 1.25h4L10 4.5v8.25H2.75z"></path>
+              <path d="M6.75 1.5V4.5H9.75"></path>
+            </svg>
+            <span id="editor-filename">{yamlPane.file}</span>
+          </span>
+          <div class="langs" role="group" aria-label="Configuration language">
+            {
+              panes.map((pane, index) => (
+                <button
+                  type="button"
+                  class={`lang${index === 0 ? ' is-active' : ''}`}
+                  aria-pressed={index === 0 ? 'true' : 'false'}
+                  data-pane={pane.id}
+                  data-file={pane.file}
+                  data-hint={pane.hint}
+                  data-shown={pane.shown}
+                  data-total={pane.total}
+                >
+                  {pane.label}
+                </button>
+              ))
+            }
+          </div>
+        </div>
+        <div class="editor-body">
+          {
+            panes.map((pane, index) => (
+              <div class="pane" data-pane={pane.id} data-language={pane.id} hidden={index !== 0}>
+                <div class="gutter" aria-hidden="true">
+                  {Array.from({ length: pane.shown }, (_, line) => <span>{line + 1}</span>)}
+                </div>
+                <div class="code stp-code">
+                  <Fragment set:html={pane.html} />
+                </div>
+              </div>
+            ))
+          }
+          <div class="fade" aria-hidden="true"></div>
+        </div>
+        <p class="editor-foot">
+          <span id="editor-lines">Lines 1–{yamlPane.shown} of {yamlPane.total}</span>
+          <span class="editor-hint" id="editor-hint">{yamlPane.hint}</span>
+        </p>
+      </section>
+    </div>
+  </main>
+</BaseLayout>
+
+<style>
+  :root {
+    --ink: var(--stp-text-primary);
+    --ink-2: rgb(198, 206, 206);
+    --ink-3: rgb(140, 150, 150);
+    --line: rgba(255, 255, 255, 0.07);
+    --brand: var(--stp-color-brand);
+    --editor-bg: rgb(23, 29, 29);
+  }
+
+  /* ── Nav ──────────────────────────────────────────────────────────────── */
+  .nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 1340px;
+    margin: 0 auto;
+    padding: 22px 28px;
+  }
+  .nav nav {
+    display: flex;
+    align-items: center;
+    gap: 26px;
+  }
+  .nav a {
+    color: var(--ink-2);
+    font-size: 0.92rem;
+  }
+  .nav a:hover {
+    color: var(--ink);
+  }
+  .nav-pill {
+    padding: 8px 14px;
+    border-radius: 999px;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+    color: var(--ink) !important;
+  }
+
+  /* ── Hero grid ────────────────────────────────────────────────────────── */
+  .hero {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(340px, 0.82fr) minmax(0, 1.18fr);
+    gap: 44px;
+    align-items: start;
+    max-width: 1340px;
+    margin: 0 auto;
+    padding: 36px 28px 96px;
+  }
+  .hero::before {
+    /* One soft brand glow behind the desk; nothing else on the page is tinted. */
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 0;
+    width: 62%;
+    height: 80%;
+    background: radial-gradient(55% 55% at 60% 40%, rgba(54, 190, 190, 0.09), transparent 70%);
+    pointer-events: none;
+  }
+
+  /* ── Copy ─────────────────────────────────────────────────────────────── */
+  .copy {
+    position: relative;
+    z-index: 1;
+    padding-top: 18px;
+  }
+  .eyebrow {
+    margin: 0 0 18px;
+    color: var(--brand);
+    font-family: var(--font-geist-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  h1 {
+    margin: 0;
+    font-size: clamp(2.5rem, 3.7vw, 3.45rem);
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    line-height: 1.02;
+    color: var(--ink);
+  }
+  .muted {
+    color: var(--ink-3);
+  }
+  .sub {
+    max-width: 36rem;
+    margin: 22px 0 0;
+    color: var(--ink-2);
+    font-size: 1.02rem;
+    line-height: 1.62;
+  }
+  .sub--quiet {
+    margin-top: 12px;
+    color: var(--ink-3);
+    font-size: 0.95rem;
+  }
+
+  .ctas {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 12px 14px;
+    margin-top: 30px;
+  }
+  .demo {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 45px;
+    padding: 0 16px;
+    border-radius: var(--stp-radius-large);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+    color: var(--ink);
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition:
+      background 150ms ease,
+      box-shadow 150ms ease;
+  }
+  .demo:hover {
+    background: rgba(255, 255, 255, 0.05);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+  }
+  .demo span {
+    color: var(--ink-3);
+    transition: transform 150ms ease;
+  }
+  .demo:hover span {
+    transform: translateX(2px);
+  }
+
+  /* ── The checklist ────────────────────────────────────────────────────── */
+  .checklist {
+    margin-top: 36px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+  }
+  .checklist-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 4px;
+  }
+  .checklist h2 {
+    margin: 0;
+    color: var(--ink-3);
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .checklist-count {
+    flex: none;
+    color: var(--brand);
+    font-family: var(--font-geist-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+  }
+  .checklist ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .checklist li {
+    display: grid;
+    grid-template-columns: 18px 104px minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.86rem;
+    line-height: 1.45;
+  }
+  .tick {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    margin-top: 1px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--brand) 14%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 40%, transparent);
+  }
+  .tick svg {
+    width: 11px;
+    height: 11px;
+    fill: none;
+    stroke: var(--brand);
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .check-name {
+    color: var(--ink);
+    font-size: 0.82rem;
+    font-weight: 550;
+  }
+  .check-detail {
+    color: var(--ink-2);
+  }
+
+  /* ── The desk: sheet behind, editor in front ──────────────────────────── */
+  .desk {
+    /* How far the editor sticks out to the left of the sheet, how far it hangs below it, and the
+     * strip at the foot of the sheet that the drawing keeps clear so the overlap hides nothing. */
+    --shift: 44px;
+    --hang: 310px;
+    --reserve: 112px;
+    position: relative;
+    z-index: 1;
+    padding: 0 0 var(--hang) var(--shift);
+  }
+
+  .sheet {
+    position: relative;
+    z-index: 1;
+    padding: 16px 18px;
+    overflow: hidden;
+    border-radius: 18px;
+    background: linear-gradient(180deg, rgb(28, 34, 34), rgb(24, 30, 30));
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05),
+      0 40px 90px -30px rgba(0, 0, 0, 0.7),
+      0 0 120px rgba(54, 190, 190, 0.06);
+  }
+  .sheet::before {
+    /* Drafting-paper dots, fading toward the foot of the sheet. */
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1.4px);
+    background-size: 22px 22px;
+    background-position: 10px 10px;
+    -webkit-mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.3));
+    mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.3));
+    pointer-events: none;
+  }
+  .sheet-head {
+    position: relative;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .sheet-title {
+    flex: none;
+    margin: 0;
+    color: var(--ink);
+    font-family: var(--font-geist-mono);
+    font-size: 0.86rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .dim {
+    color: var(--ink-3);
+    font-weight: 400;
+  }
+  .sheet-meta {
+    margin: 0;
+    color: var(--ink-3);
+    font-size: 0.78rem;
+    text-align: right;
+  }
+
+  .canvas {
+    /* client:only renders nothing on the server; the sheet must not collapse before hydration. The
+     * bottom padding is the strip the editor overlaps: the scene is fitted into the content box above it. */
+    position: relative;
+    height: clamp(21rem, 34vw, 30rem);
+    margin-top: 6px;
+    padding-bottom: var(--reserve);
+  }
+  .canvas :global(.stp-diagram) {
+    /* The renderer paints the page colour behind the scene; here the sheet's paper shows through. */
+    background: transparent;
+  }
+
+  .stamp {
+    position: absolute;
+    right: 18px;
+    bottom: 16px;
+    z-index: 1;
+    display: grid;
+    gap: 2px;
+    margin: 0;
+    padding: 9px 14px 10px;
+    border-radius: var(--stp-radius-large);
+    background: rgba(0, 0, 0, 0.28);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    color: var(--ink-2);
+    font-family: var(--font-geist-mono);
+    font-size: 0.7rem;
+    white-space: nowrap;
+  }
+  .stamp-label {
+    margin-bottom: 3px;
+    color: var(--brand);
+    font-size: 0.58rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  /* ── The editor window ────────────────────────────────────────────────── */
+  .editor {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    z-index: 2;
+    width: min(26rem, 56%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 14px;
+    background: var(--editor-bg);
+    box-shadow:
+      0 30px 70px -20px rgba(0, 0, 0, 0.85),
+      0 12px 30px -12px rgba(0, 0, 0, 0.6),
+      0 0 0 1px rgba(0, 0, 0, 0.45);
+  }
+  .editor-bar {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 12px;
+    height: 38px;
+    padding: 0 12px;
+    border-radius: 13px 13px 0 0;
+    background: rgba(0, 0, 0, 0.22);
+    box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+  }
+  .lights {
+    display: flex;
+    gap: 6px;
+  }
+  .lights span {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    opacity: 0.78;
+  }
+  .lights span:nth-child(1) {
+    background: #ff5f57;
+  }
+  .lights span:nth-child(2) {
+    background: #febc2e;
+  }
+  .lights span:nth-child(3) {
+    background: #28c840;
+  }
+  .filename {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--ink-3);
+    font-family: var(--font-geist-mono);
+    font-size: 0.72rem;
+    white-space: nowrap;
+  }
+  .filename svg {
+    width: 11px;
+    height: 12px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.1;
+    stroke-linejoin: round;
+    opacity: 0.7;
+  }
+  .langs {
+    display: inline-flex;
+    justify-self: end;
+    gap: 2px;
+    padding: 2px;
+    border-radius: var(--stp-radius-large);
+    background: rgba(0, 0, 0, 0.25);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  }
+  .lang {
+    padding: 2px 8px;
+    border: 0;
+    border-radius: calc(var(--stp-radius-large) - 3px);
+    background: none;
+    color: var(--ink-3);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+    transition:
+      background 150ms ease,
+      color 150ms ease;
+  }
+  .lang:hover {
+    color: var(--ink);
+  }
+  .lang.is-active {
+    background: rgba(255, 255, 255, 0.09);
+    color: var(--ink);
+  }
+
+  .editor-body {
+    position: relative;
+  }
+  .pane {
+    display: flex;
+    padding: 12px 0;
+  }
+  .pane[hidden] {
+    display: none;
+  }
+  .gutter {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    padding: 0 12px 0 14px;
+    color: var(--stp-text-faint);
+    font-family: var(--font-geist-mono);
+    font-size: 0.76rem;
+    line-height: 1.7;
+    text-align: right;
+    opacity: 0.5;
+    user-select: none;
+  }
+  .code {
+    flex: 1;
+    min-width: 0;
+    padding-right: 14px;
+  }
+  .code :global(code) {
+    font-size: 0.76rem;
+  }
+  .pane[data-language='typescript'] .code {
+    /* The TypeScript twin has one long import line; it scrolls inside the pane, never the page. The
+     * YAML pane stays unclipped because its hover popups have to escape it. */
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+  }
+  .pane[data-language='typescript']::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 40px;
+    background: linear-gradient(90deg, transparent, var(--editor-bg));
+    pointer-events: none;
+  }
+  .fade {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 1;
+    height: 96px;
+    background: linear-gradient(180deg, transparent, var(--editor-bg) 88%);
+    pointer-events: none;
+  }
+  .editor-foot {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 0;
+    padding: 9px 14px 10px;
+    border-radius: 0 0 13px 13px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    color: var(--ink-3);
+    font-family: var(--font-geist-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.02em;
+  }
+  .editor-hint {
+    color: var(--stp-text-faint);
+    text-align: right;
+  }
+
+  /* ── Motion ───────────────────────────────────────────────────────────── */
+  @media (prefers-reduced-motion: no-preference) {
+    .sheet {
+      opacity: 0;
+      transform: translateY(12px);
+      animation: arrive 700ms cubic-bezier(0.2, 0.8, 0.2, 1) 150ms forwards;
+    }
+    .editor {
+      opacity: 0;
+      transform: translate(-8px, 14px);
+      animation: arrive 700ms cubic-bezier(0.2, 0.8, 0.2, 1) 520ms forwards;
+    }
+    .checklist li {
+      opacity: 0;
+      transform: translateY(6px);
+      animation: arrive 420ms ease forwards;
+      animation-delay: calc(700ms + var(--i) * 90ms);
+    }
+    .tick svg path {
+      stroke-dasharray: 14;
+      stroke-dashoffset: 14;
+      animation: draw 360ms ease forwards;
+      animation-delay: calc(900ms + var(--i) * 90ms);
+    }
+    .pane {
+      animation: swap 200ms ease;
+    }
+  }
+  @keyframes arrive {
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes draw {
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+  @keyframes swap {
+    from {
+      opacity: 0;
+      transform: translateY(3px);
+    }
+  }
+
+  /* ── Narrower: the two windows stack, then the columns do ─────────────── */
+  @media (max-width: 1100px) {
+    .desk {
+      display: grid;
+      gap: 18px;
+      padding: 0;
+    }
+    .editor {
+      position: static;
+      width: 100%;
+      max-width: 38rem;
+    }
+    .canvas {
+      height: clamp(18rem, 32vw, 27rem);
+      padding-bottom: 0;
+    }
+    .stamp {
+      position: static;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 10px;
+      width: max-content;
+      max-width: 100%;
+      margin-top: 12px;
+    }
+    .stamp-label {
+      margin: 0;
+      align-self: center;
+    }
+  }
+  @media (max-width: 960px) {
+    .hero {
+      grid-template-columns: 1fr;
+      gap: 40px;
+      padding-bottom: 72px;
+    }
+    .hero::before {
+      width: 100%;
+    }
+    .copy {
+      max-width: 40rem;
+    }
+  }
+</style>
+
+<script>
+  const editor = document.getElementById('workspace-editor') as HTMLElement | null;
+
+  if (editor) {
+    const buttons = Array.from(editor.querySelectorAll<HTMLButtonElement>('.lang'));
+    const panes = Array.from(editor.querySelectorAll<HTMLElement>('.pane'));
+    const filename = document.getElementById('editor-filename') as HTMLElement | null;
+    const lines = document.getElementById('editor-lines') as HTMLElement | null;
+    const hint = document.getElementById('editor-hint') as HTMLElement | null;
+
+    // The YAML/TS switch: both panes are pre-rendered; only the `hidden` attribute moves.
+    for (const button of buttons) {
+      button.addEventListener('click', () => {
+        const target = button.dataset.pane ?? '';
+        for (const other of buttons) {
+          const isActive = other === button;
+          other.classList.toggle('is-active', isActive);
+          other.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+        }
+        for (const pane of panes) pane.hidden = pane.dataset.pane !== target;
+        if (filename) filename.textContent = button.dataset.file ?? '';
+        if (lines) lines.textContent = `Lines 1–${button.dataset.shown ?? ''} of ${button.dataset.total ?? ''}`;
+        if (hint) hint.textContent = button.dataset.hint ?? '';
+      });
+    }
+
+    /*
+     * Keeps a schema hover popup inside the viewport. The popup shows and hides in pure CSS; this only
+     * answers what the stylesheet cannot — how far it must slide left and whether it must open upwards —
+     * and writes both back in the form `snippets.css` already understands. Measured on `pointerenter`
+     * and `focusin`, when `:hover`/`:focus-within` already applies and the popup has a box to measure.
+     */
+    // Kept beside the page-specific listeners it serves instead of adding a script-global helper.
+    // oxlint-disable-next-line unicorn/consistent-function-scoping
+    const measure = (hover: HTMLElement) => {
+      const popup = hover.querySelector<HTMLElement>('.stp-hover-popup');
+      if (!popup) return;
+
+      popup.style.removeProperty('--stp-hover-shift');
+      hover.removeAttribute('data-stp-hover-above');
+
+      const anchor = hover.getBoundingClientRect();
+      const rect = popup.getBoundingClientRect();
+      const margin = 12;
+
+      const overflowRight = rect.right - (window.innerWidth - margin);
+      const maxShift = Math.max(0, anchor.left - margin);
+      if (overflowRight > 0) popup.style.setProperty('--stp-hover-shift', `${-Math.min(overflowRight, maxShift)}px`);
+
+      const spaceBelow = window.innerHeight - anchor.bottom;
+      if (rect.height > spaceBelow - margin && anchor.top > spaceBelow) {
+        hover.setAttribute('data-stp-hover-above', 'true');
+      }
+    };
+
+    const onEnter = (event: Event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const hover = target.closest<HTMLElement>('.stp-hover');
+      if (hover && editor.contains(hover)) measure(hover);
+    };
+
+    // Capture, because `pointerenter` does not bubble and one listener beats one per documented key.
+    editor.addEventListener('pointerenter', onEnter, true);
+    editor.addEventListener('focusin', onEnter);
+  }
+</script>

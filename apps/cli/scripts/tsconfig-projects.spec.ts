@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { pathExists, readJson } from 'fs-extra';
+import { pathExists, readFile, readJson } from 'fs-extra';
 
 const cliPath = join(import.meta.dir, '..');
 const workspacePath = join(cliPath, '..', '..');
@@ -51,7 +51,8 @@ describe('TypeScript project ownership', () => {
       '@stacktape/ui-react#build'
     ]);
     expect(workspaceTurboConfig.tasks['@stacktape/website#dev'].dependsOn).toEqual([
-      '@stacktape/design-tokens#generate'
+      '@stacktape/design-tokens#generate',
+      '@stacktape/ui-react#build'
     ]);
   });
 
@@ -74,7 +75,6 @@ describe('TypeScript project ownership', () => {
 
     expect(projectPaths).toEqual([
       'tsconfig.json',
-      'tsconfig.build.json',
       'tests/tsconfig.json',
       '_test-stacks/config-loading-smoke/tsconfig.json',
       '_test-stacks/packaging-smoke/tsconfig.json',
@@ -84,13 +84,17 @@ describe('TypeScript project ownership', () => {
   });
 
   test('owns characterization tests and the committed generated schema validator', async () => {
-    const [testsConfig, generatedConfig] = await Promise.all([
+    const [testsConfig, generatedConfig, generatedValidator] = await Promise.all([
       readJson(join(cliPath, 'tests', 'tsconfig.json')),
-      readJson(join(cliPath, '@generated', 'tsconfig.json'))
+      readJson(join(cliPath, '@generated', 'tsconfig.json')),
+      readFile(join(cliPath, '@generated', 'schemas', 'validate-config-zod.ts'), 'utf8')
     ]);
 
     expect(testsConfig.include).toEqual(['../src/environment.d.ts', './characterization/**/*.ts']);
     expect(generatedConfig.include).toEqual(['./schemas/validate-config-zod.ts']);
+    expect(generatedValidator).toStartWith('// @ts-nocheck\n');
+    expect(generatedValidator).toContain('export const stacktapeConfigSchema: z.ZodType<Record<string, unknown>> =');
+    expect(generatedValidator).not.toContain('export type StacktapeConfigSchema = z.infer');
     expect(await pathExists(join(cliPath, 'tsconfig.generated.json'))).toBe(false);
   });
 });

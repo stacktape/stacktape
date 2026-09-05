@@ -74,6 +74,8 @@ const readPackageName = async (packageRoot: string): Promise<string> => {
 const readPackageManifest = async (packageRoot: string): Promise<PackageManifest> =>
   readJson(join(packageRoot, 'package.json')) as Promise<PackageManifest>;
 
+const canonicalizeExistingPath = async (path: string) => realpath(resolve(path));
+
 const getRuntimeDependencyNames = (manifest: PackageManifest) =>
   new Set([
     ...Object.keys(manifest.dependencies ?? {}),
@@ -119,8 +121,8 @@ export const resolveInstalledNodePackage = async ({
   resolveFromPackage?: string | undefined;
   traceBasePath: string;
 }) => {
-  const absoluteTraceBasePath = resolve(traceBasePath);
-  let fromPackageRoot = resolve(applicationRoot);
+  const absoluteTraceBasePath = await canonicalizeExistingPath(traceBasePath);
+  let fromPackageRoot = await canonicalizeExistingPath(applicationRoot);
   if (resolveFromPackage) {
     const resolvedParent = await findInstalledPackageRoot({
       dependencyName: resolveFromPackage,
@@ -160,8 +162,9 @@ export const copyTracedNodeRuntimeFiles = async ({
   traceBasePath: string;
   processCwd: string;
 }) => {
-  const absoluteTraceBasePath = resolve(traceBasePath);
-  const absoluteEntrypointPath = resolve(entrypointPath);
+  const absoluteTraceBasePath = await canonicalizeExistingPath(traceBasePath);
+  const absoluteEntrypointPath = await canonicalizeExistingPath(entrypointPath);
+  const applicationManifestRoot = await canonicalizeExistingPath(processCwd);
   const applicationPackageRoot = await findPackageRoot({
     filePath: absoluteEntrypointPath,
     traceBasePath: absoluteTraceBasePath,
@@ -169,7 +172,7 @@ export const copyTracedNodeRuntimeFiles = async ({
   });
   const trace = await nodeFileTrace([absoluteEntrypointPath], {
     base: absoluteTraceBasePath,
-    processCwd,
+    processCwd: applicationManifestRoot,
     conditions: ['node', 'production'],
     mixedModules: true
   });
@@ -207,7 +210,6 @@ export const copyTracedNodeRuntimeFiles = async ({
   // NFT cannot discover packages whose names are selected at runtime. Application production dependencies are an
   // explicit deployment contract, so include their complete runtime package graphs while continuing to trace
   // framework/build output. This keeps pnpm's store out of the ZIP without breaking plugin-style dynamic imports.
-  const applicationManifestRoot = resolve(processCwd);
   const applicationManifestPath = join(applicationManifestRoot, 'package.json');
   if (await pathExists(applicationManifestPath)) {
     const applicationManifest = await readPackageManifest(applicationManifestRoot);

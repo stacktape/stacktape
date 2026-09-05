@@ -45,11 +45,11 @@ jobs:
           version: 11.17.0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 24
+          node-version-file: .node-version
           cache: pnpm
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: 1.4.0
+          bun-version: 1.4.1
       - run: pnpm install --frozen-lockfile
       - name: Validate release input
         working-directory: apps/cli
@@ -112,11 +112,11 @@ jobs:
           version: 11.17.0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 24
+          node-version-file: .node-version
           cache: pnpm
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: 1.4.0
+          bun-version: 1.4.1
       - run: pnpm install --frozen-lockfile
       # The binary serves this from beside itself; the packaging step fails loudly without it.
       - name: Build init wizard interface
@@ -176,11 +176,11 @@ jobs:
           version: 11.17.0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 24
+          node-version-file: .node-version
           cache: pnpm
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: 1.4.0
+          bun-version: 1.4.1
       - run: pnpm install --frozen-lockfile
       - name: Download binary archives
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
@@ -230,12 +230,12 @@ jobs:
           version: 11.17.0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 24
+          node-version-file: .node-version
           cache: pnpm
           registry-url: https://registry.npmjs.org
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: 1.4.0
+          bun-version: 1.4.1
       - run: npm install --global npm@11.16.0
       - run: pnpm install --frozen-lockfile
       - name: Download verified candidate
@@ -380,11 +380,11 @@ jobs:
           version: 11.17.0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 24
+          node-version-file: .node-version
           cache: pnpm
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: 1.4.0
+          bun-version: 1.4.1
       - run: pnpm install --frozen-lockfile
       - name: Validate installer publishing target
         env:

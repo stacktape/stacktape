@@ -6,10 +6,13 @@
 import synthetics from '@aws/synthetics-puppeteer';
 
 export const handler = async () => {
+  const targetUrl = process.env.TARGET_URL;
+  if (!targetUrl) throw new Error('TARGET_URL is required.');
+  const parsed = new URL(targetUrl);
   await synthetics.executeHttpStep('home', {
-    hostname: 'example.com',
+    hostname: parsed.hostname,
     method: 'GET',
-    path: '/',
-    protocol: 'https:'
+    path: `${parsed.pathname}${parsed.search}`,
+    protocol: parsed.protocol
   });
 };

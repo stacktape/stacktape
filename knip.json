@@ -23,7 +23,8 @@
       "ignore": ["content/**", "dist/**", "public/**"]
     },
     "apps/website": {
-      "entry": ["src/**/*.astro"]
+      "entry": ["astro.config.mjs", "src/pages/**/*.astro"],
+      "project": ["src/**/*.{ts,tsx,astro,css}"]
     },
     "apps/init-ui": {
       "entry": ["index.html", "src/main.tsx", "vite.config.ts", "**/*.spec.ts"],

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildEsCode } from './index';
@@ -45,5 +45,23 @@ describe('source-map banner selection', () => {
     const esm = await readFile(esmOutput, 'utf8');
     expect(esm).toContain('createRequire as __stp_createRequire');
     expect(esm).not.toContain('__stacktapeCjsBanner');
+  });
+
+  test('does not place an ESM package boundary beside an explicit mjs output', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'stacktape-mjs-boundary-'));
+    temporaryDirectories.push(root);
+
+    await buildEsCode({
+      rawCode: 'export const value = 1;',
+      distPath: join(root, 'runtime.mjs'),
+      outputModuleFormat: 'esm',
+      externals: [],
+      sourceMaps: 'disabled',
+      sourceMapBannerType: 'disabled',
+      cwd: root,
+      createPackagingError: ({ message }: { message: string }) => new Error(message)
+    });
+
+    await expect(access(join(root, 'package.json'))).rejects.toThrow();
   });
 });

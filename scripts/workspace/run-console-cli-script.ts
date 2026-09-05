@@ -1,10 +1,8 @@
-import { spawn } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildCliDevArtifacts, runInheritedProcess } from './child-process.ts';
 
-const require = createRequire(import.meta.url);
 const workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const consoleApiDirectory = join(workspaceRoot, 'apps', 'console', 'api');
 const consolePackagePath = join(consoleApiDirectory, 'package.json');
@@ -140,17 +138,6 @@ export const sourceCliArgsForConsoleScript = ({
   ];
 };
 
-const runInherited = async (command: string, args: string[], cwd: string): Promise<number> => {
-  const child = spawn(command, args, { cwd, env: process.env, stdio: 'inherit' });
-  return new Promise<number>((resolveExit, reject) => {
-    child.once('error', reject);
-    child.once('exit', (code, signal) => {
-      if (signal) reject(new Error(`Command exited after receiving ${signal}.`));
-      else resolveExit(code ?? 1);
-    });
-  });
-};
-
 const loadConsoleScripts = async (): Promise<Record<string, string>> => {
   const packageJson = JSON.parse(await readFile(consolePackagePath, 'utf8')) as {
     scripts?: Record<string, string>;
@@ -192,18 +179,13 @@ const main = async () => {
   });
 
   console.info(`Running Console script \`${scriptName}\` with the source-built Stacktape CLI.\n`);
-  const turboBin = require.resolve('turbo/bin/turbo');
-  const buildExitCode = await runInherited(
-    process.env.npm_node_execpath || 'node',
-    [turboBin, 'run', 'build:dev-artifacts', '--filter=@stacktape/cli'],
-    workspaceRoot
-  );
+  const buildExitCode = await buildCliDevArtifacts(workspaceRoot);
   if (buildExitCode !== 0) {
     process.exitCode = buildExitCode;
     return;
   }
 
-  process.exitCode = await runInherited(process.execPath, [cliDevScript, ...cliArgs], cliDirectory);
+  process.exitCode = await runInheritedProcess(process.execPath, [cliDevScript, ...cliArgs], cliDirectory);
 };
 
 const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);

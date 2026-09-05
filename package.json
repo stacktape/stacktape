@@ -44,13 +44,23 @@
     "release": "pnpm --filter @stacktape/cli run release --channel stable",
     "release:preview": "pnpm --filter @stacktape/cli run release --channel preview",
     "test": "turbo run test",
+    "test:aws": "pnpm qualify:projects -- --lanes=aws",
+    "test:console:api": "pnpm --filter @stacktape/console-api-app test",
+    "test:console:browser": "pnpm --filter @stacktape/console-ui test:e2e",
+    "test:console:browser:smoke": "pnpm --filter @stacktape/console-ui test:e2e:smoke",
+    "test:console:browser:dev-api": "pnpm --filter @stacktape/console-ui test:e2e:dev-api",
+    "test:console:db": "pnpm --filter @stacktape/console-api-app test:db",
+    "test:doctor": "node scripts/workspace/test-doctor.ts",
     "test:packaging-e2e": "pnpm --filter @stacktape/packaging run test:docker-smoke && pnpm --filter @stacktape/packaging run test:node-lambda-e2e && pnpm --filter @stacktape/packaging run test:web-framework-e2e",
-    "test:tools": "node --test scripts/workspace/check-staged-secrets.test.ts scripts/workspace/configure-hooks.test.ts scripts/workspace/run-console-cli-script.test.ts scripts/workspace/run-console-dev.test.ts scripts/workspace/verify-console-pointer.test.ts",
+    "test:plan": "node scripts/workspace/test-plan.ts",
+    "test:tools": "node --test scripts/workspace/check-staged-secrets.test.ts scripts/workspace/child-process.test.ts scripts/workspace/configure-hooks.test.ts scripts/workspace/run-console-cli-script.test.ts scripts/workspace/run-console-dev.test.ts scripts/workspace/test-doctor.test.ts scripts/workspace/test-plan.test.ts scripts/workspace/verify-console-pointer.test.ts",
     "typecheck": "turbo run typecheck",
     "typecheck:tools": "tsc -p tsconfig.json"
   },
   "devDependencies": {
     "@ast-grep/cli": "catalog:",
+    "@aws-sdk/client-cloudformation": "3.1121.0",
+    "@aws-sdk/client-sts": "3.1121.0",
     "@types/node": "catalog:",
     "dependency-cruiser": "catalog:",
     "dprint": "catalog:",
@@ -73,8 +83,8 @@
     "*.astro": "dprint fmt --allow-no-files"
   },
   "engines": {
-    "bun": "1.4.0",
-    "node": ">=24"
+    "bun": "1.4.1",
+    "node": ">=24.15.0 <25"
   },
   "packageManager": "pnpm@11.17.0"
 }

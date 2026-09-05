@@ -138,5 +138,45 @@
     "number": "28",
     "player": "grok",
     "version": 4
+  },
+  {
+    "number": "29",
+    "player": "fable",
+    "version": 5
+  },
+  {
+    "number": "30",
+    "player": "fable",
+    "version": 6
+  },
+  {
+    "number": "31",
+    "player": "fable",
+    "version": 7
+  },
+  {
+    "number": "32",
+    "player": "fable",
+    "version": 8
+  },
+  {
+    "number": "33",
+    "player": "fable",
+    "version": 9
+  },
+  {
+    "number": "34",
+    "player": "fable",
+    "version": 10
+  },
+  {
+    "number": "35",
+    "player": "fable",
+    "version": 11
+  },
+  {
+    "number": "36",
+    "player": "fable",
+    "version": 12
   }
 ]

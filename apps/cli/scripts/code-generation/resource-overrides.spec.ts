@@ -84,7 +84,12 @@ describe('resources with modelled children still get overrides', () => {
     // The invariant the Convex bug broke, checked for the whole surface rather than one resource.
     const referenced = [...assembledDeclarations.matchAll(/(\w+)PropsWithOverrides/g)].map((match) => match[1]);
     for (const className of [...new Set(referenced)]) {
-      expect(assembledDeclarations, `${className} has no ${className}Overrides`).toContain(`${className}Overrides`);
+      expect(assembledDeclarations, `${className} has no ${className}Overrides declaration`).toContain(
+        `export type ${className}Overrides =`
+      );
+      expect(assembledDeclarations, `${className} has no ${className}Transforms declaration`).toContain(
+        `export type ${className}Transforms =`
+      );
     }
   });
 });

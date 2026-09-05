@@ -12,9 +12,11 @@ export const handler = async () => {
   try {
     const browser = await synthetics.launch();
     const page = await synthetics.newPage(browser);
-    await page.goto(process.env.TARGET_URL || 'https://example.com', { timeout: 30000 });
+    const targetUrl = process.env.TARGET_URL;
+    if (!targetUrl) throw new Error('TARGET_URL is required.');
+    await page.goto(targetUrl, { timeout: 30000 });
     await page.screenshot({ path: '/tmp/home.png' });
-    expect(await page.title()).toContain('Example');
+    expect(await page.locator('body').innerText()).toContain('"ok":true');
   } finally {
     await synthetics.close();
   }

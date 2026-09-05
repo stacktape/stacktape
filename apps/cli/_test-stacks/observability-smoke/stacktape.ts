@@ -21,10 +21,12 @@ import {
   StacktapeLambdaBuildpackPackaging,
   SyntheticTest,
   UptimeCheck,
-  WebService
+  WebService,
+  $ResourceParam
 } from '@stacktape/config-authoring';
 
 export default defineConfig(() => {
+  const canaryOwner = process.env.STP_AWS_CANARY_OWNER ?? 'local';
   const api = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/api.ts' }),
     url: { enabled: true, authMode: 'NONE' },
@@ -39,28 +41,32 @@ export default defineConfig(() => {
   });
 
   const homeUptime = new UptimeCheck({
-    // The web service itself, so breaking it (scaling to zero) demonstrably opens an incident.
-    url: 'https://web-obsmoke-0827-dev-68ebfd7b.stacktape-app.com',
+    // The stack's own service keeps every unique canary self-contained and makes cleanup exact.
+    url: $ResourceParam('web', 'url'),
     assertions: [{ type: 'status-code', properties: { accepted: [200] } }]
   });
 
   const homeFlow = new SyntheticTest({
     test: { type: 'browser', properties: { scriptPath: './src/home-flow.canary.ts' } },
     scheduleRate: 'rate(5 minutes)',
-    environment: [{ name: 'TARGET_URL', value: 'https://example.com' }],
+    environment: [{ name: 'TARGET_URL', value: $ResourceParam('web', 'url') }],
     notificationChannels: [{ type: 'webhook', properties: { url: 'https://example.com/observability-smoke-hook' } }]
   });
 
   const homeApi = new SyntheticTest({
     test: { type: 'api', properties: { scriptPath: './src/home-api.canary.ts' } },
-    scheduleRate: 'rate(5 minutes)'
+    scheduleRate: 'rate(5 minutes)',
+    environment: [{ name: 'TARGET_URL', value: $ResourceParam('api', 'url') }]
   });
 
   return {
     resources: { api, web, homeUptime, homeFlow, homeApi },
     stackConfig: {
       tracing: { enabled: true, samplingRate: 1 },
-      tags: [{ name: 'suite', value: 'observability-smoke' }]
+      tags: [
+        { name: 'suite', value: 'observability-smoke' },
+        { name: 'stacktape-canary-owner', value: canaryOwner }
+      ]
     }
   };
 });

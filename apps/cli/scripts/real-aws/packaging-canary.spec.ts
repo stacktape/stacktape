@@ -1,11 +1,15 @@
-import { describe, expect, test } from 'bun:test';
+import { CloudFormationClient } from '@aws-sdk/client-cloudformation';
+import { CloudWatchLogsClient } from '@aws-sdk/client-cloudwatch-logs';
+import { STSClient } from '@aws-sdk/client-sts';
+import { describe, expect, spyOn, test } from 'bun:test';
 import {
   assertCliVersionOutput,
   assertNoOpSnapshot,
   assertOwnedStack,
   assertUpdatedSnapshot,
   buildCanaryEnvironment,
-  resolveCanaryOptions
+  resolveCanaryOptions,
+  runPackagingCanary
 } from './packaging-canary';
 
 const guardedProfileEnvironment = {
@@ -42,6 +46,52 @@ const awsSnapshot = (revision: string, lastUpdatedTime: string | null = null) =>
 });
 
 describe('real-AWS packaging canary guardrails', () => {
+  test('an account mismatch cannot trigger cleanup or any resource lookup', async () => {
+    const identity = spyOn(STSClient.prototype, 'send').mockImplementation(async () => ({ Account: '999999999999' }));
+    const cloudFormation = spyOn(CloudFormationClient.prototype, 'send').mockImplementation(() => {
+      throw new Error('Unexpected resource access');
+    });
+    const logs = spyOn(CloudWatchLogsClient.prototype, 'send').mockImplementation(() => {
+      throw new Error('Unexpected log deletion');
+    });
+    try {
+      await expect(runPackagingCanary({ env: guardedProfileEnvironment })).rejects.toThrow(
+        'not explicitly allowed account'
+      );
+      expect(cloudFormation).not.toHaveBeenCalled();
+      expect(logs).not.toHaveBeenCalled();
+    } finally {
+      identity.mockRestore();
+      cloudFormation.mockRestore();
+      logs.mockRestore();
+    }
+  });
+
+  test('rejecting an existing stack does not enter cleanup, even if its owner matches', async () => {
+    const identity = spyOn(STSClient.prototype, 'send').mockImplementation(async () => ({ Account: '123456789012' }));
+    const cloudFormation = spyOn(CloudFormationClient.prototype, 'send')
+      .mockImplementation(() => {
+        throw new Error('Unexpected cleanup after preflight rejection');
+      })
+      .mockImplementationOnce(async () => ({
+        Stacks: [{ Tags: [{ Key: 'stacktape-canary-owner', Value: guardedProfileEnvironment.STP_AWS_CANARY_OWNER }] }]
+      }));
+    const logs = spyOn(CloudWatchLogsClient.prototype, 'send').mockImplementation(() => {
+      throw new Error('Unexpected log deletion');
+    });
+    try {
+      await expect(runPackagingCanary({ env: guardedProfileEnvironment })).rejects.toThrow(
+        'Refusing to mutate existing stack'
+      );
+      expect(cloudFormation).toHaveBeenCalledTimes(1);
+      expect(logs).not.toHaveBeenCalled();
+    } finally {
+      identity.mockRestore();
+      cloudFormation.mockRestore();
+      logs.mockRestore();
+    }
+  });
+
   test('requires an explicit mutation opt-in, disposable-account phrase, account id, and API key', () => {
     expect(() => resolveCanaryOptions({ platform: 'linux', env: {} })).toThrow('explicit opt-in');
     expect(() =>

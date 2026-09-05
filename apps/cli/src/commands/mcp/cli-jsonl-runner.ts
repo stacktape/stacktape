@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { basename, dirname, isAbsolute, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
-import { existsSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { getMcpOperationInvocationEnv } from '@application-services/operation-invocation-context';
 import killProcessTree from 'tree-kill';
 import type {
@@ -266,7 +266,9 @@ export const runStacktapeCommandJsonl = async ({
   onProgress?: (event: JsonlEventEvent) => void | Promise<void>;
 }): Promise<RunStacktapeResult> => {
   const { command: spawnCommand, prefixArgs, cwd: spawnCwd } = getStacktapeSpawnBase();
-  const resolvedCwd = resolve(cwd || process.cwd());
+  // macOS exposes /tmp through /private/tmp. Use the filesystem's canonical path so the
+  // context reported to callers is exactly the directory observed by the child process.
+  const resolvedCwd = realpathSync(resolve(cwd || process.cwd()));
   const resolvedProjectArgs = resolveUserProjectArgs({ args: args || {}, cwd: resolvedCwd });
   const resolvedArgs = resolvedProjectArgs.args;
   const cliArgs = normalizeCliArgs(resolvedArgs);

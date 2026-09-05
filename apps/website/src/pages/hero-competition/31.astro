@@ -1,0 +1,817 @@
+---
+// concept: Left–right split in which the page writes itself: the `npx stacktape init` command types into the primary CTA, then the editor on the right streams the acme-project config line by line behind a live caret, and when the last line lands the real isometric architecture diagram fades in beneath it under a seam that names what the file becomes.
+// copy-angle: Developer-direct and short — "AWS DevOps, fully automated. Your part is one command." — the automation named plainly, the depth proven by the config and the diagram rather than by adjectives, the agent/incident story kept to one opt-in clause with approval, and the closing line stating that nothing is created until the reader says so.
+// direction: fits
+import { stringify } from 'yaml';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Logo from '../../components/Logo.astro';
+import DiagramIsland from '../../surfaces/InitWizardRun/DiagramIsland.tsx';
+import { ACME_DIAGRAM_CONFIG } from '../../surfaces/InitWizardRun/acme-config.ts';
+import { GIT_REPOSITORY, PROJECT_NAME, REGION } from '../../surfaces/story';
+import { renderSnippet } from '../../lib/snippets/render';
+import { getSnippet } from '../../lib/snippets/snippets';
+import type { RenderedSnippet } from '../../lib/snippets/types';
+
+/*
+ * The editor shows the same six resources the diagram draws, rendered through the build-time snippet
+ * pipeline so every documented key carries its schema popup on hover. If the acme render ever fails,
+ * the canonical nextjs-postgres snippet stands in and the page still builds.
+ */
+// Trailing newline dropped: Shiki would otherwise emit an empty 55th line with no gutter number.
+const acmeYaml = stringify(ACME_DIAGRAM_CONFIG).replace(/\n+$/, '');
+const resourceCount = Object.keys(ACME_DIAGRAM_CONFIG.resources).length;
+
+let editor: RenderedSnippet;
+let usedFallback = false;
+try {
+  editor = await renderSnippet({ id: 'nextjs-postgres', label: PROJECT_NAME, summary: '', yaml: acmeYaml });
+} catch (error) {
+  console.warn('hero-competition/31: acme render failed, using the nextjs-postgres snippet instead', error);
+  editor = await getSnippet('nextjs-postgres');
+  usedFallback = true;
+}
+
+/*
+ * Milliseconds per revealed line, computed from the source rather than read back out of the highlighted
+ * DOM (whose text includes the hidden hover popups). Longer lines take longer and a new top-level
+ * resource gets a beat, so the file lands in roughly two and a half seconds.
+ */
+const cadence = usedFallback
+  ? Array.from({ length: editor.yaml.lineCount }, () => 56)
+  : acmeYaml
+      .split('\n')
+      .map((line) => Math.round(24 + Math.min(line.trim().length, 36) + (/^ {2}\S/.test(line) ? 90 : 0)));
+
+/** Verbatim from the CLI's own installation instructions. */
+const commands = [
+  { id: 'npx', label: 'npx', command: 'npx stacktape init' },
+  { id: 'macos', label: 'macOS', command: 'curl -L https://installs.stacktape.com/macos.sh | sh' },
+  { id: 'linux', label: 'Linux', command: 'curl -L https://installs.stacktape.com/linux.sh | sh' },
+  { id: 'windows', label: 'Windows', command: 'iwr https://installs.stacktape.com/windows.ps1 -useb | iex' }
+];
+const first = commands[0];
+
+const facts = [
+  ['Network', 'A VPC with public and private subnets. The database is reachable only from inside it.'],
+  ['Output', 'Plain CloudFormation in your own AWS account, with CDK constructs and raw CloudFormation as escape hatches.'],
+  ['Source', 'Open-source CLI and framework. CI/CD, observability, cost and governance live in the hosted Console.']
+];
+
+const diagramLabel =
+  'Isometric diagram of the architecture the config builds: a VPC with public and private subnets, a Next.js site behind a CDN, a Fargate API, a Lambda worker, Aurora PostgreSQL, Redis and a web application firewall';
+---
+
+<BaseLayout
+  title="AWS DevOps, fully automated. Your part is one command. — Stacktape"
+  description="npx stacktape init reads your repository and writes the config. One deploy turns it into a VPC with private subnets, Fargate, Lambda, Aurora PostgreSQL and least-privilege IAM as plain CloudFormation in your own AWS account, then keeps it running. Nothing is created until you say so."
+  font="geist"
+  noindex
+>
+  <Fragment slot="head">
+    <script is:inline>
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        document.documentElement.classList.add('typed');
+      }
+    </script>
+  </Fragment>
+
+  <header class="nav">
+    <a href="/" aria-label="Stacktape home"><Logo height={22} /></a>
+    <nav aria-label="Primary">
+      <a href="https://docs.stacktape.com">Docs</a>
+      <a href="https://github.com/stacktape/stacktape">GitHub</a>
+      <a class="nav-pill" href="https://cal.com/stacktape/30min">Book a demo</a>
+    </nav>
+  </header>
+
+  <main class="hero">
+    <div class="copy">
+      <h1>
+        <span class="h1-a">AWS DevOps,<br />fully automated.</span>
+        <span class="h1-b">Your part is one command.</span>
+      </h1>
+      <p class="sub">
+        The wizard reads your repository and writes the config. One deploy turns it into a VPC with private subnets,
+        Fargate, Lambda, Aurora PostgreSQL and least-privilege IAM in your own AWS account, then keeps it running:
+        pipelines, metrics, traces, alarms, and incidents an agent can fix — opt-in, with your approval.
+        <strong>Nothing is created until you say so.</strong>
+      </p>
+
+      <div class="cmd" id="cmd" data-command={first.command}>
+        <div class="cmd__row">
+          <span class="cmd__prompt" aria-hidden="true">$</span>
+          <span class="cmd__text">
+            <span class="cmd__ghost" id="cmd-ghost" aria-hidden="true">{first.command}</span>
+            <code class="cmd__code" id="cmd-code">{first.command}</code>
+          </span>
+          <button type="button" class="cmd__copy" id="cmd-copy" aria-label={`Copy ${first.command}`}>
+            <svg viewBox="0 0 14 14" width="13" height="13" fill="none" aria-hidden="true">
+              <rect x="4.75" y="1.75" width="7.5" height="7.5" rx="1.6" stroke="currentColor" stroke-width="1.2"></rect>
+              <path d="M9.25 12.25h-6a1.5 1.5 0 0 1-1.5-1.5v-6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"></path>
+            </svg>
+            <span id="cmd-copy-label">Copy</span>
+          </button>
+        </div>
+        <div class="cmd__methods site-well" role="group" aria-label="Installation method">
+          {commands.map((c, i) => <button type="button" class={`cmd__method${i === 0 ? ' is-active' : ''}`} aria-pressed={i === 0 ? 'true' : 'false'} data-command={c.command} data-method={c.id}>{c.label}</button>)}
+        </div>
+      </div>
+
+      <a class="demo" href="https://cal.com/stacktape/30min">Book a demo <span aria-hidden="true">→</span></a>
+
+      <dl class="facts">
+        {facts.map(([k, v]) => <div class="fact"><dt>{k}</dt><dd>{v}</dd></div>)}
+      </dl>
+    </div>
+
+    <div class="stage">
+      <section
+        class="editor surface-frame"
+        id="editor"
+        aria-label="The generated stacktape.yml"
+        data-cadence={JSON.stringify(cadence)}
+        data-repo={GIT_REPOSITORY}
+        data-resources={usedFallback ? '' : String(resourceCount)}
+      >
+        <div class="surface-frame__bar">
+          <span class="surface-frame__lights" aria-hidden="true">
+            <span style="background: #ff5f57"></span>
+            <span style="background: #febc2e"></span>
+            <span style="background: #28c840"></span>
+          </span>
+          <span class="surface-frame__title file">
+            <svg viewBox="0 0 12 14" width="11" height="12" fill="none" aria-hidden="true">
+              <path d="M2.75 1.25h4L10 4.5v8.25H2.75z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"></path>
+              <path d="M6.75 1.5V4.5H9.75" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"></path>
+            </svg>
+            stacktape.yml
+          </span>
+          <div class="surface-frame__actions">
+            <span class="status">
+              <i class="status__dot" aria-hidden="true"></i>
+              <span id="ed-status">generated from {GIT_REPOSITORY}</span>
+            </span>
+            <button type="button" class="replay" id="replay" aria-label="Replay the animation">
+              <svg viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                <path d="M2.2 6a3.8 3.8 0 1 0 1.1-2.7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"></path>
+                <path d="M2 2.2v2.4h2.4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"></path>
+              </svg>
+              replay
+            </button>
+          </div>
+        </div>
+        <div class="surface-frame__body">
+          <div class="pane" id="pane">
+            <div class="gutter" id="gutter" aria-hidden="true">
+              {Array.from({ length: editor.yaml.lineCount }, (_, i) => <span>{i + 1}</span>)}
+            </div>
+            <div class="code stp-code" id="code"><Fragment set:html={editor.yaml.html} /></div>
+          </div>
+        </div>
+      </section>
+
+      <p class="seam" id="seam">
+        <span class="seam__label">
+          <svg viewBox="0 0 12 12" fill="none" aria-hidden="true">
+            <path d="M6 1.5v9M2.5 7 6 10.5 9.5 7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path>
+          </svg>
+          <b>stacktape.yml</b> compiles to plain CloudFormation in your own AWS account
+        </span>
+      </p>
+
+      <section class="diagram site-panel" id="diagram" aria-label="The architecture the config builds">
+        <div class="diagram__head">
+          <span class="diagram__title">{PROJECT_NAME} <span>/ {REGION}</span></span>
+          <span class="diagram__meta">drawn from the file above · {resourceCount} resources declared</span>
+        </div>
+        <div class="diagram__canvas">
+          <DiagramIsland client:only="react" config={ACME_DIAGRAM_CONFIG} ariaLabel={diagramLabel} />
+        </div>
+      </section>
+    </div>
+  </main>
+</BaseLayout>
+
+<style>
+  :root {
+    --ink: var(--stp-text-primary);
+    --ink-2: rgba(255, 255, 255, 0.66);
+    --ink-3: rgba(255, 255, 255, 0.42);
+    --line: rgba(255, 255, 255, 0.07);
+    --brand: var(--stp-color-brand);
+    --mono: var(--font-geist-mono);
+    --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  /* ── Nav ─────────────────────────────────────────────────────────────── */
+  .nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 22px 28px;
+  }
+  .nav nav {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+  .nav a {
+    color: var(--ink-2);
+    font-size: 0.92rem;
+    transition: color 150ms ease;
+  }
+  .nav a:hover { color: var(--ink); }
+  .nav-pill {
+    padding: 7px 13px;
+    border-radius: 999px;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+    color: var(--ink) !important;
+  }
+
+  /* ── Hero grid ───────────────────────────────────────────────────────── */
+  .hero {
+    /* The stage's glow reaches 40px past the column; clip only the x axis so hover popups still escape vertically. */
+    overflow-x: clip;
+    display: grid;
+    grid-template-columns: minmax(340px, 0.86fr) minmax(0, 1.14fr);
+    gap: 56px;
+    align-items: center;
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 28px 28px 96px;
+  }
+
+  /* ── Copy ────────────────────────────────────────────────────────────── */
+  h1 {
+    margin: 0;
+    color: var(--ink);
+    font-size: clamp(2.3rem, 3.3vw, 3.05rem);
+    font-weight: 600;
+    letter-spacing: -0.035em;
+    line-height: 1.04;
+  }
+  .h1-a { display: block; }
+  .h1-b {
+    display: block;
+    margin-top: 0.36em;
+    color: var(--ink-3);
+    font-size: 0.66em;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+  }
+  .sub {
+    max-width: 54ch;
+    margin: 22px 0 0;
+    color: var(--ink-2);
+    font-size: 1.02rem;
+    line-height: 1.62;
+  }
+  .sub strong { color: var(--ink); font-weight: 500; }
+
+  /* The command. It is the primary action, so it gets the page's one brand-tinted ring. */
+  .cmd {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    max-width: 100%;
+    margin-top: 30px;
+  }
+  .cmd__row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    max-width: 100%;
+    padding: 11px 10px 11px 16px;
+    overflow-x: auto;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.32);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 32%, transparent), 0 0 0 4px color-mix(in srgb, var(--brand) 7%, transparent), 0 18px 40px -20px rgba(0, 0, 0, 0.8);
+    scrollbar-width: none;
+    transition: box-shadow 250ms ease;
+  }
+  .cmd__row::-webkit-scrollbar { display: none; }
+  .cmd__row:hover { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 48%, transparent), 0 0 0 5px color-mix(in srgb, var(--brand) 11%, transparent), 0 18px 40px -20px rgba(0, 0, 0, 0.8); }
+  .cmd__prompt {
+    flex: none;
+    color: var(--brand);
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    font-weight: 700;
+  }
+  /* The invisible ghost holds the full command's width, so the row never jitters while typing. */
+  .cmd__text {
+    position: relative;
+    flex: none;
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    line-height: 1.4;
+    white-space: pre;
+  }
+  .cmd__ghost { visibility: hidden; }
+  .cmd__code {
+    position: absolute;
+    inset: 0;
+    font: inherit;
+    white-space: pre;
+  }
+  :global(html.typed) .cmd:not(.is-live) .cmd__code { visibility: hidden; }
+  .cmd__code :global(.cmd-caret) {
+    display: inline-block;
+    width: 0.55em;
+    height: 1.05em;
+    margin-left: 1px;
+    vertical-align: -0.15em;
+    background: var(--brand);
+    opacity: 0;
+  }
+  .cmd__code :global(.cmd-caret.is-on) { opacity: 1; animation: blink 1.05s step-end infinite; }
+  .cmd__copy {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    margin-left: 4px;
+    padding: 6px 11px;
+    border: 0;
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.09);
+    color: var(--ink-2);
+    font-size: 0.76rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 150ms ease, color 150ms ease, box-shadow 150ms ease;
+  }
+  .cmd__copy:hover { background: rgba(255, 255, 255, 0.1); color: var(--ink); }
+  .cmd__copy.is-done { color: var(--brand); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 45%, transparent); }
+  .cmd__methods {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+  }
+  .cmd__method {
+    padding: 4px 10px;
+    border: 0;
+    border-radius: 5px;
+    background: none;
+    color: var(--ink-3);
+    font-size: 0.74rem;
+    font-weight: 550;
+    cursor: pointer;
+    transition: background 150ms ease, color 150ms ease;
+  }
+  .cmd__method:hover { color: var(--ink); }
+  .cmd__method.is-active {
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+    color: var(--ink);
+  }
+
+  .demo {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 18px;
+    color: var(--ink-2);
+    font-size: 0.94rem;
+    font-weight: 500;
+    transition: color 150ms ease;
+  }
+  .demo:hover { color: var(--ink); }
+  .demo span { transition: transform 150ms ease; }
+  .demo:hover span { transform: translateX(2px); }
+
+  .facts {
+    margin: 34px 0 0;
+    padding: 0;
+    border-top: 1px solid var(--line);
+  }
+  .fact {
+    display: grid;
+    grid-template-columns: 74px minmax(0, 1fr);
+    gap: 14px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.84rem;
+    line-height: 1.5;
+  }
+  .fact dt {
+    padding-top: 3px;
+    color: var(--ink-3);
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .fact dd { margin: 0; color: var(--ink-2); }
+
+  /* ── The stage: editor, seam, diagram ────────────────────────────────── */
+  .stage {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    isolation: isolate;
+  }
+  .stage::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    inset: -70px -40px auto;
+    height: 60%;
+    background: radial-gradient(55% 50% at 50% 30%, rgba(54, 190, 190, 0.12), transparent 70%);
+    filter: blur(12px);
+    pointer-events: none;
+  }
+
+  .editor { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08), 0 30px 70px -30px rgba(0, 0, 0, 0.8), 0 0 120px rgba(54, 190, 190, 0.06); }
+  .file {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--ink-2);
+    font-family: var(--mono);
+    font-size: 0.74rem;
+  }
+  .file svg { opacity: 0.7; }
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--ink-3);
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+  .status__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--brand);
+    box-shadow: 0 0 0 3px rgba(54, 190, 190, 0.15);
+  }
+  .editor.is-writing .status__dot { animation: pulse 900ms ease-in-out infinite; }
+  .replay {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-left: 6px;
+    padding: 3px 8px;
+    border: 0;
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.05);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    color: var(--ink-3);
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: background 150ms ease, color 150ms ease;
+  }
+  .replay:hover { background: rgba(255, 255, 255, 0.09); color: var(--ink); }
+  .replay svg { width: 11px; height: 11px; }
+  .replay[hidden],
+  :global(html:not(.typed)) .replay { display: none; }
+
+  /*
+   * The pane is a fixed-height scroll container: the file is longer than the window, and a window
+   * that grew with every line would push the diagram around underneath it.
+   */
+  .pane {
+    position: relative;
+    display: flex;
+    height: clamp(17rem, 40vh, 25rem);
+    padding: 12px 0 14px;
+    overflow: auto;
+    background: rgba(0, 0, 0, 0.22);
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+  }
+  .gutter {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    padding: 0 12px 0 16px;
+    color: var(--ink-3);
+    font-family: var(--mono);
+    font-size: 0.8125rem;
+    line-height: 1.7;
+    text-align: right;
+    user-select: none;
+    opacity: 0.55;
+  }
+  .gutter span { display: block; min-height: 1.7em; }
+  .code {
+    flex: 1;
+    min-width: 0;
+    padding-right: 16px;
+  }
+
+  /* Progressive reveal. Only when the head script has confirmed motion is welcome and JS runs. */
+  :global(html.typed) .code :global(.line) { display: none; }
+  :global(html.typed) .code :global(.line.is-on) { display: block; animation: line-in 140ms ease-out; }
+  :global(html.typed) .gutter span { display: none; }
+  :global(html.typed) .gutter span.is-on { display: block; }
+  .code :global(.ed-caret) {
+    display: inline-block;
+    width: 2px;
+    height: 1.1em;
+    margin-left: 1px;
+    vertical-align: -0.2em;
+    background: var(--brand);
+    box-shadow: 0 0 8px rgba(54, 190, 190, 0.6);
+    animation: blink 1.05s step-end infinite;
+  }
+  .editor.is-writing .code :global(.ed-caret) { animation: none; }
+
+  .seam {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 0;
+    padding: 14px 6px;
+    color: var(--ink-3);
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+  }
+  .seam::before,
+  .seam::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12));
+  }
+  .seam::after { background: linear-gradient(90deg, rgba(255, 255, 255, 0.12), transparent); }
+  .seam__label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+  }
+  .seam__label b { color: var(--ink-2); font-weight: 500; }
+  .seam svg {
+    width: 12px;
+    height: 12px;
+    color: var(--brand);
+  }
+  :global(html.typed) .seam { opacity: 0; transition: opacity 500ms ease 140ms; }
+  :global(html.typed) .seam.is-on { opacity: 1; }
+
+  .diagram {
+    position: relative;
+    overflow: hidden;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07), 0 24px 60px -30px rgba(0, 0, 0, 0.8);
+  }
+  .diagram__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 16px 10px;
+    border-bottom: 1px solid var(--line);
+    font-family: var(--mono);
+    font-size: 0.72rem;
+  }
+  .diagram__title {
+    color: var(--ink);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .diagram__title span { color: var(--ink-3); font-weight: 400; }
+  .diagram__meta {
+    overflow: hidden;
+    color: var(--ink-3);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* client:only renders nothing on the server; the panel must not collapse before hydration. */
+  .diagram__canvas { position: relative; height: clamp(14rem, 32vh, 20rem); overflow: hidden; }
+  :global(html.typed) .diagram {
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 560ms var(--ease-out), transform 560ms var(--ease-out);
+  }
+  :global(html.typed) .diagram.is-on { opacity: 1; transform: none; }
+
+  /* A short entrance for the two columns; the typing is the motion, this only keeps it from popping. */
+  :global(html.typed) .copy,
+  :global(html.typed) .stage { animation: arrive 480ms var(--ease-out) both; }
+  :global(html.typed) .stage { animation-delay: 90ms; }
+
+  @keyframes blink {
+    0%, 49% { opacity: 1; }
+    50%, 100% { opacity: 0; }
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(54, 190, 190, 0.15); }
+    50% { box-shadow: 0 0 0 6px rgba(54, 190, 190, 0.04); }
+  }
+  @keyframes line-in {
+    from { opacity: 0; transform: translateX(-3px); }
+  }
+  @keyframes arrive {
+    from { opacity: 0; transform: translateY(8px); }
+  }
+
+  @media (max-width: 1040px) {
+    .hero {
+      grid-template-columns: 1fr;
+      gap: 40px;
+      padding-top: 16px;
+    }
+    .h1-a br { display: none; }
+  }
+  @media (max-width: 640px) {
+    .nav { padding: 18px 20px; }
+    .nav nav { gap: 16px; }
+    .hero { padding: 12px 20px 72px; }
+    .status { display: none; }
+  }
+</style>
+
+<script>
+  /*
+   * The page writes itself once: the command types into the CTA, the editor streams the config line
+   * by line, and the diagram appears when the last line lands. Under reduced motion the inline head
+   * script never adds `html.typed`, the stylesheet hides nothing, and this script only wires the
+   * install-method switcher and the copy button.
+   */
+  const byId = <T extends HTMLElement>(id: string): T | null => document.getElementById(id) as T | null;
+  const sleep = (ms: number): Promise<void> => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+  const boot = () => {
+    const animated = document.documentElement.classList.contains('typed');
+    const cmd = byId<HTMLElement>('cmd');
+    const cmdCode = byId<HTMLElement>('cmd-code');
+    const cmdGhost = byId<HTMLElement>('cmd-ghost');
+    const copy = byId<HTMLButtonElement>('cmd-copy');
+    const copyLabel = byId<HTMLElement>('cmd-copy-label');
+    const editor = byId<HTMLElement>('editor');
+    const pane = byId<HTMLElement>('pane');
+    const gutter = byId<HTMLElement>('gutter');
+    const code = byId<HTMLElement>('code');
+    const status = byId<HTMLElement>('ed-status');
+    const replay = byId<HTMLButtonElement>('replay');
+    const seam = byId<HTMLElement>('seam');
+    const diagram = byId<HTMLElement>('diagram');
+    if (!cmd || !cmdCode || !cmdGhost || !copy || !copyLabel || !editor || !pane) return;
+    if (!gutter || !code || !status || !replay || !seam || !diagram) return;
+
+    const methods = Array.from(document.querySelectorAll<HTMLButtonElement>('button[data-method]'));
+    const lines = Array.from(code.querySelectorAll<HTMLElement>('.line'));
+    const cells = Array.from(gutter.querySelectorAll<HTMLElement>('span'));
+    const parsed: unknown = JSON.parse(editor.dataset.cadence ?? '[]');
+    const cadence: number[] = Array.isArray(parsed)
+      ? parsed.map((value: unknown) => (typeof value === 'number' ? value : 56))
+      : [];
+    const repo = editor.dataset.repo ?? '';
+    const resources = editor.dataset.resources ?? '';
+    const savedLabel = resources ? `${resources} resources · saved` : 'saved';
+
+    // The command is one text node followed by a caret, so typing never has to rebuild the caret.
+    let currentCommand = cmd.dataset.command ?? 'npx stacktape init';
+    const cmdText = document.createTextNode(currentCommand);
+    const cmdCaret = document.createElement('span');
+    cmdCaret.className = 'cmd-caret';
+    cmdCaret.setAttribute('aria-hidden', 'true');
+    cmdCode.replaceChildren(cmdText, cmdCaret);
+    cmd.classList.add('is-live');
+
+    let cmdRun = 0;
+    const typeCommand = (text: string): Promise<void> =>
+      new Promise((resolve) => {
+        const my = ++cmdRun;
+        cmdText.data = '';
+        cmdCaret.classList.add('is-on');
+        // Longer commands type faster, so every one of them lands in about a second.
+        const perChar = Math.min(58, 980 / Math.max(text.length, 1));
+        let index = 0;
+        const tick = () => {
+          if (my !== cmdRun) {
+            resolve();
+            return;
+          }
+          index += 1;
+          cmdText.data = text.slice(0, index);
+          if (index >= text.length) {
+            window.setTimeout(() => {
+              if (my === cmdRun) cmdCaret.classList.remove('is-on');
+            }, 1300);
+            resolve();
+            return;
+          }
+          const afterSpace = text.charAt(index - 1) === ' ' ? 80 : 0;
+          window.setTimeout(tick, perChar * (0.5 + Math.random()) + afterSpace);
+        };
+        window.setTimeout(tick, 140);
+      });
+
+    const edCaret = document.createElement('span');
+    edCaret.className = 'ed-caret';
+    edCaret.setAttribute('aria-hidden', 'true');
+
+    const showDiagram = (on: boolean) => {
+      diagram.classList.toggle('is-on', on);
+      seam.classList.toggle('is-on', on);
+    };
+
+    let run = 0;
+    const play = async () => {
+      const my = ++run;
+      const alive = () => my === run;
+
+      for (const line of lines) line.classList.remove('is-on');
+      for (const cell of cells) cell.classList.remove('is-on');
+      edCaret.remove();
+      editor.classList.remove('is-writing', 'is-done');
+      pane.scrollTop = 0;
+      showDiagram(false);
+      status.textContent = repo;
+      cmdText.data = '';
+      cmdCaret.classList.add('is-on');
+
+      await sleep(420);
+      if (!alive()) return;
+      await typeCommand(currentCommand);
+      if (!alive()) return;
+
+      editor.classList.add('is-writing');
+      status.textContent = `reading ${repo}…`;
+      await sleep(420);
+      if (!alive()) return;
+
+      status.textContent = 'writing stacktape.yml…';
+      for (let i = 0; i < lines.length; i += 1) {
+        if (!alive()) return;
+        const line = lines[i];
+        if (!line) continue;
+        line.classList.add('is-on');
+        cells[i]?.classList.add('is-on');
+        line.append(edCaret);
+        // Follow the caret the way an editor does; the reader gets the top of the file back below.
+        pane.scrollTop = pane.scrollHeight;
+        // Sequential timing is the animation: each source line appears before the next delay.
+        // oxlint-disable-next-line no-await-in-loop
+        await sleep((cadence[i] ?? 56) * (0.85 + Math.random() * 0.3));
+      }
+
+      editor.classList.remove('is-writing');
+      editor.classList.add('is-done');
+      status.textContent = savedLabel;
+      await sleep(260);
+      if (!alive()) return;
+      showDiagram(true);
+      pane.scrollTo({ top: 0, behavior: 'smooth' });
+      await sleep(1500);
+      if (alive()) edCaret.remove();
+    };
+
+    for (const button of methods) {
+      button.addEventListener('click', () => {
+        const command = button.dataset.command ?? currentCommand;
+        for (const other of methods) {
+          const active = other === button;
+          other.classList.toggle('is-active', active);
+          other.setAttribute('aria-pressed', active ? 'true' : 'false');
+        }
+        currentCommand = command;
+        cmdGhost.textContent = command;
+        copy.setAttribute('aria-label', `Copy ${command}`);
+        if (animated) void typeCommand(command);
+        else cmdText.data = command;
+      });
+    }
+
+    let copyTimer = 0;
+    copy.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(currentCommand);
+      } catch {
+        // Clipboard access is denied in some embedded contexts; the command is selectable text anyway.
+        return;
+      }
+      copy.classList.add('is-done');
+      copyLabel.textContent = 'Copied';
+      window.clearTimeout(copyTimer);
+      copyTimer = window.setTimeout(() => {
+        copy.classList.remove('is-done');
+        copyLabel.textContent = 'Copy';
+      }, 1600);
+    });
+
+    if (!animated) {
+      replay.hidden = true;
+      return;
+    }
+    replay.addEventListener('click', () => void play());
+    void play();
+  };
+
+  boot();
+</script>

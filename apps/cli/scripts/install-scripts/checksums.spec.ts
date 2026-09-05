@@ -125,10 +125,19 @@ describe('published install scripts', () => {
     expect(content.indexOf('foreach ($StalePath')).toBeLessThan(content.indexOf('Expand-Archive'));
     expect(content).toContain("$ChecksumRequired = $ParsedVersion -ge [version]'3.7.1'");
     expect(content).toContain('if ($ChecksumRequired)');
-    expect(
-      await evaluatePowerShellChecksumGates(content, ['3.7.0', 'v3.7.0', '3.7.1-rc.1', '3.7.1', '4.0.0', 'latest'])
-    ).toEqual(['false', 'false', 'true', 'true', 'true', 'true']);
-  }, 15_000);
+  });
+
+  test.skipIf(Bun.which('pwsh') === null)(
+    'executes the Windows checksum version gate when PowerShell is available',
+    async () => {
+      const content = await readFile(join(import.meta.dir, 'windows.ps1'), 'utf8');
+
+      expect(
+        await evaluatePowerShellChecksumGates(content, ['3.7.0', 'v3.7.0', '3.7.1-rc.1', '3.7.1', '4.0.0', 'latest'])
+      ).toEqual(['false', 'false', 'true', 'true', 'true', 'true']);
+    },
+    15_000
+  );
 
   test('Alpine installer reports all native runtime prerequisites without modifying the host', async () => {
     const content = await readFile(join(import.meta.dir, 'alpine.sh'), 'utf8');

@@ -119,6 +119,7 @@ const verifyNativeInstallation = async ({
   }
   for (const excludedPath of [
     'compiled-cli.js.map',
+    'package.json',
     'llm-docs/lexical-index.json',
     'llm-docs/llms-full.txt',
     'llm-docs/llms-api-reference.txt'

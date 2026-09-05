@@ -1067,24 +1067,30 @@ const METHODS = {
     macos: 'curl -L https://installs.stacktape.com/macos.sh | sh',
     linux: 'curl -L https://installs.stacktape.com/linux.sh | sh',
     windows: 'iwr https://installs.stacktape.com/windows.ps1 -useb | iex'
-  };
+  } as const;
 
-  const root = document.querySelector('[data-cta]');
+  type InstallMethod = keyof typeof METHODS;
+
+  const isInstallMethod = (value: string | undefined): value is InstallMethod =>
+    value !== undefined && value in METHODS;
+
+  const root = document.querySelector<HTMLElement>('[data-cta]');
   if (root) {
-    const codeEl = root.querySelector('[data-cta-code]');
-    const labelEl = root.querySelector('[data-cta-copy-label]');
-    const copyBtn = root.querySelector('[data-cta-copy]');
-    const methodBtns = Array.from(root.querySelectorAll('[data-method]'));
-    let currentMethod = 'npx';
-    let resetTimer;
+    const codeEl = root.querySelector<HTMLElement>('[data-cta-code]');
+    const labelEl = root.querySelector<HTMLElement>('[data-cta-copy-label]');
+    const copyBtn = root.querySelector<HTMLButtonElement>('[data-cta-copy]');
+    const methodBtns = Array.from(root.querySelectorAll<HTMLButtonElement>('[data-method]'));
+    let currentMethod: InstallMethod = 'npx';
+    let resetTimer: ReturnType<typeof setTimeout> | undefined;
 
     const render = () => {
-      codeEl.textContent = METHODS[currentMethod];
-      copyBtn.setAttribute('aria-label', `Copy ${METHODS[currentMethod]}`);
+      if (codeEl) codeEl.textContent = METHODS[currentMethod];
+      copyBtn?.setAttribute('aria-label', `Copy ${METHODS[currentMethod]}`);
     };
 
     methodBtns.forEach((btn) => {
       btn.addEventListener('click', () => {
+        if (!isInstallMethod(btn.dataset.method)) return;
         currentMethod = btn.dataset.method;
         methodBtns.forEach((b) => {
           const active = b === btn;
@@ -1095,22 +1101,24 @@ const METHODS = {
       });
     });
 
-    copyBtn.addEventListener('click', async () => {
-      const ok = await copyToClipboard(METHODS[currentMethod]);
-      if (!ok) return;
-      copyBtn.classList.add('is-copied');
-      labelEl.textContent = 'Copied';
-      copyBtn.setAttribute('aria-label', 'Command copied');
-      clearTimeout(resetTimer);
-      resetTimer = setTimeout(() => {
-        copyBtn.classList.remove('is-copied');
-        labelEl.textContent = 'Copy';
-        copyBtn.setAttribute('aria-label', `Copy ${METHODS[currentMethod]}`);
-      }, 1600);
-    });
+    if (copyBtn && labelEl) {
+      copyBtn.addEventListener('click', async () => {
+        const ok = await copyToClipboard(METHODS[currentMethod]);
+        if (!ok) return;
+        copyBtn.classList.add('is-copied');
+        labelEl.textContent = 'Copied';
+        copyBtn.setAttribute('aria-label', 'Command copied');
+        if (resetTimer) clearTimeout(resetTimer);
+        resetTimer = setTimeout(() => {
+          copyBtn.classList.remove('is-copied');
+          labelEl.textContent = 'Copy';
+          copyBtn.setAttribute('aria-label', `Copy ${METHODS[currentMethod]}`);
+        }, 1600);
+      });
+    }
   }
 
-  async function copyToClipboard(text) {
+  async function copyToClipboard(text: string) {
     if (navigator.clipboard && window.isSecureContext) {
       try {
         await navigator.clipboard.writeText(text);

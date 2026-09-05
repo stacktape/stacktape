@@ -20,7 +20,7 @@ const guardedEnvironment = {
   STP_AWS_CANARY_PROFILE: 'development',
   STP_AWS_CANARY_OWNER: 'local-init-test-123',
   STP_AWS_CANARY_PROJECT_NAME: 'v4canary-init-test-123',
-  STP_AWS_CANARY_STATE_FILE: 'C:\\tmp\\stacktape-init-canary.json',
+  STP_AWS_CANARY_STATE_FILE: '/tmp/stacktape-init-canary.json',
   STP_INIT_CANARY_AWS_ACCOUNT: 'disposable-account',
   STP_INIT_CANARY_FIXTURE: 'express-basic'
 };

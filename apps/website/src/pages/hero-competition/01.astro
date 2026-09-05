@@ -486,12 +486,17 @@ import { ACME_DIAGRAM_CONFIG } from '../../surfaces/InitWizardRun/acme-config.ts
 </style>
 
 <script>
-const commands = {
+  const commands = {
     npx: 'npx stacktape init',
     macos: 'curl -L https://installs.stacktape.com/macos.sh | sh',
     linux: 'curl -L https://installs.stacktape.com/linux.sh | sh',
     windows: 'iwr https://installs.stacktape.com/windows.ps1 -useb | iex'
-  };
+  } as const;
+
+  type InstallMethod = keyof typeof commands;
+
+  const isInstallMethod = (value: string | undefined): value is InstallMethod =>
+    value !== undefined && value in commands;
 
   const hints = {
     npx: 'Opens the AI wizard — it reads your repo and writes your Stacktape config.',
@@ -500,13 +505,13 @@ const commands = {
     windows: 'Installs the CLI, then run: stacktape init'
   };
 
-  const dock = document.querySelector('[data-command-dock]');
+  const dock = document.querySelector<HTMLElement>('[data-command-dock]');
 
   if (dock) {
-    const tabs = Array.from(dock.querySelectorAll('[data-method]'));
-    const textEl = dock.querySelector('[data-command-text]');
-    const hintEl = dock.querySelector('.dock-hint');
-    const copyBtn = dock.querySelector('[data-copy-button]');
+    const tabs = Array.from(dock.querySelectorAll<HTMLButtonElement>('[data-method]'));
+    const textEl = dock.querySelector<HTMLElement>('[data-command-text]');
+    const hintEl = dock.querySelector<HTMLElement>('.dock-hint');
+    const copyBtn = dock.querySelector<HTMLButtonElement>('[data-copy-button]');
 
     tabs.forEach((tab) => {
       tab.addEventListener('click', () => {
@@ -517,15 +522,16 @@ const commands = {
         tab.classList.add('is-active');
         tab.setAttribute('aria-selected', 'true');
         const method = tab.dataset.method;
-        if (method && textEl) textEl.textContent = commands[method];
-        if (method && hintEl) hintEl.textContent = hints[method];
+        if (isInstallMethod(method) && textEl) textEl.textContent = commands[method];
+        if (isInstallMethod(method) && hintEl) hintEl.textContent = hints[method];
       });
     });
 
     if (copyBtn) {
       copyBtn.addEventListener('click', async () => {
-        const label = copyBtn.querySelector('.dock-copy-label');
-        const method = dock.querySelector('.dock-tab.is-active')?.dataset.method ?? 'npx';
+        const label = copyBtn.querySelector<HTMLElement>('.dock-copy-label');
+        const selectedMethod = dock.querySelector<HTMLElement>('.dock-tab.is-active')?.dataset.method;
+        const method = isInstallMethod(selectedMethod) ? selectedMethod : 'npx';
         try {
           await navigator.clipboard.writeText(commands[method]);
           copyBtn.classList.add('is-copied');

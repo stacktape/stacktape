@@ -900,28 +900,31 @@ const gutter = Array.from({ length: snippet.yaml.lineCount }, (_, index) => inde
       macos: 'curl -L https://installs.stacktape.com/macos.sh | sh',
       linux: 'curl -L https://installs.stacktape.com/linux.sh | sh',
       windows: 'iwr https://installs.stacktape.com/windows.ps1 -useb | iex'
-    };
+    } as const;
+    type InstallMethod = keyof typeof METHODS;
+    const isInstallMethod = (value: string | undefined): value is InstallMethod =>
+      value !== undefined && value in METHODS;
     const HINTS = {
       npx: 'Runs the AI setup wizard straight from the registry — nothing to install.',
       macos: 'Installs the CLI — it finishes by running stacktape init for you.',
       linux: 'Installs the CLI — it finishes by running stacktape init for you.',
       windows: 'Installs the CLI — it finishes by running stacktape init for you.'
     };
-    const codeEl = cta.querySelector('[data-cmd-code]');
-    const hintEl = cta.querySelector('[data-cmd-hint]');
-    const copyBtn = cta.querySelector('[data-cmd-copy]');
-    const copyLabel = cta.querySelector('[data-cmd-copy-label]');
-    const methodButtons = Array.from(cta.querySelectorAll('[data-method]'));
-    let current = 'npx';
-    let resetTimer = undefined;
+    const codeEl = cta.querySelector<HTMLElement>('[data-cmd-code]');
+    const hintEl = cta.querySelector<HTMLElement>('[data-cmd-hint]');
+    const copyBtn = cta.querySelector<HTMLButtonElement>('[data-cmd-copy]');
+    const copyLabel = cta.querySelector<HTMLElement>('[data-cmd-copy-label]');
+    const methodButtons = Array.from(cta.querySelectorAll<HTMLButtonElement>('[data-method]'));
+    let current: InstallMethod = 'npx';
+    let resetTimer: ReturnType<typeof setTimeout> | undefined;
 
-    const setMethod = (id) => {
+    const setMethod = (id: InstallMethod) => {
       current = id;
-      codeEl.textContent = METHODS[id];
-      hintEl.textContent = HINTS[id];
-      copyBtn.classList.remove('is-copied');
-      copyLabel.textContent = 'Copy';
-      copyBtn.setAttribute('aria-label', `Copy ${METHODS[id]}`);
+      if (codeEl) codeEl.textContent = METHODS[id];
+      if (hintEl) hintEl.textContent = HINTS[id];
+      copyBtn?.classList.remove('is-copied');
+      if (copyLabel) copyLabel.textContent = 'Copy';
+      copyBtn?.setAttribute('aria-label', `Copy ${METHODS[id]}`);
       for (const button of methodButtons) {
         const active = button.dataset.method === id;
         button.classList.toggle('is-active', active);
@@ -930,10 +933,12 @@ const gutter = Array.from({ length: snippet.yaml.lineCount }, (_, index) => inde
     };
 
     for (const button of methodButtons) {
-      button.addEventListener('click', () => setMethod(button.dataset.method));
+      button.addEventListener('click', () => {
+        if (isInstallMethod(button.dataset.method)) setMethod(button.dataset.method);
+      });
     }
 
-    copyBtn.addEventListener('click', async () => {
+    copyBtn?.addEventListener('click', async () => {
       if (!navigator.clipboard) return;
       try {
         await navigator.clipboard.writeText(METHODS[current]);
@@ -941,22 +946,22 @@ const gutter = Array.from({ length: snippet.yaml.lineCount }, (_, index) => inde
         return;
       }
       copyBtn.classList.add('is-copied');
-      copyLabel.textContent = 'Copied';
+      if (copyLabel) copyLabel.textContent = 'Copied';
       copyBtn.setAttribute('aria-label', 'Command copied');
-      clearTimeout(resetTimer);
+      if (resetTimer) clearTimeout(resetTimer);
       resetTimer = setTimeout(() => {
         copyBtn.classList.remove('is-copied');
-        copyLabel.textContent = 'Copy';
+        if (copyLabel) copyLabel.textContent = 'Copy';
         copyBtn.setAttribute('aria-label', `Copy ${METHODS[current]}`);
       }, 1600);
     });
   }
 
   // Keep schema hover popups inside the code pane and the viewport.
-  const pane = document.querySelector('[data-code-pane]');
+  const pane = document.querySelector<HTMLElement>('[data-code-pane]');
   if (pane) {
-    const measure = (hover) => {
-      const popup = hover.querySelector('.stp-hover-popup');
+    const measure = (hover: HTMLElement) => {
+      const popup = hover.querySelector<HTMLElement>('.stp-hover-popup');
       if (!popup) return;
       popup.style.removeProperty('--stp-hover-shift');
       hover.removeAttribute('data-stp-hover-above');
@@ -973,9 +978,9 @@ const gutter = Array.from({ length: snippet.yaml.lineCount }, (_, index) => inde
       const fitsAbove = anchor.top - paneRect.top >= rect.height + margin;
       if (!fitsBelow && fitsAbove) hover.setAttribute('data-stp-hover-above', 'true');
     };
-    const onEnter = (event) => {
+    const onEnter = (event: Event) => {
       const target = event.target;
-      const hover = typeof target.closest === 'function' ? target.closest('.stp-hover') : null;
+      const hover = target instanceof Element ? target.closest<HTMLElement>('.stp-hover') : null;
       if (hover && pane.contains(hover)) measure(hover);
     };
     pane.addEventListener('pointerenter', onEnter, true);

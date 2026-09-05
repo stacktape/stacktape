@@ -401,13 +401,13 @@ h1 {
 
 <script>
 // ---------- CTA switcher + copy ----------
-  const tabs = Array.from(document.querySelectorAll('.cta-tab'));
-  const cmdText = document.getElementById('cmd-text');
-  const ctaNote = document.getElementById('cta-note');
-  const copyBtn = document.getElementById('copy-btn');
-  const copyLabel = document.getElementById('copy-label');
+  const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>('.cta-tab'));
+  const cmdText = document.getElementById('cmd-text') as HTMLElement;
+  const ctaNote = document.getElementById('cta-note') as HTMLElement;
+  const copyBtn = document.getElementById('copy-btn') as HTMLButtonElement;
+  const copyLabel = document.getElementById('copy-label') as HTMLElement;
 
-  const notes = {
+  const notes: Record<string, string> = {
     npx: 'Opens a local wizard that reads your repo and generates the config. The install scripts finish by telling you to run <code>stacktape init</code>.',
     macos: 'Installs the CLI. Then run <code>stacktape init</code> to start the wizard.',
     linux: 'Installs the CLI. Then run <code>stacktape init</code> to start the wizard.',
@@ -422,17 +422,19 @@ h1 {
       });
       tab.classList.add('is-active');
       tab.setAttribute('aria-selected', 'true');
-      cmdText.textContent = tab.dataset.cmd;
-      ctaNote.innerHTML = notes[tab.textContent.trim().toLowerCase().startsWith('npx') ? 'npx' : tab.dataset.label.split(' ')[0].toLowerCase()] || notes.npx;
+      cmdText.textContent = tab.dataset.cmd ?? '';
+      const label = tab.dataset.label?.split(' ')[0]?.toLowerCase();
+      const noteKey = tab.textContent?.trim().toLowerCase().startsWith('npx') ? 'npx' : label;
+      ctaNote.innerHTML = (noteKey && notes[noteKey]) || notes.npx;
     });
   });
 
   copyBtn.addEventListener('click', async () => {
     try {
-      await navigator.clipboard.writeText(cmdText.textContent);
+      await navigator.clipboard.writeText(cmdText.textContent ?? '');
     } catch {
       const ta = document.createElement('textarea');
-      ta.value = cmdText.textContent;
+      ta.value = cmdText.textContent ?? '';
       document.body.appendChild(ta);
       ta.select();
       document.execCommand('copy');
@@ -447,10 +449,10 @@ h1 {
   });
 
   // ---------- Ledger animation ----------
-  const ledger = document.getElementById('ledger');
-  const badge = document.getElementById('phase-badge');
+  const ledger = document.getElementById('ledger') as HTMLElement;
+  const badge = document.getElementById('phase-badge') as HTMLElement;
 
-  const script = [
+  const script: Array<{ phase: string; cls: string; text: string }> = [
     { phase: 'day 0', cls: 't', text: '$ npx stacktape init' },
     { phase: 'day 0', cls: 'brand', text: '⣿ wizard  analyzing repository… 14 files, nextjs + postgres detected' },
     { phase: 'day 0', cls: '', text: '  generated  stacktape.config.ts  (review & edit anytime)' },
@@ -469,14 +471,14 @@ h1 {
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   let phaseBadgeSet = '';
 
-  function lineNode(entry) {
+  function lineNode(entry: { phase: string; cls: string; text: string }) {
     const div = document.createElement('div');
     div.className = 'ledger-line ' + (entry.cls || '');
     div.innerHTML = entry.text.replace(/&/g, '&amp;').replace(/</g, '&lt;');
     return div;
   }
 
-  function setBadge(phase) {
+  function setBadge(phase: string) {
     if (phase !== phaseBadgeSet) {
       phaseBadgeSet = phase;
       badge.textContent = phase;

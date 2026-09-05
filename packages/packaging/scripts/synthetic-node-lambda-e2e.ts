@@ -51,6 +51,8 @@ const invokeLambdaRuntime = async ({
   try {
     await run('docker', [
       'run',
+      '--platform',
+      'linux/amd64',
       '--detach',
       '--rm',
       '--name',
@@ -221,6 +223,8 @@ try {
     nativeLayers.set(packageManager, layer);
     await assertRunOutput({
       dockerArgs: [
+        '--platform',
+        'linux/amd64',
         '--mount',
         `type=bind,source=${layer.layerPath},target=/opt,readonly`,
         'node:24-bookworm-slim',
@@ -257,6 +261,8 @@ try {
   if (!bcrypt5Layer) throw new Error('bcrypt 5 did not emit a native layer.');
   await assertRunOutput({
     dockerArgs: [
+      '--platform',
+      'linux/amd64',
       '--mount',
       `type=bind,source=${bcrypt5Layer.layerPath},target=/opt,readonly`,
       'node:24-bookworm-slim',

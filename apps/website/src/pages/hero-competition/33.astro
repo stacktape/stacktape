@@ -1,0 +1,801 @@
+---
+// concept: The ledger — on the right, one wide panel split into the acme project's stacktape.yml (Shiki, schema hover popups) and the isometric diagram it deploys as, joined by a seam whose connector marks carry the resource colours and closed by a legend of AWS-category chips; on the left, copy in two beats, day 0 and day 1, then the command and a demo link.
+// copy-angle: Name the automation and prove it with the disciplines it covers and the concrete resources it builds; the AI fix is stated as a plain capability ("it can fix the incident, too") and immediately gated: opt-in, an agent with the whole picture, the fix waiting for your approval.
+// direction: fits
+import { stringify } from 'yaml';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Logo from '../../components/Logo.astro';
+import { CtaCommand } from '../../components/CtaCommand';
+import DiagramIsland from '../../surfaces/InitWizardRun/DiagramIsland.tsx';
+import { ACME_DIAGRAM_CONFIG } from '../../surfaces/InitWizardRun/acme-config.ts';
+import { PROJECT_NAME, REGION, RESOURCES } from '../../surfaces/story.ts';
+import { renderSnippet } from '../../lib/snippets/render';
+import { getSnippet } from '../../lib/snippets/snippets';
+import type { RenderedSnippet } from '../../lib/snippets/types';
+
+// The file on the left is the exact object the diagram on the right draws. If the pipeline ever
+// rejects it, the canonical Next.js + Postgres snippet stands in and the pane says so in its data attribute.
+let snippet: RenderedSnippet;
+let source: 'acme' | 'nextjs-postgres' = 'acme';
+try {
+  snippet = await renderSnippet({
+    id: 'nextjs-postgres',
+    label: PROJECT_NAME,
+    summary: '',
+    yaml: stringify(ACME_DIAGRAM_CONFIG)
+  });
+} catch (error) {
+  console.warn('hero-competition/33: rendering the acme config failed, falling back to nextjs-postgres.', error);
+  snippet = await getSnippet('nextjs-postgres');
+  source = 'nextjs-postgres';
+}
+
+const resourceCount = Object.keys(ACME_DIAGRAM_CONFIG.resources).length;
+const lines = Array.from({ length: snippet.yaml.lineCount }, (_, index) => index + 1);
+
+// What each colour in the picture is, keyed to the names in the file. The three "derived" entries
+// are nodes the diagram adds for a declared resource (the Next.js web expands into CDN, server
+// function and assets bucket; a web service gets its own HTTP API gateway).
+const legend = [
+  { category: 'compute', label: 'Compute', names: 'apiService · worker · web (server)' },
+  { category: 'database', label: 'Database', names: 'mainDatabase · cache' },
+  { category: 'network', label: 'Network', names: 'web (CDN)' },
+  { category: 'storage', label: 'Storage', names: 'web (assets)' },
+  { category: 'integration', label: 'Integration', names: 'apiService (gateway)' },
+  { category: 'security', label: 'Security', names: 'firewall' }
+] as const;
+---
+
+<BaseLayout
+  title="AWS DevOps, automated on day 0 and every day after — Stacktape"
+  description="A wizard reads your repository and writes the infrastructure. One deploy puts it in your own AWS account as plain CloudFormation. From then on Stacktape runs the pipelines, metrics, traces, logs, alarms and incidents — and, if you opt in, an agent proposes the fix and waits for your approval."
+  font="geist"
+  noindex
+>
+  <div class="page">
+    <header class="nav">
+      <a href="/" aria-label="Stacktape home"><Logo height={22} /></a>
+      <nav aria-label="Primary">
+        <a href="https://docs.stacktape.com">Docs</a>
+        <a href="https://github.com/stacktape/stacktape">GitHub</a>
+        <a class="nav-demo" href="https://cal.com/stacktape/30min">Book a demo</a>
+      </nav>
+    </header>
+
+    <main class="hero">
+      <div class="copy">
+        <h1>AWS DevOps, automated <span class="muted">on day 0 and every day after.</span></h1>
+        <p class="lede">
+          Architecture, networking, IAM, delivery, monitoring, alarms and incident response — the work of an AWS DevOps
+          team, done by Stacktape in your own AWS account, as plain CloudFormation you can read.
+        </p>
+
+        <ol class="days">
+          <li class="day" style="--i: 0">
+            <p class="day-label"><span class="day-num">Day 0</span> Configure and deploy</p>
+            <p class="day-text">
+              <code>npx stacktape init</code> reads your repository and writes this file. For acme-project: a Next.js
+              site behind a CDN and a firewall, a Fargate API, a Lambda worker, Aurora PostgreSQL and Redis in a VPC,
+              the database reachable only from inside it. One deploy puts it in your own AWS account as plain
+              CloudFormation — yours to read, diff and keep.
+            </p>
+          </li>
+          <li class="day" style="--i: 1">
+            <p class="day-label"><span class="day-num">Day 1</span> Operate</p>
+            <p class="day-text">
+              After that, pipelines build and promote every release, with an EC2 runner for GitHub Actions if you
+              want one. Metrics, traces, logs and alarms come with the deploy; each incident is tied to the release it
+              appeared in. <strong>It can fix the incident, too.</strong> Opt in, and an agent that sees everything
+              Stacktape sees — config, account, release, traces, logs — writes the fix and the deploy, then waits for
+              your approval.
+            </p>
+          </li>
+        </ol>
+
+        <div class="ctas">
+          <p class="cta-label">Run it in your repository</p>
+          <CtaCommand client:visible defaultMethod="npx" />
+          <a class="btn-demo" href="https://cal.com/stacktape/30min">Book a demo <span aria-hidden="true">→</span></a>
+        </div>
+
+        <ul class="proof" aria-label="Also covered">
+          <li>Your AWS account</li>
+          <li>Plain CloudFormation output</li>
+          <li>CDK constructs and raw CloudFormation escape hatches</li>
+          <li>Migrate existing infrastructure</li>
+          <li>SSO, RBAC, budgets, audit</li>
+        </ul>
+      </div>
+
+      <section class="ledger" aria-label="The acme-project configuration and the AWS infrastructure it deploys">
+        <div class="ledger-bar">
+          <p class="ledger-name">
+            <span class="ledger-glyph" aria-hidden="true">
+              <svg viewBox="0 0 12 14" width="11" height="12" fill="none">
+                <path d="M2.75 1.25h4L10 4.5v8.25H2.75z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"></path>
+                <path d="M6.75 1.5V4.5H9.75" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"></path>
+              </svg>
+            </span>
+            stacktape.yml <span class="dim">· {PROJECT_NAME} · written by stacktape init</span>
+          </p>
+          <p class="ledger-meta">
+            {resourceCount} resources declared · {snippet.yaml.lineCount} lines · {snippet.hoverCount} documented keys
+            <span class="dim">— hover one</span>
+          </p>
+        </div>
+
+        <div class="ledger-body">
+          <div class="pane pane-yaml" id="yaml-pane" data-source={source}>
+            <div class="gutter" aria-hidden="true">
+              {lines.map((n) => <span>{n}</span>)}
+            </div>
+            <div class="code stp-code">
+              <Fragment set:html={snippet.yaml.html} />
+            </div>
+          </div>
+
+          <div class="seam" aria-hidden="true">
+            <span class="seam-line"></span>
+            <span class="seam-marks">
+              {RESOURCES.map((resource) => (
+                <span class="seam-mark" style={`--mark: var(--stp-aws-category-${resource.category})`}></span>
+              ))}
+            </span>
+            <span class="seam-badge">
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="none">
+                <path d="M2.5 8h10M8.5 3.75 12.75 8 8.5 12.25" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+              </svg>
+            </span>
+          </div>
+
+          <div class="pane pane-diagram">
+            <div class="pane-head">
+              <span>What it deploys</span>
+              <span class="dim">your AWS account · {REGION}</span>
+            </div>
+            <div class="canvas">
+              <DiagramIsland
+                client:only="react"
+                config={ACME_DIAGRAM_CONFIG}
+                ariaLabel="Isometric diagram of the infrastructure this file deploys: users reach the Next.js web through CloudFront and a web application firewall; the Fargate API sits behind its HTTP gateway inside the VPC next to the Lambda worker, Aurora PostgreSQL and Redis"
+              />
+            </div>
+            <ul class="legend" aria-label="What each colour in the diagram is">
+              {legend.map((item) => (
+                <li style={`--chip: var(--stp-aws-category-${item.category})`}>
+                  <span class="chip" aria-hidden="true"></span>
+                  <span class="legend-label">{item.label}</span>
+                  <code class="legend-names">{item.names}</code>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</BaseLayout>
+
+<style>
+  .page {
+    --ink: var(--stp-text-primary);
+    --ink-2: rgb(198, 206, 206);
+    --ink-3: rgb(140, 150, 150);
+    --line: rgba(255, 255, 255, 0.07);
+    --brand: var(--stp-color-brand);
+    --panel: rgb(26, 32, 32);
+    position: relative;
+    min-height: 100vh;
+    overflow-x: clip;
+  }
+  .page::before {
+    /* One soft brand light behind the ledger, so the panel reads as lit rather than outlined. */
+    content: '';
+    position: absolute;
+    top: -10rem;
+    right: -6rem;
+    width: 52rem;
+    height: 40rem;
+    background: radial-gradient(closest-side, rgba(54, 190, 190, 0.09), transparent 75%);
+    pointer-events: none;
+  }
+
+  /* ── Nav ─────────────────────────────────────────────────────────────── */
+  .nav {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 22px 28px;
+  }
+  .nav nav {
+    display: flex;
+    align-items: center;
+    gap: 26px;
+  }
+  .nav a {
+    color: var(--ink-2);
+    font-size: 0.92rem;
+    text-decoration: none;
+  }
+  .nav a:hover {
+    color: var(--ink);
+  }
+  .nav-demo {
+    padding: 8px 14px;
+    border-radius: 999px;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+    color: var(--ink) !important;
+  }
+
+  /* ── Layout ──────────────────────────────────────────────────────────── */
+  .hero {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 36fr) minmax(0, 64fr);
+    gap: 44px;
+    align-items: start;
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 34px 28px 96px;
+  }
+
+  /* ── Copy ────────────────────────────────────────────────────────────── */
+  .copy {
+    padding-top: 12px;
+  }
+  h1 {
+    margin: 0;
+    font-size: clamp(2.05rem, 2.7vw, 2.6rem);
+    font-weight: 600;
+    letter-spacing: -0.035em;
+    line-height: 1.06;
+    color: var(--ink);
+    text-wrap: balance;
+  }
+  .muted {
+    color: var(--ink-3);
+  }
+  .lede {
+    margin: 20px 0 0;
+    color: var(--ink-2);
+    font-size: 1rem;
+    line-height: 1.6;
+  }
+
+  .days {
+    margin: 26px 0 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--line);
+  }
+  .day {
+    padding: 16px 0 18px;
+    border-bottom: 1px solid var(--line);
+  }
+  .day-label {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin: 0 0 8px;
+    color: var(--ink);
+    font-size: 0.86rem;
+    font-weight: 600;
+  }
+  .day-num {
+    padding: 2px 7px;
+    border-radius: 5px;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 45%, transparent);
+    color: var(--brand);
+    font-family: var(--font-geist-mono);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .day-text {
+    margin: 0;
+    color: var(--ink-2);
+    font-size: 0.93rem;
+    line-height: 1.62;
+  }
+  .day-text code {
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.07);
+    color: var(--ink);
+    font-family: var(--font-geist-mono);
+    font-size: 0.85em;
+  }
+  .day-text strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .ctas {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    margin-top: 26px;
+  }
+  .cta-label {
+    margin: 0;
+    color: var(--ink-3);
+    font-family: var(--font-geist-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .btn-demo {
+    margin-top: 2px;
+    color: var(--ink-2);
+    font-size: 0.92rem;
+    font-weight: 500;
+    text-decoration: none;
+  }
+  .btn-demo:hover {
+    color: var(--ink);
+  }
+
+  .proof {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 0;
+    margin: 28px 0 0;
+    padding: 14px 0 0;
+    border-top: 1px solid var(--line);
+    list-style: none;
+    color: var(--ink-3);
+    font-size: 0.78rem;
+    line-height: 1.5;
+  }
+  .proof li + li::before {
+    content: '·';
+    margin: 0 8px;
+    color: rgba(255, 255, 255, 0.22);
+  }
+
+  /* ── The ledger ──────────────────────────────────────────────────────── */
+  .ledger {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012)), var(--stp-surface-page);
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+      0 30px 80px rgba(0, 0, 0, 0.45),
+      0 0 120px rgba(54, 190, 190, 0.06);
+  }
+  .ledger-bar {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 18px 13px;
+    border-bottom: 1px solid var(--line);
+  }
+  .ledger-name,
+  .ledger-meta,
+  .pane-head {
+    margin: 0;
+    font-family: var(--font-geist-mono);
+    font-size: 0.76rem;
+    white-space: nowrap;
+  }
+  .ledger-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--ink);
+    font-weight: 600;
+    text-overflow: ellipsis;
+  }
+  .ledger-glyph {
+    display: inline-flex;
+    color: var(--ink-3);
+  }
+  .ledger-meta {
+    flex: none;
+    color: var(--ink-2);
+  }
+  .dim {
+    color: var(--ink-3);
+    font-weight: 400;
+  }
+
+  .ledger-body {
+    --ledger-h: clamp(32rem, 44vw, 38rem);
+    display: grid;
+    grid-template-columns: minmax(0, 42fr) 30px minmax(0, 58fr);
+    align-items: stretch;
+    padding: 6px 0 0;
+  }
+
+  /* The file. Scrolls inside a fixed height, so the panel keeps one shape whatever the file's length. */
+  .pane-yaml {
+    display: flex;
+    height: var(--ledger-h);
+    padding: 12px 8px 20px 0;
+    overflow: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+    overscroll-behavior: contain;
+  }
+  .gutter {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    padding: 0 12px 0 16px;
+    color: var(--stp-text-faint);
+    font-family: var(--font-geist-mono);
+    font-size: 0.76rem;
+    line-height: 1.65;
+    text-align: right;
+    user-select: none;
+    opacity: 0.5;
+  }
+  .code {
+    min-width: 0;
+    flex: 1;
+  }
+  .pane-yaml :global(.stp-code code) {
+    font-size: 0.76rem;
+    line-height: 1.65;
+  }
+  .pane-yaml :global(.stp-code .line) {
+    min-height: 1.65em;
+  }
+  /*
+   * The pane is a scroll container, which would clip the schema popups. Once the page script has
+   * run, popups are fixed to the viewport and placed from the hovered key's rectangle instead.
+   */
+  .pane-yaml.has-portal :global(.stp-hover-popup) {
+    position: fixed;
+    top: var(--stp-portal-y, 0px);
+    left: var(--stp-portal-x, 0px);
+    bottom: auto;
+    max-width: min(26rem, calc(100vw - 2rem));
+  }
+
+  /* The seam: a hairline with one mark per declared resource, in the colour it takes in the picture. */
+  .seam {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 12px 0 20px;
+  }
+  .seam-line {
+    position: absolute;
+    inset: 0 auto 0 50%;
+    width: 1px;
+    background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.16) 12%, rgba(255, 255, 255, 0.16) 88%, transparent);
+  }
+  .seam-marks {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-evenly;
+  }
+  .seam-mark {
+    display: block;
+    width: 11px;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.22);
+    position: relative;
+  }
+  .seam-mark::after {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: 50%;
+    width: 5px;
+    height: 5px;
+    border-radius: 999px;
+    background: var(--mark);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--mark) 60%, transparent);
+    transform: translateX(-50%);
+  }
+  .seam-badge {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    background: var(--panel);
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+      0 6px 18px rgba(0, 0, 0, 0.4);
+    color: var(--brand);
+  }
+
+  /* The picture. Takes whatever height the file leaves, then the legend. */
+  .pane-diagram {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    height: var(--ledger-h);
+    padding: 12px 16px 18px 6px;
+  }
+  .pane-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0 6px 10px;
+    color: var(--ink-2);
+    font-weight: 600;
+  }
+  .canvas {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    border-radius: 12px;
+    background:
+      radial-gradient(60% 60% at 50% 55%, rgba(54, 190, 190, 0.06), transparent 100%),
+      rgba(0, 0, 0, 0.22);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    overflow: hidden;
+  }
+  .canvas::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+    background-size: 22px 22px;
+    -webkit-mask-image: radial-gradient(70% 70% at 50% 50%, #000 30%, transparent 100%);
+    mask-image: radial-gradient(70% 70% at 50% 50%, #000 30%, transparent 100%);
+    pointer-events: none;
+  }
+  .canvas :global(.stp-diagram) {
+    position: relative;
+    background: transparent;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px 16px;
+    margin: 14px 0 0;
+    padding: 12px 6px 0;
+    border-top: 1px solid var(--line);
+    list-style: none;
+  }
+  .legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.74rem;
+    line-height: 1.3;
+  }
+  .chip {
+    width: 9px;
+    height: 9px;
+    border-radius: 3px;
+    background: var(--chip);
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--chip) 22%, transparent),
+      0 0 10px color-mix(in srgb, var(--chip) 35%, transparent);
+  }
+  .legend-label {
+    color: var(--ink-2);
+    font-weight: 500;
+  }
+  .legend-names {
+    color: var(--ink-3);
+    font-family: var(--font-geist-mono);
+    font-size: 0.7rem;
+  }
+
+  /* ── Motion ──────────────────────────────────────────────────────────── */
+  @media (prefers-reduced-motion: no-preference) {
+    .ledger {
+      opacity: 0;
+      transform: translateY(10px);
+      animation: arrive 700ms cubic-bezier(0.2, 0.8, 0.2, 1) 180ms forwards;
+    }
+    .day {
+      opacity: 0;
+      animation: arrive 460ms ease forwards;
+      animation-delay: calc(420ms + var(--i) * 140ms);
+    }
+    .ctas,
+    .proof {
+      opacity: 0;
+      animation: arrive 460ms ease 760ms forwards;
+    }
+    .seam-line::after {
+      /* A single pulse travelling from the file to the picture, on loop. */
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, transparent, var(--brand), transparent);
+      background-size: 100% 25%;
+      background-repeat: no-repeat;
+      animation: seam-pulse 3.2s linear infinite;
+      opacity: 0.9;
+    }
+    .seam-mark::after {
+      animation: mark-glow 3.2s ease-in-out infinite;
+    }
+    .seam-mark:nth-child(2)::after { animation-delay: 0.45s; }
+    .seam-mark:nth-child(3)::after { animation-delay: 0.9s; }
+    .seam-mark:nth-child(4)::after { animation-delay: 1.35s; }
+    .seam-mark:nth-child(5)::after { animation-delay: 1.8s; }
+    .seam-mark:nth-child(6)::after { animation-delay: 2.25s; }
+  }
+  @keyframes arrive {
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes seam-pulse {
+    from {
+      background-position: 0 -30%;
+    }
+    to {
+      background-position: 0 130%;
+    }
+  }
+  @keyframes mark-glow {
+    0%,
+    100% {
+      opacity: 0.55;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  /* ── Below 1280px the panes stack: file above, picture below, the seam turned on its side. ── */
+  @media (max-width: 1279px) {
+    .hero {
+      grid-template-columns: minmax(0, 40fr) minmax(0, 60fr);
+      gap: 36px;
+    }
+    .ledger-body {
+      --ledger-h: auto;
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .pane-yaml {
+      height: clamp(20rem, 42vh, 26rem);
+    }
+    .pane-diagram {
+      height: auto;
+      padding: 8px 16px 18px 16px;
+    }
+    .canvas {
+      flex: none;
+      height: clamp(22rem, 44vw, 30rem);
+    }
+    .seam {
+      height: 30px;
+      margin: 0 18px;
+    }
+    .seam-line {
+      inset: 50% 0 auto 0;
+      width: auto;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.16) 12%, rgba(255, 255, 255, 0.16) 88%, transparent);
+    }
+    .seam-marks {
+      flex-direction: row;
+    }
+    .seam-mark {
+      width: 1px;
+      height: 11px;
+    }
+    .seam-mark::after {
+      top: 50%;
+      left: -2px;
+      transform: translateY(-50%);
+    }
+    .seam-badge {
+      transform: rotate(90deg);
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .seam-line::after {
+        background: linear-gradient(90deg, transparent, var(--brand), transparent);
+        background-size: 25% 100%;
+        animation-name: seam-pulse-x;
+      }
+    }
+  }
+  @keyframes seam-pulse-x {
+    from {
+      background-position: -30% 0;
+    }
+    to {
+      background-position: 130% 0;
+    }
+  }
+
+  @media (max-width: 1040px) {
+    .hero {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 40px;
+      padding-top: 24px;
+    }
+    .copy {
+      max-width: 44rem;
+    }
+    h1 {
+      font-size: clamp(2.2rem, 4.6vw, 3rem);
+    }
+  }
+  @media (max-width: 700px) {
+    .ledger-bar {
+      flex-direction: column;
+      gap: 4px;
+    }
+    .ledger-meta {
+      white-space: normal;
+    }
+    .pane-head {
+      flex-direction: column;
+      gap: 2px;
+    }
+  }
+</style>
+
+<script>
+  /*
+   * The YAML pane scrolls, so it would clip the schema popups the build emitted. This lifts each
+   * popup out of the pane by fixing it to the viewport and placing it from the hovered key's
+   * rectangle. The popup still shows and hides by CSS `:hover` / `:focus-within`; this only decides
+   * where. Measured on `pointerenter` / `focusin`, when the popup already has a box.
+   */
+  const pane = document.getElementById('yaml-pane') as HTMLElement | null;
+
+  if (pane) {
+    pane.classList.add('has-portal');
+    const margin = 12;
+
+    const place = (hover: HTMLElement): void => {
+      const popup = hover.querySelector<HTMLElement>('.stp-hover-popup');
+      if (!popup) return;
+
+      // Reset first, so a previous placement does not feed into this measurement.
+      popup.style.removeProperty('--stp-portal-x');
+      popup.style.removeProperty('--stp-portal-y');
+
+      const anchor = hover.getBoundingClientRect();
+      const box = popup.getBoundingClientRect();
+
+      let x = anchor.left;
+      if (x + box.width > window.innerWidth - margin) {
+        x = Math.max(margin, window.innerWidth - margin - box.width);
+      }
+
+      let y = anchor.bottom + 6;
+      const roomBelow = window.innerHeight - margin - y;
+      if (box.height > roomBelow && anchor.top - 6 - box.height >= margin) {
+        y = anchor.top - 6 - box.height;
+      }
+
+      popup.style.setProperty('--stp-portal-x', `${Math.round(x)}px`);
+      popup.style.setProperty('--stp-portal-y', `${Math.round(y)}px`);
+    };
+
+    const onEnter = (event: Event): void => {
+      const target = event.target as HTMLElement | null;
+      const hover = target?.closest<HTMLElement>('.stp-hover');
+      if (hover && pane.contains(hover)) place(hover);
+    };
+
+    // Capture, because `pointerenter` does not bubble and there is one listener for every key.
+    pane.addEventListener('pointerenter', onEnter, true);
+    pane.addEventListener('focusin', onEnter);
+  }
+</script>

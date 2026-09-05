@@ -17,7 +17,7 @@ import { createHighlighter, type Highlighter } from 'shiki';
 export const SHIKI_THEME = 'catppuccin-mocha';
 
 /** The only two languages a Stacktape config is ever shown in. */
-export const SHIKI_LANGS = ['yaml', 'typescript'] as const;
+const SHIKI_LANGS = ['yaml', 'typescript'] as const;
 
 let highlighterPromise: Promise<Highlighter> | undefined;
 
