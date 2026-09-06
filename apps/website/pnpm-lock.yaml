@@ -99,6 +99,9 @@ importers:
       '@types/react-dom':
         specifier: 'catalog:'
         version: 19.2.5(@types/react@19.2.18)
+      prettier:
+        specifier: ^3.9.6
+        version: 3.9.6
       rollup:
         specifier: 4.63.1
         version: 4.63.1

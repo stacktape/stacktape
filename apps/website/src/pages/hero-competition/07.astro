@@ -1,5 +1,5 @@
 ---
-// concept: The reveal — the file and the architecture occupy the same window, one on top of the other, and a draggable divider decides how much of each you see: pull it right and the file takes over, pull it left and the picture does; no link lines, just the two views of one thing under one handle.
+// concept: The wide window — headline, sentence and the command centered above one full-width application window in which the file takes the narrow side pane and the architecture the wide main pane; the controls sit in the window's title bar, hovering a resource lights its node.
 // copy-angle: "One file. The whole DevOps job." with the proof points named: the fastest packaging pipeline, built-in CI/CD faster than CodeBuild, monitoring from day one, incidents that arrive with the fix; the account and the exit stated last.
 // direction: fits
 // round: 6
@@ -9,10 +9,11 @@ import Logo from '../../components/Logo.astro';
 import { CtaCommand } from '../../components/CtaCommand';
 import DeskControls from '../../surfaces/HeroDesk/DeskControls.astro';
 import DeskEditor from '../../surfaces/HeroDesk/DeskEditor.astro';
+import DeskLinks from '../../surfaces/HeroDesk/DeskLinks.astro';
 import DeskDiagram from '../../surfaces/HeroDesk/DeskDiagram';
 import { deskDiagramProps, loadDeskProjects } from '../../surfaces/HeroDesk/desk-data';
 
-const projects = await loadDeskProjects(['nextjs', 'fullstack', 'container', 'serverless', 'worker', 'agent']);
+const projects = await loadDeskProjects(['fullstack', 'nextjs', 'container', 'serverless', 'worker', 'agent']);
 const first = projects[0];
 if (!first) throw new Error('No projects to show.');
 const diagram = deskDiagramProps(projects);
@@ -33,9 +34,9 @@ const diagram = deskDiagramProps(projects);
   </header>
 
   <main class="hero">
-    <div class="copy">
+    <div class="intro">
       <p class="kicker"><span class="kicker__file">stacktape.yml</span> One file. The whole DevOps job.</p>
-      <h1>AWS DevOps,<br />fully automated.</h1>
+      <h1>AWS DevOps, fully automated.</h1>
       <p class="lede">
         Describe your app in one file. Stacktape turns it into production-grade AWS and keeps it running: the fastest
         packaging pipeline on AWS, built-in CI/CD 2–5× faster than CodeBuild, monitoring and alarms wired from day one,
@@ -57,32 +58,15 @@ const diagram = deskDiagramProps(projects);
         </span>
         <DeskControls projects={projects} class="ide__controls" />
       </div>
-      <div class="reveal" id="reveal" style="--reveal: 52%">
-        <div class="reveal__picture">
-          <div class="reveal__canvas" data-desk-diagram>
+      <div class="ide__body">
+        <DeskEditor projects={projects} chrome="pane" />
+        <div class="ide__main">
+          <div class="ide__canvas" data-desk-diagram>
             <DeskDiagram client:only="react" configs={diagram.configs} labels={diagram.labels} initialProject={first.id} />
           </div>
         </div>
-        <div class="reveal__file">
-          <DeskEditor projects={projects} chrome="pane" />
-        </div>
-        <div
-          class="reveal__handle"
-          id="handle"
-          role="slider"
-          tabindex="0"
-          aria-label="How much of the file to show; the rest is the architecture"
-          aria-valuemin="0"
-          aria-valuemax="100"
-          aria-valuenow="52"
-        >
-          <span class="reveal__grip" aria-hidden="true">
-            <svg viewBox="0 0 16 16" width="14" height="14" fill="none">
-              <path d="M6 4 2.5 8 6 12M10 4l3.5 4L10 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
-            </svg>
-          </span>
-        </div>
       </div>
+      <DeskLinks />
     </section>
   </main>
 </BaseLayout>
@@ -113,17 +97,19 @@ const diagram = deskDiagramProps(projects);
   }
 
   .hero {
-    display: grid;
-    grid-template-columns: minmax(340px, 0.66fr) minmax(0, 1.34fr);
-    gap: 48px;
-    align-items: center;
     max-width: 1400px;
     margin: 0 auto;
-    padding: 24px 28px 96px;
+    padding: 30px 28px 96px;
     overflow-x: clip;
   }
 
-  /* ── Copy ─────────────────────────────────────────────────────────────── */
+  /* ── Intro, centered ──────────────────────────────────────────────────── */
+  .intro {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
   .kicker {
     display: flex;
     align-items: center;
@@ -144,25 +130,27 @@ const diagram = deskDiagramProps(projects);
   }
   h1 {
     margin: 0;
-    font-size: clamp(2.4rem, 3.5vw, 3.25rem);
+    font-size: clamp(2.6rem, 4.4vw, 4rem);
     font-weight: 700;
     letter-spacing: -0.035em;
-    line-height: 1.05;
+    line-height: 1.04;
     color: var(--ink);
   }
   .lede {
-    margin: 22px 0 0;
-    max-width: 52ch;
+    max-width: 66ch;
+    margin: 18px 0 0;
     color: var(--ink-3);
-    font-size: 1.04rem;
+    font-size: 1.08rem;
     line-height: 1.6;
   }
   .cta {
     display: flex;
-    flex-wrap: wrap;
     align-items: flex-start;
-    gap: 12px 14px;
-    margin-top: 30px;
+    gap: 14px;
+    margin-top: 28px;
+  }
+  .cta :global(.cta-command) {
+    align-items: center;
   }
   .cta :global(.cta__demo) {
     --stp-control-height: 46px;
@@ -179,7 +167,8 @@ const diagram = deskDiagramProps(projects);
     position: relative;
     display: flex;
     flex-direction: column;
-    height: clamp(560px, 46vw, 660px);
+    height: 560px;
+    margin-top: 40px;
     background: var(--panel);
     box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
   }
@@ -191,90 +180,32 @@ const diagram = deskDiagramProps(projects);
     flex: 1;
     min-width: 0;
   }
-
-  /* ── The reveal: two full-size views, one clipped at the handle ───────── */
-  .reveal {
-    position: relative;
+  .ide__body {
+    display: grid;
     flex: 1;
+    grid-template-columns: minmax(320px, 38%) minmax(0, 1fr);
     min-height: 0;
-    overflow: hidden;
-    user-select: none;
   }
-  .reveal__picture,
-  .reveal__file {
-    position: absolute;
-    inset: 0;
+  .ide__body > :global(.desk-editor) {
+    border-right: 1px solid var(--line);
   }
-  .reveal__picture {
+  .ide__main {
+    position: relative;
+    display: flex;
+    min-width: 0;
     background:
       radial-gradient(rgba(255, 255, 255, 0.075) 1px, transparent 1.3px) 0 0 / 16px 16px,
       var(--paper);
   }
-  .reveal__canvas {
-    position: absolute;
-    inset: 0;
-  }
-  .reveal__file {
-    z-index: 2;
-    clip-path: inset(0 calc(100% - var(--reveal)) 0 0);
-  }
-  .reveal__file > :global(.desk-editor) {
-    height: 100%;
-    border-right: 1px solid var(--line);
-  }
-  .reveal__handle {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: var(--reveal);
-    z-index: 3;
-    width: 2px;
-    margin-left: -1px;
-    background: rgba(255, 255, 255, 0.28);
-    cursor: col-resize;
-    touch-action: none;
-  }
-  /* A wider invisible grab area than the line itself. */
-  .reveal__handle::before {
-    content: '';
-    position: absolute;
-    inset: 0 -10px;
-  }
-  .reveal__grip {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background: var(--stp-control-surface);
-    box-shadow:
-      0 4px 12px rgba(0, 0, 0, 0.45),
-      inset 0 1px 0 rgba(255, 255, 255, 0.1),
-      0 0 0 1px rgba(255, 255, 255, 0.08);
-    color: var(--ink);
-    transform: translate(-50%, -50%);
-    transition: transform var(--stp-motion-duration-fast) var(--stp-motion-easing);
-  }
-  .reveal__handle:hover .reveal__grip,
-  .reveal__handle:focus-visible .reveal__grip,
-  .reveal.is-dragging .reveal__grip {
-    transform: translate(-50%, -50%) scale(1.08);
-  }
-  .reveal__handle:focus-visible {
-    outline: none;
-    background: var(--brand);
-  }
-  .reveal.is-dragging .reveal__handle {
-    background: var(--brand);
+  .ide__canvas {
+    position: relative;
+    flex: 1;
+    min-height: 0;
   }
 
   /* ── Motion ───────────────────────────────────────────────────────────── */
   @media (prefers-reduced-motion: no-preference) {
-    .copy,
+    .intro,
     .ide {
       opacity: 0;
       transform: translateY(8px);
@@ -293,20 +224,28 @@ const diagram = deskDiagramProps(projects);
 
   /* ── Narrower ─────────────────────────────────────────────────────────── */
   @media (max-width: 1180px) {
-    .hero {
-      grid-template-columns: minmax(300px, 0.7fr) minmax(0, 1.3fr);
-      gap: 32px;
+    .ide__body {
+      grid-template-columns: minmax(300px, 44%) minmax(0, 1fr);
     }
   }
   @media (max-width: 960px) {
-    .hero {
-      grid-template-columns: 1fr;
-    }
     .cta {
       flex-wrap: wrap;
+      justify-content: center;
     }
     .ide {
-      height: 560px;
+      height: auto;
+    }
+    .ide__body {
+      grid-template-columns: 1fr;
+    }
+    .ide__body > :global(.desk-editor) {
+      height: 400px;
+      border-right: 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .ide__main {
+      height: 440px;
     }
   }
 </style>
@@ -315,52 +254,5 @@ const diagram = deskDiagramProps(projects);
   import { mountDesk } from '../../surfaces/HeroDesk/desk-client';
 
   const desk = document.getElementById('desk');
-  const reveal = document.getElementById('reveal');
-  const handle = document.getElementById('handle');
-
-  if (desk) mountDesk(desk, { attract: false, links: false });
-
-  if (reveal && handle) {
-    const min = 8;
-    const max = 92;
-    let value = 52;
-
-    const apply = (next: number) => {
-      value = Math.min(max, Math.max(min, next));
-      reveal.style.setProperty('--reveal', `${value}%`);
-      handle.setAttribute('aria-valuenow', String(Math.round(value)));
-    };
-
-    const fromPointer = (clientX: number) => {
-      const box = reveal.getBoundingClientRect();
-      apply(((clientX - box.left) / box.width) * 100);
-    };
-
-    handle.addEventListener('pointerdown', (event: PointerEvent) => {
-      event.preventDefault();
-      handle.setPointerCapture(event.pointerId);
-      reveal.classList.add('is-dragging');
-      fromPointer(event.clientX);
-    });
-    handle.addEventListener('pointermove', (event: PointerEvent) => {
-      if (!reveal.classList.contains('is-dragging')) return;
-      fromPointer(event.clientX);
-    });
-    const release = (event: PointerEvent) => {
-      if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId);
-      reveal.classList.remove('is-dragging');
-    };
-    handle.addEventListener('pointerup', release);
-    handle.addEventListener('pointercancel', release);
-    handle.addEventListener('dblclick', () => apply(52));
-    handle.addEventListener('keydown', (event: KeyboardEvent) => {
-      const step = event.shiftKey ? 12 : 4;
-      if (event.key === 'ArrowLeft') apply(value - step);
-      else if (event.key === 'ArrowRight') apply(value + step);
-      else if (event.key === 'Home') apply(min);
-      else if (event.key === 'End') apply(max);
-      else return;
-      event.preventDefault();
-    });
-  }
+  if (desk) mountDesk(desk, { attract: true, wires: 'hover', direction: 'horizontal' });
 </script>

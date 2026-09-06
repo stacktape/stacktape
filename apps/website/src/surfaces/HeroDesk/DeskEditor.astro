@@ -1,0 +1,86 @@
+---
+/**
+ * The file half of the desk: one scrollable pane per project and language, rendered on the server,
+ * with the desk's controls in the title bar when the editor is its own window.
+ *
+ * `chrome="window"` draws a title bar with the traffic lights and the controls. `chrome="pane"`
+ * draws nothing above the panes — the host puts `DeskControls` in its own title bar, and
+ * `desk-client.ts` finds them anywhere inside the desk.
+ */
+import type { DeskProject } from './desk-data';
+import DeskControls from './DeskControls.astro';
+
+type Props = {
+  projects: DeskProject[];
+  chrome?: 'window' | 'pane';
+  class?: string;
+};
+
+const { projects, chrome = 'window', class: className } = Astro.props;
+const first = projects[0];
+if (!first) throw new Error('DeskEditor needs at least one project.');
+---
+
+<div
+  class:list={['desk-editor', `desk-editor--${chrome}`, chrome === 'window' && 'surface-frame', className]}
+  data-desk-editor
+  data-project={first.id}
+  data-language="yaml"
+>
+  <!-- markup_fmt 0.27.3 repeatedly increases indentation in these Astro expressions. -->
+  <!-- markup-fmt-ignore -->
+  {
+    chrome === 'window' && (
+      <div class="surface-frame__bar desk-editor__bar">
+        <span class="surface-frame__lights" aria-hidden="true">
+          <span style="background: #ff5f57" />
+          <span style="background: #febc2e" />
+          <span style="background: #28c840" />
+        </span>
+        <DeskControls projects={projects} class="desk-editor__controls" />
+      </div>
+    )
+  }
+
+  <div class="desk-editor__scroll" data-scroll>
+    <!-- markup-fmt-ignore -->
+    {
+      projects.map((p, i) => (
+        <Fragment>
+          <div
+            class="desk-editor__pane"
+            data-pane={p.id}
+            data-lang="yaml"
+            data-summary={p.summary}
+            data-resources={p.resources.join(',')}
+            hidden={i !== 0}
+          >
+            <div class="desk-editor__gutter" aria-hidden="true">
+              {Array.from({ length: p.yaml.lineCount }, (_, n) => (
+                <span>{n + 1}</span>
+              ))}
+            </div>
+            <div class="desk-editor__code stp-code" set:html={p.yaml.html} />
+          </div>
+          {p.typescript && (
+            <div
+              class="desk-editor__pane"
+              data-pane={p.id}
+              data-lang="typescript"
+              data-summary={p.summary}
+              data-resources={p.resources.join(',')}
+              hidden
+            >
+              <div class="desk-editor__gutter" aria-hidden="true">
+                {Array.from({ length: p.typescript.lineCount }, (_, n) => (
+                  <span>{n + 1}</span>
+                ))}
+              </div>
+              <div class="desk-editor__code stp-code" set:html={p.typescript.html} />
+            </div>
+          )}
+        </Fragment>
+      ))
+    }
+  </div>
+</div>

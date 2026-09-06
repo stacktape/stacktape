@@ -6,6 +6,7 @@
  * imported from `.astro` frontmatter (see `snippets.ts`).
  */
 import { marked } from 'marked';
+import { format } from 'prettier';
 import { convertYamlToTypescript } from '@stacktape/config-authoring/converter';
 import { getHighlighter, SHIKI_THEME } from './highlighter';
 import type { RenderedCode, RenderedSnippet, SnippetId } from './types';
@@ -59,10 +60,10 @@ const renderYaml = async (yaml: string): Promise<{ rendered: RenderedCode; hover
  * the one carrying the documentation story. The YAML hovers are the point; the TS tab proves the
  * config is the same object in a typed language.
  */
-const renderTypescript = async (yaml: string): Promise<RenderedCode | null> => {
+const renderTypescript = async (yaml: string, printWidth: number): Promise<RenderedCode | null> => {
   let source: string;
   try {
-    source = convertYamlToTypescript(yaml);
+    source = await formatTypescript(convertYamlToTypescript(yaml), printWidth);
   } catch (err) {
     console.warn('YAML → TypeScript conversion failed:', err);
     return null;
@@ -75,15 +76,35 @@ const renderTypescript = async (yaml: string): Promise<RenderedCode | null> => {
   };
 };
 
+/**
+ * The converter emits working code with the indentation of the template it came from; Prettier
+ * makes it read like code someone wrote. The leading import stays on one line whatever the width:
+ * a wrapped import list would take a third of the pane before the config starts.
+ */
+const formatTypescript = async (source: string, printWidth: number): Promise<string> => {
+  const match = /^(?:import[^\n]*\n)+/.exec(source);
+  const imports = match ? match[0] : '';
+  const body = source.slice(imports.length);
+  const formatted = await format(body, {
+    parser: 'typescript',
+    printWidth,
+    singleQuote: true,
+    trailingComma: 'none'
+  });
+  return `${imports.trimEnd()}\n\n${formatted.trimStart()}`.trimEnd();
+};
+
 export const renderSnippet = async (input: {
   id: SnippetId;
   label: string;
   summary: string;
   yaml: string;
+  /** Prettier's print width for the TypeScript twin. The default suits a full-width editor. */
+  typescriptPrintWidth?: number;
 }): Promise<RenderedSnippet> => {
   const [{ rendered, hoverCount }, typescript] = await Promise.all([
     renderYaml(input.yaml),
-    renderTypescript(input.yaml)
+    renderTypescript(input.yaml, input.typescriptPrintWidth ?? 96)
   ]);
 
   return {

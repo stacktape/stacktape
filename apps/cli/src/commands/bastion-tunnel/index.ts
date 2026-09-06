@@ -39,21 +39,11 @@ export const commandBastionTunnel = async () => {
 
   tuiManager.info(
     `Tunnels open (local -> remote):\n\n${targets
-      .map(({ label, additionalStringToSubstitute, remoteHost, remotePort }, index) => {
+      .map(({ label }, index) => {
         return ` - ${tuiManager.prettyResourceName(resourceName)} ${tuiManager.colorize(
           'gray',
           label
-        )} --> ${tuiManager.colorize('green', `127.0.0.1:${tunnels[index].localPort}`)}${
-          additionalStringToSubstitute
-            ? ` ( ${tuiManager.colorize(
-                'gray',
-                additionalStringToSubstitute.replace(
-                  `${remoteHost}:${remotePort}`,
-                  `127.0.0.1:${tunnels[index].localPort}`
-                )
-              )} )`
-            : ''
-        }`;
+        )} --> ${tuiManager.colorize('green', `127.0.0.1:${tunnels[index].localPort}`)}`;
       })
       .join('\n')}\n`
   );

@@ -37,23 +37,24 @@ export function CtaCommand({ defaultMethod = 'npx', className }: CtaCommandProps
 
   return (
     <div className={['cta-command', className].filter(Boolean).join(' ')}>
-      <div className="cta-command__row">
+      {/* The whole row is one native button, including its keyboard target. */}
+      <button
+        type="button"
+        className="cta-command__row"
+        data-copied={hasCopied ? '' : undefined}
+        title="Click to copy"
+        onClick={() => copy(method.command)}
+        aria-label={hasCopied ? 'Command copied' : `Copy ${method.command}`}
+      >
         <span className="cta-command__prompt" aria-hidden="true">
           $
         </span>
         <code className="cta-command__code">{method.command}</code>
-        <button
-          type="button"
-          className="cta-command__copy"
-          onClick={() => copy(method.command)}
-          // The label changes, so the accessible name has to change with it — a screen reader user
-          // gets the same "copied" confirmation the sighted user gets from the icon swap.
-          aria-label={hasCopied ? 'Command copied' : `Copy ${method.command}`}
-        >
+        <span className="cta-command__copy" aria-hidden="true">
           {hasCopied ? <CheckGlyph /> : <CopyGlyph />}
           <span className="cta-command__copy-label">{hasCopied ? 'Copied' : 'Copy'}</span>
-        </button>
-      </div>
+        </span>
+      </button>
 
       {/* A fieldset rather than a div with `role="group"`: same semantics, real element. Its default
           border, margin and `min-inline-size` are reset in surfaces.css. */}

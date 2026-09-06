@@ -31,6 +31,7 @@
 @import './surfaces/observability.css';
 @import './surfaces/issues.css';
 @import './surfaces/delivery.css';
+@import './surfaces/desk.css';
 
 /*
  * Tailwind theme. Every colour Stacktape frontends agree on is a reference to the shared token; the

@@ -15,12 +15,10 @@ const here = dirname(fileURLToPath(import.meta.url));
 // board degrades to fully blind when it is absent.
 type KeyEntry = { number: string; player: string; version: number };
 const readKey = (path: string): KeyEntry[] => (existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : []);
-// Round 2 (29+) was written on this side of the submodule boundary, so its numbers live in the public
-// copy of the key; the console copy still wins for any number both files know.
-const key: KeyEntry[] = [
-  ...readKey(resolve(here, '../../../../console/documents/website/hero-competition/runs/key.json')),
-  ...readKey(resolve(here, '../../../../../.agents/prompts/hero-competition-runs/key.json'))
-];
+// The board was pruned and renumbered after the owner's review, so the public copy of the key is the
+// one that matches the files; the old console key is only a fallback when the public key is absent.
+const publicKey = readKey(resolve(here, '../../../../../.agents/prompts/hero-competition-runs/key.json'));
+const key: KeyEntry[] = publicKey.length ? publicKey : readKey(resolve(here, '../../../../console/documents/website/hero-competition/runs/key.json'));
 const playerOf = new Map<string, string>();
 for (const k of key) if (!playerOf.has(k.number)) playerOf.set(k.number, `${k.player} · v${k.version}`);
 
@@ -34,8 +32,10 @@ const pages = readdirSync(here)
     const title = /title="([^"]+)"/.exec(src)?.[1] ?? '';
     // Round-2 pages declare whether they follow the owner's chosen direction or deliberately reject it.
     const direction = /\/\/\s*direction:\s*(fits|rejects)/.exec(src)?.[1] ?? '';
+    // Round 2 pages carry no round line; anything later says which round it belongs to.
+    const round = direction ? (/\/\/\s*round:\s*(\d+)/.exec(src)?.[1] ?? '2') : '';
     const n = f.replace('.astro', '');
-    return { n, concept, angle, title, direction, player: playerOf.get(n) ?? 'unknown' };
+    return { n, concept, angle, title, direction, round, player: playerOf.get(n) ?? 'unknown' };
   });
 
 const expected = key.length || 28;
@@ -57,7 +57,7 @@ const expected = key.length || 28;
           <a href={`/hero-competition/${p.n}`}>
             <div class="row">
               <span class="num">{p.n}</span>
-              {p.direction && <span class={`dir dir--${p.direction}`}>{p.direction === 'fits' ? 'round 2 · fits direction' : 'round 2 · rejects direction'}</span>}
+              {p.direction && <span class={`dir dir--${p.direction}`}>{`round ${p.round} · ${p.direction === 'fits' ? 'fits direction' : 'rejects direction'}`}</span>}
               <span class="who" data-who>{p.player}</span>
             </div>
             <p class="title">{p.title}</p>

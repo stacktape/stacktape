@@ -1,0 +1,67 @@
+---
+/**
+ * The desk's two choices, side by side: which project the file describes (a dropdown that looks like
+ * the product's secondary button) and which file to show — `stacktape.yml` or `stacktape.ts` — as
+ * the same switch the install command uses. Place it in a window's title bar or in a toolbar; the
+ * behaviour comes from `desk-client.ts`, which finds it anywhere inside the desk.
+ */
+import type { DeskProject } from './desk-data';
+
+type Props = {
+  projects: DeskProject[];
+  class?: string;
+};
+
+const { projects, class: className } = Astro.props;
+const first = projects[0];
+if (!first) throw new Error('DeskControls needs at least one project.');
+---
+
+<div class:list={['desk-controls', className]} data-desk-controls>
+  <div class="desk-dropdown" data-dropdown>
+    <button
+      type="button"
+      class="stp-ui-button stp-ui-button--secondary desk-dropdown__button"
+      aria-haspopup="listbox"
+      aria-expanded="false"
+      data-dropdown-button
+    >
+      <span class="stp-ui-button__content">
+        <span class="stp-ui-button__label" data-dropdown-label>{first.label}</span>
+        <span class="stp-ui-button__icon desk-dropdown__chevron" aria-hidden="true">
+          <svg viewBox="0 0 12 12" width="12" height="12" fill="none">
+            <path
+              d="M2.5 4.5 6 8l3.5-3.5"
+              stroke="currentColor"
+              stroke-width="1.4"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+            </path>
+          </svg>
+        </span>
+      </span>
+    </button>
+    <ul class="desk-dropdown__menu" role="listbox" aria-label="Project type" hidden data-dropdown-menu>
+      <!-- markup_fmt 0.27.3 repeatedly increases indentation in this Astro expression. -->
+      <!-- markup-fmt-ignore -->
+      {
+        projects.map((p) => (
+          <li role="option" class="desk-dropdown__option" data-value={p.id} aria-selected={p.id === first.id} tabindex="-1">
+            <span class="desk-dropdown__name">{p.label}</span>
+            <span class="desk-dropdown__summary">{p.summary}</span>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+
+  <fieldset class="cta-command__methods site-well desk-controls__files" aria-label="Configuration file">
+    <button type="button" class="cta-command__method is-active" data-language="yaml" aria-pressed="true">
+      stacktape.yml
+    </button>
+    <button type="button" class="cta-command__method" data-language="typescript" aria-pressed="false">
+      stacktape.ts
+    </button>
+  </fieldset>
+</div>

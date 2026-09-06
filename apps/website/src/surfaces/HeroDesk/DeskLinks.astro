@@ -1,0 +1,15 @@
+---
+/**
+* The overlay the desk draws its links on: a curve from a resource in the file to the same
+* resource in the picture, the ring around that node, and — on desks that show every wire — one
+* thin wire per visible resource. Place it inside the positioned element that contains both the
+* editor and the picture; `desk-client.ts` sizes its viewBox to that element.
+*/
+---
+
+<svg class="desk-links" aria-hidden="true">
+  <g data-wires></g>
+  <path class="desk-links__path" d=""></path>
+  <circle class="desk-links__ring" r="0"></circle>
+  <circle class="desk-links__dot" r="0"></circle>
+</svg>

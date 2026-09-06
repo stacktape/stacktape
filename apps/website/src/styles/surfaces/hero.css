@@ -173,35 +173,54 @@
   }
 
   /*
-   * The command line itself. This is the page's primary action, so it gets the one brand-tinted
-   * ring on the surface — it reads as a button without pretending the text is not selectable.
+   * The command line itself: a quiet, recessed field rather than a glowing button. The whole row
+   * copies on click, and the copy control only shows itself while the pointer is over the field —
+   * the command is the thing to look at, the button is the thing to find.
    */
   .cta-command__row {
+    width: 100%;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    position: relative;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
     max-width: 100%;
-    padding: 10px 10px 10px 16px;
+    height: 46px;
+    padding: 0 8px 0 16px;
     border-radius: var(--stp-radius-large);
-    background: rgba(0, 0, 0, 0.3);
+    background: rgb(22, 27, 27);
     box-shadow:
-      inset 0 0 0 1px color-mix(in srgb, var(--color-brand) 30%, transparent),
-      0 0 0 4px color-mix(in srgb, var(--color-brand) 7%, transparent);
-    transition: box-shadow var(--stp-motion-duration-base) var(--stp-motion-easing);
+      inset 0 0 0 1px rgba(255, 255, 255, 0.09),
+      0 1px 0 rgba(255, 255, 255, 0.03);
+    cursor: pointer;
+    transition:
+      box-shadow var(--stp-motion-duration-base) var(--stp-motion-easing),
+      background var(--stp-motion-duration-base) var(--stp-motion-easing);
   }
 
-  .cta-command__row:hover {
+  .cta-command__row:hover,
+  .cta-command__row:focus-within {
+    background: rgb(24, 30, 30);
     box-shadow:
       inset 0 0 0 1px color-mix(in srgb, var(--color-brand) 45%, transparent),
-      0 0 0 5px color-mix(in srgb, var(--color-brand) 11%, transparent);
+      0 1px 0 rgba(255, 255, 255, 0.03);
+  }
+
+  .cta-command__row[data-copied] {
+    box-shadow:
+      inset 0 0 0 1px var(--color-brand),
+      0 0 0 4px color-mix(in srgb, var(--color-brand) 12%, transparent);
   }
 
   .cta-command__prompt {
     flex: none;
     color: var(--color-brand);
     font-family: var(--font-mono);
-    font-size: 0.86rem;
-    font-weight: 700;
+    font-size: 0.9rem;
+    font-weight: 600;
   }
 
   .cta-command__code {
@@ -209,7 +228,8 @@
     overflow-x: auto;
     color: var(--color-fc-primary);
     font-family: var(--font-mono);
-    font-size: 0.86rem;
+    font-size: 0.92rem;
+    letter-spacing: -0.01em;
     white-space: pre;
     scrollbar-width: none;
   }
@@ -223,18 +243,29 @@
     flex: none;
     align-items: center;
     gap: 6px;
-    padding: 6px 11px;
+    padding: 6px 10px;
     border: 0;
     border-radius: var(--stp-radius-medium);
     background: rgba(255, 255, 255, 0.06);
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
     color: var(--color-fc-lighter);
-    font-size: 0.76rem;
+    font-size: 0.74rem;
     font-weight: 600;
     cursor: pointer;
+    opacity: 0;
+    transform: translateX(4px);
     transition:
+      opacity var(--stp-motion-duration-fast) var(--stp-motion-easing),
+      transform var(--stp-motion-duration-fast) var(--stp-motion-easing),
       background var(--stp-motion-duration-fast) var(--stp-motion-easing),
       color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+  }
+
+  .cta-command__row:hover .cta-command__copy,
+  .cta-command__row:focus-within .cta-command__copy,
+  .cta-command__row[data-copied] .cta-command__copy {
+    opacity: 1;
+    transform: none;
   }
 
   .cta-command__copy:hover {
@@ -242,6 +273,20 @@
     color: var(--color-fc-primary);
   }
 
+  .cta-command__row[data-copied] .cta-command__copy {
+    color: var(--color-brand);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-brand) 45%, transparent);
+  }
+
+  /* No pointer to hover with: the control is simply there. */
+  @media (hover: none) {
+    .cta-command__copy {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* The switch under the command — and every other switch on the page uses these same classes. */
   .cta-command__methods {
     display: inline-flex;
     gap: 2px;
@@ -259,16 +304,25 @@
     cursor: pointer;
     transition:
       background var(--stp-motion-duration-fast) var(--stp-motion-easing),
-      color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+      color var(--stp-motion-duration-fast) var(--stp-motion-easing),
+      box-shadow var(--stp-motion-duration-fast) var(--stp-motion-easing);
   }
 
-  .cta-command__method:hover {
+  .cta-command__method:hover:not(:disabled) {
     color: var(--color-fc-primary);
   }
 
+  .cta-command__method:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  /* The active choice is the secondary button: the same raised grey, the same top highlight. */
   .cta-command__method.is-active {
-    background: rgba(255, 255, 255, 0.08);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+    background: var(--stp-control-surface);
+    box-shadow:
+      0 2px 6px rgba(0, 0, 0, 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.09);
     color: var(--color-fc-primary);
   }
 

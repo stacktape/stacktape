@@ -1,0 +1,287 @@
+/*
+ * The desk: a config editor and the isometric diagram of what it deploys, shown together.
+ *
+ * What is shared between every desk lives here — the editor window, its dropdown and language
+ * switch, the scrolling pane, the schema popups once they are moved out of the window, the links
+ * overlay and the picture's entrance. How the two windows are arranged is each page's own decision
+ * and stays in the page.
+ */
+@layer components {
+  /* ── The editor window ─────────────────────────────────────────────────────────────────────── */
+
+  .desk-editor {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: rgb(28, 33, 33);
+  }
+
+  /* The title bar carries the desk's controls: the picker after the lights, the file switch at the end. */
+  .desk-editor__bar {
+    gap: 12px;
+  }
+
+  .desk-editor__controls {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .desk-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 12px;
+  }
+
+  .desk-controls__files {
+    flex: none;
+  }
+
+  .desk-editor__scroll {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+  }
+
+  .desk-editor__scroll::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .desk-editor__scroll::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.16);
+    background-clip: padding-box;
+  }
+
+  .desk-editor__pane {
+    display: flex;
+    padding: 12px 0 16px;
+    animation: desk-pane-enter 220ms var(--stp-motion-easing);
+  }
+
+  .desk-editor__gutter {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    padding: 0 12px 0 16px;
+    color: var(--stp-text-faint);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    line-height: 1.7;
+    text-align: right;
+    user-select: none;
+  }
+
+  .desk-editor__code {
+    flex: 1;
+    min-width: 0;
+    padding-right: 18px;
+  }
+
+  /* A documented key is not a question; the pointer stays a pointer. */
+  .desk-editor .stp-hover {
+    cursor: default;
+  }
+
+  .desk-editor .stp-code .line {
+    margin: 0 8px 0 -4px;
+    padding: 0 6px 0 4px;
+    border-radius: 4px;
+  }
+
+  .desk-editor .stp-code .line.is-linked {
+    background: rgba(54, 190, 190, 0.14);
+    box-shadow: inset 2px 0 0 var(--stp-color-brand);
+  }
+
+  /* ── The project dropdown: the secondary button, opening a list ────────────────────────────── */
+
+  .desk-dropdown {
+    position: relative;
+  }
+
+  .desk-dropdown__button {
+    --stp-control-height: 30px;
+    --stp-button-padding-x: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+
+  .desk-dropdown__chevron {
+    color: var(--stp-text-muted);
+    transition: transform var(--stp-motion-duration-fast) var(--stp-motion-easing);
+  }
+
+  .desk-dropdown[data-open] .desk-dropdown__chevron {
+    transform: rotate(180deg);
+  }
+
+  .desk-dropdown__menu {
+    position: absolute;
+    left: 0;
+    top: calc(100% + 6px);
+    z-index: 60;
+    min-width: 280px;
+    margin: 0;
+    padding: 6px;
+    list-style: none;
+    border-radius: var(--stp-radius-large);
+    background: rgb(24, 30, 30);
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.09),
+      0 18px 48px rgba(0, 0, 0, 0.55);
+  }
+
+  .desk-dropdown__option {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    outline: none;
+  }
+
+  .desk-dropdown__option:hover,
+  .desk-dropdown__option.is-focused {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .desk-dropdown__option[aria-selected='true'] .desk-dropdown__name {
+    color: var(--stp-color-brand);
+  }
+
+  .desk-dropdown__name {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--stp-text-primary);
+  }
+
+  .desk-dropdown__summary {
+    font-size: 0.72rem;
+    line-height: 1.4;
+    color: var(--stp-text-muted);
+  }
+
+  /* ── Schema popups, once they live on the body ─────────────────────────────────────────────── */
+
+  .stp-hover-popup.is-open {
+    position: fixed;
+    z-index: 500;
+    display: flex;
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+    pointer-events: auto;
+  }
+
+  /* ── The links overlay ─────────────────────────────────────────────────────────────────────── */
+
+  .desk-links {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    pointer-events: none;
+  }
+
+  .desk-links__wire {
+    fill: none;
+    stroke: var(--stp-color-brand);
+    stroke-width: 1;
+    opacity: 0.3;
+    transition: opacity var(--stp-motion-duration-base) var(--stp-motion-easing);
+  }
+
+  .desk-links__path {
+    fill: none;
+    stroke: var(--stp-color-brand);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-dasharray: 5 6;
+    opacity: 0;
+    transition: opacity var(--stp-motion-duration-base) var(--stp-motion-easing);
+  }
+
+  .desk-links__ring {
+    fill: rgba(54, 190, 190, 0.1);
+    stroke: var(--stp-color-brand);
+    stroke-width: 1.5;
+    opacity: 0;
+    transition: opacity var(--stp-motion-duration-base) var(--stp-motion-easing);
+  }
+
+  .desk-links__dot {
+    fill: var(--stp-color-brand);
+    opacity: 0;
+    transition: opacity var(--stp-motion-duration-base) var(--stp-motion-easing);
+  }
+
+  .is-linked .desk-links__path,
+  .is-linked .desk-links__ring,
+  .is-linked .desk-links__dot {
+    opacity: 1;
+  }
+
+  .is-linked .desk-links__wire {
+    opacity: 0.14;
+  }
+
+  /* ── The picture's entrance ────────────────────────────────────────────────────────────────── */
+
+  .desk-diagram {
+    width: 100%;
+    height: 100%;
+    animation: desk-diagram-enter 380ms var(--stp-motion-easing);
+  }
+
+  @keyframes desk-pane-enter {
+    from {
+      opacity: 0;
+      transform: translateY(3px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes desk-diagram-enter {
+    from {
+      opacity: 0;
+      transform: translateY(6px) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes desk-dash {
+    to {
+      stroke-dashoffset: -22;
+    }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .desk-links__path {
+      animation: desk-dash 1.2s linear infinite;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .desk-diagram,
+    .desk-editor__pane {
+      animation: none;
+    }
+  }
+}

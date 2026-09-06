@@ -1,99 +1,74 @@
 ---
-// concept: Split hero — copy left, a "flight recorder" right: a live operations log of one project's first forty days on Stacktape, every entry stamped with who acted (wizard, pipeline, agent, platform — and, three times, you).
-// copy-angle: Balanced — "AWS DevOps, on autopilot": the platform runs everything, the agent brings the diagnosis and the fix, a human approves what ships; the log makes that division of labour visible.
+// concept: The stacked window — one application window with the file across the top pane and the architecture across the bottom pane, a horizontal divider between them; the controls sit in the title bar and a hovered resource sends a link straight down to its node.
+// copy-angle: "One file. The whole DevOps job." with the proof points named: the fastest packaging pipeline, built-in CI/CD faster than CodeBuild, monitoring from day one, incidents that arrive with the fix; the account and the exit stated last.
+// direction: fits
+// round: 6
+import { ButtonLink } from '@stacktape/ui-react/button';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import Logo from '../../components/Logo.astro';
 import { CtaCommand } from '../../components/CtaCommand';
+import DeskControls from '../../surfaces/HeroDesk/DeskControls.astro';
+import DeskEditor from '../../surfaces/HeroDesk/DeskEditor.astro';
+import DeskLinks from '../../surfaces/HeroDesk/DeskLinks.astro';
+import DeskDiagram from '../../surfaces/HeroDesk/DeskDiagram';
+import { deskDiagramProps, loadDeskProjects } from '../../surfaces/HeroDesk/desk-data';
 
-type Actor = 'wizard' | 'you' | 'deploy' | 'platform' | 'pipeline' | 'agent' | 'alarm' | 'guardrail' | 'cost';
-
-const log: { day: string; time: string; actor: Actor; text: string }[] = [
-  { day: 'Day 0', time: '09:12', actor: 'wizard', text: 'Read 34 files in ./web and ./api — proposed 6 resources and a private network' },
-  { day: 'Day 0', time: '09:14', actor: 'you', text: 'Approved the plan · estimated $118 / month' },
-  { day: 'Day 0', time: '09:19', actor: 'deploy', text: 'production deployed · 33 CloudFormation resources · acme.com is live' },
-  { day: 'Day 0', time: '09:20', actor: 'platform', text: 'Metrics, traces, logs and alarms enabled for every resource' },
-  { day: 'Day 1', time: '11:47', actor: 'pipeline', text: 'PR #128 opened → preview stage pr-128 deployed on an EC2 runner' },
-  { day: 'Day 2', time: '16:05', actor: 'pipeline', text: 'PR #128 merged → production updated · pr-128 torn down' },
-  { day: 'Day 6', time: '08:30', actor: 'guardrail', text: 'Blocked a public bucket in staging — organization policy' },
-  { day: 'Day 12', time: '02:14', actor: 'alarm', text: 'worker error rate 4.7 % — incident opened' },
-  { day: 'Day 12', time: '02:15', actor: 'agent', text: 'Correlated with release v2.4.1 · root cause: empty items array in checkout' },
-  { day: 'Day 12', time: '02:18', actor: 'agent', text: 'Fix prepared — waiting for review' },
-  { day: 'Day 12', time: '07:42', actor: 'you', text: 'Approved the fix · hot-swapped in 4.0 s · incident resolved' },
-  { day: 'Day 20', time: '10:00', actor: 'platform', text: 'TLS certificates renewed · nothing to do' },
-  { day: 'Day 31', time: '09:00', actor: 'cost', text: 'Month-to-date $212.47 · billed by AWS, no markup' },
-  { day: 'Day 40', time: '13:20', actor: 'you', text: 'Added a GPU batch job to the config · deployed' }
-];
-
-const actorLabel: Record<Actor, string> = {
-  wizard: 'wizard',
-  you: 'you',
-  deploy: 'deploy',
-  platform: 'platform',
-  pipeline: 'pipeline',
-  agent: 'agent',
-  alarm: 'alarm',
-  guardrail: 'guardrail',
-  cost: 'cost'
-};
+const projects = await loadDeskProjects(['fullstack', 'nextjs', 'container', 'serverless', 'worker', 'agent']);
+const first = projects[0];
+if (!first) throw new Error('No projects to show.');
+const diagram = deskDiagramProps(projects);
 ---
 
 <BaseLayout
-  title="AWS DevOps, on autopilot — Stacktape"
-  description="Stacktape writes your AWS infrastructure, deploys it into your own account, and runs it: pipelines, preview environments, monitoring, incidents, cost. You approve what ships."
+  title="AWS DevOps, fully automated. One file, the whole job — Stacktape"
+  description="Describe your app in one file. Stacktape turns it into production-grade AWS and keeps it running: the fastest packaging pipeline on AWS, built-in CI/CD 2–5× faster than CodeBuild, monitoring and alarms from day one, and incidents that arrive with the fix already written."
   font="geist"
   noindex
 >
   <header class="nav">
     <a href="/" aria-label="Stacktape home"><Logo height={22} /></a>
-    <nav>
-      <a href="https://docs.stacktape.com">Docs</a>
-      <a href="https://github.com/stacktape/stacktape">GitHub</a>
-      <a class="nav-cta" href="https://console.stacktape.com/sign-up">Sign up</a>
+    <nav class="nav__links">
+      <ButtonLink variant="plain" href="https://docs.stacktape.com">Docs</ButtonLink>
+      <ButtonLink variant="secondary" href="https://github.com/stacktape/stacktape">GitHub</ButtonLink>
     </nav>
   </header>
 
   <main class="hero">
     <div class="copy">
-      <p class="eyebrow">AWS infrastructure, run for you</p>
-      <h1>AWS DevOps,<br /><span class="accent">on autopilot.</span></h1>
-      <p class="sub">
-        The wizard writes your infrastructure. One command deploys it into your own AWS account. From then on the
-        platform runs it — pipelines, preview environments, metrics, traces, alarms. When something breaks, an agent
-        with the whole picture brings you the diagnosis and the fix. You decide what ships.
+      <p class="kicker"><span class="kicker__file">stacktape.yml</span> One file. The whole DevOps job.</p>
+      <h1>AWS DevOps,<br />fully automated.</h1>
+      <p class="lede">
+        Describe your app in one file. Stacktape turns it into production-grade AWS and keeps it running: the fastest
+        packaging pipeline on AWS, built-in CI/CD 2–5× faster than CodeBuild, monitoring and alarms wired from day one,
+        and incidents that arrive with the fix already written.
       </p>
-      <div class="ctas">
+      <div class="cta">
         <CtaCommand client:visible defaultMethod="npx" />
-        <div class="ctas-row">
-          <a class="btn-primary" href="https://console.stacktape.com/sign-up">Sign up</a>
-          <a class="btn-quiet" href="https://cal.com/stacktape/30min">Book a demo <span aria-hidden="true">→</span></a>
-        </div>
+        <ButtonLink variant="secondary" className="cta__demo" href="https://cal.com/stacktape/30min">Book a demo</ButtonLink>
       </div>
+      <p class="note">Your own AWS account. Extend, override or eject anytime.</p>
     </div>
 
-    <section class="recorder" aria-label="Operations log of a project's first forty days on Stacktape">
-      <div class="recorder-head">
-        <div>
-          <p class="recorder-title">acme-project <span class="dim">/ production</span></p>
-          <p class="recorder-sub">The first forty days</p>
+    <section class="ide surface-frame" id="desk" aria-label="The configuration and the architecture it deploys">
+      <div class="surface-frame__bar ide__bar">
+        <span class="surface-frame__lights" aria-hidden="true">
+          <span style="background: #ff5f57"></span>
+          <span style="background: #febc2e"></span>
+          <span style="background: #28c840"></span>
+        </span>
+        <DeskControls projects={projects} class="ide__controls" />
+      </div>
+      <div class="ide__body">
+        <div class="ide__file">
+          <DeskEditor projects={projects} chrome="pane" />
         </div>
-        <p class="recorder-live"><span class="pulse" aria-hidden="true"></span>recording</p>
+        <div class="ide__main">
+          <div class="ide__canvas" data-desk-diagram>
+            <DeskDiagram client:only="react" configs={diagram.configs} labels={diagram.labels} initialProject={first.id} />
+          </div>
+        </div>
       </div>
-
-      <ol class="feed" id="feed">
-        {log.map((entry, i) => (
-          <li class={`row actor-${entry.actor}`} style={`--i: ${i}`}>
-            <span class="stamp"><span class="day">{entry.day}</span><span class="time">{entry.time}</span></span>
-            <span class="dot" aria-hidden="true"></span>
-            <span class="text">{entry.text}</span>
-            <span class="who">{actorLabel[entry.actor]}</span>
-          </li>
-        ))}
-      </ol>
-
-      <div class="tally">
-        <span><b>You:</b> three actions.</span>
-        <span><b>Stacktape:</b> everything else.</span>
-      </div>
+      <DeskLinks />
     </section>
   </main>
 </BaseLayout>
@@ -101,279 +76,146 @@ const actorLabel: Record<Actor, string> = {
 <style>
   :root {
     --ink: var(--stp-text-primary);
-    --ink-2: rgb(196, 204, 204);
-    --ink-3: rgb(138, 148, 148);
-    --line: rgba(255, 255, 255, 0.07);
+    --ink-2: rgb(200, 208, 208);
+    --ink-3: var(--stp-text-muted);
+    --line: var(--stp-border-subtle);
     --brand: var(--stp-color-brand);
+    --panel: rgb(28, 33, 33);
+    --paper: rgb(24, 29, 29);
   }
 
   .nav {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    max-width: 1200px;
+    max-width: 1400px;
     margin: 0 auto;
-    padding: 22px 28px;
+    padding: 18px 28px;
   }
-  .nav nav {
+  .nav__links {
     display: flex;
     align-items: center;
-    gap: 26px;
-  }
-  .nav a {
-    color: var(--ink-2);
-    font-size: 0.92rem;
-    text-decoration: none;
-  }
-  .nav a:hover {
-    color: var(--ink);
-  }
-  .nav-cta {
-    padding: 8px 14px;
-    border-radius: 999px;
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
-    color: var(--ink) !important;
+    gap: 8px;
   }
 
   .hero {
     display: grid;
-    grid-template-columns: minmax(0, 1.02fr) minmax(0, 1fr);
-    gap: 64px;
+    grid-template-columns: minmax(340px, 0.74fr) minmax(0, 1.26fr);
+    gap: 56px;
     align-items: center;
-    max-width: 1200px;
+    max-width: 1360px;
     margin: 0 auto;
-    padding: 56px 28px 110px;
+    padding: 24px 28px 96px;
+    overflow-x: clip;
   }
-  .eyebrow {
-    margin: 0 0 20px;
+
+  /* ── Copy ─────────────────────────────────────────────────────────────── */
+  .kicker {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 18px;
+    color: var(--ink-2);
+    font-size: 0.86rem;
+    font-weight: 500;
+  }
+  .kicker__file {
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: rgba(54, 190, 190, 0.1);
+    box-shadow: inset 0 0 0 1px rgba(54, 190, 190, 0.3);
     color: var(--brand);
     font-family: var(--font-geist-mono);
     font-size: 0.74rem;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
   }
   h1 {
     margin: 0;
-    font-size: clamp(3rem, 5.4vw, 4.6rem);
-    font-weight: 600;
-    letter-spacing: -0.04em;
-    line-height: 1;
+    font-size: clamp(2.4rem, 3.5vw, 3.25rem);
+    font-weight: 700;
+    letter-spacing: -0.035em;
+    line-height: 1.05;
     color: var(--ink);
   }
-  .accent {
-    color: var(--brand);
-  }
-  .sub {
+  .lede {
+    margin: 22px 0 0;
     max-width: 52ch;
-    margin: 26px 0 0;
-    color: var(--ink-2);
-    font-size: 1.08rem;
-    line-height: 1.62;
+    color: var(--ink-3);
+    font-size: 1.04rem;
+    line-height: 1.6;
   }
-  .ctas {
+  .cta {
     display: flex;
-    flex-direction: column;
-    gap: 18px;
+    flex-wrap: wrap;
     align-items: flex-start;
-    margin-top: 36px;
+    gap: 12px 14px;
+    margin-top: 30px;
   }
-  .ctas-row {
-    display: flex;
-    align-items: center;
-    gap: 22px;
+  .cta :global(.cta__demo) {
+    --stp-control-height: 46px;
+    --stp-button-padding-x: 18px;
   }
-  .btn-primary {
-    padding: 12px 22px;
-    border-radius: 10px;
-    background: var(--brand);
-    color: rgb(8, 20, 20);
-    font-weight: 600;
-    text-decoration: none;
-    box-shadow: 0 8px 28px rgba(54, 190, 190, 0.26);
-    transition: transform 150ms ease, box-shadow 150ms ease;
-  }
-  .btn-primary:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 12px 34px rgba(54, 190, 190, 0.34);
-  }
-  .btn-quiet {
-    color: var(--ink-2);
-    font-weight: 500;
-    text-decoration: none;
-  }
-  .btn-quiet:hover {
-    color: var(--ink);
+  .note {
+    margin: 14px 0 0;
+    color: var(--stp-text-subtle);
+    font-size: 0.84rem;
   }
 
-  /* ── The recorder ─────────────────────────────────────────────────── */
-  .recorder {
+  /* ── The window, panes stacked ────────────────────────────────────────── */
+  .ide {
     position: relative;
-    padding: 22px 24px 18px;
-    border-radius: 18px;
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.015)),
-      var(--stp-surface-page);
-    box-shadow:
-      inset 0 0 0 1px rgba(255, 255, 255, 0.08),
-      0 30px 80px rgba(0, 0, 0, 0.45),
-      0 0 120px rgba(54, 190, 190, 0.08);
-  }
-  .recorder-head {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    padding-bottom: 16px;
-    border-bottom: 1px solid var(--line);
-  }
-  .recorder-title {
-    margin: 0;
-    font-family: var(--font-geist-mono);
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: var(--ink);
-  }
-  .dim {
-    color: var(--ink-3);
-    font-weight: 400;
-  }
-  .recorder-sub {
-    margin: 4px 0 0;
-    color: var(--ink-3);
-    font-size: 0.82rem;
-  }
-  .recorder-live {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    margin: 0;
-    color: var(--ink-3);
-    font-family: var(--font-geist-mono);
-    font-size: 0.72rem;
-    letter-spacing: 0.08em;
-  }
-  .pulse {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: rgb(235, 97, 97);
-    box-shadow: 0 0 0 0 rgba(235, 97, 97, 0.5);
-    animation: pulse 2s ease-out infinite;
-  }
-  @keyframes pulse {
-    to {
-      box-shadow: 0 0 0 8px rgba(235, 97, 97, 0);
-    }
-  }
-
-  .feed {
-    height: 430px;
-    margin: 0;
-    padding: 8px 0 0;
-    list-style: none;
-    overflow: hidden;
-    -webkit-mask-image: linear-gradient(180deg, #000 82%, transparent);
-    mask-image: linear-gradient(180deg, #000 82%, transparent);
-  }
-  .row {
-    display: grid;
-    grid-template-columns: 74px 10px minmax(0, 1fr) auto;
-    gap: 12px;
-    align-items: start;
-    padding: 9px 0;
-    border-bottom: 1px solid var(--line);
-    font-size: 0.86rem;
-    line-height: 1.45;
-  }
-  .stamp {
     display: flex;
     flex-direction: column;
-    color: var(--ink-3);
-    font-family: var(--font-geist-mono);
-    font-size: 0.7rem;
-    line-height: 1.35;
+    height: clamp(620px, 50vw, 720px);
+    background: var(--panel);
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
   }
-  .day {
-    color: var(--ink-2);
+  .ide__bar {
+    gap: 14px;
+    padding-right: 10px;
   }
-  .dot {
-    width: 8px;
-    height: 8px;
-    margin-top: 6px;
-    border-radius: 50%;
-    background: var(--dot, var(--ink-3));
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--dot, var(--ink-3)) 18%, transparent);
+  .ide__controls {
+    flex: 1;
+    min-width: 0;
   }
-  .text {
-    color: var(--ink-2);
-  }
-  .who {
-    padding: 2px 8px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.05);
-    color: var(--ink-3);
-    font-family: var(--font-geist-mono);
-    font-size: 0.66rem;
-    letter-spacing: 0.06em;
-    white-space: nowrap;
-  }
-  .actor-you .who {
-    background: rgba(54, 190, 190, 0.16);
-    color: var(--brand);
-  }
-  .actor-you .text {
-    color: var(--ink);
-  }
-  .actor-wizard,
-  .actor-deploy,
-  .actor-platform {
-    --dot: var(--brand);
-  }
-  .actor-pipeline {
-    --dot: rgb(96, 140, 255);
-  }
-  .actor-agent {
-    --dot: rgb(170, 130, 255);
-  }
-  .actor-alarm {
-    --dot: rgb(235, 97, 97);
-  }
-  .actor-guardrail {
-    --dot: rgb(240, 190, 90);
-  }
-  .actor-cost {
-    --dot: rgb(92, 160, 52);
-  }
-  .actor-you {
-    --dot: rgb(255, 255, 255);
-  }
-
-  .tally {
+  .ide__body {
     display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    margin-top: 12px;
-    padding-top: 12px;
-    border-top: 1px solid var(--line);
-    color: var(--ink-3);
-    font-size: 0.82rem;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
   }
-  .tally b {
-    color: var(--ink);
-    font-weight: 600;
+  .ide__file {
+    flex: none;
+    height: 44%;
+    border-bottom: 1px solid var(--line);
+  }
+  .ide__file > :global(.desk-editor) {
+    height: 100%;
+  }
+  .ide__main {
+    position: relative;
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    background:
+      radial-gradient(rgba(255, 255, 255, 0.075) 1px, transparent 1.3px) 0 0 / 16px 16px,
+      var(--paper);
+  }
+  .ide__canvas {
+    position: relative;
+    flex: 1;
+    min-height: 0;
   }
 
+  /* ── Motion ───────────────────────────────────────────────────────────── */
   @media (prefers-reduced-motion: no-preference) {
-    .row {
+    .copy,
+    .ide {
       opacity: 0;
-      transform: translateY(6px);
-      animation: arrive 460ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-      animation-delay: calc(500ms + var(--i) * 170ms);
+      transform: translateY(8px);
+      animation: arrive 620ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
     }
-    .row.is-leaving {
-      animation: leave 380ms ease forwards;
-    }
-    .row.is-new {
-      animation: arrive 460ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    .ide {
+      animation-delay: 160ms;
     }
   }
   @keyframes arrive {
@@ -382,50 +224,30 @@ const actorLabel: Record<Actor, string> = {
       transform: none;
     }
   }
-  @keyframes leave {
-    to {
-      opacity: 0;
-      transform: translateY(-6px);
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .pulse {
-      animation: none;
-    }
-  }
 
-  @media (max-width: 980px) {
+  /* ── Narrower ─────────────────────────────────────────────────────────── */
+  @media (max-width: 1180px) {
+    .hero {
+      grid-template-columns: minmax(300px, 0.8fr) minmax(0, 1.2fr);
+      gap: 32px;
+    }
+  }
+  @media (max-width: 960px) {
     .hero {
       grid-template-columns: 1fr;
-      gap: 48px;
     }
-    .feed {
-      height: 380px;
+    .cta {
+      flex-wrap: wrap;
+    }
+    .ide {
+      height: 800px;
     }
   }
 </style>
 
 <script>
-  // After the initial reveal, keep the log moving: the oldest row leaves, re-enters at the bottom.
-  const feed = document.getElementById('feed');
-  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (feed && !reduced) {
-    const rows = Array.from(feed.children) as HTMLElement[];
-    const settle = 500 + rows.length * 170 + 1200;
-    window.setTimeout(() => {
-      window.setInterval(() => {
-        const first = feed.firstElementChild as HTMLElement | null;
-        if (!first) return;
-        first.classList.add('is-leaving');
-        window.setTimeout(() => {
-          first.classList.remove('is-leaving');
-          first.style.removeProperty('--i');
-          first.style.animationDelay = '0ms';
-          first.classList.add('is-new');
-          feed.appendChild(first);
-          window.setTimeout(() => first.classList.remove('is-new'), 500);
-        }, 380);
-      }, 2600);
-    }, settle);
-  }
+  import { mountDesk } from '../../surfaces/HeroDesk/desk-client';
+
+  const desk = document.getElementById('desk');
+  if (desk) mountDesk(desk, { attract: true, wires: 'hover', direction: 'vertical' });
 </script>
