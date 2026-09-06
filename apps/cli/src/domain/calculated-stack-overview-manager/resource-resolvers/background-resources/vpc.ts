@@ -8,6 +8,7 @@ import type { SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regi
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
+import { filterResourcesForDevMode } from '../../../../commands/dev/dev-resource-filter';
 
 const getInternetGateway = () => cfnResource('AWS::EC2::InternetGateway', {});
 const getGatewayAttachment = () =>
@@ -123,7 +124,8 @@ const getNatRoute = (subnetIndex: number, natAzIndex: number) => {
 };
 
 export const resolveAwsVpcDeployment = async () => {
-  const shouldCreateVpc = configManager.allResourcesRequiringVpc.length && !configManager.reuseVpcConfig;
+  const shouldCreateVpc =
+    filterResourcesForDevMode(configManager.allResourcesRequiringVpc).length && !configManager.reuseVpcConfig;
 
   if (!shouldCreateVpc) {
     return;

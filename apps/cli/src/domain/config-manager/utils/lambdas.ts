@@ -4,7 +4,7 @@ import type { HelperLambdaPackaging } from '@domain-services/packaging-manager/t
 import type { StpLambdaFunction } from '@domain-services/config-manager/resolved-types/functions';
 import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
 import type { StackContext } from '@domain-services/stack-context';
-import { isDevCommand } from '../../../commands/dev/dev-mode-utils';
+import { isDevCommand, shouldDeployResourceInDevMode } from '../../../commands/dev/dev-mode-utils';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { IS_DEV } from '../../../config/random';
 import { STACKTAPE_TRPC_API_ENDPOINT } from '../../../config/params';
@@ -139,6 +139,17 @@ export const getStacktapeServiceLambdaCustomResourceInducedStatements = ({
   const serviceLambdaName: HelperLambdaName = 'stacktapeServiceLambda';
   const { allAuroraDatabases, allDatabasesWithInstancies, allResourcesRequiringVpc, deploymentScripts } = activeConfig;
   const { accountId, globallyUniqueStackHash, region, stackName } = stackContext;
+  const hasDeployedVpcResources = allResourcesRequiringVpc.some(
+    (resource) =>
+      stackContext.command !== 'dev' ||
+      shouldDeployResourceInDevMode(
+        resource.type,
+        Boolean(
+          globalStateManager.args.remoteResources?.includes(resource.name) ||
+          ('dev' in resource && resource.dev && 'remote' in resource.dev && resource.dev.remote)
+        )
+      )
+  );
   const waf = [
     {
       Resource: ['*'],
@@ -163,7 +174,7 @@ export const getStacktapeServiceLambdaCustomResourceInducedStatements = ({
       Effect: 'Allow',
       Action: ['ec2:AcceptVpcPeeringConnection'],
       Resource: [
-        ...(allResourcesRequiringVpc.length
+        ...(hasDeployedVpcResources
           ? [
               sub('arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:vpc/${vpcId}', {
                 vpcId: vpcManager.getVpcId()

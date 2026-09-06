@@ -22,6 +22,9 @@ type Rule = TestLane & {
 };
 
 const hasPart = (path: string, expression: RegExp) => expression.test(path);
+const isConsoleStartupPath = (path: string) =>
+  /^scripts\/workspace\/run-console-dev(?:\.test)?\.ts$/.test(path) ||
+  /^apps\/console\/api\/stacktape(?:\.test)?\.ts$/.test(path);
 
 const RULES: Rule[] = [
   {
@@ -105,14 +108,19 @@ const RULES: Rule[] = [
     proves:
       'Authenticated projects navigation through the local API. Extend the browser scenario to cover the changed customer flow and its durable result.',
     commands: ['pnpm dev:console', 'pnpm --filter @stacktape/console-ui test:e2e'],
-    matches: (path) => path.startsWith('apps/console/api/src/') || path.startsWith('packages/console-api/')
+    matches: (path) =>
+      path.startsWith('apps/console/api/src/') || path.startsWith('packages/console-api/') || isConsoleStartupPath(path)
   },
   {
     id: 'console-browser-dev-api',
     proves:
       'Authenticated projects navigation against the dev API. Extend the browser scenario to cover the changed customer flow.',
     commands: ['pnpm test:console:browser:dev-api'],
-    matches: (path) => path.startsWith('apps/console/ui/src/') || path.startsWith('packages/ui-react/')
+    matches: (path) =>
+      path.startsWith('apps/console/ui/src/') ||
+      path.startsWith('apps/console/ui/e2e/') ||
+      /^apps\/console\/ui\/playwright.*\.ts$/.test(path) ||
+      path.startsWith('packages/ui-react/')
   },
   {
     id: 'console-deployed-dev',
@@ -259,7 +267,9 @@ export const collectChangedPaths = async (options: TestPlanOptions, root = works
 };
 
 export const createTestPlan = (paths: string[]): TestLane[] => {
-  const includesConsole = paths.some((path) => path === 'apps/console' || path.startsWith('apps/console/'));
+  const includesConsole = paths.some(
+    (path) => path === 'apps/console' || path.startsWith('apps/console/') || isConsoleStartupPath(path)
+  );
   let lanes = RULES.filter((rule) => paths.some((path) => rule.matches(path))).map(({ matches: _, ...lane }) => lane);
   if (lanes.some(({ id }) => id === 'console-browser-local-api')) {
     lanes = lanes.filter(({ id }) => id !== 'console-browser-dev-api');

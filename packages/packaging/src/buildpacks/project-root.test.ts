@@ -44,9 +44,8 @@ describe('buildpack project roots', () => {
   });
 
   test('resolves an explicit project file relative to cwd', () => {
-    expect(resolveExplicitProjectRoot({ cwd: '/repo', projectFile: 'services/api/pom.xml' })).toBe(
-      join('/repo', 'services', 'api')
-    );
+    const cwd = join(tmpdir(), 'stacktape-explicit-project');
+    expect(resolveExplicitProjectRoot({ cwd, projectFile: 'services/api/pom.xml' })).toBe(join(cwd, 'services', 'api'));
   });
 
   test('falls back without throwing when the configured entry directory does not exist yet', async () => {

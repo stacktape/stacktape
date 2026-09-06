@@ -58,8 +58,11 @@ Cognito IDs, API keys, or provider tokens into files or chat.
   - `pnpm parameters:check:console:devlocal`
 
 If startup reports an expired login, run the login command and finish its browser flow. If it rejects the AWS account,
-switch the AWS profile outside the repository and retry. If a prior dev process crashed, use
-`pnpm dev:cli dev:stop --cleanupContainers`; never delete the shared `console-app-dev` stack as cleanup.
+switch the AWS profile outside the repository and retry. Stop the foreground `pnpm dev:console` process normally first.
+For an agent-mode session, use `pnpm dev:cli dev:stop --agentPort <this-session-port>`. After a crash, inspect Docker
+and remove only exact container IDs recorded for this session, then verify its listeners and tunnel are gone. Do not use
+blanket `--cleanupContainers` on a shared machine: it guesses ownership from names and does not track foreground dev
+sessions. Never delete the shared `console-app-dev` stack as cleanup.
 
 Committed Prisma migrations go to the shared dev database only through `pnpm migrate:console:dev`. Do not use
 `prisma migrate dev`, destructive pushes, or the production migration command.

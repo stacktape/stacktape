@@ -11,7 +11,11 @@ permissions:
 
 jobs:
   public:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -40,3 +44,7 @@ jobs:
           STACKTAPE_SYNTHESIS_TEMPLATE_OUTPUT="$template_path" \
             pnpm --filter @stacktape/cli exec bun test tests/characterization/synthesis-contract.spec.ts
           cfn-lint --template "$template_path" --regions eu-west-1 --non-zero-exit-code error
+          support_template_path="$RUNNER_TEMP/stacktape-dev-support.json"
+          STACKTAPE_TEST_SUPPORT_TEMPLATE="$support_template_path" \
+            pnpm --filter @stacktape/cli exec bun test tests/characterization/dev-support-template.spec.ts
+          cfn-lint --template "$support_template_path" --regions eu-west-1 --non-zero-exit-code error

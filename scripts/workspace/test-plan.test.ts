@@ -89,6 +89,21 @@ test('uses the self-starting deployed-dev browser lane for a UI-only change', ()
   assert.ok(!ids.has('console-browser-local-api'));
 });
 
+test('startup config and launcher changes require the local API even alongside a UI change', () => {
+  for (const path of ['apps/console/api/stacktape.ts', 'scripts/workspace/run-console-dev.ts']) {
+    const ids = new Set(createTestPlan([path, 'apps/console/ui/e2e/authenticated.spec.ts']).map(({ id }) => id));
+    assert.ok(ids.has('console-browser-local-api'));
+    assert.ok(ids.has('integrated-gate'));
+    assert.ok(!ids.has('console-browser-dev-api'));
+  }
+});
+
+test('browser scenario and configuration edits require executing the browser lane', () => {
+  for (const path of ['apps/console/ui/e2e/authenticated.spec.ts', 'apps/console/ui/playwright.config.ts']) {
+    assert.ok(createTestPlan([path]).some(({ id }) => id === 'console-browser-dev-api'));
+  }
+});
+
 test('selects semantic synthesis and live AWS evidence for CloudFormation changes', () => {
   const ids = new Set(createTestPlan(['packages/cloudformation/src/template.ts']).map(({ id }) => id));
   assert.ok(ids.has('synthesis'));

@@ -94,7 +94,7 @@ test('fails closed on an empty suite', async () => {
   await expect(runSourceTestFiles({ cwd: tmpdir(), files: [] })).rejects.toThrow('No CLI source test files');
 });
 
-test.skipIf(process.platform === 'win32')('interrupting the runner removes its active test process', async () => {
+test('interrupting the runner removes its active test process', async () => {
   const cwd = await fixture({
     'src/hang.test.ts': `
       import { writeFileSync } from 'node:fs';
@@ -111,8 +111,8 @@ test.skipIf(process.platform === 'win32')('interrupting the runner removes its a
     stdout: 'ignore',
     stderr: 'ignore'
   });
+  let pid: number | undefined;
   try {
-    let pid: number | undefined;
     for (let attempt = 0; attempt < 100; attempt++) {
       try {
         pid = Number(await readFile(join(cwd, 'active.pid'), 'utf8'));
@@ -137,8 +137,16 @@ test.skipIf(process.platform === 'win32')('interrupting the runner removes its a
       }
     }
     expect(running).toBe(false);
+    if (!running) pid = undefined;
   } finally {
     runner.kill('SIGKILL');
     await runner.exited;
+    if (pid) {
+      try {
+        process.kill(pid, 'SIGKILL');
+      } catch (error) {
+        expect(error).toHaveProperty('code', 'ESRCH');
+      }
+    }
   }
 });

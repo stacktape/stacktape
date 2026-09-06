@@ -1,4 +1,3 @@
-import { globalStateManager } from '@application-services/global-state-manager';
 import { operationReporter } from '@application-services/operation-manager';
 import { applicationManager } from '@application-services/application-manager';
 import { tuiManager } from '@application-services/tui-manager';
@@ -7,7 +6,7 @@ import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
-import { outputNames } from '@stacktape/naming/stack-output-names';
+import { assertExistingDevStack } from './dev-stack-safety';
 import { CliError } from '@utils/errors';
 import type { StacktapeCliArgs } from 'src/config/cli/types';
 import { localStatePaths } from 'src/config/local-state-paths';
@@ -406,7 +405,6 @@ export const commandDev = async () => {
   // Phase 1: Initialize credentials, config, packagingManager
   // This also prompts for stage if not provided
   const { args, stackContext } = await initializeStackServicesForDevPhase1();
-  const suggestedLocalStage = globalStateManager.userData?.name?.split(' ')[0]?.toLowerCase() || 'local';
 
   // Set agent mode early so spinners use plain text output
   if (agentEnabled) {
@@ -505,49 +503,10 @@ export const commandDev = async () => {
 
   // Check for a dev stack or deploy one.
   if (stackManager.existingStackDetails) {
-    const isDevStack = deployedStackOverviewManager.getStackMetadata(stackMetadataNames.isDevStack());
-    if (!isDevStack) {
-      const stackStatus = stackManager.existingStackDetails.StackStatus;
-      const failedStatuses = new Set([
-        'CREATE_FAILED',
-        'ROLLBACK_COMPLETE',
-        'ROLLBACK_FAILED',
-        'UPDATE_ROLLBACK_COMPLETE',
-        'UPDATE_ROLLBACK_FAILED',
-        'UPDATE_FAILED'
-      ]);
-      const inProgressStatuses = new Set([
-        'CREATE_IN_PROGRESS',
-        'ROLLBACK_IN_PROGRESS',
-        'UPDATE_IN_PROGRESS',
-        'UPDATE_COMPLETE_CLEANUP_IN_PROGRESS',
-        'UPDATE_ROLLBACK_IN_PROGRESS'
-      ]);
-      const stageName = stackContext.stage.toLowerCase();
-      const isProbablyDevStage = stageName.includes('dev') || stageName.includes('local');
-      const stackLacksStackInfoMapOutput =
-        !stackManager.existingStackDetails?.stackOutput?.[outputNames.stackInfoMap()];
-      const stackIsInRecoverableState = failedStatuses.has(stackStatus) || inProgressStatuses.has(stackStatus);
-
-      const shouldAutoRecoverNonDevStack =
-        stackIsInRecoverableState && (isProbablyDevStage || stackLacksStackInfoMapOutput);
-
-      if (shouldAutoRecoverNonDevStack) {
-        const warnMsg = `Stack '${stackContext.stackName}' exists but isn't marked as a dev stack and is in ${stackStatus}.`;
-        const infoMsg = 'Deleting the failed stack and redeploying a fresh dev stack...';
-        tuiManager.warn(warnMsg);
-        tuiManager.info(infoMsg);
-        await stackManager.deleteStack();
-        await stackManager.refetchStackDetails(stackContext.stackName);
-      } else {
-        throw new CliError({
-          category: 'CLI',
-          code: 'CLI_DEV_STACK_CONFLICT',
-          message: `Stack \`${stackContext.stackName}\` exists but is not a dev stack.`,
-          hints: `Use a different dev stage, for example \`--stage dev-${suggestedLocalStage}\`.`
-        });
-      }
-    }
+    assertExistingDevStack({
+      stackName: stackContext.stackName,
+      isDevStack: deployedStackOverviewManager.getStackMetadata(stackMetadataNames.isDevStack())
+    });
   }
 
   const desiredDevStackConfigFingerprint = getDevStackConfigFingerprint(configManager.config);

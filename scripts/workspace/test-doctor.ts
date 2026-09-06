@@ -63,8 +63,18 @@ export const compareVersions = (left: string, right: string): number => {
   return 0;
 };
 
-const run = (command: string, args: string[], env: NodeJS.ProcessEnv = process.env): Promise<CapturedProcess> =>
-  runCapturedProcess({ args, command, cwd: workspaceRoot, env });
+const run = (command: string, args: string[], env: NodeJS.ProcessEnv = process.env): Promise<CapturedProcess> => {
+  // pnpm's Windows entrypoint is a .cmd shim. Use the script that launched this doctor without introducing a shell.
+  if (command === 'pnpm' && env.npm_execpath) {
+    return runCapturedProcess({
+      args: [env.npm_execpath, ...args],
+      command: process.execPath,
+      cwd: workspaceRoot,
+      env
+    });
+  }
+  return runCapturedProcess({ args, command, cwd: workspaceRoot, env });
+};
 
 const addVersionCheck = async (
   checks: Check[],

@@ -45,3 +45,8 @@ export const isResourceTypeLocallyEmulatable = (resourceType: StpResourceType): 
 
 export const isResourceTypeRemoteOnlyInDevMode = (resourceType: StpResourceType): boolean =>
   REMOTE_ONLY_RESOURCE_TYPES.includes(resourceType);
+
+/** Used during config validation as well as synthesis, before the config singleton is published. */
+export const shouldDeployResourceInDevMode = (resourceType: StpResourceType, remote: boolean): boolean =>
+  !isResourceTypeExcludedInDevMode(resourceType) &&
+  (!(isResourceTypeLocallyEmulatable(resourceType) || isResourceTypeRemoteOnlyInDevMode(resourceType)) || remote);

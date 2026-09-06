@@ -22,6 +22,7 @@
     "apps/website/src/surfaces/InitWizardRun/bands.tsx",
     "apps/vscode-extension/syntaxes/**",
     "apps/cli/**",
+    "apps/console/documents/website/hero-competition/sessions/**",
     "apps/console/api/infrastructure/console-connection/**",
     "apps/console/api/scripts/get-customer-tokens.ts",
     "apps/console/api/scripts/run-db-integration.ts",

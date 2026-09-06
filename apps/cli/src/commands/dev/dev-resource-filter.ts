@@ -1,9 +1,9 @@
 import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import {
   isDevCommand,
-  isResourceTypeExcludedInDevMode,
   isResourceTypeLocallyEmulatable,
-  isResourceTypeRemoteOnlyInDevMode
+  isResourceTypeRemoteOnlyInDevMode,
+  shouldDeployResourceInDevMode
 } from './dev-mode-utils';
 import { getRemoteResourceNames } from './local-resources';
 
@@ -30,17 +30,11 @@ export const shouldExcludeResourceInDevMode = (resourceName: string, resourceTyp
   if (isResourceTypeLocallyEmulatable(resourceType) || isResourceTypeRemoteOnlyInDevMode(resourceType)) {
     const remoteResourceNames = getRemoteResourceNames();
     // Exclude unless it's marked as remote
-    return !remoteResourceNames.has(resourceName);
+    return !shouldDeployResourceInDevMode(resourceType, remoteResourceNames.has(resourceName));
   }
 
   // Check if this is a locally run resource type (containers, frontends)
-  if (isResourceTypeExcludedInDevMode(resourceType)) {
-    // Always exclude these from deployment - they run locally
-    return true;
-  }
-
-  // Include all other resources (functions, api gateways, etc.)
-  return false;
+  return !shouldDeployResourceInDevMode(resourceType, false);
 };
 
 /**

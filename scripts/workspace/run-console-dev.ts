@@ -1,5 +1,5 @@
 import type { ChildProcess } from 'node:child_process';
-import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
+import { CloudFormationClient, DescribeStacksCommand, ListStackResourcesCommand } from '@aws-sdk/client-cloudformation';
 import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { spawn } from 'node:child_process';
 import { createConnection, createServer } from 'node:net';
@@ -24,6 +24,21 @@ const DATABASE_RESOURCE = 'mainDatabase';
 const BASTION_RESOURCE = 'bastionHost';
 const FIRST_TUNNEL_PORT = 15433;
 
+export const assertConsoleDevSupportResources = (
+  resources: { LogicalResourceId?: string | undefined; ResourceType?: string | undefined }[]
+): void => {
+  const legacyData = resources.filter(
+    ({ LogicalResourceId, ResourceType }) =>
+      /^AWS::(?:RDS|EFS|Cognito|DynamoDB|SQS)::/.test(ResourceType ?? '') ||
+      (ResourceType === 'AWS::S3::Bucket' && LogicalResourceId !== 'StpDeploymentBucket')
+  );
+  if (legacyData.length) {
+    throw new Error(
+      `console-app-devlocal still owns legacy data resources: ${legacyData.map(({ LogicalResourceId }) => LogicalResourceId).join(', ')}. Startup will not remove them automatically. Complete the reviewed legacy-data migration before refreshing the minimal support stack.`
+    );
+  }
+};
+
 type ProcessExit = { code: number | null; signal: NodeJS.Signals | null };
 
 type JsonlResult = {
@@ -35,8 +50,13 @@ type JsonlResult = {
 };
 
 export type ConsoleDevDataPlane = {
+  budgetNotificationsTopicArn: string;
   databaseHost: string;
   databaseName: string;
+  pricingTableArn: string;
+  pricingTableName: string;
+  remoteOperationQueueArn: string;
+  remoteOperationQueueUrl: string;
   userPoolClientId: string;
   userPoolDomain: string;
   userPoolId: string;
@@ -128,17 +148,30 @@ export const extractConsoleDevDataPlane = (describeStacksOutput: unknown): Conso
   if (!isRecord(stackInfo) || !isRecord(stackInfo.resources)) {
     throw new Error(`${SHARED_DEV_STACK} has an invalid resource map.`);
   }
-  const database = stackInfo.resources[DATABASE_RESOURCE];
-  const userPool = stackInfo.resources.mainUserPool;
+  const resources = stackInfo.resources;
+  const database = resources[DATABASE_RESOURCE];
+  const userPool = resources.mainUserPool;
   if (!isRecord(database) || database.resourceType !== 'relational-database') {
     throw new Error(`${SHARED_DEV_STACK} has no relational database named ${DATABASE_RESOURCE}.`);
   }
   if (!isRecord(userPool) || userPool.resourceType !== 'user-auth-pool') {
     throw new Error(`${SHARED_DEV_STACK} has no user-auth-pool named mainUserPool.`);
   }
+  const sharedParameter = (name: string, type: string, parameter: string): string => {
+    const resource = resources[name];
+    if (!isRecord(resource) || resource.resourceType !== type) {
+      throw new Error(`${SHARED_DEV_STACK} has no ${type} named ${name}.`);
+    }
+    return readParamValue(resource, parameter, name);
+  };
   return {
+    budgetNotificationsTopicArn: sharedParameter('budgetNotificationsTopic', 'sns-topic', 'arn'),
     databaseHost: readParamValue(database, 'host', DATABASE_RESOURCE),
     databaseName: readParamValue(database, 'dbName', DATABASE_RESOURCE),
+    pricingTableArn: sharedParameter('pricingTable', 'dynamo-db-table', 'arn'),
+    pricingTableName: sharedParameter('pricingTable', 'dynamo-db-table', 'name'),
+    remoteOperationQueueArn: sharedParameter('remoteOperationQueue', 'sqs-queue', 'arn'),
+    remoteOperationQueueUrl: sharedParameter('remoteOperationQueue', 'sqs-queue', 'url'),
     userPoolClientId: readParamValue(userPool, 'clientId', 'mainUserPool'),
     userPoolDomain: readParamValue(userPool, 'domain', 'mainUserPool'),
     userPoolId: readParamValue(userPool, 'id', 'mainUserPool')
@@ -200,18 +233,26 @@ const waitForTunnel = async (port: number, tunnelExit: Promise<ProcessExit>): Pr
   return poll();
 };
 
-const terminateChild = async (
+export const terminateChild = async (
   child: ChildProcess | undefined,
   exit: Promise<ProcessExit> | undefined
 ): Promise<void> => {
-  if (!child || child.exitCode !== null || child.killed) return;
-  child.kill('SIGINT');
+  if (!child || child.exitCode !== null || child.signalCode !== null) return;
+  if (!child.killed) child.kill('SIGINT');
   if (!exit) return;
-  const stopped = await Promise.race([
-    exit.then(() => true),
-    new Promise<false>((resolveWait) => setTimeout(() => resolveWait(false), 5_000))
-  ]);
-  if (!stopped && child.exitCode === null) child.kill('SIGKILL');
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const stopped = await Promise.race([
+      exit.then(() => true),
+      new Promise<false>((resolveWait) => {
+        timer = setTimeout(() => resolveWait(false), 5_000);
+      })
+    ]);
+    if (!stopped && child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+    await exit;
+  } finally {
+    clearTimeout(timer);
+  }
 };
 
 const main = async () => {
@@ -259,9 +300,39 @@ const main = async () => {
     throw new Error(`Could not inspect ${SHARED_DEV_STACK} in ${REGION}. Confirm the stack exists and is readable.`);
   }
   const dataPlane = extractConsoleDevDataPlane(stackDetails);
+  const cloudFormation = new CloudFormationClient({ region: REGION });
+  const supportResources: { LogicalResourceId?: string | undefined; ResourceType?: string | undefined }[] = [];
+  let nextToken: string | undefined;
+  do {
+    try {
+      // eslint-disable-next-line no-await-in-loop -- Each page supplies the token required to request the next page.
+      const page = await cloudFormation.send(
+        new ListStackResourcesCommand({ StackName: `${PROJECT_NAME}-${LOCAL_DEV_STAGE}`, NextToken: nextToken })
+      );
+      supportResources.push(...(page.StackResourceSummaries ?? []));
+      nextToken = page.NextToken;
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.name === 'ValidationError' &&
+        /does not exist/.test(error.message) &&
+        !nextToken
+      )
+        break;
+      throw new Error('Could not inspect the existing Console devlocal resources. Startup stopped before any update.', {
+        cause: error
+      });
+    }
+  } while (nextToken);
+  assertConsoleDevSupportResources(supportResources);
   const tunnelPort = await findTunnelPort();
   const devEnvironment: NodeJS.ProcessEnv = {
     ...process.env,
+    STACKTAPE_CONSOLE_DEV_BUDGET_TOPIC_ARN: dataPlane.budgetNotificationsTopicArn,
+    STACKTAPE_CONSOLE_DEV_PRICING_TABLE_ARN: dataPlane.pricingTableArn,
+    STACKTAPE_CONSOLE_DEV_PRICING_TABLE_NAME: dataPlane.pricingTableName,
+    STACKTAPE_CONSOLE_DEV_OPERATION_QUEUE_ARN: dataPlane.remoteOperationQueueArn,
+    STACKTAPE_CONSOLE_DEV_OPERATION_QUEUE_URL: dataPlane.remoteOperationQueueUrl,
     STACKTAPE_CONSOLE_DEV_DATABASE_HOST: dataPlane.databaseHost,
     STACKTAPE_CONSOLE_DEV_DATABASE_NAME: dataPlane.databaseName,
     STACKTAPE_CONSOLE_DEV_DATABASE_TUNNEL_HOST: process.platform === 'linux' ? '127.0.0.1' : 'host.docker.internal',
@@ -275,6 +346,7 @@ const main = async () => {
   const tunnel = spawn(
     process.execPath,
     [
+      '--no-orphans',
       cliDevScript,
       'bastion:tunnel',
       '--region',
@@ -297,25 +369,36 @@ const main = async () => {
   const tunnelExited = childExit(tunnel);
   let dev: ChildProcess | undefined;
   let devExited: Promise<ProcessExit> | undefined;
-  let cleaningUp = false;
-  const cleanup = async () => {
-    if (cleaningUp) return;
-    cleaningUp = true;
-    await terminateChild(dev, devExited);
-    await terminateChild(tunnel, tunnelExited);
+  let cleanupPromise: Promise<void> | undefined;
+  const cleanup = () => {
+    cleanupPromise ??= (async () => {
+      try {
+        await terminateChild(dev, devExited);
+      } finally {
+        await terminateChild(tunnel, tunnelExited);
+      }
+    })();
+    return cleanupPromise;
   };
-  const handleSignal = () => {
-    void cleanup();
+  let interrupted = false;
+  const handleSignal = (signal: NodeJS.Signals) => {
+    interrupted = true;
+    process.exitCode = signal === 'SIGINT' ? 130 : 143;
+    void cleanup().catch(() => {
+      process.exitCode = 1;
+    });
   };
   process.once('SIGINT', handleSignal);
   process.once('SIGTERM', handleSignal);
 
   try {
     await waitForTunnel(tunnelPort, tunnelExited);
+    if (interrupted) return;
     console.info('Shared dev data plane is ready. Starting the local Console API and UI...\n');
     dev = spawn(
       process.execPath,
       [
+        '--no-orphans',
         cliDevScript,
         'dev',
         '--region',
@@ -329,7 +412,7 @@ const main = async () => {
         '--projectName',
         PROJECT_NAME,
         '--resources',
-        'apiServer,webBucket,pricingTable'
+        'apiServer,webBucket'
       ],
       { cwd: cliDirectory, env: devEnvironment, stdio: 'inherit', windowsHide: true }
     );
@@ -338,6 +421,7 @@ const main = async () => {
       devExited.then((exit) => ({ kind: 'dev' as const, exit })),
       tunnelExited.then((exit) => ({ kind: 'tunnel' as const, exit }))
     ]);
+    if (interrupted) return;
     if (outcome.kind === 'tunnel' && dev.exitCode === null) {
       throw new Error(
         `The shared dev database tunnel stopped unexpectedly (${outcome.exit.code ?? outcome.exit.signal}).`

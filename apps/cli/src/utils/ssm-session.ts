@@ -124,7 +124,7 @@ export class SsmPortForwardingTunnel {
         },
         {
           retries: 5,
-          onFailedAttempt: (error) => {
+          onFailedAttempt: ({ error }) => {
             if (!`${error}`.includes('TargetNotConnected')) {
               throw error;
             }

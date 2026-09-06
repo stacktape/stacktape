@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
-const FINGERPRINT_VERSION = 1;
+// v2 removes VPC infrastructure required only by locally running/emulated resources.
+const FINGERPRINT_VERSION = 2;
 
 const canonicalize = (value: unknown, ancestors = new Set<object>()): unknown => {
   if (value === null || ['boolean', 'number', 'string'].includes(typeof value)) return value;

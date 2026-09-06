@@ -4,6 +4,7 @@ import { execa } from 'execa';
 
 export const discoverSourceTests = (cwd: string): string[] =>
   [...new Glob('src/**/*{.test,_test,.spec,_spec}.{js,jsx,ts,tsx,mjs,cjs,mts,cts}').scanSync({ cwd, onlyFiles: true })]
+    .map((file) => file.replaceAll('\\', '/'))
     .filter((file) => !file.split('/').includes('node_modules'))
     .toSorted();
 

@@ -9,7 +9,7 @@ export const retryPlugin = {
         let tryNumber = 1;
         return pRetry(() => next(args), {
           retries: 5,
-          onFailedAttempt: async (err) => {
+          onFailedAttempt: async ({ error: err }) => {
             const errMessage = err.toString();
             if (
               errMessage.includes('EAI_AGAIN') ||

@@ -8,6 +8,30 @@ Before implementation, run `pnpm test:plan -- --since=<git-ref>` or `pnpm test:p
 Use its output as a starting point, then add any risk that path matching cannot infer. Run `pnpm test:doctor` before a
 long lane. A handoff must name the behavior proved, the commands that ran, and any boundary that remains untested.
 
+## When a feature or fix is sufficiently tested
+
+Before calling a change complete, record:
+
+1. **The customer outcome.** State the behavior being changed and the assertion that proves it. For a bug, reproduce the
+   failure before the fix when practical and keep a deterministic regression at the failing boundary.
+2. **Evidence from the changed code.** Run the applicable lanes below on the final source. For a local API change,
+   verify that the browser actually targets that API. A successful login against the deployed API proves only that smoke
+   scenario; it cannot qualify a different API revision or project operation.
+3. **The relevant failure case.** Exercise denial/isolation for permission changes, retry/idempotency for delivery,
+   cancellation/recovery for lifecycle changes, or invalid inputs for validation. Choose cases from the actual risk,
+   rather than adding every category to every test.
+4. **The durable result and cleanup.** When an action persists data or creates resources, check that result and verify
+   owned cleanup after both success and failure. A toast, a successful deployment, or an empty error log is
+   insufficient.
+5. **The repository gate and remaining limits.** Report the commands, their results, and what each proved. A skipped,
+   unavailable, or blocked required lane leaves that boundary unqualified. Complete independent checks, but do not label
+   the whole feature accepted until the missing evidence exists.
+
+For example, changing local Console startup requires the assembled support template, a browser request through the local
+API, and verified process/tunnel cleanup. Checking injected environment variables alone misses accidentally deployed
+databases, queues with no worker, and missing IAM permissions. Inspect an existing support stack before applying a
+smaller template: removing legacy data is a migration decision, not routine test cleanup.
+
 ## Vocabulary
 
 These two commands are easy to confuse:
