@@ -434,6 +434,13 @@ export const checkDockerImageExists = async (imageTag: string): Promise<boolean>
   return image !== null;
 };
 
+export const getDockerHostAddress = async (): Promise<'127.0.0.1' | 'host.docker.internal'> => {
+  if (process.platform !== 'linux') return 'host.docker.internal';
+  const { stdout } = await execDocker(['info', '--format', '{{.OperatingSystem}}']);
+  // WSL runs Linux executables, but Docker Desktop's host network belongs to its separate VM.
+  return stdout.trim() === 'Docker Desktop' ? 'host.docker.internal' : '127.0.0.1';
+};
+
 const inspectContainers = async (containerIds: string[]): Promise<DockerContainerInspectInfo[]> => {
   if (!containerIds.length) {
     return [];
@@ -684,12 +691,12 @@ export const dockerRun = async ({
   // see here https://github.com/aws/session-manager-plugin/pull/54
   // NOTE: --network host only works properly on Linux. On macOS/Windows, Docker runs in a VM,
   // so host networking only shares the VM's network, not the actual host. Use port mappings instead.
-  const isLinux = process.platform === 'linux';
-  if (isLinux) {
+  const useHostNetwork = (await getDockerHostAddress()) === '127.0.0.1';
+  if (useHostNetwork) {
     dockerArgs.push('--network', 'host');
   }
   dockerArgs.push(...containerEnvironment.flags);
-  if (portMappings && !isLinux) {
+  if (portMappings && !useHostNetwork) {
     dockerArgs.push(...getPortsArgs(portMappings));
   }
   dockerArgs.push(...getDockerArgsFromCli(args));

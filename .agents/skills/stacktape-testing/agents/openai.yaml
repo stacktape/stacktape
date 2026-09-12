@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Stacktape Testing'
+  short_description: 'Choose sufficient tests for Stacktape changes'
+  default_prompt: 'Use $stacktape-testing to implement and verify this Stacktape feature with the smallest sufficient test plan.'

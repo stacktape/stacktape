@@ -5,8 +5,7 @@ const checkPortOnHost = (port: number, host: string): Promise<boolean> => {
     const server = net.createServer();
 
     server.listen(port, host, () => {
-      server.close();
-      resolve(false); // Port is free
+      server.close(() => resolve(false)); // Release the probe before checking another host or starting a tunnel.
     });
 
     server.on('error', () => {
@@ -25,11 +24,7 @@ export const isPortInUse = async (port: number, host?: string): Promise<boolean>
     return checkPortOnHost(port, host);
   }
 
-  // Check both 0.0.0.0 and 127.0.0.1 since Docker binds to 0.0.0.0 by default
-  const [inUseOnAll, inUseOnLocalhost] = await Promise.all([
-    checkPortOnHost(port, '0.0.0.0'),
-    checkPortOnHost(port, '127.0.0.1')
-  ]);
-
-  return inUseOnAll || inUseOnLocalhost;
+  // These binds overlap on Linux. Parallel probes can mistake each other for an existing listener.
+  if (await checkPortOnHost(port, '0.0.0.0')) return true;
+  return checkPortOnHost(port, '127.0.0.1');
 };

@@ -1,15 +1,20 @@
 import type { GitInformation } from '@utils/git-info-manager/types';
 import { tuiManager } from '@application-services/tui-manager';
-import { memoizeGetters } from '@utils/memoize-getters';
 import { getGitVariable, sanitizeGitRemoteUrl } from '@utils/git';
 
-@memoizeGetters
 export class GitInfoManager {
-  get gitInfo() {
-    return this.#getGitInfo();
-  }
+  readonly #repositories = new Map<string, Promise<GitInformation>>();
 
-  #getGitInfo = async (): Promise<GitInformation> => {
+  getGitInfo = (cwd: string): Promise<GitInformation> => {
+    let information = this.#repositories.get(cwd);
+    if (!information) {
+      information = this.#getGitInfo(cwd);
+      this.#repositories.set(cwd, information);
+    }
+    return information;
+  };
+
+  #getGitInfo = async (cwd: string): Promise<GitInformation> => {
     let hasUncommitedChanges = false;
     let username: string;
     let branch: string;
@@ -18,13 +23,13 @@ export class GitInfoManager {
     const start = Date.now();
     tuiManager.debug('Fetching git info...');
     try {
-      const changes = await getGitVariable('changes');
+      const changes = await getGitVariable('changes', cwd);
       hasUncommitedChanges = changes.length > 0;
     } catch {
       // do nothing
     }
     try {
-      username = await getGitVariable('user');
+      username = await getGitVariable('user', cwd);
     } catch {
       username =
         process.env.STP_GIT_USER_NAME ||
@@ -34,7 +39,7 @@ export class GitInfoManager {
         null;
     }
     try {
-      branch = await getGitVariable('branch');
+      branch = await getGitVariable('branch', cwd);
     } catch {
       branch =
         process.env.STP_GIT_BRANCH_NAME ||
@@ -44,7 +49,7 @@ export class GitInfoManager {
         null;
     }
     try {
-      commit = await getGitVariable('commit');
+      commit = await getGitVariable('commit', cwd);
     } catch {
       commit =
         process.env.STP_GIT_COMMIT_SHA ||
@@ -54,7 +59,7 @@ export class GitInfoManager {
         null;
     }
     try {
-      gitUrl = await getGitVariable('repositoryUrl');
+      gitUrl = await getGitVariable('repositoryUrl', cwd);
     } catch {
       gitUrl =
         process.env.STP_GIT_URL ||

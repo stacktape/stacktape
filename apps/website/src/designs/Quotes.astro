@@ -1,0 +1,17 @@
+---
+import Quote from './Quote.astro';
+const quotes = [
+  { quote: 'With Stacktape, we fast-tracked our AWS deployment process. Our development and production environments were operational in just two days.', name: 'Eric Allam', role: 'CTO & Founder', company: 'Trigger.dev', initials: 'EA' },
+  { quote: 'They abstract away so much of the complexity of AWS, and let us focus on our application logic, instead of infrastructure configuration.', name: 'Henry Garrett', role: 'Founding Engineer', company: 'Receipts', initials: 'HG' },
+  { quote: 'It has allowed our small team to efficiently handle environments using GitOps, all while keeping a tight rein on costs.', name: 'Rhys Williams', role: 'CTO & Founder', company: 'Lastmyle', initials: 'RW' }
+];
+---
+<section class="quotes wrap" aria-labelledby="quotes-title">
+  <div class="quotes-heading">
+    <p class="eyebrow">In good company</p>
+    <h2 id="quotes-title">Small teams.<br />Serious production.</h2>
+  </div>
+  <div class="quote-grid">
+    {quotes.map((q) => <Quote {...q} />)}
+  </div>
+</section>

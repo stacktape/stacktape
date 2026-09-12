@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { resolvePrisma } from './utils';
@@ -18,6 +20,45 @@ const writePrismaClientVersion = async (projectRoot: string, version: string) =>
 };
 
 describe('Prisma deployment artifacts', () => {
+  test('prunes dependency and build trees before following their cyclic directory links', async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), 'stacktape-prisma-cycles-'));
+    temporaryDirectories.push(projectRoot);
+    await writeFile(join(projectRoot, 'package.json'), '{"name":"prisma-test"}');
+    await writeFile(
+      join(projectRoot, 'schema.prisma'),
+      'generator client { provider = "prisma-client" engineType = "client" }'
+    );
+    await Promise.all(
+      ['node_modules', '.stacktape'].map(async (name) => {
+        const ignoredDirectory = join(projectRoot, name);
+        await mkdir(ignoredDirectory);
+        await Promise.all(
+          ['a', 'b'].map((linkName) =>
+            symlink(
+              ignoredDirectory,
+              join(ignoredDirectory, linkName),
+              process.platform === 'win32' ? 'junction' : 'dir'
+            )
+          )
+        );
+      })
+    );
+    // Bound the real traversal in its own process: filtering matches after globbing can exhaust a cyclic pnpm tree.
+    const { stdout } = await promisify(execFile)(
+      process.execPath,
+      [
+        '--eval',
+        `import { resolvePrisma } from ${JSON.stringify(new URL('./utils.ts', import.meta.url).href)};
+         await resolvePrisma({ workingDir: ${JSON.stringify(projectRoot)},
+           distFolderPath: ${JSON.stringify(join(projectRoot, 'dist'))}, workloadName: 'api',
+           createPackagingError: ({ message }) => new Error(message) });
+         console.log('Prisma resolved');`
+      ],
+      { timeout: 3_000, maxBuffer: 4096 }
+    );
+    expect(stdout.trim()).toBe('Prisma resolved');
+  });
+
   test('keeps a query-compiler WASM file at its project-relative generated destination', async () => {
     const projectRoot = await mkdtemp(join(tmpdir(), 'stacktape-prisma-package-'));
     temporaryDirectories.push(projectRoot);

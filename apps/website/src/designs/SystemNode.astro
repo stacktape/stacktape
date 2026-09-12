@@ -1,0 +1,9 @@
+---
+type Props = { id: string; index: number };
+const { id, index: i } = Astro.props;
+const c = { id };
+---
+<a class={`system-node system-node-${i}`} href={`#live-${c.id}`}><span
+            >{['◇','↗','⌁','↺','⬡','$'][i]}</span><b
+            >{['Infrastructure','Deployments','Observability','Incidents','Security','Costs'][i]}</b><small
+            >{['Generated for you','Connected to Git','Connected from day one','Evidence → recovery','Policies enforced','Spend explained'][i]}</small></a>

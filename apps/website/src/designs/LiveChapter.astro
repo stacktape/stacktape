@@ -1,0 +1,21 @@
+---
+import Screen from './Screen.astro';
+type Props = { id: string; label: string; verb: string; text: string; decision?: string; hint: string; kind: 'design' | 'deploy' | 'observe' | 'incident' | 'security' | 'cost'; index: number };
+const c = Astro.props;
+const i = c.index;
+---
+<article
+              class="live-chapter"
+              id={`live-${c.id}`}
+              data-live-chapter={c.id}
+              aria-labelledby={`live-${c.id}-title`}
+            >
+              <p class="eyebrow">
+                <span class="chapter-symbol">{['◇','↗','⌁','↺','⬡','$'][i]}</span>{c.label}
+              </p>
+              <h2 id={`live-${c.id}-title`}>{c.verb.split('\n').map((line,j)=><>{j>0 && <br />}{line}</>)}</h2>
+              <p class="live-description">{c.text}</p>{c.decision && (
+                <div class="live-decision"><span>↳</span><p>{c.decision}</p></div>
+              )}<p class="live-hint">{c.hint}</p>
+              <div class="live-mobile-screen"><Screen kind={c.kind} /></div>
+            </article>

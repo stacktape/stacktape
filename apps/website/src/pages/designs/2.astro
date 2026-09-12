@@ -1,0 +1,69 @@
+---
+import RelayFeature from '../../designs/RelayFeature.astro';
+import RelayIndexLink from '../../designs/RelayIndexLink.astro';
+import Shell from '../../designs/Shell.astro';
+import Command from '../../designs/Command.astro';
+import Screen from '../../designs/Screen.astro';
+import Quotes from '../../designs/Quotes.astro';
+import Closing from '../../designs/Closing.astro';
+import '../../designs/relay.css';
+const features = [
+  { id: 'design', kicker: 'Design infrastructure', heading: 'The right architecture.\nWithout starting from scratch.', body: 'Stacktape reads your codebase and turns it into a complete infrastructure configuration. Services, databases, networking, and permissions—connected and explained.', kind: 'design' as const, action: 'Review the generated plan before deploying.', fact: 'Generated from your repository', label: 'Design' },
+  { id: 'deploy', kicker: 'Deploy it', heading: 'A commit becomes\na running application.', body: 'Your code is built and deployed to your own AWS account. Branch previews, rolling updates, and rollbacks fit into the Git workflow your team already uses.', kind: 'deploy' as const, action: 'Approve the first deployment. Push to ship the next.', fact: 'Production + preview environments', label: 'Deploy' },
+  { id: 'observe', kicker: 'Watch it', heading: 'See the whole request.\nFind the slow part.', body: 'Your services arrive with logs, metrics, traces, and uptime checks connected. Start with the app’s health and go all the way down to a database query.', kind: 'observe' as const, fact: 'Observability included from the first deploy', label: 'Monitor' },
+  { id: 'incident', kicker: 'Handle incidents', heading: 'The alert comes\nwith the investigation.', body: 'Stacktape connects a problem to its release, gathers the evidence, and prepares a handoff for your coding agent. Recovery is checked against the signals that opened the incident.', kind: 'incident' as const, action: 'Review the proposed fix. Auto-remediation is opt-in.', fact: 'Detection → release → fix → recovery', label: 'Recover' },
+  { id: 'security', kicker: 'Secure it', heading: 'Keep your standards.\nOn every deployment.', body: 'Start with private networking, scoped access, and managed secrets. Infrastructure policies and dependency checks catch risky changes before they reach your users.', kind: 'security' as const, fact: 'Protection before and after deployment', label: 'Secure' },
+  { id: 'cost', kicker: 'Keep costs in check', heading: 'Know what it costs.\nKnow where it goes.', body: 'Understand your AWS spend per resource and environment. Set a budget once; Stacktape alerts you as you approach it. Your AWS bill stays yours.', kind: 'cost' as const, action: 'Set the budget that makes sense for your team.', fact: 'Your own AWS billing data', label: 'Costs' }
+];
+---
+<Shell title="Relay · AWS DevOps, fully automated" theme="relay" number={2}>
+  <main id="main">
+    <section class="relay-hero wrap">
+      <div class="relay-hero-copy">
+        <p class="eyebrow">For developers with more to build.</p>
+        <h1>AWS DevOps,<br />fully<br /><span>automated.</span></h1>
+        <p class="lede">
+          Stacktape reads your repository, designs the infrastructure, and deploys and operates your app in your own AWS
+          account.
+        </p>
+        <p class="relay-control">A senior DevOps team’s work.<br />Your team’s decisions.</p><Command />
+      </div>
+      <div class="relay-hero-proof">
+        <div class="relay-proof-caption">
+          <span class="proof-bracket">[</span><span>From the code you have<br /><b>to the infrastructure you
+              need.</b></span><span class="proof-bracket">]</span>
+        </div><Screen kind="design" compact /><div class="relay-approval">
+          <span>↳</span><p>Generated for your app.<br /><b>Ready for your review.</b></p><a href="#design"
+          >Take a closer look ↓</a>
+        </div>
+      </div>
+      <p class="ownership">Open-source CLI (MIT) · extend with any AWS resource · eject anytime</p>
+    </section>
+    <div class="relay-product wrap" id="product">
+      <aside class="relay-index">
+        <p class="eyebrow">Stacktape handles</p>
+        <nav aria-label="Capabilities">
+          {features.map((f) => <RelayIndexLink id={f.id} label={f.label} />)}
+        </nav>
+        <p>Your code.<br />Your infrastructure.<br />Your call.</p>
+      </aside>
+      <div class="relay-features">
+        {features.map((f) => <RelayFeature {...f} />)}
+      </div>
+    </div>
+    <Quotes />
+    <Closing title="Your developers can handle this." />
+  </main>
+</Shell>
+<script>
+const sections = document.querySelectorAll('[data-relay-feature]');
+  const observer = new IntersectionObserver(entries => {
+    for (const entry of entries) if (entry.isIntersecting) {
+      document.querySelectorAll('[data-relay-nav]').forEach(link => {
+        if (link.getAttribute('data-relay-nav') === entry.target.id) link.setAttribute('aria-current', 'location');
+        else link.removeAttribute('aria-current');
+      });
+    }
+  }, { rootMargin: '-15% 0px -60% 0px' });
+  sections.forEach(section => observer.observe(section));
+</script>

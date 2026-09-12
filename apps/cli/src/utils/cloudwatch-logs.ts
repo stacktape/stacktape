@@ -287,10 +287,12 @@ export class SsmExecuteScriptCloudwatchLogPrinter {
             : ` ${event.logStreamName?.endsWith('stderr') ? tuiManager.colorize('red', '!└') : ' └'} ${line.trim()}`
         )
         .join('\n');
-      if (tuiManager.mode !== 'jsonl') {
+      if (tuiManager.mode === 'jsonl') {
+        tuiManager.printLines([messageLines]);
+      } else {
         console.info(messageLines);
+        tuiManager.emitCollectorLog({ level: 'info', source: 'ssm-script', message: messageLines });
       }
-      tuiManager.emitCollectorLog({ level: 'info', source: 'ssm-script', message: messageLines });
     });
   };
 }

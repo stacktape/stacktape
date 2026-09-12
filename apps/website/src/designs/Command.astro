@@ -1,0 +1,9 @@
+---
+import { CtaCommand } from '../components/CtaCommand';
+type Props = { compact?: boolean };
+const { compact = false } = Astro.props;
+---
+<div class:list={['install', { compact }]}>
+  <CtaCommand client:load />
+  <p class="install-hint">Run in your project. The setup opens in your browser.</p>
+</div>

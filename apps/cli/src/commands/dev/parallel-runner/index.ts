@@ -2,6 +2,7 @@ import type { StpContainerWorkload } from '@domain-services/config-manager/resol
 import type { SsmPortForwardingTunnel } from '@utils/ssm-session';
 import type { LocalResourceInstance } from '../local-resources';
 import type { TunnelInfo } from '../tunnel-manager';
+import { randomUUID } from 'node:crypto';
 import { applicationManager } from '@application-services/application-manager';
 import { commandLifecycle } from '@application-services/command-lifecycle';
 import { tuiManager } from '@application-services/tui-manager';
@@ -12,7 +13,7 @@ import { deployedStackOverviewManager } from '@domain-services/deployed-stack-ov
 import { packagingManager } from '@domain-services/packaging-manager';
 import { stpErrors } from '@errors';
 import { getJobName, getLocalInvokeContainerName, injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
-import { dockerRun } from '@utils/docker';
+import { dockerRun, getDockerHostAddress, inspectDockerContainer } from '@utils/docker';
 import { LambdaCloudwatchLogPrinter } from '@utils/cloudwatch-logs';
 import { getDirectiveParams, getIsDirective, startsLikeGetParamDirective } from '@utils/directives';
 import { ExpectedError } from '@utils/errors';
@@ -250,7 +251,7 @@ export const runParallelWorkloads = async (
     envVars: localWorkloadEnvVars,
     addresses: localWorkloadAddresses,
     stackInfoWorkloads
-  } = getLocalWorkloadInfo(
+  } = await getLocalWorkloadInfo(
     filteredResources.filter((r) => r.category === 'container'),
     allReferencedResources,
     containerPortBindings
@@ -453,15 +454,16 @@ type LocalWorkloadInfoResult = {
  * - envVars/addresses: Only includes workloads explicitly referenced via connectTo or $ResourceParam
  * - stackInfoWorkloads: Includes ALL container workloads so $ResourceParam directives can resolve
  */
-const getLocalWorkloadInfo = (
+const getLocalWorkloadInfo = async (
   containerResources: { name: string; type: string }[],
   allReferencedResources: Set<string>,
   containerPortBindings: Map<string, ContainerPortBinding>
-): LocalWorkloadInfoResult => {
+): Promise<LocalWorkloadInfoResult> => {
   const envVars: Record<string, string> = {};
   const addresses: Record<string, string> = {};
   const stackInfoWorkloads: { name: string; resourceType: string; url?: string; address?: string }[] = [];
-  const tunnelHost = process.platform === 'linux' ? '127.0.0.1' : 'host.docker.internal';
+  if (!containerResources.length) return { envVars, addresses, stackInfoWorkloads };
+  const tunnelHost = await getDockerHostAddress();
 
   for (const resource of containerResources) {
     const workload = configManager.allContainerWorkloads.find(
@@ -618,6 +620,17 @@ const startContainerWorkload = async (
   // Run container
   const localContainerName = getLocalInvokeContainerName(jobName);
   await gracefullyStopContainer(localContainerName);
+  const sessionId = randomUUID();
+  const containerArgs = {
+    ...args,
+    dockerArgs: [...(args.dockerArgs || []), `--label stacktape.dev-session=${sessionId}`]
+  };
+  applicationManager.registerCleanUpHook(async () => {
+    const container = await inspectDockerContainer(localContainerName);
+    if (container.Id && container.Config?.Labels?.['stacktape.dev-session'] === sessionId) {
+      await gracefullyStopContainer(container.Id);
+    }
+  });
 
   const ports = (containerDefinition.events || []).map((event: any) => event.properties.containerPort);
   const primaryPort = ports[0];
@@ -704,7 +717,7 @@ const startContainerWorkload = async (
             stderrBuffer += `${line}\n`;
             return line;
           },
-      args
+      args: containerArgs
     });
 
     // If container exits before onStart is called, it's an error
@@ -799,7 +812,7 @@ const startContainerWorkload = async (
               return null;
             }
           : undefined,
-        args
+        args: containerArgs
       }).catch(() => {
         resolve();
       });

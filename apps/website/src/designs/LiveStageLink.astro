@@ -1,0 +1,10 @@
+---
+type Props = { id: string; index: number };
+const { id, index: i } = Astro.props;
+const c = { id };
+---
+<a
+                href={`#live-${c.id}`}
+                data-live-link={c.id}
+                aria-current={i===0 ? 'location' : undefined}
+              >{['Design','Deploy','Watch','Recover','Secure','Costs'][i]}</a>

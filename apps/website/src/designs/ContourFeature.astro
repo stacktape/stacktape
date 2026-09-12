@@ -1,0 +1,22 @@
+---
+import Screen from './Screen.astro';
+type Props = { item: { id: string; label: string; title: string; text: string; decision?: string; kind: 'design' | 'deploy' | 'observe' | 'incident' | 'security' | 'cost'; tag: string }; index: number };
+const { item, index: i } = Astro.props;
+---
+<section
+          class:list={['contour-feature', { 'to-right': i % 2 === 0 }]}
+          id={item.id}
+          aria-labelledby={`${item.id}-title`}
+        >
+          <div class="contour-copy">
+            <p class="eyebrow">{item.label}</p>
+            <h2 id={`${item.id}-title`}>{item.title.split('\n').map((line,j) => <>{j > 0 && <br />}{line}</>)}</h2>
+            <p>{item.text}</p>
+          </div>
+          <Screen kind={item.kind} />
+          <div class="decision-strip">
+            <span class="decision-icon">{item.decision ? '↳' : '✓'}</span><p>
+              {item.decision || (item.kind === 'observe' ? 'Included with your deployment. No separate observability setup.' : 'A risky change is stopped before it changes your running application.')}
+            </p><span class="feature-tag">{item.tag}</span>
+          </div>
+        </section>

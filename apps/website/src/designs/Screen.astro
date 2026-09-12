@@ -1,0 +1,213 @@
+---
+import { Architecture } from './Architecture';
+type Kind = 'design' | 'deploy' | 'observe' | 'incident' | 'security' | 'cost';
+type Props = { kind: Kind; compact?: boolean };
+const { kind, compact = false } = Astro.props;
+const titles = { design: 'Infrastructure', deploy: 'Deployments', observe: 'Observability', incident: 'Incident #42', security: 'Security', cost: 'Costs' };
+const costs = [{ name: 'PostgreSQL', value: '$61.40', width: 54, color: '#91a9e7' }, { name: 'API service', value: '$34.20', width: 30, color: '#82c7c0' }, { name: 'Redis', value: '$11.90', width: 10.5, color: '#caa1c9' }, { name: 'Web + worker', value: '$5.40', width: 5, color: '#d2b27b' }];
+---
+<div class:list={['product-screen', `screen-${kind}`, { 'screen-compact': compact }]}>
+  {
+    kind === 'design' ? <Architecture client:load compact={compact} /> : (
+     <>
+       <div class="screen-chrome">
+         <span><b>acme</b><span class="slash">/</span>{titles[kind]}</span><span class="ui-badge neutral"
+         >Production</span>
+       </div>
+       {
+         kind === 'deploy' && (
+         <div class="deploy-body">
+           <div class="screen-title">
+             <div>
+               <p class="ui-overline">Deployment v42</p>
+               <h3>Your update is live.</h3>
+             </div><span class="ui-badge">✓ Healthy</span>
+           </div>
+           <div class="commit-line">
+             <span class="branch-icon">⑂</span><b>main</b><span class="commit-message"
+             >Add order confirmation emails</span><code>c8f2a91</code>
+           </div>
+           <div class="pipeline">
+             {
+               [['Build', 'Containers + functions'], ['Check', 'Security rules passed'], ['Deploy', 'Rolling update'], ['Verify', 'Health checks passed']].map(([a,b]) => (
+               <div><span class="pipeline-check">✓</span><strong>{a}</strong><small>{b}</small></div>
+             ))
+             }
+           </div>
+           <div class="environment-row">
+             <div>
+               <span class="environment-symbol">↗</span><span><strong>Production</strong><small
+                 >app.acme.example</small></span>
+             </div><span class="ui-badge">Live</span>
+           </div>
+           <div class="environment-row">
+             <div>
+               <span class="environment-symbol purple">⑂</span><span><strong>PR #128 · new checkout</strong><small
+                 >pr-128.acme.example</small></span>
+             </div><span class="ui-badge neutral">Preview ready</span>
+           </div>
+           <p class="screen-footnote">
+             Your AWS account <span>·</span> Zero-downtime updates <span>·</span> Rollback available
+           </p>
+         </div>
+       )
+       }
+       {
+         kind === 'observe' && (
+         <div class="observe-body">
+           <div class="screen-title">
+             <div>
+               <p class="ui-overline">Application overview</p>
+               <h3>Everything in view.</h3>
+             </div><span class="ui-badge">All services healthy</span>
+           </div>
+           <div class="metric-grid">
+             <div><span>Requests / minute</span><strong>2,418</strong><small>Across 3 services</small></div>
+             <div><span>Response time · p95</span><strong>142<em>ms</em></strong><small>Last 60 minutes</small></div>
+             <div><span>Success rate</span><strong>99.98<em>%</em></strong><small>Within your target</small></div>
+           </div>
+           <div class="chart-heading">
+             <b>Response time</b><span><i></i> p95 <span class="muted">· last hour</span></span>
+           </div>
+           <svg
+             class="timeseries"
+             viewBox="0 0 760 130"
+             role="img"
+             aria-label="Response time remains between 120 and 160 milliseconds over the last hour"
+           >
+             <path d="M0 20H760M0 60H760M0 100H760" stroke="#ffffff10" />
+             <path
+               d="M0 89 20 86 40 93 60 75 80 85 100 71 120 76 140 67 160 75 180 65 200 79 220 61 240 73 260 58 280 66 300 56 320 68 340 71 360 62 380 76 400 58 420 66 440 72 460 58 480 69 500 52 520 62 540 52 560 66 580 58 600 68 620 48 640 58 660 51 680 62 700 52 720 61 740 54 760 59V130H0Z"
+               fill="#36bebe0d"
+             />
+             <path
+               d="M0 89 20 86 40 93 60 75 80 85 100 71 120 76 140 67 160 75 180 65 200 79 220 61 240 73 260 58 280 66 300 56 320 68 340 71 360 62 380 76 400 58 420 66 440 72 460 58 480 69 500 52 520 62 540 52 560 66 580 58 600 68 620 48 640 58 660 51 680 62 700 52 720 61 740 54 760 59"
+               fill="none"
+               stroke="#80c9c2"
+               stroke-width="2"
+             />
+           </svg>
+           <div class="chart-axis">
+             <span>13:00</span><span>13:15</span><span>13:30</span><span>13:45</span><span>14:00</span>
+           </div>
+           <details class="trace-detail">
+             <summary>
+               <span><b>GET /orders</b> <span class="muted">· web → api → database</span></span><span>142 ms <span
+                   aria-hidden="true"
+                 >＋</span></span>
+             </summary>
+             <div class="trace-bars">
+               <p><span>web</span><i style="--start:0%;--length:95%"></i><b>142 ms</b></p>
+               <p><span>api</span><i style="--start:10%;--length:72%"></i><b>108 ms</b></p>
+               <p><span>database</span><i style="--start:25%;--length:42%"></i><b>64 ms</b></p>
+             </div>
+           </details>
+         </div>
+       )
+       }
+       {
+         kind === 'incident' && (
+         <div class="incident-body">
+           <div class="screen-title">
+             <div>
+               <p class="ui-overline"><span class="severity-dot"></span> Production · API service</p>
+               <h3>Checkout errors after v41.</h3>
+             </div><span class="ui-badge amber">Needs review</span>
+           </div>
+           <div class="incident-evidence">
+             <div><span>Detected</span><strong>14:02</strong><small>Error rate exceeded 5%</small></div>
+             <div><span>Likely cause</span><strong>Release v41</strong><small>Deployed 4 minutes earlier</small></div>
+           </div>
+           <div class="error-excerpt">
+             <span>Application log · api</span><code>Column "fulfillment_status" does not exist.</code><p>
+               The new release expects a database migration that has not been applied.
+             </p>
+           </div>
+           <details class="agent-details">
+             <summary><span>Review the coding-agent handoff</span><span aria-hidden="true">↗</span></summary>
+             <div>
+               <p>
+                 <b>Fix brief</b> · Apply the missing migration before starting the new API version. Include the error
+                 trace, release diff, and database schema in the investigation.
+               </p>
+               <p><b>Your review</b> · Approve the pull request before deployment.</p>
+               <p>
+                 <b>Recovery check</b> · Close the incident after checkout succeeds and the error rate returns below
+                 its threshold.
+               </p>
+             </div>
+           </details>
+           <div class="recovery-line">
+             <span>Detect</span><i></i><span>Find the release</span><i></i><span>Review the fix</span><i></i><span
+             >Verify recovery</span>
+           </div>
+           <p class="screen-footnote">Automatic remediation is opt-in. You decide what can run without approval.</p>
+         </div>
+       )
+       }
+       {
+         kind === 'security' && (
+         <div class="security-body">
+           <div class="screen-title">
+             <div>
+               <p class="ui-overline">Deployment protection</p>
+               <h3>Safe defaults. Enforced.</h3>
+             </div><span class="ui-badge">Checks passed</span>
+           </div>
+           <div class="guardrails">
+             {
+               [['Private databases', 'No database exposed to the internet.', 'Network'], ['Scoped permissions', 'Each service can access only what it needs.', 'Access'], ['Managed secrets', 'Credentials stay out of your configuration.', 'Secrets']].map(([a,b,c]) => (
+               <div class="guardrail">
+                 <span class="guard-icon">✓</span><span><strong>{a}</strong><small>{b}</small></span><span
+                   class="guard-category"
+                 >{c}</span>
+               </div>
+             ))
+             }
+           </div>
+           <details class="policy-detail">
+             <summary>
+               <span><span class="amber-text">⊘</span> What happens if a change breaks a rule?</span><span
+                 aria-hidden="true"
+               >＋</span>
+             </summary>
+             <div>
+               <strong>Deploy blocked: database would become public.</strong><p>
+                 Your existing application keeps running. Review the proposed access change before trying again.
+               </p>
+             </div>
+           </details>
+           <p class="screen-footnote">
+             Dependency scanning <span>·</span> Infrastructure policies <span>·</span> Findings linked to fixes
+           </p>
+         </div>
+       )
+       }
+       {
+         kind === 'cost' && (
+         <div class="cost-body">
+           <div class="screen-title">
+             <div>
+               <p class="ui-overline">September · month to date</p>
+               <h3>$112.90<span class="cost-unit"> / $150 budget</span></h3>
+             </div><span class="ui-badge">Within budget</span>
+           </div>
+           <div class="cost-total-bar" aria-label="Cost breakdown">
+             {costs.map(c => <i style={`width:${c.width}%;background:${c.color}`} />)}
+           </div>
+           <div class="cost-rows">
+             {costs.map(c => <div><span><i style={`background:${c.color}`}></i>{c.name}</span><b>{c.value}</b></div>)}
+           </div>
+           <div class="budget-note">
+             <span class="budget-icon">◷</span><div>
+               <b>Know before you cross the line.</b><p>Budget alert at $120 · 80% of your monthly limit.</p>
+             </div>
+           </div>
+           <p class="screen-footnote">From your AWS billing data. AWS bills you directly.</p>
+         </div>
+       )
+       }
+     </>
+   )
+   }
+</div>

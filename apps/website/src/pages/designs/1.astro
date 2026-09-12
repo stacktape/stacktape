@@ -1,0 +1,56 @@
+---
+import ContourFeature from '../../designs/ContourFeature.astro';
+import Shell from '../../designs/Shell.astro';
+import Command from '../../designs/Command.astro';
+import Screen from '../../designs/Screen.astro';
+import Quotes from '../../designs/Quotes.astro';
+import Closing from '../../designs/Closing.astro';
+import '../../designs/contour.css';
+const capabilities = [
+  { id: 'deploy', label: 'Deploy it', title: 'From your repository.\nInto your AWS account.', text: 'Stacktape builds your application and provisions the infrastructure. Every push ships an update. Every pull request gets a preview. Roll back when you need to.', decision: 'Approve the first deploy. Then keep pushing code.', kind: 'deploy' as const, tag: 'Delivery' },
+  { id: 'observe', label: 'Watch it', title: 'Know how your app\nis actually doing.', text: 'Logs, metrics, traces, and uptime checks come with your deployment. Follow a slow request from the web app to the database without piecing together separate tools.', kind: 'observe' as const, tag: 'Observability' },
+  { id: 'incident', label: 'Handle incidents', title: 'From “something broke”\nto a fix you can review.', text: 'Stacktape connects the alert to the release and the error behind it. Give your coding agent the evidence, review its fix, and verify that production has recovered.', decision: 'Approve the fix. Automatic remediation is opt-in.', kind: 'incident' as const, tag: 'Incident response' },
+  { id: 'security', label: 'Secure it', title: 'Good decisions,\nbuilt into every deploy.', text: 'Private databases. Permissions scoped to each service. Managed secrets. Stacktape checks changes against your security rules before they reach production.', kind: 'security' as const, tag: 'Security' },
+  { id: 'cost', label: 'Keep costs in check', title: 'The bill, explained.\nBefore it surprises you.', text: 'See what each service and environment costs, directly from your AWS billing data. Set a budget and get a warning as you approach it.', decision: 'Choose your monthly budget. Stacktape keeps track.', kind: 'cost' as const, tag: 'Cost control' }
+];
+---
+<Shell title="Contour · AWS DevOps, fully automated" theme="contour" number={1}>
+  <main id="main">
+    <section class="contour-hero wrap">
+      <p class="eyebrow">
+        <span class="hero-mark" aria-hidden="true">✦</span> Your AWS. Without the DevOps workload.
+      </p>
+      <h1>AWS DevOps,<br /><span>fully automated.</span></h1>
+      <p class="lede">
+        Stacktape reads your repository, designs the infrastructure a senior DevOps team would build, and deploys and
+        operates it in your own AWS account.
+      </p>
+      <p class="hero-control">You stay in control of the decisions that need you.</p>
+      <Command />
+      <p class="ownership">Open-source CLI (MIT) · extend with any AWS resource · eject anytime</p>
+    </section>
+    <div class="contour-landscape" id="product">
+      <div class="contour-grid" aria-hidden="true"></div>
+      <div class="contour-path" aria-hidden="true"></div>
+      <section class="contour-feature first" id="design" aria-labelledby="design-title">
+        <div class="contour-copy">
+          <p class="eyebrow">Design infrastructure</p>
+          <h2 id="design-title">A production-ready plan for your app.</h2>
+          <p>
+            Stacktape discovers your services, databases, and dependencies, then generates the configuration. Review the
+            architecture and the reasons behind it before anything is created on AWS.
+          </p>
+        </div>
+        <Screen kind="design" />
+        <div class="decision-strip">
+          <span class="decision-icon">↳</span><p>
+            <strong>You review the plan.</strong> Change what matters. The configuration is yours to keep.
+          </p><a href="https://docs.stacktape.com/configuration/">Explore the config ↗</a>
+        </div>
+      </section>
+      {capabilities.map((item, index) => <ContourFeature item={item} index={index} />)}
+    </div>
+    <Quotes />
+    <Closing title="Build your app. We'll handle the DevOps." />
+  </main>
+</Shell>

@@ -530,7 +530,7 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
     isRuntime: false,
     lazyLoad: true,
     resolveFunction: () => async (property: string) => {
-      const gitInfo = await gitInfoManager.gitInfo;
+      const gitInfo = await gitInfoManager.getGitInfo(context.workingDir);
       const res = gitInfo[property];
       if (!res) {
         throw new CliError({

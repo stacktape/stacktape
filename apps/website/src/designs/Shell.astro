@@ -1,0 +1,63 @@
+---
+import Logo from '../components/Logo.astro';
+import './common.css';
+
+type Props = { title: string; theme: 'contour' | 'relay' | 'fieldnotes' | 'live' | 'index'; number?: number };
+const { title, theme, number } = Astro.props;
+const names = ['Contour', 'Relay', 'Fieldnotes', 'Live system'];
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>{title} — Stacktape</title>
+    <meta
+      name="description"
+      content="Stacktape designs, deploys, and operates your application in your own AWS account."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;450;500;550;600;650;700&family=Geist:wght@400;450;500;550;600;650;700;800&family=Geist+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body class:list={['design-page', theme]}>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header wrap">
+      <a class="brand" href={number ? '#main' : '/designs/'} aria-label="Stacktape home"><Logo height={29} /></a>
+      <nav aria-label="Main navigation">
+        <a href="#product">Product</a>
+        <a href="https://docs.stacktape.com">Docs</a>
+        <a href="https://github.com/stacktape/stacktape">GitHub <span aria-hidden="true">↗</span></a>
+      </nav>
+      <a class="header-demo" href="https://cal.com/stacktape/30min">Book a demo <span aria-hidden="true">↗</span></a>
+    </header>
+    <slot />
+    <footer class="site-footer wrap">
+      <p>Stacktape <span>·</span> Built for developers. Built on AWS.</p>
+      <div>
+        <a href="https://docs.stacktape.com">Documentation</a><a href="mailto:info@stacktape.com">Contact</a><a
+          href="https://github.com/stacktape/stacktape"
+        >Open source ↗</a>
+      </div>
+    </footer>
+    {
+      number && (
+      <nav class="design-switch" aria-label="Compare page designs">
+        <a href="/designs/">Designs</a>{names.map((name, i) => (
+          <a
+            href={`/designs/${i+1}/`}
+            aria-label={`Design ${i+1}: ${name}`}
+            aria-current={number === i+1 ? 'page' : undefined}
+          >{String(i+1).padStart(2, '0')}</a>
+        ))
+        }
+      </nav>
+    )
+    }
+  </body>
+</html>

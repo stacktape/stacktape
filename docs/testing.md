@@ -8,6 +8,9 @@ Before implementation, run `pnpm test:plan -- --since=<git-ref>` or `pnpm test:p
 Use its output as a starting point, then add any risk that path matching cannot infer. Run `pnpm test:doctor` before a
 long lane. A handoff must name the behavior proved, the commands that ran, and any boundary that remains untested.
 
+Use [the Stacktape testing skill](../.agents/skills/stacktape-testing/SKILL.md) to apply this policy during feature
+work. It includes a worked example for a security feature spanning the CLI, API and Console.
+
 ## When a feature or fix is sufficiently tested
 
 Before calling a change complete, record:

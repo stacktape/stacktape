@@ -1,0 +1,5 @@
+---
+type Props = { id: string; label: string };
+const f = Astro.props;
+---
+<a href={`#${f.id}`} data-relay-nav={f.id}>{f.label}<span aria-hidden="true">↗</span></a>

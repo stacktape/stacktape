@@ -1,0 +1,12 @@
+---
+import Command from './Command.astro';
+type Props = { title?: string };
+const { title = 'Your next deploy starts here.' } = Astro.props;
+---
+<section class="closing wrap" aria-labelledby="closing-title">
+  <p class="eyebrow">Your code. Your AWS account.</p>
+  <h2 id="closing-title">{title}</h2>
+  <p>Let Stacktape figure out the infrastructure.<br />Review the plan before you deploy.</p>
+  <Command compact />
+  <p class="ownership">Open-source CLI (MIT) · extend with any AWS resource · eject anytime</p>
+</section>

@@ -1,0 +1,96 @@
+---
+import LiveScreen from '../../designs/LiveScreen.astro';
+import LiveStageLink from '../../designs/LiveStageLink.astro';
+import LiveChapter from '../../designs/LiveChapter.astro';
+import SystemNode from '../../designs/SystemNode.astro';
+import Shell from '../../designs/Shell.astro';
+import Command from '../../designs/Command.astro';
+import Screen from '../../designs/Screen.astro';
+import Quotes from '../../designs/Quotes.astro';
+import Closing from '../../designs/Closing.astro';
+import '../../designs/live.css';
+const chapters = [
+  { id: 'design', label: 'Design infrastructure', verb: 'Understand the code.\nBuild the plan.', text: 'Your repository is the starting point. Stacktape discovers your app’s services and dependencies, then generates the infrastructure configuration and an architecture you can inspect.', decision: 'Review the generated plan. Adjust any decision before deploying.', kind: 'design' as const, state: 'Architecture ready', hint: 'Repository → infrastructure' },
+  { id: 'deploy', label: 'Deploy it', verb: 'Ship the whole app.\nKeep shipping.', text: 'Containers, functions, databases, and networking deploy together in your AWS account. Connect your repository for automated releases and a preview environment for each pull request.', decision: 'Approve the first deploy. Every next release follows your Git workflow.', kind: 'deploy' as const, state: 'Production healthy', hint: 'Commit → running application' },
+  { id: 'observe', label: 'Watch it', verb: 'Understand production.\nWhile it is happening.', text: 'The health of your app, the path of a request, and the logs behind it live together. Monitoring is connected from the first deployment.', kind: 'observe' as const, state: 'All services healthy', hint: 'Application → request → query' },
+  { id: 'incident', label: 'Handle incidents', verb: 'Find the cause.\nGet the fix moving.', text: 'Stacktape gathers the signals and links the issue to a release. Your coding agent gets the evidence it needs to investigate; recovery is verified after the fix ships.', decision: 'Review the agent’s fix before deployment. Automatic remediation is opt-in.', kind: 'incident' as const, state: 'Your review needed', hint: 'Alert → evidence → verified fix' },
+  { id: 'security', label: 'Secure it', verb: 'Keep your app private.\nYour standards enforced.', text: 'Private networking, scoped permissions, and managed secrets are part of the plan. Security policies and dependency checks protect the application as it changes.', kind: 'security' as const, state: 'Security checks passed', hint: 'Safe defaults → enforced rules' },
+  { id: 'cost', label: 'Keep costs in check', verb: 'Know the cost\nof what you are building.', text: 'See the spend behind each resource and environment using your own AWS billing data. A budget turns rising costs into an early warning.', decision: 'Choose your budget. AWS continues to bill you directly.', kind: 'cost' as const, state: 'Within budget', hint: 'Resource → cost → budget' }
+];
+---
+<Shell title="Live system · Your app, our DevOps" theme="live" number={4}>
+  <main id="main">
+    <section class="live-hero wrap">
+      <div class="live-hero-heading">
+        <p class="eyebrow"><span class="live-square"></span> AWS DevOps, fully automated.</p>
+        <h1>Your app.<br /><span>Our DevOps.</span></h1>
+        <p class="lede">
+          Stacktape designs, deploys, and operates your app in your own AWS account. From the first infrastructure
+          decision to the next production incident.
+        </p>
+      </div>
+      <div
+        class="system-map"
+        aria-label="Stacktape designs, deploys, monitors, secures, and manages incidents and costs for your application"
+      >
+        <svg class="system-connections" viewBox="0 0 500 420" aria-hidden="true">
+          <path
+            d="M250 200 80 75M250 200 420 75M250 200 50 220M250 200 450 220M250 200 100 360M250 200 400 360"
+            stroke="#9ab3bd35"
+            fill="none"
+          />
+          <circle cx="250" cy="200" r="123" stroke="#9ab3bd15" stroke-dasharray="2 8" fill="none" />
+          <circle cx="250" cy="200" r="175" stroke="#9ab3bd08" fill="none" />
+        </svg>
+        <div class="system-app">
+          <span>acme / production</span><b>Your application</b><small>Your AWS account</small>
+        </div>
+        {chapters.map((c, index) => <SystemNode id={c.id} index={index} />)}
+      </div>
+      <div class="live-start">
+        <Command /><div>
+          <p>One platform.<br />The entire DevOps job.</p><a href="#product">Explore what Stacktape handles <span
+            >↓</span></a>
+        </div>
+      </div>
+      <p class="ownership">Open-source CLI (MIT) · extend with any AWS resource · eject anytime</p>
+    </section>
+    <section class="live-product" id="product" aria-label="Explore the Stacktape experience">
+      <div class="live-workspace wrap">
+        <div class="live-narrative">
+          {chapters.map((c, index) => <LiveChapter {...c} index={index} />)}
+        </div>
+        <div class="live-stage">
+          <div class="live-stage-top"><span><b>acme</b> / your application</span><span>Your AWS account</span></div>
+          <nav class="live-stage-tabs" aria-label="Explore capabilities">
+            {chapters.map((c, index) => <LiveStageLink id={c.id} index={index} />)}
+          </nav>
+          {chapters.map((c, index) => <LiveScreen {...c} index={index} />)}
+          <div class="live-stage-note">
+            <span>↳</span> The same application, from first deploy to daily operations.
+          </div>
+        </div>
+      </div>
+    </section>
+    <Quotes />
+    <Closing title="Less DevOps on your plate." />
+  </main>
+</Shell>
+<script>
+const chapters = [...document.querySelectorAll<HTMLElement>('[data-live-chapter]')];
+  const links = [...document.querySelectorAll<HTMLElement>('[data-live-link]')];
+  const screens = [...document.querySelectorAll<HTMLElement>('[data-live-screen]')];
+  const setActive = (id: string | undefined) => {
+    if (!id) return;
+    screens.forEach(screen => { screen.hidden = screen.dataset.liveScreen !== id; });
+    links.forEach(link => {
+      if (link.dataset.liveLink === id) link.setAttribute('aria-current', 'location');
+      else link.removeAttribute('aria-current');
+    });
+  };
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => { if (entry.isIntersecting) setActive((entry.target as HTMLElement).dataset.liveChapter); });
+  }, { rootMargin: '-25% 0px -40% 0px' });
+  chapters.forEach(chapter => observer.observe(chapter));
+  links.forEach(link => link.addEventListener('click', () => setActive(link.dataset.liveLink)));
+</script>

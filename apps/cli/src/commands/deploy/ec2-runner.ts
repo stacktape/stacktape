@@ -1,5 +1,4 @@
 import type { FilteredLogEvent } from '@aws-sdk/client-cloudwatch-logs';
-import { CommandInvocationStatus } from '@aws-sdk/client-ssm';
 import { commandLifecycle } from '@application-services/command-lifecycle';
 import { operationReporter } from '@application-services/operation-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
@@ -41,7 +40,7 @@ export const deployWithEc2Runner = async () => {
     return;
   }
 
-  const gitInfo = await gitInfoManager.gitInfo;
+  const gitInfo = await gitInfoManager.getGitInfo(stackContext.workingDir);
   if (!gitInfo.gitUrl || !gitInfo.commit || !gitInfo.branch) {
     throw new ExpectedError(
       'CLI',
@@ -55,7 +54,7 @@ export const deployWithEc2Runner = async () => {
 
   let gitCommitMessage: string | undefined;
   try {
-    gitCommitMessage = await getGitVariable('message');
+    gitCommitMessage = await getGitVariable('message', stackContext.workingDir);
   } catch {
     gitCommitMessage = undefined;
   }
@@ -65,7 +64,7 @@ export const deployWithEc2Runner = async () => {
     try {
       configPath = resolveEc2RunnerConfigPath({
         configPath: runner.configPath,
-        repositoryRoot: await getGitVariable('repositoryRoot')
+        repositoryRoot: await getGitVariable('repositoryRoot', stackContext.workingDir)
       });
     } catch {
       throw new ExpectedError(
@@ -175,28 +174,11 @@ const monitorEc2RunnerDeployment = async ({ invocationId }: { invocationId: stri
         instanceId: status.ec2InstanceId
       });
       await commandLogPrinter.printLogs();
-
-      const commandInvocation = await awsSdkManager.systemsManager
-        .getShellScriptExecution({
-          instanceId: status.ec2InstanceId,
-          commandId: status.ssmCommandId
-        })
-        .catch(() => undefined);
-
-      if (commandInvocation?.Status && isTerminalSsmStatus(commandInvocation.Status)) {
-        await commandLogPrinter.printLogs();
-        if (commandInvocation.Status === CommandInvocationStatus.SUCCESS) {
-          return;
-        }
-        throw new ExpectedError(
-          'DEPLOYMENT',
-          `EC2 runner deployment failed with SSM status ${commandInvocation.Status}.`,
-          'Inspect the runner logs above for the failing Stacktape command output.'
-        );
-      }
     }
 
-    if (status.inProgress === false) {
+    // The inner CLI can record its result before SSM finishes cleanup. The backend also owns cancellation
+    // and instance retirement, so wait for its final result and release instead of interpreting SSM here.
+    if (status.inProgress === false && status.runnerCleanupPending === false) {
       if (commandLogPrinter) {
         await commandLogPrinter.printLogs();
       } else if (provisioningLogPrinter) {
@@ -213,17 +195,6 @@ const monitorEc2RunnerDeployment = async ({ invocationId }: { invocationId: stri
     }
   }
 };
-
-const isTerminalSsmStatus = (status: string) =>
-  (
-    [
-      CommandInvocationStatus.SUCCESS,
-      CommandInvocationStatus.FAILED,
-      CommandInvocationStatus.CANCELLED,
-      CommandInvocationStatus.TIMED_OUT,
-      CommandInvocationStatus.CANCELLING
-    ] as CommandInvocationStatus[]
-  ).includes(status as CommandInvocationStatus);
 
 class CloudwatchLogStreamPrinter {
   logGroupName: string;
@@ -271,9 +242,11 @@ class CloudwatchLogStreamPrinter {
       'gray',
       `[${new Date(event.timestamp || Date.now()).toLocaleTimeString()}]:`
     )} ${message}`;
-    if (tuiManager.mode !== 'jsonl') {
+    if (tuiManager.mode === 'jsonl') {
+      tuiManager.printLines([renderedLine]);
+    } else {
       console.info(renderedLine);
+      tuiManager.emitCollectorLog({ level: 'info', source: 'ec2-runner-log', message: renderedLine });
     }
-    tuiManager.emitCollectorLog({ level: 'info', source: 'ec2-runner-log', message: renderedLine });
   };
 }

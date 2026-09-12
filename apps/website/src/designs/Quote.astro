@@ -1,0 +1,15 @@
+---
+type Props = { quote: string; name: string; role: string; company: string; initials: string };
+const q = Astro.props;
+---
+<figure class="quote">
+  <span class="quote-company">{q.company}</span>
+  <blockquote>“{q.quote}”</blockquote>
+  <figcaption>
+    <span class="avatar">{q.initials}</span>
+    <span>
+      <strong>{q.name}</strong>
+      <small>{q.role}, {q.company}</small>
+    </span>
+  </figcaption>
+</figure>

@@ -12,7 +12,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
-import { inspectDockerContainer, listDockerContainers, stopDockerContainer } from '@utils/docker';
+import { getDockerHostAddress, inspectDockerContainer, listDockerContainers, stopDockerContainer } from '@utils/docker';
 import { getDirectiveParams, getIsDirective, startsLikeGetParamDirective } from '@utils/directives';
 import { getAugmentedEnvironment } from '@utils/environment';
 import { startPortForwardingSessions, substituteTunneledEndpointsInEnvironmentVars } from '@utils/ssm-session';
@@ -261,9 +261,7 @@ export const getWorkloadEnvironmentVars = async (jobDetails: {
     jobDetails.connectTo || []
   );
 
-  // On Linux with --network host, container can access host's 127.0.0.1 directly.
-  // On Windows/macOS, Docker runs in a VM, so we need to use host.docker.internal.
-  const tunnelHost = process.platform === 'linux' ? '127.0.0.1' : 'host.docker.internal';
+  const tunnelHost = await getDockerHostAddress();
   const substitutedInjectedEnvVars = substituteTunneledEndpointsInEnvironmentVars({
     tunnels: jobDetails.tunnels || [],
     env: Object.entries(resolvedInjectedVars).map(([key, value]) => ({ name: key, value })),

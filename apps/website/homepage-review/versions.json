@@ -1,0 +1,92 @@
+[
+  {
+    "id": "recommended-v2",
+    "name": "Recommended v2",
+    "model": "Primary Codex writer",
+    "state": "complete",
+    "file": "../homepage.md",
+    "notes": "versions/recommended-v2-notes.md",
+    "summary": "Revision based on your feedback: original hero copy, section 01 preserved, sections 02–07 closer to the original direction."
+  },
+  {
+    "id": "recommended",
+    "name": "Recommended v1",
+    "model": "Primary Codex writer",
+    "state": "complete",
+    "file": "versions/recommended-v1.md",
+    "notes": "research.md",
+    "summary": "First recommendation, preserved before the user-requested revision."
+  },
+  {
+    "id": "original",
+    "name": "Original draft",
+    "model": "Supplied baseline",
+    "state": "complete",
+    "file": "versions/original.md",
+    "summary": "Preserved unchanged for comparison. Its unsupported claims are discussed in the research notes.",
+    "notes": "research.md"
+  },
+  {
+    "id": "fable",
+    "name": "Fable",
+    "model": "Fable 5.1 · max",
+    "state": "complete",
+    "file": "versions/fable.md",
+    "notes": "versions/fable-notes.md",
+    "summary": "Independent draft using the complete evidence packet; Fable tools disabled for prose generation.",
+    "checks": "versions/fable-checks.md",
+    "verification": "versions/fable-verification.md"
+  },
+  {
+    "id": "codex",
+    "name": "Codex",
+    "model": "GPT-6 Astra · ultra",
+    "state": "complete",
+    "file": "versions/codex.md",
+    "notes": "versions/codex-notes.md",
+    "summary": "Independent draft using the complete evidence packet; CLI sandbox prevented direct source reads.",
+    "checks": "versions/codex-checks.md",
+    "verification": "versions/codex-verification.md"
+  },
+  {
+    "id": "grok",
+    "name": "Grok",
+    "model": "Grok 4.6 · xhigh",
+    "state": "complete",
+    "file": "versions/grok.md",
+    "notes": "versions/grok-notes.md",
+    "checks": "versions/grok-checks.md",
+    "verification": "versions/grok-verification.md"
+  },
+  {
+    "id": "gemini",
+    "name": "Gemini",
+    "model": "Gemini 3.8 Flash · high",
+    "state": "complete",
+    "file": "versions/gemini.md",
+    "notes": "versions/gemini-notes.md",
+    "checks": "versions/gemini-checks.md",
+    "verification": "versions/gemini-verification.md"
+  },
+  {
+    "id": "deepseek",
+    "name": "DeepSeek",
+    "model": "DeepSeek V4.1 Flash · max (documented V4 alias routing)",
+    "state": "complete",
+    "file": "versions/deepseek.md",
+    "notes": "versions/deepseek-notes.md",
+    "checks": "versions/deepseek-checks.md",
+    "verification": "versions/deepseek-verification.md"
+  },
+  {
+    "id": "glm",
+    "name": "GLM",
+    "model": "GLM-5.3 · max",
+    "state": "complete",
+    "file": "versions/glm.md",
+    "notes": "versions/glm-notes.md",
+    "summary": "Independent draft using the complete evidence packet; direct Z.ai coding API with no tools.",
+    "checks": "versions/glm-checks.md",
+    "verification": "versions/glm-verification.md"
+  }
+]

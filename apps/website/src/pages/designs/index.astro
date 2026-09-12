@@ -1,0 +1,128 @@
+---
+import Shell from '../../designs/Shell.astro';
+const designs = [
+  { number: 1, name: 'Contour', type: 'Your direction', title: 'A clearer path through the product.', detail: 'Broad surfaces, an isometric background, and a connected journey. The explanation and product example always read as one.', hero: ['AWS DevOps,', 'fully automated.'], theme: 'preview-contour', tags: 'Centered hero · connected panels · dark teal' },
+  { number: 2, name: 'Relay', type: 'Your direction', title: 'The product, with room to breathe.', detail: 'A split hero, a persistent capability index, and a generous vertical story. Decisions stay attached to the work they affect.', hero: ['AWS DevOps,', 'fully', 'automated.'], theme: 'preview-relay', tags: 'Split hero · quiet navigation · graphite' },
+  { number: 3, name: 'Fieldnotes', type: 'New direction', title: 'A more human face for infrastructure.', detail: 'Large editorial typography, a light canvas, and dark product windows. The story moves from creating your app to looking after it.', hero: ['Your code deserves', 'a whole DevOps team.'], theme: 'preview-fieldnotes', tags: 'Editorial layout · open sections · light + forest' },
+  { number: 4, name: 'Live system', type: 'New direction', title: 'One app. The entire DevOps job.', detail: 'An application at the center of the hero, followed by a persistent product view that changes as you read. Regular scrolling throughout.', hero: ['Your app.', 'Our DevOps.'], theme: 'preview-live', tags: 'System map · changing product view · midnight blue' }
+];
+---
+<Shell title="Four homepage directions" theme="index">
+  <main id="main" class="wrap gallery">
+    <div class="gallery-intro">
+      <p class="eyebrow">Stacktape / homepage exploration</p>
+      <h1>Four ways to tell<br />the whole story.</h1>
+      <p>
+        Two designs follow your direction closely. Two explore a different visual language. Each is a complete page with
+        working product previews.
+      </p>
+    </div>
+    <div class="gallery-grid" id="product">
+      {
+        designs.map(d=>(
+        <a class="gallery-card" href={`/designs/${d.number}/`}>
+          <div class:list={['gallery-preview', d.theme]} aria-hidden="true">
+            <div class="mini-nav"><span>STACKTAPE</span><span>Product&nbsp;&nbsp; Docs&nbsp;&nbsp; GitHub</span></div>
+            <div class="mini-body">
+              <div class="mini-copy">
+                <span class="mini-eyebrow">AWS. IN YOUR HANDS.</span><strong>{d.hero.map((line,i)=>(
+                  <>{i>0 && <br />}{line}</>
+                ))}</strong><p>Stacktape designs, deploys, and operates<br />your app in your own AWS account.</p>
+                <div class="mini-command"><span>$ npx stacktape init</span><i>Copy</i></div>
+              </div>
+              <div class="mini-window">
+                <div>acme <span>/ Your AWS account</span></div>
+                <div class="mini-code">
+                  <p>
+                    resources:<br />&nbsp;&nbsp;web:<br />&nbsp;&nbsp;&nbsp;&nbsp;type:
+                    nextjs-web<br />&nbsp;&nbsp;&nbsp;&nbsp;connectTo: [database]
+                  </p>
+                  <div class="mini-map"><i>web</i><span></span><i>db</i></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="gallery-card-text">
+            <div class="gallery-card-top">
+              <span>{String(d.number).padStart(2,'0')} / {d.name}</span><span>{d.type}</span>
+            </div>
+            <h2>{d.title}</h2>
+            <p>{d.detail}</p>
+            <div class="gallery-card-bottom"><span>{d.tags}</span><b>View page ↗</b></div>
+          </div>
+        </a>
+      ))
+      }
+    </div>
+    <p class="gallery-note">
+      Use the small switcher at the bottom of each page to compare directions. These designs show the intended v4
+      experience.
+    </p>
+  </main>
+</Shell>
+<style>
+.gallery { padding-block: 40px 50px; }
+.gallery-intro { margin-bottom: 55px; max-width: 720px; }
+.gallery-intro h1 { font-size: clamp(43px, 5vw, 67px); margin-bottom: 23px; }
+.gallery-intro > p:last-child { font-size: 16px; max-width: 610px; color: var(--muted); }
+.gallery-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+.gallery-card { border: 1px solid #ffffff17; border-radius: 12px; overflow: hidden; background: #1a2425; transition: border-color .2s, transform .2s; }
+.gallery-card:hover { border-color: #ffffff40; transform: translateY(-3px); }
+.gallery-preview { height: 320px; padding: 20px 27px; border-bottom: 1px solid #ffffff0c; overflow: hidden; pointer-events: none; }
+.mini-nav { display: flex; justify-content: space-between; font-size: 7px; letter-spacing: .08em; color: #d2e0d9; }
+.mini-nav span:last-child { font-size: 6px; color: #90a59d; }
+.mini-eyebrow { display: block; font-size: 5px; letter-spacing: .15em; margin-bottom: 10px; color: #9bb6a8; }
+.mini-copy strong { font-size: 33px; line-height: 1.03; letter-spacing: -.05em; display: block; font-weight: 500; }
+.mini-copy > p { font-size: 6px; color: #9fb3a8; margin-block: 11px; }
+.mini-command { display: inline-flex; gap: 30px; align-items: center; border: 1px solid #ffffff20; border-radius: 4px; padding: 6px; color: #c5dad0; font-size: 6px; background: #1c2b29; font-family: monospace; }
+.mini-command i { font: inherit; background: #25675d; padding: 3px 5px; border-radius: 2px; }
+.mini-window { margin-top: 22px; border: 1px solid #ffffff20; border-radius: 5px; text-align: left; background: #1a2526; color: #cadad3; box-shadow: 0 15px 30px #0003; }
+.mini-window > div:first-child { padding: 7px 10px; font-size: 6px; border-bottom: 1px solid #ffffff10; }
+.mini-window > div:first-child > span { color: #889f96; margin-left: 8px; }
+.mini-code { display: grid; grid-template-columns: 1fr 1fr; min-height: 90px; }
+.mini-code p { font-size: 6px; padding: 12px; color: #9bb6b8; font-family: monospace; line-height: 1.8; border-right: 1px solid #ffffff12; }
+.mini-map { display: flex; align-items: center; justify-content: center; padding: 12px; gap: 8px; transform: skewY(-15deg); }
+.mini-map i { border: 1px solid #63887d; background: #253b38; font-size: 8px; padding: 6px 10px; font-style: normal; border-radius: 4px; }
+.mini-map span { width: 15px; height: 1px; background: #63887d; }
+.preview-contour { background: repeating-linear-gradient(30deg, transparent 0 49px, #83a39508 50px 51px), #172122; }
+.preview-contour .mini-body { text-align: center; margin-top: 27px; }
+.preview-contour .mini-copy strong { color: #9bd6c9; }
+.preview-contour .mini-window { margin-inline: 18px; }
+.preview-relay { background: #101718; }
+.preview-relay .mini-body { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: center; margin-top: 35px; }
+.preview-relay .mini-copy strong { font-size: 33px; }
+.preview-relay .mini-window { transform: perspective(500px) rotateY(-10deg); }
+.preview-relay .mini-code { display: block; min-height: 120px; }
+.preview-relay .mini-code p { display: none; }
+.preview-relay .mini-map { height: 130px; }
+.preview-relay .mini-command { gap: 15px; }
+.preview-fieldnotes { background: #f1f2eb; color: #183b2f; }
+.preview-fieldnotes .mini-nav { color: #234b36; }
+.preview-fieldnotes .mini-body { margin-top: 30px; }
+.preview-fieldnotes .mini-copy strong { font-size: 35px; }
+.preview-fieldnotes .mini-eyebrow { color: #55755f; }
+.preview-fieldnotes .mini-copy p { color: #526d57; }
+.preview-fieldnotes .mini-command { float: right; margin-top: -37px; }
+.preview-fieldnotes .mini-window { margin-top: 22px; }
+.preview-live { background: #0d121b; }
+.preview-live .mini-body { display: grid; grid-template-columns: 1fr 1fr; gap: 17px; align-items: center; margin-top: 52px; }
+.preview-live .mini-copy strong { font-size: 39px; color: #9fbdcb; }
+.preview-live .mini-window { border-radius: 50%; background: transparent; box-shadow: 0 0 0 15px #beddef04, 0 0 0 35px #beddef03; border-style: dashed; aspect-ratio: 1; display: grid; place-content: center; }
+.preview-live .mini-window > div:first-child { text-align: center; border: 0; }
+.preview-live .mini-window > div:first-child > span { display: none; }
+.preview-live .mini-code { display: block; min-height: 0; }
+.preview-live .mini-code p { display: none; }
+.preview-live .mini-map { transform: none; }
+.preview-live .mini-command { margin-top: 9px; gap: 12px; }
+.gallery-card-text { padding: 27px; }
+.gallery-card-top { display: flex; justify-content: space-between; gap: 15px; font-size: 12px; }
+.gallery-card-top > span:last-child { color: #91ada1; font-size: 10px; padding: 3px 7px; background: #ffffff05; border-radius: 3px; }
+.gallery-card-text h2 { font-size: 26px; margin-top: 24px; line-height: 1.2; max-width: 400px; }
+.gallery-card-text > p { margin-top: 16px; font-size: 13px; color: #9db2a7; line-height: 1.8; }
+.gallery-card-bottom { border-top: 1px solid #ffffff12; margin-top: 24px; padding-top: 16px; display: flex; align-items: center; justify-content: space-between; gap: 15px; }
+.gallery-card-bottom span { color: #8aa296; font-size: 9px; }
+.gallery-card-bottom b { font-size: 11px; font-weight: 450; white-space: nowrap; }
+.gallery-note { font-size: 12px; color: #92aa9e; margin-top: 35px; }
+@media (max-width: 1050px) { .gallery-preview { padding-inline: 17px; } .mini-copy strong, .preview-fieldnotes .mini-copy strong, .preview-relay .mini-copy strong { font-size: 27px; } .preview-live .mini-copy strong { font-size: 31px; } .gallery-card-bottom span { max-width: 150px; } }
+@media (max-width: 700px) { .gallery-grid { grid-template-columns: 1fr; gap: 25px; } .gallery { padding-top: 22px; } .gallery-intro { margin-bottom: 33px; } .gallery-intro > p:last-child { font-size: 14px; } .gallery-preview { height: 295px; padding-inline: 22px; } .gallery-card-text { padding: 23px; } .gallery-card-text h2 { font-size: 24px; } }
+</style>

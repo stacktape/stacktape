@@ -8,7 +8,7 @@ import type {
   SelectInstance,
   StylesConfig
 } from 'react-select';
-import ReactSelect, { components } from 'react-select';
+import ReactSelect, { components, createFilter } from 'react-select';
 import { createContext, useContext, useMemo } from 'react';
 
 export type SelectInputActionMeta = InputActionMeta;
@@ -16,6 +16,8 @@ export type SelectMenuPlacement = MenuPlacement;
 
 export type SelectOption<Value = string | number> = {
   label: ReactNode;
+  /** Plain text for filtering options whose visual label contains React elements. */
+  searchText?: string;
   value: Value;
   icon?: ReactNode;
   isDisabled?: boolean;
@@ -78,6 +80,10 @@ type SelectPresentation = {
 };
 
 const SelectPresentationContext = createContext<SelectPresentation>({ breakOptionWord: false });
+
+const filterSelectOption = createFilter<SelectOption<unknown>>({
+  stringify: ({ data, label, value }) => `${data.searchText ?? label} ${value}`
+});
 
 function SelectControl<Value>(controlProps: ControlProps<SelectOption<Value>, boolean>) {
   const { leading } = useContext(SelectPresentationContext);
@@ -191,6 +197,7 @@ export function Select<Value>({
           classNamePrefix="stp-select"
           {...(closeMenuOnSelect === undefined ? {} : { closeMenuOnSelect })}
           components={selectComponents}
+          filterOption={filterSelectOption}
           {...(defaultValue === undefined ? {} : { defaultValue })}
           {...(form === undefined ? {} : { form })}
           {...(hideSelectedOptions === undefined ? {} : { hideSelectedOptions })}

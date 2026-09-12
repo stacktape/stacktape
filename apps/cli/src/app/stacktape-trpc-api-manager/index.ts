@@ -102,7 +102,7 @@ export class StacktapeTrpcApiManager {
     projectName: string;
     logStreamName?: string;
   }) => {
-    const gitInfo = await gitInfoManager.gitInfo;
+    const gitInfo = await gitInfoManager.getGitInfo(globalStateManager.workingDir);
 
     return this.apiClient.recordStackOperation({
       invocationId: globalStateManager.invocationId,
@@ -152,7 +152,7 @@ export class StacktapeTrpcApiManager {
   };
 
   recordStackOperationStart = async () => {
-    const gitInfo = await gitInfoManager.gitInfo;
+    const gitInfo = await gitInfoManager.getGitInfo(globalStateManager.workingDir);
     return this.apiClient.recordStackOperation({
       // global state manager information
       invocationId: globalStateManager.invocationId,

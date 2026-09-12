@@ -39,6 +39,9 @@ documented in [`apps/cli/scripts/real-aws/README.md`](apps/cli/scripts/real-aws/
 [`docs/testing.md`](docs/testing.md) is the canonical test-selection, Console E2E, live-AWS, cost, cleanup, and evidence
 policy. Read it before adding a test or running a live scenario.
 
+For feature and bugfix acceptance, use [the Stacktape testing skill](.agents/skills/stacktape-testing/SKILL.md). It
+turns that policy into a test-selection workflow and links a worked Console/CLI security example.
+
 For Console work, `pnpm dev:console:ui` is only for UI changes that can use the deployed dev API. Use `pnpm dev:console`
 for every API change, API/UI contract change, or behavioral API test. It runs the UI and API locally against the shared
 dev data plane while deployed dev Lambdas continue to handle webhooks and background work.

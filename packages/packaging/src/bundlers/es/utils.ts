@@ -69,7 +69,8 @@ export const getLockFileData = async (
 
 const findPrismaSchemaFiles = async ({ workingDir }: { workingDir: string }): Promise<string[]> => {
   const relativeSchemaPaths = await getMatchingFilesByGlob({
-    globPattern: '**/schema.prisma',
+    // Prune before traversal: pnpm dependency links can form cycles even though their matches are discarded below.
+    globPattern: ['**/schema.prisma', '!**/node_modules/**', '!**/.stacktape/**'],
     cwd: workingDir
   });
   return relativeSchemaPaths

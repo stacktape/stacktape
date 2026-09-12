@@ -4,7 +4,7 @@ import { applicationManager } from '@application-services/application-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stpErrors } from '@errors';
-import { wait } from '@utils/misc';
+import { CliError } from '@utils/errors';
 import { startPortForwardingSessions } from '@utils/ssm-session';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
 
@@ -49,15 +49,21 @@ export const commandBastionTunnel = async () => {
   );
 
   applicationManager.registerCleanUpHook(async () => {
-    // printer.info('Received exit signal. Closing tunnels...');
     return Promise.all(tunnels.map((tunnel) => tunnel.kill()));
   });
 
-  // blocking event loop? maybe there is some other better way
-
-  while (true) {
-    await wait(3000);
-  }
+  const closedTunnel = await Promise.race(
+    tunnels.map(async (tunnel) => {
+      await tunnel.waitForExit();
+      return tunnel;
+    })
+  );
+  throw new CliError({
+    category: 'AWS',
+    code: 'SSM_TUNNEL_CLOSED',
+    message: `The SSM tunnel on 127.0.0.1:${closedTunnel.localPort} closed.`,
+    hints: 'The session may have expired or lost its connection. Run the command again to reconnect.'
+  });
 };
 
 const isBastionTunnelingPossible = ({ resource }: { resource: StackInfoMapResource }) => {

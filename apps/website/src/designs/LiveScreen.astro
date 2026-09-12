@@ -1,0 +1,11 @@
+---
+import Screen from './Screen.astro';
+type Props = { id: string; kind: 'design' | 'deploy' | 'observe' | 'incident' | 'security' | 'cost'; state: string; index: number };
+const c = Astro.props;
+const i = c.index;
+---
+<div class="live-screen-slot" data-live-screen={c.id} hidden={i!==0}>
+              <Screen kind={c.kind} /><div class="live-stage-status">
+                <span class:list={['status-light', { warning: c.id==='incident' }]}></span>{c.state}<span>Example
+                  project</span>
+              </div>

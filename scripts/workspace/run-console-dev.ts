@@ -325,6 +325,9 @@ const main = async () => {
     }
   } while (nextToken);
   assertConsoleDevSupportResources(supportResources);
+  const dockerInfo = await runCaptured('docker', ['info', '--format', '{{.OperatingSystem}}'], workspaceRoot);
+  if (dockerInfo.code !== 0) throw new Error('Docker is unavailable. Start Docker and retry Console dev mode.');
+  const useHostNetwork = process.platform === 'linux' && dockerInfo.stdout.trim() !== 'Docker Desktop';
   const tunnelPort = await findTunnelPort();
   const devEnvironment: NodeJS.ProcessEnv = {
     ...process.env,
@@ -335,7 +338,7 @@ const main = async () => {
     STACKTAPE_CONSOLE_DEV_OPERATION_QUEUE_URL: dataPlane.remoteOperationQueueUrl,
     STACKTAPE_CONSOLE_DEV_DATABASE_HOST: dataPlane.databaseHost,
     STACKTAPE_CONSOLE_DEV_DATABASE_NAME: dataPlane.databaseName,
-    STACKTAPE_CONSOLE_DEV_DATABASE_TUNNEL_HOST: process.platform === 'linux' ? '127.0.0.1' : 'host.docker.internal',
+    STACKTAPE_CONSOLE_DEV_DATABASE_TUNNEL_HOST: useHostNetwork ? '127.0.0.1' : 'host.docker.internal',
     STACKTAPE_CONSOLE_DEV_DATABASE_TUNNEL_PORT: String(tunnelPort),
     STACKTAPE_CONSOLE_DEV_USER_POOL_CLIENT_ID: dataPlane.userPoolClientId,
     STACKTAPE_CONSOLE_DEV_USER_POOL_DOMAIN: dataPlane.userPoolDomain,

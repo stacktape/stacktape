@@ -1,0 +1,14 @@
+---
+import Screen from './Screen.astro';
+type Props = { id: string; kicker: string; heading: string; body: string; kind: 'design' | 'deploy' | 'observe' | 'incident' | 'security' | 'cost'; action?: string; fact: string };
+const f = Astro.props;
+---
+<section class="relay-feature" id={f.id} data-relay-feature aria-labelledby={`${f.id}-title`}>
+            <div class="relay-feature-heading">
+              <p class="eyebrow">{f.kicker}</p>
+              <h2 id={`${f.id}-title`}>{f.heading.split('\n').map((line,i)=><>{i>0 && <br />}{line}</>)}</h2>
+              <p>{f.body}</p>
+            </div><Screen kind={f.kind} /><div class="relay-feature-footer">
+              <span>{f.action ? '↳' : '✓'}</span><p>{f.action || f.fact}</p>
+            </div>
+          </section>

@@ -8,6 +8,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { CommandInvocationStatus } from '@aws-sdk/client-ssm';
 import { stpErrors } from '@errors';
+import { CliError } from '@utils/errors';
 import { fsPaths } from 'src/config/runtime-paths';
 import { injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
 import { wait } from '@utils/misc';
@@ -36,8 +37,10 @@ export class SsmPortForwardingTunnel {
   #remoteHost: string;
   #remotePort: number;
   #localPort: number;
-  #ssmSessionId: string;
+  #ssmSessionId: string | undefined;
   #tunnelProcess: ResultPromise;
+  #tunnelExited: Promise<void>;
+  #killPromise: Promise<boolean> | undefined;
   #targetInfo: ResolvedRemoteTarget;
 
   constructor({ localPort, targetInfo }: { localPort: number; targetInfo: ResolvedRemoteTarget }) {
@@ -66,97 +69,98 @@ export class SsmPortForwardingTunnel {
   }
 
   connect = async () => {
-    return new Promise((resolve, reject) => {
-      let settled = false;
-      const finishResolve = () => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timeout);
-        resolve(true);
-      };
-      const finishReject = (error: unknown) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timeout);
-        reject(error);
-      };
-
-      const startSessionCommandInput: StartSessionCommandInput = {
-        Target: this.#instanceId,
-        DocumentName: 'AWS-StartPortForwardingSessionToRemoteHost',
-        Parameters: {
-          host: [this.#remoteHost],
-          portNumber: [String(this.#remotePort)],
-          localPortNumber: [String(this.localPort)]
-        },
-        Reason: `tunneling session to ${this.#remoteHost}:${this.#remotePort} (user ${globalStateManager.userData.id})`
-      };
-      pRetry(
-        async () => {
-          return awsSdkManager.systemsManager
-            .startSession(startSessionCommandInput)
-            .then(async (startSessionResponse) => {
-              this.#ssmSessionId = startSessionResponse.SessionId;
-              await ensureSessionManagerPluginExecutable();
-              this.#tunnelProcess = execa(fsPaths.sessionManagerPath(), [
-                JSON.stringify(startSessionResponse),
-                this.#region,
-                'StartSession',
-                '',
-                JSON.stringify(startSessionCommandInput)
-              ]);
-
-              readline
-                .createInterface({
-                  input: this.#tunnelProcess.stdout,
-                  crlfDelay: Infinity
-                })
-                .on('line', (line) => {
-                  if (line.includes('Waiting for connections')) {
-                    finishResolve();
-                  }
-                });
-
-              this.#tunnelProcess.catch((error) => {
-                finishReject(error);
-              });
-            });
-        },
-        {
-          retries: 5,
-          onFailedAttempt: ({ error }) => {
-            if (!`${error}`.includes('TargetNotConnected')) {
-              throw error;
-            }
-            tuiManager.debug(`Tunnel via ${this.#instanceId} failed. Reconnecting...`);
-          }
+    const startSessionCommandInput: StartSessionCommandInput = {
+      Target: this.#instanceId,
+      DocumentName: 'AWS-StartPortForwardingSessionToRemoteHost',
+      Parameters: {
+        host: [this.#remoteHost],
+        portNumber: [String(this.#remotePort)],
+        localPortNumber: [String(this.localPort)]
+      },
+      Reason: `tunneling session to ${this.#remoteHost}:${this.#remotePort} (user ${globalStateManager.userData.id})`
+    };
+    const startSessionResponse = await pRetry(
+      () => awsSdkManager.systemsManager.startSession(startSessionCommandInput),
+      {
+        retries: 5,
+        onFailedAttempt: ({ error }) => {
+          if (!`${error}`.includes('TargetNotConnected')) throw error;
+          tuiManager.debug(`Tunnel via ${this.#instanceId} failed. Reconnecting...`);
         }
-      ).catch((error) => finishReject(error));
+      }
+    );
+    this.#ssmSessionId = startSessionResponse.SessionId;
+    await ensureSessionManagerPluginExecutable();
+    this.#tunnelProcess = execa(fsPaths.sessionManagerPath(), [
+      JSON.stringify(startSessionResponse),
+      this.#region,
+      'StartSession',
+      '',
+      JSON.stringify(startSessionCommandInput)
+    ]);
+    // Execa failures contain argv, including the SSM token. Never propagate that error or retain it as a cause.
+    this.#tunnelExited = this.#tunnelProcess.then(
+      () => undefined,
+      () => undefined
+    );
 
-      // automatically send reject after 10 seconds
-      // if the Promise was already resolved, this will do nothing
-      // otherwise this helps for process not to keep hanging
-      // it is up to caller of this function to actually kill the process (if it is not dead already)
+    await new Promise<void>((resolve, reject) => {
+      const lines = readline.createInterface({ input: this.#tunnelProcess.stdout, crlfDelay: Infinity });
       const timeout = setTimeout(() => {
-        // if (this.#tunnelProcess.exitCode) {
-        //   console.log('exit code', this.#tunnelProcess.exitCode);
-        //   console.log('stderr', this.#tunnelProcess.);
-        // }
-        finishReject(new Error(`Opening tunnel connection to ${this.#remoteHost}:${this.#remotePort} timed out.`));
+        lines.close();
+        reject(
+          new CliError({
+            category: 'AWS',
+            code: 'SSM_TUNNEL_START_TIMEOUT',
+            message: `Opening tunnel connection to ${this.#remoteHost}:${this.#remotePort} timed out.`,
+            hints: 'Check the bastion connection and retry the command.'
+          })
+        );
       }, 10000);
+      lines.on('line', (line) => {
+        if (line.includes('Waiting for connections')) {
+          clearTimeout(timeout);
+          lines.close();
+          resolve();
+        }
+      });
+      void this.#tunnelExited.then(() => {
+        clearTimeout(timeout);
+        lines.close();
+        reject(
+          new CliError({
+            category: 'AWS',
+            code: 'SSM_TUNNEL_START_FAILED',
+            message: `The SSM tunnel to ${this.#remoteHost}:${this.#remotePort} closed before it was ready.`,
+            hints: 'Check the bastion connection and retry the command.'
+          })
+        );
+      });
     });
+    return true;
+  };
+
+  /** Settles on any plugin exit, including a successful exit after the server closes an idle session. */
+  waitForExit = async () => {
+    await this.#tunnelExited;
   };
 
   kill = async () => {
-    if (this.#tunnelProcess?.nodeChildProcess.exitCode === null) {
-      this.#tunnelProcess.kill();
-      await wait(2000);
-      if (this.#tunnelProcess.nodeChildProcess.exitCode === null) {
-        this.#tunnelProcess.kill('SIGKILL');
+    this.#killPromise ??= (async () => {
+      if (this.#tunnelProcess?.nodeChildProcess.exitCode === null) {
+        this.#tunnelProcess.kill();
+        await Promise.race([this.#tunnelExited, wait(2000)]);
+        if (this.#tunnelProcess.nodeChildProcess.exitCode === null) this.#tunnelProcess.kill('SIGKILL');
+        await this.#tunnelExited;
       }
-      await awsSdkManager.systemsManager.terminateSession({ sessionId: this.#ssmSessionId });
-    }
-    return true;
+      // Terminate the server session even if the plugin has already exited or could not start.
+      if (this.#ssmSessionId) {
+        await awsSdkManager.systemsManager.terminateSession({ sessionId: this.#ssmSessionId });
+        this.#ssmSessionId = undefined;
+      }
+      return true;
+    })();
+    return this.#killPromise;
   };
 }
 

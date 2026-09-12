@@ -1,9 +1,10 @@
 import type { ChildProcess } from 'node:child_process';
-import { execSync, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { isAbsolute, join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { serialize } from '@utils/misc';
 import { createCleanupHook } from './cleanup-utils';
+import { terminateDevServerProcess } from './dev-server-process';
 import { DEV_CONFIG } from './dev-config';
 import { createFrameworkParser, detectFramework, type FrameworkType } from './framework-parsers';
 import { ensureNamedProxyRoute, removeNamedProxyRoute } from './named-proxy/manager';
@@ -115,27 +116,6 @@ const injectPackageScriptFlags = ({
   }
 };
 
-const waitForProcessExit = async (proc: ChildProcess, timeoutMs: number): Promise<boolean> => {
-  if (proc.exitCode !== null || proc.signalCode !== null) {
-    return true;
-  }
-
-  return new Promise<boolean>((resolve) => {
-    let done = false;
-    const finish = (exited: boolean) => {
-      if (done) return;
-      done = true;
-      clearTimeout(timer);
-      proc.removeListener('exit', onExit);
-      resolve(exited);
-    };
-    const onExit = () => finish(true);
-    const timer = setTimeout(() => finish(false), timeoutMs);
-
-    proc.once('exit', onExit);
-  });
-};
-
 /**
  * Formats the dev server state into a status message for display.
  */
@@ -162,78 +142,11 @@ export const formatDevServerStatus = (state: DevServerState): string => {
   }
 };
 
-/**
- * Stop a dev server by name.
- * Kills the process and its children, with fallback to force kill.
- */
+/** Stop a dev server and all package-manager/framework descendants. */
 export const stopDevServer = async (name: string): Promise<void> => {
   const proc = runningDevServers.get(name);
-  if (!proc) {
-    return;
-  }
-
-  const pid = proc.pid;
-
-  // Try graceful shutdown first
-  try {
-    proc.kill('SIGTERM');
-  } catch {
-    // Process may already be dead
-  }
-
-  const exitedGracefully = await waitForProcessExit(proc, 1200);
-
-  // If still running, force kill the process tree
-  if (!exitedGracefully && pid) {
-    try {
-      if (process.platform === 'win32') {
-        // Windows: kill process tree
-        execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore' });
-      } else {
-        // Unix: kill process group
-        process.kill(-pid, 'SIGKILL');
-      }
-    } catch {
-      // Process might already be dead
-    }
-
-    await waitForProcessExit(proc, 1200);
-  }
-
-  runningDevServers.delete(name);
-  runningDevServerFrameworks.delete(name);
-  removeNamedProxyRoute(name);
-};
-
-/**
- * Synchronous version for cleanup hooks where async isn't ideal.
- */
-export const stopDevServerSync = (name: string): void => {
-  const proc = runningDevServers.get(name);
-  if (!proc) {
-    return;
-  }
-
-  const pid = proc.pid;
-  try {
-    proc.kill('SIGTERM');
-  } catch {
-    // Process may already be dead
-  }
-
-  // Cleanup hook should be deterministic - always hard kill tree when we can.
-  if (pid) {
-    try {
-      if (process.platform === 'win32') {
-        execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore' });
-      } else {
-        process.kill(-pid, 'SIGKILL');
-      }
-    } catch {
-      // Process might already be dead
-    }
-  }
-
+  if (!proc) return;
+  await terminateDevServerProcess(proc);
   runningDevServers.delete(name);
   runningDevServerFrameworks.delete(name);
   removeNamedProxyRoute(name);
@@ -319,6 +232,8 @@ export const startDevServer = async ({
         env,
         stdio: ['ignore', 'pipe', 'pipe'],
         shell: true,
+        // Keep terminal Ctrl+C from killing the shell before cleanup can discover its watchers.
+        detached: process.platform !== 'win32',
         windowsHide: true
       });
 
@@ -457,7 +372,5 @@ export const isDevServerRunning = (name: string): boolean => {
  * Must be called explicitly when dev command starts.
  */
 export const registerDevServerCleanupHook = createCleanupHook('dev-server', async () => {
-  for (const [name] of runningDevServers) {
-    stopDevServerSync(name);
-  }
+  await Promise.all([...runningDevServers.keys()].map((name) => stopDevServer(name)));
 });

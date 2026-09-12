@@ -48,10 +48,11 @@ export const sanitizeGitRemoteUrl = (remoteUrl: string) => {
   }
 };
 
-export const getGitVariable = async (variable: SupportedGitVariable) => {
+export const getGitVariable = async (variable: SupportedGitVariable, cwd?: string) => {
+  const git = (command: string) => executeGit(command, { cwd });
   switch (variable) {
     case 'describe': {
-      const { stdout } = await executeGit('describe --always');
+      const { stdout } = await git('describe --always');
       return stdout;
     }
     // case 'describeLight': {
@@ -59,49 +60,48 @@ export const getGitVariable = async (variable: SupportedGitVariable) => {
     //   return stdout;
     // }
     case 'sha1': {
-      const { stdout } = await executeGit('rev-parse --short HEAD');
+      const { stdout } = await git('rev-parse --short HEAD');
       return stdout;
     }
     case 'commit': {
-      const { stdout } = await executeGit('rev-parse HEAD');
+      const { stdout } = await git('rev-parse HEAD');
       return stdout;
     }
     case 'branch': {
-      const { stdout } = await executeGit('rev-parse --abbrev-ref HEAD');
+      const { stdout } = await git('rev-parse --abbrev-ref HEAD');
       return stdout;
     }
     case 'message': {
-      const { stdout } = await executeGit('log -1 --pretty=%B');
+      const { stdout } = await git('log -1 --pretty=%B');
       return stdout;
     }
     case 'user': {
-      const { stdout } = await executeGit('config user.name');
+      const { stdout } = await git('config user.name');
       return stdout;
     }
     case 'email': {
-      const { stdout } = await executeGit('config user.email');
+      const { stdout } = await git('config user.email');
       return stdout;
     }
     case 'changes': {
-      const { stdout: writeTree } = await executeGit('write-tree');
-      const { stdout: changes } = await executeGit(`diff-index ${writeTree} --`);
+      const { stdout: changes } = await git('status --porcelain --untracked-files=normal');
       return changes;
     }
     case 'repository': {
-      const { stdout } = await executeGit('rev-parse --show-toplevel');
+      const { stdout } = await git('rev-parse --show-toplevel');
       return getBaseName(stdout);
     }
     case 'repositoryRoot': {
-      const { stdout } = await executeGit('rev-parse --show-toplevel');
+      const { stdout } = await git('rev-parse --show-toplevel');
       return stdout;
     }
     case 'tags': {
-      const { stdout } = await executeGit('tag --points-at HEAD');
+      const { stdout } = await git('tag --points-at HEAD');
       const value = stdout.split(os.EOL).join('::');
-      return value || (await executeGit('rev-parse --short HEAD')).stdout;
+      return value || (await git('rev-parse --short HEAD')).stdout;
     }
     case 'repositoryUrl': {
-      const { stdout } = await executeGit('config --get remote.origin.url');
+      const { stdout } = await git('config --get remote.origin.url');
       if (!stdout.startsWith('http')) {
         return sanitizeGitRemoteUrl(stdout);
       }

@@ -402,6 +402,7 @@ export type Ec2DeployFromCliResponse = {
 
 export type Ec2DeployStatusFromCliResponse = {
   id: string;
+  runnerCleanupPending: boolean;
   projectName?: string | null;
   inProgress?: boolean | null;
   success?: boolean | null;

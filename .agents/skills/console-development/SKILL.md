@@ -74,5 +74,8 @@ error, empty and large lists, search/pagination, stale tabs, disconnect/reconnec
 the browser network response and API logs when UI feedback is ambiguous; do not treat a toast alone as proof.
 
 For Git-provider work, read [references/git-provider-e2e.md](references/git-provider-e2e.md) before testing. Ask the
-user to perform provider approval or installation clicks when their signed-in browser session is required. Record only
-provider account/repository labels and observed behavior—never authorization codes, cookies, tokens, or secret values.
+user for provider sign-in, MFA or approval only when the authorized browser session or active tool requires it. First
+check [agent browser access](../../../apps/console/e2e/README.md#agent-browser-access): SSM-backed Playwright login is
+available for Console, including headed WSL mode; administration uses a separate Admin fixture. Console login does not
+authenticate external providers. Record only provider account/repository labels and observed behavior—never
+authorization codes, cookies, tokens, or secret values.

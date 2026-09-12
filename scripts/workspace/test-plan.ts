@@ -104,6 +104,16 @@ const RULES: Rule[] = [
     matches: (path) => path.startsWith('apps/console/ui/') || path.startsWith('packages/ui-react/')
   },
   {
+    id: 'bitbucket-forge-browser',
+    proves:
+      'The packaged Forge UI loads beneath a nested resource URL and handles pairing, retry and existing connections. Live Forge installation and pairing remain separate acceptance steps.',
+    commands: [
+      'pnpm --filter @stacktape/bitbucket-forge-app test:e2e',
+      'pnpm --filter @stacktape/bitbucket-forge-app typecheck'
+    ],
+    matches: (path) => path.startsWith('apps/console/bitbucket-forge/')
+  },
+  {
     id: 'console-browser-local-api',
     proves:
       'Authenticated projects navigation through the local API. Extend the browser scenario to cover the changed customer flow and its durable result.',

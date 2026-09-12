@@ -1,18 +1,19 @@
 import type { CleanupHookFunction } from '@application-services/application-manager/types';
-import type { InputLogEvent } from '@aws-sdk/client-cloudwatch-logs';
 import type { AwsSdkManager } from '../sdk-manager';
 import { Writable } from 'node:stream';
-import { chunkArray, chunkString, removeColoringFromString, wait } from '@utils/misc';
+import { chunkString, removeColoringFromString, wait } from '@utils/misc';
+
+type LogEvent = { message: string; timestamp: number };
 
 export class LogCollectorStream extends Writable {
   #awsSdkManager: AwsSdkManager;
-  #logEvents: InputLogEvent[] = [];
+  #logEvents: LogEvent[] = [];
   #sendInterval: NodeJS.Timeout | undefined;
   #logGroupName: string;
   #logStreamName: string;
   #logStreamExists = false;
   #logGroupExists = false;
-  #sendingInProgress = false;
+  #sendingInProgress: Promise<void> | undefined;
 
   constructor() {
     super({
@@ -45,7 +46,7 @@ export class LogCollectorStream extends Writable {
     }, 3000);
   };
 
-  #serializeChunk = (chunk: any, encoding: BufferEncoding): string => {
+  #serializeChunk = (chunk: unknown, encoding: BufferEncoding): string => {
     if (typeof chunk === 'string') {
       return chunk;
     }
@@ -65,14 +66,20 @@ export class LogCollectorStream extends Writable {
     return String(chunk);
   };
 
-  #sendLogs = async () => {
+  #sendLogs = (): Promise<void> => {
     if (!this.#awsSdkManager.isInitialized) {
-      return;
+      return Promise.resolve();
     }
     if (this.#sendingInProgress) {
-      return;
+      return this.#sendingInProgress;
     }
-    this.#sendingInProgress = true;
+    this.#sendingInProgress = this.#flushLogs().finally(() => {
+      this.#sendingInProgress = undefined;
+    });
+    return this.#sendingInProgress;
+  };
+
+  #flushLogs = async () => {
     if (!this.#logGroupExists) {
       let logGroup = await this.#awsSdkManager.observability.getLogGroup({ logGroupName: this.#logGroupName });
       if (!logGroup) {
@@ -95,23 +102,32 @@ export class LogCollectorStream extends Writable {
       this.#logStreamExists = true;
     }
 
-    const eventsToSend: InputLogEvent[] = this.#logEvents.splice(0); // .reverse();
-    if (eventsToSend.length) {
-      try {
-        for (const chunk of chunkArray(eventsToSend, 10000)) {
-          await this.#awsSdkManager.observability.putLogEvents({
-            logGroupName: this.#logGroupName,
-            logStreamName: this.#logStreamName,
-            logEvents: chunk
-          });
+    // Wall-clock corrections can reorder timestamps even when writes are serialized.
+    const eventsToSend = this.#logEvents.splice(0).sort((left, right) => left.timestamp - right.timestamp);
+    let sent = 0;
+    try {
+      while (sent < eventsToSend.length) {
+        let end = sent;
+        let bytes = 0;
+        // CloudWatch limits bytes (UTF-8 plus 26/event), count and timestamp span independently.
+        while (end < eventsToSend.length && end - sent < 10_000) {
+          const event = eventsToSend[end];
+          const eventBytes = Buffer.byteLength(event.message, 'utf8') + 26;
+          if (bytes + eventBytes > 1_048_576 || event.timestamp - eventsToSend[sent].timestamp > 86_400_000) break;
+          bytes += eventBytes;
+          end++;
         }
-      } catch (err) {
-        this.#logEvents = eventsToSend.concat(this.#logEvents);
-        this.#sendingInProgress = false;
-        throw err;
+        await this.#awsSdkManager.observability.putLogEvents({
+          logGroupName: this.#logGroupName,
+          logStreamName: this.#logStreamName,
+          logEvents: eventsToSend.slice(sent, end)
+        });
+        sent = end;
       }
+    } catch (err) {
+      this.#logEvents = eventsToSend.slice(sent).concat(this.#logEvents);
+      throw err;
     }
-    this.#sendingInProgress = false;
   };
 
   makeFinalSend: CleanupHookFunction = async () => {
@@ -119,11 +135,8 @@ export class LogCollectorStream extends Writable {
       clearInterval(this.#sendInterval);
       this.#sendInterval = undefined;
     }
-    await wait(1000);
+    // An interval flush may still be running. Wait for it, then include writes that arrived during that request.
+    await this.#sendingInProgress?.catch(() => {});
     return this.#sendLogs();
   };
-
-  //   pushLog = ({ logMessage }: { logMessage: string }) => {
-  //     this.#logEvents.push({ message: logMessage, timestamp: Date.now() });
-  //   };
 }

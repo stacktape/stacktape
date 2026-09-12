@@ -1,0 +1,124 @@
+---
+import Shell from '../../designs/Shell.astro';
+import Command from '../../designs/Command.astro';
+import Screen from '../../designs/Screen.astro';
+import Quotes from '../../designs/Quotes.astro';
+import Closing from '../../designs/Closing.astro';
+import '../../designs/fieldnotes.css';
+---
+<Shell title="Fieldnotes · Your app, in good hands" theme="fieldnotes" number={3}>
+  <main id="main">
+    <section class="field-hero wrap">
+      <div class="field-masthead"><p>AWS DevOps, fully automated.</p><span>Built for the team you have.</span></div>
+      <h1>Your code deserves<br />a whole <em>DevOps team.</em></h1>
+      <div class="field-intro">
+        <p>
+          Stacktape designs, deploys, and operates your application in your own AWS account. The work of a senior DevOps
+          team, built into the way your developers already work.
+        </p><Command />
+      </div>
+      <div class="field-trust">
+        <span>Open-source CLI (MIT)</span><span>Extend with any AWS resource</span><span>Eject anytime</span>
+      </div>
+    </section>
+    <div class="field-story wrap" id="product">
+      <section class="field-chapter field-design" aria-labelledby="field-design-title">
+        <div class="field-chapter-head">
+          <p class="field-label">Design infrastructure</p>
+          <h2 id="field-design-title">Start with your app.<br />The architecture follows.</h2>
+          <p>
+            Run Stacktape in your repository. It identifies what your app needs, writes the configuration, and shows you
+            how everything fits together. You review the decisions before deploying.
+          </p>
+        </div>
+        <Screen kind="design" />
+        <div class="field-caption">
+          <span>Generated configuration ↔ architecture</span><p>
+            Private networking, scoped permissions, and sensible defaults.<br /><b>A complete starting point. Still
+              completely yours.</b>
+          </p>
+        </div>
+      </section>
+      <section class="field-chapter field-deploy" aria-labelledby="field-deploy-title">
+        <div class="field-chapter-head">
+          <p class="field-label">Deploy it</p>
+          <h2 id="field-deploy-title">You push code.<br />Your users get the update.</h2>
+          <p>
+            Stacktape builds your containers and functions, creates the infrastructure, and handles the release. Updates
+            roll out without downtime; pull requests get their own preview environments.
+          </p>
+        </div>
+        <div class="field-delivery">
+          <div class="field-git">
+            <span class="field-small">YOUR WORKFLOW</span><strong>git push</strong><div
+              class="git-lines"
+              aria-hidden="true"
+            >
+              <i></i><i></i><i></i>
+            </div>
+            <p>Same repository.<br />Same pull requests.<br />A lot less infrastructure work.</p>
+          </div><Screen kind="deploy" />
+        </div>
+        <div class="field-caption">
+          <span>Deployed in your AWS account</span><p>
+            You own the resources.<br /><b>Roll back a release when you need to.</b>
+          </p>
+        </div>
+      </section>
+      <section class="field-operations" aria-labelledby="field-operations-title">
+        <div class="field-section-title">
+          <p class="field-label">Operate it</p>
+          <h2 id="field-operations-title">Going live is<br />just the beginning.</h2>
+          <p>
+            The same platform that understands your app’s infrastructure<br />helps you understand what happens in
+            production.
+          </p>
+        </div>
+        <div class="field-pair">
+          <article>
+            <p class="field-small">OBSERVABILITY</p>
+            <h3>See what your<br />users experience.</h3>
+            <p>
+              Logs, metrics, traces, and uptime checks are connected from the first deploy. Follow a request across
+              services and find what slowed it down.
+            </p><Screen kind="observe" compact />
+          </article>
+          <article>
+            <p class="field-small">INCIDENT RESPONSE</p>
+            <h3>Fix the cause.<br />Verify the recovery.</h3>
+            <p>
+              Get the error, the release, and the evidence together. Your coding agent investigates; you review its fix.
+              Automatic remediation stays opt-in.
+            </p><Screen kind="incident" compact />
+          </article>
+        </div>
+      </section>
+      <section class="field-protection" aria-labelledby="field-protection-title">
+        <div class="field-section-title">
+          <p class="field-label">Protect it</p>
+          <h2 id="field-protection-title">Good for your app.<br />Good for your business.</h2>
+        </div>
+        <div class="field-pair">
+          <article>
+            <p class="field-small">SECURITY</p>
+            <h3>Make safe the default.</h3>
+            <p>
+              Keep databases private, permissions scoped, and secrets managed. Enforce your team’s rules before a
+              change reaches production.
+            </p><Screen kind="security" compact />
+          </article>
+          <article>
+            <p class="field-small">COST CONTROL</p>
+            <h3>Keep the bill in view.</h3>
+            <p>
+              Understand spend by service and environment. Choose a budget and get a warning before you reach it. AWS
+              bills you directly.
+            </p><Screen kind="cost" compact />
+          </article>
+        </div>
+      </section>
+    </div>
+    <Quotes />
+    <Closing title="A small team can build a big thing." />
+  </main>
+</Shell>
