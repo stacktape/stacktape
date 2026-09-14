@@ -94,9 +94,6 @@ printf '%s' "$reviewRequest" | claude -p --model claude-fable-5-1 --effort max -
 # Grok: 4.6 / xhigh (its highest supported effort)
 grok -p "$reviewRequest" --model grok-4.6 --reasoning-effort xhigh --agent explore --permission-mode plan --sandbox read-only --cwd "$PWD" --output-format plain --no-memory --no-subagents
 
-# Antigravity: Gemini 3.8 Flash / high (agy's highest supported effort)
-agy -p "$reviewRequest" --model gemini-3.8-flash-high --effort high --mode plan --sandbox --output-format text --print-timeout 15m
-
 # DeepSeek Harness: V4.1 Flash / max (the patch pins deepseek-flash)
 DSH_PERMISSION_MODE=read-only dsh --profile headless --patch .agents/prompts/external-review.dsh.yml "$reviewRequest"
 
@@ -105,7 +102,6 @@ printf '%s' "$reviewRequest" | glm
 ```
 
 Provider references: [Fable 5.1](https://platform.claude.com/docs/en/models/fable-5-1/overview),
-[Antigravity model identifiers and effort](https://www.antigravity.google/docs/cli/headless/),
 [DeepSeek V4.1 Flash release](https://deepseek.com/news/deepseek-v4-1-flash/). The DeepSeek release introduces
 `deepseek-flash` and documents temporary routing of the older `deepseek-v4-flash` identifier to V4.1 Flash. “Flash 4.1”
 here means DeepSeek, not Gemini. GPT-6 Astra and `ultra` were verified against the installed Codex model catalog; Grok
