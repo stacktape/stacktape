@@ -232,6 +232,10 @@ user, environment and exit status: an inaccessible SSM working directory can fai
 CLI. Fix the harness and rerun the assertion; do not weaken the intended success condition or change production code to
 accommodate a test mistake.
 
+When probing several workload users, give each user its own writable working directory. Changing `HOME` alone does not
+change the current directory, and one user's CLI state can prevent another user's probe from starting. Use the final
+runtime executable path, which can differ from the package install directory removed while building the image.
+
 Record the first useful error and the operation identity without dumping credentials, callback query strings,
 authenticated SDK request objects or private artifact download URLs. Reuse existing helpers where possible. A short
 ad-hoc probe is useful for diagnosis; recurring acceptance checks belong in the existing scenario runner with its

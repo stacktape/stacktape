@@ -24,6 +24,7 @@ import { logInfo, logSuccess } from '@scripts/support/logging';
 import { createCliPackagingError } from '@domain-services/packaging-manager/errors';
 import { localBuildTsConfigPath } from '@utils/misc';
 import { createStacktapeOpenTuiBuildPlugin } from '@scripts/support/opentui-loader';
+import { createCloudFormationSpecBuildPlugin } from '@scripts/support/cloudformation-spec-loader';
 import { archiveItem, extractTgzArchive } from '@utils/zip';
 import {
   chmod,
@@ -289,7 +290,7 @@ export const buildBinaryFile = async ({
     // Production executables do not ship their >70 MB source map. Minify syntax and whitespace while retaining
     // identifiers so PostHog exception grouping and stack traces still contain useful function/class names.
     minify: debug ? false : { whitespace: true, syntax: true, identifiers: false },
-    plugins: [openTuiBuildPlugin],
+    plugins: [openTuiBuildPlugin, createCloudFormationSpecBuildPlugin()],
     tsconfig: localBuildTsConfigPath,
     define: { STACKTAPE_VERSION: JSON.stringify(version || 'dev') },
     throw: false
