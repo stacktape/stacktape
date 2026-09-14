@@ -1,0 +1,50 @@
+---
+/** 06 — cost per resource from the AWS bill, and the budget the visitor set once. */
+import Cursor from '../Cursor.astro';
+import { BUDGET, COST_TOTAL, COSTS, PROJECT } from '../data';
+
+const largest = Math.max(...COSTS.map((cost) => cost.amount));
+const money = (amount: number) => `$${amount.toFixed(2)}`;
+const used = (COST_TOTAL / BUDGET.limit) * 100;
+---
+
+<div class="sg-cost__head">
+  <p class="sg-strip__label">Cost by resource · month to date</p>
+  <p class="sg-cost__total">{money(COST_TOTAL)}</p>
+</div>
+<ul class="sg-bars" aria-label="Cost per resource">
+  {
+    COSTS.map((cost) => (
+      <li class="sg-bar">
+        <span class="sg-bar__name">{cost.name}</span>
+        <span class="sg-bar__lane">
+          <span class="sg-bar__fill" style={`width: ${((cost.amount / largest) * 100).toFixed(1)}%`} />
+        </span>
+        <span class="sg-bar__amount">{money(cost.amount)}</span>
+      </li>
+    ))
+  }
+</ul>
+
+<div class="sg-budget">
+  <div class="sg-budget__head">
+    <p class="sg-strip__label">Budget</p>
+    <span class="sg-press sg-press--field">
+      <span class="sg-budget__limit"><b>{money(BUDGET.limit)}</b> / month</span>
+      <Cursor />
+    </span>
+  </div>
+  <div
+    class="sg-budget__lane"
+    role="img"
+    aria-label={`${money(COST_TOTAL)} of ${money(BUDGET.limit)} used; alert at ${BUDGET.alertAt}%`}
+  >
+    <span class="sg-budget__fill" style={`width: ${used.toFixed(1)}%`}></span>
+    <span class="sg-budget__mark" style={`left: ${BUDGET.alertAt}%`}></span>
+  </div>
+  <p class="sg-budget__legend">
+    <span><b>{used.toFixed(0)} %</b> used</span>
+    <span>alert at <b>{BUDGET.alertAt} %</b> ({money((BUDGET.limit * BUDGET.alertAt) / 100)})</span>
+  </p>
+  <p class="sg-cost__billed">Billed by AWS to account <span class="sg-mono">{PROJECT.account}</span>.</p>
+</div>

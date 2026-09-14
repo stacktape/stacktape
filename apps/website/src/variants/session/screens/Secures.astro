@@ -1,0 +1,39 @@
+---
+/** 05 — the organization's guardrails: four rules that are on, and a deploy one of them stopped. */
+import { GUARDRAILS, URLS } from '../data';
+import { PreviewButton, RuleSwitch } from '../ui';
+import Window from '../Window.astro';
+---
+
+<Window kind="browser" host={URLS.guardrails.host} path={URLS.guardrails.path}>
+  <div class="ss-scr__head">
+    <h3 class="ss-scr__h">{GUARDRAILS.heading}</h3>
+    <p class="ss-scr__line">{GUARDRAILS.line}</p>
+  </div>
+
+  <ul class="ss-rules" aria-label="Rules">
+    {
+      GUARDRAILS.rules.map((rule) => (
+        <li class="ss-rule">
+          <RuleSwitch label={rule} />
+          <span class="ss-rule__name">{rule}</span>
+        </li>
+      ))
+    }
+  </ul>
+
+  <div class="ss-blocked">
+    <span class="ss-blocked__mark" aria-hidden="true">
+      <svg viewBox="0 0 16 16" width="14" height="14" fill="none">
+        <circle cx="8" cy="8" r="6.25" stroke="currentColor" stroke-width="1.5" />
+        <path d="M5.5 8h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+      </svg>
+    </span>
+    <p class="ss-blocked__text">
+      <b>{GUARDRAILS.blocked.text}</b>
+      <span class="ss-blocked__sep" aria-hidden="true">·</span>
+      <span class="ss-mono">{GUARDRAILS.blocked.resource}</span> {GUARDRAILS.blocked.detail}
+    </p>
+    <PreviewButton variant="secondary" small>{GUARDRAILS.blocked.button}</PreviewButton>
+  </div>
+</Window>

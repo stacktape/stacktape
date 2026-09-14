@@ -1,0 +1,55 @@
+---
+import Frame from '../Frame.astro';
+import { SECURITY } from '../data';
+
+const circumference = 2 * Math.PI * 24;
+const ratio = SECURITY.posture.passing / SECURITY.posture.total;
+const action = { posture: 'Fix in config', vulnerability: 'View PR', secret: 'Convert to $Secret' } as Record<string, string>;
+---
+
+<Frame title="console.stacktape.com · Security / Posture" tag="example project · v4">
+  <div class="pl-sec">
+    <ul class="pl-sec__tabs" aria-label="Security tabs">
+      <li>Overview</li>
+      <li>Vulnerabilities</li>
+      <li class="pl-con__active">Posture</li>
+    </ul>
+    <div class="pl-posture">
+      <svg class="pl-posture__ring" viewBox="0 0 56 56" aria-hidden="true">
+        <circle class="pl-posture__track" cx="28" cy="28" r="24"></circle>
+        <circle
+          class="pl-posture__value"
+          cx="28"
+          cy="28"
+          r="24"
+          stroke-dasharray={`${(ratio * circumference).toFixed(1)} ${circumference.toFixed(1)}`}></circle>
+      </svg>
+      <div>
+        <div class="pl-posture__num">
+          {SECURITY.posture.passing} of {SECURITY.posture.total} checks passing
+          <small>· SBOM per deploy · re-graded nightly</small>
+        </div>
+        <div class="pl-station__text" style="font-size: 0.78rem;">
+          Checked against the same catalogue guardrails enforce.
+        </div>
+      </div>
+    </div>
+    <ul class="pl-findings" aria-label="Findings">
+      {
+        SECURITY.findings.map((finding) => (
+          <li class="pl-finding-row">
+            <span class="pl-finding-row__text">{finding.text}</span>
+            <span class="pl-finding-row__rule">{finding.rule}</span>
+            <span class="pl-fake-btn pl-fake-btn--ghost pl-fake-btn--small">{action[finding.kind]}</span>
+          </li>
+        ))
+      }
+    </ul>
+    <div>
+      <h5 class="pl-subhead">Guardrails on · block a non-compliant deployment before anything changes</h5>
+      <ul class="pl-chips">
+        {SECURITY.guardrails.map((rule) => <li class="pl-chip">{rule}</li>)}
+      </ul>
+    </div>
+  </div>
+</Frame>

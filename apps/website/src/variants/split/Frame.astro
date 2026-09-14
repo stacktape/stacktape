@@ -1,0 +1,15 @@
+---
+/** Console / wizard window chrome. `url` may contain <b> for the highlighted segment. */
+type Props = { url: string; tag?: string; class?: string };
+
+const { url, tag = 'example project', class: className } = Astro.props;
+---
+
+<div class={['sp-frame', className].filter(Boolean).join(' ')}>
+  <div class="sp-frame__bar">
+    <span class="sp-frame__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+    <span class="sp-frame__url" set:html={url} />
+    <span class="sp-tag">{tag}</span>
+  </div>
+  <slot />
+</div>

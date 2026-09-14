@@ -1,0 +1,43 @@
+---
+import Check from '../Check.astro';
+import Frame from '../Frame.astro';
+import ConsoleNav from './ConsoleNav.astro';
+---
+
+<Frame url="<b>console.stacktape.com</b> / acme-project / incidents / inc_8f2k">
+  <div class="sp-console">
+    <ConsoleNav active="Observability/Incidents" />
+    <div class="sp-console__main">
+      <p class="sp-crumb">Incidents · <b>inc_8f2k</b> · production</p>
+      <div class="sp-inc__head">
+        <span class="sp-sev sp-sev--error">Error</span>
+        <span class="sp-sev sp-sev--open">Open</span>
+        <span class="sp-inc__id">inc_8f2k · production · opened 18:05</span>
+      </div>
+      <h3 class="sp-h">apiService is failing on https://api.acme.com</h3>
+      <p class="sp-p" style="margin-bottom:12px">Two signals opened this incident within the same minute.</p>
+      <ul class="sp-signals" aria-label="Signals">
+        <li>
+          <Check kind="err" label="failing" />
+          <span>
+            <span class="sp-signals__t">Uptime check down</span>
+            <span class="sp-signals__d">https://api.acme.com/health · 3 of 3 regions · Ireland, Virginia, Singapore</span>
+          </span>
+        </li>
+        <li>
+          <Check kind="err" label="failing" />
+          <span>
+            <span class="sp-signals__t">Application error</span>
+            <span class="sp-signals__d">PrismaClientKnownRequestError: column "fulfillment_status" does not exist · apiService · 214 occurrences</span>
+          </span>
+        </li>
+      </ul>
+      <hr class="sp-hr" />
+      <div class="sp-inc__head" style="margin:0">
+        <span class="sp-wbtn sp-wbtn--ghost sp-wbtn--sm">Acknowledge</span>
+        <span class="sp-wbtn sp-wbtn--ghost sp-wbtn--sm">Copy details for agent</span>
+        <span class="sp-chip" style="margin-left:auto"><i aria-hidden="true"></i>sent to #ops on Slack · 18:05</span>
+      </div>
+    </div>
+  </div>
+</Frame>

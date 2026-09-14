@@ -1,0 +1,47 @@
+---
+/**
+ * The generated file, with provenance: every block names the repository file it was derived from, or
+ * is marked as a decision the wizard made. This is the hero's proof that nobody typed the config.
+ * `compact` renders the phone-sized excerpt that sits under the CTA.
+ */
+import { CONFIG_EXCERPT, CONFIG_EXCERPT_COMPACT, CONFIG_EXCERPT_REST, CONFIG_LINE_COUNT, DECISIONS } from './data';
+
+type Props = { compact?: boolean };
+
+const { compact = false } = Astro.props;
+const lines = compact ? CONFIG_EXCERPT_COMPACT : CONFIG_EXCERPT;
+
+const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+const colorize = (text: string) => {
+  const match = text.match(/^(\s*)([\w-]+):(.*)$/);
+  if (!match) return `<span class="v">${escape(text)}</span>`;
+  const [, indent, key, rest] = match;
+  const value = escape(rest ?? '').replace(/([\w-]+):(?=\s)/g, '<span class="k">$1:</span>');
+  return `${indent}<span class="k">${escape(key ?? '')}:</span><span class="v">${value}</span>`;
+};
+---
+
+<div class={compact ? 'sp-gen sp-gen--compact' : 'sp-gen'}>
+  <div class="sp-gen__bar">
+    <span class="sp-gen__tab"><i aria-hidden="true"></i>stacktape.yml</span>
+    <span class="sp-gen__meta"><b>written by Stacktape</b> · {CONFIG_LINE_COUNT} lines · 0 typed by you</span>
+  </div>
+  <div class="sp-gen__code" role="figure" aria-label="An excerpt of the generated stacktape.yml, annotated with the repository file each part was derived from">
+    {
+      lines.map((line, index) => (
+        <div class="sp-gen__line" style={`--i:${index}`}>
+          <span class="sp-gen__text" set:html={colorize(line.text)} />
+          {line.from && <span class="sp-gen__from">from {line.from}</span>}
+          {line.decided && <span class="sp-gen__from sp-gen__from--decided">decided for you</span>}
+        </div>
+      ))
+    }
+  </div>
+  <div class="sp-gen__foot">
+    <span>
+      <b>Lines 1–{lines.length} of {CONFIG_LINE_COUNT}</b> · {CONFIG_EXCERPT_REST}
+    </span>
+    {!compact && <span><b>{DECISIONS.length} decisions</b> shown before anything exists</span>}
+  </div>
+</div>

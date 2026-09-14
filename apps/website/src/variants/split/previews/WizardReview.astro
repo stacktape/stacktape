@@ -1,0 +1,81 @@
+---
+import { ACME_CONFIG, CONFIG_LINE_COUNT, DECISIONS, RESOURCES } from '../data';
+import Check from '../Check.astro';
+import DiagramIsland from '../DiagramIsland';
+import Frame from '../Frame.astro';
+
+const shortName: Record<string, string> = {
+  compute: 'CMP',
+  database: 'DB',
+  security: 'SEC',
+  network: 'NET'
+};
+---
+
+<Frame url="<b>localhost</b> · stacktape init">
+  <div class="sp-frame__body">
+    <ol class="sp-rail" aria-label="Wizard steps">
+      <li class="is-done">Start</li>
+      <li class="is-done">Analyze</li>
+      <li class="is-on">Review</li>
+      <li>Deploy</li>
+    </ol>
+    <h3 class="sp-h sp-h--lg">Here's your app on AWS</h3>
+    <p class="sp-p">A Next.js app with a background worker, using a Postgres database and a Redis cache.</p>
+
+    <div class="sp-diagram" style="margin-top:14px">
+      <div class="sp-diagram__fallback" aria-hidden="true">architecture diagram</div>
+      <DiagramIsland client:only="react" config={ACME_CONFIG} />
+    </div>
+
+    <div class="sp-two" style="margin-top:14px">
+      <div>
+        <p class="sp-kicker">Decided for you</p>
+        <ul class="sp-decided">
+          {
+            DECISIONS.map((decision) => (
+              <li>
+                <Check />
+                <span>
+                  <span class="sp-decided__s" set:html={decision.statement.replace(/`([^`]+)`/g, '<code>$1</code>')} />
+                  <span class="sp-decided__d">{decision.detail}</span>
+                </span>
+                <span class="sp-wbtn sp-wbtn--ghost sp-wbtn--sm">Change</span>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+      <div class="sp-hide-phone">
+        <p class="sp-kicker">Resources · 14 on AWS, 6 you named</p>
+        <ul class="sp-list">
+          {
+            RESOURCES.map((resource) => (
+              <li>
+                <span class={`sp-ric sp-ric--${resource.category}`} aria-hidden="true">
+                  {shortName[resource.category]}
+                </span>
+                <span class="sp-list__main">
+                  <span class="sp-list__name">
+                    {resource.name} <span style="font-weight:400;color:var(--sp-cool-faint)">· {resource.label}</span>
+                  </span>
+                  <span class="sp-list__sub">{resource.detail}</span>
+                </span>
+              </li>
+            ))
+          }
+        </ul>
+        <p class="sp-kicker" style="margin-top:14px">The file it will write</p>
+        <p class="sp-p">
+          <code>stacktape.yml</code> · {CONFIG_LINE_COUNT} lines, excerpted at the top of this page. Edit it any time; it stays yours.
+        </p>
+      </div>
+    </div>
+
+    <div class="sp-estimate" style="margin-top:16px" aria-label="Estimate">
+      <span><span class="sp-estimate__n">14</span> <span class="sp-estimate__l">AWS resources</span></span>
+      <span><span class="sp-estimate__n">~$112</span> <span class="sp-estimate__l">per month · standard size</span></span>
+      <span class="sp-wbtn">Ready to deploy</span>
+    </div>
+  </div>
+</Frame>

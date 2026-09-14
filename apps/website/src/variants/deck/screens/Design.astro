@@ -1,0 +1,71 @@
+---
+/**
+ * 01 — the wizard's Review step: the file and the picture side by side, the three decisions the
+ * wizard made, and the estimate before anything exists. The pointer rests on Deploy.
+ */
+import Cursor from '../Cursor.astro';
+import { ACME_CONFIG, ACME_YAML, DECIDED, ESTIMATE, highlightYaml, READ_LINE } from '../data';
+import DiagramIsland from '../DiagramIsland';
+import Screen from '../Screen.astro';
+import { PreviewButton } from '../ui';
+
+const file = highlightYaml(ACME_YAML);
+const DIAGRAM_LABEL =
+  'Architecture diagram of acme-project: web and apiService are public behind the firewall; worker, cache and mainDatabase sit inside the private network';
+---
+
+<Screen kind="wizard" current="Review" class="dk-screen--review">
+  <div class="dk-rv__head">
+    <h3 class="dk-screen__h">Here's your app on AWS</h3>
+    <p class="dk-screen__sub">{READ_LINE}</p>
+  </div>
+
+  <div class="dk-rv__focal">
+    <div class="dk-file">
+      <div class="dk-file__tab">
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" aria-hidden="true">
+          <path d="M4 1.5h5.5L13 5v9.5H4z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"></path>
+          <path d="M9.5 1.5V5H13" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"></path>
+        </svg>
+        <span>stacktape.yml</span>
+        <span class="dk-file__lines">{file.lineCount} lines</span>
+      </div>
+      <pre class="dk-file__code"><code set:html={file.html} /></pre>
+    </div>
+    <div class="dk-rv__picture">
+      <DiagramIsland client:only="react" config={ACME_CONFIG} ariaLabel={DIAGRAM_LABEL} />
+    </div>
+  </div>
+
+  <div class="dk-decided">
+    <p class="dk-screen__label">Decided for you</p>
+    <ul class="dk-decided__list">
+      {
+        DECIDED.map((item) => (
+          <li class="dk-decided__row">
+            <span class="dk-check" aria-hidden="true">
+              <svg viewBox="0 0 12 12" width="11" height="11" fill="none">
+                <path d="m2.5 6.3 2.3 2.3 4.7-5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </span>
+            <span class="dk-decided__text">
+              <span class="dk-decided__what">{item.what}</span>
+              <span class="dk-decided__why">{item.why}</span>
+            </span>
+            <PreviewButton variant="secondary" small>Change</PreviewButton>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+
+  <div class="dk-rv__foot">
+    <p class="dk-rv__estimate">
+      <b>{ESTIMATE.resources}</b> <span aria-hidden="true">·</span> <b>{ESTIMATE.monthly}</b>
+    </p>
+    <span class="dk-press">
+      <PreviewButton variant="primary" icon="arrow" iconPosition="end">Deploy</PreviewButton>
+      <Cursor />
+    </span>
+  </div>
+</Screen>

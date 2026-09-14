@@ -1,0 +1,47 @@
+---
+/**
+ * 01 — the wizard's review page: the six resources it found, why, and their price on the left;
+ * the architecture on the right; the estimate and Deploy underneath. Five elements.
+ */
+import { ACME_CONFIG, money, RESOURCES, REVIEW, URLS } from '../data';
+import DiagramIsland from '../DiagramIsland';
+import { PreviewButton } from '../ui';
+import Window from '../Window.astro';
+
+const DIAGRAM_LABEL =
+  'Architecture diagram of acme-project: web and apiService are public behind the firewall; worker, cache and mainDatabase sit inside the private network';
+---
+
+<Window kind="browser" url={URLS.wizard} lock={false} class="ls-win--review">
+  <div class="ls-scr__head">
+    <p class="ls-scr__h">{REVIEW.heading}</p>
+    <p class="ls-scr__sub">{REVIEW.line}</p>
+  </div>
+
+  <div class="ls-rv">
+    <ul class="ls-res" aria-label="Resources">
+      {
+        RESOURCES.map((resource) => (
+          <li class={`ls-res__row ls-res__row--${resource.category}`}>
+            <span class="ls-res__name">{resource.name}</span>
+            <span class="ls-res__price">{money(resource.price)}</span>
+            <span class="ls-res__meta">
+              <span class="ls-res__type">{resource.type}</span>
+              <span class="ls-res__because">{resource.because}</span>
+            </span>
+          </li>
+        ))
+      }
+    </ul>
+    <div class="ls-rv__picture">
+      <DiagramIsland client:only="react" config={ACME_CONFIG} ariaLabel={DIAGRAM_LABEL} />
+    </div>
+  </div>
+
+  <div class="ls-rv__foot">
+    <p class="ls-rv__estimate">
+      <b>{REVIEW.estimate.resources}</b> <span class="ls-sep" aria-hidden="true">·</span> <b>{REVIEW.estimate.monthly}</b>
+    </p>
+    <PreviewButton variant="primary" icon="arrow" iconPosition="end">{REVIEW.action}</PreviewButton>
+  </div>
+</Window>

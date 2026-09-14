@@ -161,6 +161,16 @@
       }
     },
     {
+      // Astro pages attach behaviour with `<script>import '../variants/x/client'</script>`: the module runs for
+      // its side effects, and `export {}` is how such a script declares itself a module so its top-level names
+      // stay out of the page's global scope. Both are the framework's own pattern, not an omission.
+      "files": ["apps/website/src/**"],
+      "rules": {
+        "import/no-unassigned-import": "off",
+        "unicorn/require-module-specifiers": "off"
+      }
+    },
+    {
       // The configuration diagram was moved here from Console with its behaviour pinned by the scene-model
       // and SVG-structure tests. These are the rules its imported implementation trips: dynamic traversal of
       // the configuration model, in-place sorts inside layout passes whose results other passes hold

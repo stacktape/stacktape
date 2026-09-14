@@ -1,0 +1,76 @@
+---
+/** 03 — three metric tiles with sparklines, the trace waterfall for one request, one uptime line. */
+import { METRICS, PROJECT, TRACE, UPTIME } from '../data';
+import Window from '../Window.astro';
+
+const sparkline = (points: readonly number[]) => {
+  const max = Math.max(...points);
+  const min = Math.min(...points);
+  const range = Math.max(1, max - min);
+  return points.map((point, index) => {
+    const x = (index / (points.length - 1)) * 100;
+    const y = 30 - ((point - min) / range) * 24;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+};
+
+const pct = (value: number) => `${((value / TRACE.total) * 100).toFixed(2)}%`;
+---
+
+<Window title={`<b>${PROJECT.name}</b> · production`}>
+  <span class="ky-chip ky-win__aside" slot="bar">{UPTIME.alerts}</span>
+
+  <div class="ky-tiles">
+    {
+      METRICS.map((metric) => {
+        const line = sparkline(metric.points);
+        return (
+          <div class="ky-tile">
+            <p class="ky-tile__label">{metric.label}</p>
+            <p class="ky-tile__value">
+              {metric.value}
+              <span class="ky-tile__unit">{metric.unit}</span>
+            </p>
+            <svg class="ky-spark" viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true">
+              <polygon points={`0,32 ${line.join(' ')} 100,32`} class="ky-spark__area" />
+              <polyline points={line.join(' ')} fill="none" stroke="currentColor" stroke-width="1.6" vector-effect="non-scaling-stroke" />
+            </svg>
+          </div>
+        );
+      })
+    }
+  </div>
+
+  <div class="ky-trace">
+    <div class="ky-panel__head">
+      <span class="ky-panel__title">Trace</span>
+      <span class="ky-panel__meta"><span class="ky-mono">{TRACE.name}</span> · {TRACE.total} ms</span>
+    </div>
+    <ol class="ky-trace__rows">
+      {
+        TRACE.spans.map((span) => (
+          <li class={`ky-trace__row ky-trace__row--${span.kind}`}>
+            <span class="ky-trace__name ky-mono">{span.name}</span>
+            <span class="ky-trace__lane">
+              <span class="ky-trace__bar" style={`left: ${pct(span.start)}; width: ${pct(span.duration)}`} />
+            </span>
+            <span class="ky-trace__ms ky-mono">{span.duration} ms</span>
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+
+  <p class="ky-uptime">
+    <span class="ky-mono ky-uptime__url">{UPTIME.url}</span>
+    <span class="ky-uptime__status"><i class="ky-dot ky-dot--live" aria-hidden="true"></i>{UPTIME.status}</span>
+    {
+      UPTIME.regions.map((check) => (
+        <span class="ky-uptime__region">
+          {check.region} <span class="ky-mono">{check.latency}</span>
+        </span>
+      ))
+    }
+    <span class="ky-uptime__total">{UPTIME.thirtyDay}</span>
+  </p>
+</Window>

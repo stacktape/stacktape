@@ -1,0 +1,23 @@
+---
+import Frame from '../Frame.astro';
+---
+
+<Frame url="<b>console.stacktape.com</b> / acme-project / incidents / automation" tag="extension · opt-in">
+  <div class="sp-frame__body">
+    <p class="sp-kicker">Automatic remediation</p>
+    <div class="sp-switchrow">
+      <span>
+        <span class="sp-switchrow__t">Let an agent apply verified fixes and deploy them</span>
+        <span class="sp-switchrow__d">Opt-in. Off by default. While it is off, the agent only proposes a pull request and you approve it.</span>
+      </span>
+      <span class="sp-switch" role="img" aria-label="Automatic remediation switch, off">
+        <span class="sp-switch__track" aria-hidden="true"></span>
+        <span aria-hidden="true">off</span>
+      </span>
+    </div>
+    <p class="sp-p" style="margin-top:12px;font-size:12.5px">
+      When on, a fix still has to pass verification against the signals that opened the incident, and it still goes through your pipeline and
+      guardrails. Nothing in this page deploys without a change you merged or a fix you approved.
+    </p>
+  </div>
+</Frame>

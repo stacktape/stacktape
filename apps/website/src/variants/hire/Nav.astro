@@ -1,0 +1,83 @@
+---
+/**
+ * The site nav on the page colour: ink wordmark, ink links, a 1px rule once the page has scrolled.
+ * Under 900px the links fold into a panel behind a menu button; the primary action stays visible.
+ */
+import { ButtonLink } from '@stacktape/ui-react/button';
+import { LINKS, NAV_LINKS } from './data';
+import Wordmark from './Wordmark.astro';
+---
+
+<header class="hr-nav" data-hr-nav>
+  <div class="hr-container hr-nav__inner">
+    <a class="hr-nav__logo" href="/" aria-label="Stacktape home"><Wordmark height={24} /></a>
+    <nav class="hr-nav__primary" aria-label="Primary">
+      <ul class="hr-nav__links">
+        {
+          NAV_LINKS.map((link) => (
+            <li>
+              <a class="hr-nav__link" href={link.href}>
+                {link.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+    <div class="hr-nav__actions">
+      <a class="hr-nav__link hr-nav__signin" href={LINKS.console}>Sign in</a>
+      <ButtonLink className="hr-nav__demo" href={LINKS.demo} variant="secondary">Book a demo</ButtonLink>
+      <ButtonLink className="hr-nav__start" href={LINKS.getStarted} variant="primary">Get started</ButtonLink>
+      <button
+        class="hr-nav__menu"
+        type="button"
+        aria-expanded="false"
+        aria-controls="hr-menu"
+        aria-label="Menu"
+        data-hr-menu
+      >
+        <span class="hr-nav__burger" aria-hidden="true"></span>
+      </button>
+    </div>
+  </div>
+  <div class="hr-menu" id="hr-menu" hidden data-hr-menu-panel>
+    <ul class="hr-menu__list">
+      {
+        NAV_LINKS.map((link) => (
+          <li>
+            <a class="hr-menu__link" href={link.href}>
+              {link.label}
+            </a>
+          </li>
+        ))
+      }
+      <li><a class="hr-menu__link" href={LINKS.console}>Sign in</a></li>
+      <li><a class="hr-menu__link" href={LINKS.demo}>Book a demo</a></li>
+    </ul>
+  </div>
+</header>
+
+<script>
+  const nav = document.querySelector<HTMLElement>('[data-hr-nav]');
+  const menu = document.querySelector<HTMLButtonElement>('[data-hr-menu]');
+  const panel = document.querySelector<HTMLElement>('[data-hr-menu-panel]');
+
+  const onScroll = () => nav?.classList.toggle('is-scrolled', window.scrollY > 8);
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  if (menu && panel) {
+    const setOpen = (open: boolean) => {
+      menu.setAttribute('aria-expanded', String(open));
+      panel.hidden = !open;
+      nav?.classList.toggle('is-open', open);
+    };
+    menu.addEventListener('click', () => setOpen(Boolean(panel.hidden)));
+    panel.addEventListener('click', (event) => {
+      if ((event.target as HTMLElement).closest('a')) setOpen(false);
+    });
+    window.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !panel.hidden) setOpen(false);
+    });
+  }
+</script>

@@ -1,0 +1,39 @@
+---
+/**
+ * A 90-day availability bar: ninety 2px ticks with a 5px gap, 625px at full width. Drawn as an SVG
+ * that scales horizontally only; the strokes do not scale, so a tick stays 2px wide however narrow
+ * the row gets and only the gaps shrink. Every tick is green except, in two rows, the incident day.
+ */
+import { STATUS } from './data';
+
+type Props = {
+  /** Zero-based day that carries an amber tick, 0 = ninety days ago, 89 = today. */
+  incidentDay?: number;
+  class?: string;
+};
+
+const { incidentDay, class: className } = Astro.props;
+const STEP = 7;
+const HEIGHT = 20;
+const width = STATUS.windowDays * STEP - (STEP - 2);
+const ticks = Array.from({ length: STATUS.windowDays }, (_, day) => day);
+---
+
+<svg
+  class={['su-bar', className].filter(Boolean).join(' ')}
+  viewBox={`0 0 ${width} ${HEIGHT}`}
+  preserveAspectRatio="none"
+  aria-hidden="true"
+>
+  {
+    ticks.map((day) => (
+      <line
+        class={day === incidentDay ? 'su-bar__tick su-bar__tick--incident' : 'su-bar__tick'}
+        x1={day * STEP + 1}
+        x2={day * STEP + 1}
+        y1="0"
+        y2={HEIGHT}
+      />
+    ))
+  }
+</svg>

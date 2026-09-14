@@ -1,0 +1,69 @@
+---
+/** 04 — the posture ring, the three findings with what the Console offers for each, the guardrails. */
+import { GUARDRAILS, POSTURE, PROJECT } from '../data';
+import { PreviewButton, StatusBadge } from '../ui';
+import Window from '../Window.astro';
+
+const RADIUS = 30;
+const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+const passingArc = (POSTURE.passing / POSTURE.total) * CIRCUMFERENCE;
+---
+
+<Window title={`<b>${PROJECT.name}</b> · production`}>
+  <span class="th-win__where" slot="bar">Security</span>
+
+  <div class="th-sec">
+    <div class="th-posture">
+      <svg class="th-ring" viewBox="0 0 72 72" width="72" height="72" aria-hidden="true">
+        <circle cx="36" cy="36" r={RADIUS} class="th-ring__track"></circle>
+        <circle
+          cx="36"
+          cy="36"
+          r={RADIUS}
+          class="th-ring__value"
+          stroke-dasharray={`${passingArc.toFixed(2)} ${CIRCUMFERENCE.toFixed(2)}`}
+          transform="rotate(-90 36 36)"></circle>
+      </svg>
+      <p class="th-posture__num">
+        <b>{POSTURE.passing}</b> of {POSTURE.total}
+        <span class="th-posture__sub">checks passing</span>
+      </p>
+    </div>
+
+    <ul class="th-findings" aria-label="Findings">
+      {
+        POSTURE.findings.map((item) => (
+          <li class="th-finding">
+            <span class="th-finding__mark" aria-hidden="true" />
+            <span class="th-finding__what">{item.finding}</span>
+            <span class="th-finding__action">
+              {'badge' in item && (
+                <StatusBadge tone="success" dot>
+                  {item.badge}
+                </StatusBadge>
+              )}
+              <PreviewButton variant="secondary" small>
+                {item.action}
+              </PreviewButton>
+            </span>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+
+  <div class="th-guard">
+    <p class="th-label">Guardrails on</p>
+    <p class="th-guard__chips">
+      {
+        GUARDRAILS.on.map((rule) => (
+          <span class="th-chip th-chip--on">
+            <i class="th-chip__dot" aria-hidden="true" />
+            {rule}
+          </span>
+        ))
+      }
+    </p>
+    <p class="th-guard__rule">{GUARDRAILS.rule}</p>
+  </div>
+</Window>

@@ -1,0 +1,22 @@
+---
+/**
+ * One of the six things Stacktape does: a surface on the Console's material with the number and
+ * the name on one baseline row, the explanation under it, and the screen in its own window below.
+ */
+import type { Step } from './data';
+
+type Props = { step: Step };
+
+const { step } = Astro.props;
+---
+
+<article class="tk-surface" id={step.id} aria-labelledby={`${step.id}-title`} data-tk-surface>
+  <div class="tk-surface__head">
+    <span class="tk-surface__num" aria-hidden="true">{step.number}</span>
+    <h2 class="tk-surface__title" id={`${step.id}-title`}>{step.name}</h2>
+  </div>
+  <p class="tk-surface__text">{step.text}</p>
+  <div class="tk-surface__screen">
+    <slot />
+  </div>
+</article>

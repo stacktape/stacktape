@@ -1,0 +1,42 @@
+---
+// concept: One column, one line. The six surfaces sit centred on an isometric drafting table, one
+// under the other, and the route runs through them top to bottom: straight where Stacktape carries
+// on by itself, bending out at 45° to a gold interchange wherever the visitor makes a decision.
+// The geometry of the line is the story: long diagonal detours are the human moments, short
+// straight joins are automation.
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Board from '../variants/zigzag/Board.astro';
+import Closing from '../variants/zigzag/Closing.astro';
+import { HEADLINE, SUBHEADLINE } from '../variants/zigzag/data';
+import Footer from '../variants/zigzag/Footer.astro';
+import Hero from '../variants/zigzag/Hero.astro';
+import Journey from '../variants/zigzag/Journey.astro';
+import Nav from '../variants/zigzag/Nav.astro';
+import Testimonials from '../variants/zigzag/Testimonials.astro';
+import '../variants/zigzag/zigzag.css';
+---
+
+<BaseLayout title={`Stacktape — ${HEADLINE}`} description={SUBHEADLINE} htmlClass="zz-html">
+  <Fragment slot="head">
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap"
+    />
+    <script is:inline>
+      document.documentElement.classList.add('zz-js');
+    </script>
+  </Fragment>
+
+  <div class="zz-root">
+    <Nav />
+    <main>
+      <Board>
+        <Hero />
+        <Journey />
+      </Board>
+      <Closing />
+      <Testimonials />
+    </main>
+    <Footer />
+  </div>
+</BaseLayout>

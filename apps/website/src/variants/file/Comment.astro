@@ -1,0 +1,63 @@
+---
+/**
+ * One of the six comments: inserted after the lines it refers to, the way a review comment sits in
+ * a pull request. Number, author, title, text, then the screen in a nested window. The gutter
+ * bracket beside the lines above carries the same colour as the comment's accent bar.
+ */
+import type { Chapter } from './data';
+import { PROJECT, WIZARD_RAIL } from './data';
+
+type Props = { chapter: Chapter };
+
+const { chapter } = Astro.props;
+const { screen } = chapter;
+const titleId = `fl-${chapter.id}-title`;
+---
+
+<article
+  class={`fl-comment fl-comment--${chapter.tone}`}
+  id={chapter.id}
+  data-fl-comment={chapter.index}
+  aria-labelledby={titleId}
+>
+  <p class="fl-comment__head">
+    <span class="fl-comment__num">{chapter.number}</span>
+    <span class="fl-comment__author">Stacktape</span>
+    <span class="fl-comment__lines">lines {chapter.bracket[0]}–{chapter.bracket[1]}</span>
+  </p>
+  <h2 class="fl-comment__title" id={titleId}>
+    <span class="fl-visually-hidden">{chapter.number} </span>{chapter.name}
+  </h2>
+  <p class="fl-comment__text">{chapter.text}</p>
+
+  <div class="fl-screen">
+    <div class="fl-screen__bar">
+      {
+        screen.app === 'wizard' ? (
+          <>
+            <span class="fl-screen__where">
+              localhost:3000 · <b>stacktape init</b>
+            </span>
+            <ol class="fl-rail" aria-label="Wizard progress">
+              {WIZARD_RAIL.map((item) => (
+                <li class={item === screen.current ? 'is-current' : undefined} aria-current={item === screen.current ? 'step' : undefined}>
+                  {item}
+                </li>
+              ))}
+            </ol>
+          </>
+        ) : (
+          <>
+            <span class="fl-screen__where">
+              console.stacktape.com · <b>{PROJECT.name}</b> · production
+            </span>
+            <span class="fl-screen__section">{screen.section}</span>
+          </>
+        )
+      }
+    </div>
+    <div class="fl-screen__body">
+      <slot />
+    </div>
+  </div>
+</article>

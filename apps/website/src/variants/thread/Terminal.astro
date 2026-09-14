@@ -1,0 +1,18 @@
+---
+/**
+ * The first event: the command the visitor ran, on a recessed terminal row, and the tool's two
+ * output lines. The output types itself on load (`Thread.astro` owns the script); without
+ * JavaScript or with reduced motion it is simply there.
+ */
+import { TERMINAL } from './data';
+---
+
+<div class="th-term">
+  <p class="th-term__cmd">
+    <span class="th-term__prompt" aria-hidden="true">$</span>
+    <span class="th-term__text">{TERMINAL.command}</span>
+  </p>
+  <p class="th-term__out">
+    {TERMINAL.output.map((line) => <span class="th-term__line" data-th-type>{line}</span>)}
+  </p>
+</div>

@@ -1,0 +1,46 @@
+---
+/**
+ * One component's card: its state, what Stacktape does there, what you get, and the product window
+ * where it happens. The card's id is the anchor the list row and the nav's "How it works" point at.
+ */
+import type { Component } from './data';
+import { STATUS } from './data';
+
+type Props = { component: Component };
+
+const { component } = Astro.props;
+const titleId = `su-${component.id}-title`;
+---
+
+<article class="su-card su-comp" id={component.id} aria-labelledby={titleId}>
+  <header class="su-comp__head">
+    <i class="su-dot" aria-hidden="true"></i>
+    <h3 class="su-comp__name" id={titleId}>
+      <span class="su-comp__num">{component.number}</span>
+      {component.name}
+    </h3>
+    <p class="su-comp__state">
+      <span class="su-state">{STATUS.state}</span>
+      {component.note ? <span class="su-comp__note">· {component.note}</span> : null}
+    </p>
+  </header>
+
+  <p class="su-comp__text">{component.text}</p>
+
+  <ul class="su-gets">
+    {
+      component.gets.map((line) => (
+        <li>
+          <svg class="su-gets__check" viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true">
+            <path d="m3 8.4 3.2 3.1L13 4.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <span>{line}</span>
+        </li>
+      ))
+    }
+  </ul>
+
+  <div class="su-comp__window">
+    <slot />
+  </div>
+</article>

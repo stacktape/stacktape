@@ -1,0 +1,39 @@
+---
+/**
+ * The shell's left rail. Its items are the page's sections, so it is page navigation drawn the way
+ * the Console draws its navigation. On desktop it is sticky; below 900px it becomes a horizontal
+ * strip at the top of the shell. `client.ts` moves `aria-current` as the visitor scrolls.
+ */
+import { OVERVIEW_ICON, SCREENS } from './data';
+---
+
+<aside class="cs-side" aria-label="Page sections">
+  <div class="cs-side__head">
+    <span class="cs-side__project">
+      <span class="cs-side__avatar" aria-hidden="true">A</span>
+      <span class="cs-side__project-name">acme-project</span>
+    </span>
+    <span class="cs-side__example">example project</span>
+  </div>
+  <nav class="cs-side__nav">
+    <p class="cs-side__group">Overview</p>
+    <a class="cs-side__item" href="#overview" data-side-link="overview" aria-current="location">
+      <span class="cs-side__icon" set:html={OVERVIEW_ICON} />
+      <span class="cs-side__label">Overview</span>
+    </a>
+    <p class="cs-side__group">The job</p>
+    {
+      SCREENS.map((screen) => (
+        <a class="cs-side__item" href={`#${screen.id}`} data-side-link={screen.id}>
+          <span class="cs-side__icon" set:html={screen.icon} />
+          <span class="cs-side__label">{screen.title}</span>
+          <span class:list={['cs-tag', `cs-tag--${screen.who}`]}>{screen.who}</span>
+        </a>
+      ))
+    }
+  </nav>
+  <div class="cs-side__foot">
+    <p><span class="cs-tag cs-tag--auto">auto</span> Stacktape does it</p>
+    <p><span class="cs-tag cs-tag--you">you</span> needs a decision from you</p>
+  </div>
+</aside>

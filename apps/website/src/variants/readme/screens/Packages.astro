@@ -1,0 +1,51 @@
+---
+/** 02 — one build in the Console: three workloads on one axis, cached work dimmer, unchanged work reused. */
+import { BUILD, URLS } from '../data';
+import { StatusBadge } from '../ui';
+import Window from '../Window.astro';
+---
+
+<Window kind="browser" host={URLS.build.host} path={URLS.build.path}>
+  <div class="rm-scr__head">
+    <h3 class="rm-scr__h">{BUILD.heading}</h3>
+    <p class="rm-scr__line">{BUILD.line}</p>
+  </div>
+
+  <ul class="rm-bd" aria-label="Build lanes">
+    {
+      BUILD.lanes.map((lane) => (
+        <li class="rm-bd__lane">
+          <span class="rm-bd__who">
+            <b>{lane.name}</b>
+            <span class="rm-bd__kind">{lane.kind}</span>
+          </span>
+          <span class="rm-bd__axis">
+            <span class="rm-bd__bar" aria-hidden="true">
+              {lane.segments.map((segment) => (
+                <span class={`rm-bd__seg rm-bd__seg--${segment.tone}`} style={`width: ${segment.width}%`}>
+                  {segment.label}
+                </span>
+              ))}
+              {lane.chip && <span class="rm-bd__chip">{lane.chip}</span>}
+            </span>
+          </span>
+          <span class="rm-bd__result">
+            <StatusBadge tone={lane.result === 'reused' ? 'neutral' : 'success'} caps={false}>
+              {lane.result}
+            </StatusBadge>
+          </span>
+        </li>
+      ))
+    }
+  </ul>
+
+  <div class="rm-bd__packs">
+    <span class="rm-bd__packs-title">{BUILD.buildpacks.title}</span>
+    <ul class="rm-bd__packs-list" aria-label={BUILD.buildpacks.title}>
+      {BUILD.buildpacks.chips.map((chip) => <li class="rm-bd__pack">{chip}</li>)}
+      <li class="rm-bd__pack rm-bd__pack--other">{BUILD.buildpacks.other}</li>
+    </ul>
+  </div>
+
+  <p class="rm-bd__foot">{BUILD.footer}</p>
+</Window>

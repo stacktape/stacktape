@@ -1,0 +1,21 @@
+---
+/** What is happening now: the deploy in progress, shown by the cover composite. */
+import { ACTIVITY } from './data';
+---
+
+<section class="su-activity" aria-labelledby="su-activity-title">
+  <div class="su-container">
+    <div class="su-card su-activity__card">
+      <div class="su-activity__head">
+        <h2 class="su-activity__title" id="su-activity-title">{ACTIVITY.title}</h2>
+        <p class="su-activity__line">
+          <i class="su-activity__mark" aria-hidden="true"></i>
+          {ACTIVITY.line} <span class="su-activity__sep" aria-hidden="true">·</span> <b>{ACTIVITY.progress}</b>
+        </p>
+      </div>
+      <div class="su-activity__cover">
+        <slot />
+      </div>
+    </div>
+  </div>
+</section>

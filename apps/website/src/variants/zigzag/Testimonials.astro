@@ -1,0 +1,24 @@
+---
+import { TESTIMONIALS, VOICES_TITLE } from './data';
+---
+
+<section class="zz-section zz-voices" aria-labelledby="zz-voices-title">
+  <div class="zz-container">
+    <h2 class="zz-voices__title" id="zz-voices-title">{VOICES_TITLE}</h2>
+    <ul class="zz-voices__list">
+      {
+        TESTIMONIALS.map((item) => (
+          <li class="zz-voice">
+            <blockquote class="zz-voice__quote">
+              <p>“{item.quote}”</p>
+            </blockquote>
+            <p class="zz-voice__who">
+              <span class="zz-voice__name">{item.name}</span>
+              <span class="zz-voice__role">{item.role}</span>
+            </p>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</section>

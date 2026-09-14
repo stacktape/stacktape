@@ -1,0 +1,106 @@
+---
+/**
+ * The "About" column beside the document: what a reader scans a repository page for. The
+ * description, the site, the topics, the latest release, how pricing works, how to reach the team,
+ * the docs and the license. Sticky under the header on wide viewports; below the document on
+ * narrow ones.
+ */
+import { CONTACT, DOC_LINKS, LICENSE, LINKS, PRICING, RELEASE, REPO, SUBHEADLINE, TOPICS } from './data';
+
+const firstSentence = `${SUBHEADLINE.split('. ')[0]}.`;
+---
+
+<aside class="rm-side" aria-label="About this repository">
+  <section class="rm-side__block">
+    <h2 class="rm-side__h">About</h2>
+    <p class="rm-side__text">{firstSentence}</p>
+    <a class="rm-side__site" href="/">
+      <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true">
+        <path
+          d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z"
+        ></path>
+      </svg>
+      {REPO.site}
+    </a>
+    <ul class="rm-topics" aria-label="Topics">
+      {TOPICS.map((topic) => <li class="rm-topic">{topic}</li>)}
+    </ul>
+  </section>
+
+  <section class="rm-side__block">
+    <h2 class="rm-side__h">Releases</h2>
+    <a class="rm-release" href={RELEASE.href}>
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
+        <path
+          d="M1 7.775V2.75C1 1.784 1.784 1 2.75 1h5.025c.464 0 .91.184 1.238.513l6.25 6.25a1.75 1.75 0 0 1 0 2.474l-5.026 5.026a1.75 1.75 0 0 1-2.474 0l-6.25-6.25A1.752 1.752 0 0 1 1 7.775Zm1.5 0c0 .066.026.13.073.177l6.25 6.25a.25.25 0 0 0 .354 0l5.025-5.025a.25.25 0 0 0 0-.354l-6.25-6.25a.25.25 0 0 0-.177-.073H2.75a.25.25 0 0 0-.25.25ZM6 5a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z"
+        ></path>
+      </svg>
+      <span class="rm-release__tag">{RELEASE.tag}</span>
+      <span class="rm-release__latest">{RELEASE.label}</span>
+    </a>
+    <a class="rm-side__more" href={RELEASE.href}>Changelog</a>
+  </section>
+
+  <section class="rm-side__block">
+    <h2 class="rm-side__h">Pricing</h2>
+    <ul class="rm-plans">
+      {
+        PRICING.plans.map((line) => (
+          <li>
+            <b>{line.plan}</b>
+            <span class="rm-plans__sep" aria-hidden="true">·</span>
+            {line.detail}
+          </li>
+        ))
+      }
+    </ul>
+    <a class="rm-side__more" href={LINKS.pricing}>{PRICING.more}</a>
+  </section>
+
+  <section class="rm-side__block">
+    <h2 class="rm-side__h">Contact</h2>
+    <ul class="rm-side__links">
+      {
+        CONTACT.map((link) => (
+          <li>
+            <a href={link.href}>{link.label}</a>
+          </li>
+        ))
+      }
+    </ul>
+  </section>
+
+  <section class="rm-side__block">
+    <h2 class="rm-side__h">Docs</h2>
+    <ul class="rm-side__links">
+      {
+        DOC_LINKS.map((link) => (
+          <li>
+            <a href={link.href}>{link.label}</a>
+          </li>
+        ))
+      }
+    </ul>
+  </section>
+
+  <section class="rm-side__block">
+    <h2 class="rm-side__h">License</h2>
+    <ul class="rm-license">
+      {
+        [LICENSE.cli, LICENSE.console].map((item) => (
+          <li>
+            <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
+              <path
+                d="M8.75.75V2h.985c.304 0 .603.08.867.231l1.29.736c.038.022.08.033.124.033h2.234a.75.75 0 0 1 0 1.5h-.427l2.111 4.692a.75.75 0 0 1-.154.838l-.53-.53.529.531-.001.002-.002.002-.006.006-.006.005-.01.01-.045.04c-.21.176-.441.327-.686.45C14.556 10.78 13.88 11 13 11a4.498 4.498 0 0 1-2.023-.454 3.544 3.544 0 0 1-.686-.45l-.045-.04-.016-.015-.006-.006-.004-.004v-.001a.75.75 0 0 1-.154-.838L12.178 4.5h-.162c-.305 0-.604-.079-.868-.231l-1.29-.736a.245.245 0 0 0-.124-.033H8.75V13h2.5a.75.75 0 0 1 0 1.5h-6.5a.75.75 0 0 1 0-1.5h2.5V3.5h-.984a.245.245 0 0 0-.124.033l-1.289.737c-.265.15-.564.23-.869.23h-.162l2.112 4.692a.75.75 0 0 1-.154.838l-.53-.53.529.531-.001.002-.002.002-.006.006-.016.015-.045.04c-.21.176-.441.327-.686.45C4.556 10.78 3.88 11 3 11a4.498 4.498 0 0 1-2.023-.454 3.544 3.544 0 0 1-.686-.45l-.045-.04-.016-.015-.006-.006-.004-.004v-.001a.75.75 0 0 1-.154-.838L2.178 4.5H1.75a.75.75 0 0 1 0-1.5h2.234a.249.249 0 0 0 .125-.033l1.288-.737c.265-.15.564-.23.869-.23h.984V.75a.75.75 0 0 1 1.5 0Zm2.945 8.477c.285.135.718.273 1.305.273s1.02-.138 1.305-.273L13 6.327Zm-10 0c.285.135.718.273 1.305.273s1.02-.138 1.305-.273L3 6.327Z"
+              ></path>
+            </svg>
+            <span>
+              <b>{item.label}</b>
+              <a href={item.href}>{item.value}</a>
+            </span>
+          </li>
+        ))
+      }
+    </ul>
+  </section>
+</aside>

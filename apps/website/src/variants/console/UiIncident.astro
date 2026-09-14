@@ -1,0 +1,120 @@
+---
+/**
+ * Screen 04: the incident page. The signals, which release caused it, the agent handoff, the
+ * timeline to "recovered", and the automatic-remediation switch shown off.
+ */
+import Frame from './Frame.astro';
+
+const timeline = [
+  { t: '14:02', text: 'Opened · uptime check down, 3 of 3 regions', tone: 'bad' },
+  { t: '14:03', text: 'Application error grouped · 214 occurrences in apiService', tone: 'bad' },
+  { t: '14:05', text: 'Details copied for agent · by matus', tone: 'you' },
+  { t: '14:09', text: 'PR #131 "orders: apply fulfillment migration" opened by the agent', tone: 'auto' },
+  { t: '14:10', text: 'Approved and merged · by matus', tone: 'you' },
+  { t: '14:13', text: 'v42 deployed through the pipeline · #42', tone: 'auto' },
+  { t: '14:13', text: 'Resolved · recovered on its own signals · 11 min', tone: 'ok' }
+];
+---
+
+<Frame crumbs={['Incidents', 'inc_8f2k']} label="The incident page for inc_8f2k, from opened to recovered">
+  <div class="cs-inc">
+    <div class="cs-inc__head">
+      <div>
+        <p class="cs-inc__chips">
+          <span class="cs-chip cs-chip--bad">Error</span>
+          <span class="cs-chip">production</span>
+          <span class="cs-chip cs-chip--ok">Resolved</span>
+          <span class="cs-inc__id">inc_8f2k</span>
+        </p>
+        <p class="cs-inc__title">apiService: column "fulfillment_status" does not exist</p>
+        <p class="cs-inc__cause">
+          <strong>Opened 4m after the last deploy</strong> · v41 · commit <code>a1b2c3d</code> — orders: add fulfillment
+          status column · previous release v40 · config unchanged · <a href="#incidents" tabindex="-1">what changed (3 commits)</a>
+        </p>
+      </div>
+      <div class="cs-inc__actions">
+        <span class="cs-btn cs-btn--primary">Copy details for agent</span>
+        <span class="cs-btn cs-btn--ghost">Acknowledge</span>
+      </div>
+    </div>
+
+    <div class="cs-inc__grid">
+      <div class="cs-inc__main">
+        <div class="cs-panel">
+          <p class="cs-panel__title">Signals</p>
+          <ul class="cs-signals">
+            <li class="cs-signals__row">
+              <i class="cs-dot cs-dot--bad" aria-hidden="true"></i>
+              <div>
+                <p class="cs-signals__what">Uptime check down</p>
+                <p class="cs-signals__detail">https://api.acme.com/health · 3 of 3 regions</p>
+              </div>
+            </li>
+            <li class="cs-signals__row">
+              <i class="cs-dot cs-dot--bad" aria-hidden="true"></i>
+              <div>
+                <p class="cs-signals__what">Application error</p>
+                <p class="cs-signals__detail">
+                  <code>PrismaClientKnownRequestError: column "fulfillment_status" does not exist</code> · apiService · 214
+                  occurrences
+                </p>
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <div class="cs-panel cs-handoff">
+          <p class="cs-panel__title">What "Copy details for agent" packages</p>
+          <ul class="cs-handoff__list">
+            <li>Release diff v40 → v41, with the three commits</li>
+            <li>Evidence: the error with stack frames, the failing check, the alarm</li>
+            <li>Timeline and scoped links back to the Console</li>
+            <li>A 4-step protocol ending in <code>stacktape incidents:resolve --incidentId inc_8f2k</code></li>
+          </ul>
+          <p class="cs-handoff__note">
+            Paste it into your coding agent. The fix comes back as a pull request you review; nothing reaches production
+            without your approval.
+          </p>
+        </div>
+      </div>
+
+      <div class="cs-inc__side">
+        <div class="cs-panel">
+          <p class="cs-panel__title">Around this time <span class="cs-panel__title-sub">same stack</span></p>
+          <ul class="cs-around">
+            <li><span>13:58</span> Deploy #41 finished · v41</li>
+            <li><span>14:02</span> Alarm firing · apiService 5xx</li>
+            <li><span>14:02</span> Uptime check failing · /health</li>
+          </ul>
+        </div>
+        <div class="cs-panel">
+          <p class="cs-panel__title">Timeline</p>
+          <ol class="cs-timeline">
+            {
+              timeline.map((step) => (
+                <li class:list={['cs-timeline__row', `is-${step.tone}`]}>
+                  <span class="cs-timeline__t">{step.t}</span>
+                  <i class="cs-timeline__mark" aria-hidden="true" />
+                  <span class="cs-timeline__text">{step.text}</span>
+                </li>
+              ))
+            }
+          </ol>
+        </div>
+      </div>
+    </div>
+
+    <div class="cs-inc__foot">
+      <div class="cs-optin">
+        <span class="stp-ui-switch" role="switch" aria-checked="false" aria-disabled="true" aria-label="Let the agent fix and deploy on its own">
+          <span class="stp-ui-switch__thumb"></span>
+        </span>
+        <div>
+          <p class="cs-optin__title">Let the agent fix and deploy on its own</p>
+          <p class="cs-optin__note">Opt-in. Off by default.</p>
+        </div>
+      </div>
+      <code class="cs-inc__cli">stacktape incidents:show --incidentId inc_8f2k</code>
+    </div>
+  </div>
+</Frame>

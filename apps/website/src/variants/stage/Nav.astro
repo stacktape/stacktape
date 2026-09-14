@@ -1,0 +1,21 @@
+---
+import { ButtonLink } from '@stacktape/ui-react/button';
+import Logo from '../../components/Logo.astro';
+import { LINKS } from './data';
+---
+
+<header class="sg-nav">
+  <div class="sg-container sg-nav__inner">
+    <a class="sg-nav__logo" href="/" aria-label="Stacktape home"><Logo height={24} /></a>
+    <nav aria-label="Primary">
+      <ul class="sg-nav__links">
+        <li><a class="sg-nav__link sg-nav__link--phone-optional" href={LINKS.docs}>Docs</a></li>
+        <li><a class="sg-nav__link sg-nav__link--optional" href={LINKS.github}>GitHub</a></li>
+        <li><a class="sg-nav__link" href={LINKS.console}>Sign in</a></li>
+        <li>
+          <ButtonLink className="sg-nav__demo" href={LINKS.demo} variant="secondary">Book a demo</ButtonLink>
+        </li>
+      </ul>
+    </nav>
+  </div>
+</header>

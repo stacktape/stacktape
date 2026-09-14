@@ -1,0 +1,67 @@
+---
+/**
+ * 05 — the incident page: the release that caused it, the two signals, the handoff to an agent,
+ * the timeline with the visitor's own step in gold, and the opt-in switch off.
+ */
+import { INCIDENT, PROJECT } from '../data';
+import { OptInSwitch, PreviewButton, StatusBadge } from '../ui';
+import Window from '../Window.astro';
+
+const { release } = INCIDENT;
+---
+
+<Window title={`${PROJECT.name} · incidents · <b>${INCIDENT.id}</b>`}>
+  <div class="tk-inc__head">
+    <p class="tk-inc__badges">
+      <StatusBadge tone="success" dot>Resolved</StatusBadge>
+      <StatusBadge tone="danger">Error</StatusBadge>
+    </p>
+    <h3 class="tk-screen__title tk-inc__title">{INCIDENT.title}</h3>
+  </div>
+
+  <p class="tk-release">
+    <b>{release.opened}</b>{' '}
+    <span class="tk-sep" aria-hidden="true">·</span>{' '}
+    <span class="tk-mono tk-release__commit">{release.commit}</span>{' '}
+    <span class="tk-sep" aria-hidden="true">·</span>{' '}
+    <span class="tk-release__message">{release.message}</span>{' '}
+    <span class="tk-sep" aria-hidden="true">·</span>{' '}
+    <span class="tk-release__link">{release.link}</span>
+  </p>
+
+  <div class="tk-inc__evidence">
+    <ul class="tk-signals" aria-label="Signals">
+      {
+        INCIDENT.signals.map((signal) => (
+          <li class="tk-signal">
+            <span class="tk-signal__text">{signal.text}</span>
+            <span class="tk-signal__meta">{signal.meta}</span>
+          </li>
+        ))
+      }
+    </ul>
+    <div class="tk-inc__control">
+      <PreviewButton variant="secondary" icon="copy">{INCIDENT.control}</PreviewButton>
+    </div>
+  </div>
+
+  <ol class="tk-timeline" aria-label="Timeline">
+    {
+      INCIDENT.timeline.map((event) => (
+        <li class={`tk-tl tk-tl--${event.tone}`} data-tk-align={event.tone === 'you' ? 'you' : undefined}>
+          <span class="tk-tl__time tk-mono">{event.time}</span>
+          <span class="tk-tl__mark" aria-hidden="true" />
+          <span class="tk-tl__text">{event.text}</span>
+        </li>
+      ))
+    }
+  </ol>
+
+  <div class="tk-optin">
+    <OptInSwitch label={INCIDENT.optIn} />
+    <span class="tk-optin__text">
+      <span class="tk-optin__what">{INCIDENT.optIn}</span>
+      <span class="tk-optin__state">{INCIDENT.optInState}</span>
+    </span>
+  </div>
+</Window>

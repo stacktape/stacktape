@@ -1,0 +1,35 @@
+---
+// concept: One product window stays pinned on the right half of the viewport while the seven chapters scroll past on the left. The window is a lens: as each chapter arrives, the screen inside it crossfades to that chapter's screen and its chrome changes with it, so the product never leaves the visitor's view.
+// copy-angle: The headline states the promise; each chapter names one thing Stacktape does and the lens shows the screen where it happens; the visitor's own actions appear only as the command box and the product's own buttons.
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Chapters from '../variants/lens/Chapters.astro';
+import Closing from '../variants/lens/Closing.astro';
+import { HEADLINE, SUBHEADLINE } from '../variants/lens/data';
+import Footer from '../variants/lens/Footer.astro';
+import Hero from '../variants/lens/Hero.astro';
+import Nav from '../variants/lens/Nav.astro';
+import Testimonials from '../variants/lens/Testimonials.astro';
+import '../variants/lens/lens.css';
+---
+
+<BaseLayout title={`Stacktape — ${HEADLINE}`} description={SUBHEADLINE} htmlClass="ls-html">
+  <Fragment slot="head">
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Sora:wght@600&family=Geist:wght@400;500&family=Geist+Mono:wght@400;500&display=swap"
+    />
+  </Fragment>
+
+  <div class="ls-root">
+    <Nav />
+    <main>
+      <div class="ls-board">
+        <Hero />
+        <Chapters />
+      </div>
+      <Closing />
+      <Testimonials />
+    </main>
+    <Footer />
+  </div>
+</BaseLayout>

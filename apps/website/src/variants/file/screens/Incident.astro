@@ -1,0 +1,67 @@
+---
+/** 05 — the incident: the release that caused it, the signals, the handoff, the timeline, the switch that is off. */
+import Cursor from '../Cursor.astro';
+import { INCIDENT } from '../data';
+import { OptInSwitch, PreviewButton, StatusBadge } from '../ui';
+
+const { release } = INCIDENT;
+---
+
+<div class="fl-inc__head">
+  <StatusBadge tone="success" dot>Resolved</StatusBadge>
+  <StatusBadge tone="danger">Error</StatusBadge>
+  <span class="fl-inc__title">{INCIDENT.title}</span>
+</div>
+
+<p class="fl-inc__release">
+  <b>{release.opened} <span class="fl-mono">{release.version}</span></b>
+  <span class="fl-inc__sep" aria-hidden="true">·</span>
+  <span class="fl-mono">{release.commit}</span>
+  <span class="fl-inc__sep" aria-hidden="true">·</span>
+  <span>{release.message}</span>
+  <span class="fl-inc__sep" aria-hidden="true">·</span>
+  <span class="fl-inc__link">{release.link}</span>
+</p>
+
+<div class="fl-inc__grid">
+  <div class="fl-inc__signals">
+    <p class="fl-scr__label">Signals</p>
+    <ul class="fl-signals">
+      {
+        INCIDENT.signals.map((signal) => (
+          <li class="fl-signal">
+            <span class="fl-signal__text">{signal.text}</span>
+            <span class="fl-signal__meta">{signal.meta}</span>
+          </li>
+        ))
+      }
+    </ul>
+    <span class="fl-press">
+      <PreviewButton variant="secondary" icon="copy">{INCIDENT.handoff}</PreviewButton>
+      <Cursor />
+    </span>
+  </div>
+
+  <div>
+    <p class="fl-scr__label">Timeline</p>
+    <ol class="fl-timeline">
+      {
+        INCIDENT.timeline.map((event) => (
+          <li class={`fl-tl fl-tl--${event.tone}`}>
+            <span class="fl-tl__time">{event.time}</span>
+            <span class="fl-tl__mark" aria-hidden="true" />
+            <span class="fl-tl__text">{event.text}</span>
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+</div>
+
+<div class="fl-optin">
+  <OptInSwitch label={INCIDENT.optIn} />
+  <span class="fl-optin__text">
+    <span class="fl-optin__what">{INCIDENT.optIn}</span>
+    <span class="fl-optin__state">{INCIDENT.optInState}</span>
+  </span>
+</div>

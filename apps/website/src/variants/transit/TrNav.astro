@@ -1,0 +1,51 @@
+---
+/**
+ * The nav. At the top of the page it is the plain 60px strip. Once the visitor scrolls, client.ts
+ * adds `is-compact` and it becomes the single 48px bar: logo, the station progress (current station
+ * name and a thin line with one segment per station), and the copy button.
+ */
+import Logo from '../../components/Logo.astro';
+import { LINKS, STATIONS } from './data';
+---
+
+<header class="tr-nav" data-nav>
+  <div class="tr-wrap tr-nav__in">
+    <a class="tr-nav__logo" href="/" aria-label="Stacktape home">
+      <Logo height={22} />
+    </a>
+    <nav class="tr-nav__progress" aria-label="Stations on this page" data-progress>
+      <p class="tr-nav__station" data-progress-label>
+        <span class="tr-nav__station-no"></span>
+        <span class="tr-nav__station-name">The journey · 10 stations</span>
+      </p>
+      <ol class="tr-nav__line">
+        {
+          STATIONS.map((station) => (
+            <li class={`tr-nav__seg tr-nav__seg--${station.line}`} data-progress-item={station.id}>
+              <a href={`#station-${station.id}`} aria-label={`${station.no} ${station.name}`} title={station.name} />
+            </li>
+          ))
+        }
+      </ol>
+    </nav>
+    <nav class="tr-nav__links" aria-label="Site">
+      <a href={LINKS.docs}>Docs</a>
+      <a href={LINKS.github}>GitHub</a>
+      <a href={LINKS.signIn}>Sign in</a>
+      <a class="tr-nav__demo" href={LINKS.demo}>Book a demo</a>
+    </nav>
+    <p class="tr-nav__status">
+      <span class="tr-dot tr-dot--ok" aria-hidden="true"></span>
+      all systems normal
+    </p>
+    <button class="tr-nav__copy" type="button" data-nav-copy aria-label="Copy npx stacktape init">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.4"></rect>
+        <path d="M10.5 5.5V3.5A1 1 0 0 0 9.5 2.5h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" stroke="currentColor" stroke-width="1.4"></path>
+      </svg>
+      <span data-nav-copy-label>Copy</span>
+      <span class="tr-nav__copy-cmd">npx stacktape init</span>
+    </button>
+    <p class="tr-cmd__live" data-nav-live aria-live="polite"></p>
+  </div>
+</header>

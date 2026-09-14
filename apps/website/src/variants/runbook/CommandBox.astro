@@ -1,0 +1,104 @@
+---
+/**
+ * The only call to action on the page: the install command, copyable, with a switcher for how the
+ * reader installs. `npx` is the default because it needs nothing installed first. The script
+ * handles every box on the page, so the hero and the closing section share one copy of it.
+ */
+type Props = { label: string };
+
+const { label } = Astro.props;
+
+const DEFAULT_COMMAND = 'npx stacktape init';
+const OPTIONS = [
+  { name: 'npx', command: DEFAULT_COMMAND },
+  { name: 'macOS', command: 'curl -L https://installs.stacktape.com/macos.sh | sh' },
+  { name: 'Linux', command: 'curl -L https://installs.stacktape.com/linux.sh | sh' },
+  { name: 'Windows', command: 'iwr https://installs.stacktape.com/windows.ps1 -useb | iex' }
+];
+---
+
+<div class="rb-cmd" data-rb-cmd>
+  <div class="rb-cmd__tabs" role="radiogroup" aria-label={`${label}: how to install`}>
+    {
+      OPTIONS.map((option, index) => (
+        <button
+          type="button"
+          role="radio"
+          class="rb-cmd__tab"
+          aria-checked={index === 0 ? 'true' : 'false'}
+          tabindex={index === 0 ? 0 : -1}
+          data-rb-cmd-option={option.command}
+        >
+          {option.name}
+        </button>
+      ))
+    }
+  </div>
+  <div class="rb-cmd__row">
+    <code class="rb-cmd__code"
+      ><span class="rb-cmd__prompt" aria-hidden="true">$</span><span data-rb-cmd-value>{DEFAULT_COMMAND}</span></code
+    >
+    <button type="button" class="rb-cmd__copy" data-rb-cmd-copy aria-live="polite">Copy</button>
+  </div>
+</div>
+
+<script>
+  const boxes = document.querySelectorAll<HTMLElement>('[data-rb-cmd]');
+
+  boxes.forEach((box) => {
+    const tabs = Array.from(box.querySelectorAll<HTMLButtonElement>('[data-rb-cmd-option]'));
+    const value = box.querySelector<HTMLElement>('[data-rb-cmd-value]');
+    const copy = box.querySelector<HTMLButtonElement>('[data-rb-cmd-copy]');
+    if (!value || !copy) return;
+
+    let timer: number | undefined;
+
+    const resetCopy = () => {
+      copy.textContent = 'Copy';
+      copy.classList.remove('is-copied');
+    };
+
+    const select = (tab: HTMLButtonElement) => {
+      tabs.forEach((other) => {
+        const on = other === tab;
+        other.setAttribute('aria-checked', on ? 'true' : 'false');
+        other.tabIndex = on ? 0 : -1;
+      });
+      value.textContent = tab.dataset.rbCmdOption ?? '';
+      resetCopy();
+    };
+
+    tabs.forEach((tab) => tab.addEventListener('click', () => select(tab)));
+
+    box.querySelector('[role="radiogroup"]')?.addEventListener('keydown', (event) => {
+      const key = (event as KeyboardEvent).key;
+      const current = tabs.findIndex((tab) => tab.getAttribute('aria-checked') === 'true');
+      let next: HTMLButtonElement | undefined;
+      if (key === 'ArrowRight' || key === 'ArrowDown') next = tabs[(current + 1) % tabs.length];
+      else if (key === 'ArrowLeft' || key === 'ArrowUp') next = tabs[(current - 1 + tabs.length) % tabs.length];
+      if (!next) return;
+      event.preventDefault();
+      select(next);
+      next.focus();
+    });
+
+    copy.addEventListener('click', async () => {
+      const text = value.textContent ?? '';
+      try {
+        await navigator.clipboard.writeText(text);
+        copy.textContent = 'Copied';
+        copy.classList.add('is-copied');
+      } catch {
+        // No clipboard permission: select the command so a keyboard copy works.
+        const range = document.createRange();
+        range.selectNodeContents(value);
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+        copy.textContent = 'Press Ctrl+C';
+      }
+      window.clearTimeout(timer);
+      timer = window.setTimeout(resetCopy, 1800);
+    });
+  });
+</script>

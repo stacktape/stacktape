@@ -1,0 +1,2543 @@
+/*
+ * Study "lens": one product window pinned on the right half of the viewport while the seven
+ * chapters scroll past on the left. Every class is prefixed `ls-`.
+ *
+ * The window is a lens: the chapters' observer writes `data-current` on it and the crossfade
+ * below shows the matching screen. Under 1000px the lens is not shown at all and each chapter
+ * carries the same screen inline; both sets are in the markup, this file shows one of them.
+ *
+ * Spacing scale 8 · 16 · 24 · 40 · 64 · 96.
+ */
+
+.ls-html {
+  scroll-padding-top: 80px;
+}
+
+.ls-root {
+  --ls-ground: #0a1412;
+  --ls-panel: linear-gradient(180deg, rgb(24, 33, 31), rgb(19, 27, 26));
+  --ls-window: rgb(22, 28, 28);
+  --ls-chrome: #0c1111;
+  --ls-inset: rgb(14, 20, 19);
+  --ls-border: rgba(160, 220, 210, 0.1);
+  --ls-border-soft: rgba(160, 220, 210, 0.07);
+  --ls-text: #e6ecea;
+  --ls-body: #aebbb7;
+  --ls-muted: #7f8f8b;
+  --ls-brand: var(--stp-color-brand);
+  --ls-brand-rgb: 54 190 190;
+  --ls-mint: #7be3b8;
+  --ls-mint-rgb: 123 227 184;
+  --ls-red: #eb6161;
+  --ls-amber: #e6b054;
+  --ls-compute: #ed7100;
+  --ls-database: #4d73f4;
+  --ls-security: #f34446;
+  --ls-network: #8e58eb;
+  --ls-float: 0 30px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(160, 220, 210, 0.08);
+  --ls-raised: 0 16px 40px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(160, 220, 210, 0.08);
+  --ls-rest: 0 2px 6px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --ls-field: inset 0 1px 3px rgba(0, 0, 0, 0.35), 0 1px 0 rgba(255, 255, 255, 0.04);
+  --ls-display: 'Sora', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --ls-sans: 'Geist', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --ls-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --ls-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ls-nav: 64px;
+
+  position: relative;
+  min-height: 100vh;
+  overflow-x: clip;
+  background: var(--ls-ground);
+  color: var(--ls-text);
+  font-family: var(--ls-sans);
+  font-size: 17px;
+  line-height: 1.55;
+}
+
+.ls-root ::selection {
+  background: rgba(var(--ls-brand-rgb) / 0.35);
+}
+
+.ls-root :where(h1, h2, h3, h4, h5, p, ul, ol, blockquote, pre, figure) {
+  margin: 0;
+}
+
+.ls-root :where(ul, ol) {
+  padding: 0;
+  list-style: none;
+}
+
+.ls-root a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.ls-container {
+  width: 100%;
+  max-width: 1248px;
+  margin: 0 auto;
+  padding-inline: 24px;
+}
+
+.ls-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.ls-sep {
+  color: var(--ls-muted);
+}
+
+/* ── Nav: transparent over the hero, the ground's colour once scrolled ───────────────────────── */
+
+.ls-nav {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: transparent;
+  box-shadow: 0 1px 0 transparent;
+  transition:
+    background-color 250ms ease,
+    box-shadow 250ms ease;
+}
+
+.ls-nav.is-scrolled,
+.ls-nav.is-open {
+  background: rgba(10, 20, 18, 0.88);
+  box-shadow: 0 1px 0 var(--ls-border-soft);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.ls-nav__inner {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  height: var(--ls-nav);
+}
+
+.ls-nav__logo {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 6px;
+}
+
+.ls-nav__primary {
+  flex: 1;
+}
+
+.ls-nav__links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ls-nav__link {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--ls-body);
+  white-space: nowrap;
+  transition: color 150ms ease;
+}
+
+.ls-nav__link:hover {
+  color: var(--ls-text);
+}
+
+.ls-nav__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ls-nav__btn {
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.ls-nav__menu {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ls-text);
+  cursor: pointer;
+}
+
+.ls-nav__menu:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.ls-nav__menu[aria-expanded='true'] .ls-nav__burger,
+.ls-nav__menu[aria-expanded='false'] .ls-nav__close {
+  display: none;
+}
+
+.ls-nav__panel {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  max-height: calc(100vh - var(--ls-nav));
+  padding: 8px 24px 20px;
+  overflow-y: auto;
+  background: var(--ls-ground);
+  box-shadow:
+    0 1px 0 var(--ls-border-soft) inset,
+    0 24px 48px rgba(0, 0, 0, 0.45);
+}
+
+.ls-nav__panel[hidden] {
+  display: none;
+}
+
+.ls-nav__panel-link {
+  display: block;
+  padding: 13px 4px;
+  border-bottom: 1px solid var(--ls-border-soft);
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--ls-text);
+}
+
+/* ── The board: the isometric floor under the hero composite and the lens ────────────────────── */
+
+.ls-board {
+  position: relative;
+  isolation: isolate;
+}
+
+/* One 64×32 isometric cell, faint lines, a dot at every intersection. */
+.ls-board::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='32'%3E%3Cpath d='M0 0L64 32M0 32L64 0' fill='none' stroke='rgba(120,210,190,0.09)' stroke-width='1'/%3E%3Cg fill='rgba(120,210,190,0.2)'%3E%3Ccircle cx='0' cy='0' r='1.2'/%3E%3Ccircle cx='64' cy='0' r='1.2'/%3E%3Ccircle cx='0' cy='32' r='1.2'/%3E%3Ccircle cx='64' cy='32' r='1.2'/%3E%3Ccircle cx='32' cy='16' r='1.2'/%3E%3C/g%3E%3C/svg%3E");
+  background-position: 0 0;
+  pointer-events: none;
+}
+
+/* Fog: the ground's colour behind the headline, at the page's edges, and at the section's end. */
+.ls-board::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(180deg, var(--ls-ground) 0, var(--ls-ground) 400px, rgba(10, 20, 18, 0) 760px),
+    linear-gradient(90deg, var(--ls-ground) 0, rgba(10, 20, 18, 0) 10%, rgba(10, 20, 18, 0) 90%, var(--ls-ground) 100%),
+    linear-gradient(0deg, var(--ls-ground) 0, rgba(10, 20, 18, 0) 360px);
+  pointer-events: none;
+}
+
+/* ── Hero ────────────────────────────────────────────────────────────────────────────────────── */
+
+.ls-hero {
+  padding-top: 96px;
+}
+
+.ls-hero__copy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.ls-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 32px;
+  padding: 0 14px 0 13px;
+  border-radius: 999px;
+  background: rgba(var(--ls-brand-rgb) / 0.08);
+  box-shadow: inset 0 0 0 1px rgba(var(--ls-brand-rgb) / 0.24);
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ls-body);
+  white-space: nowrap;
+  transition: background-color 150ms ease;
+}
+
+.ls-pill:hover {
+  background: rgba(var(--ls-brand-rgb) / 0.14);
+}
+
+.ls-pill__news b {
+  font-weight: 600;
+  color: var(--ls-brand);
+}
+
+.ls-pill__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding-left: 10px;
+  border-left: 1px solid rgba(var(--ls-brand-rgb) / 0.28);
+  color: var(--ls-text);
+}
+
+.ls-pill__arrow {
+  color: var(--ls-brand);
+  transition: transform 150ms ease;
+}
+
+.ls-pill:hover .ls-pill__arrow {
+  transform: translateX(2px);
+}
+
+.ls-hero__title {
+  max-width: 760px;
+  margin-top: 24px;
+  font-family: var(--ls-display);
+  font-size: clamp(42px, 5vw, 64px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  color: var(--ls-text);
+}
+
+.ls-hero__line {
+  display: block;
+}
+
+.ls-hero__sub {
+  max-width: 640px;
+  margin-top: 24px;
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--ls-body);
+  text-wrap: pretty;
+}
+
+.ls-hero__cta {
+  width: 100%;
+  max-width: 560px;
+  margin-top: 40px;
+}
+
+.ls-trust {
+  margin-top: 16px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ls-muted);
+  text-align: center;
+  text-wrap: balance;
+}
+
+/* ── Command box: a floating panel of the material with a recessed command row ───────────────── */
+
+.ls-cmd {
+  position: relative;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: var(--ls-panel);
+  box-shadow: var(--ls-raised);
+  text-align: left;
+  transition: border-color 250ms ease;
+}
+
+.ls-cmd:focus-within {
+  border-color: rgba(var(--ls-brand-rgb) / 0.5);
+}
+
+.ls-cmd__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 2px 6px 8px 2px;
+}
+
+.ls-cmd__tabs {
+  --stp-tab-font-size: 12.5px;
+  flex: none;
+  max-width: 100%;
+}
+
+.ls-cmd__tabs .stp-ui-tab {
+  flex: none;
+}
+
+.ls-cmd__hint {
+  min-width: 0;
+  font-family: var(--ls-mono);
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--ls-muted);
+  text-align: right;
+}
+
+.ls-cmd__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 60px;
+  padding: 8px 8px 8px 16px;
+  border-radius: 8px;
+  background: var(--ls-inset);
+  box-shadow: var(--ls-field);
+}
+
+.ls-cmd__prompt {
+  flex: none;
+  font-family: var(--ls-mono);
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--ls-brand);
+}
+
+.ls-cmd__code {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 4px 8px 4px 0;
+  overflow-x: auto;
+  font-family: var(--ls-mono);
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: #fff;
+  white-space: nowrap;
+  scrollbar-width: none;
+  user-select: text;
+}
+
+.ls-cmd__code::-webkit-scrollbar {
+  display: none;
+}
+
+.ls-cmd__code--long {
+  font-size: 14.5px;
+}
+
+.ls-cmd__row--overflow .ls-cmd__code {
+  mask-image: linear-gradient(90deg, #000 calc(100% - 44px), transparent);
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 44px), transparent);
+}
+
+.ls-cmd__caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin-left: 3px;
+  vertical-align: -0.15em;
+  border-radius: 1px;
+  background: var(--ls-brand);
+  opacity: 0.85;
+  animation: ls-blink 1.1s steps(2, start) infinite;
+}
+
+@keyframes ls-blink {
+  to {
+    opacity: 0;
+  }
+}
+
+.ls-cmd__copy {
+  --stp-control-height: 42px;
+  --stp-button-padding-x: 14px;
+  flex: none;
+  font-size: 13.5px;
+}
+
+.ls-cmd__labels {
+  display: grid;
+}
+
+.ls-cmd__label {
+  grid-area: 1 / 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.ls-cmd__label svg {
+  flex: none;
+}
+
+.ls-cmd--idle .ls-cmd__label--copy,
+.ls-cmd--copied .ls-cmd__label--copied,
+.ls-cmd--failed .ls-cmd__label--failed {
+  opacity: 1;
+  transform: none;
+}
+
+.ls-cmd--copied .ls-cmd__copy {
+  --stp-button-primary-surface: linear-gradient(180deg, rgb(30, 150, 122), rgb(22, 120, 100));
+}
+
+/* ── The cover composite: the Console tilted, the terminal flat in front, scaled to fit ───────── */
+
+.ls-cover {
+  position: relative;
+  width: 100%;
+  max-width: 1100px;
+  margin: 48px auto 0;
+  aspect-ratio: var(--ls-cover-w) / var(--ls-cover-h);
+}
+
+.ls-cover__stage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: calc(var(--ls-cover-w) * 1px);
+  height: calc(var(--ls-cover-h) * 1px);
+  isolation: isolate;
+  transform: scale(var(--ls-cover-scale, 1));
+  transform-origin: 0 0;
+  font-family: var(--ls-sans);
+}
+
+.ls-cover__glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 0;
+  width: 1000px;
+  height: 560px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(var(--ls-brand-rgb) / 0.16), rgba(var(--ls-brand-rgb) / 0) 68%);
+  filter: blur(24px);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.ls-cover__console,
+.ls-cover__terminal {
+  --ls-win-text: rgba(255, 255, 255, 0.87);
+  --ls-win-muted: rgb(160, 160, 160);
+  --ls-win-faint: rgb(120, 124, 124);
+  --ls-win-rule: #2f3434;
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 12px;
+  box-shadow: var(--ls-float);
+  color: var(--ls-win-text);
+}
+
+.ls-cover__console {
+  top: 30px;
+  left: 40px;
+  z-index: 1;
+  width: 800px;
+  height: 520px;
+  background: var(--ls-window);
+  font-size: 13.5px;
+  line-height: 1.45;
+  transform: perspective(1800px) rotateY(-9deg) rotateX(2deg);
+}
+
+.ls-cover__terminal {
+  top: 380px;
+  left: 600px;
+  z-index: 2;
+  width: 500px;
+  height: 340px;
+  background: #101616;
+}
+
+.ls-cover__top {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 22px;
+  height: 56px;
+  padding: 0 22px;
+  border-bottom: 1px solid var(--ls-win-rule);
+}
+
+.ls-cover__crumb {
+  font-size: 14.5px;
+  color: var(--ls-win-muted);
+  white-space: nowrap;
+}
+
+.ls-cover__crumb b {
+  font-weight: 600;
+  color: #fff;
+}
+
+.ls-cover__slash {
+  margin: 0 2px;
+  color: var(--ls-win-faint);
+}
+
+.ls-cover__frame {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.ls-cover__nav {
+  display: grid;
+  flex: none;
+  align-content: start;
+  gap: 2px;
+  width: 190px;
+  padding: 14px 10px;
+  border-right: 1px solid var(--ls-win-rule);
+}
+
+.ls-cover__nav li {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 6px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.ls-cover__nav li.is-current {
+  background: linear-gradient(135deg, rgb(60, 64, 64), rgb(44, 47, 47));
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(190, 190, 190, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  font-weight: 500;
+  color: #fff;
+}
+
+.ls-cover__main {
+  display: grid;
+  flex: 1;
+  align-content: start;
+  gap: 22px;
+  min-width: 0;
+  padding: 24px 26px;
+}
+
+.ls-cover__status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+  color: var(--ls-win-muted);
+}
+
+.ls-cover__mono {
+  font-family: var(--ls-mono);
+  color: #fff;
+}
+
+.ls-cover__tiles,
+.ls-cover__kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.ls-cover__tile {
+  position: relative;
+  display: grid;
+  gap: 3px;
+  padding: 14px 14px 12px 18px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: linear-gradient(145deg, rgba(32, 39, 39, 0.98), rgba(28, 35, 35, 0.98));
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.ls-cover__tile::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  background: var(--ls-cat, var(--ls-win-faint));
+}
+
+.ls-cover__tile--compute,
+.ls-res__row--compute {
+  --ls-cat: var(--ls-compute);
+}
+
+.ls-cover__tile--database,
+.ls-res__row--database {
+  --ls-cat: var(--ls-database);
+}
+
+.ls-cover__tile--security,
+.ls-res__row--security {
+  --ls-cat: var(--ls-security);
+}
+
+.ls-cover__tile--network,
+.ls-res__row--network {
+  --ls-cat: var(--ls-network);
+}
+
+.ls-cover__tile-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.ls-cover__tile-type {
+  overflow: hidden;
+  font-size: 12.5px;
+  color: var(--ls-win-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ls-cover__tile-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--ls-mint);
+}
+
+.ls-cover__tile-state::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.ls-cover__kpi {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.22);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.ls-cover__kpi-label {
+  font-size: 12px;
+  color: var(--ls-win-muted);
+  white-space: nowrap;
+}
+
+.ls-cover__kpi-value {
+  font-family: var(--ls-mono);
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.1;
+  color: #fff;
+  white-space: nowrap;
+}
+
+/* ── Chapters: seven blocks on the left, the rail on the boundary, the lens on the right ─────── */
+
+.ls-chapters {
+  position: relative;
+  z-index: 0;
+  padding: 32px 0 96px;
+}
+
+/* The floor fades under the chapter text and shows under the lens. */
+.ls-chapters::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    90deg,
+    var(--ls-ground) 0,
+    var(--ls-ground) 38%,
+    rgba(10, 20, 18, 0.6) 47%,
+    rgba(10, 20, 18, 0) 56%
+  );
+  pointer-events: none;
+}
+
+.ls-chapters__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 48px minmax(0, 1fr);
+  align-items: start;
+}
+
+.ls-chapters__flow {
+  min-width: 0;
+}
+
+.ls-chapters__rail,
+.ls-chapters__lens {
+  align-self: stretch;
+  min-width: 0;
+}
+
+.ls-chapter {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 78vh;
+  padding: 64px 0;
+}
+
+.ls-chapter__num {
+  font-family: var(--ls-mono);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--ls-brand);
+}
+
+.ls-chapter__title {
+  margin-top: 16px;
+  font-family: var(--ls-display);
+  font-size: 40px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.1;
+  color: var(--ls-text);
+  text-wrap: balance;
+}
+
+.ls-chapter__text {
+  max-width: 480px;
+  margin-top: 24px;
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--ls-body);
+  text-wrap: pretty;
+}
+
+.ls-gets {
+  display: grid;
+  gap: 12px;
+  max-width: 520px;
+  margin-top: 24px;
+}
+
+.ls-gets__row {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  font-size: 15.5px;
+  line-height: 1.5;
+  color: var(--ls-text);
+  text-wrap: pretty;
+}
+
+.ls-gets__check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  border-radius: 50%;
+  background: rgba(var(--ls-brand-rgb) / 0.14);
+  color: var(--ls-brand);
+}
+
+.ls-chapter__inline {
+  display: none;
+}
+
+/* ── The rail: a line on the boundary, seven dots on it ──────────────────────────────────────── */
+
+.ls-rail {
+  position: sticky;
+  top: 96px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  height: calc(100vh - 128px);
+  max-height: 720px;
+}
+
+.ls-rail::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    rgba(160, 220, 210, 0.16) 12%,
+    rgba(160, 220, 210, 0.16) 88%,
+    transparent
+  );
+  transform: translateX(-0.5px);
+}
+
+.ls-rail li {
+  position: relative;
+  display: flex;
+  padding: 4px;
+}
+
+.ls-rail__dot {
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--ls-ground);
+  box-shadow: inset 0 0 0 1.5px var(--ls-muted);
+  transition:
+    background-color 250ms ease,
+    box-shadow 250ms ease;
+}
+
+.ls-rail__dot:not(.is-current):hover {
+  box-shadow:
+    0 0 0 4px rgba(160, 220, 210, 0.14),
+    inset 0 0 0 1.5px var(--ls-body);
+}
+
+.ls-rail__dot.is-passed {
+  background: var(--ls-muted);
+  box-shadow: none;
+}
+
+.ls-rail__dot.is-current {
+  background: var(--ls-brand);
+  box-shadow: 0 0 0 4px rgba(var(--ls-brand-rgb) / 0.18);
+}
+
+/* ── The lens: one pinned window, seven screens stacked in it ────────────────────────────────── */
+
+/* The lens is as tall as the screen it shows: the chapters' script measures the current screen and
+ * writes `--ls-lens-h`, and the height eases between chapters together with the crossfade. A screen
+ * taller than the viewport allows is clipped at the bottom, like a window cut by the screen's edge. */
+.ls-lens {
+  position: sticky;
+  top: 96px;
+  height: var(--ls-lens-h, 560px);
+  min-height: 320px;
+  max-height: calc(100vh - 128px);
+  overflow: hidden;
+  border-radius: 14px;
+  background: var(--ls-window);
+  box-shadow: var(--ls-float);
+  transition: height 360ms var(--ls-ease);
+}
+
+.ls-lens__screen {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 320ms var(--ls-ease),
+    visibility 0s linear 320ms;
+}
+
+.ls-lens[data-current='1'] > [data-screen='1'],
+.ls-lens[data-current='2'] > [data-screen='2'],
+.ls-lens[data-current='3'] > [data-screen='3'],
+.ls-lens[data-current='4'] > [data-screen='4'],
+.ls-lens[data-current='5'] > [data-screen='5'],
+.ls-lens[data-current='6'] > [data-screen='6'],
+.ls-lens[data-current='7'] > [data-screen='7'] {
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity 320ms var(--ls-ease),
+    visibility 0s;
+}
+
+.ls-lens__screen > .ls-win {
+  height: 100%;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* The lens is tall: its screens breathe a little more than the inline ones, unless it is narrow. */
+.ls-lens__screen .ls-win__body {
+  gap: 22px;
+  padding: 24px;
+}
+
+@media (max-width: 1199px) {
+  .ls-lens__screen .ls-win__body {
+    gap: 18px;
+    padding: 20px;
+  }
+}
+
+.ls-lens__screen .ls-win--terminal .ls-win__body {
+  padding: 22px 24px;
+}
+
+.ls-lens__screen .ls-scr__h {
+  font-size: 20px;
+}
+
+.ls-lens__screen .ls-dep__row {
+  padding: 18px 0;
+}
+
+.ls-lens__screen .ls-rule {
+  padding: 14px 0;
+}
+
+.ls-lens__screen .ls-tl__row {
+  padding: 12px 0;
+}
+
+.ls-lens__screen .ls-bars {
+  gap: 12px;
+}
+
+.ls-lens__screen .ls-tiles {
+  gap: 14px;
+}
+
+.ls-lens__screen .ls-tile {
+  padding: 14px 16px 12px;
+}
+
+.ls-lens__screen .ls-trace {
+  gap: 12px;
+  padding: 16px 18px 14px;
+}
+
+.ls-lens__screen .ls-trace__spans {
+  gap: 9px;
+}
+
+.ls-lens__screen .ls-span__lane {
+  height: 14px;
+}
+
+/* ── A window: the chrome bar and the screen under it ────────────────────────────────────────── */
+
+.ls-win {
+  --ls-win-text: rgba(255, 255, 255, 0.87);
+  --ls-win-muted: rgb(160, 160, 160);
+  --ls-win-faint: rgb(120, 124, 124);
+  --ls-win-rule: #2f3434;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--ls-window);
+  box-shadow: var(--ls-raised);
+  font-family: var(--ls-sans);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ls-win-text);
+}
+
+.ls-win__bar,
+.ls-cover__chrome {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 12px;
+  height: 40px;
+  padding: 0 14px;
+  border-bottom: 1px solid rgba(160, 220, 210, 0.08);
+  background: var(--ls-chrome);
+}
+
+.ls-win__dots {
+  display: flex;
+  flex: none;
+  gap: 7px;
+}
+
+.ls-win__dots i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ff5f57;
+  opacity: 0.8;
+}
+
+.ls-win__dots i:nth-child(2) {
+  background: #febc2e;
+}
+
+.ls-win__dots i:nth-child(3) {
+  background: #28c840;
+}
+
+.ls-win__pill {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  max-width: 100%;
+  height: 26px;
+  margin: 0 auto;
+  padding: 0 10px;
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.28);
+  box-shadow: inset 0 0 0 1px rgba(160, 220, 210, 0.08);
+  font-family: var(--ls-mono);
+  font-size: 11.5px;
+  color: var(--ls-win-muted);
+}
+
+.ls-win__lock {
+  flex: none;
+}
+
+.ls-win__url {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ls-win__title {
+  flex: 1;
+  overflow: hidden;
+  font-family: var(--ls-mono);
+  font-size: 12px;
+  color: var(--ls-win-muted);
+  text-align: center;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Balances the dots so the pill sits centred; it gives way first when a long address needs the room. */
+.ls-win__spacer {
+  flex: 0 100 44px;
+  min-width: 0;
+}
+
+.ls-win__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 0;
+  padding: 20px;
+  container-type: inline-size;
+}
+
+.ls-win--terminal .ls-win__body {
+  padding: 18px 22px;
+  background: #101616;
+}
+
+/* Shared parts of the screens. */
+.ls-scr__head {
+  display: grid;
+  gap: 4px;
+}
+
+.ls-scr__h {
+  font-family: var(--ls-display);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  color: #fff;
+}
+
+.ls-scr__sub {
+  font-size: 12.5px;
+  color: var(--ls-win-muted);
+}
+
+.ls-win .ls-sep,
+.ls-cover__stage .ls-sep {
+  color: var(--ls-win-faint);
+}
+
+.ls-btn {
+  --stp-button-font-family: var(--ls-sans);
+  font-size: 13px;
+  cursor: default;
+}
+
+.ls-btn--small {
+  --stp-control-height: 28px;
+  --stp-button-padding-x: 10px;
+  font-size: 12.5px;
+}
+
+.ls-badge {
+  font-family: var(--ls-sans);
+}
+
+.ls-badge.stp-ui-badge--success {
+  --stp-badge-rgb: var(--ls-mint-rgb);
+  --stp-badge-text: var(--ls-mint);
+}
+
+.ls-badge__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.ls-switch:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+/* ── 01 Review: the resources on the left, the picture on the right, the estimate under both ── */
+
+.ls-rv {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.ls-res {
+  display: grid;
+  align-content: start;
+}
+
+.ls-res__row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1px 12px;
+  padding: 8px 0 8px 14px;
+  border-top: 1px solid var(--ls-win-rule);
+}
+
+.ls-res__row:first-child {
+  border-top: 0;
+  padding-top: 2px;
+}
+
+.ls-res__row::before {
+  content: '';
+  position: absolute;
+  top: 11px;
+  bottom: 11px;
+  left: 0;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--ls-cat, var(--ls-win-faint));
+}
+
+.ls-res__row:first-child::before {
+  top: 5px;
+}
+
+.ls-res__name {
+  font-family: var(--ls-mono);
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.ls-res__price {
+  font-family: var(--ls-mono);
+  font-size: 12.5px;
+  color: var(--ls-win-text);
+  text-align: right;
+}
+
+.ls-res__meta {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ls-win-muted);
+}
+
+.ls-res__type {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.ls-res__because::before {
+  content: '·';
+  margin-right: 8px;
+  color: var(--ls-win-faint);
+}
+
+.ls-rv__picture {
+  position: relative;
+  min-height: 240px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.22);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.ls-diagram {
+  position: absolute;
+  inset: 0;
+}
+
+.ls-diagram .stp-diagram {
+  background: transparent;
+}
+
+.ls-diagram:not(.is-active) .stp-diagram {
+  touch-action: pan-y;
+}
+
+.ls-diagram .stp-diagram__controls,
+.ls-diagram .stp-diagram__hint {
+  display: none;
+}
+
+.ls-diagram__gate {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(20, 26, 26, 0.92);
+  box-shadow: var(--ls-rest);
+  font-family: var(--ls-mono);
+  font-size: 11px;
+  color: var(--ls-win-muted);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.ls-diagram.is-active .ls-diagram__gate {
+  color: var(--ls-brand);
+}
+
+.ls-rv__foot {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--ls-win-rule);
+}
+
+.ls-rv__estimate {
+  font-size: 13px;
+  color: var(--ls-win-muted);
+}
+
+.ls-rv__estimate b {
+  font-weight: 500;
+  color: #fff;
+}
+
+@container (max-width: 520px) {
+  .ls-rv {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(180px, 1fr) auto;
+  }
+
+  .ls-rv__picture {
+    order: -1;
+    min-height: 180px;
+  }
+
+  .ls-res__row {
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+
+  .ls-res__row::before {
+    top: 9px;
+    bottom: 9px;
+  }
+}
+
+/* ── 02 Package, and the cover's terminal: mono lines on the darker ground ───────────────────── */
+
+.ls-term {
+  display: flex;
+  flex-direction: column;
+  font-family: var(--ls-mono);
+  font-size: 13px;
+  line-height: 1.7;
+  color: #cfd8d6;
+}
+
+.ls-term--cover {
+  flex: 1;
+  min-height: 0;
+  padding: 14px 20px;
+  line-height: 1.6;
+}
+
+.ls-term__line {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ls-term__prompt {
+  font-weight: 500;
+  color: var(--ls-brand);
+}
+
+.ls-term__cmd {
+  font-weight: 500;
+  color: #fff;
+}
+
+.ls-term__phase {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.ls-term__mark {
+  display: inline-block;
+  flex: none;
+  width: 14px;
+  text-align: center;
+}
+
+.ls-term__phase--done .ls-term__mark {
+  color: var(--ls-mint);
+}
+
+.ls-term__phase--active {
+  color: #fff;
+}
+
+.ls-term__phase--active .ls-term__mark {
+  color: var(--ls-brand);
+}
+
+.ls-term__phase--pending {
+  color: #66716f;
+}
+
+.ls-term__note {
+  color: #8d9a97;
+}
+
+.ls-term__rows {
+  display: grid;
+  gap: 2px;
+  margin: 6px 0 6px 24px;
+}
+
+.ls-term__row {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: 16px;
+  white-space: nowrap;
+}
+
+.ls-term__name {
+  font-weight: 500;
+  color: #fff;
+}
+
+.ls-term__kind {
+  overflow: hidden;
+  color: #8d9a97;
+  text-overflow: ellipsis;
+}
+
+.ls-term__result {
+  color: var(--ls-mint);
+}
+
+.ls-term__time {
+  min-width: 36px;
+  color: #8d9a97;
+  text-align: right;
+}
+
+.ls-term__time:empty {
+  min-width: 0;
+}
+
+.ls-term__row--skipped .ls-term__result {
+  color: var(--ls-brand);
+}
+
+.ls-term__summary {
+  margin: 2px 0 10px 24px;
+  color: #8d9a97;
+}
+
+.ls-term__progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 6px 0 8px;
+}
+
+.ls-term__track {
+  flex: 1;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.ls-term__done {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--ls-mint);
+}
+
+.ls-term__pct {
+  font-weight: 500;
+  color: #fff;
+}
+
+.ls-term__rows--cover {
+  margin-left: 0;
+}
+
+.ls-term__rows--cover .ls-term__row {
+  grid-template-columns: 14px 110px minmax(0, 1fr) auto;
+  gap: 12px;
+}
+
+.ls-term__row--done .ls-term__mark {
+  color: var(--ls-mint);
+}
+
+.ls-term__row--active .ls-term__mark,
+.ls-term__row--active .ls-term__result {
+  color: var(--ls-brand);
+}
+
+/* ── 03 Deployments ──────────────────────────────────────────────────────────────────────────── */
+
+.ls-dep {
+  display: grid;
+}
+
+.ls-dep__row {
+  display: grid;
+  gap: 10px;
+  padding: 14px 0;
+  border-top: 1px solid var(--ls-win-rule);
+}
+
+.ls-dep__row:first-child {
+  padding-top: 2px;
+  border-top: 0;
+}
+
+.ls-dep__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.ls-dep__id {
+  font-family: var(--ls-mono);
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.ls-dep__ref {
+  font-family: var(--ls-mono);
+  font-size: 12px;
+  color: var(--ls-win-muted);
+}
+
+.ls-dep__msg {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.72);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ls-dep__badge {
+  margin-left: auto;
+}
+
+.ls-dep__traffic {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'lane shift'
+    'note action';
+  align-items: center;
+  gap: 8px 14px;
+}
+
+.ls-dep__lane {
+  grid-area: lane;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.ls-dep__fill {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--ls-brand);
+}
+
+.ls-dep__shift {
+  grid-area: shift;
+  font-family: var(--ls-mono);
+  font-size: 12px;
+  color: #fff;
+}
+
+.ls-dep__note {
+  grid-area: note;
+  font-size: 12px;
+  color: var(--ls-win-muted);
+}
+
+.ls-dep__action {
+  grid-area: action;
+  justify-self: end;
+}
+
+.ls-dep__url {
+  font-family: var(--ls-mono);
+  font-size: 12px;
+  color: var(--ls-brand);
+}
+
+/* A narrow window keeps the badge on the first line and lets the commit message take the second. */
+@container (max-width: 440px) {
+  .ls-dep__top {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'id ref badge'
+      'msg msg msg';
+  }
+
+  .ls-dep__id {
+    grid-area: id;
+  }
+
+  .ls-dep__ref {
+    grid-area: ref;
+  }
+
+  .ls-dep__badge {
+    grid-area: badge;
+    margin-left: 0;
+  }
+
+  .ls-dep__msg {
+    grid-area: msg;
+    white-space: normal;
+  }
+}
+
+/* ── 04 Monitoring ───────────────────────────────────────────────────────────────────────────── */
+
+.ls-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.ls-tile {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px 10px;
+  border-radius: 10px;
+  background: linear-gradient(145deg, rgba(32, 39, 39, 0.98), rgba(28, 35, 35, 0.98));
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  color: var(--ls-brand);
+}
+
+.ls-tile__label {
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  color: var(--ls-win-muted);
+}
+
+.ls-tile__value {
+  font-family: var(--ls-mono);
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 1.1;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.ls-tile__unit {
+  margin-left: 4px;
+  font-family: var(--ls-sans);
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--ls-win-muted);
+}
+
+.ls-spark {
+  display: block;
+  width: 100%;
+  height: 30px;
+  margin-top: 2px;
+}
+
+.ls-trace {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px 12px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.22);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.ls-trace__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.ls-trace__name {
+  font-family: var(--ls-mono);
+  font-weight: 500;
+  color: #fff;
+}
+
+.ls-trace__total {
+  font-family: var(--ls-mono);
+  color: var(--ls-win-muted);
+}
+
+.ls-trace__spans {
+  display: grid;
+  gap: 7px;
+}
+
+.ls-span {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr) 46px;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.ls-span--http {
+  --ls-span: var(--ls-network);
+}
+
+.ls-span--app {
+  --ls-span: var(--ls-compute);
+}
+
+.ls-span--db {
+  --ls-span: var(--ls-database);
+}
+
+.ls-span--cache {
+  --ls-span: var(--ls-brand);
+}
+
+.ls-span__name {
+  overflow: hidden;
+  font-family: var(--ls-mono);
+  color: rgba(255, 255, 255, 0.8);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ls-span__lane {
+  position: relative;
+  height: 12px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.ls-span__bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 3px;
+  background: var(--ls-span);
+}
+
+.ls-span__ms {
+  font-family: var(--ls-mono);
+  color: var(--ls-win-muted);
+  text-align: right;
+}
+
+.ls-uptime {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  font-size: 12.5px;
+  color: var(--ls-win-muted);
+}
+
+.ls-uptime__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ls-mint);
+  box-shadow: 0 0 0 3px rgba(var(--ls-mint-rgb) / 0.18);
+}
+
+.ls-uptime__url {
+  font-family: var(--ls-mono);
+  color: #fff;
+}
+
+.ls-uptime__pct {
+  font-family: var(--ls-mono);
+  color: var(--ls-mint);
+}
+
+.ls-uptime__ms {
+  font-family: var(--ls-mono);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* ── 05 Guardrails ───────────────────────────────────────────────────────────────────────────── */
+
+.ls-rules {
+  display: grid;
+}
+
+.ls-rule {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 0;
+  border-top: 1px solid var(--ls-win-rule);
+  font-size: 13.5px;
+  color: var(--ls-win-text);
+}
+
+.ls-rule:first-child {
+  padding-top: 2px;
+  border-top: 0;
+}
+
+.ls-blocked {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(235, 97, 97, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(235, 97, 97, 0.28);
+}
+
+.ls-blocked__mark {
+  display: inline-flex;
+  color: var(--ls-red);
+}
+
+.ls-blocked__text {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.8);
+  text-wrap: pretty;
+}
+
+.ls-blocked__title {
+  font-weight: 500;
+  color: #fff;
+}
+
+/* ── 06 Incident ─────────────────────────────────────────────────────────────────────────────── */
+
+.ls-inc__head {
+  display: grid;
+  gap: 8px;
+}
+
+.ls-inc__title {
+  font-size: 17px;
+}
+
+.ls-inc__state {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--ls-win-muted);
+}
+
+.ls-inc__duration {
+  font-family: var(--ls-mono);
+}
+
+.ls-tl {
+  display: grid;
+}
+
+.ls-tl__row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 44px 12px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  padding: 9px 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.ls-tl__row::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 59.5px;
+  width: 1px;
+  background: var(--ls-win-rule);
+}
+
+.ls-tl__row:first-child::before {
+  top: 50%;
+}
+
+.ls-tl__row:last-child::before {
+  bottom: 50%;
+}
+
+.ls-tl__time {
+  padding-top: 1px;
+  font-family: var(--ls-mono);
+  font-size: 12px;
+  color: var(--ls-win-muted);
+}
+
+.ls-tl__mark {
+  position: relative;
+  z-index: 1;
+  width: 12px;
+  height: 12px;
+  margin-top: 3px;
+  border-radius: 50%;
+  background: var(--ls-window);
+  box-shadow: inset 0 0 0 2px var(--ls-win-faint);
+}
+
+.ls-tl__row--error .ls-tl__mark {
+  background: var(--ls-red);
+  box-shadow: 0 0 0 3px rgba(235, 97, 97, 0.2);
+}
+
+.ls-tl__row--ok .ls-tl__mark {
+  background: var(--ls-mint);
+  box-shadow: 0 0 0 3px rgba(var(--ls-mint-rgb) / 0.2);
+}
+
+.ls-tl__text {
+  color: rgba(255, 255, 255, 0.85);
+  text-wrap: pretty;
+}
+
+.ls-tl__row--error .ls-tl__text {
+  color: #f4a3a3;
+}
+
+.ls-tl__row--ok .ls-tl__text {
+  color: var(--ls-mint);
+}
+
+.ls-inc__alert {
+  padding-top: 12px;
+  border-top: 1px solid var(--ls-win-rule);
+  font-size: 12.5px;
+  color: var(--ls-win-muted);
+}
+
+/* ── 07 Costs ────────────────────────────────────────────────────────────────────────────────── */
+
+.ls-cost__head {
+  display: grid;
+  gap: 2px;
+}
+
+.ls-cost__total {
+  margin-top: 6px;
+  font-family: var(--ls-mono);
+  font-size: 36px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.05;
+  color: #fff;
+}
+
+.ls-bars {
+  display: grid;
+  gap: 9px;
+}
+
+.ls-bar {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) 62px;
+  align-items: center;
+  gap: 12px;
+  font-size: 12.5px;
+}
+
+.ls-bar__name {
+  overflow: hidden;
+  font-family: var(--ls-mono);
+  color: rgba(255, 255, 255, 0.85);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ls-bar__lane {
+  height: 10px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.ls-bar__fill {
+  display: block;
+  min-width: 3px;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--ls-brand);
+}
+
+.ls-bar__amount {
+  font-family: var(--ls-mono);
+  color: var(--ls-win-muted);
+  text-align: right;
+}
+
+.ls-budget {
+  display: grid;
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--ls-win-rule);
+}
+
+.ls-budget__line {
+  display: flex;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--ls-win-muted);
+}
+
+.ls-budget__line b {
+  font-family: var(--ls-mono);
+  font-weight: 500;
+  color: #fff;
+}
+
+.ls-budget__lane {
+  position: relative;
+  display: block;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.ls-budget__fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: 3px;
+  background: var(--ls-brand);
+}
+
+.ls-budget__mark {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--ls-amber);
+}
+
+/* ── Closing ─────────────────────────────────────────────────────────────────────────────────── */
+
+.ls-closing {
+  padding: 96px 0 64px;
+}
+
+.ls-closing__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.ls-closing__title {
+  max-width: 720px;
+  font-family: var(--ls-display);
+  font-size: clamp(30px, 3.4vw, 42px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.12;
+  color: var(--ls-text);
+  text-wrap: balance;
+}
+
+.ls-closing__cta {
+  width: 100%;
+  max-width: 560px;
+  margin-top: 40px;
+}
+
+.ls-closing__signin {
+  margin-top: 8px;
+  font-size: 14px;
+  color: var(--ls-muted);
+}
+
+.ls-closing__signin a {
+  font-weight: 500;
+  color: var(--ls-brand);
+}
+
+.ls-closing__signin a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ── Testimonials ────────────────────────────────────────────────────────────────────────────── */
+
+.ls-voices {
+  padding: 64px 0 96px;
+}
+
+.ls-voices__title {
+  font-family: var(--ls-display);
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--ls-text);
+  text-align: center;
+}
+
+.ls-voices__list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  margin-top: 40px;
+}
+
+.ls-voice {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 28px;
+  border-radius: 14px;
+  background: var(--ls-panel);
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(160, 220, 210, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.ls-voice__quote {
+  flex: 1;
+  font-size: 15.5px;
+  line-height: 1.6;
+  color: var(--ls-body);
+  text-wrap: pretty;
+}
+
+.ls-voice__who {
+  display: grid;
+  gap: 2px;
+  padding-top: 16px;
+  border-top: 1px solid var(--ls-border-soft);
+}
+
+.ls-voice__name {
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--ls-text);
+}
+
+.ls-voice__role {
+  font-size: 13px;
+  color: var(--ls-muted);
+}
+
+/* ── Footer ──────────────────────────────────────────────────────────────────────────────────── */
+
+.ls-footer {
+  padding: 56px 0 40px;
+  border-top: 1px solid var(--ls-border);
+}
+
+.ls-footer__columns {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 32px;
+}
+
+.ls-footer__heading {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ls-text);
+}
+
+.ls-footer__links {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.ls-footer__links a {
+  font-size: 14.5px;
+  color: var(--ls-muted);
+  transition: color 150ms ease;
+}
+
+.ls-footer__links a:hover {
+  color: var(--ls-text);
+}
+
+.ls-footer__bottom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+  margin-top: 48px;
+  padding-top: 24px;
+  border-top: 1px solid var(--ls-border-soft);
+  font-size: 13px;
+  color: var(--ls-muted);
+}
+
+.ls-footer__logo {
+  display: inline-flex;
+  margin-right: 8px;
+}
+
+.ls-footer__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+  color: var(--ls-muted);
+  transition: color 150ms ease;
+}
+
+.ls-footer__status:hover {
+  color: var(--ls-text);
+}
+
+.ls-footer__status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ls-mint);
+  box-shadow: 0 0 0 3px rgba(var(--ls-mint-rgb) / 0.18);
+}
+
+/* ── Below 1000px: one column; the lens is gone and each chapter carries its screen ─────────── */
+
+@media (max-width: 999px) {
+  .ls-chapters {
+    padding-bottom: 48px;
+  }
+
+  /* No lens to stand on the floor: the grid fades out under the chapters. */
+  .ls-chapters::before {
+    background: linear-gradient(180deg, rgba(10, 20, 18, 0) 0, var(--ls-ground) 240px);
+  }
+
+  .ls-chapters__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ls-chapters__rail,
+  .ls-chapters__lens {
+    display: none;
+  }
+
+  .ls-chapter {
+    gap: 32px;
+    min-height: 0;
+    padding: 48px 0;
+  }
+
+  .ls-chapter__inline {
+    display: block;
+  }
+
+  .ls-chapter__inline .ls-win {
+    box-shadow: var(--ls-float);
+  }
+
+  .ls-chapter__inline .ls-rv__picture {
+    min-height: 260px;
+  }
+}
+
+/* ── Below 900px: the links fold into the panel ──────────────────────────────────────────────── */
+
+@media (max-width: 899px) {
+  .ls-nav__inner {
+    gap: 16px;
+  }
+
+  .ls-nav__primary,
+  .ls-nav__signin,
+  .ls-nav__demo {
+    display: none;
+  }
+
+  .ls-nav__actions {
+    margin-left: auto;
+  }
+
+  .ls-nav__menu {
+    display: inline-flex;
+  }
+}
+
+/* ── Below 800px: the testimonials stack ─────────────────────────────────────────────────────── */
+
+@media (max-width: 799px) {
+  .ls-voices__list {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 640px;
+    margin-inline: auto;
+  }
+
+  .ls-footer__columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ── Phones ──────────────────────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 599px) {
+  .ls-container {
+    padding-inline: 16px;
+  }
+
+  .ls-hero {
+    padding-top: 64px;
+  }
+
+  .ls-pill {
+    flex-wrap: wrap;
+    justify-content: center;
+    height: auto;
+    padding: 6px 14px;
+    border-radius: 16px;
+    white-space: normal;
+    text-align: center;
+  }
+
+  .ls-hero__sub {
+    font-size: 16px;
+  }
+
+  .ls-hero__cta {
+    margin-top: 32px;
+  }
+
+  .ls-cmd__top {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 2px 2px 8px;
+  }
+
+  .ls-cmd__tabs {
+    align-self: flex-start;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .ls-cmd__hint {
+    padding: 6px 4px 0;
+    text-align: left;
+  }
+
+  .ls-cmd__row {
+    flex-wrap: wrap;
+    padding: 8px 8px 8px 14px;
+  }
+
+  .ls-cmd__code {
+    flex-basis: 0;
+  }
+
+  .ls-cmd__copy {
+    flex-basis: 100%;
+    width: 100%;
+  }
+
+  .ls-cover {
+    margin-top: 40px;
+  }
+
+  .ls-chapter {
+    padding: 40px 0;
+  }
+
+  .ls-chapter__title {
+    font-size: 30px;
+  }
+
+  .ls-chapter__text {
+    font-size: 16px;
+  }
+
+  .ls-gets__row {
+    font-size: 15px;
+  }
+
+  .ls-win__body {
+    gap: 14px;
+    padding: 14px 12px;
+  }
+
+  .ls-win--terminal .ls-win__body {
+    padding: 14px;
+  }
+
+  .ls-win__bar {
+    padding: 0 12px;
+  }
+
+  .ls-term {
+    font-size: 12px;
+  }
+
+  .ls-term__rows,
+  .ls-term__summary {
+    margin-left: 14px;
+  }
+
+  .ls-term__row {
+    grid-template-columns: 82px minmax(0, 1fr) auto auto;
+    gap: 10px;
+  }
+
+  .ls-tiles {
+    gap: 8px;
+  }
+
+  .ls-tile {
+    padding: 10px 10px 8px;
+  }
+
+  .ls-tile__value {
+    font-size: 17px;
+  }
+
+  .ls-span {
+    grid-template-columns: 96px minmax(0, 1fr) 44px;
+    gap: 8px;
+  }
+
+  .ls-bar {
+    grid-template-columns: 84px minmax(0, 1fr) 56px;
+    gap: 8px;
+  }
+
+  .ls-tl__row {
+    grid-template-columns: 40px 12px minmax(0, 1fr);
+  }
+
+  .ls-tl__row::before {
+    left: 55.5px;
+  }
+
+  .ls-blocked {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .ls-blocked__action {
+    grid-column: 2;
+  }
+
+  .ls-cost__total {
+    font-size: 30px;
+  }
+
+  .ls-closing {
+    padding: 64px 0 48px;
+  }
+
+  .ls-voices {
+    padding: 48px 0 64px;
+  }
+
+  .ls-voice {
+    padding: 24px;
+  }
+
+  .ls-footer {
+    padding-top: 40px;
+  }
+
+  .ls-footer__columns {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+  }
+
+  .ls-footer__status {
+    margin-left: 0;
+  }
+}
+
+/* ── Reduced motion: cuts instead of fades ───────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .ls-root *,
+  .ls-root *::before,
+  .ls-root *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .ls-cmd__caret {
+    opacity: 0.85;
+  }
+}

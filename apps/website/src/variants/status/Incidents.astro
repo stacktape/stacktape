@@ -1,0 +1,30 @@
+---
+/** The incident history: one incident in ninety days, resolved in eleven minutes, and no maintenance. */
+import { HISTORY, INCIDENT } from './data';
+---
+
+<section class="su-history" aria-labelledby="su-history-title">
+  <div class="su-container">
+    <h2 class="su-label" id="su-history-title">{HISTORY.title}</h2>
+
+    <article class="su-card su-incident">
+      <p class="su-incident__date">{HISTORY.date}</p>
+      <p class="su-incident__title">{HISTORY.incidentTitle}</p>
+      <ol class="su-incident__rows" aria-label="Timeline">
+        {
+          INCIDENT.timeline.map((event) => (
+            <li class={`su-incident__row su-incident__row--${event.tone}`}>
+              <span class="su-incident__time">{event.time}</span>
+              <span class="su-incident__text">{event.text}</span>
+            </li>
+          ))
+        }
+      </ol>
+    </article>
+
+    <p class="su-history__none">{HISTORY.none}</p>
+
+    <h2 class="su-label su-label--later" id="su-maintenance-title">{HISTORY.maintenanceTitle}</h2>
+    <p class="su-history__none">{HISTORY.maintenance}</p>
+  </div>
+</section>

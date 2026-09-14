@@ -1,0 +1,70 @@
+---
+import ConsoleFrame from '../ConsoleFrame.astro';
+import { METRICS, PROJECT, TRACE, UPTIME } from '../data';
+
+// Decorative sparklines: fixed shapes, one per tile, so the picture is stable between renders.
+const SPARKS = [
+  [14, 12, 13, 10, 11, 9, 10, 8, 9, 7, 8, 6, 7, 6],
+  [9, 10, 8, 11, 9, 10, 12, 9, 10, 8, 9, 10, 9, 8],
+  [16, 16, 15, 16, 16, 16, 15, 16, 16, 16, 16, 15, 16, 16]
+];
+const points = (values: number[]) => values.map((v, i) => `${(i / (values.length - 1)) * 100},${v}`).join(' ');
+const pct = (ms: number) => `${(ms / TRACE.total) * 100}%`;
+---
+
+<ConsoleFrame active="Observability/Metrics" crumb={[PROJECT.name, 'production', 'apiService']} tab="Metrics">
+  <div class="hx-tiles">
+    {
+      METRICS.map((metric, index) => (
+        <div class="hx-tile">
+          <span class="hx-tile__label">{metric.label}</span>
+          <div class="hx-tile__value">
+            {metric.value}
+            <small>{metric.unit}</small>
+          </div>
+          <svg class="hx-tile__spark" viewBox="0 0 100 20" preserveAspectRatio="none" aria-hidden="true">
+            <polyline
+              points={points(SPARKS[index] ?? [])}
+              fill="none"
+              stroke="var(--hx-brand)"
+              stroke-width="1.5"
+              vector-effect="non-scaling-stroke"
+            />
+          </svg>
+        </div>
+      ))
+    }
+  </div>
+  <div class="hx-trace hx-m-hide" aria-label={`Trace of ${TRACE.name}`}>
+    <div class="hx-trace__head">
+      <span>Trace · {TRACE.name}</span>
+      <span>{TRACE.total} ms</span>
+    </div>
+    <div class="hx-trace__row hx-trace__row--root">
+      <span class="hx-trace__name">{TRACE.name}</span>
+      <span class="hx-trace__track"><span class="hx-trace__span" style="--hx-start: 0; --hx-len: 100%; --i: 0"></span></span>
+      <span class="hx-trace__ms">{TRACE.total}</span>
+    </div>
+    {
+      TRACE.spans.map((span, index) => (
+        <div class="hx-trace__row">
+          <span class="hx-trace__name">{span.name}</span>
+          <span class="hx-trace__track">
+            <span
+              class={`hx-trace__span hx-trace__span--${span.kind}`}
+              style={`--hx-start: ${pct(span.start)}; --hx-len: ${pct(span.length)}; --i: ${index + 1}`}
+            />
+          </span>
+          <span class="hx-trace__ms">{span.length}</span>
+        </div>
+      ))
+    }
+  </div>
+  <div class="hx-uptime">
+    <span class="hx-uptime__regions">
+      <span class="hx-label" style="margin: 0 4px 0 0;">Uptime</span>
+      {UPTIME.regions.map((region) => <span>{region}</span>)}
+    </span>
+    <span class="hx-uptime__pct">{UPTIME.thirtyDay} · 30 days</span>
+  </div>
+</ConsoleFrame>

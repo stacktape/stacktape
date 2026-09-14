@@ -1,0 +1,145 @@
+---
+/**
+ * The cover composite: the Console's overview tilted slightly in 3D, a terminal flat in front of
+ * it at the bottom right, both on layered shadows over a soft teal glow.
+ *
+ * Everything is laid out at a fixed design size (800×580) and the wrapper scales the canvas to its
+ * own width, so the picture stays crisp and never overflows. Under 640px only the terminal
+ * remains and the canvas shrinks to its size (420×280).
+ */
+import { COVER, RESOURCES } from './data';
+import { StatusBadge } from './ui';
+import Wordmark from './Wordmark.astro';
+
+const ICONS: Record<(typeof COVER.nav)[number], string> = {
+  Overview: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
+  Deployments: 'M12 3v13M6 10l6-7 6 7M5 21h14',
+  Monitoring: 'M3 13h4l3-7 4 12 3-7h4',
+  Guardrails: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',
+  Costs: 'M12 3v18M17 7.5c0-1.9-2.2-3-5-3s-5 1.1-5 3 2.2 2.5 5 3 5 1.1 5 3-2.2 3-5 3-5-1.1-5-3'
+};
+---
+
+<div class="sh-cover" data-sh-cover aria-hidden="true">
+  <div class="sh-cover__canvas">
+    <div class="sh-cover__glow"></div>
+
+    <div class="sh-cover__console">
+      <div class="sh-cover__chrome">
+        <span class="sh-dots"><i></i><i></i><i></i></span>
+        <span class="sh-cover__url">
+          <svg viewBox="0 0 16 16" width="10" height="10" fill="none">
+            <rect x="3" y="7" width="10" height="7" rx="1.6" stroke="currentColor" stroke-width="1.5"></rect>
+            <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path>
+          </svg>
+          {COVER.url}
+        </span>
+        <span class="sh-window__spacer"></span>
+      </div>
+      <div class="sh-cover__top">
+        <Wordmark height={17} ink="#f4f4f5" />
+        <span class="sh-cover__crumb">{COVER.crumb}</span>
+      </div>
+      <div class="sh-cover__main">
+        <ul class="sh-cover__nav">
+          {
+            COVER.nav.map((item, index) => (
+              <li class={index === 0 ? 'sh-cover__navitem is-current' : 'sh-cover__navitem'}>
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none">
+                  <path d={ICONS[item]} stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                {item}
+              </li>
+            ))
+          }
+        </ul>
+        <div class="sh-cover__page">
+          <div class="sh-cover__status">
+            <StatusBadge tone="success" dot>{COVER.status.live}</StatusBadge>
+            <span class="sh-mono sh-cover__version">{COVER.status.version}</span>
+            <span class="sh-cover__sep">·</span>
+            <span class="sh-mono">{COVER.status.region}</span>
+            <span class="sh-cover__sep">·</span>
+            <span class="sh-cover__when">{COVER.status.deployed}</span>
+          </div>
+          <ul class="sh-cover__tiles">
+            {
+              RESOURCES.map((resource) => (
+                <li class="sh-cover__tile">
+                  <span class={`sh-kind sh-kind--${resource.kind}`} />
+                  <span class="sh-cover__tilename">{resource.name}</span>
+                  <span class="sh-cover__tiletype">{resource.type}</span>
+                  <span class="sh-cover__tilestate">{COVER.tileState}</span>
+                </li>
+              ))
+            }
+          </ul>
+          <ul class="sh-cover__kpis">
+            {
+              COVER.kpis.map((kpi) => (
+                <li class="sh-cover__kpi">
+                  <span class="sh-cover__kpilabel">{kpi.label}</span>
+                  <span class="sh-cover__kpivalue">{kpi.value}</span>
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="sh-cover__terminal">
+      <div class="sh-cover__tbar">
+        <span class="sh-dots"><i></i><i></i><i></i></span>
+        <span class="sh-cover__ttitle">{COVER.terminal.title}</span>
+        <span class="sh-window__spacer"></span>
+      </div>
+      <div class="sh-cover__tbody">
+        <p class="sh-cover__cmd"><span class="sh-term__prompt">$</span> {COVER.terminal.command}</p>
+        <ul class="sh-cover__phases">
+          {
+            COVER.terminal.phases.map((phase) => (
+              <li class={`sh-cover__phase is-${phase.state}`}>
+                <span class="sh-cover__pmark">{phase.state === 'done' ? '✓' : phase.state === 'active' ? '●' : ''}</span>
+                <span>{phase.name}</span>
+                {'detail' in phase && <span class="sh-cover__pdetail">{phase.detail}</span>}
+              </li>
+            ))
+          }
+        </ul>
+        <div class="sh-cover__progress">
+          <span class="sh-cover__bar"><span style={`width: ${COVER.terminal.progress}%`} /></span>
+          <span class="sh-cover__pct">{COVER.terminal.progress} %</span>
+        </div>
+        <ul class="sh-cover__rows">
+          {
+            COVER.terminal.rows.map((row) => (
+              <li class={row.state === 'created' ? 'sh-cover__row is-done' : 'sh-cover__row is-active'}>
+                <span class="sh-cover__rmark">{row.state === 'created' ? '✓' : '●'}</span>
+                <span class="sh-cover__rname">{row.name}</span>
+                <span class="sh-cover__rtype">{row.type}</span>
+                <span class="sh-cover__rstate">{row.state}</span>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // The canvas is drawn at a fixed design width; scale it to the wrapper so it never overflows.
+  const covers = Array.from(document.querySelectorAll<HTMLElement>('[data-sh-cover]'));
+  const fit = (cover: HTMLElement) => {
+    const design = parseFloat(getComputedStyle(cover).getPropertyValue('--sh-cover-w')) || 800;
+    cover.style.setProperty('--sh-cover-scale', (cover.clientWidth / design).toFixed(4));
+  };
+  const observer = new ResizeObserver((entries) => {
+    for (const entry of entries) fit(entry.target as HTMLElement);
+  });
+  for (const cover of covers) {
+    fit(cover);
+    observer.observe(cover);
+  }
+</script>

@@ -1,0 +1,38 @@
+---
+/**
+ * One line item of the sheet: number and title on one row, the explanation, the three things you
+ * get, then the product window below the text at the card's full width.
+ */
+import type { Section as SectionData } from './data';
+
+type Props = { section: SectionData };
+
+const { section } = Astro.props;
+---
+
+<article class="sh-item" id={section.id} data-sh-section={section.id} aria-labelledby={`sh-${section.id}-title`}>
+  <div class="sh-item__head">
+    <span class="sh-item__num" aria-hidden="true">{section.number}</span>
+    <h2 class="sh-item__title" id={`sh-${section.id}-title`}>
+      <span class="sh-visually-hidden">{section.number} </span>{section.name}
+    </h2>
+  </div>
+  <p class="sh-item__text">{section.text}</p>
+  <ul class="sh-item__gets">
+    {
+      section.gets.map((line) => (
+        <li class="sh-item__get">
+          <span class="sh-check" aria-hidden="true">
+            <svg viewBox="0 0 12 12" width="11" height="11" fill="none">
+              <path d="m2.5 6.3 2.3 2.3 4.7-5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </span>
+          <span>{line}</span>
+        </li>
+      ))
+    }
+  </ul>
+  <div class="sh-item__window">
+    <slot />
+  </div>
+</article>

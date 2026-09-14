@@ -1,0 +1,49 @@
+---
+/**
+ * One stop on the route: a numbered plate the path runs through, the billboard with the screen on
+ * one side, and on the other the job's name, its explanation and, only where the reader actually
+ * does something, a quiet gold "You" line.
+ */
+import type { Stop } from './data';
+import { inline } from './data';
+
+type Props = { stop: Stop; side: 'left' | 'right'; wide?: boolean; variant?: 'incident' };
+
+const { stop, side, wide = false, variant } = Astro.props;
+const { number, id, verb, name, lead, you } = stop;
+---
+
+<li
+  class:list={['jn-stop', `jn-stop--${side}`, wide && 'jn-stop--wide', variant && `jn-stop--${variant}`]}
+  id={`stop-${number}`}
+  data-jn-stop
+  aria-labelledby={`stop-${number}-title`}
+>
+  <div class="jn-stop__plate">
+    <div class="jn-plate">
+      <div class="jn-plate__tile" aria-hidden="true" data-jn-anchor="station">
+        <svg viewBox="0 0 72 36" preserveAspectRatio="none"><polygon class="jn-plate__rhombus" points="36,0 72,18 36,36 0,18"></polygon></svg>
+        <span class="jn-plate__disc">{number}</span>
+      </div>
+      <span class="jn-plate__label">{verb}</span>
+    </div>
+  </div>
+
+  <div class="jn-stop__billboard">
+    <slot />
+  </div>
+
+  <div class="jn-stop__caption" id={id}>
+    <p class="jn-stop__num" aria-hidden="true">Stop {number}</p>
+    <h3 class="jn-stop__title" id={`stop-${number}-title`}>{name}</h3>
+    <p class="jn-stop__lead" set:html={inline(lead)} />
+    {
+      you && (
+        <p class="jn-you">
+          <span class="jn-you__tag">You</span>
+          <span class="jn-you__text" set:html={inline(you)} />
+        </p>
+      )
+    }
+  </div>
+</li>

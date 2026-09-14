@@ -1,0 +1,1777 @@
+/*
+ * Study "session": the whole page is one terminal transcript. Every class is prefixed `ss-`.
+ *
+ * Everything is JetBrains Mono at one size and one line height; the only larger type is the typed
+ * command and the two headline comment lines. Every line of text sits on a two-character gutter that
+ * holds its marker ($, #, ✓, ✗, !, ●), so the words of every line start at the same column. A
+ * comment block carries `#` on each of its wrapped lines: a column of `#` glyphs in the gutter,
+ * clipped to the block's height. Product windows open inline, centred on the transcript's axis and
+ * up to 1100px wide, on the Console's own material.
+ *
+ * Spacing is counted in lines: --ss-lh is one line of the transcript.
+ */
+
+.ss-root {
+  --ss-ground: #0b0f0e;
+  --ss-text: #d1d5db;
+  --ss-bright: #e5e7eb;
+  --ss-muted: #9ca3af;
+  --ss-dim: #6b7878;
+  --ss-cyan: #06b6d4;
+  --ss-green: #22c55e;
+  --ss-amber: #f59e0b;
+  --ss-red: #ef4444;
+  --ss-rule: #343c3c;
+  --ss-brand: #36bebe;
+  --ss-brand-rgb: 54 190 190;
+  --ss-rim: #2f3434;
+  --ss-chrome: #0c1111;
+
+  --ss-fs: 15.5px;
+  --ss-lh: calc(var(--ss-fs) * 1.65);
+  /* JetBrains Mono's advance width, so the gutter is the same in pixels on every line. */
+  --ss-ch: calc(var(--ss-fs) * 0.6);
+  --ss-gutter: calc(var(--ss-ch) * 2);
+  --ss-measure: calc(var(--ss-ch) * 96);
+  --ss-wide: 1100px;
+  --ss-bar: 48px;
+  --ss-display: clamp(26px, 1.6vw + 16px, 40px);
+
+  --ss-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* The cover loads Montserrat for its Console window; the product windows share it. */
+  --ss-sans: 'Montserrat', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  /* The Console material every product window is made of. */
+  --ss-win: rgb(22, 28, 28);
+  --ss-win-text: rgba(255, 255, 255, 0.87);
+  --ss-win-muted: rgb(160, 160, 160);
+  --ss-win-faint: #848484;
+  --ss-win-rule: rgba(255, 255, 255, 0.07);
+  --ss-tile: linear-gradient(145deg, rgba(32, 39, 39, 0.98), rgba(28, 35, 35, 0.98));
+  --ss-tile-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  --ss-inset: rgba(0, 0, 0, 0.25);
+  --ss-inset-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(255, 255, 255, 0.05);
+  --ss-compute: #ed7100;
+  --ss-database: #4d73f4;
+  --ss-security: #f34446;
+  --ss-win-green: #43d39a;
+  --ss-win-red: #eb6161;
+  --ss-win-blue: #6f9cf0;
+  --ss-win-violet: #b48cf0;
+
+  position: relative;
+  min-height: 100vh;
+  overflow-x: clip;
+  background: var(--ss-ground);
+  color: var(--ss-text);
+  font-family: var(--ss-mono);
+  font-size: var(--ss-fs);
+  font-weight: 400;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+.ss-root ::selection {
+  background: rgba(var(--ss-brand-rgb) / 0.35);
+}
+
+.ss-root :where(h1, h2, h3, h4, p, ul, ol, blockquote, figure, figcaption) {
+  margin: 0;
+  font-weight: inherit;
+  font-size: inherit;
+}
+
+.ss-root :where(ul, ol) {
+  padding: 0;
+  list-style: none;
+}
+
+.ss-root :where(code, kbd) {
+  font: inherit;
+}
+
+.ss-root a {
+  color: var(--ss-brand);
+  text-decoration: none;
+}
+
+.ss-root a:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.ss-vh {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.ss-dim {
+  color: var(--ss-dim);
+}
+
+.ss-mono {
+  font-family: var(--ss-mono);
+}
+
+/* ── The bracketed primary: `[ get started ]`, `[ copy ]` ────────────────────────────────────── */
+
+.ss-root .ss-key {
+  display: inline-flex;
+  align-items: center;
+  height: calc(var(--ss-lh) + 4px);
+  padding: 0 calc(var(--ss-ch) * 0.5);
+  border: 0;
+  border-radius: 3px;
+  background: var(--ss-cyan);
+  color: var(--ss-ground);
+  font: inherit;
+  font-weight: 500;
+  white-space: pre;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.ss-key::before {
+  content: '[ ';
+}
+
+.ss-key::after {
+  content: ' ]';
+}
+
+.ss-key:hover {
+  background: #22c9e6;
+  text-decoration: none;
+}
+
+.ss-key:active {
+  background: #0aa2bd;
+}
+
+/* ── The title bar ───────────────────────────────────────────────────────────────────────────── */
+
+.ss-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  height: var(--ss-bar);
+  background: var(--ss-chrome);
+  box-shadow: inset 0 -1px 0 var(--ss-rim);
+}
+
+.ss-bar__in {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  width: min(92vw, var(--ss-wide));
+  height: 100%;
+  margin-inline: auto;
+}
+
+.ss-dots {
+  display: inline-flex;
+  flex: none;
+  gap: 7px;
+}
+
+.ss-dots i {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #ff5f57;
+}
+
+.ss-dots i:nth-child(2) {
+  background: #febc2e;
+}
+
+.ss-dots i:nth-child(3) {
+  background: #28c840;
+}
+
+.ss-bar__logo {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+}
+
+.ss-bar__tabs {
+  display: flex;
+  gap: 20px;
+  font-size: 13px;
+}
+
+.ss-bar__tabs a,
+.ss-bar__text {
+  color: var(--ss-muted);
+}
+
+.ss-bar__tabs a:hover,
+.ss-bar__text:hover {
+  color: var(--ss-bright);
+  text-decoration: none;
+}
+
+.ss-bar__right {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-left: auto;
+  font-size: 13px;
+}
+
+.ss-bar__start {
+  height: 28px;
+  font-size: 13px;
+}
+
+.ss-bar__menu {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ss-bright);
+  font: inherit;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ss-bar__menu:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.ss-bar__panel {
+  position: absolute;
+  inset: 100% 0 auto 0;
+  padding: 8px 0 16px;
+  background: var(--ss-chrome);
+  box-shadow:
+    inset 0 1px 0 var(--ss-rim),
+    0 24px 48px rgba(0, 0, 0, 0.5);
+}
+
+.ss-bar__panel-links {
+  display: grid;
+  width: min(92vw, var(--ss-wide));
+  margin-inline: auto;
+}
+
+.ss-bar__panel-links a {
+  display: block;
+  padding: 8px 0;
+  color: var(--ss-text);
+}
+
+.ss-bar__panel-links a::before {
+  content: '> ';
+  color: var(--ss-dim);
+}
+
+/* ── The transcript column and its lines ─────────────────────────────────────────────────────── */
+
+.ss-tx {
+  width: min(92vw, var(--ss-wide));
+  margin-inline: auto;
+  padding: calc(var(--ss-lh) * 2) 0 var(--ss-lh);
+}
+
+/* A line of text: the measure, the gutter, and a marker in it. */
+.ss-l {
+  position: relative;
+  max-width: var(--ss-measure);
+  margin-inline: auto;
+  padding-left: var(--ss-gutter);
+  overflow-wrap: anywhere;
+}
+
+.ss-l::before {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+/* A comment: `#` on every line of the block, dimmer text. */
+.ss-c {
+  overflow: clip;
+  overflow-clip-margin: 6px;
+  color: var(--ss-muted);
+}
+
+.ss-c::before {
+  content: '#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#\A#';
+  white-space: pre;
+  color: var(--ss-dim);
+}
+
+.ss-c--dim {
+  color: var(--ss-dim);
+}
+
+.ss-c--bright {
+  color: var(--ss-bright);
+}
+
+.ss-c--blank {
+  min-height: var(--ss-lh);
+}
+
+.ss-c--h2 {
+  padding-left: calc(var(--ss-ch) * 3);
+  color: var(--ss-bright);
+  font-weight: 700;
+}
+
+.ss-c--h2::before {
+  content: '##';
+  font-weight: 400;
+}
+
+/* The headline: two comment lines at display size. The `#` hangs into the margin so that the words
+ * start on the same gutter as everything else. */
+.ss-c--display {
+  overflow: visible;
+  font-size: var(--ss-display);
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--ss-bright);
+}
+
+.ss-c--display::before {
+  content: '#';
+  left: calc(var(--ss-gutter) - 2ch);
+  font-weight: 400;
+}
+
+/* A prompt: `$` in cyan, the command bright. */
+.ss-p {
+  color: var(--ss-bright);
+}
+
+.ss-p::before {
+  content: '$';
+  color: var(--ss-cyan);
+  font-weight: 700;
+}
+
+/* Output: plain, or with the mark the terminal gave it. */
+.ss-o {
+  color: var(--ss-text);
+}
+
+.ss-o--ok::before {
+  content: '✓';
+  color: var(--ss-green);
+}
+
+.ss-o--err {
+  color: var(--ss-red);
+}
+
+.ss-o--err::before {
+  content: '✗';
+}
+
+.ss-o--warn {
+  color: var(--ss-amber);
+}
+
+.ss-o--warn::before {
+  content: '!';
+  font-weight: 700;
+}
+
+.ss-o--run::before {
+  content: '●';
+  color: var(--ss-cyan);
+}
+
+/* The timestamp rule that opens a block: text at column 0, a hairline to the measure's edge. */
+.ss-ts {
+  display: flex;
+  align-items: center;
+  gap: var(--ss-ch);
+  max-width: var(--ss-measure);
+  margin: calc(var(--ss-lh) * 3) auto 0;
+  color: var(--ss-dim);
+  white-space: nowrap;
+}
+
+.ss-ts__rule {
+  flex: 1;
+  height: 1px;
+  background: var(--ss-rule);
+}
+
+/* The thing's number and name. */
+.ss-h {
+  margin-top: var(--ss-lh);
+  font-weight: 700;
+  color: var(--ss-bright);
+}
+
+/* What you get: three check lines, one level in. */
+.ss-gets {
+  padding-left: 0;
+}
+
+.ss-get {
+  position: relative;
+  padding-left: calc(var(--ss-gutter) * 2);
+  color: var(--ss-text);
+}
+
+.ss-get::before {
+  content: '✓';
+  position: absolute;
+  top: 0;
+  left: var(--ss-gutter);
+  color: var(--ss-green);
+}
+
+/* ── The hero: the first prompt ──────────────────────────────────────────────────────────────── */
+
+.ss-hero {
+  padding-top: var(--ss-lh);
+}
+
+.ss-h1 {
+  display: block;
+  margin-top: var(--ss-lh);
+}
+
+.ss-h1 .ss-c--display {
+  display: block;
+}
+
+.ss-h1 .ss-c--display + .ss-c--display {
+  margin-top: 0.15em;
+}
+
+.ss-hero__sub {
+  margin-top: var(--ss-lh);
+}
+
+.ss-hero .ss-cmd {
+  margin-top: calc(var(--ss-lh) * 1.5);
+}
+
+.ss-hero__trust {
+  margin-top: var(--ss-lh);
+}
+
+/* ── The prompt with the command, and the install toggles under it ───────────────────────────── */
+
+.ss-cmd {
+  max-width: var(--ss-measure);
+  margin-inline: auto;
+}
+
+.ss-cmd__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 1ch;
+  font-size: var(--ss-display);
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--ss-bright);
+}
+
+.ss-cmd__path {
+  font-weight: 400;
+  color: var(--ss-muted);
+}
+
+.ss-cmd__dollar {
+  font-weight: 700;
+  color: var(--ss-cyan);
+}
+
+.ss-cmd__code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ss-cursor {
+  display: inline-block;
+  margin-left: 0.04em;
+  color: var(--ss-bright);
+  animation: ss-blink 1s steps(1, end) infinite;
+}
+
+@keyframes ss-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* Hidden by the page's inline script until the island mounts and types it. */
+.ss-typing .ss-cmd--typing .ss-cmd__text {
+  visibility: hidden;
+}
+
+.ss-cmd__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  margin-top: var(--ss-lh);
+  padding-left: var(--ss-gutter);
+}
+
+.ss-cmd__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+}
+
+.ss-tab {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ss-dim);
+  font: inherit;
+  white-space: pre;
+  cursor: pointer;
+}
+
+.ss-tab::before {
+  content: '[ ';
+}
+
+.ss-tab::after {
+  content: ' ]';
+}
+
+.ss-tab:hover {
+  color: var(--ss-muted);
+}
+
+.ss-tab[aria-selected='true'] {
+  color: var(--ss-bright);
+}
+
+.ss-tab[aria-selected='true']::before,
+.ss-tab[aria-selected='true']::after {
+  color: var(--ss-cyan);
+}
+
+/* The key reads `copy`, `copied` or `select and copy`, and is as wide as the word, as a terminal's
+ * would be. */
+.ss-cmd__labels {
+  display: inline;
+}
+
+.ss-cmd__label {
+  display: none;
+}
+
+.ss-cmd--idle .ss-cmd__label--copy,
+.ss-cmd--copied .ss-cmd__label--copied,
+.ss-cmd--failed .ss-cmd__label--failed {
+  display: inline;
+}
+
+.ss-cmd__hint {
+  color: var(--ss-dim);
+}
+
+/* ── The blocks ──────────────────────────────────────────────────────────────────────────────── */
+
+.ss-block > .ss-c {
+  margin-top: var(--ss-lh);
+}
+
+.ss-block > .ss-gets {
+  margin-top: var(--ss-lh);
+}
+
+.ss-out {
+  margin-top: var(--ss-lh);
+}
+
+.ss-out > .ss-win,
+.ss-out > .ss-cover {
+  margin-block: var(--ss-lh);
+}
+
+.ss-out > .ss-win:last-child,
+.ss-out > .ss-cover:last-child {
+  margin-bottom: 0;
+}
+
+/* The cover: the Console beside the deploying terminal, full width of the window axis. */
+.ss-cover {
+  width: 100%;
+  max-width: var(--ss-wide);
+  margin-inline: auto;
+}
+
+/* ── 02 · the package phase, as the terminal's own lines ─────────────────────────────────────── */
+
+.ss-pk__phase {
+  margin-right: calc(var(--ss-ch) * 2);
+}
+
+.ss-pk {
+  display: grid;
+}
+
+/* Marker · name · kind · result · time, each in its own column, as the CLI prints them. */
+.ss-pk__row {
+  display: grid;
+  grid-template-columns: var(--ss-gutter) 12ch 17ch 21ch auto;
+  align-items: baseline;
+  white-space: nowrap;
+}
+
+.ss-pk__row i {
+  font-style: normal;
+  color: var(--ss-green);
+}
+
+.ss-pk__row b {
+  font-weight: 500;
+  color: var(--ss-bright);
+}
+
+.ss-pk__kind,
+.ss-pk__time {
+  color: var(--ss-muted);
+}
+
+.ss-pk__time {
+  text-align: right;
+}
+
+.ss-pk__row--skipped i,
+.ss-pk__row--skipped .ss-pk__result {
+  color: var(--ss-cyan);
+}
+
+.ss-pk__sum {
+  padding-left: calc(var(--ss-gutter) * 2);
+  color: var(--ss-muted);
+}
+
+/* ── A window: one product screen on the Console material ────────────────────────────────────── */
+
+.ss-win {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: var(--ss-wide);
+  min-width: 0;
+  margin-inline: auto;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--ss-win);
+  box-shadow:
+    0 0 0 1px var(--ss-rim),
+    0 28px 56px -20px rgba(0, 0, 0, 0.75),
+    0 2px 8px rgba(0, 0, 0, 0.45);
+  font-family: var(--ss-sans);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ss-win-text);
+}
+
+.ss-win__bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 14px;
+  height: 40px;
+  padding: 0 14px;
+  background: var(--ss-chrome);
+  box-shadow: inset 0 -1px 0 var(--ss-rim);
+}
+
+.ss-win--terminal .ss-win__bar {
+  height: 36px;
+}
+
+.ss-win__dots {
+  display: inline-flex;
+  flex: none;
+  gap: 6px;
+}
+
+.ss-win__dots i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ff5f57;
+}
+
+.ss-win__dots i:nth-child(2) {
+  background: #febc2e;
+}
+
+.ss-win__dots i:nth-child(3) {
+  background: #28c840;
+}
+
+.ss-win__spacer {
+  flex: none;
+  width: 42px;
+}
+
+.ss-win__url {
+  display: inline-flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 0;
+  max-width: 560px;
+  height: 26px;
+  margin: 0 auto;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--ss-win);
+  box-shadow: inset 0 0 0 1px var(--ss-rim);
+  font-size: 12px;
+  color: var(--ss-win-muted);
+  white-space: nowrap;
+}
+
+.ss-win__lock {
+  flex: none;
+  color: var(--ss-brand);
+}
+
+.ss-win__addr {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ss-win__addr b {
+  font-weight: 500;
+  color: var(--ss-win-text);
+}
+
+.ss-win__title {
+  flex: 1;
+  font-family: var(--ss-mono);
+  font-size: 12px;
+  color: var(--ss-win-faint);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.ss-win__body {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+  min-height: 0;
+  padding: 20px 24px 24px;
+  overflow: hidden;
+  container-type: inline-size;
+}
+
+/* The pieces the screens share. */
+.ss-scr__head {
+  display: grid;
+  gap: 4px;
+}
+
+.ss-scr__h {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  color: #fff;
+}
+
+.ss-scr__line {
+  font-size: 12.5px;
+  color: var(--ss-win-muted);
+}
+
+.ss-scr__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+  flex-wrap: wrap;
+  padding-top: 16px;
+  border-top: 1px solid var(--ss-win-rule);
+}
+
+/* The product's controls, sized for a screen. */
+.ss-btn {
+  --stp-button-font-family: var(--ss-sans);
+  --stp-button-radius: 999px;
+  font-size: 13px;
+  cursor: default;
+}
+
+.ss-btn--small {
+  --stp-control-height: 28px;
+  --stp-button-padding-x: 12px;
+  font-size: 12.5px;
+}
+
+.ss-badge {
+  border-radius: 999px;
+  font-family: var(--ss-sans);
+}
+
+.ss-badge__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* ── 01 · the wizard's review ────────────────────────────────────────────────────────────────── */
+
+.ss-wz {
+  display: grid;
+  grid-template-columns: minmax(0, 52fr) minmax(0, 48fr);
+  gap: 20px;
+}
+
+.ss-wz__list {
+  display: grid;
+  align-content: start;
+}
+
+.ss-wz__row {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--ss-win-rule);
+}
+
+.ss-wz__row:first-child {
+  padding-top: 2px;
+  border-top: 0;
+}
+
+.ss-wz__cat {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ss-compute);
+}
+
+.ss-wz__row--database .ss-wz__cat {
+  background: var(--ss-database);
+}
+
+.ss-wz__row--security .ss-wz__cat {
+  background: var(--ss-security);
+}
+
+.ss-wz__text {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.ss-wz__name {
+  display: flex;
+  align-items: baseline;
+  gap: 2px 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.ss-wz__name b {
+  font-weight: 600;
+}
+
+.ss-wz__type {
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--ss-win-muted);
+  text-overflow: ellipsis;
+}
+
+.ss-wz__because {
+  overflow: hidden;
+  font-family: var(--ss-mono);
+  font-size: 11px;
+  color: var(--ss-win-faint);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ss-wz__price {
+  font-family: var(--ss-mono);
+  font-size: 12.5px;
+  color: var(--ss-win-text);
+}
+
+.ss-wz__picture {
+  position: relative;
+  min-width: 0;
+  min-height: 360px;
+  overflow: hidden;
+  border-radius: 10px;
+  background:
+    radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1.3px) 0 0 / 18px 18px,
+    var(--ss-inset);
+  box-shadow: var(--ss-inset-shadow);
+}
+
+.ss-diagram {
+  position: absolute;
+  inset: 0;
+}
+
+.ss-diagram .stp-diagram {
+  background: transparent;
+}
+
+.ss-diagram:not(.is-active) .stp-diagram {
+  touch-action: pan-y;
+}
+
+.ss-diagram .stp-diagram__controls,
+.ss-diagram .stp-diagram__hint {
+  display: none;
+}
+
+.ss-diagram__gate {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(20, 26, 26, 0.92);
+  box-shadow: var(--ss-tile-shadow);
+  font-family: var(--ss-mono);
+  font-size: 11px;
+  color: var(--ss-win-muted);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.ss-diagram.is-active .ss-diagram__gate {
+  color: var(--ss-brand);
+}
+
+.ss-wz__estimate {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ss-win-text);
+}
+
+@container (max-width: 640px) {
+  .ss-wz {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ss-wz__picture {
+    min-height: 260px;
+  }
+}
+
+/* ── 03 · deployments ────────────────────────────────────────────────────────────────────────── */
+
+.ss-dep {
+  display: grid;
+  gap: 8px;
+}
+
+.ss-dep__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--ss-tile);
+  box-shadow: var(--ss-tile-shadow);
+}
+
+.ss-dep__row--rolling {
+  padding: 16px;
+}
+
+.ss-dep__main {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.ss-dep__title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.ss-dep__title b {
+  font-family: var(--ss-mono);
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.ss-dep__ref {
+  font-family: var(--ss-mono);
+  font-size: 12px;
+  color: var(--ss-win-muted);
+}
+
+.ss-dep__msg {
+  font-size: 13px;
+  color: var(--ss-win-muted);
+}
+
+.ss-dep__traffic {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.ss-dep__lane {
+  position: relative;
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.ss-dep__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 999px;
+  background: var(--ss-brand);
+}
+
+.ss-dep__shift {
+  font-family: var(--ss-mono);
+  color: var(--ss-win-text);
+  white-space: nowrap;
+}
+
+.ss-dep__note {
+  color: var(--ss-win-muted);
+  white-space: nowrap;
+}
+
+.ss-dep__url {
+  font-family: var(--ss-mono);
+  font-size: 12.5px;
+  color: var(--ss-brand);
+  overflow-wrap: anywhere;
+}
+
+.ss-dep__side {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+@container (max-width: 520px) {
+  .ss-dep__row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ss-dep__side {
+    justify-content: flex-start;
+  }
+
+  .ss-dep__traffic {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .ss-dep__note {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ── 04 · monitoring ─────────────────────────────────────────────────────────────────────────── */
+
+.ss-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ss-tile {
+  min-width: 0;
+  padding: 14px 16px 12px;
+  border-radius: 10px;
+  background: var(--ss-tile);
+  box-shadow: var(--ss-tile-shadow);
+  overflow: hidden;
+}
+
+.ss-tile__label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ss-win-muted);
+}
+
+.ss-tile__value {
+  margin-top: 8px;
+  font-family: var(--ss-mono);
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.ss-tile__unit {
+  margin-left: 4px;
+  font-family: var(--ss-sans);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ss-win-muted);
+}
+
+.ss-spark {
+  display: block;
+  width: 100%;
+  height: 36px;
+  margin-top: 12px;
+  color: var(--ss-win-blue);
+}
+
+.ss-trace {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px 16px;
+  border-radius: 10px;
+  background: var(--ss-inset);
+  box-shadow: var(--ss-inset-shadow);
+}
+
+.ss-trace__head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.ss-trace__total {
+  font-family: var(--ss-mono);
+  font-weight: 400;
+  color: var(--ss-win-muted);
+}
+
+.ss-trace__spans {
+  display: grid;
+  gap: 5px;
+}
+
+.ss-span {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr) 52px;
+  align-items: center;
+  gap: 12px;
+  min-height: 24px;
+}
+
+.ss-span__name {
+  overflow: hidden;
+  font-family: var(--ss-mono);
+  font-size: 12px;
+  color: var(--ss-win-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ss-span__lane {
+  position: relative;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.ss-span__bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+  background: var(--ss-brand);
+}
+
+.ss-span--app .ss-span__bar {
+  background: var(--ss-win-blue);
+}
+
+.ss-span--db .ss-span__bar {
+  background: var(--ss-win-violet);
+}
+
+.ss-span--cache .ss-span__bar {
+  background: var(--ss-win-green);
+}
+
+.ss-span__ms {
+  font-family: var(--ss-mono);
+  font-size: 12px;
+  color: var(--ss-win-muted);
+  text-align: right;
+}
+
+.ss-uptime {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--ss-tile);
+  box-shadow: var(--ss-tile-shadow);
+  font-size: 12.5px;
+  color: var(--ss-win-muted);
+}
+
+.ss-uptime__ok {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ss-win-green);
+  box-shadow: 0 0 0 3px rgba(67, 211, 154, 0.18);
+}
+
+.ss-uptime__url {
+  font-family: var(--ss-mono);
+  color: #fff;
+}
+
+.ss-uptime b {
+  font-weight: 600;
+  color: var(--ss-win-text);
+}
+
+.ss-uptime__sep {
+  color: var(--ss-win-faint);
+}
+
+.ss-uptime__region .ss-mono {
+  color: var(--ss-win-text);
+}
+
+@container (max-width: 560px) {
+  .ss-tiles {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ss-span {
+    grid-template-columns: 110px minmax(0, 1fr) 48px;
+    gap: 8px;
+  }
+}
+
+/* ── 05 · guardrails ─────────────────────────────────────────────────────────────────────────── */
+
+.ss-rules {
+  display: grid;
+  border-radius: 10px;
+  background: var(--ss-tile);
+  box-shadow: var(--ss-tile-shadow);
+}
+
+.ss-rule {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--ss-win-rule);
+}
+
+.ss-rule:first-child {
+  border-top: 0;
+}
+
+.ss-rule__switch {
+  opacity: 1;
+  cursor: default;
+}
+
+.ss-rule__name {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ss-win-text);
+}
+
+.ss-blocked {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: rgba(235, 97, 97, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(235, 97, 97, 0.28);
+}
+
+.ss-blocked__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(235, 97, 97, 0.18);
+  color: var(--ss-win-red);
+}
+
+.ss-blocked__text {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ss-win-text);
+  overflow-wrap: anywhere;
+}
+
+.ss-blocked__text b {
+  font-weight: 600;
+  color: #fff;
+}
+
+.ss-blocked__sep {
+  margin: 0 6px;
+  color: rgba(235, 97, 97, 0.6);
+}
+
+.ss-blocked .ss-mono {
+  font-size: 12.5px;
+}
+
+@container (max-width: 520px) {
+  .ss-blocked {
+    grid-template-columns: 22px minmax(0, 1fr);
+  }
+
+  .ss-blocked .ss-btn {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
+/* ── 06 · the incident ───────────────────────────────────────────────────────────────────────── */
+
+.ss-inc__head {
+  display: grid;
+  gap: 10px;
+}
+
+.ss-inc__title {
+  overflow-wrap: anywhere;
+}
+
+.ss-inc__meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ss-inc__duration {
+  font-family: var(--ss-mono);
+  font-size: 12.5px;
+  color: var(--ss-win-muted);
+}
+
+.ss-timeline {
+  display: grid;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: var(--ss-inset);
+  box-shadow: var(--ss-inset-shadow);
+}
+
+.ss-tl {
+  position: relative;
+  display: grid;
+  grid-template-columns: 42px 12px minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: start;
+  padding: 6px 0;
+}
+
+.ss-tl::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 59.5px;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.ss-tl:first-child::before {
+  top: 50%;
+}
+
+.ss-tl:last-child::before {
+  bottom: 50%;
+}
+
+.ss-tl__time {
+  font-family: var(--ss-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ss-win-faint);
+}
+
+.ss-tl__mark {
+  position: relative;
+  z-index: 1;
+  width: 9px;
+  height: 9px;
+  margin: 6px 0 0 1.5px;
+  border-radius: 50%;
+  background: var(--ss-win-faint);
+  box-shadow: 0 0 0 3px rgb(24, 30, 30);
+}
+
+.ss-tl--error .ss-tl__mark {
+  background: var(--ss-win-red);
+  box-shadow:
+    0 0 0 3px rgb(24, 30, 30),
+    0 0 0 6px rgba(235, 97, 97, 0.22);
+}
+
+.ss-tl--ok .ss-tl__mark {
+  background: var(--ss-win-green);
+  box-shadow:
+    0 0 0 3px rgb(24, 30, 30),
+    0 0 0 6px rgba(67, 211, 154, 0.22);
+}
+
+.ss-tl__text {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ss-win-text);
+  overflow-wrap: anywhere;
+}
+
+.ss-tl--error .ss-tl__text {
+  color: rgb(245, 150, 150);
+}
+
+.ss-tl--ok .ss-tl__text {
+  font-weight: 600;
+  color: var(--ss-win-green);
+}
+
+.ss-inc__alerted {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--ss-win-muted);
+}
+
+.ss-inc__slack {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ss-brand);
+  box-shadow: 0 0 0 3px rgba(var(--ss-brand-rgb) / 0.18);
+}
+
+/* ── 07 · costs ──────────────────────────────────────────────────────────────────────────────── */
+
+.ss-cost__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.ss-cost__total {
+  font-family: var(--ss-mono);
+  font-size: 32px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: #fff;
+}
+
+.ss-bars {
+  display: grid;
+  padding: 6px 16px;
+  border-radius: 10px;
+  background: var(--ss-inset);
+  box-shadow: var(--ss-inset-shadow);
+}
+
+.ss-bar {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr) 64px;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 0;
+}
+
+.ss-bar__name,
+.ss-bar__amount {
+  font-family: var(--ss-mono);
+  font-size: 12.5px;
+}
+
+.ss-bar__name {
+  color: var(--ss-win-text);
+}
+
+.ss-bar__lane {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.ss-bar__fill {
+  display: block;
+  height: 100%;
+  min-width: 3px;
+  border-radius: 999px;
+  background: var(--ss-brand);
+}
+
+.ss-bar__amount {
+  color: var(--ss-win-muted);
+  text-align: right;
+}
+
+.ss-budget {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px 16px;
+  border-radius: 10px;
+  background: var(--ss-tile);
+  box-shadow: var(--ss-tile-shadow);
+}
+
+.ss-budget__line {
+  font-size: 13px;
+  color: var(--ss-win-muted);
+}
+
+.ss-budget__line b {
+  font-weight: 600;
+  color: #fff;
+}
+
+.ss-budget__sep {
+  margin: 0 6px;
+  color: var(--ss-win-faint);
+}
+
+.ss-budget__lane {
+  position: relative;
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.ss-budget__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 999px;
+  background: var(--ss-brand);
+}
+
+.ss-budget__mark {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--ss-win-text);
+}
+
+@container (max-width: 480px) {
+  .ss-bar {
+    grid-template-columns: 96px minmax(0, 1fr) 56px;
+    gap: 10px;
+  }
+}
+
+/* ── The closing: the last prompt ────────────────────────────────────────────────────────────── */
+
+.ss-closing .ss-c--bright {
+  margin-top: var(--ss-lh);
+}
+
+.ss-closing .ss-cmd {
+  margin-top: var(--ss-lh);
+}
+
+.ss-closing .ss-cmd + .ss-c {
+  margin-top: var(--ss-lh);
+}
+
+/* ── Teams running on Stacktape ──────────────────────────────────────────────────────────────── */
+
+.ss-voices {
+  margin-top: calc(var(--ss-lh) * 3);
+}
+
+.ss-voice {
+  margin-top: var(--ss-lh);
+}
+
+/* ── The footer: the last lines ──────────────────────────────────────────────────────────────── */
+
+.ss-foot {
+  padding-bottom: calc(var(--ss-lh) * 3);
+}
+
+.ss-tx--foot {
+  padding-top: calc(var(--ss-lh) * 2);
+}
+
+.ss-foot__exit {
+  margin-bottom: var(--ss-lh);
+}
+
+.ss-fg {
+  display: grid;
+}
+
+.ss-fg__h {
+  color: var(--ss-bright);
+}
+
+.ss-fg__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 calc(var(--ss-ch) * 2);
+  padding-left: var(--ss-gutter);
+}
+
+.ss-foot__meta {
+  margin-top: var(--ss-lh);
+  color: var(--ss-dim);
+}
+
+.ss-foot__status {
+  white-space: nowrap;
+}
+
+.ss-foot__dot {
+  font-style: normal;
+  color: var(--ss-green);
+}
+
+/* ── Below 900px: the title bar collapses ────────────────────────────────────────────────────── */
+
+@media (max-width: 899px) {
+  .ss-bar__tabs,
+  .ss-bar__text {
+    display: none;
+  }
+
+  .ss-bar__right {
+    gap: 10px;
+  }
+
+  .ss-bar__menu {
+    display: inline-flex;
+  }
+}
+
+/* ── Phones ──────────────────────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 639px) {
+  .ss-tx {
+    padding-top: var(--ss-lh);
+  }
+
+  .ss-h1 {
+    gap: 0.25em;
+  }
+
+  .ss-cmd__row {
+    padding-left: 0;
+  }
+
+  .ss-pk__row {
+    grid-template-columns: var(--ss-gutter) 12ch minmax(0, 1fr);
+    white-space: normal;
+  }
+
+  .ss-pk__kind,
+  .ss-pk__time {
+    display: none;
+  }
+
+  .ss-pk__sum {
+    padding-left: var(--ss-gutter);
+  }
+
+  .ss-win__body {
+    padding: 16px 14px 16px;
+  }
+
+  .ss-win__bar {
+    gap: 10px;
+    padding: 0 12px;
+  }
+
+  .ss-win__spacer {
+    display: none;
+  }
+
+  .ss-win__url {
+    justify-content: flex-start;
+  }
+
+  .ss-scr__h {
+    font-size: 16px;
+  }
+
+  .ss-cost__total {
+    font-size: 26px;
+  }
+}
+
+@media (max-width: 419px) {
+  .ss-root {
+    --ss-fs: 14.5px;
+  }
+
+  .ss-bar__logo svg {
+    height: 16px !important;
+  }
+}
+
+/* ── Reduced motion: no typing (the page script and the island both check), no blink ─────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .ss-cursor {
+    animation: none;
+  }
+}

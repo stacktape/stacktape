@@ -1,0 +1,43 @@
+---
+/** 07 — this month's cost per resource from the AWS bill, and the budget the team set once. */
+import { COSTS, money, URLS } from '../data';
+import Window from '../Window.astro';
+
+const largest = Math.max(...COSTS.bars.map((bar) => bar.amount));
+---
+
+<Window kind="browser" host={URLS.costs.host} path={URLS.costs.path}>
+  <div class="hr-cost__head">
+    <div>
+      <p class="hr-scr__h">{COSTS.heading}</p>
+      <p class="hr-scr__line">{COSTS.note}</p>
+    </div>
+    <p class="hr-cost__total">{money(COSTS.total)}</p>
+  </div>
+
+  <ul class="hr-bars" aria-label="Cost per resource">
+    {
+      COSTS.bars.map((bar) => (
+        <li class="hr-bar">
+          <span class="hr-bar__name">{bar.name}</span>
+          <span class="hr-bar__lane">
+            <span class="hr-bar__fill" style={`width: ${((bar.amount / largest) * 100).toFixed(1)}%`} />
+          </span>
+          <span class="hr-bar__amount">{money(bar.amount)}</span>
+        </li>
+      ))
+    }
+  </ul>
+
+  <div class="hr-budget">
+    <p class="hr-budget__line">
+      <b>Budget {money(COSTS.budget.limit).replace('.00', '')}</b>
+      <span class="hr-budget__sep" aria-hidden="true">·</span>
+      alert at {COSTS.budget.alertAt} %
+    </p>
+    <span class="hr-budget__lane" aria-hidden="true">
+      <span class="hr-budget__fill" style={`width: ${COSTS.budget.used}%`}></span>
+      <span class="hr-budget__mark" style={`left: ${COSTS.budget.alertAt}%`}></span>
+    </span>
+  </div>
+</Window>

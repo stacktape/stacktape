@@ -1,0 +1,41 @@
+---
+import { TESTIMONIALS } from './data';
+---
+
+<section class="rl-quotes" aria-labelledby="rl-quotes-title">
+  <div class="rl-split rl-quotes__head">
+    <div class="rl-cell rl-cell--you">
+      <div class="rl-cell__in">
+        <h2 class="rl-mono rl-quotes__title" id="rl-quotes-title">Who says so</h2>
+      </div>
+    </div>
+    <div class="rl-cell rl-cell--stp">
+      <div class="rl-cell__in">
+        <p class="rl-quotes__sub">Three teams that run on Stacktape, in their own words.</p>
+      </div>
+    </div>
+  </div>
+  {
+    TESTIMONIALS.map((item, index) => {
+      const rule = index < TESTIMONIALS.length - 1 ? 'rl-cell--rule' : '';
+      return (
+        <div class="rl-split">
+          <div class={`rl-cell rl-cell--you ${rule}`}>
+            <div class="rl-cell__in">
+              <p class="rl-quote__name">{item.name}</p>
+              <p class="rl-quote__role">
+                {item.role}, <a href={item.url}>{item.company}</a>
+              </p>
+            </div>
+          </div>
+          <div class={`rl-cell rl-cell--stp ${rule}`}>
+            <div class="rl-cell__in">
+              <blockquote class="rl-quote__text">{item.quote}</blockquote>
+              <p class="rl-quote__facts">{item.facts}</p>
+            </div>
+          </div>
+        </div>
+      );
+    })
+  }
+</section>

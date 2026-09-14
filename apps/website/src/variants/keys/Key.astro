@@ -1,0 +1,25 @@
+---
+/**
+ * A physical keycap standing on the floor: a top face, a 10px extruded side and a contact shadow.
+ * `client.ts` adds `.is-pressed` for 900ms when the key crosses the middle of the viewport; the
+ * key also presses on hover. Under reduced motion it renders pressed and never moves.
+ *
+ * The label is the visitor's decision; the optional plate beside it is a small floor plate.
+ */
+type Props = { label: string; mono?: boolean; plate?: string; class?: string; pressed?: boolean };
+
+const { label, mono = false, plate, class: className, pressed = false } = Astro.props;
+---
+
+<div class:list={['ky-keyset', className]}>
+  <span
+    class:list={['ky-key', mono && 'ky-key--mono', pressed && 'is-pressed is-held']}
+    data-ky-key={pressed ? undefined : ''}
+    aria-hidden="true"
+  >
+    <span class="ky-key__side"></span>
+    <span class="ky-key__cap">{label}</span>
+  </span>
+  <span class="ky-visually-hidden">{label}</span>
+  {plate && <span class="ky-plate">{plate}</span>}
+</div>

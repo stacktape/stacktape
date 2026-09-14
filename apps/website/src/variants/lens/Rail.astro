@@ -1,0 +1,23 @@
+---
+/**
+ * The rail on the boundary between the halves: a 1px line and seven dots, one per chapter. The
+ * observer marks the current dot and the ones already passed; each dot links to its chapter.
+ */
+import { CHAPTERS } from './data';
+---
+
+<ol class="ls-rail" data-ls-rail aria-label="Chapters">
+  {
+    CHAPTERS.map((chapter) => (
+      <li>
+        <a
+          class={chapter.index === 1 ? 'ls-rail__dot is-current' : 'ls-rail__dot'}
+          href={`#${chapter.id}`}
+          data-ls-dot={chapter.index}
+          aria-current={chapter.index === 1 ? 'step' : undefined}
+          aria-label={`${chapter.number} ${chapter.name}`}
+        />
+      </li>
+    ))
+  }
+</ol>

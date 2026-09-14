@@ -1,0 +1,25 @@
+---
+import { TESTIMONIALS, TESTIMONIALS_TITLE } from './data';
+---
+
+<section class="tk-voices" aria-labelledby="tk-voices-title">
+  <div class="tk-voices__inner">
+    <h2 class="tk-voices__title" id="tk-voices-title">{TESTIMONIALS_TITLE}</h2>
+    <ul class="tk-voices__list">
+      {
+        TESTIMONIALS.map((item) => (
+          <li class="tk-voice">
+            <blockquote class="tk-voice__quote">
+              <p>“{item.quote}”</p>
+            </blockquote>
+            <div class="tk-voice__who">
+              <span class="tk-voice__name">{item.name}</span>
+              <span class="tk-voice__role">{item.role}</span>
+              <span class="tk-voice__fact">{item.fact}</span>
+            </div>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</section>

@@ -1,0 +1,46 @@
+---
+import Check from '../Check.astro';
+import Frame from '../Frame.astro';
+
+// Shown through set:html because the bundle contains braces and quotes that Astro markup would parse.
+const bundle = [
+  '<span class="hd"># Incident inc_8f2k · production · Error · Open</span>',
+  '<span class="hd">Release</span>   v41 (a1b2c3d — orders: add fulfillment status column) · previous v40 · config unchanged',
+  '<span class="hd">Signals</span>',
+  '  - Uptime check down · https://api.acme.com/health · 3/3 regions',
+  '  - Application error · <span class="am">PrismaClientKnownRequestError: column "fulfillment_status" does not exist</span>',
+  '    apiService · 214 occurrences · <span class="hi">api/src/orders/repository.ts:41</span> findMany → prisma.orders',
+  '<span class="hd">Timeline</span>  18:01 deploy v41 · 18:04 alarm · 18:05 uptime down · 18:05 opened',
+  '<span class="hd">Links</span>     logs · trace · deploy v41 · compare v40…v41   (scoped to this stage)',
+  '<span class="hd">Protocol</span>  1. find the cause in the release diff   2. fix it and open a PR',
+  '          3. verify with the same signals        4. <span class="hi">stacktape incidents:resolve --incidentId inc_8f2k</span>'
+].join('\n');
+---
+
+<Frame url="<b>Claude Code</b> · acme-project" tag="your coding agent">
+  <div class="sp-frame__body">
+    <div class="sp-agent">
+      <div class="sp-agent__msg">
+        <span class="sp-agent__who sp-agent__who--you" aria-hidden="true">you</span>
+        <span>Production is down, here are the details from Stacktape. Find the cause and open a PR.</span>
+      </div>
+      <pre class="sp-bundle" aria-label="Handoff bundle from Copy details for agent" set:html={bundle}></pre>
+      <div class="sp-agent__msg">
+        <span class="sp-agent__who" aria-hidden="true">ai</span>
+        <span>
+          <b>Found it.</b> a1b2c3d adds <code>fulfillment_status</code> through a Prisma migration, but the <code>afterDeploy</code> hook that runs
+          <code>prisma migrate deploy</code> was skipped for this stage, so production never received the migration. The code reads a column the
+          database does not have. I re-enabled the hook for production and applied the migration. Opening a pull request.
+        </span>
+      </div>
+      <div class="sp-pr">
+        <Check kind="ok" label="merged" />
+        <span>
+          <b>#129 · production: run the migration hook after deploy</b>
+          <span>approved by matus 18:11 · merged · deploying as v42 through the normal pipeline</span>
+        </span>
+        <span class="sp-chip sp-chip--live"><i aria-hidden="true"></i>v42 · 2m 40s</span>
+      </div>
+    </div>
+  </div>
+</Frame>

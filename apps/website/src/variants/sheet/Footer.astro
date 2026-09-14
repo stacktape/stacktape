@@ -1,0 +1,36 @@
+---
+import { FOOTER_COLUMNS, FOOTER_META, LINKS } from './data';
+import Wordmark from './Wordmark.astro';
+---
+
+<footer class="sh-footer">
+  <div class="sh-container">
+    <div class="sh-footer__columns">
+      {
+        FOOTER_COLUMNS.map((column) => (
+          <nav class="sh-footer__column" aria-label={column.title}>
+            <h3 class="sh-footer__heading">{column.title}</h3>
+            <ul class="sh-footer__links">
+              {column.links.map((link) => (
+                <li>
+                  <a class="sh-footer__link" href={link.href}>
+                    {link.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        ))
+      }
+    </div>
+    <div class="sh-footer__bottom">
+      <a class="sh-footer__logo" href="/" aria-label="Stacktape home"><Wordmark height={18} /></a>
+      <p class="sh-footer__meta">
+        <span>{FOOTER_META.copyright}</span>
+        <span>{FOOTER_META.license}</span>
+        <span>{FOOTER_META.made}</span>
+        <a class="sh-footer__status" href={LINKS.status}><i class="sh-footer__dot" aria-hidden="true"></i>{FOOTER_META.status}</a>
+      </p>
+    </div>
+  </div>
+</footer>

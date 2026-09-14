@@ -1,0 +1,24 @@
+---
+/**
+ * The DevOps job, named: six verbs under the hero CTA, each a plain anchor to the station that
+ * shows it.
+ */
+import { JOB, STATIONS } from './data';
+
+const anchorFor = (station: number) => `#hx-${STATIONS[station - 1]?.anchor ?? 'start'}`;
+---
+
+<div class="hx-hero__job">
+  <p class="hx-hero__job-title">{JOB.title}</p>
+  <ul class="hx-hero__job-list">
+    {
+      JOB.items.map((item) => (
+        <li>
+          <a class="hx-hero__job-chip" href={anchorFor(item.station)}>
+            {item.verb}
+          </a>
+        </li>
+      ))
+    }
+  </ul>
+</div>

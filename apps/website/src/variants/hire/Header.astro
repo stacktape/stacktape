@@ -1,0 +1,68 @@
+---
+/**
+ * The posting's header: the chips, the v4 line, the role title, the one-line summary, the four
+ * metadata cells and the cover. Then "About the role" and "How to apply", each its own section.
+ */
+import Cover from '../../components/Cover.astro';
+import Check from './Check.astro';
+import { CommandBox } from './CommandBox';
+import { ANNOUNCEMENT, HEADLINE, POSTING, ROLE, SUBHEADLINE, TRUST_LINE } from './data';
+---
+
+<header class="hr-section hr-head">
+  <p class="hr-chips">
+    <span class="hr-chip hr-chip--filled"><Check />{POSTING.filled}</span>
+    <span class="hr-chip">{POSTING.postedBy}</span>
+  </p>
+
+  <p class="hr-news">
+    <b>{ANNOUNCEMENT.text}</b>
+    <span class="hr-news__sep" aria-hidden="true">·</span>
+    <a href={ANNOUNCEMENT.href}>{ANNOUNCEMENT.cta} <span aria-hidden="true">→</span></a>
+  </p>
+
+  <h1 class="hr-title">{ROLE.before} <em>{ROLE.em}</em> {ROLE.after}</h1>
+  <p class="hr-summary">{HEADLINE}</p>
+
+  <dl class="hr-meta">
+    {
+      POSTING.meta.map((cell) => (
+        <div class="hr-meta__cell">
+          <dt class="hr-label">{cell.label}</dt>
+          <dd class="hr-meta__value">
+            {cell.value}
+            {'accent' in cell && (
+              <>
+                <span class="hr-meta__sep" aria-hidden="true">·</span>
+                <span class="hr-meta__accent">{cell.accent}</span>
+              </>
+            )}
+          </dd>
+        </div>
+      ))
+    }
+  </dl>
+
+  <figure class="hr-cover">
+    <div class="hr-cover__panel"><Cover /></div>
+    <figcaption class="hr-cover__caption">{POSTING.coverCaption}</figcaption>
+  </figure>
+</header>
+
+<section class="hr-section" aria-labelledby="hr-about-title">
+  <h2 class="hr-h2" id="hr-about-title">{POSTING.about}</h2>
+  <p class="hr-prose">{SUBHEADLINE}</p>
+</section>
+
+<section class="hr-section hr-apply" aria-labelledby="hr-apply-title">
+  <h2 class="hr-h2" id="hr-apply-title">{POSTING.apply}</h2>
+  <CommandBox client:load id="get-started" hint />
+  <p class="hr-trust">
+    {TRUST_LINE.map((item, index) => (
+      <>
+        {index > 0 && <span class="hr-trust__sep" aria-hidden="true">·</span>}
+        <span class="hr-trust__item">{item}</span>
+      </>
+    ))}
+  </p>
+</section>

@@ -1,0 +1,35 @@
+---
+/** 02 — the deploy's Package phase in the terminal: three workloads, one of them skipped because nothing changed. */
+import { PACKAGE } from '../data';
+import Window from '../Window.astro';
+---
+
+<Window kind="terminal" title={PACKAGE.title}>
+  <div class="sh-term">
+    <p class="sh-term__cmd"><span class="sh-term__prompt">$</span> {PACKAGE.command}</p>
+    <ol class="sh-term__phases">
+      <li class="sh-term__phase is-done">
+        <span class="sh-term__mark" aria-hidden="true">✓</span><span class="sh-term__pname">Initialize</span><span class="sh-term__ptime">0.4 s</span>
+      </li>
+      <li class="sh-term__phase is-done">
+        <span class="sh-term__mark" aria-hidden="true">✓</span><span class="sh-term__pname">Package</span><span class="sh-term__ptime">58 s</span>
+        <ul class="sh-term__rows" aria-label="Packaged workloads">
+          {
+            PACKAGE.rows.map((row) => (
+              <li class={row.time ? 'sh-term__row' : 'sh-term__row is-skipped'}>
+                <span class="sh-term__name">{row.name}</span>
+                <span class="sh-term__type">{row.type}</span>
+                <span class="sh-term__result">{row.result}</span>
+                <span class="sh-term__time">{row.time}</span>
+              </li>
+            ))
+          }
+        </ul>
+        <p class="sh-term__summary">{PACKAGE.summary}</p>
+      </li>
+      <li class="sh-term__phase is-active">
+        <span class="sh-term__mark" aria-hidden="true">●</span><span class="sh-term__pname">{PACKAGE.next}</span><span class="sh-term__ptime">starting…</span>
+      </li>
+    </ol>
+  </div>
+</Window>

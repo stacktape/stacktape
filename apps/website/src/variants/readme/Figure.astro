@@ -1,0 +1,18 @@
+---
+/**
+ * An image in the README: the picture on a 1px rim (`rm-shot`), a caption in muted italic under
+ * it. The `plain` variant drops the rim for a picture that brings its own edges: the cover, or a
+ * composition that places its own window on a rim.
+ */
+type Props = { caption: string; plain?: boolean; class?: string };
+
+const { caption, plain = false, class: className } = Astro.props;
+const classes = ['rm-figure', plain && 'rm-figure--plain', className].filter(Boolean).join(' ');
+---
+
+<figure class={classes}>
+  <div class={plain ? 'rm-figure__body' : 'rm-figure__body rm-shot'}>
+    <slot />
+  </div>
+  <figcaption class="rm-figure__caption">{caption}</figcaption>
+</figure>

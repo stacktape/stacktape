@@ -1,0 +1,20 @@
+---
+/**
+ * The slim frame a screen sits in: one title bar with a plain title (`<b>` marks the highlighted
+ * segment) and an optional right-hand slot for the wizard rail or a chip, then the screen itself.
+ * No navigation, no tabs, no decoration: each surface shows one screen, not the whole application.
+ */
+type Props = { title: string; class?: string };
+
+const { title, class: className } = Astro.props;
+---
+
+<div class:list={['zz-win', className]}>
+  <div class="zz-win__bar">
+    <span class="zz-win__title" set:html={title} />
+    <slot name="bar" />
+  </div>
+  <div class="zz-win__body">
+    <slot />
+  </div>
+</div>

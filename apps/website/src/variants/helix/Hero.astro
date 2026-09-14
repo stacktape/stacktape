@@ -1,0 +1,39 @@
+---
+import CommandBox from './CommandBox.astro';
+import JobChips from './JobChips.astro';
+import Receipt from './Receipt.astro';
+import { HERO, LINKS } from './data';
+---
+
+<section class="hx-hero" aria-labelledby="hx-hero-title">
+  <div class="hx-wrap hx-hero__grid">
+    <div class="hx-hero__copy">
+      <p class="hx-kicker">{HERO.kicker}</p>
+      <h1 class="hx-hero__title" id="hx-hero-title">
+        <span>{HERO.headline[0]}</span>
+        <span><em>{HERO.headline[1]}</em></span>
+      </h1>
+      <p class="hx-hero__sub">{HERO.subheadline}</p>
+      <div class="hx-hero__cta">
+        <CommandBox id="hx-hero-cmd" />
+        <div class="hx-hero__actions">
+          <a class="hx-btn hx-btn--quiet" href={LINKS.signUp}>Sign up</a>
+          <a class="hx-btn hx-btn--quiet" href={LINKS.demo}>Book a demo</a>
+        </div>
+      </div>
+      <ul class="hx-hero__facts">
+        <li>MIT-licensed CLI</li>
+        <li>Plain CloudFormation in your account</li>
+        <li>Eject anytime</li>
+      </ul>
+      <JobChips />
+    </div>
+    <div class="hx-hero__side">
+      <Receipt />
+      <div class="hx-bend" aria-hidden="true">
+        <span class="hx-bend__a"></span>
+        <span class="hx-bend__b"></span>
+      </div>
+    </div>
+  </div>
+</section>

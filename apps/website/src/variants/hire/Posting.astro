@@ -1,0 +1,43 @@
+---
+/** The posting card: header, responsibilities with their screens, not required, references, closing. */
+import Closing from './Closing.astro';
+import { POSTING, SECTIONS } from './data';
+import Header from './Header.astro';
+import NotRequired from './NotRequired.astro';
+import References from './References.astro';
+import Responsibility from './Responsibility.astro';
+import Costs from './screens/Costs.astro';
+import Deploys from './screens/Deploys.astro';
+import Designs from './screens/Designs.astro';
+import Incidents from './screens/Incidents.astro';
+import Monitors from './screens/Monitors.astro';
+import Packages from './screens/Packages.astro';
+import Secures from './screens/Secures.astro';
+
+const screens = [Designs, Packages, Deploys, Monitors, Secures, Incidents, Costs];
+---
+
+<article class="hr-posting">
+  <Header />
+
+  <section class="hr-section hr-resps" aria-labelledby="hr-resps-title">
+    <h2 class="hr-h2" id="hr-resps-title">{POSTING.responsibilities}</h2>
+    <p class="hr-prose">{POSTING.responsibilitiesIntro}</p>
+    <div class="hr-resps__list">
+      {
+        SECTIONS.map((section, i) => {
+          const Screen = screens[i]!;
+          return (
+            <Responsibility section={section}>
+              <Screen />
+            </Responsibility>
+          );
+        })
+      }
+    </div>
+  </section>
+
+  <NotRequired />
+  <References />
+  <Closing />
+</article>

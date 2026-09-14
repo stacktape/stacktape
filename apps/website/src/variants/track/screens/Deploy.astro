@@ -1,0 +1,68 @@
+---
+/**
+ * 02 — the wizard's Deploy screen in its "It's live" state: the two URLs, where and how long,
+ * the phases as a done checklist, and what deploying looks like from now on.
+ */
+import { DEPLOY, PROJECT } from '../data';
+import { PreviewButton, StatusBadge } from '../ui';
+import Window from '../Window.astro';
+---
+
+<Window title="localhost:3000 · <b>stacktape init</b>">
+  <ol class="tk-rail" slot="bar" aria-label="Wizard steps">
+    <li>Start</li>
+    <li>Read</li>
+    <li>Review</li>
+    <li class="is-current" aria-current="step">Deploy</li>
+  </ol>
+
+  <div class="tk-live">
+    <div class="tk-live__head">
+      <StatusBadge tone="success" dot>Live</StatusBadge>
+      <h3 class="tk-screen__title">It’s live</h3>
+    </div>
+    <ul class="tk-live__urls">
+      <li>{PROJECT.urls.web}</li>
+      <li>{PROJECT.urls.api}</li>
+    </ul>
+    <p class="tk-live__meta">{DEPLOY.meta}</p>
+  </div>
+
+  <ol class="tk-phases" aria-label="Deploy phases">
+    {
+      DEPLOY.phases.map((phase) => (
+        <li class="tk-phase">
+          <span class="tk-phase__mark" aria-hidden="true">
+            <svg viewBox="0 0 12 12" width="10" height="10" fill="none">
+              <path d="m2.5 6.3 2.3 2.3 4.7-5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </span>
+          <span class="tk-phase__name">{phase.name}</span>
+          {'chips' in phase ? (
+            <span class="tk-phase__chips">
+              {phase.chips.map((chip) => (
+                <span class="tk-chip">{chip}</span>
+              ))}
+            </span>
+          ) : (
+            <span class="tk-phase__note">{phase.note}</span>
+          )}
+        </li>
+      ))
+    }
+  </ol>
+
+  <div class="tk-after">
+    <span class="tk-after__label">From now on</span>
+    {
+      DEPLOY.after.map((item) => (
+        <span class="tk-after__item">
+          <b>{item.from}</b> <span class="tk-after__arrow" aria-hidden="true">→</span> {item.to}
+        </span>
+      ))
+    }
+    <span class="tk-after__action">
+      <PreviewButton variant="secondary" small>{DEPLOY.rollback}</PreviewButton>
+    </span>
+  </div>
+</Window>

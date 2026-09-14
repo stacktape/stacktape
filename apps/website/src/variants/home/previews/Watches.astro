@@ -1,0 +1,93 @@
+---
+/** 03 — three metric tiles, the trace waterfall for one request, and uptime by region. */
+import Callout from '../Callout.astro';
+import { METRICS, PROJECT, TRACE, UPTIME } from '../data';
+import Window from '../Window.astro';
+import { StatusBadge } from './ui';
+
+const sparkline = (points: readonly number[]) => {
+  const max = Math.max(...points);
+  const min = Math.min(...points);
+  const range = Math.max(1, max - min);
+  return points
+    .map((point, index) => {
+      const x = (index / (points.length - 1)) * 100;
+      const y = 30 - ((point - min) / range) * 24;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+};
+
+const pct = (value: number) => `${((value / TRACE.total) * 100).toFixed(2)}%`;
+---
+
+<Window title={`Console · ${PROJECT.name} · <b>production</b> · ${PROJECT.region}`}>
+  <div class="hm-screen__head">
+    <div class="hm-screen__heading">
+      <h4 class="hm-screen__title">apiService</h4>
+      <p class="hm-screen__sub">Metrics, traces and uptime · last hour</p>
+    </div>
+    <StatusBadge tone="neutral" caps={false}>alerts → Slack #alerts</StatusBadge>
+  </div>
+  <Callout side="above" text="wired by the deploy, nothing to install" />
+
+  <div class="hm-tiles">
+    {
+      METRICS.map((metric) => (
+        <div class="hm-tile">
+          <p class="hm-tile__label">{metric.label}</p>
+          <p class="hm-tile__value">
+            {metric.value}
+            <span class="hm-tile__unit">{metric.unit}</span>
+          </p>
+          <svg class="hm-spark" viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true">
+            <polyline points={sparkline(metric.points)} fill="none" stroke="currentColor" stroke-width="1.6" vector-effect="non-scaling-stroke" />
+          </svg>
+        </div>
+      ))
+    }
+  </div>
+
+  <div class="hm-panel">
+    <div class="hm-panel__head">
+      <h5 class="hm-panel__title">Trace</h5>
+      <p class="hm-panel__meta"><span class="hm-mono">{TRACE.name}</span> · {TRACE.total} ms</p>
+    </div>
+    <ol class="hm-trace">
+      {
+        TRACE.spans.map((span) => (
+          <li class={`hm-trace__row hm-trace__row--${span.kind}`}>
+            <span class="hm-trace__name">{span.name}</span>
+            <span class="hm-trace__lane">
+              <span class="hm-trace__bar" style={`left: ${pct(span.start)}; width: ${pct(span.duration)}`} />
+            </span>
+            <span class="hm-trace__ms">{span.duration} ms</span>
+          </li>
+        ))
+      }
+    </ol>
+    <Callout side="below" text="one request end to end: handler, database, cache" />
+  </div>
+
+  <div class="hm-panel" data-hm-phone="hide">
+    <div class="hm-panel__head">
+      <h5 class="hm-panel__title">Uptime</h5>
+      <p class="hm-panel__meta"><span class="hm-mono">{UPTIME.url}</span> · {UPTIME.thirtyDay} over 30 days</p>
+    </div>
+    <ul class="hm-uptime">
+      {
+        UPTIME.regions.map((check) => (
+          <li class="hm-uptime__row">
+            <StatusBadge tone="success" dot>
+              Up
+            </StatusBadge>
+            <span class="hm-uptime__region">{check.region}</span>
+            <span class="hm-uptime__code hm-mono">{check.code}</span>
+            <span class="hm-uptime__ms hm-mono">{check.latency}</span>
+          </li>
+        ))
+      }
+    </ul>
+    <Callout side="below" text="checked from Ireland, Virginia and Singapore" />
+  </div>
+</Window>

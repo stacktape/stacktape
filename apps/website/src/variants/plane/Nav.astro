@@ -1,0 +1,18 @@
+---
+import Logo from '../../components/Logo.astro';
+import { LINKS } from './data';
+---
+
+<header class="pl-nav">
+  <div class="pl-container pl-nav__inner">
+    <a class="pl-nav__logo" href="/" aria-label="Stacktape home"><Logo height={24} /></a>
+    <nav aria-label="Primary">
+      <ul class="pl-nav__links">
+        <li><a class="pl-nav__link" href={LINKS.docs}>Docs</a></li>
+        <li><a class="pl-nav__link pl-nav__link--optional" href={LINKS.github}>GitHub</a></li>
+        <li><a class="pl-nav__link pl-nav__link--optional" href={LINKS.demo}>Book a demo</a></li>
+        <li><a class="pl-nav__link pl-nav__link--cta" href={LINKS.signIn}>Sign in</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>

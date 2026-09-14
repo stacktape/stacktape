@@ -1,0 +1,36 @@
+---
+// concept: Poster-bold typography and one persistent product window whose contents change as seven numbered chapters scroll past it, from `npx stacktape init` to the next push, closing the DevOps loop.
+// copy-angle: Names the automation outright ("AWS DevOps, fully automated") and proves it with product states instead of adjectives; the coding-agent handoff is shown as a real step in the incident, and automatic remediation as an opt-in switch that is off.
+import BaseLayout from '../layouts/BaseLayout.astro';
+import ClosingCta from '../variants/loop/ClosingCta.astro';
+import Footer from '../variants/loop/Footer.astro';
+import Hero from '../variants/loop/Hero.astro';
+import Journey from '../variants/loop/Journey.astro';
+import Nav from '../variants/loop/Nav.astro';
+import Testimonials from '../variants/loop/Testimonials.astro';
+import '../variants/loop/loop.css';
+
+const title = 'Stacktape — AWS DevOps, fully automated';
+const description =
+  'Stacktape reads your repository, writes the infrastructure configuration, deploys it into your own AWS account and runs it with you: CI/CD, observability, incidents, security and costs in one place.';
+---
+
+<BaseLayout title={title} description={description} htmlClass="lp-html">
+  <Fragment slot="head">
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,62..125,100..900;1,62..125,100..900&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+  </Fragment>
+  <div class="lp-root">
+    <a class="lp-skip" href="#journey">Skip to the customer journey</a>
+    <Nav />
+    <main>
+      <Hero />
+      <Journey />
+      <Testimonials />
+      <ClosingCta />
+    </main>
+    <Footer />
+  </div>
+</BaseLayout>

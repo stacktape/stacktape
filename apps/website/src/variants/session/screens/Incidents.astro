@@ -1,0 +1,33 @@
+---
+/** 06 — one incident: what fired, the timeline from the release to the fix, where the team was told. */
+import { INCIDENT, URLS } from '../data';
+import { StatusBadge } from '../ui';
+import Window from '../Window.astro';
+---
+
+<Window kind="browser" host={URLS.incident.host} path={URLS.incident.path}>
+  <div class="ss-inc__head">
+    <h3 class="ss-scr__h ss-inc__title">{INCIDENT.title}</h3>
+    <p class="ss-inc__meta">
+      <StatusBadge tone="success" dot>{INCIDENT.badge}</StatusBadge>
+      <span class="ss-inc__duration">{INCIDENT.duration}</span>
+    </p>
+  </div>
+
+  <ol class="ss-timeline" aria-label="Timeline">
+    {
+      INCIDENT.timeline.map((event) => (
+        <li class={`ss-tl ss-tl--${event.tone}`}>
+          <span class="ss-tl__time">{event.time}</span>
+          <span class="ss-tl__mark" aria-hidden="true" />
+          <span class="ss-tl__text">{event.text}</span>
+        </li>
+      ))
+    }
+  </ol>
+
+  <p class="ss-inc__alerted">
+    <span class="ss-inc__slack" aria-hidden="true"></span>
+    {INCIDENT.alerted}
+  </p>
+</Window>

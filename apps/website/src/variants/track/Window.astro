@@ -1,0 +1,21 @@
+---
+/**
+ * The slim window a screen sits in, on the Console's nested surface: a 36px title bar with three
+ * dots and a mono title (`<b>` marks the highlighted segment), then the screen itself. No
+ * navigation, no tabs, no account tags: each surface shows one screen, not the application.
+ */
+type Props = { title: string; class?: string };
+
+const { title, class: className } = Astro.props;
+---
+
+<div class:list={['tk-win', className]}>
+  <div class="tk-win__bar">
+    <span class="tk-win__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+    <span class="tk-win__title" set:html={title} />
+    <slot name="bar" />
+  </div>
+  <div class="tk-win__body">
+    <slot />
+  </div>
+</div>

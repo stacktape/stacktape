@@ -1,0 +1,171 @@
+---
+/**
+ * 01 — the wizard's Review screen. The configuration file and the architecture diagram are two
+ * views of the same app; a draggable divider decides how much of each you see. Below it, the
+ * four things the wizard decided, each changeable, and the estimate before anything exists.
+ */
+import Callout from '../Callout.astro';
+import { ACME_CONFIG, ACME_YAML, DECIDED, ESTIMATE, highlightYaml } from '../data';
+import Window from '../Window.astro';
+import DiagramIsland from './DiagramIsland';
+import { PreviewButton } from './ui';
+
+const file = highlightYaml(ACME_YAML);
+const DIAGRAM_LABEL =
+  'Architecture diagram of acme-project: web and apiService are public behind the firewall; worker, cache and mainDatabase sit inside the private network';
+---
+
+<Window kind="wizard" title="localhost:3000 · <b>stacktape init</b>">
+  <ol class="hm-wizard__steps" slot="bar" aria-label="Wizard steps">
+    <li>Start</li>
+    <li>Analyze</li>
+    <li class="is-current" aria-current="step">Review</li>
+    <li>Deploy</li>
+  </ol>
+
+  <div class="hm-screen__head">
+    <div class="hm-screen__heading">
+      <h4 class="hm-screen__title">Here's your app on AWS</h4>
+      <p class="hm-screen__sub">Opened 41 files in 38s, all on this machine. Nothing has been created yet.</p>
+    </div>
+  </div>
+  <Callout side="above" text="read on your machine, nothing uploaded" />
+
+  <div class="hm-reveal" data-hm-reveal style="--reveal: 50%">
+    <div class="hm-reveal__picture">
+      <span class="hm-reveal__badge">Architecture · what Stacktape will create</span>
+      <div class="hm-reveal__canvas">
+        <DiagramIsland client:only="react" config={ACME_CONFIG} ariaLabel={DIAGRAM_LABEL} />
+      </div>
+    </div>
+
+    <div class="hm-reveal__file">
+      <div class="hm-editor">
+        <div class="hm-editor__tab">
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
+            <path d="M4 1.5h5.5L13 5v9.5H4z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"></path>
+            <path d="M9.5 1.5V5H13" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"></path>
+          </svg>
+          <span>stacktape.yml</span>
+          <span class="hm-editor__lines">{file.lineCount} lines</span>
+        </div>
+        <div class="hm-editor__scroll">
+          <div class="hm-editor__pane">
+            <div class="hm-editor__gutter" aria-hidden="true">
+              {Array.from({ length: file.lineCount }, (_, n) => <span>{n + 1}</span>)}
+            </div>
+            <pre class="hm-editor__code"><code set:html={file.html} /></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div
+      class="hm-reveal__handle"
+      data-hm-handle
+      role="slider"
+      tabindex="0"
+      aria-label="How much of the file to show; the rest is the diagram"
+      aria-valuemin="0"
+      aria-valuemax="100"
+      aria-valuenow="50"
+    >
+      <span class="hm-reveal__grip" aria-hidden="true">
+        <svg viewBox="0 0 16 16" width="14" height="14" fill="none">
+          <path d="M6 4 2.5 8 6 12M10 4l3.5 4L10 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>
+      </span>
+      <span class="hm-reveal__hint" aria-hidden="true">drag to compare the file and the picture</span>
+    </div>
+  </div>
+
+  <div class="hm-decided">
+    <div class="hm-panel__head">
+      <h5 class="hm-panel__title">Decided for you</h5>
+      <Callout side="left" text="every decision is one click to change" />
+    </div>
+    <ul class="hm-decided__list">
+      {
+        DECIDED.map((item) => (
+          <li class="hm-decided__row">
+            <span class="hm-decided__check" aria-hidden="true">
+              <svg viewBox="0 0 12 12" width="11" height="11" fill="none">
+                <path d="m2.5 6.3 2.3 2.3 4.7-5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </span>
+            <span class="hm-decided__text">
+              <span class="hm-decided__what">{item.what}</span>
+              <span class="hm-decided__why">{item.why}</span>
+            </span>
+            <PreviewButton variant="secondary" small>Change</PreviewButton>
+          </li>
+        ))
+      }
+    </ul>
+    <div class="hm-decided__foot">
+      <p class="hm-decided__estimate">
+        <strong>{ESTIMATE.resources} AWS resources</strong>
+        <span aria-hidden="true">·</span>
+        <strong>{ESTIMATE.monthly}</strong>
+      </p>
+      <div class="hm-decided__action">
+        <Callout side="left" text="the price before anything exists; nothing is created until this is pressed" />
+        <PreviewButton variant="primary" icon="arrow" iconPosition="end">Deploy</PreviewButton>
+      </div>
+    </div>
+  </div>
+</Window>
+
+<script>
+  // The reveal divider: pointer drag with capture, keyboard arrows, Home/End, double-click to reset.
+  const boxes = document.querySelectorAll<HTMLElement>('[data-hm-reveal]');
+
+  for (const box of boxes) {
+    const handle = box.querySelector<HTMLElement>('[data-hm-handle]');
+    if (!handle) continue;
+
+    const min = 10;
+    const max = 90;
+    const home = 50;
+    let value = home;
+
+    const apply = (next: number) => {
+      value = Math.min(max, Math.max(min, next));
+      box.style.setProperty('--reveal', `${value}%`);
+      handle.setAttribute('aria-valuenow', String(Math.round(value)));
+    };
+
+    const fromPointer = (clientX: number) => {
+      const rect = box.getBoundingClientRect();
+      apply(((clientX - rect.left) / rect.width) * 100);
+    };
+
+    handle.addEventListener('pointerdown', (event: PointerEvent) => {
+      event.preventDefault();
+      handle.setPointerCapture(event.pointerId);
+      box.classList.add('is-dragging', 'has-dragged');
+      fromPointer(event.clientX);
+    });
+    handle.addEventListener('pointermove', (event: PointerEvent) => {
+      if (!box.classList.contains('is-dragging')) return;
+      fromPointer(event.clientX);
+    });
+    const release = (event: PointerEvent) => {
+      if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId);
+      box.classList.remove('is-dragging');
+    };
+    handle.addEventListener('pointerup', release);
+    handle.addEventListener('pointercancel', release);
+    handle.addEventListener('dblclick', () => apply(home));
+    handle.addEventListener('keydown', (event: KeyboardEvent) => {
+      const step = event.shiftKey ? 12 : 4;
+      if (event.key === 'ArrowLeft') apply(value - step);
+      else if (event.key === 'ArrowRight') apply(value + step);
+      else if (event.key === 'Home') apply(min);
+      else if (event.key === 'End') apply(max);
+      else return;
+      box.classList.add('has-dragged');
+      event.preventDefault();
+    });
+  }
+</script>

@@ -1,0 +1,23 @@
+---
+/**
+ * A gold interchange: where the visitor decides something, the route bends out 45° to a dot and
+ * back. The row is twice as tall as the horizontal offset so both legs are exactly 45°; the label
+ * sits beside the dot, outside the bend, with a short gold leader between them. Below 900px the
+ * row collapses to a plain gold-accented row in the flow and nothing is drawn.
+ */
+import type { InterchangeCopy } from './data';
+
+type Props = { item: InterchangeCopy };
+
+const { item } = Astro.props;
+---
+
+<div class:list={['zz-ic', `zz-ic--${item.side}`]} data-zz-node="ic">
+  <span class="zz-dot" data-zz-dot aria-hidden="true"></span>
+  <div class="zz-ic__slot">
+    <div class="zz-ic__card" data-zz-rise>
+      <p class="zz-ic__title">{item.title}</p>
+      <p class="zz-ic__sub">{item.sub}</p>
+    </div>
+  </div>
+</div>

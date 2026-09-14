@@ -1,0 +1,103 @@
+---
+import { Switch } from '@stacktape/ui-react/switch';
+import Billboard from '../Billboard.astro';
+import Frame from '../Frame.astro';
+import { INCIDENT } from '../data';
+
+const { correlation, handoff, recovery, remediation } = INCIDENT;
+const title = `console.stacktape.com · Incidents / ${INCIDENT.id}`;
+---
+
+<div class="pl-beat">
+  <span class="pl-beat__num">Beat 1 · Detected</span>
+  <Billboard anchor="beat">
+    <Frame title={title} tag="example project">
+      <div class="pl-inc__head">
+        <span class="pl-inc__id">{INCIDENT.id}</span>
+        <span class="pl-pill pl-pill--red">{INCIDENT.severity}</span>
+        <span class="pl-pill pl-pill--muted">{INCIDENT.stage}</span>
+        <span class="pl-pill pl-pill--amber">Open</span>
+      </div>
+      <ul class="pl-signals" aria-label="Signals">
+        {
+          INCIDENT.signals.map((signal) => (
+            <li class="pl-signal">
+              <span class="pl-signal__kind">{signal.kind}</span>
+              <span class="pl-signal__detail">{signal.detail}</span>
+            </li>
+          ))
+        }
+      </ul>
+    </Frame>
+  </Billboard>
+</div>
+
+<div class="pl-beat">
+  <span class="pl-beat__num">Beat 2 · Correlated with the release</span>
+  <Billboard anchor="beat">
+    <Frame title={title}>
+      <p class="pl-corr">
+        {correlation.opened} <span class="pl-corr__sep">·</span>
+        <b>{correlation.release}</b> <span class="pl-corr__sep">·</span> commit <b>{correlation.commit}</b> — {correlation.message}
+        <span class="pl-corr__sep">·</span> previous release <b>{correlation.previous}</b>
+        <span class="pl-corr__sep">·</span> {correlation.config} <span class="pl-corr__sep">·</span>
+        <span class="pl-corr__link">{correlation.changed}</span>
+      </p>
+      <div class="pl-around">
+        Around this time (same stack)
+        <ul>
+          <li>4m before · Deploy {correlation.release} → production</li>
+          <li>now · Alarm firing · apiService 5xx</li>
+          <li>now · Uptime check down · 3 of 3 regions</li>
+        </ul>
+      </div>
+    </Frame>
+  </Billboard>
+</div>
+
+<div class="pl-beat">
+  <span class="pl-beat__num">Beat 3 · Handed to your coding agent</span>
+  <Billboard anchor="beat">
+    <Frame title={title}>
+      <div class="pl-handoff">
+        <div>
+          <span class="pl-fake-btn pl-fake-btn--ghost">{handoff.button}</span>
+          <span class="pl-station__text" style="font-size: 0.74rem; margin-left: 10px;"
+            >status · release diff · evidence with stack frames · timeline · scoped links</span
+          >
+        </div>
+        <p class="pl-finding"><b>Found:</b> {handoff.finding}</p>
+        <p class="pl-handoff__lead">Your agent then</p>
+        <ol class="pl-handoff__steps">
+          {handoff.steps.map((step) => <li>{step}</li>)}
+        </ol>
+        <pre class="pl-term" style="border: 1px solid var(--pl-line-soft); border-radius: 6px;">$ <b>{handoff.resolveCommand}</b></pre>
+      </div>
+    </Frame>
+  </Billboard>
+</div>
+
+<div class="pl-beat">
+  <span class="pl-beat__num">Beat 4 · Recovered, verified</span>
+  <Billboard anchor="beat">
+    <Frame title={title}>
+      <div class="pl-inc__head">
+        <span class="pl-inc__id">{INCIDENT.id}</span>
+        <span class="pl-pill pl-pill--green pl-pill--live">{recovery.status}</span>
+        <span class="pl-pill pl-pill--muted">v42 live</span>
+      </div>
+      <div class="pl-recovery">
+        <div class="pl-recovery__item"><span class="pl-recovery__k">Reason</span><span class="pl-recovery__v">{recovery.reason}</span></div>
+        <div class="pl-recovery__item"><span class="pl-recovery__k">Duration</span><span class="pl-recovery__v">{recovery.duration}</span></div>
+        <div class="pl-recovery__item"><span class="pl-recovery__k">Uptime</span><span class="pl-recovery__v">{recovery.uptime}</span></div>
+        <div class="pl-recovery__item"><span class="pl-recovery__k">Errors</span><span class="pl-recovery__v">{recovery.errors}</span></div>
+      </div>
+    </Frame>
+  </Billboard>
+</div>
+
+<div class="pl-optin" data-pl-anchor="optin" data-pl-rise>
+  <Switch checked={false} disabled label={remediation.label} onCheckedChange={() => {}} />
+  <span class="pl-optin__label">{remediation.label}</span>
+  <span class="pl-optin__note">{remediation.note}</span>
+</div>

@@ -1,0 +1,63 @@
+---
+/** 04 — three metric tiles, one request followed through the services, one uptime line. */
+import { METRICS, sparkline, TRACE, UPTIME, URLS } from '../data';
+import Window from '../Window.astro';
+
+const pct = (ms: number) => `${((ms / TRACE.total) * 100).toFixed(2)}%`;
+---
+
+<Window kind="browser" url={URLS.monitoring}>
+  <div class="ls-tiles">
+    {
+      METRICS.map((metric) => (
+        <div class="ls-tile">
+          <p class="ls-tile__label">{metric.label}</p>
+          <p class="ls-tile__value">
+            {metric.value}<span class="ls-tile__unit">{metric.unit}</span>
+          </p>
+          <svg class="ls-spark" viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true">
+            <polyline points={sparkline(metric.points)} fill="none" stroke="currentColor" stroke-width="1.6" vector-effect="non-scaling-stroke" />
+          </svg>
+        </div>
+      ))
+    }
+  </div>
+
+  <div class="ls-trace">
+    <p class="ls-trace__head">
+      <span class="ls-trace__name">{TRACE.name}</span>
+      <span class="ls-sep" aria-hidden="true">·</span>
+      <span class="ls-trace__total">{TRACE.total} ms</span>
+    </p>
+    <ol class="ls-trace__spans" aria-label="Spans">
+      {
+        TRACE.spans.map((span) => (
+          <li class={`ls-span ls-span--${span.kind}`}>
+            <span class="ls-span__name">{span.name}</span>
+            <span class="ls-span__lane">
+              <span class="ls-span__bar" style={`left: ${pct(span.start)}; width: max(${pct(span.end - span.start)}, 3px)`} />
+            </span>
+            <span class="ls-span__ms">{span.end - span.start} ms</span>
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+
+  <p class="ls-uptime">
+    <span class="ls-uptime__dot" aria-hidden="true"></span>
+    <span class="ls-uptime__url">{UPTIME.url}</span>
+    <span class="ls-sep" aria-hidden="true">·</span>
+    <span class="ls-uptime__pct">{UPTIME.availability}</span>
+    {
+      UPTIME.regions.map((check) => (
+        <>
+          <span class="ls-sep" aria-hidden="true">·</span>
+          <span class="ls-uptime__region">
+            {check.region} <span class="ls-uptime__ms">{check.latency}</span>
+          </span>
+        </>
+      ))
+    }
+  </p>
+</Window>

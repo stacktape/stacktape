@@ -1,0 +1,37 @@
+---
+/**
+ * 02 — the package phase of a deploy, as lines of the transcript itself: two workloads built in
+ * parallel, one skipped because nothing changed. No window; this is the terminal's own output.
+ */
+import { PACKAGE } from '../data';
+---
+
+{
+  PACKAGE.phases.map((phase) => (
+    <p class="ss-l ss-o ss-o--ok">
+      <span class="ss-pk__phase">{phase.name}</span>
+      <span class="ss-dim">{phase.time}</span>
+    </p>
+  ))
+}
+
+<ul class="ss-l ss-pk" aria-label="Packaged workloads">
+  {
+    PACKAGE.rows.map((row) => (
+      <li class={row.skipped ? 'ss-pk__row ss-pk__row--skipped' : 'ss-pk__row'}>
+        <i aria-hidden="true">{row.skipped ? '–' : '✓'}</i>
+        <b>{row.name}</b>
+        <span class="ss-pk__kind">{row.kind}</span>
+        <span class="ss-pk__result">{row.result}</span>
+        <span class="ss-pk__time">{row.time}</span>
+      </li>
+    ))
+  }
+</ul>
+
+<p class="ss-l ss-o ss-pk__sum">{PACKAGE.summary}</p>
+
+<p class="ss-l ss-o ss-o--run">
+  <span class="ss-pk__phase">{PACKAGE.next.name}</span>
+  <span class="ss-dim">{PACKAGE.next.note}</span>
+</p>

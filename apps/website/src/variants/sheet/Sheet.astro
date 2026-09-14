@@ -1,0 +1,79 @@
+---
+/**
+ * The sheet: the sticky index on the left and the seven line items on the right. The observer
+ * below marks the item nearest the middle of the viewport as current in the index.
+ */
+import { SECTIONS } from './data';
+import Index from './Index.astro';
+import Section from './Section.astro';
+import Costs from './screens/Costs.astro';
+import Deploy from './screens/Deploy.astro';
+import Design from './screens/Design.astro';
+import Incident from './screens/Incident.astro';
+import Monitor from './screens/Monitor.astro';
+import Package from './screens/Package.astro';
+import Secure from './screens/Secure.astro';
+
+const screens = [Design, Package, Deploy, Monitor, Secure, Incident, Costs];
+---
+
+<section class="sh-sheet" aria-label="What Stacktape does">
+  <div class="sh-container sh-sheet__grid">
+    <Index />
+    <div class="sh-sheet__items">
+      {
+        SECTIONS.map((section, index) => {
+          const Screen = screens[index]!;
+          return (
+            <Section section={section}>
+              <Screen />
+            </Section>
+          );
+        })
+      }
+    </div>
+  </div>
+</section>
+
+<script>
+  const rail = document.querySelector<HTMLElement>('[data-sh-index]');
+  const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('[data-sh-index-link]'));
+  const sections = Array.from(document.querySelectorAll<HTMLElement>('[data-sh-section]'));
+  const horizontal = window.matchMedia('(max-width: 999px)');
+  let current = '';
+
+  const setCurrent = (id: string) => {
+    if (id === current) return;
+    current = id;
+    for (const link of links) {
+      const active = link.dataset.shIndexLink === id;
+      link.classList.toggle('is-current', active);
+      if (active) {
+        link.setAttribute('aria-current', 'true');
+        // In the horizontal strip, keep the current item in view without moving the page.
+        if (horizontal.matches && rail) {
+          const list = rail.querySelector<HTMLElement>('.sh-index__list') ?? rail;
+          const target = link.offsetLeft - list.clientWidth / 2 + link.offsetWidth / 2;
+          list.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
+        }
+      } else {
+        link.removeAttribute('aria-current');
+      }
+    }
+  };
+
+  const visible = new Set<string>();
+  const observer = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        const id = (entry.target as HTMLElement).dataset.shSection ?? '';
+        if (entry.isIntersecting) visible.add(id);
+        else visible.delete(id);
+      }
+      const first = sections.find((section) => visible.has(section.dataset.shSection ?? ''));
+      if (first) setCurrent(first.dataset.shSection ?? '');
+    },
+    { rootMargin: '-40% 0px -50%' }
+  );
+  for (const section of sections) observer.observe(section);
+</script>

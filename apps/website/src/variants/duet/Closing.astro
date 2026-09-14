@@ -1,0 +1,14 @@
+---
+import CommandBox from './CommandBox.astro';
+import { CLOSING, LINKS, TRUST_LINE } from './data';
+---
+
+<section class="du-close" aria-labelledby="du-close-title">
+  <div class="du-close__in">
+    <p class="du-eyebrow">Six things. One command.</p>
+    <h2 class="du-close__title" id="du-close-title">{CLOSING}</h2>
+    <CommandBox label="Get started" class="du-close__cmd" />
+    <p class="du-trust">{TRUST_LINE}</p>
+    <p class="du-close__signin">Already set up? <a href={LINKS.console}>Sign in to the Console</a></p>
+  </div>
+</section>

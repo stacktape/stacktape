@@ -1,0 +1,923 @@
+---
+/**
+ * The Stacktape "cover": the Console's project dashboard tilted in 3D with the CLI deploy terminal
+ * floating in front of it. A hand-built HTML replica rather than a screenshot, so it stays sharp at
+ * every size and remains editable.
+ *
+ * Ported verbatim from the README cover (readme-cover/cover-docs.html, the transparent variant for
+ * dark pages). The markup, its Tailwind utilities and the style block are the original's; the only
+ * changes are mechanical: the inline tailwind.config's named colours became arbitrary-value
+ * utilities, the Tabler webfont icons became inline SVGs, and the 1517x1204 canvas is wrapped in a
+ * frame that scales it to its container's width.
+ *
+ * Fonts: the console is Montserrat and the terminal JetBrains Mono, both loaded here, so a page
+ * needs nothing extra.
+ */
+type Props = {
+  /** Extra classes for the outer frame. */
+  class?: string;
+};
+
+const { class: className } = Astro.props;
+---
+
+<div
+  class:list={['stp-cover', className]}
+  role="img"
+  aria-label="Stacktape Console showing acme-project, with a terminal deploying to production in front of it"
+>
+  <link
+    rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap"
+  />
+  <div class="cover" aria-hidden="true">
+    <div class="glow"></div>
+
+    <!-- ============================ CONSOLE ============================ -->
+    <div class="console-window page-grid w-[1400px] rounded-[10px] overflow-hidden font-[Montserrat,ui-sans-serif,sans-serif] font-medium text-[13.5px] text-[rgba(255,255,255,0.87)]">
+      <!-- Browser chrome -->
+      <div class="flex items-center gap-3 h-10 px-4 bg-[#0c1111] border-b border-[rgb(47,52,52)]">
+        <div class="flex gap-2">
+          <span class="w-3 h-3 rounded-full bg-[#ff5f57]"></span>
+          <span class="w-3 h-3 rounded-full bg-[#febc2e]"></span>
+          <span class="w-3 h-3 rounded-full bg-[#28c840]"></span>
+        </div>
+        <div class="flex-1 flex justify-center">
+          <div class="inline-flex items-center gap-2 bg-[#161c1c] border border-[rgb(47,52,52)] rounded-md px-3.5 py-1 text-[12px] text-[rgb(160,160,160)]">
+            <svg
+              class="text-[11px]"
+              width="1em"
+              height="1em"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M5 13a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-6z" />
+              <path d="M11 16a1 1 0 1 0 2 0a1 1 0 0 0 -2 0" />
+              <path d="M8 11v-4a4 4 0 1 1 8 0v4" />
+            </svg> console.stacktape.com/projects/acme-project/staging
+          </div>
+        </div>
+        <div class="w-14"></div>
+      </div>
+
+      <!-- Top bar -->
+      <header class="flex items-center gap-7 h-[60px] px-[22px] border-b border-[rgb(47,52,52)]">
+        <svg class="h-[23px] w-auto shrink-0" viewBox="0 0 273 49" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path
+            d="M63.5687 37.0882C61.7207 37.0882 59.9567 36.7762 58.2767 36.1522C56.6207 35.5042 55.3247 34.6762 54.3887 33.6682L55.2167 32.3002C56.1047 33.2362 57.2927 34.0042 58.7807 34.6042C60.2927 35.1802 61.8767 35.4682 63.5327 35.4682C65.9327 35.4682 67.7447 35.0122 68.9687 34.1002C70.1927 33.1882 70.8047 32.0002 70.8047 30.5362C70.8047 29.4082 70.4807 28.5082 69.8327 27.8362C69.1847 27.1642 68.3807 26.6482 67.4207 26.2882C66.4607 25.9282 65.1647 25.5562 63.5327 25.1722C61.6847 24.7162 60.1967 24.2722 59.0687 23.8402C57.9647 23.4082 57.0167 22.7482 56.2247 21.8602C55.4567 20.9482 55.0727 19.7362 55.0727 18.2242C55.0727 17.0002 55.3967 15.8842 56.0447 14.8762C56.6927 13.8442 57.6767 13.0282 58.9967 12.4282C60.3407 11.8282 62.0087 11.5282 64.0007 11.5282C65.3927 11.5282 66.7607 11.7322 68.1047 12.1402C69.4487 12.5482 70.6127 13.1002 71.5967 13.7962L70.9127 15.2722C69.9047 14.5762 68.7887 14.0482 67.5647 13.6882C66.3647 13.3282 65.1767 13.1482 64.0007 13.1482C61.6727 13.1482 59.9087 13.6162 58.7087 14.5522C57.5087 15.4882 56.9087 16.7002 56.9087 18.1882C56.9087 19.3162 57.2327 20.2162 57.8807 20.8882C58.5287 21.5602 59.3327 22.0762 60.2927 22.4362C61.2527 22.7962 62.5607 23.1802 64.2167 23.5882C66.0647 24.0442 67.5407 24.4882 68.6447 24.9202C69.7487 25.3522 70.6847 26.0122 71.4527 26.9002C72.2447 27.7642 72.6407 28.9402 72.6407 30.4282C72.6407 31.6522 72.3047 32.7682 71.6327 33.7762C70.9847 34.7842 69.9767 35.5882 68.6087 36.1882C67.2407 36.7882 65.5607 37.0882 63.5687 37.0882ZM83.3547 13.3642H74.2827V11.7082H94.2627V13.3642H85.1907V36.9082H83.3547V13.3642ZM113.138 29.8162H98.5222L95.3182 36.9082H93.3382L104.93 11.7082H106.766L118.358 36.9082H116.378L113.138 29.8162ZM112.454 28.2682L105.83 13.7242L99.2422 28.2682H112.454ZM133.237 37.0882C130.765 37.0882 128.533 36.5362 126.541 35.4322C124.573 34.3282 123.013 32.8042 121.861 30.8602C120.733 28.9162 120.169 26.7322 120.169 24.3082C120.169 21.8842 120.733 19.7002 121.861 17.7562C123.013 15.8122 124.573 14.2882 126.541 13.1842C128.533 12.0802 130.765 11.5282 133.237 11.5282C135.061 11.5282 136.741 11.8282 138.277 12.4282C139.813 13.0042 141.121 13.8682 142.201 15.0202L141.049 16.2082C139.033 14.2162 136.453 13.2202 133.309 13.2202C131.197 13.2202 129.277 13.7002 127.549 14.6602C125.821 15.6202 124.465 16.9522 123.481 18.6562C122.497 20.3362 122.005 22.2202 122.005 24.3082C122.005 26.3962 122.497 28.2922 123.481 29.9962C124.465 31.6762 125.821 32.9962 127.549 33.9562C129.277 34.9162 131.197 35.3962 133.309 35.3962C136.429 35.3962 139.009 34.3882 141.049 32.3722L142.201 33.5602C141.121 34.7122 139.801 35.5882 138.241 36.1882C136.705 36.7882 135.037 37.0882 133.237 37.0882ZM155.839 24.4882L150.187 30.2842V36.9082H148.351V11.7082H150.187V27.9082L165.919 11.7082H168.151L157.063 23.1562L168.907 36.9082H166.675L155.839 24.4882ZM177.116 13.3642H168.044V11.7082H188.024V13.3642H178.952V36.9082H177.116V13.3642ZM206.9 29.8162H192.284L189.08 36.9082H187.1L198.692 11.7082H200.528L212.12 36.9082H210.14L206.9 29.8162ZM206.216 28.2682L199.592 13.7242L193.004 28.2682H206.216ZM225.731 11.7082C228.899 11.7082 231.383 12.4642 233.183 13.9762C234.983 15.4642 235.883 17.5402 235.883 20.2042C235.883 22.8442 234.983 24.9202 233.183 26.4322C231.383 27.9202 228.899 28.6642 225.731 28.6642H218.531V36.9082H216.695V11.7082H225.731ZM225.731 27.0082C228.419 27.0082 230.471 26.4202 231.887 25.2442C233.303 24.0682 234.011 22.3882 234.011 20.2042C234.011 18.0202 233.303 16.3402 231.887 15.1642C230.471 13.9642 228.419 13.3642 225.731 13.3642H218.531V27.0082H225.731ZM259.466 35.2522V36.9082H242.078V11.7082H258.926V13.3642H243.914V23.3002H257.342V24.9202H243.914V35.2522H259.466Z"
+            fill="#F4F4F5"
+          />
+          <path
+            d="M41.7636 14.3985L37.4928 37.8262L13.8142 45.812C13.4647 45.934 13.0741 45.8036 12.8578 45.5013L0.253235 27.8495C0.22812 27.8199 0.203008 27.7825 0.182777 27.7487C0.0662745 27.5725 0 27.3625 0 27.1356C0 27.0813 0.0041868 27.0264 0.0125582 26.9721L1.89613 26.3378L25.0633 18.5204L40.5867 13.2822C41.2355 13.0624 41.8927 13.6839 41.7636 14.3985Z"
+            fill="url(#g0)"
+          />
+          <path
+            d="M25.0635 18.5195L1.89626 26.3376L0.0126953 26.9719C0.0378096 26.7999 0.099898 26.6442 0.191286 26.5054C0.195472 26.5011 0.199656 26.4927 0.208028 26.4842L0.345457 26.3242L22.2235 0.728862C22.6183 0.266567 23.3669 0.548453 23.4255 1.1827L25.0635 18.5195Z"
+            fill="url(#g1)"
+          />
+          <path
+            d="M37.493 37.8262L29.4369 48.1848C29.0434 48.7662 28.1616 48.4928 28.0891 47.7669L27.4473 41.2145L37.493 37.8262Z"
+            fill="url(#g2)"
+          />
+          <defs>
+            <linearGradient id="g0" x1="20.3313" y1="9.90818" x2="22.045" y2="42.2818" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#70C8B6" />
+              <stop offset="0.5255" stop-color="#64BDB2" />
+              <stop offset="1" stop-color="#0097A1" />
+            </linearGradient>
+            <linearGradient
+              id="g1"
+              x1="10.5989"
+              y1="-1.96739"
+              x2="12.6184"
+              y2="23.2561"
+              gradientUnits="userSpaceOnUse"
+            >
+              <stop stop-color="#70C8B6" />
+              <stop offset="0.5255" stop-color="#64BDB2" />
+              <stop offset="1" stop-color="#0097A1" />
+            </linearGradient>
+            <linearGradient id="g2" x1="33.3208" y1="46.9623" x2="32.65" y2="40.5775" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#70C8B6" />
+              <stop offset="0.5255" stop-color="#64BDB2" />
+              <stop offset="1" stop-color="#0097A1" />
+            </linearGradient>
+          </defs>
+        </svg>
+
+        <div class="flex items-center gap-2.5 font-bold text-white text-[15px] whitespace-nowrap shrink-0">
+          <span>Stacktape</span><svg
+            class="text-sm text-[rgb(160,160,160)] -ml-1"
+            width="1em"
+            height="1em"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M6 9l6 6l6 -6" />
+          </svg>
+          <span class="text-[#848484] font-medium">/</span>
+          <span>acme-project</span><svg
+            class="text-sm text-[rgb(160,160,160)] -ml-1"
+            width="1em"
+            height="1em"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M6 9l6 6l6 -6" />
+          </svg>
+        </div>
+
+        <div class="flex-1"></div>
+
+        <div class="flex items-center gap-[22px]">
+          <button class="btn-grad inline-flex items-center gap-2 text-white font-semibold rounded-lg px-4 py-[9px] whitespace-nowrap">
+            <svg
+              width="1em"
+              height="1em"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 5l0 14" />
+              <path d="M5 12l14 0" />
+            </svg> Create new project
+          </button>
+          <span class="flex items-center gap-1.5"><svg
+              width="1em"
+              height="1em"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" />
+              <path d="M12 16v.01" />
+              <path d="M12 13a2 2 0 0 0 .914 -3.782a1.98 1.98 0 0 0 -2.414 .483" />
+            </svg> Help <svg
+              class="text-sm text-[rgb(160,160,160)]"
+              width="1em"
+              height="1em"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M6 9l6 6l6 -6" />
+            </svg></span>
+          <span class="flex items-center gap-1.5"><svg
+              width="1em"
+              height="1em"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0" />
+              <path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+            </svg> JD <svg
+              class="text-sm text-[rgb(160,160,160)]"
+              width="1em"
+              height="1em"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M6 9l6 6l6 -6" />
+            </svg></span>
+        </div>
+      </header>
+
+      <div class="flex">
+        <!-- Left navigation -->
+        <nav class="w-[230px] shrink-0 border-r border-[rgb(47,52,52)] py-3.5 flex flex-col">
+          <a class="nav-item"><svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M10 3H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1zM9 9H5V5h4v4zm11 4h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1zm-1 6h-4v-4h4v4zM17 3c-2.206 0-4 1.794-4 4s1.794 4 4 4 4-1.794 4-4-1.794-4-4-4zm0 6c-1.103 0-2-.897-2-2s.897-2 2-2 2 .897 2 2-.897 2-2 2zM7 13c-2.206 0-4 1.794-4 4s1.794 4 4 4 4-1.794 4-4-1.794-4-4-4zm0 6c-1.103 0-2-.897-2-2s.897-2 2-2 2 .897 2 2-.897 2-2 2z" />
+            </svg><span>Overview</span></a>
+          <a class="nav-item"><svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M4 22h14a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v4" />
+              <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+              <path d="M4 12a1 1 0 0 0-1 1v1a1 1 0 0 1-1 1 1 1 0 0 1 1 1v1a1 1 0 0 0 1 1" />
+              <path d="M8 18a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1 1 1 0 0 1-1-1v-1a1 1 0 0 0-1-1" />
+            </svg><span>Config editor</span></a>
+
+          <div class="nav-sec">Organization</div>
+          <a class="nav-item"><svg viewBox="0 0 16 16" fill="currentColor">
+              <path
+                fill-rule="evenodd"
+                clip-rule="evenodd"
+                d="M1.5 1h13l.5.5v13l-.5.5h-13l-.5-.5v-13l.5-.5zM2 14h12V2H2v12zM3 3h2v10H3V3zm6 0H7v6h2V3zm2 0h2v8h-2V3z"
+              />
+            </svg><span>Projects</span></a>
+          <a class="nav-item"><svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M3 12h4l3 8l4 -16l3 8h4" />
+            </svg><span>Activity</span></a>
+          <a class="nav-item"><svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M16.604 11.048a5.67 5.67 0 0 0 .751-3.44c-.179-1.784-1.175-3.361-2.803-4.44l-1.105 1.666c1.119.742 1.8 1.799 1.918 2.974a3.693 3.693 0 0 1-1.072 2.986l-1.192 1.192 1.618.475C18.951 13.701 19 17.957 19 18h2c0-1.789-.956-5.285-4.396-6.952z" />
+              <path d="M9.5 12c2.206 0 4-1.794 4-4s-1.794-4-4-4-4 1.794-4 4 1.794 4 4 4zm0-6c1.103 0 2 .897 2 2s-.897 2-2 2-2-.897-2-2 .897-2 2-2zm1.5 7H8c-3.309 0-6 2.691-6 6v1h2v-1c0-2.206 1.794-4 4-4h3c2.206 0 4 1.794 4 4v1h2v-1c0-3.309-2.691-6-6-6z" />
+            </svg><span>Users</span></a>
+          <a class="nav-item"><svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M15.999 8.5h2c0-2.837-2.755-4.131-5-4.429V2h-2v2.071c-2.245.298-5 1.592-5 4.429 0 2.706 2.666 4.113 5 4.43v4.97c-1.448-.251-3-1.024-3-2.4h-2c0 2.589 2.425 4.119 5 4.436V22h2v-2.07c2.245-.298 5-1.593 5-4.43s-2.755-4.131-5-4.429V6.1c1.33.239 3 .941 3 2.4zm-8 0c0-1.459 1.67-2.161 3-2.4v4.799c-1.371-.253-3-1.002-3-2.399zm8 7c0 1.459-1.67 2.161-3 2.4v-4.8c1.33.239 3 .941 3 2.4z" />
+            </svg><span>Costs</span></a>
+
+          <div class="nav-sec">Monitoring</div>
+          <a class="nav-item"><svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M21 3C21.5523 3 22 3.44772 22 4V20.0066C22 20.5552 21.5447 21 21.0082 21H2.9918C2.44405 21 2 20.5551 2 20.0066V19H20V7.3L12 14.5L2 5.5V4C2 3.44772 2.44772 3 3 3H21ZM8 15V17H0V15H8ZM5 10V12H0V10H5ZM19.5659 5H4.43414L12 11.8093L19.5659 5Z" />
+            </svg><span>Channels</span></a>
+          <a class="nav-item"><svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19 13.586V10c0-3.217-2.185-5.927-5.145-6.742C13.562 2.52 12.846 2 12 2s-1.562.52-1.855 1.258C7.185 4.074 5 6.783 5 10v3.586l-1.707 1.707A.996.996 0 0 0 3 16v2a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-2a.996.996 0 0 0-.293-.707L19 13.586zM19 17H5v-.586l1.707-1.707A.996.996 0 0 0 7 14v-4c0-2.757 2.243-5 5-5s5 2.243 5 5v4c0 .266.105.52.293.707L19 16.414V17zm-7 5a2.98 2.98 0 0 0 2.818-2H9.182A2.98 2.98 0 0 0 12 22z" />
+            </svg><span>Notifications</span>
+            <div class="nav-end">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M16.293 9.293 12 13.586 7.707 9.293l-1.414 1.414L12 16.414l5.707-5.707z" />
+              </svg>
+            </div></a>
+          <a class="nav-item"><svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 22c4.879 0 9-4.121 9-9s-4.121-9-9-9-9 4.121-9 9 4.121 9 9 9zm0-16c3.794 0 7 3.206 7 7s-3.206 7-7 7-7-3.206-7-7 3.206-7 7-7zm5.284-2.293 1.412-1.416 3.01 3-1.413 1.417zM5.282 2.294 6.7 3.706l-2.99 3-1.417-1.413z" />
+              <path d="M11 9h2v5h-2zm0 6h2v2h-2z" />
+            </svg><span>Alarms</span><span class="badge badge-yellow ml-1.5">1</span>
+            <div class="nav-end">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M16.293 9.293 12 13.586 7.707 9.293l-1.414 1.414L12 16.414l5.707-5.707z" />
+              </svg>
+            </div></a>
+          <a class="nav-item"><svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M15.999 8.5h2c0-2.837-2.755-4.131-5-4.429V2h-2v2.071c-2.245.298-5 1.592-5 4.429 0 2.706 2.666 4.113 5 4.43v4.97c-1.448-.251-3-1.024-3-2.4h-2c0 2.589 2.425 4.119 5 4.436V22h2v-2.07c2.245-.298 5-1.593 5-4.43s-2.755-4.131-5-4.429V6.1c1.33.239 3 .941 3 2.4zm-8 0c0-1.459 1.67-2.161 3-2.4v4.799c-1.371-.253-3-1.002-3-2.399zm8 7c0 1.459-1.67 2.161-3 2.4v-4.8c1.33.239 3 .941 3 2.4z" />
+            </svg><span>Budgets</span>
+            <div class="nav-end">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M16.293 9.293 12 13.586 7.707 9.293l-1.414 1.414L12 16.414l5.707-5.707z" />
+              </svg>
+            </div></a>
+          <a class="nav-item"><svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M9 9v-1a3 3 0 0 1 6 0v1" />
+              <path d="M8 9h8a6 6 0 0 1 1 3v3a5 5 0 0 1 -10 0v-3a6 6 0 0 1 1 -3" />
+              <path d="M3 13l4 0" />
+              <path d="M17 13l4 0" />
+              <path d="M12 20l0 -6" />
+              <path d="M4 19l3.35 -2" />
+              <path d="M20 19l-3.35 -2" />
+              <path d="M4 7l3.75 2.4" />
+              <path d="M20 7l-3.75 2.4" />
+            </svg><span>Issues</span><span class="badge badge-red ml-1.5">2</span></a>
+
+          <div class="nav-sec">Configuration</div>
+          <a class="nav-item"><svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M20.995 6.9a.998.998 0 0 0-.548-.795l-8-4a1 1 0 0 0-.895 0l-8 4a1.002 1.002 0 0 0-.547.795c-.011.107-.961 10.767 8.589 15.014a.987.987 0 0 0 .812 0c9.55-4.247 8.6-14.906 8.589-15.014zM12 19.897C5.231 16.625 4.911 9.642 4.966 7.635L12 4.118l7.029 3.515c.037 1.989-.328 9.018-7.029 12.264z" />
+              <path d="m11 12.586-2.293-2.293-1.414 1.414L11 15.414l5.707-5.707-1.414-1.414z" />
+            </svg><span>Guardrails</span></a>
+          <a class="nav-item"><svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg><span>Secrets</span></a>
+          <a class="nav-item"><svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M20 7h-9" />
+              <path d="M14 17H5" />
+              <circle cx="17" cy="17" r="3" />
+              <circle cx="7" cy="7" r="3" />
+            </svg><span>SSM Params</span></a>
+          <a class="nav-item"><svg viewBox="0 0 640 512" fill="currentColor">
+              <path d="M180.41 203.01c-.72 22.65 10.6 32.68 10.88 39.05a8.164 8.164 0 0 1-4.1 6.27l-12.8 8.96a10.66 10.66 0 0 1-5.63 1.92c-.43-.02-8.19 1.83-20.48-25.61a78.608 78.608 0 0 1-62.61 29.45c-16.28.89-60.4-9.24-58.13-56.21-1.59-38.28 34.06-62.06 70.93-60.05 7.1.02 21.6.37 46.99 6.27v-15.62c2.69-26.46-14.7-46.99-44.81-43.91-2.4.01-19.4-.5-45.84 10.11-7.36 3.38-8.3 2.82-10.75 2.82-7.41 0-4.36-21.48-2.94-24.2 5.21-6.4 35.86-18.35 65.94-18.18a76.857 76.857 0 0 1 55.69 17.28 70.285 70.285 0 0 1 17.67 52.36l-.01 69.29zM93.99 235.4c32.43-.47 46.16-19.97 49.29-30.47 2.46-10.05 2.05-16.41 2.05-27.4-9.67-2.32-23.59-4.85-39.56-4.87-15.15-1.14-42.82 5.63-41.74 32.26-1.24 16.79 11.12 31.4 29.96 30.48zm170.92 23.05c-7.86.72-11.52-4.86-12.68-10.37l-49.8-164.65c-.97-2.78-1.61-5.65-1.92-8.58a4.61 4.61 0 0 1 3.86-5.25c.24-.04-2.13 0 22.25 0 8.78-.88 11.64 6.03 12.55 10.37l35.72 140.83 33.16-140.83c.53-3.22 2.94-11.07 12.8-10.24h17.16c2.17-.18 11.11-.5 12.68 10.37l33.42 142.63L420.98 80.1c.48-2.18 2.72-11.37 12.68-10.37h19.72c.85-.13 6.15-.81 5.25 8.58-.43 1.85 3.41-10.66-52.75 169.9-1.15 5.51-4.82 11.09-12.68 10.37h-18.69c-10.94 1.15-12.51-9.66-12.68-10.75L328.67 110.7l-32.78 136.99c-.16 1.09-1.73 11.9-12.68 10.75h-18.3zm273.48 5.63c-5.88.01-33.92-.3-57.36-12.29a12.802 12.802 0 0 1-7.81-11.91v-10.75c0-8.45 6.2-6.9 8.83-5.89 10.04 4.06 16.48 7.14 28.81 9.6 36.65 7.53 52.77-2.3 56.72-4.48 13.15-7.81 14.19-25.68 5.25-34.95-10.48-8.79-15.48-9.12-53.13-21-4.64-1.29-43.7-13.61-43.79-52.36-.61-28.24 25.05-56.18 69.52-55.95 12.67-.01 46.43 4.13 55.57 15.62 1.35 2.09 2.02 4.55 1.92 7.04v10.11c0 4.44-1.62 6.66-4.87 6.66-7.71-.86-21.39-11.17-49.16-10.75-6.89-.36-39.89.91-38.41 24.97-.43 18.96 26.61 26.07 29.7 26.89 36.46 10.97 48.65 12.79 63.12 29.58 17.14 22.25 7.9 48.3 4.35 55.44-19.08 37.49-68.42 34.44-69.26 34.42zm40.2 104.86c-70.03 51.72-171.69 79.25-258.49 79.25A469.127 469.127 0 0 1 2.83 327.46c-6.53-5.89-.77-13.96 7.17-9.47a637.37 637.37 0 0 0 316.88 84.12 630.22 630.22 0 0 0 241.59-49.55c11.78-5 21.77 7.8 10.12 16.38zm29.19-33.29c-8.96-11.52-59.28-5.38-81.81-2.69-6.79.77-7.94-5.12-1.79-9.47 40.07-28.17 105.88-20.1 113.44-10.63 7.55 9.47-2.05 75.41-39.56 106.91-5.76 4.87-11.27 2.3-8.71-4.1 8.44-21.25 27.39-68.49 18.43-80.02z" />
+            </svg><span>AWS Accounts</span></a>
+          <a class="nav-item"><svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" />
+              <path d="M3.6 9h16.8" />
+              <path d="M3.6 15h16.8" />
+              <path d="M11.5 3a17 17 0 0 0 0 18" />
+              <path d="M12.5 3a17 17 0 0 1 0 18" />
+            </svg><span>Domains</span></a>
+
+          <a class="nav-item nav-docs"><svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M6 22h15v-2H6.012C5.55 19.988 5 19.805 5 19s.55-.988 1.012-1H21V4c0-1.103-.897-2-2-2H6c-1.206 0-3 .799-3 3v14c0 2.201 1.794 3 3 3zM5 8V5c0-.805.55-.988 1-1h13v12H5V8z" />
+              <path d="M8 6h9v2H8z" />
+            </svg><span>Docs</span>
+            <div class="nav-end">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="m13 3 3.293 3.293-7 7 1.414 1.414 7-7L21 11V3z" />
+                <path d="M19 19H5V5h7l-2-2H5c-1.103 0-2 .897-2 2v14c0 1.103.897 2 2 2h14c1.103 0 2-.897 2-2v-5l-2-2v7z" />
+              </svg>
+            </div></a>
+        </nav>
+
+        <!-- Project / stages column -->
+        <section class="w-[280px] shrink-0 border-r border-[rgb(47,52,52)] px-5 py-[18px]">
+          <div class="flex items-center justify-between">
+            <span
+              class="flex items-center gap-1.5 text-[11px] tracking-[0.09em] uppercase text-[rgb(160,160,160)] font-semibold"
+            >
+              Project
+              <span
+                class="inline-flex items-center justify-center w-[15px] h-[15px] rounded-full border border-[#848484] text-[#848484] text-[10px]"
+              >?</span>
+            </span>
+            <span
+              class="inline-flex items-center justify-center w-8 h-8 rounded-md bg-[rgb(34,40,40)] border border-[rgb(47,52,52)] text-[rgb(160,160,160)] text-base"
+            ><svg
+                width="1em"
+                height="1em"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M11 7l-5 5l5 5" />
+                <path d="M17 7l-5 5l5 5" />
+              </svg></span>
+          </div>
+
+          <div class="flex items-center justify-between mt-3">
+            <span class="text-[21px] font-bold text-white">acme-project</span>
+            <span
+              class="inline-flex items-center justify-center w-8 h-8 rounded-md bg-[rgb(34,40,40)] border border-[rgb(47,52,52)] text-[rgb(160,160,160)] text-base"
+            ><svg
+                width="1em"
+                height="1em"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065z" />
+                <path d="M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0" />
+              </svg></span>
+          </div>
+
+          <div class="flex items-center gap-2 text-[rgb(160,160,160)] mt-3.5">
+            <svg
+              class="text-[18px]"
+              width="1em"
+              height="1em"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />
+            </svg>
+            <span class="truncate">acme/acme-project</span>
+          </div>
+
+          <div class="flex items-center gap-1.5 text-[11px] tracking-[0.09em] uppercase text-[rgb(160,160,160)] font-semibold mt-6">
+            Stages
+            <span
+              class="inline-flex items-center justify-center w-[15px] h-[15px] rounded-full border border-[#848484] text-[#848484] text-[10px]"
+            >?</span>
+          </div>
+
+          <button class="btn-grad w-full inline-flex items-center justify-center gap-2 text-white font-semibold rounded-lg py-[9px] my-3">
+            <svg
+              width="1em"
+              height="1em"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 5l0 14" />
+              <path d="M5 12l14 0" />
+            </svg> New stage
+          </button>
+
+          <!-- Stages list = TabsVertical -->
+          <div class="pill flex flex-col gap-1.5 p-[6px_2px] rounded-xl">
+            <!-- staging — currently selected -->
+            <div class="tab-active rounded-[9px] px-3.5 py-2">
+              <div class="flex items-start justify-between gap-3">
+                <span class="font-bold text-white">staging</span>
+                <div class="text-right text-[12.2px] text-[rgb(140,140,140)] leading-snug whitespace-nowrap">
+                  <div>eu-west-1</div>
+                  <div>Updated 2 hours ago</div>
+                </div>
+              </div>
+            </div>
+            <!-- production — deploying right now -->
+            <div class="rounded-[9px] px-3.5 py-2">
+              <div class="flex items-start justify-between gap-3">
+                <span class="font-bold text-[rgba(190,190,190,.85)]">production</span>
+                <div class="text-right text-[12.2px] leading-snug whitespace-nowrap">
+                  <div class="text-[rgb(140,140,140)]">eu-west-1</div>
+                  <div class="text-[#06b6d4] font-semibold inline-flex items-center gap-1.5">
+                    <span class="w-1.5 h-1.5 rounded-full bg-[#06b6d4] animate-pulse"></span>Deploying&#8230;
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Main / stage overview -->
+        <section class="flex-1 min-w-0 px-7 py-4">
+          <div class="flex items-center gap-7 mb-4">
+            <div>
+              <div class="text-[11px] tracking-[0.09em] uppercase text-[rgb(160,160,160)] font-semibold">Stage</div>
+              <div class="text-[21px] font-bold text-white mt-0.5">staging</div>
+            </div>
+            <button class="btn-grad inline-flex items-center gap-2 text-white font-semibold rounded-lg px-4 py-[9px]">
+              Deploy stage <svg
+                width="1em"
+                height="1em"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M6 9l6 6l6 -6" />
+              </svg>
+            </button>
+          </div>
+
+          <!-- Stage tabs = Tabs -->
+          <div class="pill inline-flex items-center gap-1.5 p-[5.5px] rounded-xl mb-4">
+            <div class="tab-active px-[11.5px] py-[5.5px] rounded-[9px] text-[13.2px] font-semibold">Overview</div>
+            <div class="px-[11.5px] py-[5.5px] rounded-[9px] text-[13.2px] font-semibold text-[rgba(190,190,190,.8)]">
+              Activity
+            </div>
+            <div class="px-[11.5px] py-[5.5px] rounded-[9px] text-[13.2px] font-semibold text-[rgba(190,190,190,.8)]">
+              Logs
+            </div>
+            <div class="px-[11.5px] py-[5.5px] rounded-[9px] text-[13.2px] font-semibold text-[rgba(190,190,190,.8)]">
+              Metrics
+            </div>
+            <div class="px-[11.5px] py-[5.5px] rounded-[9px] text-[13.2px] font-semibold text-[rgba(190,190,190,.8)]">
+              Costs
+            </div>
+            <div class="px-[11.5px] py-[5.5px] rounded-[9px] text-[13.2px] font-semibold text-[rgba(190,190,190,.8)]">
+              Configuration
+            </div>
+            <div class="px-[11.5px] py-[5.5px] rounded-[9px] text-[13.2px] font-semibold text-[rgba(190,190,190,.8)]">
+              Danger zone
+            </div>
+          </div>
+
+          <!-- Quick links -->
+          <div class="text-xs tracking-[0.08em] uppercase text-[rgb(160,160,160)] font-semibold mb-2">Quick links</div>
+          <div class="grid grid-cols-3 gap-3 mb-4">
+            <div class="box-grad tile-shadow rounded-lg p-3">
+              <div class="font-bold text-white leading-snug">web URL</div>
+              <div class="text-[13px] text-[rgb(160,160,160)] truncate">https://acme.com</div>
+            </div>
+            <div class="box-grad tile-shadow rounded-lg p-3">
+              <div class="font-bold text-white leading-snug">apiService URL</div>
+              <div class="text-[13px] text-[rgb(160,160,160)] truncate">https://api.acme.com</div>
+            </div>
+          </div>
+
+          <!-- Resources (3 across, 2 rows) -->
+          <div class="text-xs tracking-[0.08em] uppercase text-[rgb(160,160,160)] font-semibold mb-2">Resources</div>
+          <div class="grid grid-cols-3 gap-3">
+            <div class="box-grad tile-shadow flex items-center gap-3 rounded-lg p-3">
+              <svg class="w-8 h-8 shrink-0" viewBox="-0.75 -0.75 16.5 16.5" fill="none">
+                <path
+                  d="M4.5 4.5L4.90534 4.20725C4.77836 4.03144 4.55252 3.95753 4.34617 4.02425C4.13981 4.09098 4 4.28313 4 4.5H4.5ZM7.5 14C3.91015 14 1 11.0899 1 7.5H0C0 11.6421 3.35786 15 7.5 15V14ZM14 7.5C14 11.0899 11.0899 14 7.5 14V15C11.6421 15 15 11.6421 15 7.5H14ZM7.5 1C11.0899 1 14 3.91015 14 7.5H15C15 3.35786 11.6421 0 7.5 0V1ZM7.5 0C3.35786 0 0 3.35786 0 7.5H1C1 3.91015 3.91015 1 7.5 1V0ZM5 12V4.5H4V12H5ZM4.09466 4.79275L10.5947 13.7927L11.4053 13.2073L4.90534 4.20725L4.09466 4.79275ZM10 4V10H11V4H10Z"
+                  fill="#cecece"
+                />
+              </svg>
+              <div>
+                <div class="font-bold text-white leading-snug">web</div>
+                <div class="text-[13px] text-[rgb(160,160,160)]">Nextjs Web</div>
+              </div>
+            </div>
+
+            <div class="box-grad tile-shadow flex items-center gap-3 rounded-lg p-3">
+              <svg class="w-8 h-8 shrink-0" viewBox="0 0 64 64">
+                <path
+                  fill="#ED7100"
+                  d="M42.467 46.382v-3.764l1.994-1v3.764zm-3.987-4.764 1.994 1v3.764l-1.994-1zm-4.983 9.764v-3.764l1.993-1v3.764zm-3.987-4.764 1.993 1v3.764l-1.993-1zm-4.984-.236v-3.764l1.994-1v3.764zm-3.987-4.764 1.994 1v3.764l-1.994-1zm2.99-2.5 1.759.882-1.758.882L21.77 40zm8.971 5 1.758.882-1.758.882L30.742 45zm8.97-5L43.23 40l-1.759.882L39.712 40zm4.433-.012-3.987-2a.99.99 0 0 0-.891 0l-3.987 2a1 1 0 0 0-.551.894v3.882l-3.541-1.776a.99.99 0 0 0-.892 0l-3.54 1.776V40a1 1 0 0 0-.552-.894l-3.987-2a.99.99 0 0 0-.89 0l-3.988 2a1 1 0 0 0-.55.894v6c0 .379.212.725.55.895l3.987 2a1 1 0 0 0 .891 0l3.541-1.777V51c0 .379.214.725.552.895l3.986 2a1 1 0 0 0 .892 0l3.986-2c.338-.17.552-.516.552-.895v-3.882l3.54 1.777a1 1 0 0 0 .892 0l3.987-2c.338-.17.55-.516.55-.895v-6a1 1 0 0 0-.55-.894M54 28.09c0 5.103-11.077 7.856-21.5 7.856S11 33.193 11 28.09c0-2.461 2.68-4.616 7.547-6.067l.568 1.917c-3.776 1.126-6.122 2.716-6.122 4.15 0 2.764 8.343 5.856 19.507 5.856s19.507-3.092 19.507-5.856c0-1.434-2.346-3.024-6.122-4.15l.568-1.917C51.32 23.474 54 25.629 54 28.09M32.5 12.064 40.547 15 32.5 17.936 24.453 15zm8.868 16.584c-1.556.7-4.155 1.516-7.871 1.645V19.701l8.97-3.273v10.485c0 .754-.431 1.435-1.1 1.735m-18.835-1.735V16.428l8.97 3.273v10.592c-3.716-.129-6.315-.945-7.87-1.645-.669-.3-1.1-.981-1.1-1.735m.283 3.56c1.87.842 5.07 1.846 9.684 1.846 4.615 0 7.813-1.004 9.684-1.846 1.383-.622 2.277-2.019 2.277-3.56V15a1 1 0 0 0-.656-.94l-10.964-4a1 1 0 0 0-.682 0l-10.964 4a1 1 0 0 0-.656.94v11.913c0 1.541.894 2.938 2.277 3.56"
+                />
+              </svg>
+              <div>
+                <div class="font-bold text-white leading-snug">apiService</div>
+                <div class="text-[13px] text-[rgb(160,160,160)]">Web Service</div>
+              </div>
+            </div>
+
+            <div class="box-grad tile-shadow flex items-center gap-3 rounded-lg p-3">
+              <svg class="w-8 h-8 shrink-0" viewBox="0 0 48 48">
+                <path
+                  fill="#ED7100"
+                  fill-rule="evenodd"
+                  d="M24 44C12.972 44 4 35.028 4 24S12.972 4 24 4s20 8.972 20 20-8.972 20-20 20m0-42C11.869 2 2 11.869 2 24s9.869 22 22 22 22-9.869 22-22S36.131 2 24 2m-6.769 33.25h-5.355l6.345-13.291 2.681 5.533zm1.883-16.035a1 1 0 0 0-.9-.564h-.003a1 1 0 0 0-.899.57L9.389 35.819a.998.998 0 0 0 .902 1.431h7.573c.387 0 .739-.223.905-.572l4.146-8.763a1 1 0 0 0-.004-.864zM36.125 35.25h-5.452l-9.912-21.297a1 1 0 0 0-.907-.578h-3.603l.004-4.125h7.22l9.864 21.295a1 1 0 0 0 .907.58h1.879zm1-6.125h-2.24L25.021 7.83a1 1 0 0 0-.908-.58h-8.857a1 1 0 0 0-1 .999l-.006 6.125a1 1 0 0 0 1 1.001h3.967l9.912 21.297a1 1 0 0 0 .906.578h7.09a1 1 0 0 0 1-1v-6.125a1 1 0 0 0-1-1"
+                />
+              </svg>
+              <div>
+                <div class="font-bold text-white leading-snug">worker</div>
+                <div class="text-[13px] text-[rgb(160,160,160)]">Function</div>
+              </div>
+            </div>
+
+            <div class="box-grad tile-shadow flex items-center gap-3 rounded-lg p-3">
+              <svg class="w-8 h-8 shrink-0" viewBox="0 0 64 64">
+                <path
+                  fill="#4D73F4"
+                  d="M54 11v8h-2v-5.586l-6.293 6.293-1.414-1.414L50.586 12h-5.461v-2H53a1 1 0 0 1 1 1m-42 7.875h-2V11a1 1 0 0 1 1-1h8v2h-5.586l6.293 6.293-1.414 1.414L12 13.414zm7.707 26.832L13.414 52h5.461v2H11a1 1 0 0 1-1-1v-8h2v5.586l6.293-6.293zM51.5 31.781c0-2.429-2.866-4.849-7.667-6.474l.641-1.894c5.736 1.941 9.026 4.991 9.026 8.368s-3.29 6.427-9.026 8.369l-.641-1.895c4.801-1.624 7.667-4.045 7.667-6.474m-38.957 0c0 2.324 2.681 4.679 7.172 6.3l-.68 1.88c-5.396-1.947-8.492-4.928-8.492-8.18s3.096-6.233 8.492-8.18l.68 1.881c-4.491 1.621-7.172 3.976-7.172 6.299M52 45.125h2V53a1 1 0 0 1-1 1h-8v-2h5.586l-6.293-6.293 1.414-1.414L52 50.586zM32.022 31.402c-5.023 0-7.896-1.343-8.022-1.919v-3.226c2.159 1.009 5.609 1.336 8 1.336s5.841-.327 8-1.336v3.226c-.106.574-2.949 1.919-7.978 1.919m0 5.728c-5.023 0-7.896-1.344-8.022-1.92v-3.254c1.953.981 5.055 1.446 8.022 1.446 2.951 0 6.033-.464 7.978-1.442v3.25c-.106.575-2.948 1.92-7.978 1.92M32 42.268c-5.05 0-7.896-1.351-8-1.922v-2.663c1.953.982 5.055 1.447 8.022 1.447 2.951 0 6.033-.464 7.978-1.443v2.655c-.104.575-2.95 1.926-8 1.926m0-20.075c4.971 0 7.642 1.177 7.982 1.701-.34.523-3.011 1.699-7.982 1.699-5.091 0-7.767-1.232-8-1.644v-.019c.233-.504 2.909-1.737 8-1.737m0-2c-3.714 0-10 .78-10 3.701v16.452c0 2.695 5.184 3.922 10 3.922s10-1.227 10-3.922V23.894c0-2.921-6.286-3.701-10-3.701"
+                />
+              </svg>
+              <div>
+                <div class="font-bold text-white leading-snug">mainDatabase</div>
+                <div class="text-[13px] text-[rgb(160,160,160)]">SQL database</div>
+              </div>
+            </div>
+
+            <div class="box-grad tile-shadow flex items-center gap-3 rounded-lg p-3">
+              <svg class="w-8 h-8 shrink-0" viewBox="0 0 48 48">
+                <path
+                  fill="#4D73F4"
+                  fill-rule="evenodd"
+                  d="M43.508 11.472c0 .82.673 1.489 1.5 1.489a1 1 0 0 1 1 1v15.933a1 1 0 0 1-1 1h-7.78v-2h3.669v-1.89h-3.668v-2h4.668a1 1 0 0 1 1 1v2.89h1.11V14.816a3.5 3.5 0 0 1-2.5-3.344 3.5 3.5 0 0 1 2.5-3.344V6H4v2.127a3.5 3.5 0 0 1 2.5 3.345A3.5 3.5 0 0 1 4 14.817v14.077h1.112v-2.89a1 1 0 0 1 1-1h4.667v2H7.112v1.89h3.667v2h-7.78a1 1 0 0 1-1-1V13.96a1 1 0 0 1 1-1c.829 0 1.502-.668 1.502-1.49 0-.82-.673-1.488-1.501-1.488a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h42.008a1 1 0 0 1 1 1v3.983a1 1 0 0 1-1 1c-.827 0-1.5.668-1.5 1.489M24.196 33.056h-2.08v-3.937h2.129q1.946 0 1.946 1.969t-1.995 1.968m3.527-.034q.59-.84.59-2.002 0-1.608-1.053-2.56-1.052-.95-2.798-.95h-4.433v11.86h2.088v-4.705h2.088l2.773 4.706h2.088l-3.064-5.065q1.13-.446 1.72-1.284m-17.5-11.907h1.335v2H9.224a1 1 0 0 1-1-1V8.89a1 1 0 0 1 1-1h4.668a1 1 0 0 1 1 1v6.223h-2V9.89h-2.668zm27.562 0V9.89h-2.668v5.223h-2V8.89a1 1 0 0 1 1-1h4.668a1 1 0 0 1 1 1v13.225a1 1 0 0 1-1 1h-1.556v-2zm-7.78-6.78V9.89h-3.444v3.667h-2V8.89a1 1 0 0 1 1-1h5.445a1 1 0 0 1 1 1v5.445zm-8.557-.778V9.89h-3.445v4.445h-2V8.89a1 1 0 0 1 1-1h5.445a1 1 0 0 1 1 1v4.667zM31.733 30.36c.893-.283 1.6-.592 2.163-.915v4.274c0 .347-.737 1.094-2.765 1.733l.602 1.909c.893-.283 1.6-.592 2.163-.915v3.814c0 .93-3.755 2.636-9.89 2.636-6.137 0-9.893-1.706-9.893-2.636v-3.812c.568.325 1.284.637 2.19.92l.599-1.907c-2.046-.64-2.79-1.392-2.79-1.742v-4.273c.569.326 1.285.638 2.192.922l.598-1.908c-2.046-.64-2.79-1.392-2.79-1.742v-4.29c2.258 1.31 6.106 1.93 9.783 1.93 3.862 0 7.744-.68 10-1.992v4.352c0 .347-.736 1.094-2.764 1.733zm-7.838-13.347c6.187 0 9.974 1.73 9.974 2.673 0 .942-3.787 2.673-9.974 2.673-6.32 0-9.765-1.766-9.765-2.673s3.446-2.673 9.765-2.673m11.987 2.673c0-3.068-6.037-4.673-11.987-4.673-5.666 0-11.773 1.462-11.773 4.673v.105l-.01 20.469c0 3.043 5.984 4.636 11.894 4.636 5.908 0 11.89-1.593 11.89-4.636l-.014-20.47z"
+                />
+              </svg>
+              <div>
+                <div class="font-bold text-white leading-snug">cache</div>
+                <div class="text-[13px] text-[rgb(160,160,160)]">Redis Cluster</div>
+              </div>
+            </div>
+
+            <div class="box-grad tile-shadow flex items-center gap-3 rounded-lg p-3">
+              <svg class="w-8 h-8 shrink-0" viewBox="0 0 48 48">
+                <path
+                  fill="#F34446"
+                  fill-rule="evenodd"
+                  d="M23.818 35.539a8.67 8.67 0 0 1-7.349-4.04c-1.269-1.993-1.291-4.572-.055-6.73l.036-.06c1.431-2.173 1.13-5.082.689-6.99 1.151.837 2.163 2.322 2.524 2.969a.999.999 0 0 0 1.813-.143c1.299-3.567.693-6.275-.209-8.07 1.582.649 3.527 1.77 4.918 3.652 1.646 2.225 2.215 5.095 1.692 8.529a.998.998 0 0 0 1.611.933c.069-.055 1.419-1.16 2.141-3.79.462.764.893 1.946.893 3.699 0 3.75-1.131 10.04-8.704 10.04m7.654-16.7a1 1 0 0 0-1.467.777q-.033.318-.081.61c-.285-1.99-1.001-3.764-2.143-5.304-3.249-4.376-8.748-5.208-8.981-5.241a1.002 1.002 0 0 0-.769 1.767c.126.104 2.701 2.27 2.089 6.39-1.046-1.277-2.641-2.72-4.505-2.72a.998.998 0 0 0-.928 1.373c.504 1.254 1.504 4.977.096 7.114-.011.016-.06.097-.069.113l-.028.047-.007.012c-1.606 2.803-1.567 6.175.103 8.798a10.66 10.66 0 0 0 9.036 4.965c9.933 0 10.704-9.216 10.704-12.041 0-4.968-2.926-6.593-3.05-6.66m2.915 19.895c-4.571.82-8.469 3.057-10.372 4.306-1.902-1.25-5.801-3.485-10.372-4.306C11.381 38.326 4 36.538 4 30.599c0-2.532.945-4.161 2.041-6.047 1.052-1.814 2.246-3.87 2.246-6.66 0-3.591-1.685-6.288-3.014-7.856A482 482 0 0 0 9.527 4.79c2.212 1.768 4.731 2.73 7.19 2.73 2.779 0 5.176-1.011 7.298-3.084 2.122 2.073 4.52 3.084 7.298 3.084 2.46 0 4.979-.962 7.191-2.73a489 489 0 0 0 4.253 5.247c-1.329 1.568-3.013 4.264-3.013 7.856 0 2.79 1.194 4.846 2.249 6.66 1.094 1.887 2.038 3.515 2.038 6.046 0 5.939-7.382 7.727-9.644 8.134m9.333-15.186c-1.016-1.75-1.976-3.402-1.976-5.654 0-3.461 1.912-5.953 3.053-7.13.353-.365.376-.938.053-1.33-1.135-1.38-3.933-4.791-5.419-6.696a1 1 0 0 0-.707-.381.99.99 0 0 0-.76.262c-2.025 1.87-4.387 2.902-6.651 2.902-2.539 0-4.62-1.016-6.549-3.198-.379-.43-1.119-.43-1.498 0-1.928 2.182-4.01 3.198-6.549 3.198-2.263 0-4.626-1.031-6.651-2.902a.98.98 0 0 0-.76-.262 1 1 0 0 0-.707.38C7.216 4.51 4.611 7.694 3.18 9.434c-.323.393-.299.965.054 1.33 1.141 1.177 3.053 3.669 3.053 7.13 0 2.25-.96 3.904-1.977 5.655C3.174 25.505 2 27.528 2 30.598c0 7.49 8.641 9.627 11.29 10.104 4.705.845 8.67 3.334 10.155 4.365a1.01 1.01 0 0 0 1.141 0c1.485-1.031 5.45-3.52 10.155-4.365 2.648-.477 11.29-2.613 11.29-10.103 0-3.07-1.174-5.092-2.311-7.052"
+                />
+              </svg>
+              <div>
+                <div class="font-bold text-white leading-snug">firewall</div>
+                <div class="text-[13px] text-[rgb(160,160,160)]">Web App Firewall</div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- ============================ TERMINAL ============================ -->
+    <div class="terminal-window shrink-0 w-[900px] bg-[#101616] text-[#d1d5db] font-['JetBrains_Mono',ui-monospace,SFMono-Regular,Menlo,monospace] text-[14px] leading-[1.62] rounded-xl overflow-hidden border border-[#2f3434] antialiased">
+      <!-- Title bar -->
+      <div class="flex items-center h-9 px-4 bg-[#0b1010] border-b border-[#2f3434]">
+        <div class="flex gap-2">
+          <span class="w-3 h-3 rounded-full bg-[#ff5f57]"></span>
+          <span class="w-3 h-3 rounded-full bg-[#febc2e]"></span>
+          <span class="w-3 h-3 rounded-full bg-[#28c840]"></span>
+        </div>
+        <div class="flex-1 text-center text-[12px] text-[#6b7878] tracking-wide">
+          stacktape &mdash; deploy &middot; zsh
+        </div>
+        <div class="w-[52px]"></div>
+      </div>
+
+      <!-- Terminal body -->
+      <div class="px-[30px] pt-6 pb-5">
+        <div class="mb-3">
+          <span class="text-[#06b6d4] font-bold">$</span> <span class="text-[#e5e7eb]">stacktape deploy</span> <span
+            class="text-[#9ca3af]"
+          >--stage production --region eu-west-1</span>
+        </div>
+        <div class="flex items-center text-[15px] mb-3.5">
+          <span class="text-[#06b6d4] font-bold tracking-wide">DEPLOYING</span>
+          <span class="text-[#e5e7eb] font-bold ml-3.5">acme-project</span>
+          <span class="text-[#6b7878] mx-2.5">&#8594;</span>
+          <span class="text-[#e5e7eb]">production</span>
+          <span class="text-[#6b7878] ml-3">eu-west-1</span>
+          <span class="text-[#6b7878] ml-auto">3m 02s</span>
+        </div>
+
+        <div class="flex flex-col mb-3.5">
+          <div class="flex items-baseline">
+            <span class="w-4 inline-block text-[#22c55e]">&#10003;</span><span class="text-[#d1d5db]">Initialize</span>
+          </div>
+          <div class="flex items-baseline">
+            <span class="w-4 inline-block text-[#22c55e]">&#10003;</span><span class="text-[#d1d5db]">Package</span>
+          </div>
+          <div class="flex items-baseline">
+            <span class="w-4 inline-block text-[#06b6d4]">&#10297;</span><span class="text-[#06b6d4]">Deploy</span><span
+              class="text-[#6b7878] ml-3.5"
+            >almost there</span>
+          </div>
+          <div class="flex items-baseline">
+            <span class="w-4 inline-block">&nbsp;</span><span class="text-[#6b7878]">Outputs</span>
+          </div>
+        </div>
+
+        <div class="mb-2.5">
+          <span class="text-[#e5e7eb] font-bold">Deploying via CloudFormation</span><span class="text-[#6b7878] ml-2.5"
+          >+33 create</span>
+        </div>
+
+        <div class="flex items-baseline mb-3.5 tracking-normal">
+          <span class="text-[#22c55e]"
+          >&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;</span><span
+            class="text-[#343c3c]"
+          >&#9617;&#9617;&#9617;</span> <span class="text-[#e5e7eb] font-bold ml-3.5">91%</span><span
+            class="text-[#9ca3af] ml-3"
+          >(30/33 resources)</span>
+        </div>
+
+        <div class="grid grid-cols-[16px_130px_240px_auto] gap-x-3.5 gap-y-1 items-baseline">
+          <span class="text-[#22c55e]">&#10003;</span><span class="text-[#e5e7eb] font-bold">web</span><span
+            class="text-[#9ca3af]"
+          >Next.js Web</span><span class="text-[#9ca3af]">created</span>
+          <span class="text-[#22c55e]">&#10003;</span><span class="text-[#e5e7eb] font-bold">apiService</span><span
+            class="text-[#9ca3af]"
+          >Web Service &middot; Fargate</span><span class="text-[#9ca3af]">created</span>
+          <span class="text-[#22c55e]">&#10003;</span><span class="text-[#e5e7eb] font-bold">worker</span><span
+            class="text-[#9ca3af]"
+          >Lambda Function</span><span class="text-[#9ca3af]">created</span>
+          <span class="text-[#22c55e]">&#10003;</span><span class="text-[#e5e7eb] font-bold">cache</span><span
+            class="text-[#9ca3af]"
+          >Redis &middot; ElastiCache</span><span class="text-[#9ca3af]">created</span>
+          <span class="text-[#06b6d4]">&#10297;</span><span class="text-[#e5e7eb] font-bold">mainDatabase</span><span
+            class="text-[#9ca3af]"
+          >Aurora &middot; PostgreSQL 16</span><span class="text-[#06b6d4]">creating&#8230;</span> <span
+            class="text-[#06b6d4]"
+          >&#10299;</span><span class="text-[#e5e7eb] font-bold">firewall</span><span class="text-[#9ca3af]"
+          >Web Application Firewall</span><span class="text-[#06b6d4]">creating&#8230;</span>
+        </div>
+
+        <div class="mt-4 text-[#6b7878] text-[13px]">
+          <span class="text-[#9ca3af] font-bold">c</span> cancel &amp; rollback &nbsp;&nbsp; <span
+            class="text-[#9ca3af] font-bold"
+          >ctrl+c</span> quit &nbsp;&nbsp; <span class="text-[#9ca3af] font-bold">&#8593;&#8595;</span> scroll
+        </div>
+      </div>
+    </div>
+  </div>
+  <script is:inline>
+  /* Scale the 1517px-wide design canvas to the frame's width. Runs synchronously right after the
+     frame is parsed, so the CSS fallback scale is never painted at a size that overflows. */
+  (() => {
+    const frame = document.currentScript && document.currentScript.parentElement;
+    if (!frame) return;
+    const apply = (width) => frame.style.setProperty('--cover-scale', String(width / 1517));
+    apply(frame.clientWidth);
+    new ResizeObserver((entries) => apply(entries[0].contentRect.width)).observe(frame);
+  })();
+  </script>
+</div>
+
+<style>
+/* The frame: fills its container's width, reserves the canvas' aspect ratio, and carries the scale.
+   0.45 is the fallback until the inline script measures the real width. */
+.stp-cover {
+  --cover-scale: 0.45;
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1517 / 1204;
+  overflow: visible;
+}
+
+/* The design canvas. It keeps its 1517x1204 design pixels and is scaled as a whole by the frame. */
+.cover {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1517px;
+  height: 1204px;
+  background: transparent;
+  overflow: hidden;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  /* The original inherited both from an unstyled page; the site's body sets them differently. */
+  line-height: 1.5;
+  -webkit-font-smoothing: auto;
+  transform: scale(var(--cover-scale));
+  transform-origin: top left;
+}
+.glow {
+  position: absolute;
+  left: 50%;
+  top: 74px;
+  transform: translateX(-50%);
+  width: 1360px;
+  height: 540px;
+  pointer-events: none;
+  filter: blur(10px);
+  background: radial-gradient(ellipse at center, rgba(54, 190, 190, 0.2), rgba(54, 190, 190, 0) 70%);
+}
+
+/* ---- console component bits ---- */
+.page-grid {
+  background-color: rgb(27, 33, 33);
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(54, 190, 190, 0.025) 3px,
+      rgba(54, 190, 190, 0.025) 5px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 2px,
+      rgba(54, 190, 190, 0.025) 3px,
+      rgba(54, 190, 190, 0.025) 5px
+    );
+}
+.box-grad {
+  background: linear-gradient(145deg, rgba(32, 39, 39, 0.98), rgba(28, 35, 35, 0.98));
+}
+.btn-grad {
+  background: linear-gradient(135deg, rgb(34, 166, 166), rgb(17, 105, 105));
+  border: 1px solid #40958e;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 2px 6px rgba(0, 0, 0, 0.4);
+}
+.tile-shadow {
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.75),
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+.pill {
+  background: rgba(0, 0, 0, 0.25);
+  box-shadow:
+    inset 0 1px 3px rgba(0, 0, 0, 0.3),
+    0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.tab-active {
+  color: rgba(255, 255, 255, 0.87);
+  background: linear-gradient(135deg, rgb(60, 64, 64), rgb(44, 47, 47));
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(190, 190, 190, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 36px;
+  margin: 2px 8px;
+  padding: 0 12px 0 20px;
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.85);
+}
+.nav-item > svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.nav-item span {
+  font-size: 14px;
+  font-weight: 400;
+}
+.nav-end {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+}
+.nav-end svg {
+  width: 20px;
+  height: 20px;
+}
+.nav-sec {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgb(160, 160, 160);
+  font-weight: 500;
+  margin: 15px 0 5px 28px;
+}
+.nav-docs {
+  margin-top: 18px;
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 19px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+.badge-red {
+  background: linear-gradient(135deg, #ef6262, #ed0027);
+  color: #fff;
+  box-shadow:
+    0 4px 10px rgba(239, 98, 98, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+.badge-yellow {
+  background: linear-gradient(135deg, #f6c648, #e39f10);
+  color: #3d2c00;
+  box-shadow:
+    0 4px 10px rgba(230, 165, 20, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+/* window placement + lift */
+.console-window {
+  position: absolute;
+  top: 56px;
+  left: 24px;
+  transform: perspective(2200px) rotateY(-10deg) rotateX(2.5deg);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.11),
+    0 46px 90px -30px rgba(0, 0, 0, 0.8),
+    0 16px 38px -18px rgba(0, 0, 0, 0.55);
+}
+.terminal-window {
+  position: absolute;
+  top: 586px;
+  left: 504px;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.13),
+    0 56px 110px -28px rgba(0, 0, 0, 0.88),
+    0 20px 44px -16px rgba(0, 0, 0, 0.62);
+}
+</style>

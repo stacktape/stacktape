@@ -1,0 +1,42 @@
+---
+/**
+ * One of the six surfaces: number, name, text, then the strip (a nested window with one excerpt of
+ * the real UI). `data-sg-chapter` is what the stage island reads to decide which chapter shows.
+ *
+ * The chip line repeats the chapter's stage tags as plain chips. It exists only below 1000px, where
+ * the stage is not pinned beside the surface.
+ */
+import type { Surface as SurfaceData } from './data';
+import { CHAPTERS } from './data';
+
+type Props = { surface: SurfaceData; chapter: number };
+
+const { surface, chapter } = Astro.props;
+const tags = CHAPTERS[chapter]?.tags ?? [];
+const chipClass = (dot?: string, tone?: string) =>
+  ['sg-chip', dot && `sg-chip--${dot}`, tone && `sg-chip--${tone}`].filter(Boolean).join(' ');
+---
+
+<article class="sg-surface" id={surface.id} data-sg-chapter={chapter} aria-labelledby={`sg-${surface.id}-title`}>
+  <p class="sg-surface__num" aria-hidden="true">{surface.number}</p>
+  <h2 class="sg-surface__title" id={`sg-${surface.id}-title`}>
+    <span class="sg-visually-hidden">{surface.number} </span>{surface.name}
+  </h2>
+  <p class="sg-surface__text">{surface.text}</p>
+
+  <p class="sg-chips" aria-hidden="true">
+    {
+      tags.map((tag) => (
+        <span class={chipClass(tag.after ? tag.after.dot : tag.dot, tag.tone)}>
+          {tag.anchor !== 'corner' && <b>{tag.anchor}</b>}
+          {tag.after ? tag.after.text : tag.text}
+        </span>
+      ))
+    }
+  </p>
+
+  <div class="sg-strip">
+    <p class="sg-strip__screen">{surface.screen}</p>
+    <slot />
+  </div>
+</article>

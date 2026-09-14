@@ -1,0 +1,2503 @@
+/*
+ * Study "deck": a deck of thick, matte cards on a dark table. Every class is prefixed `dk-`.
+ *
+ * The page is seven cards in flow plus the closing. On a large enough viewport each card is sticky,
+ * pinned 9px lower than the one before it: a card slides up over the last, and the cards already
+ * passed remain as 9px edges at the top of the viewport. The deck's script writes `--covered`
+ * (0 → 1) to a card while the next one rises over it; everything visual that follows from it —
+ * the recession, the dimming, the shadow swap, the edge number appearing — is decided here.
+ *
+ * The spacing scale is 9 · 18 · 27 · 36 · 72: the stacked edges are 9px, so everything else
+ * shares their rhythm.
+ */
+
+.dk-root {
+  --dk-ground: #0c1012;
+  --dk-panel: linear-gradient(180deg, rgb(33, 39, 39), rgb(29, 35, 35));
+  --dk-panel-top: rgb(33, 39, 39);
+  --dk-window: var(--stp-surface-element);
+  --dk-inset: var(--stp-surface-input);
+  --dk-rest: 0 2px 6px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  --dk-raised: 0 3px 9px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  --dk-floating: 0 22px 52px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  --dk-field: inset 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(255, 255, 255, 0.05);
+  --dk-text: var(--stp-text-primary);
+  --dk-body: #b7c0c2;
+  --dk-muted: var(--stp-text-muted);
+  --dk-faint: var(--stp-text-faint);
+  --dk-brand: var(--stp-color-brand);
+  --dk-brand-rgb: 54 190 190;
+  --dk-green: #43d39a;
+  --dk-red: #eb6161;
+  --dk-orange: #f0934a;
+  --dk-amber: #e0b45a;
+  --dk-blue: #6f9cf0;
+  --dk-violet: #b48cf0;
+  --dk-rule: rgba(255, 255, 255, 0.07);
+  --dk-display: 'Outfit', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --dk-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --dk-mono: 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --dk-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --dk-container: 1200px;
+  --dk-gutter: 24px;
+  --dk-nav: 64px;
+  --dk-edge: 9px;
+  /* Where card 0 pins. The tabs protrude 20px above a card, so the first tab stays clear of the nav. */
+  --dk-top: 81px;
+  /* Eight cards pin 9px apart (0 … 7); the last one must still end at the viewport's bottom. */
+  --dk-card-h: calc(100vh - var(--dk-top) - 7 * var(--dk-edge));
+  --dk-hold: 108px;
+
+  position: relative;
+  min-height: 100vh;
+  overflow-x: clip;
+  background: var(--dk-ground);
+  color: var(--dk-text);
+  font-family: var(--dk-sans);
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.dk-root ::selection {
+  background: rgba(var(--dk-brand-rgb) / 0.35);
+}
+
+.dk-root :where(h1, h2, h3, h4, h5, p, ul, ol, blockquote, pre, figure) {
+  margin: 0;
+}
+
+.dk-root :where(ul, ol) {
+  padding: 0;
+  list-style: none;
+}
+
+.dk-container {
+  width: 100%;
+  max-width: var(--dk-container);
+  margin: 0 auto;
+  padding-inline: var(--dk-gutter);
+}
+
+.dk-mono {
+  font-family: var(--dk-mono);
+}
+
+.dk-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── Nav: transparent over the hero, the table's colour once the deck starts stacking ────────── */
+
+.dk-nav {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: transparent;
+  box-shadow: 0 1px 0 transparent;
+  transition:
+    background-color 250ms ease,
+    box-shadow 250ms ease;
+}
+
+.dk-nav.is-scrolled {
+  background: rgba(12, 16, 18, 0.84);
+  box-shadow: 0 1px 0 rgba(170, 230, 235, 0.06);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.dk-nav__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: var(--dk-nav);
+}
+
+.dk-nav__logo {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 6px;
+}
+
+.dk-nav__links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dk-nav__link {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--dk-muted);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 150ms ease;
+}
+
+.dk-nav__link:hover {
+  color: #fff;
+}
+
+.dk-nav__demo {
+  margin-left: 8px;
+  font-size: 14px;
+}
+
+/* ── The deck ────────────────────────────────────────────────────────────────────────────────── */
+
+.dk-deck {
+  position: relative;
+  padding: 18px var(--dk-gutter) 0;
+}
+
+.dk-deck__hold {
+  height: 0;
+}
+
+/* A card: the Console's panel material, thick and matte. */
+.dk-card {
+  position: relative;
+  width: 100%;
+  max-width: var(--dk-container);
+  margin: 0 auto;
+  padding: 36px;
+  border-radius: 16px;
+  background: var(--dk-panel);
+  box-shadow: var(--dk-floating);
+}
+
+.dk-card + .dk-card {
+  margin-top: 36px;
+}
+
+/* The card's number on its edge: only shown once the card is covered, where it indexes the stack. */
+.dk-card__edge {
+  display: none;
+}
+
+/* The amber tab: what the visitor does here, attached to the card's top edge. */
+.dk-tab {
+  position: absolute;
+  top: -20px;
+  left: 27px;
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 28px;
+  padding: 0 12px 0 10px;
+  border-radius: 8px 8px 0 0;
+  background: linear-gradient(180deg, #f2c66d, #d9a63f);
+  box-shadow:
+    0 -1px 0 rgba(255, 255, 255, 0.35) inset,
+    0 -4px 10px rgba(0, 0, 0, 0.22);
+  font-family: var(--dk-display);
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.005em;
+  color: #1a1408;
+  white-space: nowrap;
+}
+
+.dk-tab__you {
+  flex: none;
+  color: #4a3608;
+}
+
+@media (min-width: 900px) and (min-height: 780px) {
+  .dk-deck {
+    /* 64px of nav plus 17px of table: card 0 sits exactly where it pins, so nothing jumps on load. */
+    padding-top: 17px;
+  }
+
+  .dk-deck__hold {
+    /* The finished deck stays on the table for a moment before it slides away. */
+    height: var(--dk-hold);
+  }
+
+  .dk-card {
+    position: sticky;
+    top: calc(var(--dk-top) + var(--i, 0) * var(--dk-edge));
+    height: var(--dk-card-h);
+    transform-origin: 50% 0;
+    transform: scale(calc(1 - 0.04 * var(--covered, 0)));
+    will-change: transform;
+  }
+
+  .dk-card + .dk-card {
+    margin-top: 0;
+  }
+
+  /* The dimming: the table's colour laid over the card, never transparency, so a covered card can
+   * never show the one beneath it. The tab and the edge number sit above it. */
+  .dk-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    border-radius: inherit;
+    background: var(--dk-ground);
+    opacity: calc(0.4 * var(--covered, 0));
+    pointer-events: none;
+  }
+
+  /* A covered card is only an edge: a brighter top highlight and a firmer drop make the edges read
+   * as a stack of card edges rather than as bands of the table. */
+  .dk-card.is-covered {
+    box-shadow:
+      0 2px 6px rgba(0, 0, 0, 0.42),
+      inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  }
+
+  .dk-card__edge {
+    position: absolute;
+    top: 0;
+    left: 27px;
+    z-index: 6;
+    display: block;
+    height: var(--dk-edge);
+    font-family: var(--dk-mono);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: var(--dk-edge);
+    letter-spacing: 0.06em;
+    color: var(--dk-muted);
+    opacity: var(--covered, 0);
+    pointer-events: none;
+  }
+
+  /* Four tabs, four places along the top edge, so the stacked tabs never overlap each other. */
+  .dk-tab {
+    left: calc(63px + var(--slot, 0) * 252px);
+  }
+}
+
+/* ── Card 0: the hero ────────────────────────────────────────────────────────────────────────── */
+
+.dk-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 52fr) minmax(0, 48fr);
+  align-items: center;
+  gap: 36px;
+  height: 100%;
+}
+
+.dk-eyebrow {
+  font-family: var(--dk-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dk-brand);
+}
+
+.dk-hero__title {
+  margin-top: 18px;
+  font-family: var(--dk-display);
+  /* 72px at 1440; "fully automated." is 566px wide there and must stay on one line below it. */
+  font-size: clamp(56px, 5vw, 72px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: #fff;
+}
+
+.dk-hero__line {
+  display: block;
+}
+
+.dk-hero__sub {
+  max-width: 560px;
+  margin-top: 18px;
+  font-size: 18px;
+  line-height: 1.55;
+  color: var(--dk-body);
+  text-wrap: pretty;
+}
+
+.dk-hero__cta {
+  max-width: 560px;
+  margin-top: 27px;
+}
+
+.dk-trust {
+  margin-top: 12px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--dk-muted);
+}
+
+.dk-hero__deck {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+/* ── The fan: six miniatures spread like a hand ──────────────────────────────────────────────── */
+
+.dk-fan {
+  position: relative;
+  width: 410px;
+  height: 346px;
+  margin: 36px 0 27px;
+}
+
+.dk-fan__line {
+  font-family: var(--dk-mono);
+  font-size: 12.5px;
+  letter-spacing: 0.01em;
+  color: var(--dk-muted);
+  text-align: center;
+}
+
+.dk-mini {
+  --x: calc(var(--i) * 26px);
+  --y: calc(var(--i) * -34px);
+  --r: calc(-8deg + var(--i) * 3.2deg);
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  z-index: calc(6 - var(--i));
+  width: 280px;
+  height: 176px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--dk-window);
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--dk-text);
+  transform-origin: 50% 100%;
+  transform: translate(var(--x), var(--y)) rotate(var(--r));
+  animation: dk-fan 900ms var(--dk-ease) both;
+  animation-delay: calc(var(--i) * 60ms);
+}
+
+@keyframes dk-fan {
+  from {
+    transform: translate(0, 0) rotate(0deg);
+  }
+
+  to {
+    transform: translate(var(--x), var(--y)) rotate(var(--r));
+  }
+}
+
+.dk-mini__plate {
+  position: absolute;
+  top: 9px;
+  left: 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 8px 0 7px;
+  border-radius: 6px;
+  background: var(--dk-panel);
+  box-shadow: var(--dk-rest);
+  font-family: var(--dk-display);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.dk-mini__num {
+  font-family: var(--dk-mono);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--dk-brand);
+}
+
+.dk-mini__you {
+  color: var(--dk-amber);
+}
+
+.dk-mini__body {
+  position: absolute;
+  inset: 40px 12px 12px;
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  color: var(--dk-muted);
+}
+
+.dk-mini__review {
+  grid-template-columns: minmax(0, 1fr) 74px;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 8px 10px;
+}
+
+.dk-mini__yaml {
+  overflow: hidden;
+  font-family: var(--dk-mono);
+  font-size: 9.5px;
+  line-height: 1.45;
+  color: #a7c9e8;
+  white-space: pre;
+}
+
+.dk-mini__decided {
+  display: grid;
+  gap: 8px;
+  align-content: center;
+}
+
+.dk-mini__drow {
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+}
+
+.dk-mini__drow::before {
+  content: '';
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: rgba(var(--dk-brand-rgb) / 0.55);
+}
+
+.dk-mini__drow span {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.dk-mini__drow:nth-child(2) span {
+  width: 70%;
+}
+
+.dk-mini__drow:nth-child(3) span {
+  width: 85%;
+}
+
+.dk-mini__foot {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--dk-rule);
+  font-family: var(--dk-mono);
+  font-size: 9.5px;
+  color: var(--dk-text);
+  white-space: nowrap;
+}
+
+.dk-mini__primary {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 8px;
+  border-radius: 5px;
+  background: linear-gradient(180deg, rgb(28, 138, 133), rgb(20, 112, 109));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  font-family: var(--dk-sans);
+  font-size: 10px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.dk-mini__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  height: 16px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: rgba(46, 190, 150, 0.2);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: rgb(114, 220, 186);
+}
+
+.dk-mini__badge::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.dk-mini__badge--red {
+  background: rgba(235, 97, 97, 0.2);
+  color: rgb(245, 150, 150);
+}
+
+.dk-mini__badge--red::before {
+  display: none;
+}
+
+.dk-mini__url {
+  font-family: var(--dk-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.dk-mini__meta,
+.dk-mini__budget,
+.dk-mini__release {
+  font-size: 9.5px;
+}
+
+.dk-mini__tiles {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.dk-mini__tile {
+  display: grid;
+  gap: 4px;
+  padding: 7px 7px 5px;
+  border-radius: 5px;
+  background: var(--dk-panel);
+  box-shadow: var(--dk-rest);
+  color: var(--dk-blue);
+}
+
+.dk-mini__tile svg {
+  display: block;
+  width: 100%;
+  height: 16px;
+}
+
+.dk-mini__tilev {
+  font-family: var(--dk-mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.dk-mini__tilev small {
+  margin-left: 2px;
+  font-family: var(--dk-sans);
+  font-size: 8.5px;
+  color: var(--dk-muted);
+}
+
+.dk-mini__posture {
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+}
+
+.dk-mini__ring-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 3;
+}
+
+.dk-mini__ring-value {
+  fill: none;
+  stroke: var(--dk-violet);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.dk-mini__posturenum b {
+  font-family: var(--dk-mono);
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.dk-mini__lines {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 6px;
+}
+
+.dk-mini__line {
+  position: relative;
+  height: 9px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.dk-mini__line::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--dk-orange);
+}
+
+.dk-mini__line--red::before {
+  background: var(--dk-red);
+}
+
+.dk-mini__line--white::before {
+  background: #fff;
+}
+
+.dk-mini__line--green::before {
+  background: var(--dk-green);
+}
+
+.dk-mini__badges {
+  display: flex;
+  gap: 5px;
+}
+
+.dk-mini__release b {
+  font-family: var(--dk-mono);
+  font-weight: 500;
+  color: #fff;
+}
+
+.dk-mini__costs {
+  gap: 4px;
+}
+
+.dk-mini__total {
+  margin-bottom: 2px;
+  font-family: var(--dk-mono);
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.dk-mini__cost {
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  font-family: var(--dk-mono);
+  font-size: 9px;
+}
+
+.dk-mini__costlane {
+  height: 6px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.dk-mini__costlane span {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  border-radius: 2px;
+  background: var(--dk-amber);
+}
+
+/* ── Command box: a floating panel of the material with a recessed command row ───────────────── */
+
+.dk-cmd {
+  position: relative;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--dk-panel);
+  box-shadow: var(--dk-floating);
+  text-align: left;
+  transition: border-color 250ms ease;
+}
+
+.dk-cmd:focus-within {
+  border-color: rgba(var(--dk-brand-rgb) / 0.5);
+}
+
+.dk-cmd__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 2px 6px 8px 2px;
+}
+
+.dk-cmd__tabs {
+  --stp-tab-font-size: 12.5px;
+  flex: none;
+  max-width: 100%;
+}
+
+.dk-cmd__tabs .stp-ui-tab {
+  flex: none;
+}
+
+.dk-cmd__hint {
+  min-width: 0;
+  font-family: var(--dk-mono);
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--dk-faint);
+  text-align: right;
+}
+
+.dk-cmd__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 60px;
+  padding: 8px 8px 8px 16px;
+  border-radius: 8px;
+  background: var(--dk-inset);
+  box-shadow: var(--dk-field);
+}
+
+.dk-cmd__prompt {
+  flex: none;
+  font-family: var(--dk-mono);
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--dk-brand);
+}
+
+.dk-cmd__code {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 4px 8px 4px 0;
+  overflow-x: auto;
+  font-family: var(--dk-mono);
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: #fff;
+  white-space: nowrap;
+  scrollbar-width: none;
+  user-select: text;
+}
+
+.dk-cmd__code::-webkit-scrollbar {
+  display: none;
+}
+
+.dk-cmd__code--long {
+  font-size: 14.5px;
+}
+
+.dk-cmd__row--overflow .dk-cmd__code {
+  mask-image: linear-gradient(90deg, #000 calc(100% - 44px), transparent);
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 44px), transparent);
+}
+
+.dk-cmd__caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin-left: 3px;
+  vertical-align: -0.15em;
+  border-radius: 1px;
+  background: var(--dk-brand);
+  opacity: 0.85;
+  animation: dk-blink 1.1s steps(2, start) infinite;
+}
+
+@keyframes dk-blink {
+  to {
+    opacity: 0;
+  }
+}
+
+.dk-cmd__copy {
+  --stp-control-height: 42px;
+  --stp-button-padding-x: 14px;
+  flex: none;
+  font-size: 13.5px;
+}
+
+.dk-cmd__labels {
+  display: grid;
+}
+
+.dk-cmd__label {
+  grid-area: 1 / 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.dk-cmd__label svg {
+  flex: none;
+}
+
+.dk-cmd--idle .dk-cmd__label--copy,
+.dk-cmd--copied .dk-cmd__label--copied,
+.dk-cmd--failed .dk-cmd__label--failed {
+  opacity: 1;
+  transform: none;
+}
+
+.dk-cmd--copied .dk-cmd__copy {
+  --stp-button-primary-surface: linear-gradient(180deg, rgb(30, 150, 122), rgb(22, 120, 100));
+}
+
+/* ── Cards 1–6: the copy on the left, the screen on the right ────────────────────────────────── */
+
+.dk-card__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 38fr) minmax(0, 62fr);
+  align-items: center;
+  gap: 36px;
+  height: 100%;
+}
+
+.dk-card__copy {
+  min-width: 0;
+}
+
+.dk-card__num {
+  font-family: var(--dk-mono);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: var(--dk-brand);
+}
+
+.dk-card__title {
+  margin-top: 9px;
+  font-family: var(--dk-display);
+  font-size: 38px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: #fff;
+  text-wrap: balance;
+}
+
+.dk-card__text {
+  max-width: 34ch;
+  margin-top: 18px;
+  font-size: 17.5px;
+  line-height: 1.5;
+  color: var(--dk-body);
+  text-wrap: pretty;
+}
+
+.dk-card__screen {
+  margin-top: 27px;
+  font-family: var(--dk-mono);
+  font-size: 12.5px;
+  letter-spacing: 0.01em;
+  color: var(--dk-muted);
+}
+
+.dk-card__screen::before {
+  content: '';
+  display: inline-block;
+  width: 18px;
+  height: 1px;
+  margin: 0 9px 4px 0;
+  background: var(--dk-faint);
+}
+
+.dk-card__stage {
+  min-width: 0;
+  max-height: 100%;
+}
+
+/* ── A screen: one window of the product, composed for ≈ 700 × 640 ──────────────────────────── */
+
+.dk-screen {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--dk-window);
+  box-shadow: var(--dk-raised);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--dk-text);
+}
+
+.dk-screen__bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 38px;
+  padding: 0 16px;
+  background: rgba(0, 0, 0, 0.16);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+  font-family: var(--dk-mono);
+  font-size: 12px;
+  color: var(--dk-muted);
+  white-space: nowrap;
+}
+
+.dk-screen__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dk-screen__title b {
+  font-weight: 500;
+  color: var(--dk-text);
+}
+
+.dk-screen__sep {
+  color: var(--dk-faint);
+}
+
+.dk-screen__where {
+  font-family: var(--dk-sans);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--dk-text);
+}
+
+.dk-rail {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-family: var(--dk-sans);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.dk-rail li {
+  padding: 3px 8px;
+  border-radius: 6px;
+  color: var(--dk-faint);
+}
+
+.dk-rail li.is-current {
+  background: rgba(var(--dk-brand-rgb) / 0.14);
+  color: var(--dk-brand);
+}
+
+.dk-screen__body {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+  padding: 18px 18px 20px;
+}
+
+/* The Review screen carries the most; it keeps a tighter rhythm so it fits the card at 900px tall. */
+.dk-screen--review .dk-screen__body {
+  gap: 12px;
+  padding: 14px 18px 16px;
+}
+
+.dk-screen__h {
+  font-family: var(--dk-display);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  color: #fff;
+}
+
+.dk-screen__sub {
+  margin-top: 3px;
+  color: var(--dk-muted);
+}
+
+.dk-screen__label {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--dk-faint);
+}
+
+/* The product's controls, sized for a screen. */
+.dk-btn {
+  --stp-button-font-family: var(--dk-sans);
+  font-size: 13px;
+  cursor: default;
+}
+
+.dk-btn--small {
+  --stp-control-height: 28px;
+  --stp-button-padding-x: 10px;
+  font-size: 12.5px;
+}
+
+.dk-badge {
+  font-family: var(--dk-sans);
+}
+
+.dk-badge__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.dk-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(var(--dk-brand-rgb) / 0.16);
+  color: var(--dk-brand);
+}
+
+.dk-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: var(--dk-panel);
+  box-shadow: var(--dk-rest);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--dk-text);
+  white-space: nowrap;
+}
+
+.dk-chip__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--dk-brand);
+  box-shadow: 0 0 0 3px rgba(var(--dk-brand-rgb) / 0.18);
+}
+
+.dk-chip--lock svg {
+  color: var(--dk-violet);
+}
+
+/* Where the visitor presses: the pointer rests on the control. */
+.dk-press {
+  position: relative;
+  display: inline-flex;
+}
+
+.dk-cursor {
+  position: absolute;
+  top: 55%;
+  left: 62%;
+  z-index: 2;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
+  pointer-events: none;
+}
+
+.dk-cursor--row {
+  top: 50%;
+  left: 40%;
+}
+
+/* ── 01 · Review ─────────────────────────────────────────────────────────────────────────────── */
+
+.dk-rv__head {
+  display: grid;
+  gap: 2px;
+}
+
+.dk-rv__focal {
+  display: grid;
+  grid-template-columns: minmax(0, 36fr) minmax(0, 64fr);
+  /* One row, exactly the box: the 52-line file must not size the row, only be clipped by it. */
+  grid-template-rows: minmax(0, 1fr);
+  height: 288px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--dk-inset);
+  box-shadow: var(--dk-field);
+}
+
+.dk-file {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.06);
+}
+
+.dk-file__tab {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 12px;
+  box-shadow: inset 0 -1px 0 var(--dk-rule);
+  font-family: var(--dk-mono);
+  font-size: 12px;
+  color: var(--dk-text);
+  white-space: nowrap;
+}
+
+.dk-file__tab svg {
+  flex: none;
+  color: var(--dk-brand);
+}
+
+.dk-file__lines {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--dk-faint);
+}
+
+.dk-file__code {
+  flex: 1;
+  min-height: 0;
+  padding: 10px 8px 0 12px;
+  overflow: hidden;
+  font-family: var(--dk-mono);
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--dk-text);
+  white-space: pre;
+  tab-size: 2;
+  mask-image: linear-gradient(180deg, #000 74%, transparent 98%);
+  -webkit-mask-image: linear-gradient(180deg, #000 74%, transparent 98%);
+}
+
+.dk-file__code code {
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+}
+
+.dk-y-key {
+  color: #a7c9e8;
+}
+
+.dk-y-res {
+  font-weight: 500;
+  color: #fff;
+}
+
+.dk-y-type {
+  color: var(--dk-brand);
+}
+
+.dk-y-ref {
+  color: var(--dk-violet);
+}
+
+.dk-y-val {
+  color: #dbe3e2;
+}
+
+.dk-y-str {
+  color: #c9d98a;
+}
+
+.dk-y-num,
+.dk-y-bool {
+  color: #f0b184;
+}
+
+.dk-y-punc,
+.dk-y-dash {
+  color: var(--dk-faint);
+}
+
+.dk-y-com {
+  font-style: italic;
+  color: #6f7f7e;
+}
+
+.dk-rv__picture {
+  position: relative;
+  min-width: 0;
+  background: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1.3px) 0 0 / 18px 18px;
+}
+
+.dk-diagram {
+  position: absolute;
+  inset: 0;
+}
+
+.dk-diagram .stp-diagram {
+  background: transparent;
+}
+
+.dk-diagram:not(.is-active) .stp-diagram {
+  touch-action: pan-y;
+}
+
+.dk-diagram .stp-diagram__controls,
+.dk-diagram .stp-diagram__hint {
+  display: none;
+}
+
+.dk-diagram__gate {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(20, 26, 26, 0.92);
+  box-shadow: var(--dk-rest);
+  font-family: var(--dk-mono);
+  font-size: 11px;
+  color: var(--dk-muted);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.dk-diagram.is-active .dk-diagram__gate {
+  color: var(--dk-brand);
+}
+
+.dk-decided__list {
+  margin-top: 4px;
+}
+
+.dk-decided__row {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--dk-rule);
+}
+
+.dk-decided__row:first-child {
+  border-top: 0;
+  padding-top: 4px;
+}
+
+.dk-decided__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.dk-decided__what {
+  font-weight: 500;
+}
+
+.dk-decided__why {
+  font-size: 12.5px;
+  color: var(--dk-muted);
+}
+
+.dk-rv__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+  flex-wrap: wrap;
+  padding-top: 12px;
+  border-top: 1px solid var(--dk-rule);
+}
+
+.dk-rv__estimate {
+  color: var(--dk-muted);
+}
+
+.dk-rv__estimate b {
+  font-weight: 600;
+  color: #fff;
+}
+
+/* ── 02 · Live ───────────────────────────────────────────────────────────────────────────────── */
+
+.dk-live {
+  display: grid;
+  gap: 12px;
+  padding: 20px 22px 22px;
+  border-radius: 8px;
+  background: var(--dk-inset);
+  box-shadow: var(--dk-field);
+}
+
+.dk-live__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dk-live__urls {
+  display: grid;
+  gap: 5px;
+}
+
+.dk-live__url {
+  font-family: var(--dk-mono);
+  font-size: 22px;
+  font-weight: 500;
+  color: #fff;
+  overflow-wrap: anywhere;
+}
+
+.dk-live__meta {
+  color: var(--dk-muted);
+}
+
+.dk-live__meta .dk-mono {
+  color: var(--dk-text);
+}
+
+.dk-phases {
+  display: grid;
+}
+
+.dk-phase {
+  display: grid;
+  grid-template-columns: 18px 76px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--dk-rule);
+}
+
+.dk-phase:first-child {
+  border-top: 0;
+}
+
+.dk-phase__name {
+  font-weight: 500;
+}
+
+.dk-phase__detail {
+  color: var(--dk-muted);
+  overflow-wrap: anywhere;
+}
+
+.dk-phase__detail.dk-mono {
+  font-size: 12.5px;
+}
+
+.dk-after {
+  display: grid;
+  gap: 7px;
+  margin-top: 9px;
+}
+
+.dk-after__row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-height: 40px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: var(--dk-panel);
+  box-shadow: var(--dk-rest);
+}
+
+.dk-after__trigger,
+.dk-after__result {
+  font-family: var(--dk-mono);
+  font-size: 12.5px;
+  color: #fff;
+}
+
+.dk-after__trigger {
+  color: var(--dk-muted);
+}
+
+.dk-after__arrow {
+  color: var(--dk-brand);
+}
+
+.dk-after__note {
+  margin-left: auto;
+  font-size: 12.5px;
+  color: var(--dk-muted);
+}
+
+.dk-after__row .dk-btn {
+  margin-left: auto;
+}
+
+/* ── 03 · Monitor ────────────────────────────────────────────────────────────────────────────── */
+
+.dk-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.dk-tile {
+  min-width: 0;
+  padding: 14px 16px 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--dk-panel);
+  box-shadow: var(--dk-rest);
+  overflow: hidden;
+}
+
+.dk-tile__label {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dk-faint);
+}
+
+.dk-tile__value {
+  margin-top: 8px;
+  font-family: var(--dk-mono);
+  font-size: 26px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.dk-tile__unit {
+  margin-left: 4px;
+  font-family: var(--dk-sans);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--dk-muted);
+}
+
+.dk-spark {
+  display: block;
+  width: 100%;
+  height: 40px;
+  margin-top: 14px;
+  color: var(--dk-blue);
+}
+
+.dk-trace {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px 16px;
+  border-radius: 8px;
+  background: var(--dk-inset);
+  box-shadow: var(--dk-field);
+}
+
+.dk-trace__head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13px;
+  color: #fff;
+}
+
+.dk-trace__total {
+  font-family: var(--dk-mono);
+  color: var(--dk-muted);
+}
+
+.dk-trace__spans {
+  display: grid;
+  gap: 5px;
+}
+
+.dk-span {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) 52px;
+  align-items: center;
+  gap: 12px;
+  min-height: 26px;
+}
+
+.dk-span__name {
+  overflow: hidden;
+  font-family: var(--dk-mono);
+  font-size: 12px;
+  color: var(--dk-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dk-span__lane {
+  position: relative;
+  height: 12px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.dk-span__bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 3px;
+  background: var(--dk-brand);
+}
+
+.dk-span--app .dk-span__bar {
+  background: var(--dk-blue);
+}
+
+.dk-span--db .dk-span__bar {
+  background: var(--dk-violet);
+}
+
+.dk-span--cache .dk-span__bar {
+  background: var(--dk-green);
+}
+
+.dk-span__ms {
+  font-family: var(--dk-mono);
+  font-size: 12px;
+  color: var(--dk-muted);
+  text-align: right;
+}
+
+.dk-mon__foot {
+  display: grid;
+  gap: 12px;
+}
+
+.dk-uptime {
+  display: flex;
+  align-items: center;
+  gap: 6px 12px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--dk-inset);
+  box-shadow: var(--dk-field);
+  font-size: 12.5px;
+  color: var(--dk-muted);
+}
+
+.dk-mon__alerts {
+  display: flex;
+}
+
+.dk-uptime__url {
+  font-family: var(--dk-mono);
+  color: #fff;
+}
+
+.dk-uptime__region .dk-mono {
+  color: var(--dk-text);
+}
+
+.dk-uptime__total {
+  color: var(--dk-text);
+}
+
+/* ── 04 · Security ───────────────────────────────────────────────────────────────────────────── */
+
+.dk-posture {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 4px 0 2px;
+}
+
+.dk-ring {
+  flex: none;
+}
+
+.dk-ring__track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 6;
+}
+
+.dk-ring__value {
+  fill: none;
+  stroke: var(--dk-violet);
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+
+.dk-posture__num {
+  font-size: 15px;
+  color: var(--dk-muted);
+}
+
+.dk-posture__num b {
+  font-family: var(--dk-mono);
+  font-size: 32px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.dk-posture__sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 12.5px;
+}
+
+.dk-findings {
+  display: grid;
+}
+
+.dk-finding {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--dk-rule);
+}
+
+.dk-finding:first-child {
+  border-top: 0;
+}
+
+.dk-finding__mark {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dk-orange);
+}
+
+.dk-finding:first-child .dk-finding__mark {
+  background: var(--dk-red);
+}
+
+.dk-finding__what {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.dk-finding__action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dk-guard {
+  display: grid;
+  gap: 12px;
+  padding: 16px 18px 18px;
+  border-radius: 8px;
+  background: var(--dk-inset);
+  box-shadow: var(--dk-field);
+}
+
+.dk-guard__chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dk-guard__line {
+  font-size: 12.5px;
+  color: var(--dk-muted);
+}
+
+/* ── 05 · Incident ───────────────────────────────────────────────────────────────────────────── */
+
+.dk-inc__head {
+  display: grid;
+  gap: 8px;
+}
+
+.dk-inc__badges {
+  display: flex;
+  gap: 8px;
+}
+
+.dk-inc__title {
+  overflow-wrap: anywhere;
+}
+
+.dk-inc__release {
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--dk-inset);
+  box-shadow:
+    var(--dk-field),
+    inset 3px 0 0 var(--dk-red);
+  line-height: 1.6;
+  color: var(--dk-muted);
+}
+
+.dk-inc__release b {
+  font-weight: 600;
+  color: #fff;
+}
+
+.dk-inc__release .dk-mono {
+  color: var(--dk-text);
+}
+
+.dk-inc__sep {
+  margin: 0 5px;
+  color: var(--dk-faint);
+}
+
+.dk-inc__link {
+  color: var(--dk-brand);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.dk-signals {
+  display: grid;
+  gap: 6px;
+}
+
+.dk-signal {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  background: var(--dk-panel);
+  box-shadow: var(--dk-rest);
+}
+
+.dk-signal__mark {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dk-red);
+}
+
+.dk-signal__kind {
+  font-family: var(--dk-mono);
+  font-size: 12px;
+  color: var(--dk-text);
+  overflow-wrap: anywhere;
+}
+
+.dk-signal__meta {
+  font-size: 12.5px;
+  color: var(--dk-muted);
+  white-space: nowrap;
+}
+
+.dk-inc__row {
+  display: flex;
+}
+
+.dk-timeline {
+  display: grid;
+}
+
+.dk-tl {
+  position: relative;
+  display: grid;
+  grid-template-columns: 40px 12px minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: start;
+  padding: 3px 0;
+}
+
+.dk-tl::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 55.5px;
+  width: 1px;
+  background: var(--dk-rule);
+}
+
+.dk-tl:first-child::before {
+  top: 50%;
+}
+
+.dk-tl:last-child::before {
+  bottom: 50%;
+}
+
+.dk-tl__time {
+  font-family: var(--dk-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--dk-faint);
+}
+
+.dk-tl__mark {
+  position: relative;
+  z-index: 1;
+  width: 9px;
+  height: 9px;
+  margin: 6px 0 0 1.5px;
+  border-radius: 50%;
+  background: var(--dk-faint);
+  box-shadow: 0 0 0 3px var(--dk-window);
+}
+
+.dk-tl--error .dk-tl__mark {
+  background: var(--dk-red);
+}
+
+.dk-tl--you .dk-tl__mark {
+  background: var(--dk-amber);
+}
+
+.dk-tl--ok .dk-tl__mark {
+  background: var(--dk-green);
+  box-shadow:
+    0 0 0 3px var(--dk-window),
+    0 0 0 6px rgba(67, 211, 154, 0.2);
+}
+
+.dk-tl__text {
+  line-height: 1.6;
+  color: var(--dk-text);
+}
+
+.dk-tl--you .dk-tl__text {
+  font-weight: 500;
+  color: #fff;
+}
+
+.dk-tl--ok .dk-tl__text {
+  font-weight: 600;
+  color: var(--dk-green);
+}
+
+.dk-optin {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--dk-panel);
+  box-shadow: var(--dk-rest);
+}
+
+.dk-optin__switch {
+  margin-top: 1px;
+  opacity: 1;
+  cursor: default;
+}
+
+.dk-optin__what {
+  display: block;
+  font-weight: 500;
+}
+
+.dk-optin__state {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--dk-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dk-muted);
+}
+
+/* ── 06 · Costs ──────────────────────────────────────────────────────────────────────────────── */
+
+.dk-cost {
+  display: grid;
+  gap: 10px;
+}
+
+.dk-cost__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dk-cost__total {
+  font-family: var(--dk-mono);
+  font-size: 26px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.dk-bars {
+  display: grid;
+}
+
+.dk-bar {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) 60px;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.dk-bar__name,
+.dk-bar__amount {
+  font-family: var(--dk-mono);
+  font-size: 12.5px;
+}
+
+.dk-bar__lane {
+  height: 11px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.dk-bar__fill {
+  display: block;
+  height: 100%;
+  min-width: 3px;
+  border-radius: 3px;
+  background: var(--dk-amber);
+}
+
+.dk-bar__amount {
+  color: var(--dk-muted);
+  text-align: right;
+}
+
+.dk-budget {
+  display: grid;
+  gap: 10px;
+  padding: 16px 18px 18px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--dk-panel);
+  box-shadow: var(--dk-rest);
+}
+
+.dk-budget__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dk-press--field {
+  align-items: center;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 6px;
+  background: var(--dk-inset);
+  box-shadow: var(--dk-field);
+}
+
+.dk-budget__limit {
+  font-size: 12.5px;
+  color: var(--dk-muted);
+}
+
+.dk-budget__limit b {
+  font-family: var(--dk-mono);
+  font-size: 15px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.dk-budget__lane {
+  position: relative;
+  height: 11px;
+  margin-top: 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.dk-budget__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 4px;
+  background: var(--dk-amber);
+}
+
+.dk-budget__mark {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--dk-orange);
+}
+
+.dk-budget__legend {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12.5px;
+  color: var(--dk-muted);
+}
+
+.dk-budget__legend b {
+  font-weight: 600;
+  color: var(--dk-text);
+}
+
+.dk-cost__billed {
+  font-size: 12.5px;
+  color: var(--dk-faint);
+}
+
+.dk-cost__billed .dk-mono {
+  color: var(--dk-muted);
+}
+
+/* ── The closing card ────────────────────────────────────────────────────────────────────────── */
+
+.dk-closing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 27px;
+  height: 100%;
+  padding: 36px 0;
+  text-align: center;
+}
+
+.dk-closing__title {
+  max-width: 30ch;
+  font-family: var(--dk-display);
+  font-size: 44px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  color: #fff;
+  text-wrap: balance;
+}
+
+.dk-closing__cta {
+  width: 100%;
+  max-width: 560px;
+}
+
+.dk-closing .dk-trust {
+  margin-top: -9px;
+}
+
+.dk-closing__signin {
+  font-size: 14px;
+  color: var(--dk-faint);
+}
+
+.dk-closing__signin a {
+  color: var(--dk-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.dk-closing__signin a:hover {
+  color: #fff;
+}
+
+/* ── Testimonials ────────────────────────────────────────────────────────────────────────────── */
+
+.dk-voices {
+  padding: 72px 0 36px;
+}
+
+.dk-voices__title {
+  margin-bottom: 27px;
+  font-family: var(--dk-display);
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: #fff;
+}
+
+.dk-voices__list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.dk-voice {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 27px 27px 24px;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  background: var(--dk-panel);
+  box-shadow: var(--dk-rest);
+}
+
+.dk-voice__quote {
+  flex: 1;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--dk-text);
+}
+
+.dk-voice__who {
+  display: grid;
+  gap: 2px;
+  font-size: 13.5px;
+}
+
+.dk-voice__name {
+  font-weight: 600;
+}
+
+.dk-voice__role {
+  color: var(--dk-muted);
+}
+
+/* ── Footer ──────────────────────────────────────────────────────────────────────────────────── */
+
+.dk-footer {
+  margin-top: 36px;
+  padding: 27px 0 45px;
+  box-shadow: inset 0 1px 0 rgba(170, 230, 235, 0.07);
+  font-family: var(--dk-mono);
+  font-size: 12.5px;
+  color: var(--dk-muted);
+}
+
+.dk-footer__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px 24px;
+}
+
+.dk-footer__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+}
+
+.dk-footer__links a {
+  color: var(--dk-muted);
+  text-decoration: none;
+}
+
+.dk-footer__links a:hover {
+  color: #fff;
+}
+
+.dk-footer__note {
+  color: var(--dk-faint);
+}
+
+/* ── Below 1100px: the fan gives way to the copy ─────────────────────────────────────────────── */
+
+@media (max-width: 1099px) {
+  .dk-hero__title {
+    font-size: 56px;
+  }
+
+  .dk-fan {
+    transform: scale(0.86);
+    transform-origin: 50% 50%;
+    margin: 0;
+  }
+
+  .dk-card__title {
+    font-size: 32px;
+  }
+
+  .dk-card__text {
+    font-size: 16px;
+  }
+
+  .dk-tab {
+    left: calc(45px + var(--slot, 0) * 200px);
+  }
+}
+
+/* ── Below 900px: one column, cards in flow, no stacking ─────────────────────────────────────── */
+
+@media (max-width: 899px) {
+  .dk-card {
+    padding: 27px;
+  }
+
+  .dk-hero {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 36px;
+  }
+
+  .dk-hero__title {
+    font-size: 52px;
+  }
+
+  .dk-hero__deck {
+    align-items: center;
+  }
+
+  .dk-fan {
+    transform: none;
+    margin: 18px 0 9px;
+  }
+
+  .dk-card__grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 27px;
+  }
+
+  .dk-card__text {
+    max-width: 60ch;
+  }
+
+  .dk-card__screen {
+    margin-top: 18px;
+  }
+
+  .dk-voices__list {
+    grid-template-columns: 1fr;
+    max-width: 640px;
+  }
+}
+
+/* ── Phones ──────────────────────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 600px) {
+  .dk-root {
+    --dk-gutter: 16px;
+  }
+
+  .dk-nav__link--optional {
+    display: none;
+  }
+
+  .dk-deck {
+    padding-top: 9px;
+  }
+
+  .dk-card {
+    padding: 22px 18px;
+    border-radius: 14px;
+  }
+
+  .dk-card + .dk-card {
+    margin-top: 32px;
+  }
+
+  .dk-tab {
+    left: 18px;
+    height: 26px;
+    font-size: 12.5px;
+    top: -18px;
+  }
+
+  .dk-hero__title {
+    font-size: 42px;
+  }
+
+  .dk-hero__sub {
+    font-size: 16.5px;
+  }
+
+  .dk-fan {
+    width: 100%;
+    max-width: 322px;
+    height: 300px;
+    /* The rotated front card dips about 20px below the box; the caption must stay clear of it. */
+    margin: 18px 0 36px;
+  }
+
+  .dk-mini {
+    --x: calc(var(--i) * 10px);
+    --y: calc(var(--i) * -30px);
+    width: 100%;
+    max-width: 270px;
+    height: 150px;
+  }
+
+  .dk-mini__body {
+    inset: 38px 10px 10px;
+  }
+
+  .dk-fan__line {
+    font-size: 11.5px;
+  }
+
+  .dk-cmd__top {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 2px 2px 8px;
+  }
+
+  .dk-cmd__tabs {
+    align-self: flex-start;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .dk-cmd__hint {
+    padding: 6px 4px 0;
+    text-align: left;
+  }
+
+  .dk-cmd__row {
+    flex-wrap: wrap;
+    padding: 8px 8px 8px 14px;
+  }
+
+  .dk-cmd__code {
+    flex-basis: 0;
+  }
+
+  .dk-cmd__copy {
+    flex-basis: 100%;
+    width: 100%;
+  }
+
+  .dk-card__title {
+    font-size: 28px;
+  }
+
+  .dk-card__text {
+    font-size: 16px;
+  }
+
+  .dk-screen__body {
+    padding: 14px 12px 14px;
+  }
+
+  .dk-screen__bar {
+    padding: 0 12px;
+  }
+
+  .dk-screen__addr {
+    display: none;
+  }
+
+  .dk-rail li {
+    padding: 3px 5px;
+  }
+
+  .dk-rv__focal {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 190px 240px;
+    height: auto;
+  }
+
+  .dk-file {
+    box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  .dk-decided__row {
+    grid-template-columns: 18px minmax(0, 1fr);
+  }
+
+  .dk-decided__row .dk-btn {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .dk-live {
+    padding: 14px 14px 16px;
+  }
+
+  .dk-live__url {
+    font-size: 16px;
+  }
+
+  .dk-phase {
+    grid-template-columns: 18px minmax(0, 1fr);
+  }
+
+  .dk-phase__detail {
+    grid-column: 2;
+  }
+
+  .dk-tiles {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dk-span {
+    grid-template-columns: 96px minmax(0, 1fr) 48px;
+    gap: 8px;
+  }
+
+  .dk-finding {
+    grid-template-columns: 8px minmax(0, 1fr);
+  }
+
+  .dk-finding__action {
+    grid-column: 2;
+    flex-wrap: wrap;
+  }
+
+  .dk-signal {
+    grid-template-columns: 8px minmax(0, 1fr);
+  }
+
+  .dk-signal__meta {
+    grid-column: 2;
+    white-space: normal;
+  }
+
+  .dk-bar {
+    grid-template-columns: 88px minmax(0, 1fr) 56px;
+  }
+
+  .dk-closing__title {
+    font-size: 32px;
+  }
+
+  .dk-voices {
+    padding-top: 45px;
+  }
+
+  .dk-voices__title {
+    font-size: 24px;
+  }
+}
+
+@media (max-width: 480px) {
+  .dk-nav__link {
+    padding: 0 8px;
+  }
+
+  .dk-nav__link--phone-optional {
+    display: none;
+  }
+
+  .dk-nav__demo {
+    --stp-button-padding-x: 10px;
+    margin-left: 4px;
+  }
+
+  .dk-nav__logo svg {
+    height: 21px !important;
+  }
+}
+
+/* ── Reduced motion: no recession, no fan entrance; the stack itself still works ─────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .dk-root *,
+  .dk-root *::before,
+  .dk-root *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .dk-cmd__caret {
+    opacity: 0.85;
+  }
+
+  .dk-card {
+    transform: none !important;
+  }
+
+  .dk-card::after {
+    opacity: 0 !important;
+  }
+
+  .dk-mini {
+    transform: translate(var(--x), var(--y)) rotate(var(--r));
+  }
+}

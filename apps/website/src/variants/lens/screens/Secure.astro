@@ -1,0 +1,41 @@
+---
+/** 05 — the organisation's guardrails, four of them on, and the deploy one of them just blocked. */
+import { GUARDRAILS, URLS } from '../data';
+import { OnSwitch, PreviewButton } from '../ui';
+import Window from '../Window.astro';
+---
+
+<Window kind="browser" url={URLS.guardrails}>
+  <div class="ls-scr__head">
+    <p class="ls-scr__h">{GUARDRAILS.heading}</p>
+    <p class="ls-scr__sub">{GUARDRAILS.line}</p>
+  </div>
+
+  <ul class="ls-rules" aria-label="Guardrails in force">
+    {
+      GUARDRAILS.rules.map((rule) => (
+        <li class="ls-rule">
+          <span class="ls-rule__name">{rule}</span>
+          <OnSwitch label={rule} />
+        </li>
+      ))
+    }
+  </ul>
+
+  <div class="ls-blocked">
+    <span class="ls-blocked__mark" aria-hidden="true">
+      <svg viewBox="0 0 16 16" width="14" height="14" fill="none">
+        <circle cx="8" cy="8" r="6.25" stroke="currentColor" stroke-width="1.5" />
+        <path d="M8 4.8v3.9M8 11.2h.01" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+      </svg>
+    </span>
+    <p class="ls-blocked__text">
+      <span class="ls-blocked__title">{GUARDRAILS.blocked.title}</span>
+      <span class="ls-sep" aria-hidden="true">·</span>
+      <span class="ls-blocked__detail">{GUARDRAILS.blocked.detail}</span>
+    </p>
+    <span class="ls-blocked__action">
+      <PreviewButton variant="secondary" small>{GUARDRAILS.blocked.action}</PreviewButton>
+    </span>
+  </div>
+</Window>

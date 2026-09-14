@@ -1,0 +1,7 @@
+interface:
+  display_name: 'Stacktape Design'
+  short_description: 'Redesign the Stacktape website or Console'
+  default_prompt: 'Use $stacktape-design to redesign the Stacktape website with independent visual critique and browser verification.'
+
+policy:
+  allow_implicit_invocation: true

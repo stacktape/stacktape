@@ -1,0 +1,22 @@
+---
+/** The posting's last section: the label, the closing line, the command once more, the trust line, sign-in. */
+import { CommandBox } from './CommandBox';
+import { CLOSING_LINE, POSTING, SIGN_IN, TRUST_LINE } from './data';
+---
+
+<section class="hr-section hr-closing" aria-labelledby="hr-closing-title">
+  <p class="hr-label hr-label--teal">{POSTING.closingLabel}</p>
+  <h2 class="hr-closing__title" id="hr-closing-title">{CLOSING_LINE}</h2>
+  <div class="hr-closing__cta">
+    <CommandBox client:load label="Start" />
+  </div>
+  <p class="hr-trust">
+    {TRUST_LINE.map((item, index) => (
+      <>
+        {index > 0 && <span class="hr-trust__sep" aria-hidden="true">·</span>}
+        <span class="hr-trust__item">{item}</span>
+      </>
+    ))}
+  </p>
+  <p class="hr-closing__signin">{SIGN_IN.lead} <a href={SIGN_IN.href}>{SIGN_IN.label}</a></p>
+</section>

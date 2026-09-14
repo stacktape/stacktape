@@ -1,0 +1,65 @@
+---
+import { FEATURES } from './data';
+import FeatureRow from './FeatureRow.astro';
+import CostsScreen from './previews/CostsScreen.astro';
+import IncidentScreen from './previews/IncidentScreen.astro';
+import ReviewScreen from './previews/ReviewScreen.astro';
+import SecurityScreen from './previews/SecurityScreen.astro';
+import ShipScreen from './previews/ShipScreen.astro';
+import WatchScreen from './previews/WatchScreen.astro';
+
+const previews = {
+  design: ReviewScreen,
+  ship: ShipScreen,
+  watch: WatchScreen,
+  incidents: IncidentScreen,
+  security: SecurityScreen,
+  costs: CostsScreen
+};
+---
+
+<section class="rl-rows" aria-label="What Stacktape does, and your part in it">
+  {
+    FEATURES.map((feature) => {
+      const Preview = previews[feature.id];
+      return (
+        <FeatureRow feature={feature}>
+          <Preview />
+        </FeatureRow>
+      );
+    })
+  }
+</section>
+
+<script>
+  const rows = Array.from(document.querySelectorAll<HTMLElement>('[data-rl-row]'));
+
+  if (!('IntersectionObserver' in window)) {
+    for (const row of rows) row.classList.add('is-revealed');
+  } else {
+    // Reveal once. With reduced motion the CSS keeps rows visible regardless of this class.
+    const reveal = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          entry.target.classList.add('is-revealed');
+          reveal.unobserve(entry.target);
+        }
+      },
+      { rootMargin: '0px 0px -8% 0px', threshold: 0.02 }
+    );
+
+    // The seam glows at the row crossing the middle of the viewport.
+    const active = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) entry.target.classList.toggle('is-active', entry.isIntersecting);
+      },
+      { rootMargin: '-42% 0px -42% 0px', threshold: 0 }
+    );
+
+    for (const row of rows) {
+      reveal.observe(row);
+      active.observe(row);
+    }
+  }
+</script>

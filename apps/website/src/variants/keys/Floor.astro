@@ -1,0 +1,25 @@
+---
+/**
+ * The studio floor: one fixed layer behind the whole page. A plane in true CSS perspective carries
+ * a 64px grid that fades toward the horizon at 58% of the viewport; the horizon glow crossfades
+ * between six colours as `client.ts` sets `data-stage` on <html>.
+ *
+ * The scene's perspective origin sits 744px below the horizon: with `perspective: 1400px` and a
+ * plane tilted 62°, that is where the grid lines converge, so the floor reads as flat ground and the
+ * fade lands exactly on its vanishing line. The hero's billboards use the same geometry.
+ */
+---
+
+<div class="ky-floor" aria-hidden="true">
+  <div class="ky-floor__scene">
+    <div class="ky-floor__plane"></div>
+  </div>
+  <div class="ky-floor__flat"></div>
+  <i class="ky-glow ky-glow--teal"></i>
+  <i class="ky-glow ky-glow--green"></i>
+  <i class="ky-glow ky-glow--blue"></i>
+  <i class="ky-glow ky-glow--violet"></i>
+  <i class="ky-glow ky-glow--red"></i>
+  <i class="ky-glow ky-glow--gold"></i>
+  <i class="ky-horizon"></i>
+</div>

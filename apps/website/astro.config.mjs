@@ -35,6 +35,8 @@ const isopackInterop = {
 
 export default defineConfig({
   site: 'https://stacktape.com',
+  // The README concept became the homepage; the address it was reviewed under keeps working.
+  redirects: { '/readme': '/' },
   integrations: [react()],
   vite: {
     plugins: [

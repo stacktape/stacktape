@@ -1,0 +1,61 @@
+---
+// concept: A product-shaped page. Below a plain site nav, the page looks like the Stacktape Console: a sticky sidebar whose items are the six things Stacktape does, and a main area that scrolls through one screen per item, each pairing a plain-language explainer with a faithful UI recreation of that part of the product.
+// copy-angle: "AWS DevOps, fully automated." explained by showing the product doing the six jobs — designs, ships, watches, handles incidents, secures, keeps costs in check — with a gold "you" tag wherever the reader has a decision to make and a teal "auto" tag where Stacktape does the work.
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Closing from '../variants/console/Closing.astro';
+import Overview from '../variants/console/Overview.astro';
+import Screen from '../variants/console/Screen.astro';
+import Sidebar from '../variants/console/Sidebar.astro';
+import SiteFooter from '../variants/console/SiteFooter.astro';
+import SiteNav from '../variants/console/SiteNav.astro';
+import UiCosts from '../variants/console/UiCosts.astro';
+import UiIncident from '../variants/console/UiIncident.astro';
+import UiReview from '../variants/console/UiReview.astro';
+import UiSecures from '../variants/console/UiSecures.astro';
+import UiShips from '../variants/console/UiShips.astro';
+import UiWatches from '../variants/console/UiWatches.astro';
+import { SCREENS } from '../variants/console/data';
+import '../variants/console/console.css';
+
+const byId = Object.fromEntries(SCREENS.map((screen) => [screen.id, screen]));
+const screen = (id: keyof typeof byId) => {
+  const found = byId[id];
+  if (!found) throw new Error(`Unknown screen "${String(id)}".`);
+  return found;
+};
+---
+
+<BaseLayout
+  title="AWS DevOps, fully automated — Stacktape"
+  description="Stacktape puts your app on your own AWS account and does the DevOps work for you: it designs the infrastructure, ships the app, watches it, handles incidents, secures it and keeps costs in check."
+  htmlClass="cs-root"
+>
+  <Fragment slot="head">
+    <link
+      href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Source+Code+Pro:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+  </Fragment>
+
+  <SiteNav />
+
+  <main class="cs-shell" id="shell">
+    <Sidebar />
+    <div class="cs-main">
+      <Overview />
+      <Screen screen={screen('designs')}><UiReview /></Screen>
+      <Screen screen={screen('ships')}><UiShips /></Screen>
+      <Screen screen={screen('watches')}><UiWatches /></Screen>
+      <Screen screen={screen('incidents')}><UiIncident /></Screen>
+      <Screen screen={screen('secures')}><UiSecures /></Screen>
+      <Screen screen={screen('costs')}><UiCosts /></Screen>
+    </div>
+  </main>
+
+  <Closing />
+  <SiteFooter />
+</BaseLayout>
+
+<script>
+  import '../variants/console/client';
+</script>

@@ -1,0 +1,68 @@
+---
+/**
+ * The Console's chrome around a figure: the real navigation in the sidebar, the breadcrumb bar
+ * with an "example project" tag, optional stage tabs, and the content slot. Decorative for
+ * assistive technology; the figure's content is what carries meaning.
+ *
+ * `sideScroll` shifts the sidebar up by that many pixels, the way a real sidebar sits scrolled
+ * when the active item is far down the list.
+ */
+import Logo from '../../components/Logo.astro';
+
+type Props = {
+  /** `Group/Item`, or the bare item name for the two ungrouped entries. */
+  active: string;
+  crumbs: string[];
+  tabs?: string[];
+  activeTab?: string;
+  sideScroll?: number;
+};
+
+const { active, crumbs, tabs, activeTab, sideScroll = 0 } = Astro.props;
+
+const NAV: Array<{ group?: string; items: string[] }> = [
+  { items: ['Overview', 'Config editor'] },
+  { group: 'Organization', items: ['Projects', 'Activity', 'Users', 'Costs'] },
+  { group: 'Observability', items: ['Logs', 'Metrics', 'Traces', 'Uptime', 'Synthetics', 'Error tracking', 'Incidents'] },
+  { group: 'Security', items: ['Overview', 'Vulnerabilities', 'Posture'] },
+  { group: 'Alerting', items: ['Channels', 'Notifications', 'Alarms', 'Budgets'] },
+  { group: 'Configuration', items: ['Guardrails', 'Secrets', 'SSM Params', 'AWS Accounts', 'Domains'] }
+];
+
+const keyOf = (group: string | undefined, item: string) => (group ? `${group}/${item}` : item);
+---
+
+<div class="rb-con">
+  <aside class="rb-con__side" aria-hidden="true">
+    <div class="rb-con__side-inner" style={sideScroll ? `top: -${sideScroll}px` : undefined}>
+      <div class="rb-con__brand"><Logo height={14} /></div>
+      <div class="rb-con__org"><span>acme</span><span class="rb-con__caret">⌄</span></div>
+      {
+        NAV.map((block) => (
+          <div>
+            {block.group && <div class="rb-con__group">{block.group}</div>}
+            {block.items.map((item) => (
+              <div class:list={['rb-con__item', { 'is-active': keyOf(block.group, item) === active }]}>{item}</div>
+            ))}
+          </div>
+        ))
+      }
+    </div>
+  </aside>
+  <div class="rb-con__main">
+    <div class="rb-con__top">
+      {crumbs.map((crumb) => <span class="rb-con__crumb">{crumb}</span>)}
+      <span class="rb-con__example">example project</span>
+    </div>
+    {
+      tabs && (
+        <div class="rb-con__tabs">
+          {tabs.map((tab) => (
+            <span class:list={['rb-con__tab', { 'is-active': tab === activeTab }]}>{tab}</span>
+          ))}
+        </div>
+      )
+    }
+    <div class="rb-con__content"><slot /></div>
+  </div>
+</div>

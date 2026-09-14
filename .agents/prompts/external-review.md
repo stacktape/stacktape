@@ -76,27 +76,24 @@ Use the strongest listed model and highest supported effort unless the user over
 repository-borne prompt injection is a measured risk, with code comments and agent-rule files among the strongest
 carriers in RepoGuardBench. [Research](https://github.com/DaoyuanLi2816/RepoGuardBench)
 
-Set `$reviewRequest` to the completed request above, then run one command from the repository root.
+Put the completed request in a shell variable, `reviewRequest`, then run one command from the repository root (bash; the
+repository is worked on from WSL/Linux).
 
-```powershell
+```bash
 # Codex: gpt-5.6-sol / max
-$reviewRequest | codex exec -m gpt-5.6-sol -c 'model_reasoning_effort="max"' -s read-only --ephemeral -C $PWD.Path -
+printf '%s' "$reviewRequest" | codex exec -m gpt-5.6-sol -c 'model_reasoning_effort="max"' -s read-only --ephemeral -C "$PWD" -
 
 # Claude: Fable 5 / max
-claude -p $reviewRequest --model fable --effort max --permission-mode plan --output-format text --no-session-persistence
+claude -p "$reviewRequest" --model fable --effort max --permission-mode plan --output-format text --no-session-persistence
 
 # Grok: 4.6 / xhigh (its highest supported effort)
-grok -p $reviewRequest --model grok-4.6 --reasoning-effort xhigh --agent explore --permission-mode plan --sandbox read-only --cwd $PWD.Path --output-format plain --no-memory --no-subagents
-
-# Antigravity: Gemini 3.7 Flash / high (agy's highest supported effort). Always Gemini 3.7 Flash, never 3.1 Pro.
-agy -p $reviewRequest --model gemini-3.7-flash-high --effort high --mode plan --sandbox --output-format text --print-timeout 15m
+grok -p "$reviewRequest" --model grok-4.6 --reasoning-effort xhigh --agent explore --permission-mode plan --sandbox read-only --cwd "$PWD" --output-format plain --no-memory --no-subagents
 
 # DeepSeek Harness: V4 Flash / max
-$env:DSH_PERMISSION_MODE = 'read-only'
-dsh --profile headless --patch .agents/prompts/external-review.dsh.yml $reviewRequest
+DSH_PERMISSION_MODE=read-only dsh --profile headless --patch .agents/prompts/external-review.dsh.yml "$reviewRequest"
 
 # Z.ai GLM: GLM-5.3 / max
-$reviewRequest | glm
+printf '%s' "$reviewRequest" | glm
 ```
 
 The CLI output is evidence to investigate, not the final verdict. Verify surviving findings locally before presenting

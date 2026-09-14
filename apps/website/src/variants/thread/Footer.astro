@@ -1,0 +1,18 @@
+---
+import Logo from '../../components/Logo.astro';
+import { LINKS } from './data';
+---
+
+<footer class="th-footer">
+  <div class="th-container th-footer__inner">
+    <a href="/" aria-label="Stacktape home"><Logo height={18} /></a>
+    <ul class="th-footer__links">
+      <li><a href={LINKS.docs}>Docs</a></li>
+      <li><a href={LINKS.github}>GitHub</a></li>
+      <li><a href={LINKS.console}>Console</a></li>
+      <li><a href={LINKS.discord}>Discord</a></li>
+      <li><a href={LINKS.privacy}>Privacy</a></li>
+    </ul>
+    <span class="th-footer__note">Open-source CLI (MIT) · hosted Console</span>
+  </div>
+</footer>

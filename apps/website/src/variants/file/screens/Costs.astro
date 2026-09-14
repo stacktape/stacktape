@@ -1,0 +1,55 @@
+---
+/** 06 — cost per resource from the AWS bill, and the budget the visitor sets once. */
+import Cursor from '../Cursor.astro';
+import { BUDGET, COST_TOTAL, COSTS, PROJECT } from '../data';
+
+const largest = Math.max(...COSTS.map((cost) => cost.amount));
+const money = (amount: number) => `$${amount.toFixed(2)}`;
+const whole = (amount: number) => `$${amount}`;
+const used = (COST_TOTAL / BUDGET.limit) * 100;
+---
+
+<div class="fl-cost">
+  <div class="fl-cost__bars">
+    <div class="fl-cost__head">
+      <p class="fl-scr__label">Cost by resource · month to date</p>
+      <p class="fl-cost__total">{money(COST_TOTAL)}</p>
+    </div>
+    <ul class="fl-bars" aria-label="Cost per resource">
+      {
+        COSTS.map((cost) => (
+          <li class="fl-bar">
+            <span class="fl-bar__name">{cost.name}</span>
+            <span class="fl-bar__lane">
+              <span class="fl-bar__fill" style={`width: ${((cost.amount / largest) * 100).toFixed(1)}%`} />
+            </span>
+            <span class="fl-bar__amount">{money(cost.amount)}</span>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+
+  <div class="fl-budget">
+    <div class="fl-budget__head">
+      <p class="fl-scr__label">Budget</p>
+      <span class="fl-press fl-press--field">
+        <span class="fl-budget__limit"><b>{whole(BUDGET.limit)}</b> / month</span>
+        <Cursor />
+      </span>
+    </div>
+    <div
+      class="fl-budget__lane"
+      role="img"
+      aria-label={`${money(COST_TOTAL)} of ${whole(BUDGET.limit)} used; alert at ${BUDGET.alertAt}%`}
+    >
+      <span class="fl-budget__fill" style={`width: ${used.toFixed(1)}%`}></span>
+      <span class="fl-budget__mark" style={`left: ${BUDGET.alertAt}%`}></span>
+    </div>
+    <p class="fl-budget__legend">
+      <span><b>{used.toFixed(0)} %</b> used</span>
+      <span>alert at <b>{BUDGET.alertAt} %</b> ({whole((BUDGET.limit * BUDGET.alertAt) / 100)})</span>
+    </p>
+    <p class="fl-cost__billed">Billed by AWS to account <span class="fl-mono">{PROJECT.account}</span>.</p>
+  </div>
+</div>

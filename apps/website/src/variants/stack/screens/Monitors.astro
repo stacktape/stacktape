@@ -1,0 +1,62 @@
+---
+/** 04 — monitoring: three metric tiles, one request followed through the services, one uptime line. */
+import { METRICS, sparkline, TRACE, UPTIME, URLS } from '../data';
+import Window from '../Window.astro';
+
+const pct = (ms: number) => `${((ms / TRACE.total) * 100).toFixed(2)}%`;
+---
+
+<Window kind="browser" host={URLS.monitoring.host} path={URLS.monitoring.path}>
+  <ul class="st-tiles" aria-label="Metrics">
+    {
+      METRICS.map((metric) => (
+        <li class="st-tile">
+          <p class="st-tile__label">{metric.label}</p>
+          <p class="st-tile__value">
+            {metric.value}<span class="st-tile__unit">{metric.unit}</span>
+          </p>
+          <svg class="st-spark" viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true">
+            <polyline points={sparkline(metric.points)} fill="none" stroke="currentColor" stroke-width="1.6" vector-effect="non-scaling-stroke" />
+          </svg>
+        </li>
+      ))
+    }
+  </ul>
+
+  <div class="st-trace">
+    <p class="st-trace__head">
+      <span class="st-mono">{TRACE.name}</span>
+      <span class="st-trace__total">{TRACE.total} ms</span>
+    </p>
+    <ol class="st-trace__spans" aria-label="Spans">
+      {
+        TRACE.spans.map((span) => (
+          <li class={`st-span st-span--${span.kind}`}>
+            <span class="st-span__name">{span.name}</span>
+            <span class="st-span__lane">
+              <span class="st-span__bar" style={`left: ${pct(span.start)}; width: max(${pct(span.end - span.start)}, 3px)`} />
+            </span>
+            <span class="st-span__ms">{span.end - span.start} ms</span>
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+
+  <p class="st-uptime">
+    <span class="st-uptime__ok" aria-hidden="true"></span>
+    <span class="st-uptime__url">{UPTIME.url}</span>
+    <span class="st-uptime__sep" aria-hidden="true">·</span>
+    <b>{UPTIME.availability}</b>
+    {
+      UPTIME.regions.map((check) => (
+        <>
+          <span class="st-uptime__sep" aria-hidden="true">·</span>
+          <span class="st-uptime__region">
+            {check.region} <span class="st-mono">{check.latency}</span>
+          </span>
+        </>
+      ))
+    }
+  </p>
+</Window>

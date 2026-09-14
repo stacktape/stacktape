@@ -1,0 +1,39 @@
+---
+/** 06 — the incident: what fired, the timeline from deploy to resolution, and where the team was told. */
+import { INCIDENT } from '../data';
+import { StatusBadge } from '../ui';
+import Window from '../Window.astro';
+---
+
+<Window kind="browser" title={INCIDENT.url}>
+  <div class="sh-inc">
+    <div class="sh-inc__head">
+      <h3 class="sh-screen__h sh-inc__title">{INCIDENT.title}</h3>
+      <span class="sh-inc__state">
+        <StatusBadge tone="success" dot>{INCIDENT.badge}</StatusBadge>
+        <span class="sh-mono sh-inc__duration">{INCIDENT.duration}</span>
+      </span>
+    </div>
+
+    <ol class="sh-tl" aria-label="Timeline">
+      {
+        INCIDENT.timeline.map((event) => (
+          <li class={`sh-tl__row sh-tl__row--${event.tone}`}>
+            <span class="sh-mono sh-tl__time">{event.time}</span>
+            <span class="sh-tl__mark" aria-hidden="true" />
+            <span class="sh-tl__text">
+              {event.text}
+              {'code' in event && (
+                <>
+                  <span class="sh-screen__sep" aria-hidden="true">·</span><code class="sh-tl__code">{event.code}</code><span class="sh-screen__sep" aria-hidden="true">·</span><span class="sh-tl__meta">{event.meta}</span>
+                </>
+              )}
+            </span>
+          </li>
+        ))
+      }
+    </ol>
+
+    <p class="sh-inc__alert">{INCIDENT.alerted}</p>
+  </div>
+</Window>

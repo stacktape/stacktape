@@ -1,0 +1,23 @@
+---
+import WizardFrame from '../WizardFrame.astro';
+import { ANALYZE_DONE, ANALYZE_FEED } from '../data';
+---
+
+<WizardFrame step="Analyze">
+  <div class="hx-row hx-row--between">
+    <h4 class="hx-wiz__title">Reading your project</h4>
+    <span class="hx-chip hx-chip--brand"><span class="hx-chip__dot hx-chip__dot--pulse" aria-hidden="true"></span>Claude Code · this machine</span>
+  </div>
+  <ol class="hx-feed" aria-label="Files opened">
+    {
+      ANALYZE_FEED.map((entry, index) => (
+        <li style={`--i:${index}`} class:list={[index >= 6 && 'hx-m-hide']}>
+          <span class="hx-tick" aria-hidden="true">✓</span>
+          <span class="hx-feed__file">{entry.file}</span>
+          <span class="hx-feed__found">{entry.found}</span>
+        </li>
+      ))
+    }
+  </ol>
+  <p class="hx-feed__done">{ANALYZE_DONE}</p>
+</WizardFrame>

@@ -1,0 +1,2425 @@
+/*
+ * Study "track": a drafting table at night. A narrow left track holds the four things the visitor
+ * does; a wide right track holds the six things Stacktape does. Every class is prefixed `tk-`.
+ *
+ * Surfaces are the Console's one material: fill and shadow separate them, never a line. The route
+ * line is the only thing that moves with scroll; surfaces rise 12px as they enter the viewport.
+ * Spacing scale: 8 · 16 · 24 · 40 · 72.
+ */
+
+.tk-html {
+  scroll-behavior: smooth;
+}
+
+.tk-root {
+  --tk-ground: #0b1719;
+  --tk-panel: linear-gradient(180deg, rgb(33, 39, 39), rgb(29, 35, 35));
+  --tk-window: var(--stp-surface-element);
+  --tk-inset: var(--stp-surface-input);
+  --tk-rest: 0 2px 6px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  --tk-raised: 0 3px 9px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  --tk-floating: 0 22px 52px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  --tk-field: inset 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(255, 255, 255, 0.05);
+  --tk-text: var(--stp-text-primary);
+  --tk-body: #b6c3c4;
+  --tk-muted: var(--stp-text-muted);
+  --tk-subtle: var(--stp-text-subtle);
+  --tk-faint: var(--stp-text-faint);
+  --tk-brand: var(--stp-color-brand);
+  --tk-brand-rgb: 54 190 190;
+  --tk-gold: #e0b45a;
+  --tk-gold-rgb: 224 180 90;
+  --tk-green: #43d39a;
+  --tk-red: #eb6161;
+  --tk-orange: #f0934a;
+  --tk-blue: #6f9cf0;
+  --tk-violet: #d7b7f5;
+  --tk-rule: rgba(255, 255, 255, 0.07);
+  --tk-sans: 'Manrope', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --tk-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --tk-container: 1280px;
+  --tk-gutter: 24px;
+  --tk-track: 240px;
+  --tk-gap: 40px;
+  --tk-fast: var(--stp-motion-duration-fast) var(--stp-motion-easing);
+  --tk-base: var(--stp-motion-duration-base) var(--stp-motion-easing);
+
+  position: relative;
+  min-height: 100vh;
+  overflow-x: clip;
+  background: var(--tk-ground);
+  color: var(--tk-text);
+  font-family: var(--tk-sans);
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.tk-root ::selection {
+  background: rgba(var(--tk-brand-rgb) / 0.35);
+}
+
+.tk-root :where(h1, h2, h3, h4, h5, p, ul, ol, blockquote, pre, figure) {
+  margin: 0;
+}
+
+.tk-root :where(ul, ol) {
+  padding: 0;
+  list-style: none;
+}
+
+.tk-mono {
+  font-family: var(--tk-mono);
+}
+
+.tk-sep {
+  color: var(--tk-faint);
+}
+
+.tk-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* A mono chip: a command, a duration, a destination. */
+.tk-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--stp-control-surface);
+  box-shadow: var(--tk-rest);
+  font-family: var(--tk-mono);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--tk-text);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.tk-chip--quiet {
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: none;
+  color: var(--tk-muted);
+}
+
+/* ── Nav ─────────────────────────────────────────────────────────────────────────────────────── */
+
+.tk-nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(11, 23, 25, 0.8);
+  box-shadow: 0 1px 0 rgba(170, 230, 235, 0.08);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.tk-nav__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  max-width: var(--tk-container);
+  height: 64px;
+  margin: 0 auto;
+  padding-inline: var(--tk-gutter);
+}
+
+.tk-nav__logo {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 6px;
+}
+
+.tk-nav__links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tk-nav__link {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--tk-muted);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color var(--tk-fast);
+}
+
+.tk-nav__link:hover {
+  color: var(--tk-text);
+}
+
+.tk-nav__demo {
+  margin-left: 8px;
+  font-size: 14.5px;
+}
+
+/* ── The board: the isometric grid under the hero and the journey, and the route over it ─────── */
+
+.tk-board {
+  position: relative;
+  isolation: isolate;
+}
+
+/* One 64×32 isometric cell, faint lines, a dot at every intersection. */
+.tk-board::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='32'%3E%3Cpath d='M0 0L64 32M0 32L64 0' fill='none' stroke='rgba(120,200,210,0.10)' stroke-width='1'/%3E%3Cg fill='rgba(120,200,210,0.22)'%3E%3Ccircle cx='0' cy='0' r='1.2'/%3E%3Ccircle cx='64' cy='0' r='1.2'/%3E%3Ccircle cx='0' cy='32' r='1.2'/%3E%3Ccircle cx='64' cy='32' r='1.2'/%3E%3Ccircle cx='32' cy='16' r='1.2'/%3E%3C/g%3E%3C/svg%3E");
+  background-position: 0 0;
+  pointer-events: none;
+}
+
+/* Fog: calm ground behind the headline, faded page edges, strongest around the route on the left. */
+.tk-board::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(180deg, var(--tk-ground) 0, rgba(11, 23, 25, 0.94) 140px, rgba(11, 23, 25, 0) 620px),
+    linear-gradient(
+      90deg,
+      var(--tk-ground) 0,
+      rgba(11, 23, 25, 0) 9%,
+      rgba(11, 23, 25, 0) 34%,
+      rgba(11, 23, 25, 0.38) 62%,
+      rgba(11, 23, 25, 0.5) 90%,
+      var(--tk-ground) 100%
+    ),
+    linear-gradient(0deg, var(--tk-ground) 0, rgba(11, 23, 25, 0) 280px);
+  pointer-events: none;
+}
+
+.tk-route {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 400ms ease;
+}
+
+.tk-route.is-ready {
+  opacity: 1;
+}
+
+.tk-route__plan {
+  fill: none;
+  stroke: rgba(170, 230, 235, 0.22);
+  stroke-width: 1;
+  stroke-dasharray: 3 7;
+  stroke-linejoin: round;
+}
+
+.tk-route__glow {
+  fill: none;
+  stroke: rgba(var(--tk-brand-rgb) / 0.2);
+  stroke-width: 11;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.tk-route__line {
+  fill: none;
+  stroke: var(--tk-brand);
+  stroke-width: 3;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.tk-hero,
+.tk-journey {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Hero ────────────────────────────────────────────────────────────────────────────────────── */
+
+.tk-hero {
+  padding: 44px var(--tk-gutter) 0;
+}
+
+.tk-hero__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 880px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.tk-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--tk-mono);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: var(--tk-brand);
+}
+
+.tk-eyebrow::before,
+.tk-eyebrow::after {
+  content: '';
+  width: 28px;
+  height: 1px;
+  background: rgba(170, 230, 235, 0.24);
+}
+
+/* The headline's natural width is a hair over the 880px column; the side allowance keeps it on one
+ * line without a nowrap that could overflow under a fallback font. */
+.tk-hero__title {
+  margin: 12px -24px 0;
+  font-size: 64px;
+  font-weight: 600;
+  letter-spacing: -0.024em;
+  line-height: 1.05;
+  color: #fff;
+  text-wrap: balance;
+}
+
+.tk-hero__sub {
+  max-width: 760px;
+  margin-top: 12px;
+  font-size: 19px;
+  line-height: 1.5;
+  color: var(--tk-body);
+  text-wrap: pretty;
+}
+
+.tk-hero__cta {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin-top: 22px;
+}
+
+.tk-trust {
+  max-width: 680px;
+  margin-top: 12px;
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: var(--tk-muted);
+  text-wrap: balance;
+}
+
+/* The repository node: the route begins under the prompt of the command box. */
+.tk-start {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(100%, 680px);
+  margin-top: 16px;
+  padding-left: 16px;
+  font-family: var(--tk-mono);
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+  color: var(--tk-muted);
+  text-align: left;
+}
+
+.tk-start__dot,
+.tk-node__dot {
+  display: inline-block;
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--tk-gold);
+  box-shadow: 0 0 0 3px rgba(var(--tk-gold-rgb) / 0.28);
+}
+
+.tk-start__label {
+  white-space: nowrap;
+}
+
+.tk-start__label b {
+  font-weight: 500;
+  color: var(--tk-text);
+}
+
+/* ── Command box: a floating panel with a recessed command row ───────────────────────────────── */
+
+.tk-cmd {
+  position: relative;
+  width: min(100%, 680px);
+  padding: 8px;
+  border-radius: 10px;
+  background: var(--tk-panel);
+  box-shadow: var(--tk-floating);
+  text-align: left;
+  transition: box-shadow var(--tk-base);
+}
+
+.tk-cmd:focus-within {
+  box-shadow:
+    var(--tk-floating),
+    0 0 0 2px rgba(var(--tk-brand-rgb) / 0.55);
+}
+
+.tk-cmd__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 0 6px 8px 0;
+}
+
+.tk-cmd__tabs {
+  --stp-tabs-padding: 4px;
+  --stp-tab-font-size: 12.5px;
+  flex: none;
+  max-width: 100%;
+  font-family: var(--tk-sans);
+}
+
+.tk-cmd__tabs .stp-ui-tab {
+  flex: none;
+}
+
+.tk-cmd__hint {
+  min-width: 0;
+  font-family: var(--tk-mono);
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--tk-faint);
+  text-align: right;
+}
+
+.tk-cmd__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 60px;
+  padding: 8px 8px 8px 16px;
+  border-radius: 8px;
+  background: var(--tk-inset);
+  box-shadow: var(--tk-field);
+}
+
+.tk-cmd__prompt {
+  flex: none;
+  font-family: var(--tk-mono);
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--tk-brand);
+}
+
+.tk-cmd__code {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 4px 8px 4px 0;
+  overflow-x: auto;
+  font-family: var(--tk-mono);
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: #fff;
+  white-space: nowrap;
+  scrollbar-width: none;
+  user-select: text;
+}
+
+.tk-cmd__code::-webkit-scrollbar {
+  display: none;
+}
+
+.tk-cmd__code--long {
+  font-size: 15px;
+}
+
+.tk-cmd__row--overflow .tk-cmd__code {
+  mask-image: linear-gradient(90deg, #000 calc(100% - 44px), transparent);
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 44px), transparent);
+}
+
+.tk-cmd__caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin-left: 3px;
+  vertical-align: -0.15em;
+  border-radius: 1px;
+  background: var(--tk-brand);
+  opacity: 0.85;
+  animation: tk-blink 1.1s steps(2, start) infinite;
+}
+
+@keyframes tk-blink {
+  to {
+    opacity: 0;
+  }
+}
+
+/* The Copy button: the product's primary, one fixed width across all three labels. */
+.tk-cmd__copy {
+  --stp-control-height: 42px;
+  --stp-button-padding-x: 14px;
+  --stp-button-font-family: var(--tk-sans);
+  flex: none;
+  font-size: 13.5px;
+}
+
+.tk-cmd__labels {
+  display: grid;
+}
+
+.tk-cmd__label {
+  grid-area: 1 / 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.tk-cmd__label svg {
+  flex: none;
+}
+
+.tk-cmd--idle .tk-cmd__label--copy,
+.tk-cmd--copied .tk-cmd__label--copied,
+.tk-cmd--failed .tk-cmd__label--failed {
+  opacity: 1;
+  transform: none;
+}
+
+.tk-cmd--copied .tk-cmd__copy {
+  --stp-button-primary-surface: linear-gradient(180deg, rgb(30, 150, 122), rgb(22, 120, 100));
+}
+
+/* ── The journey: two tracks ─────────────────────────────────────────────────────────────────── */
+
+.tk-journey {
+  max-width: var(--tk-container);
+  margin: 0 auto;
+  padding: 0 var(--tk-gutter);
+}
+
+.tk-rows {
+  position: relative;
+}
+
+/* Without JavaScript the vertical part of the route is a plain line down the track. */
+.tk-rows::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--tk-track) / 2 - 1.5px);
+  width: 3px;
+  border-radius: 2px;
+  background: var(--tk-brand);
+  opacity: 0.7;
+}
+
+.tk-js .tk-rows::before {
+  display: none;
+}
+
+.tk-row {
+  display: grid;
+  grid-template-columns: var(--tk-track) var(--tk-gap) minmax(0, 1fr);
+}
+
+.tk-row + .tk-row {
+  margin-top: 72px;
+}
+
+/* The first surface starts 28px before the lead node's card ends: they sit in different columns,
+ * and plate 01 (36px below the surface's top) still clears the card by 8px. */
+.tk-row--lead + .tk-row {
+  margin-top: -28px;
+}
+
+/* `route.ts` replaces this with the exact padding for a 2:1 diagonal; 89px is its value at 1440. */
+.tk-row--lead {
+  padding-top: 89px;
+}
+
+.tk-cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  grid-column: 1;
+  min-width: 0;
+}
+
+/* Plates: the rhombus centred on the number-and-title row of its surface. */
+.tk-plate {
+  flex: none;
+  width: 56px;
+  height: 28px;
+  margin-top: 36px;
+}
+
+.tk-plate svg {
+  display: block;
+  width: 56px;
+  height: 28px;
+  overflow: visible;
+}
+
+.tk-plate__face {
+  fill: rgba(var(--tk-brand-rgb) / 0.06);
+  stroke: rgba(var(--tk-brand-rgb) / 0.35);
+  stroke-width: 1;
+  transition:
+    stroke 300ms ease,
+    fill 300ms ease;
+}
+
+.tk-plate__num {
+  fill: var(--tk-brand);
+  stroke: var(--tk-ground);
+  stroke-width: 4px;
+  paint-order: stroke;
+  font-family: var(--tk-mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+.tk-plate.is-reached .tk-plate__face {
+  stroke: rgba(var(--tk-brand-rgb) / 0.8);
+}
+
+/* Visitor nodes: a gold dot on the line, a small card under it. */
+.tk-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  margin-top: 28px;
+}
+
+.tk-row--lead .tk-node {
+  margin-top: 0;
+}
+
+.tk-node--aligned {
+  position: absolute;
+  top: 420px;
+  left: 0;
+  right: 0;
+  margin-top: 0;
+}
+
+.tk-node__card {
+  max-width: 220px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--tk-panel);
+  box-shadow: var(--tk-rest);
+  text-align: center;
+}
+
+.tk-node__what {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: #fff;
+  text-wrap: balance;
+}
+
+.tk-node__what .tk-chip {
+  height: 20px;
+  padding: 0 5px;
+  font-size: 11.5px;
+}
+
+.tk-node__note {
+  margin-top: 3px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--tk-muted);
+  text-wrap: pretty;
+}
+
+/* Surfaces: one per thing Stacktape does, on the Console's material. */
+.tk-surface {
+  grid-column: 3;
+  min-width: 0;
+  padding: 32px 36px 36px;
+  border-radius: 10px;
+  background: var(--tk-panel);
+  box-shadow: var(--tk-rest);
+}
+
+.tk-surface__head {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+
+.tk-surface__num {
+  flex: none;
+  font-family: var(--tk-mono);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--tk-brand);
+}
+
+.tk-surface__title {
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+  color: #fff;
+  text-wrap: balance;
+}
+
+.tk-surface__text {
+  max-width: 66ch;
+  margin-top: 12px;
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--tk-body);
+  text-wrap: pretty;
+}
+
+.tk-surface__screen {
+  margin-top: 24px;
+}
+
+/* ── Windows: the nested surface a screen sits in ────────────────────────────────────────────── */
+
+.tk-win {
+  --tk-win-pad: 20px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--tk-window);
+  box-shadow: var(--tk-rest);
+  color: var(--tk-text);
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+
+.tk-win__bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 36px;
+  padding: 0 14px;
+  background: rgba(0, 0, 0, 0.18);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.tk-win__dots {
+  display: inline-flex;
+  flex: none;
+  gap: 6px;
+}
+
+.tk-win__dots i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.tk-win__title {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--tk-mono);
+  font-size: 12.5px;
+  color: var(--tk-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tk-win__title b {
+  font-weight: 500;
+  color: var(--tk-text);
+}
+
+.tk-win__body {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+  padding: var(--tk-win-pad);
+}
+
+/* The wizard rail in the title bar. */
+.tk-rail {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--tk-faint);
+}
+
+.tk-rail li {
+  padding: 3px 9px;
+  border-radius: 6px;
+}
+
+.tk-rail li.is-current {
+  background: rgba(var(--tk-brand-rgb) / 0.14);
+  color: var(--tk-brand);
+}
+
+.tk-screen__head {
+  min-width: 0;
+}
+
+.tk-screen__head--row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 20px;
+  flex-wrap: wrap;
+}
+
+.tk-screen__title {
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+  color: #fff;
+}
+
+.tk-screen__sub {
+  margin-top: 4px;
+  font-size: 13.5px;
+  color: var(--tk-muted);
+}
+
+.tk-screen__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  flex-wrap: wrap;
+}
+
+/* A panel inside a window: the same material one step down. */
+.tk-panel {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px 16px;
+  border-radius: 8px;
+  background: var(--tk-panel);
+  box-shadow: var(--tk-rest);
+}
+
+.tk-panel__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+}
+
+.tk-panel__title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--tk-faint);
+}
+
+.tk-panel__meta {
+  min-width: 0;
+  font-size: 13px;
+  color: var(--tk-muted);
+  overflow-wrap: anywhere;
+}
+
+.tk-panel__meta b {
+  font-weight: 500;
+  color: var(--tk-text);
+}
+
+/* The product's controls, sized for a screen. */
+.tk-btn {
+  --stp-button-font-family: var(--tk-sans);
+  font-size: 13.5px;
+  cursor: default;
+}
+
+.tk-btn--small {
+  --stp-control-height: 29px;
+  --stp-button-padding-x: 11px;
+  font-size: 13px;
+}
+
+.tk-badge {
+  font-family: var(--tk-sans);
+}
+
+.tk-badge__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* ── 01 Review: the file and the picture under one handle ────────────────────────────────────── */
+
+.tk-reveal {
+  position: relative;
+  height: 420px;
+  margin: 0 calc(-1 * var(--tk-win-pad));
+  overflow: hidden;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+  user-select: none;
+}
+
+.tk-reveal__picture,
+.tk-reveal__file,
+.tk-reveal__canvas,
+.tk-diagram {
+  position: absolute;
+  inset: 0;
+}
+
+.tk-reveal__picture {
+  background:
+    radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1.3px) 0 0 / 18px 18px,
+    var(--tk-inset);
+}
+
+.tk-reveal__file {
+  z-index: 2;
+  clip-path: inset(0 calc(100% - var(--reveal)) 0 0);
+}
+
+.tk-diagram__gate {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  padding: 4px 9px;
+  border-radius: 6px;
+  background: rgba(20, 26, 26, 0.92);
+  box-shadow: var(--tk-rest);
+  font-family: var(--tk-mono);
+  font-size: 11.5px;
+  color: var(--tk-muted);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.tk-diagram.is-active .tk-diagram__gate {
+  color: var(--tk-brand);
+}
+
+.tk-diagram .stp-diagram {
+  background: transparent;
+}
+
+.tk-diagram:not(.is-active) .stp-diagram {
+  touch-action: pan-y;
+}
+
+.tk-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--tk-inset);
+}
+
+.tk-editor__tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 14px;
+  box-shadow: inset 0 -1px 0 var(--tk-rule);
+  font-family: var(--tk-mono);
+  font-size: 12.5px;
+  color: var(--tk-text);
+}
+
+.tk-editor__tab svg {
+  color: var(--tk-brand);
+}
+
+.tk-editor__lines {
+  margin-left: 12px;
+  color: var(--tk-faint);
+}
+
+.tk-editor__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+}
+
+.tk-editor__pane {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  padding: 10px 0 24px;
+  font-family: var(--tk-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.tk-editor__gutter {
+  display: flex;
+  flex-direction: column;
+  padding-right: 12px;
+  color: var(--tk-faint);
+  text-align: right;
+  opacity: 0.7;
+}
+
+.tk-editor__code {
+  padding: 0 18px 0 6px;
+  font: inherit;
+  color: var(--tk-text);
+  white-space: pre;
+  tab-size: 2;
+}
+
+.tk-editor__code code {
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+}
+
+.tk-y-key {
+  color: #a7c9e8;
+}
+
+.tk-y-res {
+  font-weight: 500;
+  color: #fff;
+}
+
+.tk-y-type {
+  color: var(--tk-brand);
+}
+
+.tk-y-ref {
+  color: var(--tk-violet);
+}
+
+.tk-y-val {
+  color: #dbe3e2;
+}
+
+.tk-y-str {
+  color: #c9d98a;
+}
+
+.tk-y-num,
+.tk-y-bool {
+  color: #f0b184;
+}
+
+.tk-y-punc,
+.tk-y-dash {
+  color: var(--tk-faint);
+}
+
+.tk-y-com {
+  font-style: italic;
+  color: #6f7f7e;
+}
+
+/* The divider: a hairline with a grip built from the product's control surface. */
+.tk-reveal__handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--reveal);
+  z-index: 3;
+  width: 2px;
+  margin-left: -1px;
+  background: rgba(255, 255, 255, 0.28);
+  cursor: col-resize;
+  touch-action: none;
+  transition: background var(--tk-fast);
+}
+
+.tk-reveal__handle::before {
+  content: '';
+  position: absolute;
+  inset: 0 -14px;
+}
+
+.tk-reveal__grip {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 46px;
+  border-radius: 8px;
+  background: var(--stp-control-surface);
+  box-shadow: var(--tk-raised);
+  color: var(--tk-text);
+  transform: translate(-50%, -50%);
+  transition: box-shadow var(--tk-fast);
+}
+
+.tk-reveal__handle:hover .tk-reveal__grip,
+.tk-reveal__handle:focus-visible .tk-reveal__grip,
+.is-dragging .tk-reveal__grip {
+  box-shadow:
+    var(--tk-raised),
+    0 0 0 1px var(--tk-brand);
+}
+
+.tk-reveal__handle:focus-visible {
+  outline: none;
+  background: var(--tk-brand);
+}
+
+.is-dragging .tk-reveal__handle {
+  background: var(--tk-brand);
+}
+
+.tk-decided {
+  display: grid;
+  gap: 2px;
+}
+
+.tk-decided__list {
+  margin-top: 6px;
+  border-top: 1px solid var(--tk-rule);
+}
+
+.tk-decided__row {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--tk-rule);
+}
+
+.tk-decided__check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(var(--tk-brand-rgb) / 0.16);
+  color: var(--tk-brand);
+}
+
+.tk-decided__text {
+  display: flex;
+  align-items: baseline;
+  gap: 4px 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.tk-decided__what {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--tk-text);
+}
+
+.tk-decided__why {
+  font-size: 13px;
+  color: var(--tk-muted);
+}
+
+.tk-estimate {
+  font-size: 14px;
+  color: var(--tk-muted);
+}
+
+.tk-estimate b {
+  font-weight: 600;
+  color: #fff;
+}
+
+/* ── 02 Deploy: live, the phases, from now on ────────────────────────────────────────────────── */
+
+.tk-live {
+  display: grid;
+  gap: 10px;
+  padding: 18px 20px 16px;
+  border-radius: 8px;
+  background: var(--tk-inset);
+  box-shadow: var(--tk-field);
+}
+
+.tk-live__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tk-live__urls {
+  display: grid;
+  gap: 4px;
+  font-family: var(--tk-mono);
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: #fff;
+  overflow-wrap: anywhere;
+}
+
+.tk-live__meta {
+  font-size: 13.5px;
+  color: var(--tk-muted);
+}
+
+.tk-phases {
+  display: grid;
+  gap: 2px;
+  padding: 0 4px;
+}
+
+.tk-phase {
+  display: grid;
+  grid-template-columns: 18px 72px minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: center;
+  padding: 5px 0;
+  font-size: 13.5px;
+}
+
+.tk-phase__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(67, 211, 154, 0.16);
+  color: var(--tk-green);
+}
+
+.tk-phase__name {
+  font-weight: 500;
+  color: var(--tk-text);
+}
+
+.tk-phase__note {
+  color: var(--tk-muted);
+}
+
+.tk-phase__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tk-after {
+  display: flex;
+  align-items: center;
+  gap: 8px 18px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--tk-panel);
+  box-shadow: var(--tk-rest);
+  font-size: 13px;
+  color: var(--tk-muted);
+}
+
+.tk-after__label {
+  font-family: var(--tk-mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--tk-faint);
+}
+
+.tk-after__item {
+  font-family: var(--tk-mono);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.tk-after__item b {
+  font-weight: 500;
+  color: var(--tk-text);
+}
+
+.tk-after__arrow {
+  margin: 0 2px;
+  color: var(--tk-brand);
+}
+
+.tk-after__action {
+  margin-left: auto;
+}
+
+/* ── 03 Monitor: tiles, a trace, uptime ──────────────────────────────────────────────────────── */
+
+.tk-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.tk-tile {
+  min-width: 0;
+  padding: 12px 14px 10px;
+  border-radius: 8px;
+  background: var(--tk-panel);
+  box-shadow: var(--tk-rest);
+  overflow: hidden;
+}
+
+.tk-tile__label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tk-faint);
+}
+
+.tk-tile__value {
+  margin-top: 6px;
+  font-family: var(--tk-mono);
+  font-size: 26px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.tk-tile__unit {
+  margin-left: 5px;
+  font-family: var(--tk-sans);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--tk-muted);
+}
+
+.tk-spark {
+  display: block;
+  width: 100%;
+  height: 30px;
+  margin-top: 10px;
+  color: var(--tk-brand);
+}
+
+.tk-trace__row {
+  display: grid;
+  grid-template-columns: minmax(120px, 30%) minmax(0, 1fr) 56px;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  border-top: 1px solid var(--tk-rule);
+  font-size: 13px;
+}
+
+.tk-trace__row:first-child {
+  border-top: 0;
+}
+
+.tk-trace__name {
+  overflow: hidden;
+  font-family: var(--tk-mono);
+  font-size: 12.5px;
+  color: var(--tk-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tk-trace__lane {
+  position: relative;
+  height: 12px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.tk-trace__bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  min-width: 3px;
+  border-radius: 3px;
+  background: var(--tk-brand);
+}
+
+.tk-trace__row--app .tk-trace__bar {
+  background: var(--tk-blue);
+}
+
+.tk-trace__row--db .tk-trace__bar {
+  background: var(--tk-violet);
+}
+
+.tk-trace__row--cache .tk-trace__bar {
+  background: var(--tk-green);
+}
+
+.tk-trace__ms {
+  font-family: var(--tk-mono);
+  font-size: 12.5px;
+  color: var(--tk-muted);
+  text-align: right;
+}
+
+.tk-uptime {
+  display: flex;
+  align-items: center;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+  padding: 0 4px;
+  font-size: 13.5px;
+  color: var(--tk-muted);
+}
+
+.tk-uptime__url {
+  font-size: 12.5px;
+  color: var(--tk-text);
+}
+
+.tk-uptime__region b {
+  font-weight: 500;
+  color: var(--tk-text);
+}
+
+.tk-uptime__total {
+  margin-left: auto;
+  font-weight: 500;
+  color: var(--tk-text);
+}
+
+/* ── 04 Secure: posture, findings, guardrails ────────────────────────────────────────────────── */
+
+.tk-posture {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.tk-ring {
+  flex: none;
+}
+
+.tk-ring__track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 6;
+}
+
+.tk-ring__value {
+  fill: none;
+  stroke: var(--tk-brand);
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+
+.tk-posture__big {
+  font-size: 15px;
+  color: var(--tk-muted);
+}
+
+.tk-posture__big b {
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.tk-posture__sub {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--tk-muted);
+}
+
+.tk-findings {
+  border-top: 1px solid var(--tk-rule);
+}
+
+.tk-finding {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--tk-rule);
+}
+
+.tk-finding__mark {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tk-orange);
+}
+
+.tk-finding__text {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--tk-text);
+  overflow-wrap: anywhere;
+}
+
+.tk-finding__action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tk-guardrails__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tk-guardrails__line {
+  font-size: 13px;
+  color: var(--tk-muted);
+}
+
+/* ── 05 Incident ─────────────────────────────────────────────────────────────────────────────── */
+
+.tk-inc__badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tk-inc__title {
+  margin-top: 10px;
+  overflow-wrap: anywhere;
+}
+
+/* The release line: the cause, emphasised as the one thing to read. */
+.tk-release {
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: rgba(var(--tk-brand-rgb) / 0.09);
+  box-shadow:
+    var(--tk-field),
+    inset 3px 0 0 var(--tk-brand);
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--tk-muted);
+}
+
+.tk-release b {
+  font-weight: 600;
+  color: #fff;
+}
+
+.tk-release__commit {
+  color: var(--tk-text);
+}
+
+.tk-release__message {
+  color: var(--tk-text);
+}
+
+.tk-release__link {
+  color: var(--tk-brand);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.tk-inc__evidence {
+  display: grid;
+  gap: 12px;
+}
+
+.tk-signals {
+  display: grid;
+  gap: 8px;
+}
+
+.tk-signal {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 16px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: rgba(235, 97, 97, 0.07);
+  box-shadow: inset 3px 0 0 var(--tk-red);
+}
+
+.tk-signal__text {
+  font-family: var(--tk-mono);
+  font-size: 12.5px;
+  color: var(--tk-text);
+  overflow-wrap: anywhere;
+}
+
+.tk-signal__meta {
+  font-size: 13px;
+  color: var(--tk-muted);
+  white-space: nowrap;
+}
+
+.tk-tl {
+  position: relative;
+  display: grid;
+  grid-template-columns: 44px 14px minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: start;
+  padding: 4px 0;
+  font-size: 13.5px;
+}
+
+.tk-tl::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 60px;
+  width: 1px;
+  background: var(--tk-rule);
+}
+
+.tk-tl:first-child::before {
+  top: 50%;
+}
+
+.tk-tl:last-child::before {
+  bottom: 50%;
+}
+
+.tk-tl__time {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--tk-faint);
+}
+
+.tk-tl__mark {
+  position: relative;
+  z-index: 1;
+  width: 9px;
+  height: 9px;
+  margin: 6px 0 0 2px;
+  border-radius: 50%;
+  background: var(--tk-faint);
+  box-shadow: 0 0 0 3px var(--tk-window);
+}
+
+.tk-tl--error .tk-tl__mark {
+  background: var(--tk-red);
+}
+
+.tk-tl--you .tk-tl__mark {
+  background: var(--tk-gold);
+  box-shadow:
+    0 0 0 3px var(--tk-window),
+    0 0 0 6px rgba(var(--tk-gold-rgb) / 0.22);
+}
+
+.tk-tl--ok .tk-tl__mark {
+  background: var(--tk-green);
+  box-shadow:
+    0 0 0 3px var(--tk-window),
+    0 0 0 6px rgba(67, 211, 154, 0.2);
+}
+
+.tk-tl__text {
+  line-height: 1.6;
+  color: var(--tk-text);
+}
+
+.tk-tl--ok .tk-tl__text {
+  font-weight: 600;
+  color: var(--tk-green);
+}
+
+.tk-tl--you .tk-tl__text {
+  font-weight: 600;
+  color: #fff;
+}
+
+.tk-optin {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--tk-panel);
+  box-shadow: var(--tk-rest);
+}
+
+.tk-optin__switch {
+  margin-top: 1px;
+  opacity: 1;
+  cursor: default;
+}
+
+.tk-optin__what {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--tk-text);
+}
+
+.tk-optin__state {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--tk-mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--tk-gold);
+}
+
+/* ── 06 Costs ────────────────────────────────────────────────────────────────────────────────── */
+
+.tk-cost__total {
+  font-family: var(--tk-mono);
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.tk-bars {
+  border-top: 1px solid var(--tk-rule);
+}
+
+.tk-bar {
+  display: grid;
+  grid-template-columns: 116px minmax(0, 1fr) 68px;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--tk-rule);
+  font-size: 12.5px;
+}
+
+.tk-bar__name {
+  color: var(--tk-text);
+}
+
+.tk-bar__lane {
+  height: 10px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tk-bar__fill {
+  display: block;
+  height: 100%;
+  min-width: 3px;
+  border-radius: 3px;
+  background: var(--tk-brand);
+}
+
+.tk-bar__amount {
+  color: var(--tk-muted);
+  text-align: right;
+}
+
+.tk-budget__lane {
+  position: relative;
+  height: 12px;
+  margin-top: 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.tk-budget__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 4px;
+  background: var(--tk-brand);
+}
+
+.tk-budget__mark {
+  position: absolute;
+  top: -5px;
+  bottom: -5px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--tk-orange);
+}
+
+.tk-budget__legend {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--tk-muted);
+}
+
+.tk-budget__legend b {
+  font-weight: 600;
+  color: var(--tk-text);
+}
+
+.tk-billed {
+  padding: 0 4px;
+  font-size: 13.5px;
+  color: var(--tk-muted);
+}
+
+/* ── Arrival: the route leaves the track and ends under the last surface ─────────────────────── */
+
+/* The tile's centre sits one 2:1 diagonal below the track's exit; the margin follows the width. */
+.tk-end {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: fit-content;
+  margin: calc(min(100vw, var(--tk-container)) / 4 - 72px) auto 0;
+}
+
+.tk-end__tile {
+  position: relative;
+  width: 96px;
+  height: 48px;
+}
+
+.tk-end__tile svg {
+  display: block;
+  width: 96px;
+  height: 48px;
+  overflow: visible;
+}
+
+.tk-end__face {
+  fill: rgba(var(--tk-brand-rgb) / 0.06);
+  stroke: rgba(var(--tk-brand-rgb) / 0.35);
+  stroke-width: 1;
+  transition: stroke 300ms ease;
+}
+
+.tk-end__tile.is-reached .tk-end__face {
+  stroke: rgba(var(--tk-brand-rgb) / 0.8);
+}
+
+.tk-end__live {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--tk-green);
+  box-shadow:
+    0 0 0 3px var(--tk-ground),
+    0 0 0 6px rgba(67, 211, 154, 0.25);
+  transform: translate(-50%, -50%);
+}
+
+.tk-end__panel {
+  display: grid;
+  gap: 6px;
+  padding: 14px 22px;
+  border-radius: 10px;
+  background: var(--tk-panel);
+  box-shadow: var(--tk-rest);
+  text-align: center;
+}
+
+.tk-end__line {
+  font-family: var(--tk-mono);
+  font-size: 12.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tk-muted);
+}
+
+.tk-end__line b {
+  font-weight: 500;
+  color: var(--tk-text);
+  text-transform: none;
+}
+
+.tk-end__urls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 18px;
+  font-family: var(--tk-mono);
+  font-size: 14px;
+}
+
+.tk-end__urls a {
+  color: var(--tk-text);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(170, 230, 235, 0.25);
+}
+
+.tk-end__urls a:hover {
+  color: #fff;
+  border-bottom-color: var(--tk-brand);
+}
+
+/* ── Closing ─────────────────────────────────────────────────────────────────────────────────── */
+
+.tk-closing {
+  padding: 72px var(--tk-gutter) 24px;
+}
+
+.tk-closing__panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 40px 32px 32px;
+  border-radius: 10px;
+  background: var(--tk-panel);
+  box-shadow: var(--tk-rest);
+  text-align: center;
+}
+
+.tk-closing__title {
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: #fff;
+  text-wrap: balance;
+}
+
+.tk-closing .tk-cmd {
+  margin-top: 8px;
+}
+
+.tk-trust--closing {
+  margin-top: 0;
+}
+
+.tk-closing__signin {
+  font-size: 14.5px;
+  color: var(--tk-faint);
+}
+
+.tk-closing__signin a {
+  color: var(--tk-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.tk-closing__signin a:hover {
+  color: var(--tk-text);
+}
+
+/* ── Testimonials ────────────────────────────────────────────────────────────────────────────── */
+
+.tk-voices {
+  padding: 48px var(--tk-gutter) 40px;
+}
+
+.tk-voices__inner {
+  max-width: var(--tk-container);
+  margin: 0 auto;
+}
+
+.tk-voices__title {
+  margin-bottom: 24px;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+  color: #fff;
+}
+
+.tk-voices__list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.tk-voice {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px 24px 22px;
+  border-radius: 10px;
+  background: var(--tk-panel);
+  box-shadow: var(--tk-rest);
+}
+
+.tk-voice__quote {
+  flex: 1;
+  font-size: 15.5px;
+  line-height: 1.6;
+  color: var(--tk-text);
+  text-wrap: pretty;
+}
+
+.tk-voice__who {
+  display: grid;
+  gap: 2px;
+  font-size: 14px;
+}
+
+.tk-voice__name {
+  font-weight: 600;
+  color: #fff;
+}
+
+.tk-voice__role {
+  color: var(--tk-muted);
+}
+
+.tk-voice__fact {
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--tk-rule);
+  font-family: var(--tk-mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--tk-faint);
+}
+
+/* ── Footer ──────────────────────────────────────────────────────────────────────────────────── */
+
+.tk-footer {
+  margin-top: 24px;
+  padding: 28px var(--tk-gutter) 40px;
+  box-shadow: inset 0 1px 0 rgba(170, 230, 235, 0.08);
+  font-size: 15px;
+  color: var(--tk-muted);
+}
+
+.tk-footer__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px 24px;
+  max-width: var(--tk-container);
+  margin: 0 auto;
+}
+
+.tk-footer__logo {
+  display: inline-flex;
+  align-items: center;
+}
+
+.tk-footer__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 22px;
+}
+
+.tk-footer__links a {
+  color: var(--tk-muted);
+  text-decoration: none;
+  transition: color var(--tk-fast);
+}
+
+.tk-footer__links a:hover {
+  color: var(--tk-text);
+}
+
+.tk-footer__note {
+  color: var(--tk-faint);
+}
+
+/* ── Motion: surfaces rise as they enter; nothing else moves but the route ───────────────────── */
+
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .tk-row:not(:nth-child(2)) .tk-surface {
+      animation: tk-rise linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 160px;
+    }
+  }
+}
+
+@keyframes tk-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── Below 960px: the track disappears; nodes become rows above their surfaces ───────────────── */
+
+@media (max-width: 959px) {
+  .tk-board::after {
+    background:
+      linear-gradient(180deg, var(--tk-ground) 0, rgba(11, 23, 25, 0.94) 120px, rgba(11, 23, 25, 0) 520px),
+      linear-gradient(
+        90deg,
+        var(--tk-ground) 0,
+        rgba(11, 23, 25, 0) 12%,
+        rgba(11, 23, 25, 0) 88%,
+        var(--tk-ground) 100%
+      ),
+      linear-gradient(0deg, var(--tk-ground) 0, rgba(11, 23, 25, 0) 200px);
+  }
+
+  .tk-route,
+  .tk-rows::before,
+  .tk-plate,
+  .tk-end__tile {
+    display: none;
+  }
+
+  .tk-hero {
+    padding-top: 40px;
+  }
+
+  .tk-hero__title {
+    font-size: clamp(38px, 8.5vw, 56px);
+  }
+
+  .tk-hero__sub {
+    font-size: 17.5px;
+  }
+
+  .tk-start {
+    margin-top: 18px;
+  }
+
+  .tk-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tk-row + .tk-row {
+    margin-top: 40px;
+  }
+
+  .tk-row--lead {
+    padding-top: 40px !important;
+  }
+
+  .tk-row--lead + .tk-row {
+    margin-top: 0;
+  }
+
+  .tk-cell {
+    align-items: stretch;
+  }
+
+  .tk-node,
+  .tk-node--aligned {
+    position: static;
+    flex-direction: row;
+    align-items: center;
+    gap: 14px;
+    margin: 0 0 12px;
+  }
+
+  .tk-node__card {
+    display: flex;
+    align-items: baseline;
+    gap: 4px 12px;
+    flex-wrap: wrap;
+    flex: 1;
+    max-width: none;
+    margin-top: 0;
+    padding: 10px 14px;
+    text-align: left;
+  }
+
+  .tk-node__what .tk-chip {
+    margin-top: 0;
+  }
+
+  .tk-node__note {
+    margin-top: 0;
+  }
+
+  .tk-surface {
+    grid-column: 1;
+    padding: 20px;
+  }
+
+  .tk-surface__head {
+    gap: 12px;
+  }
+
+  .tk-surface__title {
+    font-size: 24px;
+  }
+
+  .tk-surface__text {
+    font-size: 16px;
+  }
+
+  .tk-surface__screen {
+    margin-top: 20px;
+  }
+
+  .tk-win {
+    --tk-win-pad: 16px;
+  }
+
+  .tk-reveal {
+    display: grid;
+    grid-template-rows: 280px 300px;
+    height: auto;
+  }
+
+  .tk-reveal__picture,
+  .tk-reveal__file {
+    position: relative;
+    inset: auto;
+  }
+
+  .tk-reveal__file {
+    order: -1;
+    clip-path: none;
+    box-shadow: inset 0 -1px 0 var(--tk-rule);
+  }
+
+  .tk-reveal__handle {
+    display: none;
+  }
+
+  .tk-end {
+    margin-top: 40px;
+  }
+
+  .tk-closing {
+    padding-top: 56px;
+  }
+
+  .tk-voices__list {
+    grid-template-columns: 1fr;
+    max-width: 640px;
+  }
+}
+
+/* ── Screens simplify with their own width ───────────────────────────────────────────────────── */
+
+@media (max-width: 700px) {
+  .tk-rail {
+    display: none;
+  }
+
+  .tk-decided__row {
+    grid-template-columns: 20px minmax(0, 1fr);
+  }
+
+  .tk-decided__row .tk-btn {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .tk-live__urls {
+    font-size: 18px;
+  }
+
+  .tk-phase {
+    grid-template-columns: 18px minmax(0, 1fr);
+  }
+
+  .tk-phase__chips,
+  .tk-phase__note {
+    grid-column: 2;
+  }
+
+  .tk-after__action {
+    margin-left: 0;
+  }
+
+  .tk-tiles {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tk-trace__row {
+    grid-template-columns: minmax(84px, 36%) minmax(0, 1fr) 50px;
+  }
+
+  .tk-uptime__total {
+    margin-left: 0;
+  }
+
+  .tk-finding {
+    grid-template-columns: 8px minmax(0, 1fr);
+  }
+
+  .tk-finding__action {
+    grid-column: 2;
+    flex-wrap: wrap;
+  }
+
+  .tk-tl {
+    grid-template-columns: 40px 14px minmax(0, 1fr);
+  }
+
+  .tk-tl::before {
+    left: 56px;
+  }
+
+  .tk-bar {
+    grid-template-columns: 96px minmax(0, 1fr) 60px;
+  }
+}
+
+/* ── Phones ──────────────────────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 600px) {
+  .tk-root {
+    --tk-gutter: 16px;
+  }
+
+  .tk-nav__link--optional {
+    display: none;
+  }
+
+  .tk-cmd__top {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 0 0 8px;
+  }
+
+  .tk-cmd__tabs {
+    align-self: flex-start;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .tk-cmd__hint {
+    padding: 6px 4px 0;
+    text-align: left;
+  }
+
+  .tk-cmd__row {
+    flex-wrap: wrap;
+    padding: 8px 8px 8px 14px;
+  }
+
+  .tk-cmd__code {
+    flex-basis: 0;
+  }
+
+  .tk-cmd__copy {
+    flex-basis: 100%;
+    width: 100%;
+  }
+
+  .tk-start {
+    align-items: flex-start;
+    padding-left: 8px;
+  }
+
+  .tk-start__dot {
+    margin-top: 3px;
+  }
+
+  .tk-start__label {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .tk-surface {
+    padding: 20px 16px;
+  }
+
+  .tk-win {
+    --tk-win-pad: 14px;
+  }
+
+  .tk-win__bar {
+    padding: 0 12px;
+  }
+
+  .tk-reveal {
+    grid-template-rows: 260px 300px;
+  }
+
+  .tk-closing__panel {
+    padding: 28px 16px 24px;
+  }
+
+  .tk-closing__title {
+    font-size: 26px;
+  }
+
+  .tk-voices__title {
+    font-size: 22px;
+  }
+}
+
+@media (max-width: 480px) {
+  .tk-nav__link {
+    padding: 0 8px;
+  }
+
+  .tk-nav__link--phone-optional {
+    display: none;
+  }
+
+  .tk-nav__demo {
+    --stp-button-padding-x: 10px;
+    margin-left: 4px;
+  }
+
+  .tk-eyebrow {
+    font-size: 11.5px;
+  }
+
+  .tk-eyebrow::before,
+  .tk-eyebrow::after {
+    display: none;
+  }
+}
+
+/* ── Reduced motion: everything static; the route fully drawn ────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .tk-html {
+    scroll-behavior: auto;
+  }
+
+  .tk-root *,
+  .tk-root *::before,
+  .tk-root *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .tk-route {
+    opacity: 1;
+  }
+
+  .tk-cmd__caret {
+    opacity: 0.85;
+  }
+}

@@ -1,0 +1,263 @@
+---
+/**
+ * Figure 5: the Security section. Posture with 27 of 30 checks passing and the three that are
+ * not, one vulnerability in the apiService image with its fix pull request, and the guardrails
+ * that are on for the organization.
+ */
+import ConsoleFrame from './ConsoleFrame.astro';
+
+const PASSING = 27;
+const TOTAL = 30;
+const RING = 2 * Math.PI * 26;
+const RING_ON = (RING * PASSING) / TOTAL;
+
+const FAILING = [
+  {
+    rule: 'Require recoverable data stores',
+    finding: 'mainDatabase backups retained 1 day (staging)',
+    fix: 'Set to 7 days'
+  },
+  {
+    rule: 'Require multiple container instances',
+    finding: 'apiService runs 1 instance (staging)',
+    fix: 'Set minInstances: 2'
+  },
+  {
+    rule: 'No plaintext secrets in config',
+    finding: 'plaintext STRIPE_KEY in config',
+    fix: 'Convert to $Secret'
+  }
+];
+
+const GUARDRAILS = ['Keep SQL private', 'Require WAF on load balancers', 'Require recoverable data stores'];
+---
+
+<ConsoleFrame active="Security/Posture" crumbs={['acme-project', 'Security']} sideScroll={200}>
+  <div class="rb-sec">
+    <div class="rb-sec__grid">
+      <section class="rb-panel rb-posture">
+        <div class="rb-panel__head">Posture <small>checked on every deploy · staging and production</small></div>
+        <div class="rb-posture__summary">
+          <svg class="rb-posture__ring" viewBox="0 0 64 64" width="64" height="64" aria-hidden="true">
+            <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="6"></circle>
+            <circle
+              cx="32"
+              cy="32"
+              r="26"
+              fill="none"
+              stroke="var(--rb-green)"
+              stroke-width="6"
+              stroke-linecap="round"
+              stroke-dasharray={`${RING_ON} ${RING}`}
+              transform="rotate(-90 32 32)"></circle>
+          </svg>
+          <div>
+            <p class="rb-posture__big"><strong>{PASSING} of {TOTAL}</strong> checks passing</p>
+            <p class="rb-posture__note">Checks share the guardrail catalogue: a failing check can become a rule that blocks the next deploy.</p>
+          </div>
+        </div>
+        <ul class="rb-fails">
+          {
+            FAILING.map((item) => (
+              <li class="rb-fail">
+                <span class="rb-fail__mark" aria-hidden="true">!</span>
+                <span class="rb-fail__text">
+                  <span class="rb-fail__finding">{item.finding}</span>
+                  <span class="rb-fail__rule">{item.rule}</span>
+                </span>
+                <span class="rb-btn rb-btn--ghost">{item.fix}</span>
+              </li>
+            ))
+          }
+        </ul>
+      </section>
+
+      <div class="rb-sec__col">
+        <section class="rb-panel rb-vuln">
+          <div class="rb-panel__head">Vulnerabilities <small>images scanned in the pipeline · SBOM per deploy</small></div>
+          <div class="rb-panel__body">
+            <div class="rb-vuln__head">
+              <span class="rb-chip rb-chip--err">Critical</span>
+              <span class="rb-vuln__where">apiService image · <span class="rb-mono">v42</span></span>
+            </div>
+            <p class="rb-vuln__finding">2 critical CVEs in <span class="rb-mono">openssl 3.0.13</span></p>
+            <p class="rb-vuln__fix">
+              <span class="rb-chip rb-chip--brand">Fix PR opened</span>
+              <span>PR #133 · api/Dockerfile: bump base image</span>
+            </p>
+            <p class="rb-vuln__sbom rb-muted">SBOM v42 · 412 packages · 1 finding · 0 medium</p>
+          </div>
+        </section>
+
+        <section class="rb-panel rb-guard">
+          <div class="rb-panel__head">Guardrails <small>organization-wide · 3 of 18 on</small></div>
+          <ul class="rb-guard__list">
+            {
+              GUARDRAILS.map((rule) => (
+                <li class="rb-guard__row">
+                  <span class="rb-switch rb-switch--on" role="img" aria-label="On" />
+                  <span>{rule}</span>
+                </li>
+              ))
+            }
+          </ul>
+          <p class="rb-guard__note">A guardrail blocks a non-compliant deploy before any change is made.</p>
+        </section>
+      </div>
+    </div>
+  </div>
+</ConsoleFrame>
+
+<style>
+  .rb-sec__grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    gap: 12px;
+  }
+  .rb-sec__col {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .rb-posture__summary {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 14px;
+  }
+  .rb-posture__ring {
+    flex: none;
+  }
+  .rb-posture__big {
+    margin: 0;
+    font-size: 15px;
+  }
+  .rb-posture__big strong {
+    font-family: var(--rb-mono);
+    font-size: 20px;
+    font-weight: 500;
+  }
+  .rb-posture__note {
+    margin: 4px 0 0;
+    color: var(--rb-muted);
+    font-size: 13px;
+  }
+  .rb-fails {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .rb-fail {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr) auto;
+    gap: 2px 12px;
+    align-items: center;
+    padding: 9px 14px;
+    border-top: 1px solid var(--rb-line);
+    font-size: 13px;
+  }
+  .rb-fail__mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: rgba(230, 180, 81, 0.16);
+    color: var(--rb-amber);
+    font-family: var(--rb-mono);
+    font-weight: 600;
+  }
+  .rb-fail__text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+  .rb-fail__finding {
+    font-weight: 500;
+    overflow-wrap: anywhere;
+  }
+  .rb-fail__rule {
+    color: var(--rb-muted);
+  }
+
+  .rb-vuln__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  .rb-vuln__where {
+    color: var(--rb-muted);
+    font-size: 13px;
+  }
+  .rb-vuln__finding {
+    margin: 10px 0 0;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .rb-vuln__fix {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0 0;
+    font-size: 13px;
+  }
+  .rb-vuln__sbom {
+    margin: 10px 0 0;
+    font-family: var(--rb-mono);
+    font-size: 13px;
+  }
+
+  .rb-guard__list {
+    margin: 0;
+    padding: 4px 14px 0;
+    list-style: none;
+  }
+  .rb-guard__row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .rb-guard__row + .rb-guard__row {
+    border-top: 1px solid var(--rb-line);
+  }
+  .rb-switch--on {
+    background: var(--rb-brand);
+  }
+  .rb-switch--on::after {
+    left: auto;
+    right: 3px;
+  }
+  .rb-guard__note {
+    margin: 0;
+    padding: 8px 14px 12px;
+    color: var(--rb-muted);
+    font-size: 13px;
+  }
+
+  @media (max-width: 900px) {
+    .rb-sec__grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  @media (max-width: 720px) {
+    .rb-fail {
+      grid-template-columns: 18px minmax(0, 1fr);
+    }
+    .rb-fail .rb-btn {
+      grid-column: 2;
+      justify-self: start;
+    }
+    .rb-guard {
+      display: none;
+    }
+  }
+</style>

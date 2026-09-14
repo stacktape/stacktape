@@ -1,0 +1,78 @@
+---
+/**
+ * The Console's chrome: the real navigation in a sidebar (clipped to whatever height the content
+ * needs, hidden on phones), a breadcrumb, and the stage tabs when a stage page is shown.
+ */
+const NAV: Array<{ group?: string; items: string[] }> = [
+  { items: ['Overview', 'Config editor'] },
+  { group: 'Organization', items: ['Projects', 'Activity', 'Users', 'Costs'] },
+  {
+    group: 'Observability',
+    items: ['Logs', 'Metrics', 'Traces', 'Uptime', 'Synthetics', 'Error tracking', 'Incidents']
+  },
+  { group: 'Alerting', items: ['Channels', 'Notifications', 'Alarms', 'Budgets'] },
+  { group: 'Security', items: ['Overview', 'Vulnerabilities', 'Posture'] },
+  { group: 'Configuration', items: ['Guardrails', 'Secrets', 'SSM Params', 'AWS Accounts', 'Domains'] }
+];
+
+const STAGE_TABS = ['Overview', 'Activity', 'Logs', 'Metrics', 'Costs', 'Configuration', 'Danger zone'];
+
+type Props = {
+  /** "Group/Item" for grouped entries, or the bare item for the top ones. */
+  active: string;
+  crumb: string[];
+  tab?: string;
+};
+const { active, crumb, tab } = Astro.props;
+const isActive = (group: string | undefined, item: string) => (group ? `${group}/${item}` : item) === active;
+---
+
+<div class="hx-panel">
+  <div class="hx-panel__bar">
+    <span class="hx-panel__bar-title">
+      <span class="hx-panel__dot" aria-hidden="true"></span>
+      <span>console.stacktape.com</span>
+    </span>
+    <span class="hx-tag">example project</span>
+  </div>
+  <div class="hx-con">
+    <nav class="hx-con__nav" aria-label="Console navigation (preview)">
+      <div class="hx-con__nav-inner">
+        {
+          NAV.map((section) => (
+            <>
+              {section.group ? <div class="hx-con__group">{section.group}</div> : null}
+              <ul>
+                {section.items.map((item) => (
+                  <li class:list={[isActive(section.group, item) && 'is-active']}>{item}</li>
+                ))}
+              </ul>
+            </>
+          ))
+        }
+      </div>
+    </nav>
+    <div class="hx-con__main">
+      <div class="hx-con__crumb">
+        {crumb.map((part, index) => (
+          <>
+            {index > 0 ? <span aria-hidden="true">/</span> : null}
+            {index === crumb.length - 1 ? <b>{part}</b> : <span>{part}</span>}
+          </>
+        ))}
+      </div>
+      {
+        tab ? (
+          <ul class="hx-con__tabs" aria-label="Stage tabs (preview)">
+            {STAGE_TABS.map((item) => (
+              <li class:list={[item === tab && 'is-active']}>{item}</li>
+            ))}
+          </ul>
+        ) : null
+      }
+      <div class="hx-con__body">
+        <slot />
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,14 @@
+---
+import CommandBox from './CommandBox.astro';
+import { EYEBROW, HEADLINE, SUBHEADLINE, TRUST_LINE } from './data';
+---
+
+<section class="du-hero" aria-labelledby="du-headline">
+  <div class="du-hero__in">
+    <p class="du-eyebrow">{EYEBROW}</p>
+    <h1 class="du-hero__h1" id="du-headline">{HEADLINE}</h1>
+    <p class="du-hero__sub">{SUBHEADLINE}</p>
+    <CommandBox label="Get started" class="du-hero__cmd" />
+    <p class="du-trust">{TRUST_LINE}</p>
+  </div>
+</section>

@@ -1,0 +1,30 @@
+---
+/** 06 — one incident: what fired, the timeline from the deploy to the resolution, where the team was told. */
+import { INCIDENT, URLS } from '../data';
+import { StatusBadge } from '../ui';
+import Window from '../Window.astro';
+---
+
+<Window kind="browser" url={URLS.incident}>
+  <div class="ls-inc__head">
+    <p class="ls-scr__h ls-inc__title">{INCIDENT.title}</p>
+    <p class="ls-inc__state">
+      <StatusBadge tone="success" dot>{INCIDENT.badge}</StatusBadge>
+      <span class="ls-inc__duration">{INCIDENT.duration}</span>
+    </p>
+  </div>
+
+  <ol class="ls-tl" aria-label="Timeline">
+    {
+      INCIDENT.timeline.map((event) => (
+        <li class={`ls-tl__row ls-tl__row--${event.tone}`}>
+          <span class="ls-tl__time">{event.time}</span>
+          <span class="ls-tl__mark" aria-hidden="true" />
+          <span class="ls-tl__text">{event.text}</span>
+        </li>
+      ))
+    }
+  </ol>
+
+  <p class="ls-inc__alert">{INCIDENT.alerted}</p>
+</Window>

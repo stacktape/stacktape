@@ -1,0 +1,25 @@
+---
+import { TESTIMONIALS, VOICES_TITLE } from './data';
+---
+
+<section class="hm-section hm-voices" aria-labelledby="hm-voices-title">
+  <div class="hm-container">
+    <h2 class="hm-voices__title" id="hm-voices-title">{VOICES_TITLE}</h2>
+    <ul class="hm-voices__list">
+      {
+        TESTIMONIALS.map((item) => (
+          <li class="hm-voice">
+            <blockquote class="hm-voice__quote">
+              <p>“{item.quote}”</p>
+            </blockquote>
+            <div class="hm-voice__who">
+              <span class="hm-voice__name">{item.name}</span>
+              <span class="hm-voice__role">{item.role}</span>
+              <span class="hm-voice__fact">{item.fact}</span>
+            </div>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</section>

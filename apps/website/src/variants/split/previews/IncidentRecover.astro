@@ -1,0 +1,53 @@
+---
+import Check from '../Check.astro';
+import Frame from '../Frame.astro';
+---
+
+<Frame url="<b>console.stacktape.com</b> / acme-project / incidents / inc_8f2k">
+  <div class="sp-frame__body">
+    <div class="sp-inc__head">
+      <span class="sp-sev sp-sev--error">Error</span>
+      <span class="sp-sev sp-sev--resolved">Resolved</span>
+      <span class="sp-inc__id">inc_8f2k · recovered on its own signals · 11 min</span>
+    </div>
+    <p class="sp-p" style="margin-bottom:12px">
+      Recovery is verified by the same signals that opened the incident, not by the fix being merged.
+    </p>
+    <ul class="sp-signals" aria-label="Signals">
+      <li class="is-ok">
+        <Check kind="ok" label="recovered" />
+        <span>
+          <span class="sp-signals__t">Uptime check</span>
+          <span class="sp-signals__d">https://api.acme.com/health · 3 of 3 regions up since 18:15</span>
+        </span>
+      </li>
+      <li class="is-ok">
+        <Check kind="ok" label="recovered" />
+        <span>
+          <span class="sp-signals__t">Application error</span>
+          <span class="sp-signals__d">PrismaClientKnownRequestError · 0 new occurrences since v42</span>
+        </span>
+      </li>
+    </ul>
+    <hr class="sp-hr" />
+    <div class="sp-two">
+      <div>
+        <p class="sp-kicker">Timeline</p>
+        <ul class="sp-timeline">
+          <li><span class="sp-timeline__t">18:05</span><span class="sp-dot sp-dot--err" aria-hidden="true"></span><span>Opened · Error</span></li>
+          <li><span class="sp-timeline__t">18:09</span><span class="sp-dot sp-dot--amber" aria-hidden="true"></span><span>Details copied for agent</span></li>
+          <li><span class="sp-timeline__t">18:13</span><span class="sp-dot" aria-hidden="true"></span><span>v42 deployed · production</span></li>
+          <li><span class="sp-timeline__t">18:16</span><span class="sp-dot" aria-hidden="true"></span><span><b>Resolved</b> · recovered on its own signals</span></li>
+        </ul>
+      </div>
+      <div class="sp-hide-phone">
+        <p class="sp-kicker">From the CLI</p>
+        <pre class="sp-log"><span class="t">$</span> stacktape incidents:show --incidentId inc_8f2k
+<span class="hi">inc_8f2k</span>  production  Error  <span class="ok">Resolved</span>
+opened 18:05 · resolved 18:16 · 11 min
+reason: recovered on its own signals
+uptime 3/3 regions up · 0 new occurrences</pre>
+      </div>
+    </div>
+  </div>
+</Frame>

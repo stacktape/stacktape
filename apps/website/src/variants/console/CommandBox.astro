@@ -1,0 +1,38 @@
+---
+/**
+ * The page's only call to action: the install command with an npx / macOS / Linux / Windows
+ * switcher and a Copy button. Rendered twice (hero and closing); `client.ts` wires every instance.
+ */
+import { COMMANDS } from './data';
+
+type Props = { id: string; class?: string };
+const { id, class: className } = Astro.props;
+const first = COMMANDS[0];
+---
+
+<div class:list={['cs-cmd', className]} data-cs-command>
+  <div class="cs-cmd__methods" role="tablist" aria-label="How to install">
+    {
+      COMMANDS.map((option) => (
+        <button
+          type="button"
+          role="tab"
+          id={`${id}-${option.id}`}
+          class:list={['cs-cmd__method', option.id === first.id && 'is-active']}
+          aria-selected={option.id === first.id}
+          data-command={option.command}
+          data-method={option.id}
+        >
+          {option.label}
+        </button>
+      ))
+    }
+  </div>
+  <div class="cs-cmd__row">
+    <span class="cs-cmd__prompt" aria-hidden="true">$</span>
+    <code class="cs-cmd__text" data-command-text>{first.command}</code>
+    <button type="button" class="cs-cmd__copy" data-copy aria-label="Copy the command">
+      <span data-copy-label>Copy</span>
+    </button>
+  </div>
+</div>

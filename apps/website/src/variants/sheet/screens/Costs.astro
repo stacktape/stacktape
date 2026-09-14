@@ -1,0 +1,44 @@
+---
+/** 07 — this month's cost per resource from the AWS bill, and the budget with its alert threshold. */
+import { COSTS, money } from '../data';
+import Window from '../Window.astro';
+
+const largest = Math.max(...COSTS.items.map((item) => item.amount));
+const used = (COSTS.total / COSTS.budget.limit) * 100;
+---
+
+<Window kind="browser" title={COSTS.url}>
+  <div class="sh-cost">
+    <div class="sh-cost__head">
+      <h3 class="sh-screen__h">{COSTS.heading}</h3>
+      <p class="sh-cost__total">
+        <span class="sh-mono sh-cost__amount">{money(COSTS.total)}</span>
+        <span class="sh-cost__source">{COSTS.source}</span>
+      </p>
+    </div>
+
+    <ul class="sh-bars" aria-label="Cost per resource">
+      {
+        COSTS.items.map((item) => (
+          <li class="sh-bar">
+            <span class="sh-mono sh-bar__name">{item.name}</span>
+            <span class="sh-bar__lane" aria-hidden="true">
+              <span class="sh-bar__fill" style={`width: ${((item.amount / largest) * 100).toFixed(1)}%`} />
+            </span>
+            <span class="sh-mono sh-bar__amount">{money(item.amount)}</span>
+          </li>
+        ))
+      }
+    </ul>
+
+    <div class="sh-budget">
+      <p class="sh-budget__line">
+        <b>Budget {money(COSTS.budget.limit).replace('.00', '')}</b><span class="sh-screen__sep" aria-hidden="true">·</span>alert at {COSTS.budget.alertAt} %
+      </p>
+      <div class="sh-budget__lane" aria-hidden="true">
+        <span class="sh-budget__fill" style={`width: ${used.toFixed(1)}%`}></span>
+        <span class="sh-budget__mark" style={`left: ${COSTS.budget.alertAt}%`}></span>
+      </div>
+    </div>
+  </div>
+</Window>

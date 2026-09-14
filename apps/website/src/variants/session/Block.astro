@@ -1,0 +1,28 @@
+---
+/**
+ * One of the seven things, as one block of the transcript: a timestamp rule, the number and name
+ * as a bright line, the explanation as a comment block, the three "what you get" lines as checks,
+ * then the output that shows it (the slot: lines, a window, or both).
+ */
+import type { Section } from './data';
+
+type Props = { section: Section; stamp: string };
+
+const { section, stamp } = Astro.props;
+const headingId = `ss-h-${section.id}`;
+---
+
+<section class="ss-block" id={section.id} aria-labelledby={headingId}>
+  <p class="ss-ts">
+    <span class="ss-ts__text"><span aria-hidden="true">── </span>{stamp}<span aria-hidden="true"> ──</span></span>
+    <i class="ss-ts__rule" aria-hidden="true"></i>
+  </p>
+  <h2 class="ss-l ss-h" id={headingId}>{`${section.number} · ${section.name}`}</h2>
+  <p class="ss-l ss-c">{section.text}</p>
+  <ul class="ss-l ss-gets">
+    {section.gets.map((line) => <li class="ss-get">{line}</li>)}
+  </ul>
+  <div class="ss-out">
+    <slot />
+  </div>
+</section>

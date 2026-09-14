@@ -1,0 +1,54 @@
+---
+/** The blog index. A stub until the first posts exist; the v4 announcement is listed so the homepage link resolves. */
+import PlainPage from '../../components/PlainPage.astro';
+
+const POSTS = [{ href: '/blog/stacktape-v4', title: 'Stacktape v4: what changed', date: 'September 2026' }];
+---
+
+<PlainPage
+  title="Blog"
+  description="Writing from the Stacktape team about deploying to AWS."
+  lead="Writing from the Stacktape team about deploying and running applications on AWS."
+>
+  <ul class="posts">
+    {
+      POSTS.map((post) => (
+        <li>
+          <a href={post.href}>{post.title}</a>
+          <span>{post.date}</span>
+        </li>
+      ))
+    }
+  </ul>
+  <p>
+    Release notes for every CLI version are in the
+    <a href="https://github.com/stacktape/stacktape/releases">changelog on GitHub</a>.
+  </p>
+</PlainPage>
+
+<style>
+  .posts {
+    list-style: none;
+    margin: 0 0 32px;
+    padding: 0;
+  }
+
+  .posts li {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--stp-border-subtle);
+  }
+
+  .posts a {
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .posts span {
+    color: var(--stp-text-muted);
+    font-size: 14px;
+    white-space: nowrap;
+  }
+</style>

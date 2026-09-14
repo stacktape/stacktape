@@ -1,0 +1,2551 @@
+/*
+ * Study "zigzag": one column, one line. Every class is prefixed `zz-`.
+ *
+ * Surfaces follow the Console's material: fill and shadow separate them, never a line. The route
+ * is drawn by `route.ts` into one SVG behind the surfaces. The geometry it relies on lives here:
+ * a detour row is exactly twice as tall as its horizontal offset (`--zz-offset`), so both legs of
+ * every detour are 45° in screen space.
+ */
+
+.zz-html {
+  scroll-behavior: smooth;
+}
+
+.zz-root {
+  --zz-ground: #0c1214;
+  --zz-ground-rgb: 12 18 20;
+  --zz-panel: linear-gradient(180deg, rgb(33, 39, 39), rgb(29, 35, 35));
+  --zz-window: var(--stp-surface-element);
+  --zz-inset: var(--stp-surface-input);
+  --zz-rest: 0 2px 6px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  --zz-raised: 0 3px 9px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  --zz-floating: 0 22px 52px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  --zz-field: inset 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(255, 255, 255, 0.05);
+  --zz-text: var(--stp-text-primary);
+  --zz-body: #b7c2c3;
+  --zz-muted: var(--stp-text-muted);
+  --zz-subtle: var(--stp-text-subtle);
+  --zz-faint: var(--stp-text-faint);
+  --zz-brand: var(--stp-color-brand);
+  --zz-brand-rgb: 54 190 190;
+  --zz-gold: #e0b45a;
+  --zz-gold-rgb: 224 180 90;
+  --zz-green: #43d39a;
+  --zz-red: #eb6161;
+  --zz-orange: #f0934a;
+  --zz-blue: #6f9cf0;
+  --zz-violet: #d7b7f5;
+  --zz-rule: rgba(255, 255, 255, 0.07);
+  --zz-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  --zz-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --zz-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --zz-gutter: 24px;
+  /* A straight join between two surfaces, and how far a detour reaches sideways. A detour row is
+   * 2 × offset tall, so each of its two 45° legs covers `offset` both across and down. */
+  --zz-gap: 96px;
+  --zz-offset: 160px;
+  --zz-fast: var(--stp-motion-duration-fast) var(--stp-motion-easing);
+  --zz-base: var(--stp-motion-duration-base) var(--stp-motion-easing);
+
+  position: relative;
+  min-height: 100vh;
+  overflow-x: clip;
+  background: var(--zz-ground);
+  color: var(--zz-text);
+  font-family: var(--zz-sans);
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.zz-root ::selection {
+  background: rgba(var(--zz-brand-rgb) / 0.35);
+}
+
+.zz-root :where(h1, h2, h3, h4, p, ul, ol, blockquote, pre, figure) {
+  margin: 0;
+}
+
+.zz-root :where(ul, ol) {
+  padding: 0;
+  list-style: none;
+}
+
+.zz-container {
+  width: 100%;
+  max-width: calc(1120px + 2 * var(--zz-gutter));
+  margin: 0 auto;
+  padding-inline: var(--zz-gutter);
+}
+
+.zz-container--wide {
+  max-width: calc(1200px + 2 * var(--zz-gutter));
+}
+
+.zz-section {
+  position: relative;
+  z-index: 1;
+}
+
+.zz-mono {
+  font-family: var(--zz-mono);
+}
+
+.zz-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* A small uppercase label above a group inside a screen. */
+.zz-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--stp-text-faint);
+}
+
+.zz-trust {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--zz-muted);
+  text-wrap: balance;
+}
+
+/* ── Nav ─────────────────────────────────────────────────────────────────────────────────────── */
+
+.zz-nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(var(--zz-ground-rgb) / 0.82);
+  box-shadow: 0 1px 0 rgba(150, 220, 225, 0.08);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.zz-nav__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 64px;
+}
+
+.zz-nav__logo {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 6px;
+}
+
+.zz-nav__links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.zz-nav__link {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--zz-muted);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color var(--zz-fast);
+}
+
+.zz-nav__link:hover {
+  color: var(--zz-text);
+}
+
+.zz-nav__demo {
+  margin-left: 8px;
+  font-size: 14px;
+}
+
+/* ── The board: grid, fog, route ─────────────────────────────────────────────────────────────── */
+
+.zz-board {
+  position: relative;
+  isolation: isolate;
+}
+
+/* One 64×32 isometric cell, faint lines, a dot at every intersection. */
+.zz-board__grid {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='32'%3E%3Cpath d='M0 0L64 32M0 32L64 0' fill='none' stroke='rgba(110,190,200,0.09)' stroke-width='1'/%3E%3Cg fill='rgba(110,190,200,0.24)'%3E%3Ccircle cx='0' cy='0' r='1.2'/%3E%3Ccircle cx='64' cy='0' r='1.2'/%3E%3Ccircle cx='0' cy='32' r='1.2'/%3E%3Ccircle cx='64' cy='32' r='1.2'/%3E%3Ccircle cx='32' cy='16' r='1.2'/%3E%3C/g%3E%3C/svg%3E");
+  background-position: center top;
+  pointer-events: none;
+}
+
+/* Fog: calm ground behind the hero text, at both page edges, and where the board ends. */
+.zz-board__fog {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    radial-gradient(640px 520px at 18% 430px, rgba(var(--zz-ground-rgb) / 0.94), rgba(var(--zz-ground-rgb) / 0) 70%),
+    linear-gradient(
+      90deg,
+      var(--zz-ground) 0,
+      rgba(var(--zz-ground-rgb) / 0) 9%,
+      rgba(var(--zz-ground-rgb) / 0) 91%,
+      var(--zz-ground) 100%
+    ),
+    linear-gradient(180deg, rgba(var(--zz-ground-rgb) / 0.75) 0, rgba(var(--zz-ground-rgb) / 0) 140px),
+    linear-gradient(0deg, var(--zz-ground) 0, rgba(var(--zz-ground-rgb) / 0) 240px);
+  pointer-events: none;
+}
+
+.zz-route {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 400ms ease;
+}
+
+.zz-route.is-ready {
+  opacity: 1;
+}
+
+.zz-route__plan {
+  fill: none;
+  stroke: rgba(150, 220, 225, 0.22);
+  stroke-width: 1;
+  stroke-dasharray: 3 7;
+  stroke-linejoin: miter;
+}
+
+.zz-route__glow {
+  fill: none;
+  stroke: rgba(var(--zz-brand-rgb) / 0.2);
+  stroke-width: 11;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.zz-route__line {
+  fill: none;
+  stroke: var(--zz-brand);
+  stroke-width: 3;
+  stroke-linejoin: miter;
+  stroke-linecap: butt;
+}
+
+/* Without JavaScript the route cannot be measured; a straight teal line down the column stands in. */
+@media (min-width: 900px) {
+  html:not(.zz-js) .zz-list::before {
+    content: '';
+    position: absolute;
+    top: -96px;
+    bottom: -120px;
+    left: 50%;
+    width: 3px;
+    margin-left: -1.5px;
+    background: var(--zz-brand);
+    opacity: 0.8;
+  }
+}
+
+/* ── Hero ────────────────────────────────────────────────────────────────────────────────────── */
+
+.zz-hero {
+  position: relative;
+  z-index: 3;
+  padding: 64px 0 28px;
+}
+
+.zz-hero__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 46%) minmax(0, 54%);
+  gap: 48px;
+  align-items: center;
+}
+
+.zz-hero__copy,
+.zz-hero__window {
+  min-width: 0;
+}
+
+.zz-eyebrow {
+  font-family: var(--zz-mono);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--zz-brand);
+}
+
+.zz-hero__title {
+  margin-top: 18px;
+  font-family: var(--zz-display);
+  font-size: clamp(2.5rem, 4.6vw, 68px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.02;
+  color: #fff;
+  text-wrap: balance;
+}
+
+.zz-hero__sub {
+  margin-top: 22px;
+  font-size: 18px;
+  line-height: 1.55;
+  color: var(--zz-body);
+  text-wrap: pretty;
+}
+
+.zz-hero__cta {
+  max-width: 560px;
+  margin-top: 30px;
+}
+
+.zz-hero .zz-trust {
+  margin-top: 14px;
+}
+
+/* The hero window: the wizard's picture of the app, on a floating surface. */
+.zz-hw {
+  --zz-hw-diagram: 440px;
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--zz-window);
+  box-shadow: var(--zz-floating);
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+
+.zz-hw__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 44px;
+  padding: 0 16px;
+  background: rgba(0, 0, 0, 0.18);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.zz-hw__title {
+  font-family: var(--zz-display);
+  font-size: 15px;
+  font-weight: 500;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.zz-hw__meta {
+  flex: none;
+  font-family: var(--zz-mono);
+  font-size: 12px;
+  color: var(--zz-muted);
+  white-space: nowrap;
+}
+
+.zz-hw__picker {
+  padding: 12px;
+}
+
+/* Four labels in a 600px window: tighter than the default small tabs, still the shared control. */
+.zz-hw__tabs {
+  --stp-tab-font-size: 0.76rem;
+  --stp-tab-padding-x: 9px;
+  --stp-tabs-gap: 3px;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.zz-hw__tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.zz-hw__tabs .stp-ui-tab {
+  flex: none;
+}
+
+.zz-hw__diagram {
+  position: relative;
+  height: var(--zz-hw-diagram);
+  background:
+    radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1.3px) 0 0 / 18px 18px,
+    var(--zz-inset);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.zz-hw__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 12px 16px 14px;
+}
+
+.zz-hw__lead {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--zz-text);
+  white-space: nowrap;
+}
+
+.zz-hw__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.zz-hw__count {
+  margin-left: auto;
+  font-family: var(--zz-mono);
+  font-size: 12px;
+  color: var(--zz-muted);
+  white-space: nowrap;
+}
+
+/* The real diagram with a gate: page scrolling wins until the picture is clicked. */
+.zz-diagram {
+  position: absolute;
+  inset: 0;
+}
+
+.zz-diagram .stp-diagram {
+  background: transparent;
+}
+
+.zz-diagram:not(.is-active) .stp-diagram {
+  touch-action: pan-y;
+}
+
+.zz-diagram .stp-diagram__hint {
+  display: none;
+}
+
+.zz-diagram__gate {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  padding: 4px 9px;
+  border-radius: 6px;
+  background: rgba(20, 26, 26, 0.92);
+  box-shadow: var(--zz-rest);
+  font-family: var(--zz-mono);
+  font-size: 11.5px;
+  color: var(--zz-muted);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.zz-diagram.is-active .zz-diagram__gate {
+  color: var(--zz-brand);
+}
+
+/* A mono chip on the product's control surface. */
+.zz-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 6px;
+  background: var(--stp-control-surface);
+  box-shadow: var(--zz-rest);
+  font-family: var(--zz-mono);
+  font-size: 12px;
+  color: var(--zz-text);
+  white-space: nowrap;
+}
+
+/* ── Command box: a floating panel with a recessed command row ───────────────────────────────── */
+
+.zz-cmd {
+  position: relative;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--zz-panel);
+  box-shadow: var(--zz-floating);
+  text-align: left;
+  transition: border-color var(--zz-base);
+}
+
+.zz-cmd:focus-within {
+  border-color: rgba(var(--zz-brand-rgb) / 0.5);
+}
+
+.zz-cmd__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 2px 6px 8px 2px;
+}
+
+.zz-cmd__tabs {
+  --stp-tab-font-size: 0.8rem;
+  flex: none;
+  max-width: 100%;
+}
+
+.zz-cmd__tabs .stp-ui-tab {
+  flex: none;
+}
+
+.zz-cmd__hint {
+  min-width: 0;
+  font-family: var(--zz-mono);
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--zz-faint);
+  text-align: right;
+}
+
+.zz-cmd__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 60px;
+  padding: 8px 8px 8px 16px;
+  border-radius: 8px;
+  background: var(--zz-inset);
+  box-shadow: var(--zz-field);
+}
+
+.zz-cmd__prompt {
+  flex: none;
+  font-family: var(--zz-mono);
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--zz-brand);
+}
+
+.zz-cmd__code {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 4px 8px 4px 0;
+  overflow-x: auto;
+  font-family: var(--zz-mono);
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: #fff;
+  white-space: nowrap;
+  scrollbar-width: none;
+  user-select: text;
+}
+
+.zz-cmd__code::-webkit-scrollbar {
+  display: none;
+}
+
+.zz-cmd__code--long {
+  font-size: 15px;
+}
+
+.zz-cmd__row--overflow .zz-cmd__code {
+  mask-image: linear-gradient(90deg, #000 calc(100% - 44px), transparent);
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 44px), transparent);
+}
+
+.zz-cmd__caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin-left: 3px;
+  vertical-align: -0.15em;
+  border-radius: 1px;
+  background: var(--zz-brand);
+  opacity: 0.85;
+  animation: zz-blink 1.1s steps(2, start) infinite;
+}
+
+@keyframes zz-blink {
+  to {
+    opacity: 0;
+  }
+}
+
+.zz-cmd__copy {
+  --stp-control-height: 42px;
+  --stp-button-padding-x: 14px;
+  flex: none;
+  font-size: 13.5px;
+}
+
+.zz-cmd__labels {
+  display: grid;
+}
+
+.zz-cmd__label {
+  grid-area: 1 / 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.zz-cmd__label svg {
+  flex: none;
+}
+
+.zz-cmd--idle .zz-cmd__label--copy,
+.zz-cmd--copied .zz-cmd__label--copied,
+.zz-cmd--failed .zz-cmd__label--failed {
+  opacity: 1;
+  transform: none;
+}
+
+.zz-cmd--copied .zz-cmd__copy {
+  --stp-button-primary-surface: linear-gradient(180deg, rgb(30, 150, 122), rgb(22, 120, 100));
+}
+
+/* ── The journey: the start interchange, six surfaces, three detours, the final plate ───────── */
+
+.zz-journey {
+  position: relative;
+  z-index: 3;
+  padding: 28px 0 0;
+}
+
+.zz-start {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.zz-start__card {
+  text-align: center;
+}
+
+.zz-list {
+  position: relative;
+  margin-top: 88px;
+}
+
+.zz-surface {
+  position: relative;
+  z-index: 3;
+  padding: 36px 40px 40px;
+  border-radius: 12px;
+  background: var(--zz-panel);
+  box-shadow: var(--zz-rest);
+}
+
+.zz-surface + .zz-surface {
+  margin-top: var(--zz-gap);
+}
+
+.zz-surface__head {
+  display: flex;
+  align-items: baseline;
+  gap: 20px;
+}
+
+.zz-surface__num {
+  flex: none;
+  font-family: var(--zz-display);
+  font-size: 56px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: rgba(var(--zz-brand-rgb) / 0.35);
+}
+
+.zz-surface__title {
+  font-family: var(--zz-display);
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: #fff;
+  text-wrap: balance;
+}
+
+.zz-surface__text {
+  max-width: 70ch;
+  margin-top: 14px;
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--zz-body);
+  text-wrap: pretty;
+}
+
+.zz-surface__screen {
+  margin-top: 28px;
+}
+
+/* Gold interchanges: the dot on the line and the label beside it. */
+.zz-dot {
+  position: relative;
+  z-index: 4;
+  display: block;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--zz-gold);
+  box-shadow:
+    0 0 0 3px var(--zz-ground),
+    0 0 0 5px var(--zz-gold),
+    0 0 0 14px rgba(var(--zz-gold-rgb) / 0.1);
+  transition:
+    transform 300ms ease,
+    box-shadow 300ms ease;
+}
+
+.is-reached .zz-dot {
+  transform: scale(1.12);
+  box-shadow:
+    0 0 0 3px var(--zz-ground),
+    0 0 0 5px var(--zz-gold),
+    0 0 0 16px rgba(var(--zz-gold-rgb) / 0.18),
+    0 0 30px rgba(var(--zz-gold-rgb) / 0.45);
+}
+
+.zz-ic {
+  position: relative;
+  height: calc(2 * var(--zz-offset));
+}
+
+.zz-ic .zz-dot {
+  position: absolute;
+  top: 50%;
+  margin: -8px 0 0 -8px;
+}
+
+.zz-ic--left .zz-dot {
+  left: calc(50% - var(--zz-offset));
+}
+
+.zz-ic--right .zz-dot {
+  left: calc(50% + var(--zz-offset));
+}
+
+.zz-ic__slot {
+  position: absolute;
+  top: 50%;
+  z-index: 3;
+  width: max-content;
+  max-width: 300px;
+  transform: translateY(-50%);
+}
+
+.zz-ic--left .zz-ic__slot {
+  right: calc(50% + var(--zz-offset) + 26px);
+}
+
+.zz-ic--right .zz-ic__slot {
+  left: calc(50% + var(--zz-offset) + 26px);
+}
+
+/* The leader from the label to its dot. */
+.zz-ic__slot::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 26px;
+  height: 1px;
+  background: rgba(var(--zz-gold-rgb) / 0.6);
+}
+
+.zz-ic--left .zz-ic__slot::after {
+  left: 100%;
+}
+
+.zz-ic--right .zz-ic__slot::after {
+  right: 100%;
+}
+
+.zz-ic__card {
+  position: relative;
+  z-index: 3;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: var(--zz-panel);
+  box-shadow: var(--zz-rest);
+  transition: box-shadow 300ms ease;
+}
+
+.is-reached .zz-ic__card {
+  box-shadow: var(--zz-raised);
+}
+
+.zz-ic__title {
+  font-family: var(--zz-display);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--zz-gold);
+  text-wrap: balance;
+}
+
+.zz-ic__sub {
+  margin-top: 4px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--zz-muted);
+}
+
+.zz-cmdchip {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 9px;
+  border-radius: 6px;
+  background: var(--zz-inset);
+  box-shadow: var(--zz-field);
+  font-family: var(--zz-mono);
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+  vertical-align: 1px;
+}
+
+/* The final plate: a 2:1 rhombus on the line, the project's state beside it. */
+.zz-end {
+  position: relative;
+  z-index: 3;
+  margin-top: 120px;
+  padding-bottom: 8px;
+}
+
+.zz-end__inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+}
+
+.zz-plate {
+  grid-column: 2;
+  display: block;
+  width: 160px;
+  height: 80px;
+}
+
+.zz-plate svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.zz-plate__face {
+  fill: rgba(var(--zz-brand-rgb) / 0.06);
+  stroke: rgba(150, 220, 225, 0.4);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+  transition:
+    fill 400ms ease,
+    stroke 400ms ease,
+    filter 400ms ease;
+}
+
+.zz-end.is-reached .zz-plate__face {
+  fill: rgba(var(--zz-brand-rgb) / 0.14);
+  stroke: var(--zz-brand);
+  filter: drop-shadow(0 0 12px rgba(var(--zz-brand-rgb) / 0.45));
+}
+
+.zz-end__text {
+  grid-column: 3;
+  padding-left: 24px;
+}
+
+.zz-end__line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--zz-mono);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--zz-muted);
+}
+
+.zz-end__line .zz-mono {
+  color: var(--zz-text);
+  text-transform: none;
+}
+
+.zz-live-dot {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--zz-green);
+  box-shadow: 0 0 0 3px rgba(67, 211, 154, 0.2);
+}
+
+.zz-end__urls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin-top: 8px;
+  font-family: var(--zz-mono);
+  font-size: 15px;
+}
+
+.zz-end__urls a {
+  color: var(--zz-text);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(150, 220, 225, 0.3);
+}
+
+/* ── Window chrome: the frame a screen sits in ───────────────────────────────────────────────── */
+
+.zz-win {
+  --zz-win-pad: 22px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--zz-window);
+  box-shadow: var(--zz-rest);
+  color: var(--stp-text-primary);
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+
+.zz-win__bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 40px;
+  padding: 0 16px;
+  background: rgba(0, 0, 0, 0.18);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.zz-win__title {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--zz-mono);
+  font-size: 12.5px;
+  color: var(--stp-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zz-win__title b {
+  font-weight: 500;
+  color: var(--stp-text-primary);
+}
+
+.zz-win__side {
+  display: inline-flex;
+  flex: none;
+  margin-left: auto;
+}
+
+.zz-rail {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--stp-text-faint);
+}
+
+.zz-rail li {
+  padding: 3px 9px;
+  border-radius: 6px;
+}
+
+.zz-rail li.is-current {
+  background: rgba(var(--zz-brand-rgb) / 0.14);
+  color: var(--zz-brand);
+}
+
+.zz-win__body {
+  display: grid;
+  gap: 20px;
+  align-content: start;
+  padding: var(--zz-win-pad);
+}
+
+.zz-screen__head {
+  min-width: 0;
+}
+
+.zz-screen__title {
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  color: #fff;
+}
+
+.zz-screen__sub {
+  margin-top: 4px;
+  font-size: 13.5px;
+  color: var(--stp-text-muted);
+}
+
+.zz-screen__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  flex-wrap: wrap;
+}
+
+/* The product's controls, sized for a screen. */
+.zz-btn {
+  --stp-button-font-family: var(--zz-sans);
+  font-size: 13.5px;
+  cursor: default;
+}
+
+.zz-btn--small {
+  --stp-control-height: 29px;
+  --stp-button-padding-x: 11px;
+  font-size: 13px;
+}
+
+.zz-badge {
+  font-family: var(--zz-sans);
+}
+
+.zz-badge__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.zz-check {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(var(--zz-brand-rgb) / 0.16);
+  color: var(--zz-brand);
+}
+
+/* ── 01 Review: the file and the picture under one handle ────────────────────────────────────── */
+
+.zz-reveal {
+  position: relative;
+  height: 440px;
+  margin: 0 calc(-1 * var(--zz-win-pad));
+  overflow: hidden;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+  user-select: none;
+}
+
+.zz-reveal__picture,
+.zz-reveal__file {
+  position: absolute;
+  inset: 0;
+}
+
+.zz-reveal__picture {
+  background:
+    radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1.3px) 0 0 / 18px 18px,
+    var(--zz-inset);
+}
+
+/* The picture is centred in the part the file leaves visible at rest. */
+.zz-reveal__canvas {
+  position: absolute;
+  inset: 0 0 0 36%;
+}
+
+/* Under the file's clip on the left, so the gate label moves beside the zoom controls. */
+.zz-reveal .zz-diagram__gate {
+  left: auto;
+  right: 50px;
+}
+
+.zz-reveal__file {
+  z-index: 2;
+  clip-path: inset(0 calc(100% - var(--reveal)) 0 0);
+}
+
+.zz-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--zz-inset);
+}
+
+.zz-editor__tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 16px;
+  box-shadow: inset 0 -1px 0 var(--zz-rule);
+  font-family: var(--zz-mono);
+  font-size: 13px;
+  color: var(--stp-text-primary);
+}
+
+.zz-editor__tab svg {
+  color: var(--zz-brand);
+}
+
+.zz-editor__lines {
+  margin-left: 12px;
+  color: var(--stp-text-faint);
+}
+
+.zz-editor__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+}
+
+.zz-editor__pane {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  padding: 10px 0 24px;
+  font-family: var(--zz-mono);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.zz-editor__gutter {
+  display: flex;
+  flex-direction: column;
+  padding-right: 12px;
+  color: var(--stp-text-faint);
+  text-align: right;
+  opacity: 0.7;
+}
+
+.zz-editor__code {
+  padding: 0 18px 0 6px;
+  font: inherit;
+  color: var(--stp-text-primary);
+  white-space: pre;
+  tab-size: 2;
+}
+
+.zz-editor__code code {
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+}
+
+.zz-y-key {
+  color: #a7c9e8;
+}
+
+.zz-y-res {
+  font-weight: 500;
+  color: #fff;
+}
+
+.zz-y-type {
+  color: var(--zz-brand);
+}
+
+.zz-y-ref {
+  color: var(--zz-violet);
+}
+
+.zz-y-val {
+  color: #dbe3e2;
+}
+
+.zz-y-str {
+  color: #c9d98a;
+}
+
+.zz-y-num,
+.zz-y-bool {
+  color: #f0b184;
+}
+
+.zz-y-punc,
+.zz-y-dash {
+  color: var(--stp-text-faint);
+}
+
+.zz-y-com {
+  font-style: italic;
+  color: #6f7f7e;
+}
+
+.zz-reveal__handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--reveal);
+  z-index: 3;
+  width: 2px;
+  margin-left: -1px;
+  background: rgba(255, 255, 255, 0.28);
+  cursor: col-resize;
+  touch-action: none;
+  transition: background var(--zz-fast);
+}
+
+.zz-reveal__handle::before {
+  content: '';
+  position: absolute;
+  inset: 0 -14px;
+}
+
+.zz-reveal__grip {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 46px;
+  border-radius: 8px;
+  background: var(--stp-control-surface);
+  box-shadow: var(--zz-raised);
+  color: var(--stp-text-primary);
+  transform: translate(-50%, -50%);
+  transition: box-shadow var(--zz-fast);
+}
+
+.zz-reveal__handle:hover .zz-reveal__grip,
+.zz-reveal__handle:focus-visible .zz-reveal__grip,
+.is-dragging .zz-reveal__grip {
+  box-shadow:
+    0 3px 9px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0 0 1px var(--zz-brand);
+}
+
+.zz-reveal__handle:focus-visible,
+.is-dragging .zz-reveal__handle {
+  outline: none;
+  background: var(--zz-brand);
+}
+
+.zz-decided {
+  display: grid;
+  gap: 8px;
+}
+
+.zz-decided__row {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 0;
+  box-shadow: 0 1px 0 var(--zz-rule);
+}
+
+.zz-decided__row:last-child {
+  box-shadow: none;
+}
+
+.zz-decided__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.zz-decided__what {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--stp-text-primary);
+}
+
+.zz-decided__why {
+  font-size: 13px;
+  color: var(--stp-text-muted);
+}
+
+.zz-estimate {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  font-size: 14px;
+  color: var(--stp-text-muted);
+}
+
+.zz-estimate b {
+  font-weight: 600;
+  color: #fff;
+}
+
+/* ── 02 Deploy: live, the phases, from now on ────────────────────────────────────────────────── */
+
+.zz-live {
+  display: grid;
+  gap: 12px;
+  padding: 18px 20px 20px;
+  border-radius: 8px;
+  background: rgba(67, 211, 154, 0.06);
+  box-shadow:
+    var(--zz-rest),
+    inset 0 0 0 1px rgba(67, 211, 154, 0.22);
+}
+
+.zz-live__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.zz-live__urls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 40px;
+}
+
+.zz-live__urls li {
+  font-family: var(--zz-mono);
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: #fff;
+  overflow-wrap: anywhere;
+}
+
+.zz-live__meta {
+  font-size: 13.5px;
+  color: var(--stp-text-muted);
+}
+
+.zz-phases {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.zz-phase {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.zz-phase__body {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.zz-phase__name {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  color: var(--stp-text-primary);
+}
+
+.zz-phase__note {
+  font-size: 13px;
+  color: var(--stp-text-muted);
+}
+
+.zz-phase__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.zz-after {
+  display: grid;
+  gap: 8px;
+}
+
+.zz-after__strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 28px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--zz-inset);
+  box-shadow: var(--zz-field);
+  font-size: 13.5px;
+  color: var(--stp-text-muted);
+}
+
+.zz-after__item .zz-mono {
+  color: var(--stp-text-primary);
+}
+
+.zz-after__item b {
+  font-weight: 500;
+  color: #fff;
+}
+
+.zz-after__arrow {
+  color: var(--zz-brand);
+}
+
+.zz-after__strip .zz-btn {
+  margin-left: auto;
+}
+
+/* ── 03 Monitor: tiles, a trace, one uptime line ─────────────────────────────────────────────── */
+
+.zz-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.zz-tile {
+  min-width: 0;
+  padding: 14px 16px 12px;
+  border-radius: 8px;
+  background: var(--zz-panel);
+  box-shadow: var(--zz-rest);
+  overflow: hidden;
+}
+
+.zz-tile__label {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--stp-text-faint);
+}
+
+.zz-tile__value {
+  margin-top: 8px;
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.zz-tile__unit {
+  margin-left: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--stp-text-muted);
+}
+
+.zz-spark {
+  display: block;
+  width: 100%;
+  height: 34px;
+  margin-top: 12px;
+  color: var(--zz-brand);
+}
+
+.zz-trace {
+  display: grid;
+  gap: 6px;
+}
+
+.zz-trace__head {
+  font-size: 13px;
+  color: var(--stp-text-muted);
+}
+
+.zz-trace__head .zz-mono {
+  font-weight: 500;
+  color: var(--stp-text-primary);
+}
+
+.zz-trace__row {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr) 56px;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 0;
+  box-shadow: 0 -1px 0 var(--zz-rule);
+  font-size: 13px;
+}
+
+.zz-trace__name {
+  overflow: hidden;
+  font-family: var(--zz-mono);
+  color: var(--stp-text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zz-trace__lane {
+  position: relative;
+  height: 12px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.zz-trace__bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  min-width: 3px;
+  border-radius: 3px;
+  background: var(--zz-brand);
+}
+
+.zz-trace__row--app .zz-trace__bar {
+  background: var(--zz-blue);
+}
+
+.zz-trace__row--db .zz-trace__bar {
+  background: var(--zz-violet);
+}
+
+.zz-trace__row--cache .zz-trace__bar {
+  background: var(--zz-green);
+}
+
+.zz-trace__ms {
+  font-family: var(--zz-mono);
+  color: var(--stp-text-muted);
+  text-align: right;
+}
+
+.zz-uptime {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--zz-inset);
+  box-shadow: var(--zz-field);
+  font-size: 13.5px;
+  color: var(--stp-text-muted);
+}
+
+.zz-uptime__url {
+  color: var(--stp-text-primary);
+}
+
+.zz-uptime__region .zz-mono {
+  color: var(--stp-text-primary);
+}
+
+.zz-uptime__total {
+  margin-left: auto;
+  color: var(--stp-text-primary);
+}
+
+/* ── 04 Security: posture, findings, guardrails ──────────────────────────────────────────────── */
+
+.zz-sec {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 28px;
+  align-items: center;
+}
+
+.zz-posture {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.zz-ring {
+  flex: none;
+}
+
+.zz-ring__track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 7;
+}
+
+.zz-ring__value {
+  fill: none;
+  stroke: var(--zz-brand);
+  stroke-width: 7;
+  stroke-linecap: round;
+}
+
+.zz-posture__num {
+  font-size: 15px;
+  color: var(--stp-text-muted);
+}
+
+.zz-posture__num b {
+  font-size: 34px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.zz-posture__sub {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--stp-text-muted);
+}
+
+.zz-finding {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 0;
+  box-shadow: 0 1px 0 var(--zz-rule);
+}
+
+.zz-finding:last-child {
+  box-shadow: none;
+}
+
+.zz-finding__mark {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--zz-orange);
+}
+
+.zz-finding__text {
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--stp-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.zz-finding__action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.zz-guardrails {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px 16px;
+  border-radius: 8px;
+  background: var(--zz-panel);
+  box-shadow: var(--zz-rest);
+}
+
+.zz-guardrails__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.zz-guardrails__line {
+  font-size: 13.5px;
+  color: var(--stp-text-muted);
+}
+
+/* ── 05 Incident ─────────────────────────────────────────────────────────────────────────────── */
+
+.zz-inc__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 20px;
+  flex-wrap: wrap;
+}
+
+.zz-inc__heading {
+  min-width: 0;
+}
+
+.zz-inc__badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.zz-inc__title {
+  margin-top: 10px;
+  overflow-wrap: anywhere;
+}
+
+.zz-inc__release {
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--zz-inset);
+  box-shadow:
+    var(--zz-field),
+    inset 3px 0 0 var(--zz-brand);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--stp-text-muted);
+}
+
+.zz-inc__release b {
+  font-weight: 600;
+  color: #fff;
+}
+
+.zz-inc__release .zz-mono,
+.zz-inc__message {
+  color: var(--stp-text-primary);
+}
+
+.zz-inc__sep {
+  margin: 0 6px;
+  color: var(--stp-text-faint);
+}
+
+.zz-inc__link {
+  color: var(--zz-brand);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.zz-inc__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.zz-signals {
+  display: grid;
+  gap: 8px;
+}
+
+.zz-signal {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: rgba(235, 97, 97, 0.07);
+  box-shadow: inset 3px 0 0 var(--zz-red);
+}
+
+.zz-signal__text {
+  font-family: var(--zz-mono);
+  font-size: 13px;
+  color: var(--stp-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.zz-signal__meta {
+  font-size: 12.5px;
+  color: var(--stp-text-muted);
+}
+
+.zz-tl {
+  position: relative;
+  display: grid;
+  grid-template-columns: 44px 14px minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: start;
+  padding: 5px 0;
+  font-size: 13.5px;
+}
+
+.zz-tl::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 61px;
+  width: 1px;
+  background: var(--zz-rule);
+}
+
+.zz-tl:first-child::before {
+  top: 50%;
+}
+
+.zz-tl:last-child::before {
+  bottom: 50%;
+}
+
+.zz-tl__time {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--stp-text-faint);
+}
+
+.zz-tl__mark {
+  position: relative;
+  z-index: 1;
+  width: 9px;
+  height: 9px;
+  margin: 6px 0 0 3px;
+  border-radius: 50%;
+  background: var(--stp-text-faint);
+  box-shadow: 0 0 0 3px var(--zz-window);
+}
+
+.zz-tl--error .zz-tl__mark {
+  background: var(--zz-red);
+}
+
+.zz-tl--you .zz-tl__mark {
+  background: var(--zz-gold);
+}
+
+.zz-tl--ok .zz-tl__mark {
+  background: var(--zz-green);
+  box-shadow:
+    0 0 0 3px var(--zz-window),
+    0 0 0 6px rgba(67, 211, 154, 0.2);
+}
+
+.zz-tl__text {
+  line-height: 1.6;
+  color: var(--stp-text-primary);
+}
+
+.zz-tl--you .zz-tl__text {
+  font-weight: 600;
+  color: var(--zz-gold);
+}
+
+.zz-tl--ok .zz-tl__text {
+  font-weight: 600;
+  color: var(--zz-green);
+}
+
+.zz-optin {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--zz-panel);
+  box-shadow: var(--zz-rest);
+}
+
+.zz-optin__switch {
+  margin-top: 1px;
+  opacity: 1;
+  cursor: default;
+}
+
+.zz-optin__what {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--stp-text-primary);
+}
+
+.zz-optin__state {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--zz-mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--zz-gold);
+}
+
+/* ── 06 Costs: bars beside the budget ────────────────────────────────────────────────────────── */
+
+.zz-costs {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+
+.zz-bars__head,
+.zz-budget__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+}
+
+.zz-cost__total {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.zz-bars__list {
+  margin-top: 10px;
+}
+
+.zz-bar {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr) 68px;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 0;
+  box-shadow: 0 -1px 0 var(--zz-rule);
+  font-size: 13.5px;
+}
+
+.zz-bar__name {
+  color: var(--stp-text-primary);
+}
+
+.zz-bar__lane {
+  height: 10px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.zz-bar__fill {
+  display: block;
+  height: 100%;
+  min-width: 3px;
+  border-radius: 3px;
+  background: var(--zz-brand);
+}
+
+.zz-bar__amount {
+  color: var(--stp-text-muted);
+  text-align: right;
+}
+
+.zz-budget {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px 16px;
+  border-radius: 8px;
+  background: var(--zz-panel);
+  box-shadow: var(--zz-rest);
+}
+
+.zz-budget__limit {
+  font-size: 13.5px;
+  color: var(--stp-text-muted);
+}
+
+.zz-budget__limit b {
+  font-size: 18px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.zz-budget__lane {
+  position: relative;
+  height: 12px;
+  margin-top: 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.zz-budget__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 4px;
+  background: var(--zz-brand);
+}
+
+.zz-budget__mark {
+  position: absolute;
+  top: -5px;
+  bottom: -5px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--zz-gold);
+}
+
+.zz-budget__legend {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--stp-text-muted);
+}
+
+.zz-budget__legend b {
+  font-weight: 600;
+  color: var(--stp-text-primary);
+}
+
+.zz-budget__line {
+  padding-top: 8px;
+  box-shadow: 0 -1px 0 var(--zz-rule);
+  font-size: 13px;
+  color: var(--stp-text-muted);
+}
+
+/* ── Closing ─────────────────────────────────────────────────────────────────────────────────── */
+
+.zz-closing {
+  padding: 96px 0 40px;
+}
+
+.zz-closing__panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 44px 40px 36px;
+  border-radius: 12px;
+  background: var(--zz-panel);
+  box-shadow: var(--zz-rest);
+  text-align: center;
+}
+
+.zz-closing__title {
+  font-family: var(--zz-display);
+  font-size: clamp(1.7rem, 3vw, 2.25rem);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.12;
+  color: #fff;
+  text-wrap: balance;
+}
+
+.zz-closing .zz-cmd {
+  max-width: 640px;
+  margin-top: 6px;
+}
+
+.zz-closing__signin {
+  font-size: 14px;
+  color: var(--zz-faint);
+}
+
+.zz-closing__signin a {
+  color: var(--zz-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.zz-closing__signin a:hover {
+  color: var(--zz-text);
+}
+
+/* ── Testimonials ────────────────────────────────────────────────────────────────────────────── */
+
+.zz-voices {
+  padding: 40px 0 48px;
+}
+
+.zz-voices__title {
+  margin-bottom: 24px;
+  font-family: var(--zz-display);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: #fff;
+}
+
+.zz-voices__list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.zz-voice {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px 22px 22px;
+  border-radius: 12px;
+  background: var(--zz-panel);
+  box-shadow: var(--zz-rest);
+}
+
+.zz-voice__quote {
+  flex: 1;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--zz-text);
+}
+
+.zz-voice__who {
+  display: grid;
+  gap: 2px;
+  font-size: 13.5px;
+}
+
+.zz-voice__name {
+  font-weight: 600;
+}
+
+.zz-voice__role {
+  color: var(--zz-muted);
+}
+
+/* ── Footer ──────────────────────────────────────────────────────────────────────────────────── */
+
+.zz-footer {
+  padding: 28px 0 40px;
+  box-shadow: inset 0 1px 0 rgba(150, 220, 225, 0.08);
+  font-family: var(--zz-mono);
+  font-size: 12px;
+  color: var(--zz-muted);
+}
+
+.zz-footer__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px 24px;
+}
+
+.zz-footer__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+}
+
+.zz-footer__links a {
+  color: var(--zz-muted);
+  text-decoration: none;
+}
+
+.zz-footer__links a:hover {
+  color: var(--zz-text);
+}
+
+.zz-footer__note {
+  color: var(--zz-faint);
+}
+
+/* ── Motion: surfaces rise on entry, once; the route draws with scroll (route.ts) ────────────── */
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-zz-rise] {
+    transition:
+      opacity 520ms ease,
+      transform 520ms ease;
+  }
+
+  html.zz-js [data-zz-rise]:not(.is-in) {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+/* ── Below 1200px: the hero copy tightens ────────────────────────────────────────────────────── */
+
+@media (max-width: 1199px) {
+  .zz-hero__grid {
+    gap: 32px;
+  }
+
+  .zz-hw {
+    --zz-hw-diagram: 440px;
+  }
+}
+
+/* ── Below 900px: one column, no route; interchanges are rows in the flow ────────────────────── */
+
+@media (max-width: 899px) {
+  .zz-route {
+    display: none;
+  }
+
+  .zz-board__fog {
+    background:
+      linear-gradient(180deg, rgba(var(--zz-ground-rgb) / 0.9) 0, rgba(var(--zz-ground-rgb) / 0) 420px),
+      linear-gradient(0deg, var(--zz-ground) 0, rgba(var(--zz-ground-rgb) / 0) 200px);
+  }
+
+  .zz-hero {
+    padding: 48px 0 32px;
+  }
+
+  .zz-hero__grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 40px;
+  }
+
+  .zz-hero__cta {
+    max-width: none;
+  }
+
+  .zz-hw {
+    --zz-hw-diagram: 340px;
+  }
+
+  .zz-start {
+    gap: 0;
+  }
+
+  .zz-start .zz-dot,
+  .zz-ic .zz-dot {
+    display: none;
+  }
+
+  .zz-list {
+    margin-top: 48px;
+  }
+
+  .zz-surface {
+    padding: 24px 20px 20px;
+  }
+
+  .zz-surface + .zz-surface {
+    margin-top: 48px;
+  }
+
+  .zz-surface__head {
+    gap: 14px;
+  }
+
+  .zz-surface__num {
+    font-size: 40px;
+  }
+
+  .zz-surface__title {
+    font-size: 26px;
+  }
+
+  .zz-surface__text {
+    font-size: 16px;
+  }
+
+  .zz-surface__screen {
+    margin-top: 20px;
+  }
+
+  .zz-ic {
+    height: auto;
+    padding: 24px 0;
+  }
+
+  .zz-ic__slot {
+    position: static;
+    width: auto;
+    max-width: none;
+    transform: none;
+  }
+
+  .zz-ic__slot::after {
+    display: none;
+  }
+
+  .zz-ic__card,
+  .zz-start__card {
+    box-shadow:
+      var(--zz-rest),
+      inset 3px 0 0 var(--zz-gold);
+  }
+
+  .zz-start__card {
+    text-align: left;
+  }
+
+  .zz-end {
+    margin-top: 48px;
+  }
+
+  .zz-end__inner {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    gap: 16px;
+  }
+
+  .zz-plate,
+  .zz-end__text {
+    grid-column: 1;
+  }
+
+  .zz-end__text {
+    padding-left: 0;
+    text-align: center;
+  }
+
+  .zz-end__line,
+  .zz-end__urls {
+    justify-content: center;
+  }
+
+  .zz-win {
+    --zz-win-pad: 16px;
+  }
+
+  .zz-reveal {
+    display: grid;
+    grid-template-rows: 280px 320px;
+    height: auto;
+  }
+
+  .zz-reveal__picture,
+  .zz-reveal__file {
+    position: relative;
+    inset: auto;
+  }
+
+  .zz-reveal__canvas {
+    inset: 0;
+  }
+
+  .zz-reveal__file {
+    order: -1;
+    clip-path: none;
+    box-shadow: inset 0 -1px 0 var(--zz-rule);
+  }
+
+  .zz-reveal__handle,
+  .zz-rail {
+    display: none;
+  }
+
+  .zz-sec {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .zz-inc__grid,
+  .zz-costs {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .zz-trace__row {
+    grid-template-columns: minmax(96px, 34%) minmax(0, 1fr) 50px;
+  }
+
+  .zz-voices__list {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 640px;
+  }
+
+  .zz-closing {
+    padding-top: 64px;
+  }
+}
+
+/* ── Phones ──────────────────────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 599px) {
+  .zz-root {
+    --zz-gutter: 16px;
+  }
+
+  .zz-nav__link--optional {
+    display: none;
+  }
+
+  .zz-hero {
+    padding-top: 36px;
+  }
+
+  .zz-hero__title {
+    font-size: 2.3rem;
+  }
+
+  .zz-hero__sub {
+    font-size: 16.5px;
+  }
+
+  .zz-hw {
+    --zz-hw-diagram: 300px;
+  }
+
+  .zz-hw__bar {
+    padding: 0 12px;
+  }
+
+  .zz-hw__meta {
+    display: none;
+  }
+
+  .zz-hw__picker,
+  .zz-hw__foot {
+    padding-inline: 12px;
+  }
+
+  .zz-hw__count {
+    margin-left: 0;
+    white-space: normal;
+  }
+
+  .zz-hw__chips .zz-chip {
+    height: auto;
+    padding: 3px 9px;
+    line-height: 1.35;
+    white-space: normal;
+  }
+
+  .zz-reveal .zz-diagram__gate {
+    right: auto;
+    left: 12px;
+  }
+
+  .zz-cmd__top {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 2px 2px 8px;
+  }
+
+  .zz-cmd__tabs {
+    align-self: flex-start;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .zz-cmd__hint {
+    padding: 6px 4px 0;
+    text-align: left;
+  }
+
+  .zz-cmd__row {
+    flex-wrap: wrap;
+    padding: 8px 8px 8px 14px;
+  }
+
+  .zz-cmd__code {
+    flex-basis: 0;
+  }
+
+  .zz-cmd__copy {
+    flex-basis: 100%;
+    width: 100%;
+  }
+
+  .zz-surface {
+    padding: 20px 16px 16px;
+  }
+
+  .zz-surface__head {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .zz-win__bar {
+    padding: 0 12px;
+  }
+
+  .zz-win__side {
+    display: none;
+  }
+
+  .zz-reveal {
+    grid-template-rows: 260px 280px;
+  }
+
+  .zz-decided__row {
+    grid-template-columns: 20px minmax(0, 1fr);
+  }
+
+  .zz-decided__row .zz-btn {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .zz-live__urls li {
+    font-size: 18px;
+  }
+
+  .zz-phases {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .zz-after__strip .zz-btn {
+    margin-left: 0;
+  }
+
+  .zz-tiles {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .zz-uptime__total {
+    margin-left: 0;
+  }
+
+  .zz-finding {
+    grid-template-columns: 8px minmax(0, 1fr);
+  }
+
+  .zz-finding__action {
+    grid-column: 2;
+    flex-wrap: wrap;
+  }
+
+  .zz-inc__head .zz-btn {
+    width: 100%;
+  }
+
+  .zz-tl {
+    grid-template-columns: 40px 14px minmax(0, 1fr);
+  }
+
+  .zz-tl::before {
+    left: 57px;
+  }
+
+  .zz-bar {
+    grid-template-columns: 96px minmax(0, 1fr) 60px;
+  }
+
+  .zz-closing__panel {
+    padding: 28px 16px 24px;
+  }
+}
+
+@media (max-width: 480px) {
+  .zz-nav__link {
+    padding: 0 8px;
+  }
+
+  .zz-nav__link--phone-optional {
+    display: none;
+  }
+
+  .zz-nav__demo {
+    --stp-button-padding-x: 10px;
+    margin-left: 4px;
+  }
+
+  .zz-nav__logo svg {
+    height: 21px !important;
+  }
+
+  .zz-eyebrow {
+    font-size: 11px;
+  }
+}
+
+/* ── Reduced motion: everything static; the route fully drawn by route.ts ────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .zz-html {
+    scroll-behavior: auto;
+  }
+
+  .zz-root *,
+  .zz-root *::before,
+  .zz-root *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .zz-route {
+    opacity: 1;
+  }
+
+  .zz-cmd__caret {
+    opacity: 0.85;
+  }
+}

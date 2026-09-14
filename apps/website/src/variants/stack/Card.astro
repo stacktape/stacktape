@@ -1,0 +1,52 @@
+---
+/**
+ * One of the seven cards: the number, the name, the explanation and the three things you get on
+ * the left; the product screen on the right, inside one surface.
+ *
+ * `--i` is the card's place in the stack and decides where it pins. The edge label appears once
+ * the card is covered, where it indexes the stack.
+ */
+import type { Section } from './data';
+
+type Props = { section: Section };
+
+const { section } = Astro.props;
+---
+
+<article
+  class="st-card"
+  id={section.id}
+  style={`--i: ${section.index}`}
+  data-st-card
+  aria-labelledby={`st-${section.id}-title`}
+>
+  <span class="st-card__edge" aria-hidden="true" data-st-edge>
+    <b>{section.number}</b>
+    <span>{section.name}</span>
+  </span>
+
+  <div class="st-card__grid">
+    <div class="st-card__copy">
+      <p class="st-card__num" aria-hidden="true">{section.number}</p>
+      <h2 class="st-card__title" id={`st-${section.id}-title`}>
+        <span class="st-visually-hidden">{section.number} </span>{section.name}
+      </h2>
+      <p class="st-card__text">{section.text}</p>
+      <ul class="st-card__gets">
+        {
+          section.gets.map((line) => (
+            <li>
+              <svg class="st-card__check" viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true">
+                <path d="m3.5 8.5 2.8 2.8 6.2-6.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              <span>{line}</span>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+    <div class="st-card__stage">
+      <slot />
+    </div>
+  </div>
+</article>

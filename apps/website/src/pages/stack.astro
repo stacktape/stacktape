@@ -1,0 +1,31 @@
+---
+// concept: Stacktape is a stack. The seven things it does are seven cards on the Console's panel material that pile up as you scroll: each card slides up over the last, and the cards you have passed remain as thin edges at the top of the viewport, an index of where you are. A normal hero with the cover composite opens the page; the closing card lands on top of the stack.
+// copy-angle: The headline states the promise; each card names one thing Stacktape does in the third person, explains it, lists what you get, and shows the product screen where it happens. The visitor's own actions appear only as the command box and the product's own buttons.
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { HEADLINE, SUBHEADLINE } from '../variants/stack/data';
+import Footer from '../variants/stack/Footer.astro';
+import Hero from '../variants/stack/Hero.astro';
+import Nav from '../variants/stack/Nav.astro';
+import Stack from '../variants/stack/Stack.astro';
+import Testimonials from '../variants/stack/Testimonials.astro';
+import '../variants/stack/stack.css';
+---
+
+<BaseLayout title={`Stacktape — ${HEADLINE}`} description={SUBHEADLINE} htmlClass="st-html">
+  <Fragment slot="head">
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..700&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+    />
+  </Fragment>
+
+  <div class="st-root">
+    <Nav />
+    <main>
+      <Hero />
+      <Stack />
+      <Testimonials />
+    </main>
+    <Footer />
+  </div>
+</BaseLayout>

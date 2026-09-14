@@ -1,0 +1,32 @@
+---
+/**
+ * The slim window frame a screen sits in, on the Console's nested surface: a title bar with a
+ * plain title (`<b>` marks the highlighted segment), the customer's AWS account on Console windows
+ * so ownership needs no legend, and the "example project" tag. Then one focused screen area; no
+ * Console navigation, because each card shows one screen, not the whole application.
+ */
+import { ACCOUNT } from './data';
+
+type Props = { title: string; tag?: string; kind?: 'console' | 'wizard'; class?: string };
+
+const { title, tag = 'example project', kind = 'console', class: className } = Astro.props;
+---
+
+<div class:list={['hm-win', `hm-win--${kind}`, className]}>
+  <div class="hm-win__bar">
+    <span class="hm-win__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+    <span class="hm-win__title" set:html={title} />
+    <slot name="bar" />
+    {
+      kind === 'console' && (
+        <span class="hm-win__account" title="The customer's own AWS account">
+          AWS account <b>{ACCOUNT.id}</b>
+        </span>
+      )
+    }
+    <span class="hm-win__tag">{tag}</span>
+  </div>
+  <div class="hm-win__body">
+    <slot />
+  </div>
+</div>

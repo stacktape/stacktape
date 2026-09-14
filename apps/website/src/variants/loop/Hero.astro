@@ -1,0 +1,197 @@
+---
+/**
+ * Headline, CTA block and the fan of three product cards. The cards are the promise in product form:
+ * the wizard decided the infrastructure, the CLI is deploying it, the Console resolved an incident.
+ */
+import CommandBox from './CommandBox.astro';
+import Icon from './Icon.astro';
+import { APP, DECIDED, DEPLOY, HERO, HERO_CALLOUTS, INCIDENT, LINKS } from './data';
+
+const deployPct = Math.round((DEPLOY.progress.done / DEPLOY.progress.total) * 100);
+const { correlation } = INCIDENT;
+---
+
+<section class="lp-hero" aria-labelledby="lp-hero-title">
+  <div class="lp-wrap lp-hero__in">
+    <p class="lp-eyebrow">{HERO.eyebrow}</p>
+    <h1 id="lp-hero-title" class="lp-display lp-hero__title">
+      {HERO.headline.map((line) => <span>{line}</span>)}
+    </h1>
+    <p class="lp-lede lp-hero__lede">{HERO.subheadline}</p>
+    <div class="lp-hero__cta">
+      <CommandBox id="lp-cmd-hero" />
+      <div class="lp-hero__links">
+        <a class="lp-btn" href={LINKS.signUp}>Sign up</a>
+        <a class="lp-btn" href={LINKS.demo}>Book a demo</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="lp-wrap lp-fan">
+    <svg class="lp-fan__loop" viewBox="0 0 1500 600" aria-hidden="true">
+      <path
+        pathLength="1"
+        d="M750 300 C 860 30, 1480 30, 1480 300 C 1480 570, 860 570, 750 300 C 640 30, 20 30, 20 300 C 20 570, 640 570, 750 300"
+      ></path>
+    </svg>
+    <ol class="lp-fan__row" aria-label="Designs it, ships it, keeps it running">
+      <li class="lp-fan__item lp-fan__item--1">
+        <p class="lp-fan__label">
+          <span>{HERO_CALLOUTS[0]}</span>
+          <svg viewBox="0 0 26 30" aria-hidden="true"><path d="M5 3c10 3 16 11 13 24"></path><path d="M12 22l6 5 5-6"></path></svg>
+        </p>
+        <div class="lp-card">
+          <div class="lp-card__bar">localhost:5173 · Review · acme/acme-project</div>
+          <div class="lp-card__body">
+            <div class="lp-p-h">
+              <span>Decided for you</span>
+              <span class="lp-p-chip lp-p-chip--brand">41 files read · on your machine</span>
+            </div>
+            <ul class="lp-decided">
+              {
+                DECIDED.map((row) => (
+                  <li>
+                    <div>
+                      <strong set:html={row.statement} />
+                      <span>{row.detail}</span>
+                    </div>
+                    <span class="lp-p-btn lp-p-btn--small">Change</span>
+                  </li>
+                ))
+              }
+            </ul>
+            <div class="lp-wiz__foot">
+              <span class="lp-p-mono"><b>{APP.resourceCount} resources</b> · <b>~{APP.monthly}/month</b></span>
+              <span class="lp-p-btn lp-p-btn--primary">Write stacktape.yml</span>
+            </div>
+          </div>
+        </div>
+      </li>
+
+      <li class="lp-fan__item lp-fan__item--2">
+        <p class="lp-fan__label">
+          <span>{HERO_CALLOUTS[1]}</span>
+          <svg viewBox="0 0 26 30" aria-hidden="true"><path d="M13 3v23"></path><path d="M7 20l6 7 6-7"></path></svg>
+        </p>
+        <div class="lp-card lp-card--terminal">
+          <div class="lp-card__bar">~/acme-project — {DEPLOY.command}</div>
+          <div class="lp-card__body lp-hero-deploy">
+            <p class="lp-hero-deploy__intro">
+              Deploying to AWS account <b>4128…9903 (acme-dev)</b> as matus.<br />14 resources will be created.
+            </p>
+            <div class="lp-deploy__phase">
+              <Icon name="check" class="lp-ico--ok" />
+              <span>Initialize</span>
+              <span class="lp-p-dim">done</span>
+            </div>
+            <div class="lp-deploy__phase">
+              <Icon name="check" class="lp-ico--ok" />
+              <span>Package</span>
+              <span class="lp-p-muted">{DEPLOY.packaged.map((p) => `${p.name} ${p.time}`).join(' · ')}</span>
+            </div>
+            <div class="lp-deploy__phase">
+              <i class="lp-p-dot lp-p-dot--busy"></i>
+              <span>Deploy</span>
+              <div class="lp-hero-deploy__progress">
+                <div class="lp-p-bar"><i style={`width:${deployPct}%`}></i></div>
+                <span class="lp-p-muted">{DEPLOY.progress.done} of {DEPLOY.progress.total} · CloudFormation</span>
+              </div>
+            </div>
+            <div class="lp-deploy__phase">
+              <i class="lp-p-dot"></i>
+              <span>Outputs</span>
+              <span class="lp-p-dim">waiting</span>
+            </div>
+            <p class="lp-hero-deploy__note">
+              web and apiService get a public URL. Nothing else is reachable from the internet.
+            </p>
+          </div>
+        </div>
+      </li>
+
+      <li class="lp-fan__item lp-fan__item--3">
+        <p class="lp-fan__label">
+          <span>{HERO_CALLOUTS[2]}</span>
+          <svg viewBox="0 0 26 30" aria-hidden="true"><path d="M21 3c-10 3-16 11-13 24"></path><path d="M3 21l5 6 6-5"></path></svg>
+        </p>
+        <div class="lp-card">
+          <div class="lp-card__bar">console.stacktape.com · Incidents · {INCIDENT.id}</div>
+          <div class="lp-card__body">
+            <div class="lp-inc__chips">
+              <span class="lp-p-chip lp-p-chip--ok"><i class="lp-p-dot lp-p-dot--ok"></i>Resolved</span>
+              <span class="lp-p-chip lp-p-chip--err">{INCIDENT.severity}</span>
+              <span class="lp-p-chip">{INCIDENT.stage}</span>
+              <span class="lp-p-chip">11 min</span>
+            </div>
+            <p class="lp-inc__release">
+              {correlation.opened} · <b>{correlation.release}</b> · {correlation.commit} — {correlation.message} · previous
+              release {correlation.previous} · {correlation.config} · <a>{correlation.changed}</a>
+            </p>
+            {
+              INCIDENT.signals.map((s) => (
+                <div class="lp-inc__signal">
+                  <Icon name="alert" class="lp-ico--err" />
+                  <div>
+                    <strong>{s.kind}</strong>
+                    <span>{s.detail}</span>
+                  </div>
+                </div>
+              ))
+            }
+            <p class="lp-hero-inc__recovery">
+              <Icon name="check" class="lp-ico--ok" />
+              <span>Recovered on its own signals · {INCIDENT.recovery} · fix shipped as v42</span>
+            </p>
+          </div>
+        </div>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<style>
+  .lp-hero-deploy {
+    font-family: var(--lp-mono);
+    font-size: 11.5px;
+  }
+
+  .lp-hero-deploy__intro {
+    margin: 0 0 10px;
+    color: var(--lp-ui-muted);
+    line-height: 1.55;
+  }
+
+  .lp-hero-deploy__intro b {
+    color: var(--lp-ui-text);
+    font-weight: 500;
+  }
+
+  .lp-hero-deploy__progress {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .lp-hero-deploy__note {
+    margin: 12px 0 0;
+    padding-top: 10px;
+    border-top: 1px solid var(--lp-ui-line);
+    color: var(--lp-ui-muted);
+    line-height: 1.5;
+  }
+
+  .lp-hero-inc__recovery {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 8px 0 0;
+    padding: 8px 10px;
+    border: 1px solid rgba(70, 190, 140, 0.35);
+    border-radius: 4px;
+    background: rgba(70, 190, 140, 0.06);
+    font-size: 11.5px;
+    line-height: 1.45;
+  }
+
+</style>

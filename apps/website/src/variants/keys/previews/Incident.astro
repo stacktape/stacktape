@@ -1,0 +1,65 @@
+---
+/** 05 — the incident page: the release that caused it, the evidence, the handoff and the timeline. */
+import { INCIDENT, PROJECT } from '../data';
+import Window from '../Window.astro';
+import { OptInSwitch, PreviewButton, StatusBadge } from './ui';
+
+const { release } = INCIDENT;
+---
+
+<Window title={`<b>${PROJECT.name}</b> · production · incidents`}>
+  <div class="ky-inc__head">
+    <p class="ky-inc__badges">
+      <StatusBadge tone="success" dot>Resolved</StatusBadge>
+      <StatusBadge tone="danger">Error</StatusBadge>
+      <span class="ky-inc__id ky-mono">{INCIDENT.id}</span>
+    </p>
+    <h4 class="ky-screen__title">{INCIDENT.title}</h4>
+  </div>
+
+  <p class="ky-inc__release">
+    <b>{release.opened}</b>
+    <span class="ky-inc__sep" aria-hidden="true">·</span>
+    <span class="ky-mono">{release.commit}</span>
+    <span class="ky-inc__sep" aria-hidden="true">·</span>
+    <span>{release.message}</span>
+    <span class="ky-inc__sep" aria-hidden="true">·</span>
+    <span class="ky-inc__link">{release.link}</span>
+  </p>
+
+  <div class="ky-signals">
+    <ul class="ky-signals__list" aria-label="Signals">
+      {
+        INCIDENT.signals.map((signal) => (
+          <li class="ky-signal">
+            <span class="ky-signal__text">{signal.text}</span>
+            <span class="ky-signal__meta">{signal.meta}</span>
+          </li>
+        ))
+      }
+    </ul>
+    <div class="ky-signals__foot">
+      <PreviewButton variant="secondary" icon="copy">{INCIDENT.handoff}</PreviewButton>
+    </div>
+  </div>
+
+  <ol class="ky-timeline" aria-label="Timeline">
+    {
+      INCIDENT.timeline.map((event) => (
+        <li class={`ky-tl ky-tl--${event.tone}`}>
+          <span class="ky-tl__time ky-mono">{event.time}</span>
+          <span class="ky-tl__mark" aria-hidden="true" />
+          <span class="ky-tl__text">{event.text}</span>
+        </li>
+      ))
+    }
+  </ol>
+
+  <div class="ky-optin">
+    <OptInSwitch label={INCIDENT.optIn} />
+    <span class="ky-optin__text">
+      <span class="ky-optin__what">{INCIDENT.optIn}</span>
+      <span class="ky-optin__state">{INCIDENT.optInState}</span>
+    </span>
+  </div>
+</Window>

@@ -1,0 +1,138 @@
+---
+/**
+ * The cover composite: the Console's overview window tilted slightly in 3D, a terminal flat in
+ * front of it at the bottom right, both on layered shadows over a soft teal glow.
+ *
+ * It is built at a fixed design size (720×624) and scaled to its container by the script below,
+ * so the picture stays crisp at every width and never overflows. Under 640px only the terminal
+ * remains; the stylesheet switches the design width and the script follows it.
+ */
+import Logo from '../../components/Logo.astro';
+import { COVER, DEPLOY_COMMAND, PROJECT, RESOURCES, TERMINAL_TITLE, URLS } from './data';
+
+const blocks = Math.round((COVER.terminal.progress / 100) * 28);
+const filled = '█'.repeat(blocks);
+const empty = '░'.repeat(28 - blocks);
+---
+
+<div class="st-cover" data-st-cover aria-label="The Stacktape Console and a deploy running in a terminal" role="img">
+  <div class="st-cover__stage">
+    <div class="st-cover__glow" aria-hidden="true"></div>
+
+    <div class="st-cover__console">
+      <div class="st-cover__chrome">
+        <span class="st-win__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="st-win__url st-cover__url">
+          <svg class="st-win__lock" viewBox="0 0 16 16" width="11" height="11" fill="none" aria-hidden="true">
+            <rect x="3" y="7" width="10" height="7" rx="2" stroke="currentColor" stroke-width="1.5"></rect>
+            <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path>
+          </svg>
+          <span class="st-win__addr"><b>{URLS.overview.host}</b>{URLS.overview.path}</span>
+        </span>
+        <span class="st-win__spacer" aria-hidden="true"></span>
+      </div>
+
+      <div class="st-cover__top">
+        <Logo height={16} />
+        <span class="st-cover__crumb">
+          <b>{PROJECT.name}</b>
+          <span class="st-cover__slash" aria-hidden="true">/</span>
+          <b>{PROJECT.stage}</b>
+        </span>
+      </div>
+
+      <div class="st-cover__frame">
+        <ul class="st-cover__nav">
+          {COVER.nav.map((item) => <li class={item === COVER.current ? 'is-current' : undefined}>{item}</li>)}
+        </ul>
+
+        <div class="st-cover__main">
+          <p class="st-cover__status">
+            <span class="st-cover__live"><i aria-hidden="true"></i>{COVER.status.badge}</span>
+            <span class="st-cover__mono">{COVER.status.version}</span>
+            <span class="st-cover__mono">{COVER.status.region}</span>
+            <span class="st-cover__dim">{COVER.status.deployed}</span>
+          </p>
+
+          <ul class="st-cover__tiles">
+            {
+              RESOURCES.map((resource) => (
+                <li class={`st-cover__tile st-cover__tile--${resource.category}`}>
+                  <i class="st-cover__cat" aria-hidden="true" />
+                  <span class="st-cover__tile-text">
+                    <b>{resource.name}</b>
+                    <span>{resource.short}</span>
+                  </span>
+                  <span class="st-cover__ok">{COVER.tileState}</span>
+                </li>
+              ))
+            }
+          </ul>
+
+          <ul class="st-cover__kpis">
+            {
+              COVER.kpis.map((kpi) => (
+                <li>
+                  <span class="st-cover__kpi-label">{kpi.label}</span>
+                  <b class="st-cover__kpi-value">{kpi.value}</b>
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="st-cover__terminal">
+      <div class="st-cover__tbar">
+        <span class="st-win__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="st-win__title">{TERMINAL_TITLE}</span>
+        <span class="st-win__spacer" aria-hidden="true"></span>
+      </div>
+      <div class="st-cover__tbody">
+        <p class="st-cover__cmd"><span class="st-cover__prompt">$</span> {DEPLOY_COMMAND}</p>
+        <ul class="st-cover__phases">
+          {
+            COVER.terminal.phases.map((phase) => (
+              <li class={`st-cover__phase st-cover__phase--${phase.state}`}>
+                <i aria-hidden="true">{phase.state === 'done' ? '✓' : phase.state === 'active' ? '●' : ''}</i>
+                {phase.name}
+                {'note' in phase && <span class="st-cover__note">{phase.note}</span>}
+              </li>
+            ))
+          }
+        </ul>
+        <p class="st-cover__bar">
+          <span class="st-cover__fill">{filled}</span><span class="st-cover__rest">{empty}</span>
+          <b>{COVER.terminal.progress}%</b>
+        </p>
+        <ul class="st-cover__rows">
+          {
+            COVER.terminal.rows.map((row) => (
+              <li class={row.state === 'created' ? 'st-cover__row' : 'st-cover__row st-cover__row--busy'}>
+                <i aria-hidden="true">{row.state === 'created' ? '✓' : '●'}</i>
+                <b>{row.name}</b>
+                <span>{row.state}</span>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const hosts = Array.from(document.querySelectorAll<HTMLElement>('[data-st-cover]'));
+
+  const fit = (host: HTMLElement) => {
+    const design = parseFloat(getComputedStyle(host).getPropertyValue('--st-cover-w')) || 720;
+    const scale = host.clientWidth / design;
+    host.style.setProperty('--st-cover-scale', scale.toFixed(4));
+  };
+
+  for (const host of hosts) {
+    fit(host);
+    new ResizeObserver(() => fit(host)).observe(host);
+  }
+</script>

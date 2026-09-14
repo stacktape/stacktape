@@ -1,0 +1,25 @@
+---
+import Frame from '../Frame.astro';
+import WizardRail from '../WizardRail.astro';
+import { ANALYZE_DONE, ANALYZE_FEED } from '../data';
+---
+
+<Frame title="localhost · Put this project on AWS" tag="example project" tight>
+  <div class="pl-wizard">
+    <WizardRail active="Analyze" />
+    <div class="pl-wizard__main">
+      <h4 class="pl-wizard__title">Reading your project — 12 files so far</h4>
+      <ol class="pl-feed" aria-label="Files the wizard opened">
+        {
+          ANALYZE_FEED.map((row, index) => (
+            <li class="pl-feed__row" style={`--pl-i:${index}`}>
+              <span class="pl-feed__file">{row.file}</span>
+              <span class="pl-feed__found">{row.found}</span>
+            </li>
+          ))
+        }
+      </ol>
+      <p class="pl-feed__done pl-mono">{ANALYZE_DONE}</p>
+    </div>
+  </div>
+</Frame>

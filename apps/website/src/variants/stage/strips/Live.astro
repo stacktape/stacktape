@@ -1,0 +1,41 @@
+---
+/** 02 — "It's live", and what deploying looks like from now on: a push, a preview, a rollback. */
+import Cursor from '../Cursor.astro';
+import { AFTER_FIRST, DEPLOY, PROJECT } from '../data';
+import { PreviewButton, StatusBadge } from '../ui';
+---
+
+<div class="sg-live">
+  <div class="sg-live__head">
+    <StatusBadge tone="success" dot>Live</StatusBadge>
+    <h3 class="sg-strip__heading">It's live</h3>
+  </div>
+  <p class="sg-live__urls">
+    <span class="sg-live__url">{PROJECT.urls.web}</span>
+    <span class="sg-live__url">{PROJECT.urls.api}</span>
+  </p>
+  <p class="sg-live__meta">
+    {DEPLOY.duration} · {PROJECT.region} · your AWS account <span class="sg-mono">{PROJECT.account}</span>
+  </p>
+</div>
+
+<p class="sg-strip__label">From now on</p>
+<ul class="sg-after">
+  <li class="sg-after__row sg-after__row--press">
+    <span class="sg-after__trigger">{AFTER_FIRST.push.trigger}</span>
+    <span class="sg-after__arrow" aria-hidden="true">→</span>
+    <span class="sg-after__result">{AFTER_FIRST.push.result}</span>
+    <span class="sg-after__note">{AFTER_FIRST.push.note}</span>
+    <Cursor class="sg-cursor--row" />
+  </li>
+  <li class="sg-after__row">
+    <span class="sg-after__trigger">{AFTER_FIRST.pullRequest.trigger}</span>
+    <span class="sg-after__arrow" aria-hidden="true">→</span>
+    <span class="sg-after__result">{AFTER_FIRST.pullRequest.result}</span>
+  </li>
+  <li class="sg-after__row">
+    <span class="sg-after__trigger">any release</span>
+    <span class="sg-after__arrow" aria-hidden="true">→</span>
+    <PreviewButton variant="secondary" small>{DEPLOY.rollback}</PreviewButton>
+  </li>
+</ul>

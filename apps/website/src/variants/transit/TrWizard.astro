@@ -1,0 +1,29 @@
+---
+/** The init wizard's page chrome: a localhost tab and the four-band guide rail, with one band active. */
+type Props = { band: 'Start' | 'Analyze' | 'Review' | 'Deploy' };
+const { band } = Astro.props;
+const BANDS = ['Start', 'Analyze', 'Review', 'Deploy'] as const;
+const activeIndex = BANDS.indexOf(band);
+---
+
+<div class="tr-wiz">
+  <div class="tr-wiz__bar">
+    <span class="tr-wiz__url">localhost · stacktape init</span>
+    <span class="tr-wiz__tag">runs on your machine</span>
+  </div>
+  <div class="tr-wiz__body">
+    <ol class="tr-wiz__rail" aria-label="Wizard bands">
+      {
+        BANDS.map((name, index) => (
+          <li class={index < activeIndex ? 'is-done' : index === activeIndex ? 'is-active' : undefined}>
+            <span class="tr-wiz__rail-dot" aria-hidden="true" />
+            {name}
+          </li>
+        ))
+      }
+    </ol>
+    <div class="tr-wiz__content">
+      <slot />
+    </div>
+  </div>
+</div>

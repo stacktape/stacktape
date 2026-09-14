@@ -1,0 +1,96 @@
+---
+/**
+ * The sticky 64px bar: transparent over the hero, the ground's colour with a blur once scrolled.
+ * Under 900px the links fold into a panel behind a menu button; the primary action stays.
+ */
+import { ButtonLink } from '@stacktape/ui-react/button';
+import Logo from '../../components/Logo.astro';
+import { LINKS, NAV_LINKS } from './data';
+---
+
+<header class="ls-nav" data-ls-nav>
+  <div class="ls-container ls-nav__inner">
+    <a class="ls-nav__logo" href="/" aria-label="Stacktape home"><Logo height={24} /></a>
+    <nav class="ls-nav__primary" aria-label="Primary">
+      <ul class="ls-nav__links">
+        {
+          NAV_LINKS.map((link) => (
+            <li>
+              <a class="ls-nav__link" href={link.href}>
+                {link.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+    <div class="ls-nav__actions">
+      <a class="ls-nav__link ls-nav__signin" href={LINKS.console}>Sign in</a>
+      <ButtonLink className="ls-nav__btn ls-nav__demo" href={LINKS.demo} variant="secondary">Book a demo</ButtonLink>
+      <ButtonLink className="ls-nav__btn" href={LINKS.getStarted} variant="primary">Get started</ButtonLink>
+      <button class="ls-nav__menu" type="button" aria-expanded="false" aria-controls="ls-nav-panel" data-ls-menu>
+        <span class="ls-visually-hidden">Menu</span>
+        <svg class="ls-nav__burger" viewBox="0 0 20 20" width="20" height="20" fill="none" aria-hidden="true">
+          <path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+        </svg>
+        <svg class="ls-nav__close" viewBox="0 0 20 20" width="20" height="20" fill="none" aria-hidden="true">
+          <path d="m5 5 10 10M15 5 5 15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+        </svg>
+      </button>
+    </div>
+  </div>
+  <div class="ls-nav__panel" id="ls-nav-panel" hidden data-ls-panel>
+    <ul class="ls-nav__panel-list">
+      {
+        NAV_LINKS.map((link) => (
+          <li>
+            <a class="ls-nav__panel-link" href={link.href}>
+              {link.label}
+            </a>
+          </li>
+        ))
+      }
+      <li><a class="ls-nav__panel-link" href={LINKS.console}>Sign in</a></li>
+      <li><a class="ls-nav__panel-link" href={LINKS.demo}>Book a demo</a></li>
+    </ul>
+  </div>
+</header>
+
+<script>
+  const nav = document.querySelector<HTMLElement>('[data-ls-nav]');
+  const menu = document.querySelector<HTMLButtonElement>('[data-ls-menu]');
+  const panel = document.querySelector<HTMLElement>('[data-ls-panel]');
+  let ticking = false;
+
+  const update = () => {
+    ticking = false;
+    nav?.classList.toggle('is-scrolled', window.scrollY > 40);
+  };
+
+  const schedule = () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(update);
+  };
+
+  const setOpen = (open: boolean) => {
+    if (!menu || !panel) return;
+    menu.setAttribute('aria-expanded', String(open));
+    panel.hidden = !open;
+    nav?.classList.toggle('is-open', open);
+  };
+
+  menu?.addEventListener('click', () => setOpen(menu.getAttribute('aria-expanded') !== 'true'));
+  panel?.addEventListener('click', (event) => {
+    if ((event.target as HTMLElement).closest('a')) setOpen(false);
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') setOpen(false);
+  });
+  window.matchMedia('(min-width: 900px)').addEventListener('change', (query) => {
+    if (query.matches) setOpen(false);
+  });
+
+  window.addEventListener('scroll', schedule, { passive: true });
+  update();
+</script>

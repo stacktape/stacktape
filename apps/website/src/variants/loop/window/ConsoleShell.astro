@@ -1,0 +1,59 @@
+---
+/** Console chrome: the real sidebar labels, a breadcrumb and optional stage tabs around a preview. */
+type Props = {
+  /** Highlighted nav items as "Group/Item" (the top group has an empty name: "/Overview"). */
+  active: string[];
+  crumb: string[];
+  tabs?: string[];
+  activeTab?: string;
+};
+
+const NAV = [
+  { label: '', items: ['Overview', 'Config editor'] },
+  { label: 'Organization', items: ['Projects', 'Activity', 'Users', 'Costs'] },
+  {
+    label: 'Observability',
+    items: ['Logs', 'Metrics', 'Traces', 'Uptime', 'Synthetics', 'Error tracking', 'Incidents']
+  },
+  { label: 'Alerting', items: ['Channels', 'Notifications', 'Alarms', 'Budgets'] },
+  { label: 'Security', items: ['Overview', 'Vulnerabilities', 'Posture'] },
+  { label: 'Configuration', items: ['Guardrails', 'Secrets', 'SSM Params', 'AWS Accounts', 'Domains'] }
+];
+
+const { active, crumb, tabs, activeTab } = Astro.props;
+---
+
+<div class="lp-con">
+  <div class="lp-con__nav" aria-hidden="true">
+    {
+      NAV.map((group) => (
+        <>
+          {group.label && <div class="lp-con__group">{group.label}</div>}
+          <ul>
+            {group.items.map((item) => (
+              <li aria-current={active.includes(`${group.label}/${item}`) ? 'page' : undefined}>{item}</li>
+            ))}
+          </ul>
+        </>
+      ))
+    }
+  </div>
+  <div class="lp-con__main">
+    <div class="lp-con__top">
+      <span>
+        {crumb.map((part, i) => <>{i > 0 && ' / '}{i === crumb.length - 1 ? <b>{part}</b> : part}</>)}
+      </span>
+      <slot name="top-right" />
+    </div>
+    {
+      tabs && (
+        <ul class="lp-con__tabs" aria-hidden="true">
+          {tabs.map((tab) => (
+            <li aria-current={tab === activeTab ? 'true' : undefined}>{tab}</li>
+          ))}
+        </ul>
+      )
+    }
+    <slot />
+  </div>
+</div>

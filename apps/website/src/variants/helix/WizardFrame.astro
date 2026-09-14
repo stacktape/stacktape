@@ -1,0 +1,30 @@
+---
+/** The init wizard's chrome: a localhost tab and the four-band guide rail. */
+const BANDS = ['Start', 'Analyze', 'Review', 'Deploy'] as const;
+
+type Props = { step: (typeof BANDS)[number] };
+const { step } = Astro.props;
+const current = BANDS.indexOf(step);
+---
+
+<div class="hx-panel">
+  <div class="hx-panel__bar">
+    <span class="hx-panel__bar-title">
+      <span class="hx-panel__dot" aria-hidden="true"></span>
+      <span>localhost · <b>stacktape init</b></span>
+    </span>
+    <span class="hx-tag">example project</span>
+  </div>
+  <ol class="hx-wiz__rail" aria-label="Wizard steps">
+    {
+      BANDS.map((band, index) => (
+        <li class:list={[index < current && 'is-done', index === current && 'is-active']} aria-current={index === current ? 'step' : undefined}>
+          {band}
+        </li>
+      ))
+    }
+  </ol>
+  <div class="hx-panel__body">
+    <slot />
+  </div>
+</div>

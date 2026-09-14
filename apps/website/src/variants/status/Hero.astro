@@ -1,0 +1,30 @@
+---
+/** The hero, centred on a 720px measure: the announcement, the headline, the command, the trust line. */
+import { CommandBox } from './CommandBox';
+import { ANNOUNCEMENT, HEADLINE_LINES, SUBHEADLINE, TRUST_LINE } from './data';
+---
+
+<section class="su-hero" aria-labelledby="su-hero-title">
+  <div class="su-container">
+    <div class="su-hero__inner">
+      <a class="su-pill" href={ANNOUNCEMENT.href}>
+        <span class="su-pill__text">
+          {ANNOUNCEMENT.before} <b>{ANNOUNCEMENT.accent}</b> {ANNOUNCEMENT.after}
+        </span>
+        <span class="su-pill__sep" aria-hidden="true"></span>
+        <span class="su-pill__cta">
+          {ANNOUNCEMENT.cta} <span class="su-pill__arrow" aria-hidden="true">→</span>
+        </span>
+      </a>
+      <h1 class="su-hero__title" id="su-hero-title">
+        <span class="su-hero__line">{HEADLINE_LINES[0]}</span>
+        <span class="su-hero__line">{HEADLINE_LINES[1]}</span>
+      </h1>
+      <p class="su-hero__sub">{SUBHEADLINE}</p>
+      <div class="su-hero__cta" id="get-started">
+        <CommandBox client:load label="Get started" />
+      </div>
+      <p class="su-trust">{TRUST_LINE}</p>
+    </div>
+  </div>
+</section>

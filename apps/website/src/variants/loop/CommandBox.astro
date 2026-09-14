@@ -1,0 +1,89 @@
+---
+/**
+ * The primary CTA: one install command with an npx / macOS / Linux / Windows switcher and a copy
+ * button. The script below wires every instance on the page; Astro includes it once.
+ */
+import Icon from './Icon.astro';
+import { INSTALL_COMMANDS } from './data';
+
+type Props = { id: string };
+const { id } = Astro.props;
+const first = INSTALL_COMMANDS[0];
+---
+
+<div class="lp-cmd" data-cmd>
+  <div class="lp-cmd__tabs" role="group" aria-label="Install method">
+    {
+      INSTALL_COMMANDS.map((item) => (
+        <button
+          class="lp-cmd__tab"
+          type="button"
+          aria-pressed={item.id === first.id ? 'true' : 'false'}
+          data-command={item.command}
+        >
+          {item.label}
+        </button>
+      ))
+    }
+  </div>
+  <div class="lp-cmd__line">
+    <pre class="lp-cmd__code" id={`${id}-code`} tabindex="0"><code>{first.command}</code></pre>
+    <button class="lp-cmd__copy" type="button" aria-describedby={`${id}-code`}>
+      <Icon name="copy" class="lp-ico--inline" />
+      <span data-label>Copy</span>
+    </button>
+  </div>
+  <p class="lp-cmd__status" aria-live="polite"></p>
+</div>
+
+<script>
+  const selectText = (el: HTMLElement) => {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  };
+
+  for (const box of document.querySelectorAll<HTMLElement>('[data-cmd]')) {
+    const tabs = Array.from(box.querySelectorAll<HTMLButtonElement>('.lp-cmd__tab'));
+    const code = box.querySelector<HTMLElement>('.lp-cmd__code code');
+    const copy = box.querySelector<HTMLButtonElement>('.lp-cmd__copy');
+    const label = copy?.querySelector<HTMLElement>('[data-label]');
+    const status = box.querySelector<HTMLElement>('.lp-cmd__status');
+    if (!code || !copy || !label || !status) continue;
+
+    let resetTimer: number | undefined;
+    const reset = () => {
+      copy.dataset.state = '';
+      label.textContent = 'Copy';
+      status.textContent = '';
+    };
+
+    for (const tab of tabs) {
+      tab.addEventListener('click', () => {
+        for (const other of tabs) other.setAttribute('aria-pressed', String(other === tab));
+        code.textContent = tab.dataset.command ?? '';
+        window.clearTimeout(resetTimer);
+        reset();
+      });
+    }
+
+    copy.addEventListener('click', async () => {
+      const text = code.textContent ?? '';
+      window.clearTimeout(resetTimer);
+      try {
+        await navigator.clipboard.writeText(text);
+        copy.dataset.state = 'copied';
+        label.textContent = 'Copied';
+        status.textContent = 'Copied to clipboard.';
+        resetTimer = window.setTimeout(reset, 2400);
+      } catch {
+        selectText(code);
+        copy.dataset.state = '';
+        label.textContent = 'Copy';
+        status.textContent = 'The browser blocked the clipboard. The command is selected: press Ctrl+C or Cmd+C.';
+      }
+    });
+  }
+</script>

@@ -1,0 +1,82 @@
+---
+import Frame from '../Frame.astro';
+import { CONSOLE_NAV, PROJECT, RESOURCES, STAGES, STAGE_TABS } from '../data';
+---
+
+<Frame title={`console.stacktape.com · Projects / ${PROJECT.name}`} tag="example project" tight>
+  <div class="pl-con">
+    <nav class="pl-con__nav" aria-label="Console navigation">
+      <div class="pl-con__nav-inner">
+        {
+          CONSOLE_NAV.map((group) => (
+            <>
+              {group.group && <div class="pl-con__group">{group.group}</div>}
+              <ul>
+                {group.items.map((item) => (
+                  <li class:list={[item === 'Projects' && 'pl-con__active']}>{item}</li>
+                ))}
+              </ul>
+            </>
+          ))
+        }
+      </div>
+    </nav>
+    <div class="pl-con__main">
+      <p class="pl-con__crumbs">Projects / <b>{PROJECT.name}</b></p>
+      <div class="pl-con__head">
+        <h4 class="pl-con__title">{PROJECT.name}</h4>
+        <span class="pl-con__repo">github.com/{PROJECT.repo} · {PROJECT.region}</span>
+      </div>
+      <ul class="pl-stages" aria-label="Stages">
+        {
+          STAGES.map((stage) => (
+            <li class:list={['pl-stage', stage.deploying && 'pl-stage--deploying']}>
+              <div class="pl-stage__name">
+                <span>{stage.name}</span>
+                <span class:list={['pl-pill', stage.deploying ? 'pl-pill--brand' : 'pl-pill--green pl-pill--live']}>
+                  {stage.deploying ? 'Deploying…' : 'Live'}
+                </span>
+              </div>
+              <div class="pl-stage__meta">
+                {stage.region} · {stage.deploying ? `deploy phase · ${stage.release}` : `${stage.status} · ${stage.release}`}
+              </div>
+              {stage.deploying && (
+                <div class="pl-bar">
+                  <div class="pl-bar__fill" />
+                </div>
+              )}
+            </li>
+          ))
+        }
+      </ul>
+      <ul class="pl-con__tabs" aria-label="Stage tabs">
+        {STAGE_TABS.map((tab) => <li class:list={[tab === 'Overview' && 'pl-con__active']}>{tab}</li>)}
+      </ul>
+      <table class="pl-restable">
+        <thead>
+          <tr>
+            <th scope="col">Resource</th>
+            <th scope="col">Type</th>
+            <th scope="col" class="pl-restable__detail">Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          {
+            RESOURCES.map((resource) => (
+              <tr>
+                <td>
+                  <span class="pl-restable__name">
+                    <i class:list={['pl-dot', `pl-cat-${resource.category}`]} aria-hidden="true" />
+                    {resource.name}
+                  </span>
+                </td>
+                <td>{resource.label}</td>
+                <td class="pl-restable__detail">{resource.detail}</td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+</Frame>

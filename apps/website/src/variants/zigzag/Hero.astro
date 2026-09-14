@@ -1,0 +1,28 @@
+---
+/**
+ * The split hero: the words and the command on the left, and on the right the extraordinary
+ * thing — the architecture the wizard draws from a repository, switchable between four example
+ * repositories, on the real diagram.
+ */
+import { CommandBox } from './CommandBox';
+import { EYEBROW, HEADLINE, SUBHEADLINE, TRUST_LINE } from './data';
+import { HeroWindow } from './HeroWindow';
+---
+
+<section class="zz-hero" aria-labelledby="zz-hero-title">
+  <div class="zz-container zz-container--wide zz-hero__grid">
+    <div class="zz-hero__copy">
+      <p class="zz-eyebrow">{EYEBROW}</p>
+      <h1 class="zz-hero__title" id="zz-hero-title">{HEADLINE}</h1>
+      <p class="zz-hero__sub">{SUBHEADLINE}</p>
+      <div class="zz-hero__cta">
+        <CommandBox client:load label="Get started" />
+      </div>
+      <p class="zz-trust">{TRUST_LINE}</p>
+    </div>
+
+    <div class="zz-hero__window">
+      <HeroWindow client:load />
+    </div>
+  </div>
+</section>

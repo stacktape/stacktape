@@ -1,0 +1,26 @@
+---
+/** The six stages, straight after the hero, in the order the product does them. */
+import { STAGES } from './data';
+import Costs from './previews/Costs.astro';
+import Deploy from './previews/Deploy.astro';
+import Incident from './previews/Incident.astro';
+import Monitor from './previews/Monitor.astro';
+import Review from './previews/Review.astro';
+import Secure from './previews/Secure.astro';
+import Stage from './Stage.astro';
+
+const stage = (id: string) => {
+  const found = STAGES.find((candidate) => candidate.id === id);
+  if (!found) throw new Error(`keys: no stage with id "${id}"`);
+  return found;
+};
+---
+
+<div class="ky-stages" aria-label="What Stacktape does">
+  <Stage stage={stage('designs')}><Review /></Stage>
+  <Stage stage={stage('deploys')}><Deploy /></Stage>
+  <Stage stage={stage('monitors')}><Monitor /></Stage>
+  <Stage stage={stage('secures')}><Secure /></Stage>
+  <Stage stage={stage('incidents')}><Incident /></Stage>
+  <Stage stage={stage('costs')}><Costs /></Stage>
+</div>

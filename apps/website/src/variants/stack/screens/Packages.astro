@@ -1,0 +1,48 @@
+---
+/** 02 — the package phase of a deploy: two workloads built in parallel, one skipped because nothing changed. */
+import { DEPLOY_COMMAND, PACKAGE, TERMINAL_TITLE } from '../data';
+import Window from '../Window.astro';
+---
+
+<Window kind="terminal" title={TERMINAL_TITLE}>
+  <div class="st-term">
+    <p class="st-term__cmd"><span class="st-term__prompt">$</span> {DEPLOY_COMMAND}</p>
+
+    <p class="st-term__phase st-term__phase--done">
+      <i aria-hidden="true">✓</i>
+      <span>Initialize</span>
+      <span class="st-term__dim">2 s</span>
+    </p>
+
+    <p class="st-term__phase st-term__phase--done">
+      <i aria-hidden="true">✓</i>
+      <span>Package</span>
+      <span class="st-term__dim">58 s</span>
+    </p>
+
+    <ul class="st-term__rows" aria-label="Packaged workloads">
+      {
+        PACKAGE.rows.map((row) => (
+          <li class={row.skipped ? 'st-term__row st-term__row--skipped' : 'st-term__row'}>
+            <i aria-hidden="true">{row.skipped ? '–' : '✓'}</i>
+            <b>{row.name}</b>
+            <span class="st-term__kind">{row.kind}</span>
+            <span class="st-term__result">{row.result}</span>
+            <span class="st-term__time">{row.time}</span>
+          </li>
+        ))
+      }
+    </ul>
+    <p class="st-term__sum">{PACKAGE.summary}</p>
+
+    <p class="st-term__phase st-term__phase--active">
+      <i aria-hidden="true">●</i>
+      <span>{PACKAGE.next}</span>
+      <span class="st-term__dim">starting…</span>
+    </p>
+    <p class="st-term__phase st-term__phase--todo">
+      <i aria-hidden="true"></i>
+      <span>Outputs</span>
+    </p>
+  </div>
+</Window>

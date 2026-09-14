@@ -1,0 +1,62 @@
+---
+import Frame from '../Frame.astro';
+import ConsoleNav from './ConsoleNav.astro';
+
+const rows = [
+  { name: 'mainDatabase', label: 'Aurora PostgreSQL', value: 61.4 },
+  { name: 'apiService', label: 'Fargate · 2 instances', value: 34.2 },
+  { name: 'cache', label: 'ElastiCache', value: 11.9 },
+  { name: 'web', label: 'Lambda + CloudFront', value: 3.8 },
+  { name: 'worker', label: 'Lambda', value: 0.7 },
+  { name: 'other', label: 'VPC, logs, jump box', value: 0.9 }
+];
+const total = rows.reduce((sum, row) => sum + row.value, 0);
+const max = Math.max(...rows.map((row) => row.value));
+const budget = 150;
+---
+
+<Frame url="<b>console.stacktape.com</b> / acme-project / production / costs">
+  <div class="sp-console">
+    <ConsoleNav active="Organization/Costs" />
+    <div class="sp-console__main">
+      <p class="sp-crumb">acme-project · <b>production</b> · Costs</p>
+      <ul class="sp-tabs" aria-label="Stage tabs">
+        <li>Overview</li>
+        <li>Activity</li>
+        <li>Logs</li>
+        <li>Metrics</li>
+        <li class="is-on">Costs</li>
+        <li>Configuration</li>
+        <li>Danger zone</li>
+      </ul>
+      <div class="sp-total">
+        <span class="sp-total__n">${total.toFixed(2)}</span>
+        <span class="sp-total__l">month to date · from your AWS cost data</span>
+      </div>
+      <ul class="sp-costs" style="margin-top:14px" aria-label="Cost per resource">
+        {
+          rows.map((row, index) => (
+            <li>
+              <span class="sp-costs__n">
+                {row.name} <span style="color:var(--sp-cool-faint);font-size:11px">{row.label}</span>
+              </span>
+              <span class="sp-bar" style={`--w:${((row.value / max) * 100).toFixed(1)}%;--i:${index}`}>
+                <i />
+              </span>
+              <span class="sp-costs__v">${row.value.toFixed(2)}</span>
+            </li>
+          ))
+        }
+      </ul>
+      <hr class="sp-hr" />
+      <p class="sp-kicker">Budget · ${budget} per month · alert at 80%</p>
+      <span class="sp-bar" style={`--w:${((total / budget) * 100).toFixed(1)}%`} role="img" aria-label={`$${total.toFixed(2)} of $${budget} budget`}>
+        <i></i>
+        <span class="sp-bar__mark" style="--at:80%"></span>
+      </span>
+      <p class="sp-p" style="margin-top:10px;font-size:12px">
+        {((total / budget) * 100).toFixed(0)}% used. The alert goes to #ops on Slack at $120. AWS bills you directly; Stacktape's subscription is separate.
+      </p>
+    </div>
+  </div>
+</Frame>

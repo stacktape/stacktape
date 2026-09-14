@@ -1,0 +1,54 @@
+---
+/**
+ * Console chrome for a station card: top bar with breadcrumb, the real navigation in a sidebar,
+ * and the content. `group` names the navigation group that stays expanded; the rest collapse to
+ * their headings so the frame stays short. On narrow cards the sidebar is hidden.
+ */
+type Props = {
+  crumbs: string[];
+  active: string;
+  group?: string;
+  tag?: string;
+};
+
+const { crumbs, active, group, tag = 'example project' } = Astro.props;
+
+const NAV: { group?: string; items: string[] }[] = [
+  { items: ['Overview', 'Config editor'] },
+  { group: 'Organization', items: ['Projects', 'Activity', 'Users', 'Costs'] },
+  { group: 'Observability', items: ['Logs', 'Metrics', 'Traces', 'Uptime', 'Synthetics', 'Error tracking', 'Incidents'] },
+  { group: 'Alerting', items: ['Channels', 'Notifications', 'Alarms', 'Budgets'] },
+  { group: 'Configuration', items: ['Guardrails', 'Secrets', 'SSM Params', 'AWS Accounts', 'Domains'] }
+];
+---
+
+<div class="tr-ui">
+  <div class="tr-ui__bar">
+    <span class="tr-ui__brand" aria-hidden="true"></span>
+    <span class="tr-ui__crumbs">
+      {crumbs.map((crumb, index) => <span class={index === crumbs.length - 1 ? 'is-last' : undefined}>{crumb}</span>)}
+    </span>
+    <span class="tr-ui__tag">{tag}</span>
+  </div>
+  <div class="tr-ui__body">
+    <nav class="tr-ui__nav" aria-label="Console navigation (preview)">
+      {
+        NAV.map((section) => {
+          const expanded = !section.group || section.group === group;
+          return (
+            <div class="tr-ui__group">
+              {section.group && <span class="tr-ui__group-name">{section.group}</span>}
+              {expanded &&
+                section.items.map((item) => (
+                  <span class={item === active ? 'tr-ui__item is-active' : 'tr-ui__item'}>{item}</span>
+                ))}
+            </div>
+          );
+        })
+      }
+    </nav>
+    <div class="tr-ui__main">
+      <slot />
+    </div>
+  </div>
+</div>

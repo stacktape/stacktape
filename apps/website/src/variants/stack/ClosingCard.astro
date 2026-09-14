@@ -1,0 +1,16 @@
+---
+/** The eighth card: the closing line, the same command box, the way back in. It pins on top of the stack. */
+import { CommandBox } from './CommandBox';
+import { CLOSING_LINE, LINKS, TRUST_LINE } from './data';
+---
+
+<article class="st-card st-card--closing" style="--i: 8" data-st-card aria-labelledby="st-closing-title">
+  <div class="st-closing">
+    <h2 class="st-closing__title" id="st-closing-title">{CLOSING_LINE}</h2>
+    <div class="st-closing__cta">
+      <CommandBox client:load label="Start now" hint={false} />
+    </div>
+    <p class="st-trust">{TRUST_LINE}</p>
+    <p class="st-closing__signin">Already set up? <a href={LINKS.console}>Sign in to the Console</a></p>
+  </div>
+</article>

@@ -1,0 +1,57 @@
+---
+import Frame from '../Frame.astro';
+import WizardRail from '../WizardRail.astro';
+import { DECIDED, PROJECT, RESOURCES, YAML_EXCERPT } from '../data';
+
+const resourceKeys = new Set(RESOURCES.map((resource) => resource.name));
+const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+// Resource keys (two-space indent) get the brand colour; `type:` values get their own so the shape of the file reads.
+const highlight = (line: string) => {
+  const match = line.match(/^(\s*)([A-Za-z_]+):(.*)$/);
+  if (!match) return escape(line);
+  const [, indent = '', key = '', rest = ''] = match;
+  const keyClass = resourceKeys.has(key) && indent.length === 2 ? 'pl-yaml__res' : 'pl-yaml__key';
+  const restHtml = key === 'type' ? `<span class="pl-yaml__type">${escape(rest)}</span>` : escape(rest);
+  return `${indent}<span class="${keyClass}">${escape(key)}</span>:${restHtml}`;
+};
+
+const yamlHtml = YAML_EXCERPT.map(highlight).join('\n');
+---
+
+<Frame title="localhost · Put this project on AWS" tag="example project" tight>
+  <div class="pl-wizard">
+    <WizardRail active="Review" />
+    <div class="pl-wizard__main">
+      <h4 class="pl-wizard__title">Here's your app on AWS</h4>
+      <p class="pl-wizard__text">{PROJECT.summary}</p>
+      <div class="pl-review">
+        <div class="pl-review__col">
+          <h5 class="pl-subhead">Decided for you</h5>
+          <ul class="pl-decided">
+            {
+              DECIDED.map((row) => (
+                <li class="pl-decided__row">
+                  <span class="pl-decided__statement">{row.statement}</span>
+                  <span class="pl-decided__change">Change</span>
+                  <span class="pl-decided__detail">{row.detail}</span>
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+        <div class="pl-review__col">
+          <h5 class="pl-subhead">stacktape.yml · written by the wizard</h5>
+          <pre class="pl-yaml"><code set:html={yamlHtml}></code></pre>
+          <div class="pl-estimate">
+            <div>
+              <div class="pl-estimate__num">{PROJECT.estimate.resources} AWS resources · {PROJECT.estimate.monthly}</div>
+              <div class="pl-estimate__note">{PROJECT.estimate.size} · an estimate, nothing exists yet</div>
+            </div>
+            <span class="pl-fake-btn pl-fake-btn--primary">Ready to deploy</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</Frame>

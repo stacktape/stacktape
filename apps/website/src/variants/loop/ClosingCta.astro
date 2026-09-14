@@ -1,0 +1,22 @@
+---
+import CommandBox from './CommandBox.astro';
+import { LINKS } from './data';
+---
+
+<section class="lp-close" aria-labelledby="lp-close-title">
+  <div class="lp-wrap lp-close__in">
+    <p class="lp-eyebrow">Start with the repository you already have</p>
+    <h2 id="lp-close-title" class="lp-display lp-close__title">
+      Put your project<br />on AWS.
+    </h2>
+    <p class="lp-lede" style="max-width: 48ch;">
+      Ten minutes on your machine, then one press to deploy into your own account. The framework is open source (MIT);
+      the Console is where the loop runs.
+    </p>
+    <CommandBox id="lp-cmd-close" />
+    <div class="lp-hero__links">
+      <a class="lp-btn" href={LINKS.signUp}>Sign up</a>
+      <a class="lp-btn" href={LINKS.demo}>Book a demo</a>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,23 @@
+---
+/** References: the three testimonials as quotes, with the name and role of each referee. */
+import { POSTING, TESTIMONIALS } from './data';
+---
+
+<section class="hr-section hr-refs" aria-labelledby="hr-refs-title">
+  <h2 class="hr-h2" id="hr-refs-title">{POSTING.references}</h2>
+  <ul class="hr-refs__list">
+    {
+      TESTIMONIALS.map((item) => (
+        <li class="hr-ref">
+          <blockquote class="hr-ref__quote">
+            <p>“{item.quote}”</p>
+          </blockquote>
+          <p class="hr-ref__who">
+            <span class="hr-ref__name">{item.name}</span>
+            <span class="hr-ref__role">{item.role}</span>
+          </p>
+        </li>
+      ))
+    }
+  </ul>
+</section>

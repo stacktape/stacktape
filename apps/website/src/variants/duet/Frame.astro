@@ -1,0 +1,37 @@
+---
+/**
+ * Console window chrome: title bar with the address, and the real navigation down the left.
+ * `url` may contain <b> for the highlighted segment. `active` is the navigation item to mark.
+ */
+import { CONSOLE_NAV, PROJECT } from './data';
+
+type Props = { url: string; active: string; tag?: string; class?: string };
+
+const { url, active, tag = 'example project', class: className } = Astro.props;
+---
+
+<div class:list={['du-win', 'du-console', className]}>
+  <div class="du-win__bar">
+    <span class="du-win__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+    <span class="du-win__url" set:html={url} />
+    <span class="du-tag">{tag}</span>
+  </div>
+  <div class="du-console__body">
+    <nav class="du-console__nav" aria-label="Console navigation, example">
+      <p class="du-console__proj"><span class="du-console__proj-mark" aria-hidden="true"></span>{PROJECT.name}</p>
+      {
+        CONSOLE_NAV.map((group) => (
+          <div class="du-console__group">
+            {group.heading && <p class="du-console__heading">{group.heading}</p>}
+            <ul>
+              {group.items.map((item) => (
+                <li class={item === active ? 'is-active' : undefined}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        ))
+      }
+    </nav>
+    <div class="du-console__main"><slot /></div>
+  </div>
+</div>

@@ -1,0 +1,89 @@
+---
+/**
+ * 02 — the deploy: the account it names before anything is created, the four phases, the two
+ * live URLs, and a strip showing what deploying looks like from the second time on: a push, a
+ * pull-request preview, a rollback.
+ */
+import Callout from '../Callout.astro';
+import { AFTER_FIRST, DEPLOY, PROJECT } from '../data';
+import Window from '../Window.astro';
+import { PreviewButton, StatusBadge } from './ui';
+---
+
+<Window kind="wizard" title="localhost:3000 · <b>stacktape init</b>">
+  <ol class="hm-wizard__steps" slot="bar" aria-label="Wizard steps">
+    <li>Start</li>
+    <li>Analyze</li>
+    <li>Review</li>
+    <li class="is-current" aria-current="step">Deploy</li>
+  </ol>
+
+  <div class="hm-deploy__intro">
+    <p class="hm-deploy__account">{DEPLOY.intro}</p>
+    <p class="hm-deploy__reach">{DEPLOY.reach}</p>
+    <Callout side="below" text="your AWS account, named before anything is created" />
+  </div>
+
+  <ol class="hm-phases hm-phases--done" aria-label="Deploy phases">
+    {
+      DEPLOY.phases.map((phase) => (
+        <li class="hm-phase hm-phase--done">
+          <span class="hm-phase__mark" aria-hidden="true">
+            <svg viewBox="0 0 12 12" width="10" height="10" fill="none">
+              <path d="m2.5 6.3 2.3 2.3 4.7-5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </span>
+          <span class="hm-phase__name">{phase.name}</span>
+          {'chips' in phase ? (
+            <span class="hm-phase__chips">
+              {phase.chips.map((chip) => (
+                <span class="hm-chip">{chip}</span>
+              ))}
+            </span>
+          ) : (
+            <span class="hm-phase__note">{phase.note}</span>
+          )}
+        </li>
+      ))
+    }
+  </ol>
+
+  <div class="hm-live">
+    <div class="hm-live__head">
+      <StatusBadge tone="success" dot>Live</StatusBadge>
+      <h4 class="hm-screen__title">It's live</h4>
+      <span class="hm-live__meta">{PROJECT.region} · {DEPLOY.duration}</span>
+    </div>
+    <ul class="hm-live__urls">
+      <li><span class="hm-live__url">{PROJECT.urls.web}</span><span class="hm-live__res">web</span></li>
+      <li><span class="hm-live__url">{PROJECT.urls.api}</span><span class="hm-live__res">apiService</span></li>
+    </ul>
+    <Callout side="below" text="only web and apiService face the internet" />
+  </div>
+
+  <div class="hm-panel hm-after" data-hm-phone="hide">
+    <div class="hm-panel__head">
+      <h5 class="hm-panel__title">From the second deploy on</h5>
+      <p class="hm-panel__meta">Console · {PROJECT.name}</p>
+    </div>
+    <ul class="hm-after__list">
+      <li class="hm-after__row">
+        <StatusBadge tone="success" dot>Live</StatusBadge>
+        <span class="hm-after__text">
+          <span class="hm-mono">{AFTER_FIRST.push.release}</span> · {AFTER_FIRST.push.trigger} ·
+          <span class="hm-mono">{AFTER_FIRST.push.commit}</span>
+        </span>
+        <span class="hm-after__meta">{AFTER_FIRST.push.note}</span>
+        <PreviewButton variant="secondary" small>Roll back to {AFTER_FIRST.rollback}</PreviewButton>
+      </li>
+      <li class="hm-after__row">
+        <StatusBadge tone="brand" dot>Preview</StatusBadge>
+        <span class="hm-after__text">
+          <span class="hm-mono">PR {AFTER_FIRST.pullRequest.number}</span> · {AFTER_FIRST.pullRequest.title}
+        </span>
+        <span class="hm-after__meta hm-mono">{AFTER_FIRST.pullRequest.url.replace('https://', '')}</span>
+      </li>
+    </ul>
+    <Callout side="below" text="next time: a push. Every pull request gets its own preview" />
+  </div>
+</Window>

@@ -1,0 +1,23 @@
+---
+/**
+ * One surface on the board: the big faded numeral, the name, the explanation, and the screen in
+ * its window below, all inside one opaque panel. The route passes behind it, top-centre to
+ * bottom-centre; `route.ts` measures this element to know where.
+ */
+import type { Step } from './data';
+
+type Props = { step: Step };
+
+const { step } = Astro.props;
+---
+
+<article class="zz-surface" id={step.id} data-zz-node="surface" data-zz-rise aria-labelledby={`${step.id}-title`}>
+  <div class="zz-surface__head">
+    <span class="zz-surface__num" aria-hidden="true">{step.number}</span>
+    <h2 class="zz-surface__title" id={`${step.id}-title`}>{step.name}</h2>
+  </div>
+  <p class="zz-surface__text">{step.text}</p>
+  <div class="zz-surface__screen">
+    <slot />
+  </div>
+</article>

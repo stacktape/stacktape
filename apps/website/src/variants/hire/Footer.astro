@@ -1,0 +1,35 @@
+---
+/** The site footer on the page colour: four link columns on a 1px top rule, then the bottom row. */
+import { FOOTER_COLUMNS, FOOTER_NOTES, FOOTER_STATUS, LINKS } from './data';
+import Wordmark from './Wordmark.astro';
+---
+
+<footer class="hr-footer">
+  <div class="hr-container">
+    <div class="hr-footer__columns">
+      {
+        FOOTER_COLUMNS.map((column) => (
+          <nav class="hr-footer__column" aria-label={column.title}>
+            <p class="hr-footer__heading">{column.title}</p>
+            <ul class="hr-footer__links">
+              {column.links.map((link) => (
+                <li>
+                  <a class="hr-footer__link" href={link.href}>
+                    {link.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        ))
+      }
+    </div>
+    <div class="hr-footer__bottom">
+      <a class="hr-footer__logo" href="/" aria-label="Stacktape home"><Wordmark height={18} /></a>
+      <p class="hr-footer__meta">
+        {FOOTER_NOTES.map((note) => <span>{note}</span>)}
+        <a class="hr-footer__status" href={LINKS.status}><i class="hr-footer__dot" aria-hidden="true"></i>{FOOTER_STATUS}</a>
+      </p>
+    </div>
+  </div>
+</footer>

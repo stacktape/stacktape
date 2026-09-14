@@ -1,0 +1,69 @@
+---
+/**
+ * The generated `stacktape.yml`, with provenance: each block names the repository file it came from,
+ * or is marked as a decision the wizard made. `window` mode has the tab bar and the footer (the hero);
+ * `pane` mode is the bare, scrollable file for the Review screen's reveal.
+ */
+import type { ConfigLine } from './data';
+import { CONFIG_LINE_COUNT, CONFIG_REST } from './data';
+
+type Props = { lines: ConfigLine[]; mode?: 'window' | 'pane'; class?: string; start?: number };
+
+const { lines, mode = 'window', class: className, start = 1 } = Astro.props;
+const end = start + lines.length - 1;
+
+const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/** Keys teal, scalars gold, punctuation quiet. Deliberately small; the file is short and regular. */
+const colorize = (text: string) => {
+  const match = text.match(/^(\s*)([\w-]+):(.*)$/);
+  if (!match) return `<span class="v">${escape(text)}</span>`;
+  const [, indent, key, rest] = match;
+  const value = escape(rest ?? '')
+    .replace(/([\w-]+):(?=\s)/g, '<span class="k">$1:</span>')
+    .replace(/([{}[\],])/g, '<span class="p">$1</span>');
+  return `${indent}<span class="k">${escape(key ?? '')}:</span><span class="v">${value}</span>`;
+};
+---
+
+<div class={['rl-gen', `rl-gen--${mode}`, className].filter(Boolean).join(' ')}>
+  {
+    mode === 'window' && (
+      <div class="rl-gen__bar">
+        <span class="rl-gen__tab">
+          <i aria-hidden="true" />
+          stacktape.yml
+        </span>
+        <span class="rl-gen__meta">
+          <b>written by Stacktape</b> · {CONFIG_LINE_COUNT} lines · 0 typed by you
+        </span>
+      </div>
+    )
+  }
+  <div
+    class="rl-gen__code"
+    style={`counter-reset: rl-line ${start - 1}`}
+    role="figure"
+    aria-label="An excerpt of the generated stacktape.yml, annotated with the repository file each part was derived from"
+  >
+    {
+      lines.map((line, index) => (
+        <div class="rl-gen__line" style={`--i:${index}`}>
+          <span class="rl-gen__text" set:html={colorize(line.text)} />
+          {line.from && <span class="rl-gen__from">from {line.from}</span>}
+          {line.decided && <span class="rl-gen__from rl-gen__from--decided">decided for you</span>}
+        </div>
+      ))
+    }
+  </div>
+  {
+    mode === 'window' && (
+      <div class="rl-gen__foot">
+        <b>
+          Lines {start}–{end} of {CONFIG_LINE_COUNT}
+        </b>
+        <span>{CONFIG_REST}</span>
+      </div>
+    )
+  }
+</div>

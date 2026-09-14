@@ -1,0 +1,19 @@
+---
+import Logo from '../../components/Logo.astro';
+import { LINKS } from './data';
+---
+
+<footer class="tr-footer">
+  <div class="tr-wrap tr-footer__in">
+    <Logo height={18} />
+    <nav class="tr-footer__links" aria-label="Footer">
+      <a href={LINKS.docs}>Docs</a>
+      <a href={LINKS.github}>GitHub</a>
+      <a href={LINKS.signIn}>Console</a>
+      <a href={LINKS.demo}>Book a demo</a>
+      <a href={LINKS.discord}>Discord</a>
+      <a href={LINKS.privacy}>Privacy</a>
+    </nav>
+    <p class="tr-footer__note">Open source under MIT · deploys plain CloudFormation into your own AWS account</p>
+  </div>
+</footer>

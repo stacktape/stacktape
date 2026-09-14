@@ -12,6 +12,19 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["dev:website"],
       "port": 9002
+    },
+    {
+      "name": "website-studies",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "apps/website/node_modules/astro/bin/astro.mjs",
+        "dev",
+        "--root",
+        "apps/website",
+        "--port",
+        "9012"
+      ],
+      "port": 9012
     }
   ]
 }

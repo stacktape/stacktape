@@ -1,0 +1,34 @@
+---
+/** 03 — three metric tiles with sparklines, and one uptime line. */
+import { METRICS, sparkline, UPTIME } from '../data';
+import { StatusBadge } from '../ui';
+---
+
+<div class="sg-tiles">
+  {
+    METRICS.map((metric) => (
+      <div class="sg-tile">
+        <p class="sg-tile__label">{metric.label}</p>
+        <p class="sg-tile__value">
+          {metric.value}<span class="sg-tile__unit">{metric.unit}</span>
+        </p>
+        <svg class="sg-spark" viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true">
+          <polyline points={sparkline(metric.points)} fill="none" stroke="currentColor" stroke-width="1.6" vector-effect="non-scaling-stroke" />
+        </svg>
+      </div>
+    ))
+  }
+</div>
+
+<p class="sg-uptime">
+  <span class="sg-uptime__url">{UPTIME.url}</span>
+  <StatusBadge tone="success" dot>Up</StatusBadge>
+  {
+    UPTIME.regions.map((check) => (
+      <span class="sg-uptime__region">
+        {check.region} <span class="sg-mono">{check.latency}</span>
+      </span>
+    ))
+  }
+  <span class="sg-uptime__total">{UPTIME.thirtyDay}</span>
+</p>

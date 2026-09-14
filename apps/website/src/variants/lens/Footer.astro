@@ -1,0 +1,34 @@
+---
+import Logo from '../../components/Logo.astro';
+import { FOOTER_BOTTOM, FOOTER_COLUMNS } from './data';
+---
+
+<footer class="ls-footer">
+  <div class="ls-container">
+    <div class="ls-footer__columns">
+      {
+        FOOTER_COLUMNS.map((column) => (
+          <div class="ls-footer__column">
+            <p class="ls-footer__heading">{column.title}</p>
+            <ul class="ls-footer__links">
+              {column.links.map((link) => (
+                <li>
+                  <a href={link.href}>{link.label}</a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))
+      }
+    </div>
+    <div class="ls-footer__bottom">
+      <a class="ls-footer__logo" href="/" aria-label="Stacktape home"><Logo height={18} /></a>
+      <span>{FOOTER_BOTTOM.copyright}</span>
+      <span>{FOOTER_BOTTOM.license}</span>
+      <span>{FOOTER_BOTTOM.origin}</span>
+      <a class="ls-footer__status" href={FOOTER_BOTTOM.status.href}>
+        <span class="ls-footer__status-dot" aria-hidden="true"></span>{FOOTER_BOTTOM.status.label}
+      </a>
+    </div>
+  </div>
+</footer>

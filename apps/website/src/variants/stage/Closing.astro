@@ -1,0 +1,12 @@
+---
+/** The last surface in the column: the closing line, the same command box, the way back in. */
+import { CommandBox } from './CommandBox';
+import { CLOSING_LINE, LINKS, TRUST_LINE } from './data';
+---
+
+<div class="sg-surface sg-closing" aria-labelledby="sg-closing-title">
+  <h2 class="sg-closing__title" id="sg-closing-title">{CLOSING_LINE}</h2>
+  <CommandBox client:load label="Get started" />
+  <p class="sg-trust">{TRUST_LINE}</p>
+  <p class="sg-closing__signin">Already set up? <a href={LINKS.console}>Sign in to the Console</a></p>
+</div>

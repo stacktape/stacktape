@@ -1,0 +1,44 @@
+---
+/**
+ * The window a screen sits in: a 40px chrome bar with three dots and either a URL pill (browser)
+ * or a mono title (terminal), then the screen itself. The bar is the only thing that says which
+ * product page the visitor is looking at; nothing inside a screen names it.
+ */
+type Props = {
+  kind: 'browser' | 'terminal';
+  /** The address, without a scheme, for `kind="browser"`. */
+  url?: string;
+  /** Browsers show a lock unless the page is local. */
+  lock?: boolean;
+  /** The title for `kind="terminal"`. */
+  title?: string;
+  class?: string;
+};
+
+const { kind, url, lock = true, title, class: className } = Astro.props;
+---
+
+<div class:list={['ls-win', `ls-win--${kind}`, className]}>
+  <div class="ls-win__bar">
+    <span class="ls-win__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+    {
+      kind === 'browser' ? (
+        <span class="ls-win__pill">
+          {lock && (
+            <svg class="ls-win__lock" viewBox="0 0 16 16" width="11" height="11" fill="none" aria-hidden="true">
+              <rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5" />
+              <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+            </svg>
+          )}
+          <span class="ls-win__url">{url}</span>
+        </span>
+      ) : (
+        <span class="ls-win__title">{title}</span>
+      )
+    }
+    <span class="ls-win__spacer" aria-hidden="true"></span>
+  </div>
+  <div class="ls-win__body">
+    <slot />
+  </div>
+</div>

@@ -1,0 +1,62 @@
+---
+/** 02 — the wizard's Deploy step in its "It's live" state, the phases done, and what deploying looks like from now on. */
+import Cursor from '../Cursor.astro';
+import { AFTER_FIRST, DEPLOY, PROJECT } from '../data';
+import Screen from '../Screen.astro';
+import { PreviewButton, StatusBadge } from '../ui';
+---
+
+<Screen kind="wizard" current="Deploy">
+  <div class="dk-live">
+    <div class="dk-live__head">
+      <StatusBadge tone="success" dot>Live</StatusBadge>
+      <h3 class="dk-screen__h">It's live</h3>
+    </div>
+    <p class="dk-live__urls">
+      <span class="dk-live__url">{PROJECT.urls.web}</span>
+      <span class="dk-live__url">{PROJECT.urls.api}</span>
+    </p>
+    <p class="dk-live__meta">
+      {DEPLOY.duration} · {PROJECT.region} · your AWS account <span class="dk-mono">{PROJECT.account}</span>
+    </p>
+  </div>
+
+  <ul class="dk-phases" aria-label="Deploy phases">
+    {
+      DEPLOY.phases.map((phase) => (
+        <li class="dk-phase">
+          <span class="dk-check" aria-hidden="true">
+            <svg viewBox="0 0 12 12" width="11" height="11" fill="none">
+              <path d="m2.5 6.3 2.3 2.3 4.7-5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </span>
+          <span class="dk-phase__name">{phase.name}</span>
+          <span class={phase.mono ? 'dk-phase__detail dk-mono' : 'dk-phase__detail'}>{phase.detail}</span>
+        </li>
+      ))
+    }
+  </ul>
+
+  <div>
+    <p class="dk-screen__label">From now on</p>
+    <ul class="dk-after">
+      <li class="dk-after__row dk-after__row--press">
+        <span class="dk-after__trigger">{AFTER_FIRST.push.trigger}</span>
+        <span class="dk-after__arrow" aria-hidden="true">→</span>
+        <span class="dk-after__result">{AFTER_FIRST.push.result}</span>
+        <span class="dk-after__note">{AFTER_FIRST.push.note}</span>
+        <Cursor class="dk-cursor--row" />
+      </li>
+      <li class="dk-after__row">
+        <span class="dk-after__trigger">{AFTER_FIRST.pullRequest.trigger}</span>
+        <span class="dk-after__arrow" aria-hidden="true">→</span>
+        <span class="dk-after__result">{AFTER_FIRST.pullRequest.result}</span>
+      </li>
+      <li class="dk-after__row">
+        <span class="dk-after__trigger">any release</span>
+        <span class="dk-after__arrow" aria-hidden="true">→</span>
+        <PreviewButton variant="secondary" small>{DEPLOY.rollback}</PreviewButton>
+      </li>
+    </ul>
+  </div>
+</Screen>

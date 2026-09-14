@@ -1,0 +1,2225 @@
+/*
+ * Study "file": the whole setup is one readable file, and the six things Stacktape does are pinned
+ * to the lines they touch, like review comments in a pull request. Every class is prefixed `fl-`.
+ *
+ * The editor is one continuous surface. Each segment of the file is one grid (gutter, content);
+ * lens rows and gutter brackets are grid items placed on explicit rows, and the comment surfaces
+ * are inserted between segments. Motion is deliberately small: the first lines type themselves on
+ * load, and when a comment enters view the editor gains `fl-on-<n>`, which shows that chapter's
+ * lens rows, price inlays and gutter bracket.
+ */
+
+/* The chapter colour as a real colour, so the incident's red can turn green with one animation. */
+@property --fl-tone {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #eb6161;
+}
+
+.fl-html {
+  background: #0d1112;
+}
+
+.fl-root {
+  --fl-ground: #0d1112;
+  --fl-panel: linear-gradient(180deg, rgb(33, 39, 39), rgb(29, 35, 35));
+  --fl-window: var(--stp-surface-element);
+  --fl-inset: var(--stp-surface-input);
+  --fl-rest: 0 2px 6px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  --fl-raised: 0 3px 9px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  --fl-floating: 0 22px 52px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  --fl-field: inset 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(255, 255, 255, 0.05);
+  --fl-text: var(--stp-text-primary);
+  --fl-body: #b6c3c4;
+  --fl-muted: var(--stp-text-muted);
+  --fl-faint: var(--stp-text-faint);
+  --fl-brand: var(--stp-color-brand);
+  --fl-brand-rgb: 54 190 190;
+  --fl-teal: rgb(54, 190, 190);
+  --fl-green: #43d39a;
+  --fl-blue: #6f9cf0;
+  --fl-violet: #b48cf0;
+  --fl-red: #eb6161;
+  --fl-amber: #e0b45a;
+  --fl-orange: #f0934a;
+  --fl-rule: rgba(255, 255, 255, 0.07);
+  --fl-sans: 'Manrope', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --fl-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --fl-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --fl-container: 1120px;
+  --fl-gutter: 24px;
+  --fl-code-size: 15px;
+  --fl-code-lh: 30px;
+  --fl-ch: 9px;
+  --fl-lens-h: 26px;
+  --fl-gut: 56px;
+  --fl-code-pad: 16px;
+  --fl-comment-inset: 24px;
+
+  position: relative;
+  min-height: 100vh;
+  overflow-x: clip;
+  background: var(--fl-ground);
+  color: var(--fl-text);
+  font-family: var(--fl-sans);
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.fl-root ::selection {
+  background: rgba(var(--fl-brand-rgb) / 0.35);
+}
+
+.fl-root :where(h1, h2, h3, h4, h5, p, ul, ol, blockquote, pre, figure) {
+  margin: 0;
+}
+
+.fl-root :where(ul, ol) {
+  padding: 0;
+  list-style: none;
+}
+
+.fl-container {
+  width: 100%;
+  max-width: calc(var(--fl-container) + 2 * var(--fl-gutter));
+  margin: 0 auto;
+  padding-inline: var(--fl-gutter);
+}
+
+.fl-mono {
+  font-family: var(--fl-mono);
+}
+
+.fl-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── Nav ─────────────────────────────────────────────────────────────────────────────────────── */
+
+.fl-nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(13, 17, 18, 0.84);
+  box-shadow: 0 1px 0 rgba(170, 230, 235, 0.07);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.fl-nav__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 60px;
+}
+
+.fl-nav__logo {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 6px;
+}
+
+.fl-nav__links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.fl-nav__link {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--fl-muted);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 150ms ease;
+}
+
+.fl-nav__link:hover {
+  color: #fff;
+}
+
+.fl-nav__demo {
+  margin-left: 8px;
+  font-size: 14px;
+}
+
+/* ── Hero ────────────────────────────────────────────────────────────────────────────────────── */
+
+/* Tighter than the brief's 64px on top: at 1440×900 the first comment must still peek at the fold. */
+.fl-hero {
+  max-width: 880px;
+  margin: 0 auto;
+  padding-top: 32px;
+  text-align: center;
+}
+
+.fl-eyebrow {
+  font-family: var(--fl-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fl-brand);
+}
+
+.fl-hero__title {
+  margin-top: 12px;
+  font-size: 62px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.04;
+  color: #fff;
+  text-wrap: balance;
+}
+
+.fl-hero__sub {
+  max-width: 840px;
+  margin: 16px auto 0;
+  font-size: 18.5px;
+  line-height: 1.55;
+  color: var(--fl-body);
+  text-wrap: pretty;
+}
+
+.fl-hero__cta {
+  max-width: 640px;
+  margin: 24px auto 0;
+  text-align: left;
+}
+
+.fl-trust {
+  margin-top: 10px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--fl-muted);
+}
+
+/* ── Command box: a floating panel of the material with a recessed command row ───────────────── */
+
+.fl-cmd {
+  position: relative;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--fl-panel);
+  box-shadow: var(--fl-floating);
+  text-align: left;
+  transition: border-color 250ms ease;
+}
+
+.fl-cmd:focus-within {
+  border-color: rgba(var(--fl-brand-rgb) / 0.5);
+}
+
+.fl-cmd__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 2px 6px 8px 2px;
+}
+
+.fl-cmd__tabs {
+  --stp-tab-font-size: 12.5px;
+  flex: none;
+  max-width: 100%;
+}
+
+.fl-cmd__tabs .stp-ui-tab {
+  flex: none;
+}
+
+.fl-cmd__hint {
+  min-width: 0;
+  font-family: var(--fl-mono);
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--fl-faint);
+  text-align: right;
+}
+
+.fl-cmd__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 60px;
+  padding: 8px 8px 8px 16px;
+  border-radius: 8px;
+  background: var(--fl-inset);
+  box-shadow: var(--fl-field);
+}
+
+.fl-cmd__prompt {
+  flex: none;
+  font-family: var(--fl-mono);
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--fl-brand);
+}
+
+.fl-cmd__code {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 4px 8px 4px 0;
+  overflow-x: auto;
+  font-family: var(--fl-mono);
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: #fff;
+  white-space: nowrap;
+  scrollbar-width: none;
+  user-select: text;
+}
+
+.fl-cmd__code::-webkit-scrollbar {
+  display: none;
+}
+
+.fl-cmd__code--long {
+  font-size: 14.5px;
+}
+
+.fl-cmd__row--overflow .fl-cmd__code {
+  mask-image: linear-gradient(90deg, #000 calc(100% - 44px), transparent);
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 44px), transparent);
+}
+
+.fl-cmd__caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin-left: 3px;
+  vertical-align: -0.15em;
+  border-radius: 1px;
+  background: var(--fl-brand);
+  opacity: 0.85;
+  animation: fl-blink 1.1s linear infinite;
+}
+
+@keyframes fl-blink {
+  0%,
+  49% {
+    opacity: 0.85;
+  }
+
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.fl-cmd__copy {
+  --stp-control-height: 42px;
+  --stp-button-padding-x: 14px;
+  flex: none;
+  font-size: 13.5px;
+}
+
+.fl-cmd__labels {
+  display: grid;
+}
+
+.fl-cmd__label {
+  grid-area: 1 / 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.fl-cmd__label svg {
+  flex: none;
+}
+
+.fl-cmd--idle .fl-cmd__label--copy,
+.fl-cmd--copied .fl-cmd__label--copied,
+.fl-cmd--failed .fl-cmd__label--failed {
+  opacity: 1;
+  transform: none;
+}
+
+.fl-cmd--copied .fl-cmd__copy {
+  --stp-button-primary-surface: linear-gradient(180deg, rgb(30, 150, 122), rgb(22, 120, 100));
+}
+
+/* ── The editor ──────────────────────────────────────────────────────────────────────────────── */
+
+.fl-editor {
+  position: relative;
+  margin-top: 30px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--fl-window);
+  box-shadow: var(--fl-rest);
+}
+
+.fl-tabbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 44px;
+  padding-right: 18px;
+  background: rgba(0, 0, 0, 0.2);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+  font-family: var(--fl-mono);
+  font-size: 12.5px;
+  color: var(--fl-muted);
+  white-space: nowrap;
+}
+
+/* The one open tab wears the body's fill, so it reads as the sheet the file is on. */
+.fl-tab {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 9px;
+  height: 44px;
+  padding: 0 20px 0 18px;
+  background: var(--fl-window);
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.fl-tab svg {
+  flex: none;
+  color: var(--fl-brand);
+}
+
+.fl-tabbar__by {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fl-tabbar__by b {
+  font-weight: 500;
+  color: var(--fl-text);
+}
+
+.fl-body {
+  padding: 8px 0 20px;
+}
+
+/* One grid per segment: the gutter column and the content column. Every item names its row. */
+.fl-lines {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--fl-gut) minmax(0, 1fr);
+  font-family: var(--fl-mono);
+  font-size: var(--fl-code-size);
+  font-weight: 400;
+  line-height: var(--fl-code-lh);
+}
+
+.fl-num {
+  grid-column: 1;
+  padding-right: 20px;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.28);
+  text-align: right;
+  user-select: none;
+}
+
+.fl-code {
+  grid-column: 2;
+  min-width: 0;
+  padding: 0 var(--fl-comment-inset) 0 var(--fl-code-pad);
+  font-family: var(--fl-mono);
+  font-size: inherit;
+  line-height: inherit;
+  color: var(--fl-text);
+  white-space: pre;
+  tab-size: 2;
+}
+
+/* Three families of colour and nothing else. */
+.fl-y-key {
+  color: #a7c9e8;
+}
+
+.fl-y-res {
+  font-weight: 500;
+  color: #fff;
+}
+
+.fl-y-type {
+  color: var(--fl-brand);
+}
+
+.fl-y-str,
+.fl-y-val {
+  color: #c9d98a;
+}
+
+.fl-y-num,
+.fl-y-bool {
+  color: #f0b184;
+}
+
+.fl-y-ref {
+  color: #d7b7f5;
+}
+
+.fl-y-com {
+  font-style: italic;
+  color: #6f7f7e;
+}
+
+.fl-y-punc,
+.fl-y-dash {
+  color: rgba(255, 255, 255, 0.42);
+}
+
+/* The caret exists only while a line types. */
+.fl-caret {
+  display: none;
+}
+
+/* ── Lens rows: what the file learns as the story advances ───────────────────────────────────── */
+
+.fl-lens {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--fl-lens-h);
+  padding: 2px var(--fl-comment-inset) 0 calc(var(--fl-code-pad) + var(--fl-indent, 0) * var(--fl-ch));
+  font-family: var(--fl-mono);
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.55);
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(5px);
+  transition:
+    opacity 450ms ease,
+    transform 450ms var(--fl-ease),
+    visibility 0s linear 450ms;
+}
+
+.fl-lens--live {
+  --fl-tone: var(--fl-teal);
+}
+
+.fl-lens--metrics {
+  --fl-tone: var(--fl-blue);
+}
+
+.fl-lens--lock {
+  --fl-tone: var(--fl-violet);
+}
+
+.fl-lens--incident {
+  --fl-tone: var(--fl-red);
+}
+
+.fl-lens__dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--fl-tone);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fl-tone) 20%, transparent);
+}
+
+.fl-lens__lock {
+  flex: none;
+  color: var(--fl-tone);
+}
+
+.fl-lens__text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.fl-on-2 .fl-lens[data-ch='2'],
+.fl-on-3 .fl-lens[data-ch='3'],
+.fl-on-4 .fl-lens[data-ch='4'],
+.fl-on-5 .fl-lens[data-ch='5'] {
+  visibility: visible;
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 450ms ease,
+    transform 450ms var(--fl-ease),
+    visibility 0s;
+}
+
+/* The month's price, at the end of the resource's own line so nothing above it moves. */
+.fl-price {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: 28px;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--fl-amber);
+  vertical-align: 1px;
+  visibility: hidden;
+  opacity: 0;
+  transition:
+    opacity 450ms ease,
+    visibility 0s linear 450ms;
+}
+
+.fl-price::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--fl-amber);
+  box-shadow: 0 0 0 3px rgba(224, 180, 90, 0.18);
+}
+
+.fl-on-6 .fl-price {
+  visibility: visible;
+  opacity: 1;
+  transition:
+    opacity 450ms ease,
+    visibility 0s;
+}
+
+/* ── Gutter brackets: the lines a comment refers to ──────────────────────────────────────────── */
+
+.fl-bracket {
+  grid-column: 1;
+  justify-self: end;
+  align-self: stretch;
+  width: 7px;
+  margin: 8px 5px 8px 0;
+  border: 1.5px solid var(--fl-tone);
+  border-right: 0;
+  border-radius: 3px 0 0 3px;
+  opacity: 0;
+  transform: scaleY(0);
+  transform-origin: 50% 100%;
+  transition:
+    transform 800ms var(--fl-ease),
+    opacity 250ms ease;
+  pointer-events: none;
+}
+
+.fl-bracket--teal,
+.fl-comment--teal {
+  --fl-tone: var(--fl-teal);
+}
+
+.fl-bracket--green,
+.fl-comment--green {
+  --fl-tone: var(--fl-green);
+}
+
+.fl-bracket--blue,
+.fl-comment--blue {
+  --fl-tone: var(--fl-blue);
+}
+
+.fl-bracket--violet,
+.fl-comment--violet {
+  --fl-tone: var(--fl-violet);
+}
+
+.fl-bracket--red,
+.fl-comment--red {
+  --fl-tone: var(--fl-red);
+}
+
+.fl-bracket--amber,
+.fl-comment--amber {
+  --fl-tone: var(--fl-amber);
+}
+
+.fl-on-1 .fl-bracket[data-ch='1'],
+.fl-on-2 .fl-bracket[data-ch='2'],
+.fl-on-3 .fl-bracket[data-ch='3'],
+.fl-on-4 .fl-bracket[data-ch='4'],
+.fl-on-5 .fl-bracket[data-ch='5'],
+.fl-on-6 .fl-bracket[data-ch='6'] {
+  opacity: 1;
+  transform: none;
+}
+
+/* The incident: red when it enters, green 1.5 s later, on the comment, its bracket and its lens. */
+.fl-on-5 .fl-comment--red,
+.fl-on-5 .fl-bracket[data-ch='5'],
+.fl-on-5 .fl-lens--incident {
+  animation: fl-recover 500ms ease 1.5s forwards;
+}
+
+@keyframes fl-recover {
+  to {
+    --fl-tone: #43d39a;
+  }
+}
+
+/* ── Comments ────────────────────────────────────────────────────────────────────────────────── */
+
+.fl-comment {
+  position: relative;
+  margin: 8px var(--fl-comment-inset) 14px var(--fl-gut);
+  padding: 28px 32px 32px;
+  border-radius: 12px;
+  background: var(--fl-panel);
+  box-shadow:
+    var(--fl-rest),
+    inset 3px 0 0 var(--fl-tone);
+}
+
+.fl-comment__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.fl-comment__num {
+  font-family: var(--fl-mono);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--fl-tone);
+}
+
+.fl-comment__author {
+  font-weight: 600;
+  color: #fff;
+}
+
+.fl-comment__lines {
+  font-family: var(--fl-mono);
+  font-size: 12.5px;
+  color: var(--fl-faint);
+}
+
+.fl-comment__title {
+  margin-top: 10px;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: #fff;
+  text-wrap: balance;
+}
+
+.fl-comment__text {
+  max-width: 70ch;
+  margin-top: 12px;
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--fl-body);
+  text-wrap: pretty;
+}
+
+/* ── The screen: one excerpt of the real UI on a nested window ───────────────────────────────── */
+
+.fl-screen {
+  margin-top: 22px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--fl-window);
+  box-shadow: var(--fl-rest);
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--fl-text);
+}
+
+.fl-screen__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 34px;
+  padding: 0 16px;
+  background: rgba(0, 0, 0, 0.16);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+  font-family: var(--fl-mono);
+  font-size: 12px;
+  color: var(--fl-muted);
+  white-space: nowrap;
+}
+
+.fl-screen__where {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fl-screen__where b {
+  font-weight: 500;
+  color: var(--fl-text);
+}
+
+.fl-screen__section {
+  flex: none;
+  font-family: var(--fl-sans);
+  font-weight: 600;
+  color: var(--fl-text);
+}
+
+.fl-rail {
+  display: flex;
+  flex: none;
+  align-items: center;
+  font-family: var(--fl-sans);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fl-faint);
+}
+
+.fl-rail li + li::before {
+  content: '·';
+  margin: 0 8px;
+  color: var(--fl-faint);
+}
+
+.fl-rail .is-current {
+  font-weight: 600;
+  color: var(--fl-text);
+}
+
+.fl-screen__body {
+  display: grid;
+  gap: 16px;
+  padding: 18px 18px 20px;
+}
+
+.fl-scr__head {
+  display: grid;
+  gap: 4px;
+}
+
+.fl-scr__heading {
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  color: #fff;
+}
+
+.fl-scr__note {
+  color: var(--fl-muted);
+}
+
+.fl-scr__label {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--fl-faint);
+}
+
+/* The product's controls, sized for a screen. */
+.fl-btn {
+  --stp-button-font-family: var(--fl-sans);
+  font-size: 13px;
+  cursor: default;
+}
+
+.fl-btn--small {
+  --stp-control-height: 28px;
+  --stp-button-padding-x: 10px;
+  font-size: 12.5px;
+}
+
+.fl-badge {
+  font-family: var(--fl-sans);
+}
+
+.fl-badge__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* Where the visitor presses: the pointer rests on the control. */
+.fl-press {
+  position: relative;
+  display: inline-flex;
+}
+
+.fl-cursor {
+  position: absolute;
+  top: 55%;
+  left: 62%;
+  z-index: 2;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
+  pointer-events: none;
+}
+
+.fl-cursor--row {
+  top: 52%;
+  left: 22%;
+}
+
+.fl-check {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(var(--fl-brand-rgb) / 0.16);
+  color: var(--fl-brand);
+}
+
+.fl-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: var(--fl-panel);
+  box-shadow: var(--fl-rest);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--fl-text);
+  white-space: nowrap;
+}
+
+.fl-chip__dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--fl-blue);
+}
+
+.fl-chip--violet .fl-chip__dot {
+  background: var(--fl-violet);
+}
+
+/* 01 · Decided for you */
+.fl-decided {
+  margin-top: 8px;
+}
+
+.fl-decided__row {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 9px 0;
+  border-top: 1px solid var(--fl-rule);
+}
+
+.fl-decided__row:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.fl-decided__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.fl-decided__what {
+  font-weight: 500;
+}
+
+.fl-decided__why {
+  font-size: 12.5px;
+  color: var(--fl-muted);
+}
+
+.fl-decided__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--fl-rule);
+}
+
+.fl-decided__estimate {
+  color: var(--fl-muted);
+}
+
+.fl-decided__estimate b {
+  font-weight: 600;
+  color: #fff;
+}
+
+/* 02 · Live */
+.fl-live {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.fl-live__panel {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 16px 18px 18px;
+  border-radius: 8px;
+  background: var(--fl-inset);
+  box-shadow: var(--fl-field);
+}
+
+.fl-live__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.fl-live__urls {
+  display: grid;
+  gap: 4px;
+}
+
+.fl-live__url {
+  font-family: var(--fl-mono);
+  font-size: 19px;
+  font-weight: 500;
+  color: #fff;
+  overflow-wrap: anywhere;
+}
+
+.fl-live__meta {
+  color: var(--fl-muted);
+}
+
+.fl-live__meta .fl-mono {
+  color: var(--fl-text);
+}
+
+.fl-phases {
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  padding: 6px 4px;
+}
+
+.fl-phase {
+  display: grid;
+  grid-template-columns: 18px auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.fl-phase + .fl-phase {
+  border-top: 1px solid var(--fl-rule);
+}
+
+.fl-phase__name {
+  font-weight: 600;
+  color: #fff;
+}
+
+.fl-phase__note {
+  font-family: var(--fl-mono);
+  font-size: 12.5px;
+  color: var(--fl-muted);
+  overflow-wrap: anywhere;
+}
+
+.fl-after {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.fl-after__row {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  min-height: 42px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  background: var(--fl-panel);
+  box-shadow: var(--fl-rest);
+}
+
+.fl-after__trigger,
+.fl-after__result {
+  font-family: var(--fl-mono);
+  font-size: 12.5px;
+  color: #fff;
+  overflow-wrap: anywhere;
+}
+
+.fl-after__trigger {
+  color: var(--fl-muted);
+}
+
+.fl-after__arrow {
+  color: var(--fl-brand);
+}
+
+.fl-after__note {
+  margin-left: auto;
+  font-size: 12.5px;
+  color: var(--fl-muted);
+}
+
+.fl-after__row .fl-btn {
+  margin-left: auto;
+}
+
+/* 03 · Metrics, trace, uptime */
+.fl-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.fl-tile {
+  min-width: 0;
+  overflow: hidden;
+  padding: 14px 16px 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--fl-panel);
+  box-shadow: var(--fl-rest);
+}
+
+.fl-tile__label {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fl-faint);
+}
+
+.fl-tile__value {
+  margin-top: 8px;
+  font-family: var(--fl-mono);
+  font-size: 26px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.fl-tile__unit {
+  margin-left: 5px;
+  font-family: var(--fl-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--fl-muted);
+}
+
+.fl-spark {
+  display: block;
+  width: 100%;
+  height: 30px;
+  margin-top: 12px;
+  color: var(--fl-blue);
+}
+
+.fl-mon {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 16px;
+  align-items: start;
+}
+
+.fl-trace {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.fl-trace__head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.fl-trace__name {
+  font-size: 12.5px;
+  color: #fff;
+}
+
+.fl-trace__total {
+  margin-left: auto;
+  font-family: var(--fl-mono);
+  font-size: 12.5px;
+  color: var(--fl-muted);
+}
+
+.fl-spans {
+  display: grid;
+  gap: 2px;
+}
+
+.fl-span {
+  display: grid;
+  grid-template-columns: 172px minmax(0, 1fr) 56px;
+  align-items: center;
+  gap: 12px;
+  min-height: 26px;
+}
+
+.fl-span__name {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--fl-mono);
+  font-size: 12.5px;
+  color: var(--fl-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fl-span--root .fl-span__name {
+  color: #fff;
+}
+
+.fl-span__lane {
+  position: relative;
+  display: block;
+  height: 10px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.fl-span__bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  min-width: 3px;
+  border-radius: 3px;
+  background: var(--fl-blue);
+}
+
+.fl-span--root .fl-span__bar {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.fl-span--db .fl-span__bar {
+  background: var(--fl-violet);
+}
+
+.fl-span--cache .fl-span__bar {
+  background: var(--fl-teal);
+}
+
+.fl-span--http .fl-span__bar {
+  background: var(--fl-orange);
+}
+
+.fl-span__ms {
+  font-family: var(--fl-mono);
+  font-size: 12.5px;
+  color: var(--fl-muted);
+  text-align: right;
+}
+
+.fl-side {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+}
+
+.fl-uptime {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 14px 14px;
+  border-radius: 8px;
+  background: var(--fl-inset);
+  box-shadow: var(--fl-field);
+}
+
+.fl-uptime__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.fl-uptime__url {
+  min-width: 0;
+  font-size: 12.5px;
+  color: #fff;
+  overflow-wrap: anywhere;
+}
+
+.fl-uptime__regions {
+  display: grid;
+  gap: 3px;
+  font-size: 12.5px;
+  color: var(--fl-muted);
+}
+
+.fl-uptime__regions li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.fl-uptime__regions .fl-mono {
+  color: var(--fl-text);
+}
+
+.fl-uptime__total {
+  padding-top: 8px;
+  border-top: 1px solid var(--fl-rule);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--fl-text);
+}
+
+/* 04 · Posture, findings, guardrails */
+.fl-sec {
+  display: grid;
+  grid-template-columns: 224px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.fl-posture {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 8px;
+  background: var(--fl-inset);
+  box-shadow: var(--fl-field);
+}
+
+.fl-ring {
+  flex: none;
+}
+
+.fl-ring__track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 6;
+}
+
+.fl-ring__value {
+  fill: none;
+  stroke: var(--fl-violet);
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+
+.fl-posture__num {
+  font-size: 14px;
+  color: var(--fl-muted);
+}
+
+.fl-posture__num b {
+  font-family: var(--fl-mono);
+  font-size: 28px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.fl-posture__sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 12.5px;
+}
+
+.fl-findings {
+  display: grid;
+  min-width: 0;
+}
+
+.fl-finding {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 0;
+  border-top: 1px solid var(--fl-rule);
+}
+
+.fl-finding:first-child {
+  padding-top: 2px;
+  border-top: 0;
+}
+
+.fl-finding__mark {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--fl-orange);
+}
+
+.fl-finding:first-child .fl-finding__mark {
+  background: var(--fl-red);
+}
+
+.fl-finding__what {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.fl-finding__action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fl-guard {
+  display: grid;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--fl-rule);
+}
+
+.fl-guard__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.fl-guard__rule {
+  color: var(--fl-muted);
+}
+
+/* 05 · Incident */
+.fl-inc__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.fl-inc__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  overflow-wrap: anywhere;
+}
+
+/* The release that caused it keeps its red edge after the comment itself has turned green. */
+.fl-inc__release {
+  --fl-tone: var(--fl-red);
+  padding: 11px 14px;
+  border-radius: 8px;
+  background: var(--fl-inset);
+  box-shadow:
+    var(--fl-field),
+    inset 3px 0 0 var(--fl-tone);
+  line-height: 1.6;
+  color: var(--fl-muted);
+}
+
+.fl-inc__release b {
+  font-weight: 600;
+  color: #fff;
+}
+
+.fl-inc__release .fl-mono {
+  color: var(--fl-text);
+}
+
+.fl-inc__sep {
+  margin: 0 5px;
+  color: var(--fl-faint);
+}
+
+.fl-inc__link {
+  color: var(--fl-brand);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.fl-inc__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.fl-inc__signals {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+}
+
+.fl-signals {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+}
+
+.fl-signal {
+  display: grid;
+  gap: 2px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--fl-panel);
+  box-shadow: var(--fl-rest);
+}
+
+.fl-signal__text {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.fl-signal__meta {
+  font-size: 12.5px;
+  color: var(--fl-muted);
+}
+
+.fl-inc__signals .fl-press {
+  margin-top: 4px;
+}
+
+.fl-timeline {
+  display: grid;
+  margin-top: 6px;
+}
+
+.fl-tl {
+  position: relative;
+  display: grid;
+  grid-template-columns: 40px 12px minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: start;
+  padding: 4px 0;
+}
+
+.fl-tl::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 55.5px;
+  width: 1px;
+  background: var(--fl-rule);
+}
+
+.fl-tl:first-child::before {
+  top: 50%;
+}
+
+.fl-tl:last-child::before {
+  bottom: 50%;
+}
+
+.fl-tl__time {
+  font-family: var(--fl-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--fl-faint);
+}
+
+.fl-tl__mark {
+  position: relative;
+  z-index: 1;
+  width: 9px;
+  height: 9px;
+  margin: 6px 0 0 1.5px;
+  border-radius: 50%;
+  background: var(--fl-faint);
+  box-shadow: 0 0 0 3px var(--fl-window);
+}
+
+.fl-tl--error .fl-tl__mark {
+  background: var(--fl-red);
+}
+
+.fl-tl--you .fl-tl__mark {
+  background: #fff;
+}
+
+.fl-tl--ok .fl-tl__mark {
+  background: var(--fl-green);
+  box-shadow:
+    0 0 0 3px var(--fl-window),
+    0 0 0 6px rgba(67, 211, 154, 0.2);
+}
+
+.fl-tl__text {
+  line-height: 1.6;
+  color: var(--fl-text);
+}
+
+.fl-tl--you .fl-tl__text {
+  font-weight: 500;
+  color: #fff;
+}
+
+.fl-tl--ok .fl-tl__text {
+  font-weight: 600;
+  color: var(--fl-green);
+}
+
+.fl-optin {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--fl-panel);
+  box-shadow: var(--fl-rest);
+}
+
+.fl-optin__switch {
+  margin-top: 1px;
+  opacity: 1;
+  cursor: default;
+}
+
+.fl-optin__what {
+  display: block;
+  font-weight: 500;
+}
+
+.fl-optin__state {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--fl-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fl-muted);
+}
+
+/* 06 · Costs and budget */
+.fl-cost {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.fl-cost__bars {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.fl-cost__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.fl-cost__total {
+  font-family: var(--fl-mono);
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.fl-bars {
+  display: grid;
+}
+
+.fl-bar {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) 60px;
+  align-items: center;
+  gap: 12px;
+  padding: 5px 0;
+}
+
+.fl-bar__name,
+.fl-bar__amount {
+  font-family: var(--fl-mono);
+  font-size: 12.5px;
+}
+
+.fl-bar__lane {
+  height: 9px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.fl-bar__fill {
+  display: block;
+  height: 100%;
+  min-width: 3px;
+  border-radius: 3px;
+  background: var(--fl-amber);
+}
+
+.fl-bar__amount {
+  color: var(--fl-muted);
+  text-align: right;
+}
+
+.fl-budget {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px 16px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--fl-panel);
+  box-shadow: var(--fl-rest);
+}
+
+.fl-budget__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.fl-press--field {
+  align-items: center;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: var(--fl-inset);
+  box-shadow: var(--fl-field);
+}
+
+.fl-budget__limit {
+  font-size: 12.5px;
+  color: var(--fl-muted);
+}
+
+.fl-budget__limit b {
+  font-family: var(--fl-mono);
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.fl-budget__lane {
+  position: relative;
+  height: 10px;
+  margin-top: 2px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.fl-budget__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 4px;
+  background: var(--fl-amber);
+}
+
+.fl-budget__mark {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--fl-orange);
+}
+
+.fl-budget__legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--fl-muted);
+}
+
+.fl-budget__legend b {
+  font-weight: 600;
+  color: var(--fl-text);
+}
+
+.fl-cost__billed {
+  font-size: 12.5px;
+  color: var(--fl-faint);
+}
+
+.fl-cost__billed .fl-mono {
+  color: var(--fl-muted);
+}
+
+/* ── Closing ─────────────────────────────────────────────────────────────────────────────────── */
+
+.fl-closing {
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+  max-width: 760px;
+  margin: 64px auto 0;
+  padding: 36px 36px 32px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: var(--fl-panel);
+  box-shadow: var(--fl-rest);
+  text-align: center;
+}
+
+.fl-closing__title {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: #fff;
+  text-wrap: balance;
+}
+
+.fl-closing__cta {
+  width: 100%;
+  max-width: 640px;
+  margin-top: 4px;
+  text-align: left;
+}
+
+.fl-closing .fl-trust {
+  margin-top: -6px;
+}
+
+.fl-closing__signin {
+  font-size: 14px;
+  color: var(--fl-faint);
+}
+
+.fl-closing__signin a {
+  color: var(--fl-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.fl-closing__signin a:hover {
+  color: #fff;
+}
+
+/* ── Testimonials ────────────────────────────────────────────────────────────────────────────── */
+
+.fl-voices {
+  padding: 88px 0 32px;
+}
+
+.fl-voices__title {
+  margin-bottom: 24px;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: #fff;
+}
+
+.fl-voices__list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.fl-voice {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px 22px 22px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: var(--fl-panel);
+  box-shadow: var(--fl-rest);
+}
+
+.fl-voice__quote {
+  flex: 1;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--fl-text);
+}
+
+.fl-voice__who {
+  display: grid;
+  gap: 2px;
+  font-size: 13.5px;
+}
+
+.fl-voice__name {
+  font-weight: 600;
+}
+
+.fl-voice__role {
+  color: var(--fl-muted);
+}
+
+/* ── Footer ──────────────────────────────────────────────────────────────────────────────────── */
+
+.fl-footer {
+  margin-top: 32px;
+  padding: 28px 0 40px;
+  box-shadow: inset 0 1px 0 rgba(170, 230, 235, 0.07);
+  font-family: var(--fl-mono);
+  font-size: 12.5px;
+  color: var(--fl-muted);
+}
+
+.fl-footer__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px 24px;
+}
+
+.fl-footer__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+}
+
+.fl-footer__links a {
+  color: var(--fl-muted);
+  text-decoration: none;
+}
+
+.fl-footer__links a:hover {
+  color: #fff;
+}
+
+.fl-footer__note {
+  color: var(--fl-faint);
+}
+
+/* ── On load: the first lines type themselves, then the rest of the file appears ─────────────── */
+
+/* Gated behind `fl-intro`, which the editor carries on load and drops once the intro has ended:
+ * the end state of every rule here is the element's natural state, so the switch is invisible. */
+@media (min-width: 900px) and (prefers-reduced-motion: no-preference) {
+  .fl-intro .fl-type .fl-code__text {
+    display: inline-block;
+    max-width: 0;
+    overflow: hidden;
+    vertical-align: top;
+    animation: fl-typing var(--fl-t) steps(var(--fl-n), end) var(--fl-d) forwards;
+  }
+
+  .fl-caret {
+    width: 2px;
+    height: 18px;
+    margin-left: 2px;
+    vertical-align: -3px;
+    border-radius: 1px;
+    background: var(--fl-brand);
+    opacity: 0;
+  }
+
+  .fl-intro .fl-caret {
+    display: inline-block;
+    animation: fl-hold var(--fl-t) linear var(--fl-d);
+  }
+
+  .fl-intro .fl-caret--last {
+    animation:
+      fl-hold var(--fl-t) linear var(--fl-d),
+      fl-blink 1.1s linear calc(var(--fl-d) + var(--fl-t)) infinite;
+  }
+
+  /* After the intro the caret stays where the writing stopped, blinking, as an editor's does. */
+  .fl-editor:not(.fl-intro) .fl-caret--last {
+    display: inline-block;
+    animation: fl-blink 1.1s linear infinite;
+  }
+
+  .fl-intro .fl-rest {
+    opacity: 0;
+    animation: fl-fade 500ms ease var(--fl-rest-d, 2s) forwards;
+  }
+}
+
+@keyframes fl-typing {
+  to {
+    max-width: calc(var(--fl-n) * 1ch);
+  }
+}
+
+@keyframes fl-hold {
+  from,
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fl-fade {
+  to {
+    opacity: 1;
+  }
+}
+
+/* ── Below 900px: one column, the file at reading size for a phone ───────────────────────────── */
+
+@media (max-width: 899px) {
+  .fl-root {
+    --fl-code-size: 13px;
+    --fl-code-lh: 24px;
+    --fl-ch: 7.8px;
+    --fl-lens-h: 24px;
+    --fl-gut: 40px;
+    --fl-code-pad: 12px;
+    --fl-comment-inset: 12px;
+  }
+
+  .fl-num {
+    padding-right: 12px;
+    font-size: 11px;
+  }
+
+  .fl-code {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .fl-lens {
+    font-size: 11.5px;
+  }
+
+  .fl-price {
+    margin-left: 18px;
+    font-size: 11.5px;
+  }
+
+  .fl-bracket {
+    margin: 5px 4px 5px 0;
+  }
+
+  .fl-comment {
+    margin: 10px 8px 12px;
+    padding: 20px 16px;
+  }
+
+  .fl-comment__title {
+    font-size: 24px;
+  }
+
+  .fl-comment__text {
+    font-size: 16px;
+  }
+
+  .fl-screen__bar {
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    height: auto;
+    min-height: 34px;
+    padding: 7px 12px;
+    white-space: normal;
+  }
+
+  .fl-screen__body {
+    padding: 14px 12px 16px;
+  }
+
+  .fl-live,
+  .fl-mon,
+  .fl-sec,
+  .fl-inc__grid,
+  .fl-cost {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .fl-after {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .fl-phases {
+    padding: 0;
+  }
+
+  .fl-span {
+    grid-template-columns: 120px minmax(0, 1fr) 52px;
+  }
+
+  .fl-voices__list {
+    grid-template-columns: 1fr;
+    max-width: 640px;
+  }
+}
+
+/* ── Phones ──────────────────────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 600px) {
+  .fl-root {
+    --fl-gutter: 16px;
+  }
+
+  .fl-nav__link--optional {
+    display: none;
+  }
+
+  .fl-hero {
+    padding-top: 40px;
+  }
+
+  .fl-hero__title {
+    font-size: 40px;
+  }
+
+  .fl-hero__sub {
+    font-size: 16.5px;
+  }
+
+  .fl-cmd__top {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 2px 2px 8px;
+  }
+
+  .fl-cmd__tabs {
+    align-self: flex-start;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .fl-cmd__hint {
+    padding: 6px 4px 0;
+    text-align: left;
+  }
+
+  .fl-cmd__row {
+    flex-wrap: wrap;
+    padding: 8px 8px 8px 14px;
+  }
+
+  .fl-cmd__code {
+    flex-basis: 0;
+  }
+
+  .fl-cmd__copy {
+    flex-basis: 100%;
+    width: 100%;
+  }
+
+  .fl-editor {
+    margin-top: 28px;
+  }
+
+  .fl-tab {
+    padding: 0 14px;
+  }
+
+  .fl-tabbar {
+    padding-right: 12px;
+  }
+
+  /* On a phone the bar keeps only `stacktape init · 38 s`; the rest would be cut mid-word. */
+  .fl-tabbar__extra {
+    display: none;
+  }
+
+  .fl-tiles {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .fl-decided__row {
+    grid-template-columns: 18px minmax(0, 1fr);
+  }
+
+  .fl-decided__row .fl-btn {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .fl-phase {
+    grid-template-columns: 18px minmax(0, 1fr);
+  }
+
+  .fl-phase__note {
+    grid-column: 2;
+  }
+
+  .fl-finding {
+    grid-template-columns: 8px minmax(0, 1fr);
+  }
+
+  .fl-finding__action {
+    grid-column: 2;
+    flex-wrap: wrap;
+  }
+
+  .fl-bar {
+    grid-template-columns: 92px minmax(0, 1fr) 56px;
+  }
+
+  .fl-closing {
+    padding: 28px 18px 26px;
+  }
+
+  .fl-closing__title {
+    font-size: 24px;
+  }
+
+  .fl-closing .fl-cmd__hint {
+    display: none;
+  }
+
+  .fl-voices {
+    padding-top: 64px;
+  }
+
+  .fl-voices__title {
+    font-size: 22px;
+  }
+}
+
+@media (max-width: 480px) {
+  .fl-nav__link {
+    padding: 0 8px;
+  }
+
+  .fl-nav__link--phone-optional {
+    display: none;
+  }
+
+  .fl-nav__demo {
+    --stp-button-padding-x: 10px;
+    margin-left: 4px;
+  }
+
+  .fl-nav__logo svg {
+    height: 21px !important;
+  }
+}
+
+/* ── Reduced motion: everything in its final state, instantly ────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .fl-root *,
+  .fl-root *::before,
+  .fl-root *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .fl-cmd__caret {
+    opacity: 0.85;
+  }
+
+  .fl-comment--red,
+  .fl-bracket--red,
+  .fl-lens--incident {
+    --fl-tone: #43d39a;
+  }
+}

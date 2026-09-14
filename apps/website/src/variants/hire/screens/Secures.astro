@@ -1,0 +1,39 @@
+---
+/** 05 — the organization's guardrails: four rules that are on, and a deploy one of them stopped. */
+import { GUARDRAILS, URLS } from '../data';
+import { PreviewButton, RuleSwitch } from '../ui';
+import Window from '../Window.astro';
+---
+
+<Window kind="browser" host={URLS.guardrails.host} path={URLS.guardrails.path}>
+  <div class="hr-scr__head">
+    <p class="hr-scr__h">{GUARDRAILS.heading}</p>
+    <p class="hr-scr__line">{GUARDRAILS.line}</p>
+  </div>
+
+  <ul class="hr-rules" aria-label="Rules">
+    {
+      GUARDRAILS.rules.map((rule) => (
+        <li class="hr-rule">
+          <RuleSwitch label={rule} />
+          <span class="hr-rule__name">{rule}</span>
+        </li>
+      ))
+    }
+  </ul>
+
+  <div class="hr-blocked">
+    <span class="hr-blocked__mark" aria-hidden="true">
+      <svg viewBox="0 0 16 16" width="14" height="14" fill="none">
+        <circle cx="8" cy="8" r="6.25" stroke="currentColor" stroke-width="1.5" />
+        <path d="M5.5 8h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+      </svg>
+    </span>
+    <p class="hr-blocked__text">
+      <b>{GUARDRAILS.blocked.text}</b>
+      <span class="hr-blocked__sep" aria-hidden="true">·</span>
+      <span class="hr-mono">{GUARDRAILS.blocked.resource}</span> {GUARDRAILS.blocked.detail}
+    </p>
+    <PreviewButton variant="secondary" small>{GUARDRAILS.blocked.button}</PreviewButton>
+  </div>
+</Window>

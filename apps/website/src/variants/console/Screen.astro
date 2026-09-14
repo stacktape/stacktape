@@ -1,0 +1,42 @@
+---
+/**
+ * One screen of the shell: the header row (number, title, meaning, the "You:" chip), then the
+ * explainer panel beside the UI recreation the page slots in.
+ */
+import type { Screen } from './data';
+
+type Props = { screen: Screen };
+const { screen } = Astro.props;
+---
+
+<section class="cs-screen" id={screen.id} data-screen={screen.id} aria-labelledby={`${screen.id}-title`}>
+  <header class="cs-screen__head">
+    <p class="cs-screen__kicker">
+      <span class="cs-screen__num">{screen.number}</span>
+      <span class="cs-screen__of">of 06</span>
+      <span class:list={['cs-tag', `cs-tag--${screen.who}`]}>{screen.who}</span>
+    </p>
+    <h2 class="cs-screen__title" id={`${screen.id}-title`}>{screen.title}</h2>
+    <p class="cs-screen__meaning">{screen.meaning}</p>
+    <p class="cs-screen__you"><span class="cs-screen__you-label">You:</span> {screen.you}</p>
+  </header>
+  <div class="cs-screen__body">
+    <aside class="cs-explain" aria-label={`${screen.title}, explained`}>
+      <div class="cs-explain__item">
+        <h3>What this is</h3>
+        <p>{screen.what}</p>
+      </div>
+      <div class="cs-explain__item">
+        <h3>What it does for you</h3>
+        <p>{screen.forYou}</p>
+      </div>
+      <div class="cs-explain__item cs-explain__item--you">
+        <h3>What you do</h3>
+        <p>{screen.youDo}</p>
+      </div>
+    </aside>
+    <div class="cs-screen__ui">
+      <slot />
+    </div>
+  </div>
+</section>
