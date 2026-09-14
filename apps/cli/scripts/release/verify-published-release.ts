@@ -13,8 +13,10 @@ const assert: (condition: unknown, message: string) => asserts condition = (cond
 
 export const assertInstalledCliVersion = (output: string, expectedVersion: string) => {
   const actual = stripAnsi(output).trim();
+  // A fresh launcher also prints installation progress, and the CLI's plain logger prefixes its result with [i].
+  const versions = [...actual.matchAll(/^(?:\[i\] )?Stacktape version: (\S+)\.\r?$/gm)].map((match) => match[1]);
   assert(
-    actual === `Stacktape version: ${expectedVersion}.`,
+    versions.length === 1 && versions[0] === expectedVersion,
     `Installed release launcher reported ${actual || '<empty>'}, expected Stacktape version: ${expectedVersion}.`
   );
 };
