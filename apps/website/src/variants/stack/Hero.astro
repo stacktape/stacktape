@@ -1,0 +1,34 @@
+---
+/** The hero: the announcement, the headline, the command and the cover composite beside them. */
+import { CommandBox } from './CommandBox';
+import Cover from './Cover.astro';
+import { ANNOUNCEMENT, HEADLINE_LINES, SUBHEADLINE, TRUST_LINE } from './data';
+---
+
+<section class="st-hero" aria-labelledby="st-hero-title">
+  <div class="st-container st-hero__grid">
+    <div class="st-hero__copy">
+      <a class="st-pill" href={ANNOUNCEMENT.href}>
+        <span class="st-pill__text">
+          {ANNOUNCEMENT.before} <b>{ANNOUNCEMENT.accent}</b> {ANNOUNCEMENT.after}
+        </span>
+        <span class="st-pill__sep" aria-hidden="true"></span>
+        <span class="st-pill__cta">
+          {ANNOUNCEMENT.cta} <span class="st-pill__arrow" aria-hidden="true">→</span>
+        </span>
+      </a>
+      <h1 class="st-hero__title" id="st-hero-title">
+        <span class="st-hero__line">{HEADLINE_LINES[0]}</span>
+        <span class="st-hero__line">{HEADLINE_LINES[1]}</span>
+      </h1>
+      <p class="st-hero__sub">{SUBHEADLINE}</p>
+      <div class="st-hero__cta" id="get-started">
+        <CommandBox client:load label="Get started" />
+      </div>
+      <p class="st-trust">{TRUST_LINE}</p>
+    </div>
+    <div class="st-hero__visual">
+      <Cover />
+    </div>
+  </div>
+</section>

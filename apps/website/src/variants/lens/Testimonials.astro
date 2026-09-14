@@ -1,0 +1,24 @@
+---
+import { TESTIMONIALS, TESTIMONIALS_TITLE } from './data';
+---
+
+<section class="ls-voices" aria-labelledby="ls-voices-title">
+  <div class="ls-container">
+    <h2 class="ls-voices__title" id="ls-voices-title">{TESTIMONIALS_TITLE}</h2>
+    <ul class="ls-voices__list">
+      {
+        TESTIMONIALS.map((item) => (
+          <li class="ls-voice">
+            <blockquote class="ls-voice__quote">
+              <p>“{item.quote}”</p>
+            </blockquote>
+            <p class="ls-voice__who">
+              <span class="ls-voice__name">{item.name}</span>
+              <span class="ls-voice__role">{item.role}</span>
+            </p>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</section>

@@ -1,0 +1,18 @@
+---
+/**
+ * A small label that explains what matters on a screen. It belongs to the website, not to the
+ * product: page mono, brand teal, and a short leader line pointing at the element beside it.
+ *
+ * `side` says where the callout sits relative to that element: `left` of it (leader after the
+ * text, pointing right), `right` of it (leader before the text, pointing left), `below` it
+ * (leader above the text, pointing up) or `above` it (leader under the text, pointing down).
+ */
+type Props = { text: string; side?: 'left' | 'right' | 'below' | 'above'; class?: string };
+
+const { text, side = 'right', class: className } = Astro.props;
+---
+
+<span class:list={['hm-callout', `hm-callout--${side}`, className]}>
+  <i class="hm-callout__lead" aria-hidden="true"></i>
+  <span class="hm-callout__text">{text}</span>
+</span>

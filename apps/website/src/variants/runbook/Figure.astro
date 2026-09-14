@@ -1,0 +1,16 @@
+---
+/**
+ * A numbered figure in the runbook: the frame that holds a UI recreation, and the mono caption
+ * under it. The caption is a slot so it can carry inline code and emphasis.
+ */
+type Props = { n: number };
+
+const { n } = Astro.props;
+---
+
+<figure class="rb-figure" data-rb-figure>
+  <div class="rb-figure__frame"><slot /></div>
+  <figcaption class="rb-figure__caption">
+    <span class="rb-figure__n">Figure {n}</span> — <slot name="caption" />
+  </figcaption>
+</figure>

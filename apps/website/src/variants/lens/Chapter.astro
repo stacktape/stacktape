@@ -1,0 +1,38 @@
+---
+/**
+ * One chapter: its number, name, explanation and the three things you get. The slot carries the
+ * chapter's screen, rendered inline only under 1000px; above that the lens shows the same screen.
+ */
+import type { Chapter as ChapterData } from './data';
+
+type Props = { chapter: ChapterData };
+
+const { chapter } = Astro.props;
+---
+
+<article class="ls-chapter" id={chapter.id} data-ls-chapter={chapter.index} aria-labelledby={`ls-${chapter.id}-title`}>
+  <div class="ls-chapter__copy">
+    <p class="ls-chapter__num" aria-hidden="true">{chapter.number}</p>
+    <h2 class="ls-chapter__title" id={`ls-${chapter.id}-title`}>
+      <span class="ls-visually-hidden">{chapter.number} </span>{chapter.name}
+    </h2>
+    <p class="ls-chapter__text">{chapter.text}</p>
+    <ul class="ls-gets">
+      {
+        chapter.gets.map((line) => (
+          <li class="ls-gets__row">
+            <span class="ls-gets__check" aria-hidden="true">
+              <svg viewBox="0 0 12 12" width="11" height="11" fill="none">
+                <path d="m2.5 6.3 2.3 2.3 4.7-5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </span>
+            <span>{line}</span>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+  <div class="ls-chapter__inline">
+    <slot />
+  </div>
+</article>

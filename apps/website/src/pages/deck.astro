@@ -1,0 +1,29 @@
+---
+// concept: Stacktape is a stack. The page is a deck of cards — the hero and the six things Stacktape does — that pile up as you scroll: each card slides up over the last, the cards you have passed stay as thin edges at the top of the viewport, and an amber tab on a card's edge marks each place where you decided something. The finished deck reads "six things, four of them with you in the loop".
+// copy-angle: The headline states the promise; each card names one thing Stacktape does in the third person and shows the screen where it happens; the visitor's own actions are the amber tabs on the deck's edge and the pointer resting on the control they press.
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { HEADLINE, SUBHEADLINE } from '../variants/deck/data';
+import Deck from '../variants/deck/Deck.astro';
+import Footer from '../variants/deck/Footer.astro';
+import Nav from '../variants/deck/Nav.astro';
+import Testimonials from '../variants/deck/Testimonials.astro';
+import '../variants/deck/deck.css';
+---
+
+<BaseLayout title={`Stacktape — ${HEADLINE}`} description={SUBHEADLINE} htmlClass="dk-html">
+  <Fragment slot="head">
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Inter:wght@400;500;600&family=Fira+Code:wght@400;500&display=swap"
+    />
+  </Fragment>
+
+  <div class="dk-root">
+    <Nav />
+    <main>
+      <Deck />
+      <Testimonials />
+    </main>
+    <Footer />
+  </div>
+</BaseLayout>

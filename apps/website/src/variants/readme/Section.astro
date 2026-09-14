@@ -1,0 +1,25 @@
+---
+/**
+ * One of the seven things Stacktape does, as a README section: `### 01 · Name`, the explanation,
+ * the three "what you get" lines as a bulleted list, then the screenshots the document hands it.
+ */
+import type { Section } from './data';
+
+type Props = { section: Section };
+
+const { section } = Astro.props;
+---
+
+<section class="rm-section" id={section.id} aria-labelledby={`rm-h-${section.id}`}>
+  <h3 class="rm-h3" id={`rm-h-${section.id}`}>
+    <a class="rm-anchor" href={`#${section.id}`} aria-hidden="true" tabindex="-1">#</a>
+    <span class="rm-h3__num">{section.number}</span>
+    <span class="rm-h3__sep" aria-hidden="true">·</span>
+    {section.name}
+  </h3>
+  <p class="rm-p">{section.text}</p>
+  <ul class="rm-list">
+    {section.gets.map((line) => <li>{line}</li>)}
+  </ul>
+  <slot />
+</section>

@@ -1,0 +1,66 @@
+---
+/**
+ * The six surfaces in one column, straight after the hero, with the route running through them:
+ * the start interchange under the hero, a detour to a gold interchange wherever the visitor
+ * decides something, and the final plate after 06. No intro and no legend: the geometry says it.
+ */
+import { INTERCHANGES, PROJECT, STEPS } from './data';
+import Interchange from './Interchange.astro';
+import Costs from './previews/Costs.astro';
+import Deploy from './previews/Deploy.astro';
+import Incident from './previews/Incident.astro';
+import Monitor from './previews/Monitor.astro';
+import Review from './previews/Review.astro';
+import Security from './previews/Security.astro';
+import Surface from './Surface.astro';
+
+const step = (id: string) => {
+  const found = STEPS.find((candidate) => candidate.id === id);
+  if (!found) throw new Error(`zigzag: no step with id "${id}"`);
+  return found;
+};
+---
+
+<section class="zz-journey" aria-label="What Stacktape does">
+  <div class="zz-container">
+    <div class="zz-start" data-zz-node="start">
+      <div class="zz-ic__card zz-start__card" data-zz-rise>
+        <p class="zz-ic__title">{INTERCHANGES.start.title} <code class="zz-cmdchip">{INTERCHANGES.start.command}</code></p>
+        <p class="zz-ic__sub">{INTERCHANGES.start.sub}</p>
+      </div>
+      <span class="zz-dot" data-zz-dot aria-hidden="true"></span>
+    </div>
+
+    <div class="zz-list">
+      <Surface step={step('designs')}><Review /></Surface>
+      <Interchange item={INTERCHANGES.deploy} />
+      <Surface step={step('deploys')}><Deploy /></Surface>
+      <Surface step={step('monitors')}><Monitor /></Surface>
+      <Surface step={step('secures')}><Security /></Surface>
+      <Interchange item={INTERCHANGES.approve} />
+      <Surface step={step('incidents')}><Incident /></Surface>
+      <Interchange item={INTERCHANGES.budget} />
+      <Surface step={step('costs')}><Costs /></Surface>
+    </div>
+
+    <div class="zz-end" data-zz-node="end">
+      <div class="zz-end__inner">
+        <span class="zz-plate" data-zz-dot aria-hidden="true">
+          <svg viewBox="0 0 160 80" preserveAspectRatio="none">
+            <polygon class="zz-plate__face" points="80,1 159,40 80,79 1,40"></polygon>
+          </svg>
+        </span>
+        <div class="zz-end__text" data-zz-rise>
+          <p class="zz-end__line">
+            <i class="zz-live-dot" aria-hidden="true"></i>
+            <span class="zz-mono">{PROJECT.name}</span> <span aria-hidden="true">·</span> production <span aria-hidden="true">·</span> running
+          </p>
+          <ul class="zz-end__urls">
+            <li><a href={PROJECT.urls.web}>{PROJECT.urls.web}</a></li>
+            <li><a href={PROJECT.urls.api}>{PROJECT.urls.api}</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

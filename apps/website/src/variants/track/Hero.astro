@@ -1,0 +1,28 @@
+---
+/**
+ * The hero: eyebrow, headline, subheadline, the command box (the only call to action), the trust
+ * line, and under the box the gold repository node where the route line begins. The node sits
+ * under the prompt of the command box, so the line leaves from where the command is typed.
+ */
+import { CommandBox } from './CommandBox';
+import { EYEBROW, HEADLINE, PROJECT, SUBHEADLINE, TRUST_LINE } from './data';
+---
+
+<section class="tk-hero" aria-labelledby="tk-hero-title">
+  <div class="tk-hero__inner">
+    <p class="tk-eyebrow">{EYEBROW}</p>
+    <h1 class="tk-hero__title" id="tk-hero-title">{HEADLINE}</h1>
+    <p class="tk-hero__sub">{SUBHEADLINE}</p>
+    <div class="tk-hero__cta">
+      <CommandBox client:load label="Get started" />
+    </div>
+    <p class="tk-trust">{TRUST_LINE}</p>
+
+    <p class="tk-start">
+      <i class="tk-start__dot" data-tk-start aria-hidden="true"></i>
+      <span class="tk-start__label">
+        your repository <span class="tk-start__sep" aria-hidden="true">·</span> <b>{PROJECT.repo}</b>
+      </span>
+    </p>
+  </div>
+</section>

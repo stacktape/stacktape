@@ -5,7 +5,8 @@
 import { spawn } from 'node:child_process';
 import { mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { ADVERSARIAL_PROMPTS } from './adversarial-prompts';
 import { AUTONOMOUS_PROMPTS } from './autonomous-prompts';
 import { AWS_COMPETITION_PROMPTS } from './aws-competition-prompts';
@@ -18,10 +19,14 @@ import {
   STACKTAPE_BASH_INVOCATION_RE
 } from './safety-utils';
 
-const STACKTAPE_REPO = 'C:/Projects/stacktape';
-const RESULTS_DIR = `${STACKTAPE_REPO}/scripts/e2e-mcp/results`;
-const MCP_CONFIG_PATH = `${RESULTS_DIR}/mcp-config.json`;
-const MCP_LAUNCHER = `${STACKTAPE_REPO}/scripts/e2e-mcp/mcp-launcher.cmd`;
+// The CLI app root (apps/cli), derived from this file so the harness runs from any checkout.
+const CLI_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const E2E_DIR = join(CLI_ROOT, 'scripts', 'e2e-mcp');
+const RESULTS_DIR = join(E2E_DIR, 'results');
+const MCP_CONFIG_PATH = join(RESULTS_DIR, 'mcp-config.json');
+const MCP_LAUNCHER = join(E2E_DIR, 'mcp-launcher.sh');
+// `claude` from PATH by default; CLAUDE_BIN overrides it.
+const CLAUDE_BIN = process.env.CLAUDE_BIN || 'claude';
 
 const parseJsonObjectEnv = (name: string): Record<string, string> | undefined => {
   const raw = process.env[name];
@@ -150,8 +155,8 @@ const writeMcpConfig = async () => {
             aws: {
               type: 'stdio',
               command: 'bun',
-              args: [`${STACKTAPE_REPO}/scripts/e2e-mcp/fake-aws-mcp.ts`],
-              cwd: STACKTAPE_REPO
+              args: [join(E2E_DIR, 'fake-aws-mcp.ts')],
+              cwd: CLI_ROOT
             }
           }
         : {})
@@ -216,9 +221,8 @@ const runClaudeOnce = async ({
     let stderr = '';
     let stdoutBuf = '';
 
-    // Use absolute path to claude.exe and shell:false so multi-word prompt
-    // args aren't mangled by cmd.exe quoting rules.
-    const proc = spawn('C:/Users/congy/.local/bin/claude.exe', args, {
+    // shell:false so multi-word prompt args reach claude untouched.
+    const proc = spawn(CLAUDE_BIN, args, {
       cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
       shell: false,

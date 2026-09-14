@@ -1,0 +1,32 @@
+---
+/**
+ * The session's last lines: `$ exit`, then the four link groups as directories with their entries
+ * on one wrapped line each, then the one-line colophon with the status dot.
+ */
+import { EXIT_COMMAND, FOOTER_GROUPS, FOOTER_NOTES, FOOTER_STATUS, LINKS } from './data';
+---
+
+<footer class="ss-foot">
+  <div class="ss-tx ss-tx--foot">
+    <p class="ss-l ss-p ss-foot__exit">{EXIT_COMMAND}<span class="ss-cursor" aria-hidden="true">▍</span></p>
+
+    {
+      FOOTER_GROUPS.map((group) => (
+        <nav class="ss-l ss-fg" aria-label={group.title}>
+          <span class="ss-fg__h">{group.title}</span>
+          <ul class="ss-fg__links">
+            {group.links.map((link) => (
+              <li>
+                <a href={link.href}>{link.label}</a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      ))
+    }
+
+    <p class="ss-l ss-o ss-foot__meta">
+      {FOOTER_NOTES.join(' · ')}<span aria-hidden="true"> · </span><a class="ss-foot__status" href={LINKS.status}>{FOOTER_STATUS} <i class="ss-foot__dot" aria-hidden="true">●</i></a>
+    </p>
+  </div>
+</footer>

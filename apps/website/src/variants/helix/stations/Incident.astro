@@ -1,0 +1,98 @@
+---
+import ConsoleFrame from '../ConsoleFrame.astro';
+import { INCIDENT } from '../data';
+
+const c = INCIDENT.correlation;
+---
+
+<ConsoleFrame active="Observability/Incidents" crumb={['Incidents', INCIDENT.id]}>
+  <div class="hx-inc">
+    <div class="hx-inc__main">
+      <div class="hx-inc__head">
+        <span class="hx-inc__id">{INCIDENT.id}</span>
+        <span class="hx-row">
+          <span class="hx-chip hx-chip--amber">{INCIDENT.severity}</span>
+          <span class="hx-chip">{INCIDENT.stage}</span>
+          <span class="hx-chip hx-chip--green">{INCIDENT.recovery.status}</span>
+        </span>
+      </div>
+      <ol class="hx-beats">
+        <li class="hx-beat" style="--i: 0">
+          <p class="hx-beat__title">Detected <small>signals opened the incident</small></p>
+          <div class="hx-beat__body">
+            {
+              INCIDENT.signals.map((signal) => (
+                <span class="hx-signal">
+                  <b>{signal.kind}</b>
+                  <span>{signal.detail}</span>
+                </span>
+              ))
+            }
+          </div>
+        </li>
+        <li class="hx-beat" style="--i: 1">
+          <p class="hx-beat__title">Correlated with the release <small>same stack, same minutes</small></p>
+          <div class="hx-beat__body">
+            <span class="hx-corr">
+              <span>{c.opened}</span>
+              <b>· {c.release}</b>
+              <span>· commit <code>{c.commit}</code> — {c.message}</span>
+              <span>· previous release {c.previous}</span>
+              <span>· {c.config}</span>
+              <u>· {c.diff}</u>
+            </span>
+          </div>
+        </li>
+        <li class="hx-beat" style="--i: 2">
+          <p class="hx-beat__title">Handed to your coding agent <small>one button, one bundle</small></p>
+          <div class="hx-beat__body">
+            <span class="hx-row">
+              <span class="hx-minibtn">Copy details for agent</span>
+              <span class="hx-p hx-inc__bundle hx-m-hide">status · release diff · stack frames · timeline · scoped links · 4-step protocol</span>
+            </span>
+          </div>
+        </li>
+        <li class="hx-beat hx-beat--ok" style="--i: 3">
+          <p class="hx-beat__title">Recovered, and verified <small>by the same signals</small></p>
+          <div class="hx-beat__body">
+            <span class="hx-corr">
+              <b>{INCIDENT.recovery.status}</b>
+              <span>· {INCIDENT.recovery.reason}</span>
+              <span>· {INCIDENT.recovery.duration}</span>
+              <span>· {INCIDENT.recovery.uptime}</span>
+              <span>· {INCIDENT.recovery.errors}</span>
+            </span>
+          </div>
+        </li>
+      </ol>
+    </div>
+    <aside class="hx-inc__side hx-m-hide" aria-label="What the agent found, and what else happened on the stack">
+      <div class="hx-agent">
+        <span class="hx-agent__from">agent · after reading the bundle</span>
+        <span>{INCIDENT.agent.finding}</span>
+        <span>{INCIDENT.agent.action}</span>
+        <code>stacktape incidents:resolve --incidentId {INCIDENT.id}</code>
+      </div>
+      <span class="hx-label">Around this time · same stack</span>
+      <ol class="hx-around">
+        {
+          INCIDENT.around.map((entry) => (
+            <li class:list={['now' in entry && 'hx-around__now']}>
+              <time>{entry.at}</time>
+              <span>
+                <b>{entry.what}</b> · {entry.detail}
+              </span>
+            </li>
+          ))
+        }
+      </ol>
+      <div class="hx-optin">
+        <span class="hx-switch" role="img" aria-label="Automatic remediation: off"></span>
+        <span class="hx-optin__text">
+          {INCIDENT.remediation}
+          <small>{INCIDENT.remediationNote}</small>
+        </span>
+      </div>
+    </aside>
+  </div>
+</ConsoleFrame>

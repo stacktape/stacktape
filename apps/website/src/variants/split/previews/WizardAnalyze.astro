@@ -1,0 +1,44 @@
+---
+import { ANALYZE_FILES } from '../data';
+import Frame from '../Frame.astro';
+
+const reasons = [
+  'workspace layout',
+  'two packages',
+  'Next.js app',
+  'container build',
+  'HTTP server, ports',
+  'background job',
+  'Postgres schema',
+  'environment variables',
+  'Postgres and Redis'
+];
+---
+
+<Frame url="<b>localhost</b> · stacktape init">
+  <div class="sp-frame__body">
+    <ol class="sp-rail" aria-label="Wizard steps">
+      <li class="is-done">Start</li>
+      <li class="is-on">Analyze</li>
+      <li>Review</li>
+      <li>Deploy</li>
+    </ol>
+    <div class="sp-inc__head">
+      <h3 class="sp-h sp-h--lg" style="margin:0">Reading your project — 12 files so far</h3>
+      <span class="sp-chip sp-chip--live"><i aria-hidden="true"></i>on this machine</span>
+    </div>
+    <ul class="sp-feed" aria-label="Files opened">
+      {
+        ANALYZE_FILES.map((file, index) => (
+          <li style={`--i:${index}`}>
+            <b>{file}</b>
+            <span>{reasons[index]}</span>
+          </li>
+        ))
+      }
+      <li class="sp-feed__done" style={`--i:${ANALYZE_FILES.length}`}>
+        <b>Opened 41 files in 38s, all on this machine.</b>
+      </li>
+    </ul>
+  </div>
+</Frame>

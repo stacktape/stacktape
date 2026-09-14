@@ -1,0 +1,66 @@
+---
+import Frame from '../Frame.astro';
+import { OBSERVABILITY } from '../data';
+
+const W = 100;
+const H = 28;
+const spark = (points: number[]) => {
+  const max = Math.max(...points);
+  const min = Math.min(...points);
+  const range = max - min || 1;
+  return points
+    .map((point, index) => `${(index / (points.length - 1)) * W},${(H - 2 - ((point - min) / range) * (H - 4)).toFixed(1)}`)
+    .join(' ');
+};
+
+const { metrics, trace, uptime } = OBSERVABILITY;
+---
+
+<Frame title="console.stacktape.com · production / Metrics · Traces · Uptime" tag="example project">
+  <div class="pl-obs">
+    <ul class="pl-tiles" aria-label="apiService metrics">
+      {
+        metrics.map((metric) => (
+          <li class="pl-tile">
+            <div class="pl-tile__label">
+              {metric.label}<span class="pl-tile__scope"> · apiService</span>
+            </div>
+            <div class="pl-tile__value">{metric.value}</div>
+            <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
+              <polyline points={spark(metric.points)} vector-effect="non-scaling-stroke" />
+            </svg>
+          </li>
+        ))
+      }
+    </ul>
+    <div>
+      <h5 class="pl-subhead">Trace · {trace.name} · {trace.total} ms</h5>
+      <ol class="pl-wf" aria-label="Trace waterfall">
+        <li class="pl-wf__row pl-wf__row--root">
+          <span class="pl-wf__name">{trace.name}</span>
+          <span class="pl-wf__track"><span class="pl-wf__span pl-cat-network" style="left:0;width:100%"></span></span>
+          <span class="pl-wf__ms">{trace.total} ms</span>
+        </li>
+        {
+          trace.spans.map((span) => (
+            <li class="pl-wf__row">
+              <span class="pl-wf__name">{span.name}</span>
+              <span class="pl-wf__track">
+                <span
+                  class:list={['pl-wf__span', `pl-cat-${span.category}`]}
+                  style={`left:${((span.start / trace.total) * 100).toFixed(1)}%;width:${((span.ms / trace.total) * 100).toFixed(1)}%`}
+                />
+              </span>
+              <span class="pl-wf__ms">{span.ms} ms</span>
+            </li>
+          ))
+        }
+      </ol>
+    </div>
+    <div class="pl-up">
+      <span class="pl-label">Uptime · api.acme.com/health</span>
+      {uptime.regions.map((region) => <span class="pl-up__region">{region}</span>)}
+      <span class="pl-up__total">{uptime.thirtyDay} · 30 days</span>
+    </div>
+  </div>
+</Frame>

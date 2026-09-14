@@ -1,0 +1,45 @@
+---
+/** 01 — the wizard's review: the six resources it found and why, the picture, the estimate, Deploy. */
+import { ACME_CONFIG, money, RESOURCES, URLS, WIZARD } from '../data';
+import DiagramIsland from '../DiagramIsland';
+import { PreviewButton } from '../ui';
+import Window from '../Window.astro';
+
+const DIAGRAM_LABEL =
+  'Architecture diagram of acme-project: web and apiService are public behind the firewall; worker, cache and mainDatabase sit inside the private network';
+---
+
+<Window kind="browser" host={URLS.wizard.host} path={URLS.wizard.path} lock={false}>
+  <div class="ss-scr__head">
+    <h3 class="ss-scr__h">{WIZARD.heading}</h3>
+    <p class="ss-scr__line">{WIZARD.line}</p>
+  </div>
+
+  <div class="ss-wz">
+    <ul class="ss-wz__list" aria-label="Resources">
+      {
+        RESOURCES.map((resource) => (
+          <li class={`ss-wz__row ss-wz__row--${resource.category}`}>
+            <i class="ss-wz__cat" aria-hidden="true" />
+            <span class="ss-wz__text">
+              <span class="ss-wz__name">
+                <b>{resource.name}</b>
+                <span class="ss-wz__type">{resource.type}</span>
+              </span>
+              <span class="ss-wz__because">{resource.because}</span>
+            </span>
+            <span class="ss-wz__price">{money(resource.price)}</span>
+          </li>
+        ))
+      }
+    </ul>
+    <div class="ss-wz__picture">
+      <DiagramIsland client:only="react" config={ACME_CONFIG} ariaLabel={DIAGRAM_LABEL} />
+    </div>
+  </div>
+
+  <div class="ss-scr__foot">
+    <p class="ss-wz__estimate">{WIZARD.footer}</p>
+    <PreviewButton variant="primary" icon="arrow" iconPosition="end">{WIZARD.button}</PreviewButton>
+  </div>
+</Window>

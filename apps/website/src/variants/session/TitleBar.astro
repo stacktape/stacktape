@@ -1,0 +1,67 @@
+---
+/**
+ * The terminal's title bar, sticky: three dots, the wordmark, the nav links as tabs, the two text
+ * actions and the bracketed primary. Under 900px the tabs and text actions move into a panel behind
+ * a menu button; the primary stays visible.
+ */
+import Logo from '../../components/Logo.astro';
+import { NAV_ACTIONS, NAV_LINKS } from './data';
+---
+
+<header class="ss-bar" data-ss-bar>
+  <div class="ss-bar__in">
+    <span class="ss-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+    <a class="ss-bar__logo" href="/" aria-label="Stacktape home"><Logo height={18} /></a>
+
+    <nav class="ss-bar__tabs" aria-label="Primary">
+      {NAV_LINKS.map((link) => <a href={link.href}>{link.label}</a>)}
+    </nav>
+
+    <div class="ss-bar__right">
+      <a class="ss-bar__text" href={NAV_ACTIONS.signIn.href}>{NAV_ACTIONS.signIn.label}</a>
+      <a class="ss-bar__text" href={NAV_ACTIONS.demo.href}>{NAV_ACTIONS.demo.label}</a>
+      <a class="ss-key ss-bar__start" href={NAV_ACTIONS.start.href}>{NAV_ACTIONS.start.label}</a>
+      <button class="ss-bar__menu" type="button" aria-expanded="false" aria-controls="ss-bar-panel" data-ss-menu>
+        <span class="ss-vh">Menu</span>
+        <span aria-hidden="true">≡</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="ss-bar__panel" id="ss-bar-panel" hidden data-ss-panel>
+    <ul class="ss-bar__panel-links">
+      {
+        NAV_LINKS.map((link) => (
+          <li>
+            <a href={link.href} data-ss-panel-link>
+              {link.label}
+            </a>
+          </li>
+        ))
+      }
+      <li><a href={NAV_ACTIONS.signIn.href} data-ss-panel-link>{NAV_ACTIONS.signIn.label}</a></li>
+      <li><a href={NAV_ACTIONS.demo.href} data-ss-panel-link>{NAV_ACTIONS.demo.label}</a></li>
+    </ul>
+  </div>
+</header>
+
+<script>
+  const bar = document.querySelector<HTMLElement>('[data-ss-bar]');
+  const menu = document.querySelector<HTMLButtonElement>('[data-ss-menu]');
+  const panel = document.querySelector<HTMLElement>('[data-ss-panel]');
+
+  const setOpen = (open: boolean) => {
+    if (!menu || !panel) return;
+    menu.setAttribute('aria-expanded', String(open));
+    panel.hidden = !open;
+    bar?.classList.toggle('is-open', open);
+  };
+
+  menu?.addEventListener('click', () => setOpen(menu.getAttribute('aria-expanded') !== 'true'));
+  for (const link of document.querySelectorAll('[data-ss-panel-link]')) {
+    link.addEventListener('click', () => setOpen(false));
+  }
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') setOpen(false);
+  });
+</script>

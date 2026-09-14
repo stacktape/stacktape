@@ -1,0 +1,45 @@
+---
+/** 07 — this month's cost per resource, straight from the bill, and the budget under it. */
+import { COSTS, money, URLS } from '../data';
+import Window from '../Window.astro';
+
+const largest = Math.max(...COSTS.rows.map((row) => row.amount));
+---
+
+<Window kind="browser" url={URLS.costs}>
+  <div class="ls-cost__head">
+    <p class="ls-scr__h">{COSTS.heading}</p>
+    <p class="ls-cost__total">{money(COSTS.total)}</p>
+    <p class="ls-scr__sub">{COSTS.source}</p>
+  </div>
+
+  <ul class="ls-bars" aria-label="Cost per resource">
+    {
+      COSTS.rows.map((row) => (
+        <li class="ls-bar">
+          <span class="ls-bar__name">{row.name}</span>
+          <span class="ls-bar__lane" aria-hidden="true">
+            <span class="ls-bar__fill" style={`width: ${((row.amount / largest) * 100).toFixed(1)}%`} />
+          </span>
+          <span class="ls-bar__amount">{money(row.amount)}</span>
+        </li>
+      ))
+    }
+  </ul>
+
+  <div class="ls-budget">
+    <p class="ls-budget__line">
+      <span class="ls-budget__label">Budget <b>{money(COSTS.budget.limit)}</b></span>
+      <span class="ls-sep" aria-hidden="true">·</span>
+      <span>alert at <b>{COSTS.budget.alertAt} %</b></span>
+    </p>
+    <span
+      class="ls-budget__lane"
+      role="img"
+      aria-label={`${COSTS.budget.used} % of the ${money(COSTS.budget.limit)} budget used; alert at ${COSTS.budget.alertAt} %`}
+    >
+      <span class="ls-budget__fill" style={`width: ${COSTS.budget.used}%`}></span>
+      <span class="ls-budget__mark" style={`left: ${COSTS.budget.alertAt}%`}></span>
+    </span>
+  </div>
+</Window>

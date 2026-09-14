@@ -1,0 +1,36 @@
+---
+// concept: The whole page is one terminal session. The prompt types `npx stacktape init` at the top; everything below is the transcript of what follows: the wizard opens inline, the deploy runs, and the session keeps going across days with the Console's windows for monitoring, guardrails, the incident and the costs opening one after another. Marketing copy lives where prose lives in a terminal: in comment blocks. The page ends with `$ exit` and the footer as the last lines.
+// copy-angle: The headline and the seven names are comment lines and output headers; each explanation is a comment block; what you get are check lines; the visitor's own actions appear only as the typed command with its install toggles and as the product's own buttons inside the windows.
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { HEADLINE, SUBHEADLINE } from '../variants/session/data';
+import Footer from '../variants/session/Footer.astro';
+import TitleBar from '../variants/session/TitleBar.astro';
+import Transcript from '../variants/session/Transcript.astro';
+import '../variants/session/session.css';
+---
+
+<BaseLayout title={`Stacktape — ${HEADLINE}`} description={SUBHEADLINE} htmlClass="ss-html">
+  <Fragment slot="head">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" />
+  </Fragment>
+
+  <div class="ss-root">
+    <script is:inline>
+      // Keep the hero command hidden until its island types it. Reduced motion shows it complete;
+      // the timeout is a safety net if the island never mounts.
+      (function () {
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        var html = document.documentElement;
+        html.classList.add('ss-typing');
+        setTimeout(function () {
+          html.classList.remove('ss-typing');
+        }, 4000);
+      })();
+    </script>
+    <TitleBar />
+    <main>
+      <Transcript />
+    </main>
+    <Footer />
+  </div>
+</BaseLayout>

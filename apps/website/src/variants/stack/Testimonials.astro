@@ -1,0 +1,24 @@
+---
+import { TESTIMONIALS, TESTIMONIALS_TITLE } from './data';
+---
+
+<section class="st-voices" aria-labelledby="st-voices-title">
+  <div class="st-container">
+    <h2 class="st-voices__title" id="st-voices-title">{TESTIMONIALS_TITLE}</h2>
+    <ul class="st-voices__list">
+      {
+        TESTIMONIALS.map((item) => (
+          <li class="st-voice">
+            <blockquote class="st-voice__quote">
+              <p>“{item.quote}”</p>
+            </blockquote>
+            <p class="st-voice__who">
+              <span class="st-voice__name">{item.name}</span>
+              <span class="st-voice__role">{item.role}</span>
+            </p>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</section>

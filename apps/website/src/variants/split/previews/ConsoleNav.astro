@@ -1,0 +1,30 @@
+---
+/** The Console sidebar, with the real navigation labels. `active` names the highlighted item. */
+type Props = { active: string };
+
+const { active } = Astro.props;
+
+const groups: { title?: string; items: string[] }[] = [
+  { items: ['Overview', 'Config editor'] },
+  { title: 'Organization', items: ['Projects', 'Activity', 'Users', 'Costs'] },
+  { title: 'Observability', items: ['Logs', 'Metrics', 'Traces', 'Uptime', 'Synthetics', 'Error tracking', 'Incidents'] },
+  { title: 'Alerting', items: ['Channels', 'Notifications', 'Alarms', 'Budgets'] },
+  { title: 'Security', items: ['Overview', 'Vulnerabilities', 'Posture'] },
+  { title: 'Configuration', items: ['Guardrails', 'Secrets', 'SSM Params', 'AWS Accounts', 'Domains'] }
+];
+---
+
+<nav class="sp-console__nav" aria-label="Console navigation">
+  {
+    groups.map((group) => (
+      <>
+        {group.title && <div class="sp-console__group">{group.title}</div>}
+        <ul>
+          {group.items.map((item) => (
+            <li class={`${group.title ?? ''}/${item}` === active || (!group.title && item === active) ? 'is-on' : undefined}>{item}</li>
+          ))}
+        </ul>
+      </>
+    ))
+  }
+</nav>

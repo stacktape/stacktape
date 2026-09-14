@@ -1,0 +1,15 @@
+---
+/** 01 — the same stack as the Console draws it: the architecture diagram alone, zoom behind a click. */
+import { ACME_CONFIG, URLS } from '../data';
+import DiagramIsland from '../DiagramIsland';
+import Window from '../Window.astro';
+
+const DIAGRAM_LABEL =
+  'Architecture diagram of acme-project: web and apiService are public behind the firewall; worker, cache and mainDatabase sit inside the private network';
+---
+
+<Window kind="browser" host={URLS.diagram.host} path={URLS.diagram.path} class="rm-win--diagram">
+  <div class="rm-dg">
+    <DiagramIsland client:only="react" config={ACME_CONFIG} ariaLabel={DIAGRAM_LABEL} />
+  </div>
+</Window>

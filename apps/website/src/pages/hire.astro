@@ -1,0 +1,27 @@
+---
+// concept: The homepage is a job posting for the Senior DevOps Engineer the visitor was about to hire, and Stacktape fills the position. A light careers page: one white posting card with the title, the metadata, the salary and the seven responsibilities, each struck through and shown already being done in the product's dark windows. The "Apply" step is the command.
+// copy-angle: The posting is written straight, in the dry register of a real careers page; the product does the talking through the screens. The visitor's own actions appear only as the command box and the product's own buttons.
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { SUBHEADLINE } from '../variants/hire/data';
+import Footer from '../variants/hire/Footer.astro';
+import Nav from '../variants/hire/Nav.astro';
+import Posting from '../variants/hire/Posting.astro';
+import '../variants/hire/hire.css';
+---
+
+<BaseLayout title="Senior DevOps Engineer — Stacktape" description={SUBHEADLINE} htmlClass="hr-html">
+  <Fragment slot="head">
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+    />
+  </Fragment>
+
+  <div class="hr-root">
+    <Nav />
+    <main class="hr-main">
+      <Posting />
+    </main>
+    <Footer />
+  </div>
+</BaseLayout>

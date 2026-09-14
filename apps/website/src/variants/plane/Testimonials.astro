@@ -1,0 +1,34 @@
+---
+import { TESTIMONIALS } from './data';
+---
+
+<section class="pl-section pl-testimonials" aria-labelledby="pl-testimonials-title">
+  <div class="pl-container">
+    <div class="pl-testimonials__head">
+      <p class="pl-label pl-label--brand">Pinned to the table</p>
+      <h2 class="pl-section-title" id="pl-testimonials-title">From teams that run on it</h2>
+    </div>
+    <ul class="pl-cards">
+      {
+        TESTIMONIALS.map((item) => (
+          <li class="pl-card">
+            <span class="pl-card__pin" aria-hidden="true" />
+            <span class="pl-card__coord" aria-hidden="true">
+              {item.coordinate}
+            </span>
+            <blockquote class="pl-card__quote">
+              <p>“{item.quote}”</p>
+            </blockquote>
+            <div class="pl-card__who">
+              <span class="pl-card__name">{item.name}</span>
+              <span class="pl-card__role">
+                {item.role.split(', ')[0]}, <a href={item.url}>{item.role.split(', ')[1]}</a>
+              </span>
+              <span class="pl-card__facts">{item.facts}</span>
+            </div>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</section>

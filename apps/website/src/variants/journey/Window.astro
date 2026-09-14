@@ -1,0 +1,22 @@
+---
+/**
+ * The window a screen sits in: a slim title bar with traffic lights, a plain title (`<b>` marks the
+ * highlighted segment) and the "example project" tag, then one focused screen area with generous
+ * padding. No Console navigation: each billboard shows one screen, not the whole application.
+ */
+type Props = { title: string; tag?: string; kind?: 'console' | 'wizard'; class?: string };
+
+const { title, tag = 'example project', kind = 'console', class: className } = Astro.props;
+---
+
+<div class:list={['jn-win', `jn-win--${kind}`, className]}>
+  <div class="jn-win__bar">
+    <span class="jn-win__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+    <span class="jn-win__title" set:html={title} />
+    <slot name="bar" />
+    <span class="jn-win__tag">{tag}</span>
+  </div>
+  <div class="jn-win__body">
+    <slot />
+  </div>
+</div>

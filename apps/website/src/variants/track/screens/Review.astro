@@ -1,0 +1,157 @@
+---
+/**
+ * 01 — the wizard's Review screen. The configuration file and the architecture diagram are two
+ * views of the same app under one draggable divider; below, the three decisions the wizard made,
+ * each changeable, and the estimate before anything exists.
+ */
+import { ACME_CONFIG, ACME_YAML, REVIEW, highlightYaml } from '../data';
+import DiagramIsland from '../DiagramIsland';
+import { PreviewButton } from '../ui';
+import Window from '../Window.astro';
+
+const file = highlightYaml(ACME_YAML);
+const DIAGRAM_LABEL =
+  'Architecture diagram of acme-project: web and apiService are public behind the firewall; worker, cache and mainDatabase sit inside the private network';
+---
+
+<Window title="localhost:3000 · <b>stacktape init</b>">
+  <ol class="tk-rail" slot="bar" aria-label="Wizard steps">
+    <li>Start</li>
+    <li>Read</li>
+    <li class="is-current" aria-current="step">Review</li>
+    <li>Deploy</li>
+  </ol>
+
+  <div class="tk-screen__head">
+    <h3 class="tk-screen__title">{REVIEW.title}</h3>
+    <p class="tk-screen__sub">{REVIEW.line}</p>
+  </div>
+
+  <div class="tk-reveal" data-tk-reveal style="--reveal: 46%">
+    <div class="tk-reveal__picture">
+      <div class="tk-reveal__canvas">
+        <DiagramIsland client:only="react" config={ACME_CONFIG} ariaLabel={DIAGRAM_LABEL} />
+      </div>
+    </div>
+
+    <div class="tk-reveal__file">
+      <div class="tk-editor">
+        <div class="tk-editor__tab">
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
+            <path d="M4 1.5h5.5L13 5v9.5H4z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"></path>
+            <path d="M9.5 1.5V5H13" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"></path>
+          </svg>
+          <span>stacktape.yml</span>
+          <span class="tk-editor__lines">{file.lineCount} lines</span>
+        </div>
+        <div class="tk-editor__scroll">
+          <div class="tk-editor__pane">
+            <div class="tk-editor__gutter" aria-hidden="true">
+              {Array.from({ length: file.lineCount }, (_, n) => <span>{n + 1}</span>)}
+            </div>
+            <pre class="tk-editor__code"><code set:html={file.html} /></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div
+      class="tk-reveal__handle"
+      data-tk-handle
+      role="slider"
+      tabindex="0"
+      aria-label="How much of the file to show; the rest is the diagram"
+      aria-valuemin="0"
+      aria-valuemax="100"
+      aria-valuenow="46"
+    >
+      <span class="tk-reveal__grip" aria-hidden="true">
+        <svg viewBox="0 0 16 16" width="14" height="14" fill="none">
+          <path d="M6 4 2.5 8 6 12M10 4l3.5 4L10 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>
+      </span>
+    </div>
+  </div>
+
+  <div class="tk-decided">
+    <h4 class="tk-panel__title">Decided for you</h4>
+    <ul class="tk-decided__list">
+      {
+        REVIEW.decided.map((item) => (
+          <li class="tk-decided__row">
+            <span class="tk-decided__check" aria-hidden="true">
+              <svg viewBox="0 0 12 12" width="11" height="11" fill="none">
+                <path d="m2.5 6.3 2.3 2.3 4.7-5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </span>
+            <span class="tk-decided__text">
+              <span class="tk-decided__what">{item.what}</span>
+              <span class="tk-decided__why">{item.why}</span>
+            </span>
+            <PreviewButton variant="secondary" small>Change</PreviewButton>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+
+  <div class="tk-screen__foot">
+    <p class="tk-estimate">
+      <b>{REVIEW.estimate.resources}</b> <span class="tk-sep" aria-hidden="true">·</span> <b>{REVIEW.estimate.monthly}</b>
+    </p>
+    <PreviewButton variant="primary" icon="arrow" iconPosition="end">Deploy</PreviewButton>
+  </div>
+</Window>
+
+<script>
+  // The reveal divider: pointer drag with capture, keyboard arrows, Home/End, double-click to reset.
+  const boxes = document.querySelectorAll<HTMLElement>('[data-tk-reveal]');
+
+  for (const box of boxes) {
+    const handle = box.querySelector<HTMLElement>('[data-tk-handle]');
+    if (!handle) continue;
+
+    const min = 10;
+    const max = 90;
+    const home = 46;
+    let value = home;
+
+    const apply = (next: number) => {
+      value = Math.min(max, Math.max(min, next));
+      box.style.setProperty('--reveal', `${value}%`);
+      handle.setAttribute('aria-valuenow', String(Math.round(value)));
+    };
+
+    const fromPointer = (clientX: number) => {
+      const rect = box.getBoundingClientRect();
+      apply(((clientX - rect.left) / rect.width) * 100);
+    };
+
+    handle.addEventListener('pointerdown', (event: PointerEvent) => {
+      event.preventDefault();
+      handle.setPointerCapture(event.pointerId);
+      box.classList.add('is-dragging');
+      fromPointer(event.clientX);
+    });
+    handle.addEventListener('pointermove', (event: PointerEvent) => {
+      if (!box.classList.contains('is-dragging')) return;
+      fromPointer(event.clientX);
+    });
+    const release = (event: PointerEvent) => {
+      if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId);
+      box.classList.remove('is-dragging');
+    };
+    handle.addEventListener('pointerup', release);
+    handle.addEventListener('pointercancel', release);
+    handle.addEventListener('dblclick', () => apply(home));
+    handle.addEventListener('keydown', (event: KeyboardEvent) => {
+      const step = event.shiftKey ? 12 : 4;
+      if (event.key === 'ArrowLeft') apply(value - step);
+      else if (event.key === 'ArrowRight') apply(value + step);
+      else if (event.key === 'Home') apply(min);
+      else if (event.key === 'End') apply(max);
+      else return;
+      event.preventDefault();
+    });
+  }
+</script>

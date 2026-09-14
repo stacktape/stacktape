@@ -1,0 +1,28 @@
+---
+/** The seven components in order, each expanded into its card with the screen where it happens. */
+import Component from './Component.astro';
+import { COMPONENTS } from './data';
+import Costs from './screens/Costs.astro';
+import Deploys from './screens/Deploys.astro';
+import Designs from './screens/Designs.astro';
+import Incidents from './screens/Incidents.astro';
+import Monitors from './screens/Monitors.astro';
+import Packages from './screens/Packages.astro';
+import Secures from './screens/Secures.astro';
+
+const [designs, packages, deploys, monitors, secures, incidents, costs] = COMPONENTS;
+---
+
+<section class="su-components" aria-labelledby="su-components-title">
+  <div class="su-container">
+    <h2 class="su-label" id="su-components-title">Components</h2>
+
+    <Component component={designs}><Designs /></Component>
+    <Component component={packages}><Packages /></Component>
+    <Component component={deploys}><Deploys /></Component>
+    <Component component={monitors}><Monitors /></Component>
+    <Component component={secures}><Secures /></Component>
+    <Component component={incidents}><Incidents /></Component>
+    <Component component={costs}><Costs /></Component>
+  </div>
+</section>

@@ -1,0 +1,109 @@
+---
+/**
+ * The transcript: the first prompt (the hero), the seven things as the session continues across
+ * days, the last prompt (the closing), and the teams running on Stacktape, all in one column.
+ */
+import Cover from '../../components/Cover.astro';
+import {
+  ANNOUNCEMENT,
+  CLOSING_LINE,
+  HEADLINE_LINES,
+  LINKS,
+  SECTIONS,
+  SESSION,
+  SIGN_IN_LINE,
+  SUBHEADLINE,
+  TESTIMONIALS,
+  TESTIMONIALS_TITLE,
+  TRUST_LINE
+} from './data';
+import Block from './Block.astro';
+import { Prompt } from './Prompt';
+import Costs from './screens/Costs.astro';
+import Deploys from './screens/Deploys.astro';
+import Designs from './screens/Designs.astro';
+import Incidents from './screens/Incidents.astro';
+import Monitors from './screens/Monitors.astro';
+import Packages from './screens/Packages.astro';
+import Secures from './screens/Secures.astro';
+
+const [designs, packages, deploys, monitors, secures, incidents, costs] = SECTIONS;
+---
+
+<div class="ss-tx">
+  <section class="ss-hero" aria-label="Introduction">
+    <p class="ss-l ss-c ss-c--dim">{ANNOUNCEMENT.text} <a href={ANNOUNCEMENT.href}>{ANNOUNCEMENT.cta} {ANNOUNCEMENT.href}</a></p>
+    <h1 class="ss-h1">
+      {HEADLINE_LINES.map((line) => <span class="ss-l ss-c ss-c--display">{line}</span>)}
+    </h1>
+    <p class="ss-l ss-c ss-hero__sub">{SUBHEADLINE}</p>
+    <Prompt client:load id="get-started" typing cursor hint />
+    <p class="ss-l ss-c ss-hero__trust">{TRUST_LINE}</p>
+  </section>
+
+  <Block section={designs} stamp={SESSION.designs.stamp}>
+    <p class="ss-l ss-o">Opening {SESSION.designs.opening} …</p>
+    <Designs />
+  </Block>
+
+  <Block section={packages} stamp={SESSION.packages.stamp}>
+    <p class="ss-l ss-p">{SESSION.packages.command}</p>
+    <Packages />
+  </Block>
+
+  <Block section={deploys} stamp={SESSION.deploys.stamp}>
+    <p class="ss-l ss-p">{SESSION.deploys.command}</p>
+    <div class="ss-cover"><Cover /></div>
+    <p class="ss-l ss-o">Opening {SESSION.deploys.opening} …</p>
+    <Deploys />
+  </Block>
+
+  <Block section={monitors} stamp={SESSION.monitors.stamp}>
+    <p class="ss-l ss-p">{SESSION.monitors.command}</p>
+    <p class="ss-l ss-o">Opening {SESSION.monitors.opening} …</p>
+    <Monitors />
+  </Block>
+
+  <Block section={secures} stamp={SESSION.secures.stamp}>
+    <p class="ss-l ss-p">{SESSION.secures.command}</p>
+    <p class="ss-l ss-o ss-o--err">{SESSION.secures.error}</p>
+    <p class="ss-l ss-o">Opening {SESSION.secures.opening} …</p>
+    <Secures />
+  </Block>
+
+  <Block section={incidents} stamp={SESSION.incidents.stamp}>
+    <p class="ss-l ss-o ss-o--warn">{SESSION.incidents.alert}</p>
+    <Incidents />
+    <p class="ss-l ss-o ss-o--ok">{SESSION.incidents.resolved}</p>
+  </Block>
+
+  <Block section={costs} stamp={SESSION.costs.stamp}>
+    <p class="ss-l ss-p">{SESSION.costs.command}</p>
+    <p class="ss-l ss-o">Opening {SESSION.costs.opening} …</p>
+    <Costs />
+  </Block>
+
+  <section class="ss-closing" aria-label="Start">
+    <p class="ss-ts" aria-hidden="true">
+      <span class="ss-ts__text">── ──</span>
+      <i class="ss-ts__rule"></i>
+    </p>
+    <p class="ss-l ss-c ss-c--bright">{CLOSING_LINE}</p>
+    <Prompt client:load />
+    <p class="ss-l ss-c">{TRUST_LINE}</p>
+    <p class="ss-l ss-c">{SIGN_IN_LINE} <a href={LINKS.console}>{LINKS.console}</a></p>
+  </section>
+
+  <section class="ss-voices" aria-labelledby="ss-voices-h">
+    <h2 class="ss-l ss-c ss-c--h2" id="ss-voices-h">{TESTIMONIALS_TITLE}</h2>
+    {
+      TESTIMONIALS.map((voice) => (
+        <figure class="ss-voice">
+          <blockquote class="ss-l ss-c">{`“${voice.quote}”`}</blockquote>
+          <figcaption class="ss-l ss-c">{`— ${voice.name}, ${voice.role}`}</figcaption>
+          <p class="ss-l ss-c ss-c--blank" aria-hidden="true" />
+        </figure>
+      ))
+    }
+  </section>
+</div>

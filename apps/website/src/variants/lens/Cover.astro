@@ -1,0 +1,133 @@
+---
+/**
+ * The cover composite: the Console's overview tilted a little in 3D, and the terminal flat in front
+ * of it, bottom right, both on layered shadows over a soft teal glow.
+ *
+ * It is drawn at one fixed design size (1100 × 730) and scaled to the measured width of its wrapper,
+ * so the picture stays crisp and never overflows. The script below writes the scale; until it runs,
+ * the wrapper already reserves the right height through its aspect ratio.
+ */
+import Logo from '../../components/Logo.astro';
+import { COVER, PROJECT, RESOURCES, TERMINAL_TITLE, URLS } from './data';
+import { StatusBadge } from './ui';
+
+const WIDTH = 1100;
+const HEIGHT = 730;
+const tiles = RESOURCES.map((resource) => ({ name: resource.name, type: resource.type, category: resource.category }));
+---
+
+<div class="ls-cover" data-ls-cover style={`--ls-cover-w: ${WIDTH}; --ls-cover-h: ${HEIGHT}`} aria-label="The Stacktape Console and the CLI deploying acme-project" role="img">
+  <div class="ls-cover__stage" data-ls-cover-stage aria-hidden="true">
+    <div class="ls-cover__glow"></div>
+
+    <div class="ls-cover__console">
+      <div class="ls-cover__chrome">
+        <span class="ls-win__dots"><i></i><i></i><i></i></span>
+        <span class="ls-win__pill">
+          <svg class="ls-win__lock" viewBox="0 0 16 16" width="11" height="11" fill="none">
+            <rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"></rect>
+            <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path>
+          </svg>
+          <span class="ls-win__url">{URLS.overview}</span>
+        </span>
+        <span class="ls-win__spacer"></span>
+      </div>
+      <div class="ls-cover__top">
+        <Logo height={22} />
+        <span class="ls-cover__crumb">
+          <b>{PROJECT.name}</b> <span class="ls-cover__slash">/</span> {PROJECT.stage}
+        </span>
+      </div>
+      <div class="ls-cover__frame">
+        <ul class="ls-cover__nav">
+          {COVER.nav.map((item) => <li class={item === COVER.current ? 'is-current' : undefined}>{item}</li>)}
+        </ul>
+        <div class="ls-cover__main">
+          <p class="ls-cover__status">
+            <StatusBadge tone="success" dot>{COVER.status.badge}</StatusBadge>
+            <span class="ls-cover__mono">{COVER.status.release}</span>
+            <span class="ls-sep">·</span>
+            <span class="ls-cover__mono">{COVER.status.region}</span>
+            <span class="ls-sep">·</span>
+            <span>{COVER.status.deployed}</span>
+          </p>
+          <ul class="ls-cover__kpis">
+            {
+              COVER.kpis.map((kpi) => (
+                <li class="ls-cover__kpi">
+                  <span class="ls-cover__kpi-label">{kpi.label}</span>
+                  <span class="ls-cover__kpi-value">{kpi.value}</span>
+                </li>
+              ))
+            }
+          </ul>
+          <ul class="ls-cover__tiles">
+            {
+              tiles.map((tile) => (
+                <li class={`ls-cover__tile ls-cover__tile--${tile.category}`}>
+                  <span class="ls-cover__tile-name">{tile.name}</span>
+                  <span class="ls-cover__tile-type">{tile.type}</span>
+                  <span class="ls-cover__tile-state">{COVER.tileState}</span>
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="ls-cover__terminal">
+      <div class="ls-cover__chrome">
+        <span class="ls-win__dots"><i></i><i></i><i></i></span>
+        <span class="ls-win__title">{TERMINAL_TITLE}</span>
+        <span class="ls-win__spacer"></span>
+      </div>
+      <div class="ls-term ls-term--cover">
+        <p class="ls-term__line">
+          <span class="ls-term__prompt">$</span> <span class="ls-term__cmd">{COVER.terminal.command}</span>
+        </p>
+        {
+          COVER.terminal.phases.map((phase) => (
+            <p class={`ls-term__line ls-term__phase ls-term__phase--${phase.state}`}>
+              <span class="ls-term__mark">{phase.state === 'done' ? '✓' : phase.state === 'active' ? '●' : ''}</span>
+              {phase.name}
+              {'note' in phase && <span class="ls-term__note">{phase.note}</span>}
+            </p>
+          ))
+        }
+        <p class="ls-term__progress">
+          <span class="ls-term__track"><span class="ls-term__done" style={`width: ${COVER.terminal.progress}%`}></span></span>
+          <span class="ls-term__pct">{COVER.terminal.progress} %</span>
+        </p>
+        <ul class="ls-term__rows ls-term__rows--cover">
+          {
+            COVER.terminal.rows.map((row) => (
+              <li class={row.state === 'created' ? 'ls-term__row ls-term__row--done' : 'ls-term__row ls-term__row--active'}>
+                <span class="ls-term__mark">{row.state === 'created' ? '✓' : '●'}</span>
+                <span class="ls-term__name">{row.name}</span>
+                <span class="ls-term__kind">{row.type}</span>
+                <span class="ls-term__result">{row.state}</span>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const cover = document.querySelector<HTMLElement>('[data-ls-cover]');
+  const stage = cover?.querySelector<HTMLElement>('[data-ls-cover-stage]');
+
+  if (cover && stage) {
+    const width = parseFloat(getComputedStyle(cover).getPropertyValue('--ls-cover-w')) || 1100;
+    const fit = () => {
+      const scale = Math.min(1, cover.clientWidth / width);
+      stage.style.setProperty('--ls-cover-scale', scale.toFixed(4));
+    };
+    fit();
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(fit).observe(cover);
+    else window.addEventListener('resize', fit, { passive: true });
+  }
+</script>

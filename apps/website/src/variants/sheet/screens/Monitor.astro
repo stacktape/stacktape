@@ -1,0 +1,65 @@
+---
+/** 04 — production monitoring: three metric tiles, one request followed through the services, one uptime line. */
+import { MONITORING, sparkline } from '../data';
+import Window from '../Window.astro';
+
+const { metrics, trace, uptime } = MONITORING;
+const pct = (ms: number) => `${((ms / trace.total) * 100).toFixed(2)}%`;
+---
+
+<Window kind="browser" title={MONITORING.url}>
+  <div class="sh-mon">
+    <ul class="sh-tiles" aria-label="Metrics">
+      {
+        metrics.map((metric) => (
+          <li class="sh-tile">
+            <p class="sh-tile__label">{metric.label}</p>
+            <p class="sh-tile__value">
+              {metric.value}<span class="sh-tile__unit">{metric.unit}</span>
+            </p>
+            <svg class="sh-spark" viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true">
+              <polyline points={sparkline(metric.points)} fill="none" stroke="currentColor" stroke-width="1.6" vector-effect="non-scaling-stroke" />
+            </svg>
+          </li>
+        ))
+      }
+    </ul>
+
+    <div class="sh-trace">
+      <p class="sh-trace__head">
+        <span class="sh-mono sh-trace__name">{trace.name}</span>
+        <span class="sh-screen__sep" aria-hidden="true">·</span>
+        <span class="sh-mono sh-trace__total">{trace.total} ms</span>
+      </p>
+      <ol class="sh-trace__spans" aria-label="Spans">
+        {
+          trace.spans.map((span) => (
+            <li class={`sh-span sh-span--${span.kind}`}>
+              <span class="sh-span__name">{span.name}</span>
+              <span class="sh-span__lane" aria-hidden="true">
+                <span class="sh-span__bar" style={`left: ${pct(span.start)}; width: max(${pct(span.end - span.start)}, 3px)`} />
+              </span>
+              <span class="sh-span__ms">{span.end - span.start} ms</span>
+            </li>
+          ))
+        }
+      </ol>
+    </div>
+
+    <p class="sh-uptime">
+      <span class="sh-mono sh-uptime__url">{uptime.url}</span>
+      <span class="sh-screen__sep" aria-hidden="true">·</span>
+      <span class="sh-uptime__avail">{uptime.availability}</span>
+      {
+        uptime.regions.map((check) => (
+          <>
+            <span class="sh-screen__sep" aria-hidden="true">·</span>
+            <span class="sh-uptime__region">
+              {check.region} <span class="sh-mono">{check.latency}</span>
+            </span>
+          </>
+        ))
+      }
+    </p>
+  </div>
+</Window>

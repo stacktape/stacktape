@@ -1,0 +1,65 @@
+---
+/** 02 — "It's live": the two URLs, the phases that got there, and what deploying is from now on. */
+import { AFTER_FIRST, DEPLOY, PROJECT, WIZARD } from '../data';
+import { PreviewButton, StatusBadge } from '../ui';
+import Window from '../Window.astro';
+---
+
+<Window title={`${WIZARD.address} · <b>${WIZARD.command}</b>`}>
+  <ol class="th-rail" slot="bar" aria-label="Wizard progress">
+    {WIZARD.rail.map((step) => (step === 'Deploy' ? <li class="is-current" aria-current="step">{step}</li> : <li>{step}</li>))}
+  </ol>
+
+  <div class="th-live-grid">
+    <div class="th-live">
+      <div class="th-live__head">
+        <StatusBadge tone="success" dot>Live</StatusBadge>
+        <h3 class="th-screen__title">It's live</h3>
+      </div>
+      <p class="th-live__urls">
+        <span class="th-live__url">{PROJECT.urls.web}</span>
+        <span class="th-live__url">{PROJECT.urls.api}</span>
+      </p>
+      <p class="th-live__meta">
+        <span class="th-mono">{DEPLOY.duration}</span> · <span class="th-mono">{PROJECT.region}</span> · your AWS account{' '}
+        <span class="th-mono">{PROJECT.account}</span>
+      </p>
+    </div>
+
+    <ol class="th-phases" aria-label="Deployment phases">
+      {
+        DEPLOY.phases.map((phase) => (
+          <li class="th-phase">
+            <span class="th-phase__ok" aria-hidden="true">
+              <svg viewBox="0 0 12 12" width="11" height="11" fill="none">
+                <path d="m2.5 6.3 2.3 2.3 4.7-5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </span>
+            <span class="th-phase__name">{phase.name}</span>
+            <span class="th-phase__detail">{phase.detail}</span>
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+
+  <p class="th-label">From now on</p>
+  <ul class="th-after">
+    <li class="th-after__row">
+      <span class="th-after__trigger">{AFTER_FIRST.push.trigger}</span>
+      <span class="th-after__arrow" aria-hidden="true">→</span>
+      <span class="th-after__result">{AFTER_FIRST.push.result}</span>
+      <span class="th-after__note">{AFTER_FIRST.push.note}</span>
+    </li>
+    <li class="th-after__row">
+      <span class="th-after__trigger">{AFTER_FIRST.pullRequest.trigger}</span>
+      <span class="th-after__arrow" aria-hidden="true">→</span>
+      <span class="th-after__result">{AFTER_FIRST.pullRequest.result}</span>
+    </li>
+    <li class="th-after__row th-after__row--button">
+      <span class="th-after__trigger">any release</span>
+      <span class="th-after__arrow" aria-hidden="true">→</span>
+      <PreviewButton variant="secondary" small>{DEPLOY.rollback}</PreviewButton>
+    </li>
+  </ul>
+</Window>

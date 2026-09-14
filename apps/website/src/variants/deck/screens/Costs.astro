@@ -1,0 +1,55 @@
+---
+/** 06 — cost per resource from the AWS bill, and the budget the visitor set once. The pointer rests on the budget value. */
+import Cursor from '../Cursor.astro';
+import { BILLED_LINE, BUDGET, COST_TOTAL, COSTS, money, PROJECT } from '../data';
+import Screen from '../Screen.astro';
+
+const largest = Math.max(...COSTS.map((cost) => cost.amount));
+const used = (COST_TOTAL / BUDGET.limit) * 100;
+---
+
+<Screen kind="console" current="Costs">
+  <div class="dk-cost">
+    <div class="dk-cost__head">
+      <p class="dk-screen__label">Cost by resource · month to date</p>
+      <p class="dk-cost__total">{money(COST_TOTAL)}</p>
+    </div>
+    <ul class="dk-bars" aria-label="Cost per resource">
+      {
+        COSTS.map((cost) => (
+          <li class="dk-bar">
+            <span class="dk-bar__name">{cost.name}</span>
+            <span class="dk-bar__lane">
+              <span class="dk-bar__fill" style={`width: ${((cost.amount / largest) * 100).toFixed(1)}%`} />
+            </span>
+            <span class="dk-bar__amount">{money(cost.amount)}</span>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+
+  <div class="dk-budget">
+    <div class="dk-budget__head">
+      <p class="dk-screen__label">Budget</p>
+      <span class="dk-press dk-press--field">
+        <span class="dk-budget__limit"><b>{money(BUDGET.limit)}</b> / month</span>
+        <Cursor />
+      </span>
+    </div>
+    <div
+      class="dk-budget__lane"
+      role="img"
+      aria-label={`${money(COST_TOTAL)} of ${money(BUDGET.limit)} used; alert at ${BUDGET.alertAt}%`}
+    >
+      <span class="dk-budget__fill" style={`width: ${used.toFixed(1)}%`}></span>
+      <span class="dk-budget__mark" style={`left: ${BUDGET.alertAt}%`}></span>
+    </div>
+    <p class="dk-budget__legend">
+      <span><b>{used.toFixed(0)} %</b> used</span>
+      <span>alert at <b>{BUDGET.alertAt} %</b> ({money((BUDGET.limit * BUDGET.alertAt) / 100)})</span>
+    </p>
+  </div>
+
+  <p class="dk-cost__billed">{BILLED_LINE} <span class="dk-mono">{PROJECT.account}</span>.</p>
+</Screen>

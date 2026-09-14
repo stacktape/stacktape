@@ -1,0 +1,105 @@
+---
+/**
+ * 05 — security in the Console: the posture ring, what is scanned, the two findings that need a
+ * person, and where the software inventory lives.
+ */
+import { SECURITY, type SecurityIcon, URLS } from '../data';
+import { PreviewButton } from '../ui';
+import Window from '../Window.astro';
+
+const { posture, tiles, findings, footer } = SECURITY;
+
+const RING = { size: 112, stroke: 8 };
+const radius = (RING.size - RING.stroke) / 2;
+const circumference = 2 * Math.PI * radius;
+const arc = circumference * (posture.passing / posture.total);
+
+/** Simple 16px line icons for the four coverage tiles. */
+const ICON_PATHS: Record<SecurityIcon, string> = {
+  package: 'M8 1.5 14 4.75v6.5L8 14.5 2 11.25v-6.5L8 1.5Zm0 0v6.5m0 0L2 4.75M8 8l6-3.25',
+  image: 'M2.5 5.5 8 2.5l5.5 3L8 8.5 2.5 5.5Zm0 0v5L8 13.5m0-5v5m5.5-8v5L8 13.5',
+  key: 'M9.5 2.5a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm-3 6.6L2 13.5v-2l1.2-1.2m1.3-1.3L6 7.5',
+  shield: 'M8 1.5 13.5 3.75v4.2c0 3.1-2.3 5.3-5.5 6.55C4.8 13.25 2.5 11.05 2.5 7.95v-4.2L8 1.5Zm-2.3 6.6 1.6 1.6 3-3.2'
+};
+---
+
+<Window kind="browser" host={URLS.security.host} path={URLS.security.path}>
+  <div class="rm-sec">
+    <div class="rm-sec__posture">
+      <div class="rm-sec__ring" role="img" aria-label={`${posture.passing} of ${posture.total} ${posture.unit} passing`}>
+        <svg viewBox={`0 0 ${RING.size} ${RING.size}`} width={RING.size} height={RING.size} aria-hidden="true">
+          <defs>
+            <linearGradient id="rm-sec-arc" x1="0" y1="1" x2="1" y2="0">
+              <stop offset="0" stop-color="#36bebe" />
+              <stop offset="1" stop-color="#22c55e" />
+            </linearGradient>
+          </defs>
+          <circle class="rm-sec__track" cx={RING.size / 2} cy={RING.size / 2} r={radius} stroke-width={RING.stroke} />
+          <circle
+            class="rm-sec__arc"
+            cx={RING.size / 2}
+            cy={RING.size / 2}
+            r={radius}
+            stroke="url(#rm-sec-arc)"
+            stroke-width={RING.stroke}
+            stroke-dasharray={`${arc.toFixed(2)} ${circumference.toFixed(2)}`}
+            transform={`rotate(-90 ${RING.size / 2} ${RING.size / 2})`}
+          />
+        </svg>
+        <span class="rm-sec__count">
+          <b>{posture.passing}</b>
+          <span>of {posture.total} {posture.unit}</span>
+        </span>
+      </div>
+      <p class="rm-sec__state">
+        <i class="rm-sec__dot rm-sec__dot--ok" aria-hidden="true"></i>
+        {posture.state}
+      </p>
+      <p class="rm-sec__note">{posture.note}</p>
+    </div>
+
+    <ul class="rm-sec__tiles" aria-label="Coverage">
+      {
+        tiles.map((tile) => (
+          <li class="rm-sec__tile">
+            <span class="rm-sec__tile-head">
+              <svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true">
+                <path d={ICON_PATHS[tile.icon]} stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              <b>{tile.name}</b>
+            </span>
+            <span class="rm-sec__tile-scope">{tile.scope}</span>
+            <span class="rm-sec__tile-result">
+              <i class={`rm-sec__dot rm-sec__dot--${tile.tone}`} aria-hidden="true" />
+              {tile.result}
+            </span>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+
+  <ul class="rm-sec__findings" aria-label="Findings">
+    {
+      findings.map((finding) => (
+        <li class="rm-sec__finding">
+          <i class={`rm-sec__dot rm-sec__dot--${finding.tone}`} aria-hidden="true" />
+          <p class="rm-sec__finding-text">
+            <b>{finding.lead}</b>
+            <span class="rm-sec__sep" aria-hidden="true">·</span>
+            {finding.rest}
+          </p>
+          <PreviewButton variant="secondary" small>
+            {finding.button}
+          </PreviewButton>
+        </li>
+      ))
+    }
+  </ul>
+
+  <p class="rm-sec__foot">
+    <span class="rm-sec__link">{footer.link}</span>
+    <span class="rm-sec__sep" aria-hidden="true">·</span>
+    {footer.rest}
+  </p>
+</Window>

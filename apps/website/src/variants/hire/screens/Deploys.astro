@@ -1,0 +1,65 @@
+---
+/** 03 — deployments: a canary rolling out, the release before it live, a pull request's preview. */
+import { DEPLOYMENTS, URLS } from '../data';
+import { PreviewButton, StatusBadge } from '../ui';
+import Window from '../Window.astro';
+
+const { rolling, live, preview } = DEPLOYMENTS;
+---
+
+<Window kind="browser" host={URLS.deployments.host} path={URLS.deployments.path}>
+  <div class="hr-scr__head">
+    <p class="hr-scr__h">{DEPLOYMENTS.heading}</p>
+    <p class="hr-scr__line">{DEPLOYMENTS.line}</p>
+  </div>
+
+  <ul class="hr-dep" aria-label="Deployments">
+    <li class="hr-dep__row hr-dep__row--rolling">
+      <div class="hr-dep__main">
+        <p class="hr-dep__title">
+          <b>{rolling.version}</b>
+          <span class="hr-dep__ref">{rolling.ref}</span>
+          <span class="hr-dep__msg">“{rolling.message}”</span>
+        </p>
+        <div class="hr-dep__traffic">
+          <span class="hr-dep__lane" aria-hidden="true">
+            <span class="hr-dep__fill" style={`width: ${rolling.traffic.percent}%`}></span>
+          </span>
+          <span class="hr-dep__shift">
+            {rolling.traffic.from} <span aria-hidden="true">→</span> {rolling.traffic.to}
+          </span>
+          <span class="hr-dep__note">{rolling.traffic.label}</span>
+        </div>
+      </div>
+      <div class="hr-dep__side">
+        <StatusBadge tone="brand" dot>{rolling.badge}</StatusBadge>
+        <PreviewButton variant="secondary" small>{rolling.rollback}</PreviewButton>
+      </div>
+    </li>
+
+    <li class="hr-dep__row">
+      <div class="hr-dep__main">
+        <p class="hr-dep__title">
+          <b>{live.version}</b>
+          <span class="hr-dep__ref">{live.ref}</span>
+        </p>
+      </div>
+      <div class="hr-dep__side">
+        <StatusBadge tone="success" dot>{live.badge}</StatusBadge>
+      </div>
+    </li>
+
+    <li class="hr-dep__row">
+      <div class="hr-dep__main">
+        <p class="hr-dep__title">
+          <b>{preview.version}</b>
+          <span class="hr-dep__msg">“{preview.message}”</span>
+        </p>
+        <p class="hr-dep__url">{preview.url}</p>
+      </div>
+      <div class="hr-dep__side">
+        <StatusBadge tone="info">{preview.badge}</StatusBadge>
+      </div>
+    </li>
+  </ul>
+</Window>

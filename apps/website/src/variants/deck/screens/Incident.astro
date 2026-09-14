@@ -1,0 +1,68 @@
+---
+/** 05 — the incident: the release that caused it, the two signals, the handoff, the timeline, the switch that is off. */
+import Cursor from '../Cursor.astro';
+import { INCIDENT } from '../data';
+import Screen from '../Screen.astro';
+import { OptInSwitch, PreviewButton, StatusBadge } from '../ui';
+
+const { release } = INCIDENT;
+---
+
+<Screen kind="console" current={`Incident ${INCIDENT.id}`}>
+  <div class="dk-inc__head">
+    <div class="dk-inc__badges">
+      <StatusBadge tone="success" dot>Resolved</StatusBadge>
+      <StatusBadge tone="danger">Error</StatusBadge>
+    </div>
+    <h3 class="dk-screen__h dk-inc__title">{INCIDENT.title}</h3>
+  </div>
+
+  <p class="dk-inc__release">
+    <b>{release.opened} <span class="dk-mono">{release.version}</span></b>
+    <span class="dk-inc__sep" aria-hidden="true">·</span>
+    <span class="dk-mono">{release.commit}</span>
+    <span class="dk-inc__sep" aria-hidden="true">·</span>
+    {release.message}
+    <span class="dk-inc__sep" aria-hidden="true">·</span>
+    <span class="dk-inc__link">{release.link}</span>
+  </p>
+
+  <ul class="dk-signals" aria-label="Signals">
+    {
+      INCIDENT.signals.map((signal) => (
+        <li class="dk-signal">
+          <span class="dk-signal__mark" aria-hidden="true" />
+          <span class="dk-signal__kind">{signal.kind}</span>
+          <span class="dk-signal__meta">{signal.meta}</span>
+        </li>
+      ))
+    }
+  </ul>
+
+  <div class="dk-inc__row">
+    <span class="dk-press">
+      <PreviewButton variant="secondary" icon="copy">{INCIDENT.handoff}</PreviewButton>
+      <Cursor />
+    </span>
+  </div>
+
+  <ol class="dk-timeline" aria-label="Timeline">
+    {
+      INCIDENT.timeline.map((event) => (
+        <li class={`dk-tl dk-tl--${event.tone}`}>
+          <span class="dk-tl__time">{event.time}</span>
+          <span class="dk-tl__mark" aria-hidden="true" />
+          <span class="dk-tl__text">{event.text}</span>
+        </li>
+      ))
+    }
+  </ol>
+
+  <div class="dk-optin">
+    <OptInSwitch label={INCIDENT.optIn} />
+    <span class="dk-optin__text">
+      <span class="dk-optin__what">{INCIDENT.optIn}</span>
+      <span class="dk-optin__state">{INCIDENT.optInState}</span>
+    </span>
+  </div>
+</Screen>

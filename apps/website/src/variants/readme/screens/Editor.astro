@@ -1,0 +1,200 @@
+---
+/**
+ * 01 — the config editor in the Console, with the wizard's reasons beside it. Six callouts on the
+ * document surface point at the resource lines in the open file; the editor shows the same stack
+ * as YAML (open) and TypeScript, with the IntelliSense card under the property the pointer rests
+ * on. The hovered line is written on one line on purpose: the code area keeps whitespace. Under
+ * 640px the callouts give way to lens lines inside the editor.
+ */
+import { EDITOR, type EditorFileId, highlightTs, highlightYaml, URLS } from '../data';
+import Window from '../Window.astro';
+
+const highlight = { yml: highlightYaml, ts: highlightTs } as const;
+const files = EDITOR.files.map((file) =>
+  Object.assign({}, file, {
+    rows: highlight[file.id](file.source, EDITOR.hover.word, EDITOR.lenses),
+    signature: EDITOR.hover.signature[file.id]
+  })
+);
+const open: EditorFileId = 'yml';
+---
+
+<div class="rm-edf" data-editor>
+  <ul class="rm-edf__labels" aria-label="How each resource was identified">
+    {
+      EDITOR.callouts.map((callout) => (
+        <li class="rm-edf__label" data-callout={callout.resource}>
+          <span>{callout.text}</span>
+          <i class="rm-edf__dot" aria-hidden="true" />
+        </li>
+      ))
+    }
+  </ul>
+
+  <div class="rm-edf__window rm-shot">
+    <Window kind="browser" host={URLS.configEditor.host} path={URLS.configEditor.path} class="rm-win--editor">
+      <div class="rm-ed" data-file={open}>
+        <div class="rm-ed__tabs" role="tablist" aria-label="Files">
+          {
+            files.map((file) => (
+              <button
+                class="rm-ed__tab"
+                type="button"
+                role="tab"
+                id={`rm-ed-tab-${file.id}`}
+                aria-selected={file.id === open ? 'true' : 'false'}
+                aria-controls={`rm-ed-file-${file.id}`}
+                data-file={file.id}
+              >
+                {file.id === 'ts' ? (
+                  <svg class="rm-ed__tab-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                    <rect x="1" y="1" width="14" height="14" rx="2.5" fill="#3178c6" />
+                    <text x="8" y="11.6" text-anchor="middle" font-size="8" font-weight="700" font-family="Arial, sans-serif" fill="#fff">
+                      TS
+                    </text>
+                  </svg>
+                ) : (
+                  <svg class="rm-ed__tab-icon" viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
+                    <path d="M4 1.5h5.5L13 5v9.5H4z" stroke="#c792ea" stroke-width="1.3" stroke-linejoin="round" />
+                    <path d="M9.5 1.5V5H13M6.5 8.5h4M6.5 11h4" stroke="#c792ea" stroke-width="1.3" stroke-linecap="round" />
+                  </svg>
+                )}
+                {file.name}
+              </button>
+            ))
+          }
+        </div>
+
+        <div class="rm-ed__scroll">
+          {
+            files.map((file) => (
+              <ol class="rm-ed__lines" id={`rm-ed-file-${file.id}`} role="tabpanel" aria-labelledby={`rm-ed-tab-${file.id}`} aria-label={file.name} data-file={file.id}>
+                {file.rows.map((row) =>
+                  row.kind === 'lens' ? (
+                    <li class="rm-ed__lens">
+                      <span class="rm-ed__num" aria-hidden="true" />
+                      <span class="rm-ed__lens-text" style={`--rm-indent: ${row.indent}`}>
+                        <span class="rm-ed__lens-inner">
+                          <svg viewBox="0 0 16 16" width="11" height="11" fill="none" aria-hidden="true">
+                            <circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.5" />
+                            <path d="m10.5 10.5 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+                          </svg>
+                          {row.text}
+                        </span>
+                      </span>
+                    </li>
+                  ) : row.kind === 'hover' ? (
+                    <li class="rm-ed__line rm-ed__line--hover">
+                      <span class="rm-ed__num">{row.number}</span>
+                      <code class="rm-ed__code">{row.before}<span class="rm-ed-prop rm-ed__hover"><span class="rm-ed__word">{row.word}</span><svg class="rm-ed__cursor" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5.5 3v16.4l4.3-4 2.9 6.4 3-1.4-2.9-6.2 6-.3z" fill="#fff" stroke="#0a1214" stroke-width="1.6" stroke-linejoin="round" /></svg><span class="rm-ed__tip" role="tooltip"><span class="rm-ed__tip-sig">{file.signature}</span><span class="rm-ed__tip-text">{EDITOR.hover.text}</span><span class="rm-ed__tip-link">{EDITOR.hover.link}</span></span></span><Fragment set:html={row.after} /></code>
+                    </li>
+                  ) : (
+                    <li class="rm-ed__line" data-resource={row.resource}>
+                      <span class="rm-ed__num">{row.number}</span>
+                      <code class="rm-ed__code" set:html={row.html} />
+                    </li>
+                  )
+                )}
+              </ol>
+            ))
+          }
+        </div>
+
+        <div class="rm-ed__status">
+          {files.map((file) => <span class="rm-ed__status-lang" data-file={file.id}>{file.language}</span>)}
+          {
+            EDITOR.status.map((item) => (
+              <>
+                <span class="rm-ed__status-sep" aria-hidden="true">
+                  ·
+                </span>
+                <span>{item}</span>
+              </>
+            ))
+          }
+        </div>
+      </div>
+    </Window>
+  </div>
+
+  <svg class="rm-edf__overlay" aria-hidden="true"></svg>
+</div>
+
+<script>
+  /*
+   * The callouts beside the editor and the tabs inside it. Each callout sits level with its
+   * resource's line in the open file (neighbouring lines push the callouts apart), and a thin
+   * curve joins the callout's dot to the line's left edge. Everything is measured at runtime and
+   * measured again on resize, on a tab switch and once the fonts have loaded. Under 640px the
+   * overlay is hidden by CSS and nothing is placed.
+   */
+  const GAP = 6;
+
+  const setUp = (figure: HTMLElement) => {
+    const editor = figure.querySelector<HTMLElement>('.rm-ed');
+    const overlay = figure.querySelector<SVGSVGElement>('.rm-edf__overlay');
+    const scroller = figure.querySelector<HTMLElement>('.rm-ed__scroll');
+    if (!editor || !overlay || !scroller) return;
+    const tabs = Array.from(figure.querySelectorAll<HTMLButtonElement>('.rm-ed__tab'));
+    const labels = Array.from(figure.querySelectorAll<HTMLElement>('.rm-edf__label'));
+
+    const place = () => {
+      if (getComputedStyle(overlay).display === 'none') {
+        figure.classList.remove('is-placed');
+        overlay.replaceChildren();
+        return;
+      }
+      const lines = editor.querySelector<HTMLElement>(`.rm-ed__lines[data-file="${editor.dataset.file}"]`);
+      const gutter = lines?.querySelector<HTMLElement>('.rm-ed__num');
+      if (!lines || !gutter) return;
+
+      const box = figure.getBoundingClientRect();
+      const endX = scroller.getBoundingClientRect().left + gutter.offsetWidth - box.left - 8;
+      const targets: { label: HTMLElement; y: number }[] = [];
+      for (const label of labels) {
+        const line = lines.querySelector<HTMLElement>(`[data-resource="${label.dataset.callout}"]`);
+        if (!line) continue;
+        const rect = line.getBoundingClientRect();
+        targets.push({ label, y: rect.top + rect.height / 2 - box.top });
+      }
+      targets.sort((a, b) => a.y - b.y);
+
+      figure.classList.add('is-placed');
+      let floor = 0;
+      const marks: string[] = [];
+      for (const target of targets) {
+        const height = target.label.offsetHeight;
+        const top = Math.max(target.y - height / 2, floor);
+        target.label.style.top = `${top.toFixed(1)}px`;
+        floor = top + height + GAP;
+        const startX = target.label.getBoundingClientRect().right - box.left + 4;
+        const startY = top + height / 2;
+        const bend = Math.max(18, (endX - startX) / 2);
+        const path = [
+          `M${startX.toFixed(1)} ${startY.toFixed(1)}`,
+          `C${(startX + bend).toFixed(1)} ${startY.toFixed(1)}`,
+          `${(endX - bend).toFixed(1)} ${target.y.toFixed(1)}`,
+          `${endX.toFixed(1)} ${target.y.toFixed(1)}`
+        ].join(' ');
+        marks.push(`<path d="${path}" /><circle cx="${endX.toFixed(1)}" cy="${target.y.toFixed(1)}" r="2" />`);
+      }
+      overlay.innerHTML = marks.join('');
+    };
+
+    for (const tab of tabs) {
+      tab.addEventListener('click', () => {
+        const file = tab.dataset.file;
+        if (!file || editor.dataset.file === file) return;
+        editor.dataset.file = file;
+        for (const other of tabs) other.setAttribute('aria-selected', other === tab ? 'true' : 'false');
+        place();
+      });
+    }
+
+    place();
+    document.fonts.ready.then(place);
+    new ResizeObserver(place).observe(figure);
+  };
+
+  for (const figure of document.querySelectorAll<HTMLElement>('[data-editor]')) setUp(figure);
+</script>

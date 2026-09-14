@@ -1,0 +1,49 @@
+---
+import { TESTIMONIALS } from './data';
+---
+
+<section class="lp-quotes" aria-labelledby="lp-quotes-title">
+  <div class="lp-wrap">
+    <div class="lp-quotes__head">
+      <p class="lp-eyebrow">Teams running on Stacktape</p>
+      <h2 id="lp-quotes-title" class="lp-display lp-journey__title" style="margin-top: 12px;">In their words.</h2>
+    </div>
+    {
+      TESTIMONIALS.map((t) => (
+        <figure class="lp-quote">
+          <blockquote class="lp-quote__text">“{t.quote}”</blockquote>
+          <figcaption class="lp-quote__who">
+            <b>{t.name}</b>
+            <span>{t.role}</span>
+            <a href={t.url} rel="noopener">
+              {t.company}
+            </a>
+            <span class="lp-quote__ctx">{t.context}</span>
+          </figcaption>
+        </figure>
+      ))
+    }
+  </div>
+</section>
+
+<style>
+  .lp-quote {
+    margin: 0;
+  }
+
+  .lp-quote__text {
+    margin: 0;
+  }
+
+  @media (min-width: 900px) {
+    .lp-quote {
+      grid-template-columns: minmax(0, 1fr) 300px;
+      gap: 40px;
+      align-items: start;
+    }
+
+    .lp-quote__who {
+      padding-top: 6px;
+    }
+  }
+</style>

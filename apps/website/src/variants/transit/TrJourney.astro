@@ -1,0 +1,63 @@
+---
+/**
+ * The transit map. Two lines run down a gutter on the left; every station is a full-width band
+ * beside it. The line doglegs at 45° between stations that sit in different lanes. Every station
+ * row owns its own segment of line, so the map needs no measuring: straight runs stretch with
+ * the row, and the bends are fixed tiles.
+ */
+import { LINES, STATIONS } from './data';
+import PreviewAnalyze from './previews/PreviewAnalyze.astro';
+import PreviewCicd from './previews/PreviewCicd.astro';
+import PreviewCosts from './previews/PreviewCosts.astro';
+import PreviewDeploy from './previews/PreviewDeploy.astro';
+import PreviewIncident from './previews/PreviewIncident.astro';
+import PreviewObserve from './previews/PreviewObserve.astro';
+import PreviewProject from './previews/PreviewProject.astro';
+import PreviewReview from './previews/PreviewReview.astro';
+import PreviewSecurity from './previews/PreviewSecurity.astro';
+import PreviewStart from './previews/PreviewStart.astro';
+import TrStation from './TrStation.astro';
+
+const PREVIEWS = {
+  start: PreviewStart,
+  analyze: PreviewAnalyze,
+  review: PreviewReview,
+  deploy: PreviewDeploy,
+  project: PreviewProject,
+  cicd: PreviewCicd,
+  observe: PreviewObserve,
+  incident: PreviewIncident,
+  security: PreviewSecurity,
+  costs: PreviewCosts
+} as const;
+---
+
+<section class="tr-journey" id="journey" aria-labelledby="journey-title">
+  <div class="tr-wrap tr-journey__head">
+    <p class="tr-eyebrow">The journey</p>
+    <h2 class="tr-h2" id="journey-title">One example account, one day, every station.</h2>
+    <p class="tr-journey__intro">
+      The map follows <strong>acme-project</strong>: a Next.js app with a background worker, a Postgres database and a
+      Redis cache. Line 0 is the first ten minutes. Line 1 is every day after. The screens are simplified versions of
+      the wizard and the Console, with example data.
+    </p>
+    <ul class="tr-legend" aria-label="Map legend">
+      <li><span class="tr-legend__swatch" style="--c: var(--tr-l0)"></span>{LINES.l0.name} · {LINES.l0.sub}</li>
+      <li><span class="tr-legend__swatch" style="--c: var(--tr-l1)"></span>{LINES.l1.name} · {LINES.l1.sub}</li>
+      <li><span class="tr-legend__swatch" style="--c: var(--tr-amber)"></span>Incident branch</li>
+    </ul>
+  </div>
+
+  <div class="tr-wrap tr-map">
+    {
+      STATIONS.map((station, index) => {
+        const Preview = PREVIEWS[station.id as keyof typeof PREVIEWS];
+        return (
+          <TrStation station={station} next={STATIONS[index + 1]}>
+            <Preview />
+          </TrStation>
+        );
+      })
+    }
+  </div>
+</section>

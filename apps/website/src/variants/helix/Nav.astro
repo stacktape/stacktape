@@ -1,0 +1,20 @@
+---
+import Logo from '../../components/Logo.astro';
+import { LINKS } from './data';
+---
+
+<header class="hx-nav">
+  <div class="hx-wrap hx-nav__inner">
+    <a class="hx-nav__logo" href="/helix" aria-label="Stacktape home">
+      <Logo height={24} />
+    </a>
+    <nav aria-label="Primary">
+      <ul class="hx-nav__links">
+        <li><a class="hx-nav__link" href={LINKS.docs}>Docs</a></li>
+        <li><a class="hx-nav__link" href={LINKS.github}>GitHub</a></li>
+        <li><a class="hx-nav__link hx-nav__link--demo" href={LINKS.demo}>Book a demo</a></li>
+        <li><a class="hx-nav__link hx-nav__link--primary" href={LINKS.console}>Sign in</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>

@@ -1,0 +1,95 @@
+---
+/**
+ * The incident branch: four stops on an amber rail inside the card (the gutter carries the same
+ * branch beside the main line), then the opt-in remediation spur, off.
+ */
+---
+
+<ol class="tr-beats" aria-label="Incident inc_8f2k, four stops">
+  <li class="tr-beat">
+    <p class="tr-beat__stop"><span class="tr-beat__time tr-mono">17:34</span> Detected</p>
+    <div class="tr-inc">
+      <div class="tr-inc__head">
+        <span class="tr-mono">inc_8f2k</span>
+        <span class="tr-badge tr-badge--error">Error</span>
+        <span class="tr-badge">production</span>
+        <span class="tr-status tr-status--open">Open</span>
+      </div>
+      <ul class="tr-signals">
+        <li>
+          <span class="tr-signal__kind">Uptime check down</span>
+          <span class="tr-signal__what"><span class="tr-mono">https://api.acme.com/health</span> · 3 of 3 regions</span>
+        </li>
+        <li>
+          <span class="tr-signal__kind">Application error</span>
+          <span class="tr-signal__what">
+            <span class="tr-mono">PrismaClientKnownRequestError: column "fulfillment_status" does not exist</span>
+            · apiService · 214 occurrences
+          </span>
+        </li>
+      </ul>
+    </div>
+  </li>
+
+  <li class="tr-beat">
+    <p class="tr-beat__stop"><span class="tr-beat__time tr-mono">17:34</span> Correlated with the release</p>
+    <div class="tr-inc">
+      <p class="tr-inc__corr">
+        Opened <strong>4m after the last deploy</strong> · <span class="tr-mono">v41</span> · commit <span
+          class="tr-mono">a1b2c3d</span> — orders: add fulfillment status column · previous release <span
+          class="tr-mono">v40</span> · config unchanged · <span class="tr-link">what changed (3 commits)</span>
+      </p>
+      <div class="tr-around">
+        <span class="tr-around__label">Around this time (same stack)</span>
+        <span class="tr-around__row"><span class="tr-mono">17:30</span> deploy v41 finished</span>
+        <span class="tr-around__row"><span class="tr-mono">17:33</span> alarm apiService-5xx firing</span>
+      </div>
+    </div>
+  </li>
+
+  <li class="tr-beat">
+    <p class="tr-beat__stop"><span class="tr-beat__time tr-mono">17:36</span> Handed to a coding agent</p>
+    <div class="tr-inc">
+      <div class="tr-inc__handoff">
+        <span class="tr-ui-btn tr-ui-btn--small">Copy details for agent</span>
+        <span class="tr-ui__subtle">status · release diff · evidence · timeline · scoped links · 4-step protocol</span>
+      </div>
+      <pre class="tr-bundle tr-mono"><code>evidence  apiService  PrismaClientKnownRequestError
+          at OrdersRepo.list (api/src/orders/repo.ts:41)
+release   v40 → v41  a1b2c3d  orders: add fulfillment status column
+protocol  4. stacktape incidents:resolve --incidentId inc_8f2k</code></pre>
+      <p class="tr-inc__finding">
+        The agent reads the bundle and finds the migration was never applied: the <span class="tr-mono"
+          >afterDeploy</span
+        > hook was skipped for this stage. It restores the hook, opens a PR, and the fix deploys as <span class="tr-mono"
+          >v42</span
+        > through the normal pipeline.
+      </p>
+    </div>
+  </li>
+
+  <li class="tr-beat">
+    <p class="tr-beat__stop"><span class="tr-beat__time tr-mono">17:47</span> Verified recovered</p>
+    <div class="tr-inc is-resolved">
+      <div class="tr-inc__head">
+        <span class="tr-status tr-status--ok">Resolved</span>
+        <span>recovered on its own signals</span>
+        <span class="tr-mono">11 min</span>
+      </div>
+      <ul class="tr-signals tr-signals--ok">
+        <li><span class="tr-signal__kind">Uptime</span><span class="tr-signal__what">3 of 3 regions up</span></li>
+        <li><span class="tr-signal__kind">Application error</span><span class="tr-signal__what">0 new occurrences</span></li>
+      </ul>
+    </div>
+  </li>
+</ol>
+
+<div class="tr-optin">
+  <span class="tr-switch" role="img" aria-label="Automatic remediation switch, off">
+    <span class="tr-switch__thumb"></span>
+  </span>
+  <span class="tr-optin__text">
+    <span class="tr-optin__label">Let an agent apply verified fixes and deploy them</span>
+    <span class="tr-optin__meta">Opt-in. Off by default.</span>
+  </span>
+</div>

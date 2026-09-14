@@ -1,0 +1,177 @@
+---
+import Billboard from './Billboard.astro';
+import Station from './Station.astro';
+import Analyze from './previews/Analyze.astro';
+import CiCd from './previews/CiCd.astro';
+import ConsoleProject from './previews/ConsoleProject.astro';
+import Costs from './previews/Costs.astro';
+import Deploy from './previews/Deploy.astro';
+import Incident from './previews/Incident.astro';
+import Observability from './previews/Observability.astro';
+import Review from './previews/Review.astro';
+import Security from './previews/Security.astro';
+import Start from './previews/Start.astro';
+import { PROJECT } from './data';
+
+const PINS = [
+  { name: 'Ireland', region: 'eu-west-1' },
+  { name: 'Virginia', region: 'us-east-1' },
+  { name: 'Singapore', region: 'ap-southeast-1' }
+];
+---
+
+<section class="pl-section pl-journey" aria-labelledby="pl-journey-title" data-pl-journey>
+  <svg class="pl-path" aria-hidden="true" focusable="false">
+    <path class="pl-path__road" d=""></path>
+    <path class="pl-path__plan" d=""></path>
+    <path class="pl-path__line" d=""></path>
+    <path class="pl-path__spur" d=""></path>
+    <g class="pl-marker">
+      <circle class="pl-marker__ring" r="14"></circle>
+      <polygon points="0,-10 12,-4 0,2 -12,-4" fill="#7ee6e3"></polygon>
+      <polygon points="-12,-4 0,2 0,10 -12,4" fill="#1c8a8a"></polygon>
+      <polygon points="0,2 12,-4 12,4 0,10" fill="#2fb5b4"></polygon>
+    </g>
+  </svg>
+
+  <div class="pl-container">
+    <div class="pl-journey__intro">
+      <p class="pl-label pl-label--brand">The route</p>
+      <h2 class="pl-journey__title" id="pl-journey-title">From your repository to a running production, one stop at a time</h2>
+      <p class="pl-journey__lead">
+        One example app, <span class="pl-mono">{PROJECT.name}</span>, followed from the first command to a resolved
+        production incident. Every screen is a simplified version of the real wizard, CLI and Console.
+      </p>
+    </div>
+
+    <div class="pl-terminus" data-pl-terminus>
+      <span class="pl-terminus__plate" data-pl-anchor="station">Your repository</span>
+      <span class="pl-label">github.com/{PROJECT.repo}</span>
+    </div>
+
+    <div class="pl-day">
+      <span class="pl-day__num">DAY 0</span>
+      <h3 class="pl-day__title">The first ten minutes</h3>
+    </div>
+
+    <ol class="pl-stations">
+      <Station number="01" day="Day 0" side="left" title="One command. Nothing sent anywhere.">
+        <Billboard><Start /></Billboard>
+        <p class="pl-station__text" slot="caption">
+          <code>npx stacktape init</code> opens the wizard on localhost and reads the repository with your own coding
+          agent, or a built-in scanner when none is installed. Nothing leaves your machine, and nothing is billed until
+          you press Deploy.
+        </p>
+      </Station>
+
+      <Station number="02" day="Day 0" side="right" title="It reads the code, not a questionnaire">
+        <Billboard><Analyze /></Billboard>
+        <p class="pl-station__text" slot="caption">
+          The wizard opens the files that decide an architecture: the package manifest, the Dockerfile, the Prisma
+          schema, the env example. Forty-one files in thirty-eight seconds, all on this machine.
+        </p>
+      </Station>
+
+      <Station number="03" day="Day 0" side="left" wide title="Decided for you, changeable by you">
+        <Billboard><Review /></Billboard>
+        <p class="pl-station__text" slot="caption">
+          Every open question is answered with a recommendation and written down as a statement you can change. The
+          result is a plain <code>stacktape.yml</code> you own, with an estimate before anything exists.
+        </p>
+      </Station>
+
+      <Station number="04" day="Day 0" side="right" title="Deploy says where it is going before it goes">
+        <Billboard><Deploy /></Billboard>
+        <p class="pl-station__text" slot="caption">
+          It names the AWS account, which resources get a public URL and what stays private. Then CloudFormation creates
+          the stack in your account and the wizard shows the live URLs.
+        </p>
+      </Station>
+    </ol>
+
+    <div class="pl-day">
+      <span class="pl-day__num">DAY 1</span>
+      <h3 class="pl-day__title">Ongoing operations, in the Console</h3>
+    </div>
+
+    <ol class="pl-stations">
+      <Station number="05" day="Day 1" side="left" title="The project has a home">
+        <Billboard><ConsoleProject /></Billboard>
+        <p class="pl-station__text" slot="caption">
+          Each stage lists its resources, region and last deployment. Staging and production are the same configuration
+          with different parameters, deployed from the same repository.
+        </p>
+      </Station>
+
+      <Station number="06" day="Day 1" side="right" title="Push to deploy, preview per pull request">
+        <Billboard><CiCd /></Billboard>
+        <p class="pl-station__text" slot="caption">
+          A push to <code>main</code> deploys production. A pull request gets its own stage with its own URL. Builds run
+          on a runner in your account that keeps its caches and stops itself after fifteen minutes idle.
+        </p>
+      </Station>
+
+      <Station number="07" day="Day 1" side="left" title="Metrics, traces and logs from the first deploy">
+        <Billboard><Observability /></Billboard>
+        <Fragment slot="caption">
+          <p class="pl-station__text">
+            Nothing to install. Stacktape reads the CloudWatch and X-Ray data your stack already produces: live logs,
+            metrics, OpenTelemetry traces. Uptime checks run from three regions by default.
+          </p>
+          <ul class="pl-pins" aria-hidden="true">
+            {
+              PINS.map((pin) => (
+                <li class="pl-pin">
+                  <svg viewBox="0 0 26 22">
+                    <polygon points="13,12 25,18 13,24 1,18" fill="rgba(54,190,190,0.06)" stroke="rgba(170,230,235,0.3)" />
+                    <line x1="13" y1="7" x2="13" y2="18" stroke="rgba(170,230,235,0.5)" />
+                    <circle cx="13" cy="6" r="4" fill="#43d39a" />
+                  </svg>
+                  {pin.name} · {pin.region} · up
+                </li>
+              ))
+            }
+          </ul>
+        </Fragment>
+      </Station>
+
+      <Station number="08" day="Day 1" side="right" wide variant="incident" title="When something breaks, the release is already in the picture">
+        <Incident />
+        <p class="pl-station__text" slot="caption">
+          The incident opens from signals and closes on the same signals. Release correlation points at v41 within
+          minutes, and one button produces a handoff bundle your coding agent can act on. Automatic remediation is an
+          opt-in extension, off by default.
+        </p>
+      </Station>
+
+      <Station number="09" day="Day 1" side="left" version="v4" title="Posture and vulnerabilities, against the rules guardrails enforce">
+        <Billboard><Security /></Billboard>
+        <p class="pl-station__text" slot="caption">
+          Built images are scanned in the pipeline with an SBOM per deploy and re-graded nightly. Posture checks use the
+          same catalogue guardrails block deployments with, so a finding and a rule are the same thing. Least-privilege
+          IAM and private networking are defaults of the generated configuration.
+        </p>
+      </Station>
+
+      <Station number="10" day="Day 1" side="right" title="Costs per resource, from your own AWS bill">
+        <Billboard><Costs /></Billboard>
+        <p class="pl-station__text" slot="caption">
+          Month-to-date spend per project, stage and resource, read from your AWS cost data. Budgets alert at a threshold
+          you choose. AWS bills you directly; Stacktape charges a subscription separately.
+        </p>
+      </Station>
+    </ol>
+
+    <div class="pl-terminus pl-terminus--end" data-pl-terminus>
+      <span class="pl-terminus__plate" data-pl-anchor="station">production · {PROJECT.region}</span>
+      <ul class="pl-terminus__urls">
+        <li><a href={PROJECT.urls.web}>{PROJECT.urls.web}</a></li>
+        <li><a href={PROJECT.urls.api}>{PROJECT.urls.api}</a></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<script>
+  import './journey';
+</script>

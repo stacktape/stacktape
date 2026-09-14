@@ -1,0 +1,54 @@
+---
+/** 03 — the deployments list: a canary rolling out, the release it replaces, and one preview environment. */
+import { DEPLOYMENTS } from '../data';
+import { PreviewButton, StatusBadge } from '../ui';
+import Window from '../Window.astro';
+
+const { rollout, live, preview } = DEPLOYMENTS;
+---
+
+<Window kind="browser" title={DEPLOYMENTS.url}>
+  <div class="sh-dep">
+    <div class="sh-screen__head">
+      <h3 class="sh-screen__h">{DEPLOYMENTS.heading}</h3>
+      <p class="sh-screen__sub">{DEPLOYMENTS.line}</p>
+    </div>
+
+    <ul class="sh-dep__list" aria-label="Deployments">
+      <li class="sh-dep__row sh-dep__row--rollout">
+        <div class="sh-dep__main">
+          <p class="sh-dep__line">
+            <b class="sh-mono sh-dep__version">{rollout.version}</b><span class="sh-screen__sep" aria-hidden="true">·</span><span class="sh-mono sh-dep__ref">{rollout.ref}</span><span class="sh-screen__sep" aria-hidden="true">·</span><span class="sh-dep__msg">{rollout.message}</span>
+          </p>
+          <div class="sh-traffic">
+            <span class="sh-mono sh-traffic__from">{rollout.from}</span>
+            <span class="sh-traffic__lane" aria-hidden="true"><span class="sh-traffic__fill" style={`width: ${rollout.percent}%`}></span></span>
+            <span class="sh-mono sh-traffic__to">{rollout.to}</span>
+            <span class="sh-traffic__label">{rollout.label}</span>
+          </div>
+        </div>
+        <StatusBadge tone="brand" dot>{rollout.badge}</StatusBadge>
+        <PreviewButton variant="secondary" small>{rollout.rollback}</PreviewButton>
+      </li>
+
+      <li class="sh-dep__row">
+        <div class="sh-dep__main">
+          <p class="sh-dep__line">
+            <b class="sh-mono sh-dep__version">{live.version}</b><span class="sh-screen__sep" aria-hidden="true">·</span><span class="sh-mono sh-dep__ref">{live.ref}</span>
+          </p>
+        </div>
+        <StatusBadge tone="success" dot>{live.badge}</StatusBadge>
+      </li>
+
+      <li class="sh-dep__row">
+        <div class="sh-dep__main">
+          <p class="sh-dep__line">
+            <b class="sh-mono sh-dep__version">{preview.version}</b><span class="sh-screen__sep" aria-hidden="true">·</span><span class="sh-dep__msg">{preview.message}</span>
+          </p>
+          <p class="sh-mono sh-dep__url">{preview.url}</p>
+        </div>
+        <StatusBadge tone="accent">{preview.badge}</StatusBadge>
+      </li>
+    </ul>
+  </div>
+</Window>

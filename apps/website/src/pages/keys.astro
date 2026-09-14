@@ -1,0 +1,41 @@
+---
+// concept: A walk along a studio floor drawn in true CSS perspective. Six full-height stages; each screen stands up from the floor as you arrive, and wherever the visitor decides something a physical keycap sits on the floor in front of the screen and presses itself.
+// copy-angle: Name what Stacktape does in the third person; the four keys carry what the visitor does, so no legend, no labels, nothing that says "you do nothing here".
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Closing from '../variants/keys/Closing.astro';
+import { HEADLINE, SUBHEADLINE } from '../variants/keys/data';
+import Floor from '../variants/keys/Floor.astro';
+import Footer from '../variants/keys/Footer.astro';
+import Hero from '../variants/keys/Hero.astro';
+import Nav from '../variants/keys/Nav.astro';
+import Stages from '../variants/keys/Stages.astro';
+import Testimonials from '../variants/keys/Testimonials.astro';
+import '../variants/keys/keys.css';
+---
+
+<BaseLayout title={`Stacktape — ${HEADLINE}`} description={SUBHEADLINE} htmlClass="ky-html">
+  <Fragment slot="head">
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+    />
+  </Fragment>
+
+  <div class="ky-root">
+    <Floor />
+    <Nav />
+    <main>
+      <Hero />
+      <Stages />
+      <Closing />
+    </main>
+    <div class="ky-tail">
+      <Testimonials />
+      <Footer />
+    </div>
+  </div>
+
+  <script>
+    import '../variants/keys/client';
+  </script>
+</BaseLayout>

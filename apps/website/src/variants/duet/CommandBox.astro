@@ -1,0 +1,105 @@
+---
+/**
+ * The only call to action: the install command with a method switcher and a Copy button.
+ * Several instances can share a page; the script wires each one by its own data attributes.
+ */
+import { COMMANDS } from './data';
+
+type Props = { label: string; class?: string };
+
+const { label, class: className } = Astro.props;
+const first = COMMANDS[0];
+---
+
+<div class:list={['du-cmd', className]} data-du-cmd>
+  <div class="du-cmd__tabs" role="tablist" aria-label={`${label}: install method`}>
+    {
+      COMMANDS.map((item, index) => (
+        <button
+          type="button"
+          role="tab"
+          class="du-cmd__tab"
+          aria-selected={index === 0 ? 'true' : 'false'}
+          tabindex={index === 0 ? 0 : -1}
+          data-du-cmd-tab
+          data-command={item.command}
+        >
+          {item.label}
+        </button>
+      ))
+    }
+  </div>
+  <div class="du-cmd__row">
+    <span class="du-cmd__prompt" aria-hidden="true">$</span>
+    <code class="du-cmd__code" data-du-cmd-code>{first.command}</code>
+    <button type="button" class="du-cmd__copy" data-du-cmd-copy aria-label="Copy command">
+      <svg viewBox="0 0 16 16" width="15" height="15" fill="none" aria-hidden="true" data-du-cmd-icon>
+        <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.4"></rect>
+        <path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" stroke="currentColor" stroke-width="1.4"></path>
+      </svg>
+      <span data-du-cmd-label>Copy</span>
+    </button>
+  </div>
+</div>
+
+<script>
+  const boxes = document.querySelectorAll<HTMLElement>('[data-du-cmd]');
+
+  for (const box of boxes) {
+    const tabs = Array.from(box.querySelectorAll<HTMLButtonElement>('[data-du-cmd-tab]'));
+    const code = box.querySelector<HTMLElement>('[data-du-cmd-code]');
+    const copy = box.querySelector<HTMLButtonElement>('[data-du-cmd-copy]');
+    const label = box.querySelector<HTMLElement>('[data-du-cmd-label]');
+    if (!code || !copy || !label) continue;
+
+    const select = (tab: HTMLButtonElement) => {
+      for (const other of tabs) {
+        const selected = other === tab;
+        other.setAttribute('aria-selected', selected ? 'true' : 'false');
+        other.tabIndex = selected ? 0 : -1;
+      }
+      code.textContent = tab.dataset.command ?? '';
+      box.classList.remove('is-copied');
+      label.textContent = 'Copy';
+    };
+
+    tabs.forEach((tab, index) => {
+      tab.addEventListener('click', () => select(tab));
+      tab.addEventListener('keydown', (event) => {
+        const delta = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+        if (!delta) return;
+        event.preventDefault();
+        const next = tabs[(index + delta + tabs.length) % tabs.length];
+        if (!next) return;
+        select(next);
+        next.focus();
+      });
+    });
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const done = (ok: boolean) => {
+      box.classList.toggle('is-copied', ok);
+      label.textContent = ok ? 'Copied' : 'Select and copy';
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        box.classList.remove('is-copied');
+        label.textContent = 'Copy';
+      }, 1800);
+    };
+
+    copy.addEventListener('click', async () => {
+      const text = code.textContent ?? '';
+      try {
+        await navigator.clipboard.writeText(text);
+        done(true);
+      } catch {
+        const range = document.createRange();
+        range.selectNodeContents(code);
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+        done(false);
+      }
+    });
+  }
+</script>

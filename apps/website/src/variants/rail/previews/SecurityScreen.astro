@@ -1,0 +1,67 @@
+---
+/** 05 · security: posture score, a vulnerability with a fix PR, a plaintext secret, the guardrails that are on. */
+import Check from '../Check.astro';
+import ConsoleNav from '../ConsoleNav.astro';
+import Frame from '../Frame.astro';
+---
+
+<Frame url="<b>console.stacktape.com</b> / acme-project / security">
+  <div class="rl-console">
+    <ConsoleNav active="Security/Overview" />
+    <div class="rl-console__main">
+      <p class="rl-crumb">Security · <b>Overview</b> · acme-project</p>
+      <ul class="rl-tabs" aria-label="Security tabs">
+        <li class="is-on">Overview</li>
+        <li>Vulnerabilities</li>
+        <li>Posture</li>
+      </ul>
+      <div class="rl-score">
+        <span class="rl-score__n">27<small>of 30</small></span>
+        <span>
+          <span class="rl-p rl-score__l">posture checks passing · re-checked after every deploy and nightly</span>
+          <span class="rl-bar" style="--w:90%" role="img" aria-label="27 of 30 posture checks passing"><i></i></span>
+        </span>
+      </div>
+      <hr class="rl-hr" />
+      <p class="rl-kicker">Needs attention</p>
+      <ul class="rl-findings">
+        <li>
+          <Check kind="warn" label="warning" />
+          <span>
+            <span class="rl-findings__t">mainDatabase backups retained 1 day (staging)</span>
+            <span class="rl-findings__r">Posture · rule: Require recoverable data stores</span>
+          </span>
+          <span class="rl-wbtn rl-wbtn--ghost rl-wbtn--sm">Fix in config</span>
+        </li>
+        <li>
+          <Check kind="err" label="critical" />
+          <span>
+            <span class="rl-findings__t">apiService image: 2 critical CVEs in openssl 3.0.13</span>
+            <span class="rl-findings__r">Vulnerabilities · image scanned in the pipeline, SBOM of deploy #42 · fix PR opened</span>
+          </span>
+          <span class="rl-chip rl-chip--ok"><i aria-hidden="true"></i>PR #130</span>
+        </li>
+        <li>
+          <Check kind="warn" label="warning" />
+          <span>
+            <span class="rl-findings__t">apiService: plaintext STRIPE_KEY in config</span>
+            <span class="rl-findings__r">Secrets · one click moves it to $Secret('stripe.key'), stored encrypted in your account</span>
+          </span>
+          <span class="rl-wbtn rl-wbtn--sm">Convert to $Secret</span>
+        </li>
+      </ul>
+      <hr class="rl-hr" />
+      <p class="rl-kicker">Guardrails on · checked before any deploy changes anything</p>
+      <div class="rl-chips">
+        <span class="rl-chip rl-chip--ok"><i aria-hidden="true"></i>Keep SQL and OpenSearch private</span>
+        <span class="rl-chip rl-chip--ok"><i aria-hidden="true"></i>Require WAF on load balancers</span>
+        <span class="rl-chip rl-chip--ok"><i aria-hidden="true"></i>Require recoverable data stores</span>
+        <span class="rl-chip"><i aria-hidden="true"></i>15 more rules available</span>
+      </div>
+      <p class="rl-p rl-small rl-gap-sm rl-hide-phone">
+        The defaults already hold: least-privilege permissions per resource, the database on the private network, secrets never in
+        plain text. Guardrails are organisation-wide rules; a deploy that breaks one is stopped before anything changes.
+      </p>
+    </div>
+  </div>
+</Frame>

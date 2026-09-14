@@ -1,0 +1,22 @@
+---
+/** Sticky column headers: the checklist summary, not a counter. */
+import { YOU_TOTAL } from './data';
+---
+
+<div class="rl-cols rl-split">
+  <div class="rl-cell rl-cell--you">
+    <span class="rl-cols__label">
+      <strong>You</strong>
+      <span class="rl-cols__sep" aria-hidden="true">·</span>
+      <span class="rl-cols__n">{YOU_TOTAL}</span>
+      <span class="rl-cols__unit">things</span>
+    </span>
+  </div>
+  <div class="rl-cell rl-cell--stp">
+    <span class="rl-cols__label">
+      <strong>Stacktape</strong>
+      <span class="rl-cols__sep" aria-hidden="true">·</span>
+      <span class="rl-cols__unit">everything else</span>
+    </span>
+  </div>
+</div>

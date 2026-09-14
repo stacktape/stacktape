@@ -1,0 +1,23 @@
+---
+import { CommandBox } from './CommandBox';
+import { EYEBROW, HEADLINE, PROJECT, SUBHEADLINE, TRUST_LINE } from './data';
+import Plate from './Plate.astro';
+---
+
+<section class="hm-hero" aria-labelledby="hm-hero-title">
+  <div class="hm-container hm-hero__inner">
+    <p class="hm-eyebrow">{EYEBROW}</p>
+    <h1 class="hm-hero__title" id="hm-hero-title">{HEADLINE}</h1>
+    <p class="hm-hero__sub">{SUBHEADLINE}</p>
+    <div class="hm-hero__cta">
+      <CommandBox client:load label="Get started" />
+    </div>
+    <p class="hm-trust">{TRUST_LINE}</p>
+
+    <Plate kind="start" class="hm-start">
+      <span class="hm-plate__label">
+        your repository <span aria-hidden="true">·</span> <span class="hm-mono">{PROJECT.repo}</span>
+      </span>
+    </Plate>
+  </div>
+</section>

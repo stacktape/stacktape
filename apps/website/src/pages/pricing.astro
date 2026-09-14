@@ -1,0 +1,99 @@
+---
+/**
+ * Pricing, as the Console documents it. A stub: the plan facts are real, the page's design is not
+ * final. Replace with the designed page when there is one.
+ */
+import PlainPage from '../components/PlainPage.astro';
+
+const PLANS = [
+  {
+    name: 'Free',
+    price: '$0',
+    lines: [
+      'One team member',
+      'Up to $100 a month of managed AWS spend',
+      'Unlimited deployments and stacks',
+      'No credit card'
+    ]
+  },
+  {
+    name: 'Flexible',
+    price: 'A percentage of managed AWS costs',
+    lines: ['Unlimited team members', 'Unlimited deployments and stacks', 'Hands-on support', 'Rate tiers shown in the Console']
+  },
+  {
+    name: 'Enterprise',
+    price: 'Custom',
+    lines: ['Unlimited team members', 'SSO', 'SOC 2 compliance', 'Up to 24×7 premium support']
+  }
+];
+---
+
+<PlainPage
+  title="Pricing"
+  description="Stacktape is billed on the AWS costs your stacks generate, never per seat, per deployment or per request."
+  lead="Stacktape is billed on the AWS costs your stacks generate, never per seat, per deployment or per request. AWS bills you directly for the infrastructure; Stacktape's fee is a separate line and starts at zero."
+>
+  <div class="plans">
+    {
+      PLANS.map((plan) => (
+        <section class="plan">
+          <h2>{plan.name}</h2>
+          <p class="plan__price">{plan.price}</p>
+          <ul>
+            {plan.lines.map((line) => (
+              <li>{line}</li>
+            ))}
+          </ul>
+        </section>
+      ))
+    }
+  </div>
+  <p>
+    Stacktape does not charge for resources in your AWS account that exist outside Stacktape-managed stacks.
+    Plans are chosen and changed in the <a href="https://console.stacktape.com">Console</a>. For Enterprise, <a
+      href="https://cal.com/stacktape/30min"
+    >
+      book a call
+    </a>.
+  </p>
+</PlainPage>
+
+<style>
+  .plans {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    margin: 0 0 32px;
+  }
+
+  .plan {
+    padding: 20px;
+    border: 1px solid var(--stp-border-subtle);
+    border-radius: 12px;
+    background: var(--stp-surface-element);
+  }
+
+  .plan :global(h2) {
+    margin: 0 0 4px;
+    font-size: 18px;
+  }
+
+  .plan__price {
+    margin: 0 0 12px;
+    font-weight: 600;
+    color: var(--stp-text-primary);
+  }
+
+  .plan :global(ul) {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 15px;
+  }
+
+  @media (max-width: 720px) {
+    .plans {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

@@ -1,46 +1,36 @@
 ---
-import { tokenVar } from '@stacktape/design-tokens';
-import PostHogAnalytics from '../components/PostHogAnalytics.astro';
+/**
+ * The homepage: the repository's README, rendered the way a developer reads one. A repo header, the
+ * document in the middle, an "About" sidebar on the right. Stacktape is an open-source CLI; the
+ * README is where developers already trust a tool, and the cover was made for it. Nothing moves; the
+ * page is a document. The README's own constructs carry the copy: the title with its badges, a note
+ * for v4, a bold tagline, a fenced code block to install, seven `###` sections each with a paragraph,
+ * a list and a screenshot, blockquotes for the teams, and an About sidebar with what a CTO scans for.
+ *
+ * The other homepage studies stay reachable from `/studies`.
+ */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { HEADLINE, SUBHEADLINE } from '../variants/readme/data';
+import Document from '../variants/readme/Document.astro';
+import Footer from '../variants/readme/Footer.astro';
+import Header from '../variants/readme/Header.astro';
+import Sidebar from '../variants/readme/Sidebar.astro';
+import '../variants/readme/readme.css';
 ---
 
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width" />
-    <title>Stacktape</title>
-    <PostHogAnalytics />
-  </head>
-  <body>
-    <main>
-      <p class="eyebrow" style={`color: ${tokenVar.color.brand}`}>Stacktape v4</p>
-      <h1>Ship on AWS without losing control.</h1>
-      <p>This fresh Astro shell deliberately contains no imported website history.</p>
-    </main>
-  </body>
-</html>
+<BaseLayout title={`Stacktape — ${HEADLINE}`} description={SUBHEADLINE} htmlClass="rm-html" noindex={false}>
+  <Fragment slot="head">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" />
+  </Fragment>
 
-<style is:global>
-@import '@stacktape/design-tokens/css';
-</style>
-
-<style>
-/* Shell colours, type, and spacing are this site's own theme. Only the brand colour is shared. */
-:global(body) {
-  margin: 0;
-  color: #f5f7ff;
-  background: #0d0f14;
-  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-}
-
-main {
-  max-width: 64rem;
-  margin: 0 auto;
-  padding: 4rem 1.5rem;
-}
-
-.eyebrow {
-  color: var(--stp-color-brand);
-  font-weight: 700;
-}
-</style>
+  <div class="rm-root">
+    <Header />
+    <div class="rm-container rm-layout">
+      <main class="rm-main">
+        <Document />
+      </main>
+      <Sidebar />
+    </div>
+    <Footer />
+  </div>
+</BaseLayout>

@@ -1,0 +1,131 @@
+---
+/**
+ * A 300×190 thumbnail of one stage's screen, for the hero's receding row. Static and simplified:
+ * blocks and one or two words, so it still reads as a screen when it stands far down the floor.
+ */
+type Props = {
+  kind: 'designs' | 'deploys' | 'monitors' | 'secures' | 'incidents' | 'costs';
+  title: string;
+};
+
+const { kind, title } = Astro.props;
+
+const SPARKS = ['0,26 14,22 28,24 42,18 56,20 70,12 84,14 100,6', '0,18 14,14 28,20 42,12 56,16 70,10 84,14 100,12', '0,22 14,24 28,20 42,24 56,26 70,22 84,24 100,22'];
+---
+
+<div class:list={['ky-mini', `ky-mini--${kind}`]}>
+  <div class="ky-mini__bar"><i></i><i></i><i></i><span>{title}</span></div>
+  <div class="ky-mini__body">
+    {
+      kind === 'designs' && (
+        <div class="ky-mini__split">
+          <div class="ky-mini__code">
+            <i style="--w:58%" />
+            <i style="--w:30%;--x:8%" class="is-key" />
+            <i style="--w:44%;--x:8%" />
+            <i style="--w:26%;--x:16%" class="is-key" />
+            <i style="--w:52%;--x:16%" />
+            <i style="--w:36%;--x:8%" />
+            <i style="--w:48%;--x:16%" class="is-key" />
+            <i style="--w:22%;--x:16%" />
+            <i style="--w:40%;--x:8%" />
+          </div>
+          <div class="ky-mini__diagram">
+            <i class="ky-mini__tile" style="--tx:34%;--ty:8%" />
+            <i class="ky-mini__tile" style="--tx:66%;--ty:24%" />
+            <i class="ky-mini__tile ky-mini__tile--net" style="--tx:16%;--ty:44%" />
+            <i class="ky-mini__tile ky-mini__tile--net" style="--tx:48%;--ty:60%" />
+            <i class="ky-mini__tile ky-mini__tile--net" style="--tx:80%;--ty:56%" />
+          </div>
+        </div>
+      )
+    }
+    {
+      kind === 'deploys' && (
+        <>
+          <span class="ky-mini__pill ky-mini__pill--live">Live</span>
+          <i class="ky-mini__url" style="--w:54%" />
+          <i class="ky-mini__url" style="--w:68%" />
+          <div class="ky-mini__checks">
+            <i />
+            <i />
+            <i />
+          </div>
+        </>
+      )
+    }
+    {
+      kind === 'monitors' && (
+        <>
+          <div class="ky-mini__tiles">
+            {SPARKS.map((points) => (
+              <div class="ky-mini__tile-card">
+                <svg viewBox="0 0 100 32" preserveAspectRatio="none">
+                  <polyline points={points} fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke" />
+                </svg>
+              </div>
+            ))}
+          </div>
+          <div class="ky-mini__trace">
+            <i style="--x:0;--w:100%" />
+            <i style="--x:6%;--w:24%" class="is-db" />
+            <i style="--x:32%;--w:5%" class="is-cache" />
+            <i style="--x:76%;--w:16%" />
+          </div>
+        </>
+      )
+    }
+    {
+      kind === 'secures' && (
+        <>
+          <div class="ky-mini__posture">
+            <svg viewBox="0 0 48 48" width="44" height="44" aria-hidden="true">
+              <circle cx="24" cy="24" r="19" class="ky-mini__ring-track" />
+              <circle cx="24" cy="24" r="19" class="ky-mini__ring-value" stroke-dasharray="107.4 119.4" transform="rotate(-90 24 24)" />
+            </svg>
+            <b>
+              27<span>/30</span>
+            </b>
+          </div>
+          <div class="ky-mini__rows">
+            <i />
+            <i />
+            <i />
+          </div>
+        </>
+      )
+    }
+    {
+      kind === 'incidents' && (
+        <>
+          <div class="ky-mini__badges">
+            <span class="ky-mini__pill ky-mini__pill--ok">Resolved</span>
+            <span class="ky-mini__pill ky-mini__pill--err">Error</span>
+          </div>
+          <i class="ky-mini__line" style="--w:82%" />
+          <div class="ky-mini__timeline">
+            <i />
+            <i class="is-err" />
+            <i />
+            <i class="is-you" />
+            <i class="is-ok" />
+          </div>
+        </>
+      )
+    }
+    {
+      kind === 'costs' && (
+        <>
+          <div class="ky-mini__bars">
+            <i style="--w:100%" />
+            <i style="--w:56%" />
+            <i style="--w:20%" />
+            <i style="--w:8%" />
+            <i style="--w:3%" />
+          </div>
+          <span class="ky-mini__total">$112.90</span>
+        </>
+      )
+    }
+  </div>
+</div>

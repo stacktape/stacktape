@@ -1,0 +1,11 @@
+---
+/** The CDN serves this for any path that does not exist (see `errorDocument` in stacktape.yml). */
+import PlainPage from '../components/PlainPage.astro';
+---
+
+<PlainPage title="Page not found" description="This page does not exist." lead="There is nothing at this address.">
+  <p>
+    Try the <a href="/">homepage</a>, the <a href="https://docs.stacktape.com">docs</a> or the
+    <a href="https://console.stacktape.com">Console</a>.
+  </p>
+</PlainPage>

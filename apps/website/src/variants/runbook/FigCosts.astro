@@ -1,0 +1,251 @@
+---
+/**
+ * Figure 6: costs for production, month to date, per resource, with the budget and its warning
+ * threshold. Read from the reader's own AWS cost data; AWS bills them directly.
+ */
+import ConsoleFrame from './ConsoleFrame.astro';
+
+const ROWS = [
+  { name: 'mainDatabase', type: 'relational-database · Aurora PostgreSQL 16', cost: 61.4 },
+  { name: 'apiService', type: 'web-service · Fargate, 2 instances', cost: 34.2 },
+  { name: 'cache', type: 'redis-cluster · cache.t3.micro', cost: 11.9 },
+  { name: 'web', type: 'nextjs-web · CloudFront + Lambda', cost: 3.8 },
+  { name: 'worker', type: 'function · Lambda', cost: 0.7 },
+  { name: 'other', type: 'firewall, jump box, logs', cost: 0.9 }
+];
+const TOTAL = ROWS.reduce((sum, row) => sum + row.cost, 0);
+const MAX = Math.max(...ROWS.map((row) => row.cost));
+const BUDGET = 150;
+const ALERT_AT = 0.8;
+const money = (value: number) => `$${value.toFixed(2)}`;
+const usedPct = (TOTAL / BUDGET) * 100;
+---
+
+<ConsoleFrame
+  active="Organization/Costs"
+  crumbs={['acme-project', 'production']}
+  tabs={['Overview', 'Activity', 'Logs', 'Metrics', 'Costs', 'Configuration', 'Danger zone']}
+  activeTab="Costs"
+>
+  <div class="rb-cost">
+    <div class="rb-cost__grid">
+      <section class="rb-panel rb-cost__table">
+        <div class="rb-panel__head">
+          <span>Month to date <small>27 of 30 days · production</small></span>
+          <span class="rb-cost__total rb-mono">{money(TOTAL)}</span>
+        </div>
+        <ul class="rb-cost__rows">
+          {
+            ROWS.map((row) => (
+              <li class="rb-cost__row">
+                <span class="rb-cost__name">
+                  <span class="rb-mono">{row.name}</span>
+                  <span class="rb-cost__type">{row.type}</span>
+                </span>
+                <span class="rb-cost__bar" aria-hidden="true">
+                  <i style={`width: max(${(row.cost / MAX) * 100}%, 3px)`} />
+                </span>
+                <span class="rb-cost__amount rb-mono">{money(row.cost)}</span>
+              </li>
+            ))
+          }
+        </ul>
+        <p class="rb-cost__source">From your own AWS cost data. AWS bills you directly; Stacktape only reads the numbers.</p>
+      </section>
+
+      <section class="rb-panel rb-budget">
+        <div class="rb-panel__head">Budget <small>production</small></div>
+        <div class="rb-panel__body">
+          <p class="rb-budget__big">
+            <span class="rb-mono">{money(TOTAL)}</span>
+            <span class="rb-budget__of">of ${BUDGET} · {Math.round(usedPct)}% used</span>
+          </p>
+          <div class="rb-budget__track" aria-hidden="true">
+            <i class="rb-budget__fill" style={`width: ${usedPct}%`}></i>
+            <i class="rb-budget__mark" style={`left: ${ALERT_AT * 100}%`}></i>
+          </div>
+          <div class="rb-budget__legend">
+            <span><span class="rb-budget__swatch rb-budget__swatch--fill"></span>spent</span>
+            <span><span class="rb-budget__swatch rb-budget__swatch--mark"></span>alert at 80% (${BUDGET * ALERT_AT})</span>
+          </div>
+          <dl class="rb-budget__kv">
+            <dt>Alert channel</dt>
+            <dd>Slack <span class="rb-mono">#ops</span> · email</dd>
+            <dt>Last alert</dt>
+            <dd class="rb-muted">none this month</dd>
+            <dt>Staging budget</dt>
+            <dd>$60 · <span class="rb-mono">$28.10</span> used</dd>
+          </dl>
+          <p class="rb-budget__actions"><span class="rb-btn">Edit budget</span></p>
+        </div>
+      </section>
+    </div>
+  </div>
+</ConsoleFrame>
+
+<style>
+  .rb-cost__grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+    gap: 12px;
+  }
+  .rb-cost__total {
+    font-size: 16px;
+    font-weight: 500;
+  }
+  .rb-cost__rows {
+    margin: 0;
+    padding: 4px 14px 0;
+    list-style: none;
+  }
+  .rb-cost__row {
+    display: grid;
+    grid-template-columns: 200px minmax(0, 1fr) 64px;
+    gap: 12px;
+    align-items: center;
+    padding: 8px 0;
+    font-size: 13px;
+  }
+  .rb-cost__row + .rb-cost__row {
+    border-top: 1px solid var(--rb-line);
+  }
+  .rb-cost__name {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+  .rb-cost__name .rb-mono {
+    font-weight: 500;
+  }
+  .rb-cost__type {
+    overflow: hidden;
+    color: var(--rb-faint);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .rb-cost__bar {
+    display: block;
+    height: 12px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.05);
+  }
+  .rb-cost__bar i {
+    display: block;
+    height: 100%;
+    border-radius: 3px;
+    background: var(--rb-brand);
+  }
+  .rb-cost__amount {
+    text-align: right;
+  }
+  .rb-cost__source {
+    margin: 0;
+    padding: 10px 14px 12px;
+    border-top: 1px solid var(--rb-line);
+    color: var(--rb-muted);
+    font-size: 13px;
+  }
+
+  .rb-budget__big {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px;
+    margin: 0;
+    font-size: 24px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+  }
+  .rb-budget__of {
+    color: var(--rb-muted);
+    font-size: 13px;
+    font-weight: 400;
+    letter-spacing: 0;
+  }
+  .rb-budget__track {
+    position: relative;
+    height: 12px;
+    margin-top: 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.07);
+  }
+  .rb-budget__fill {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: var(--rb-brand);
+  }
+  .rb-budget__mark {
+    position: absolute;
+    top: -4px;
+    bottom: -4px;
+    width: 2px;
+    background: var(--rb-amber);
+  }
+  .rb-budget__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    margin-top: 8px;
+    color: var(--rb-muted);
+    font-size: 13px;
+  }
+  .rb-budget__legend > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .rb-budget__swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+  }
+  .rb-budget__swatch--fill {
+    background: var(--rb-brand);
+  }
+  .rb-budget__swatch--mark {
+    background: var(--rb-amber);
+  }
+  .rb-budget__kv {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 6px 14px;
+    margin: 14px 0 0;
+    padding-top: 12px;
+    border-top: 1px solid var(--rb-line);
+    font-size: 13px;
+  }
+  .rb-budget__kv dt {
+    color: var(--rb-muted);
+  }
+  .rb-budget__kv dd {
+    margin: 0;
+  }
+  .rb-budget__actions {
+    margin: 14px 0 0;
+  }
+
+  @media (max-width: 900px) {
+    .rb-cost__grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  @media (max-width: 720px) {
+    .rb-cost__row {
+      grid-template-columns: minmax(0, 1fr) 64px;
+    }
+    .rb-cost__amount {
+      grid-row: 1;
+      grid-column: 2;
+    }
+    .rb-cost__bar {
+      grid-row: 2;
+      grid-column: 1 / -1;
+    }
+    .rb-budget__kv,
+    .rb-budget__actions {
+      display: none;
+    }
+  }
+</style>

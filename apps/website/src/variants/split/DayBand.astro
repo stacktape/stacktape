@@ -1,0 +1,40 @@
+---
+type Props = { day: 0 | 1 };
+
+const { day } = Astro.props;
+---
+
+<div class="sp-band sp-split">
+  <div class="sp-cell sp-cell--you">
+    <div class="sp-cell__in">
+      <p class="sp-band__kicker sp-mono">Day {day}</p>
+      <h2 class="sp-band__day" id={`sp-day-${day}`}>
+        {day === 0 ? <>The first <em>ten minutes</em></> : <>Everything <em>after</em></>}
+      </h2>
+    </div>
+  </div>
+  <div class="sp-cell sp-cell--stp">
+    <div class="sp-cell__in">
+      {
+        day === 0 ? (
+          <>
+            <p class="sp-band__range">09:41 → 09:51 · one command · one repository · one AWS account</p>
+            <p class="sp-band__text">
+              <b>You</b> run one command and press two buttons. <b>Stacktape</b> reads the repository on your machine, writes the configuration,
+              decides the open questions and shows you every decision before anything exists on AWS.
+            </p>
+          </>
+        ) : (
+          <>
+            <p class="sp-band__range">10:12 → 09:06 next morning · one merge · one incident · zero hand-written infrastructure</p>
+            <p class="sp-band__text">
+              <b>You</b> ship code. <b>Stacktape</b> builds it on a runner in your account, deploys it, watches it, opens the incident when
+              something breaks, ties it to the release and hands your coding agent everything it needs. Nothing reaches production without your
+              merge or your approval.
+            </p>
+          </>
+        )
+      }
+    </div>
+  </div>
+</div>

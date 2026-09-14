@@ -1,0 +1,44 @@
+---
+/**
+ * One stop on the path: a numbered plate on the route, the billboard beside it, a caption on the other side.
+ * The plate tile is the anchor the path script routes through.
+ */
+type Props = {
+  number: string;
+  day: string;
+  side: 'left' | 'right';
+  title: string;
+  wide?: boolean;
+  variant?: string;
+  version?: string;
+};
+
+const { number, day, side, title, wide = false, variant, version } = Astro.props;
+---
+
+<li
+  class:list={['pl-station', `pl-station--${side}`, wide && 'pl-station--wide', variant && `pl-station--${variant}`]}
+  id={`station-${number}`}
+  data-pl-station
+>
+  <div class="pl-station__plate">
+    <div class="pl-plate">
+      <div class="pl-plate__tile" aria-hidden="true" data-pl-anchor="station">
+        <svg viewBox="0 0 72 36" preserveAspectRatio="none"><polygon class="pl-plate__rhombus" points="36,0 72,18 36,36 0,18"></polygon></svg>
+        <span class="pl-plate__disc">{number}</span>
+      </div>
+      <span class="pl-plate__label">{day}</span>
+    </div>
+    {variant === 'incident' && <span class="pl-station__exit" data-pl-anchor="exit" aria-hidden="true"></span>}
+  </div>
+  <div class="pl-station__billboard">
+    <slot />
+  </div>
+  <div class="pl-station__caption">
+    <h3 class="pl-station__title">
+      <Fragment set:html={title} />
+      {version && <span class="pl-station__version">{version}</span>}
+    </h3>
+    <slot name="caption" />
+  </div>
+</li>

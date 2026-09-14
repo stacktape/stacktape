@@ -1,0 +1,99 @@
+---
+/**
+ * The stack: the seven cards and the closing, in flow. On viewports at least 1000px wide and 780px
+ * tall every card is sticky, pinned 8px lower than the one before it, so each card slides up over
+ * the last and the covered cards remain as thin edges at the top of the viewport.
+ *
+ * The script measures how far the next card has risen over each card and writes it to
+ * `--covered`; the stylesheet turns that into the recession, the dimming and the shadow swap.
+ * Without the script the cards still stack, only without the recession.
+ */
+import Card from './Card.astro';
+import ClosingCard from './ClosingCard.astro';
+import { SECTIONS } from './data';
+import Costs from './screens/Costs.astro';
+import Deploys from './screens/Deploys.astro';
+import Designs from './screens/Designs.astro';
+import Incidents from './screens/Incidents.astro';
+import Monitors from './screens/Monitors.astro';
+import Packages from './screens/Packages.astro';
+import Secures from './screens/Secures.astro';
+
+const screens = [Designs, Packages, Deploys, Monitors, Secures, Incidents, Costs];
+---
+
+<section class="st-stack" aria-label="What Stacktape does">
+  {
+    SECTIONS.map((section, i) => {
+      const ScreenFor = screens[i]!;
+      return (
+        <Card section={section}>
+          <ScreenFor />
+        </Card>
+      );
+    })
+  }
+  <ClosingCard />
+  <div class="st-stack__hold" aria-hidden="true"></div>
+</section>
+
+<script>
+  const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-st-card]'));
+  const edges = Array.from(document.querySelectorAll<HTMLElement>('[data-st-edge]'));
+  const stacking = window.matchMedia('(min-width: 1000px) and (min-height: 780px)');
+  let ticking = false;
+
+  const clamp = (value: number) => Math.min(1, Math.max(0, value));
+
+  // The covered cards' labels sit side by side along the top of the stack, an index of where you
+  // are. Each label starts where the one before it ends; measured, so the fonts decide the widths.
+  const layoutEdges = () => {
+    let x = 0;
+    for (const edge of edges) {
+      edge.style.setProperty('--edge-x', `${x}px`);
+      x += edge.offsetWidth + 20;
+    }
+  };
+
+  const update = () => {
+    ticking = false;
+
+    if (!stacking.matches) {
+      for (const card of cards) {
+        card.style.removeProperty('--covered');
+        card.classList.remove('is-covered');
+      }
+      return;
+    }
+
+    const viewport = window.innerHeight;
+    for (let i = 0; i < cards.length - 1; i += 1) {
+      const card = cards[i]!;
+      const next = cards[i + 1]!;
+      // The next card's own pin position: while it is below that, the fraction of its rise it has
+      // completed is how covered this card is.
+      const pinned = parseFloat(getComputedStyle(next).top) || 0;
+      const top = next.getBoundingClientRect().top;
+      const covered = clamp(1 - (top - pinned) / Math.max(1, viewport - pinned));
+      card.style.setProperty('--covered', covered.toFixed(3));
+      card.classList.toggle('is-covered', covered > 0.5);
+    }
+  };
+
+  const schedule = () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(update);
+  };
+
+  const relayout = () => {
+    layoutEdges();
+    schedule();
+  };
+
+  window.addEventListener('scroll', schedule, { passive: true });
+  window.addEventListener('resize', relayout, { passive: true });
+  stacking.addEventListener('change', relayout);
+  document.fonts?.ready.then(layoutEdges);
+  relayout();
+</script>

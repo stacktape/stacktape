@@ -1,0 +1,61 @@
+---
+import ConsoleFrame from '../ConsoleFrame.astro';
+import ResourceGlyph from '../ResourceGlyph.astro';
+import { PROJECT, RESOURCES, STAGES } from '../data';
+---
+
+<ConsoleFrame active="Overview" crumb={['Projects', PROJECT.name]}>
+  <div class="hx-row hx-row--between">
+    <h4 class="hx-h hx-h--lg">{PROJECT.name}</h4>
+    <span class="hx-chip">{PROJECT.repo}</span>
+  </div>
+  <div class="hx-m-hide">
+    <span class="hx-label">Stages</span>
+    <div class="hx-stages">
+      {
+        STAGES.map((stage) => (
+          <div class:list={['hx-stage', stage.deploying && 'hx-stage--deploying']}>
+            <div class="hx-stage__name">
+              <span>{stage.name}</span>
+              {stage.deploying ? (
+                <span class="hx-chip hx-chip--brand">
+                  <span class="hx-chip__dot hx-chip__dot--pulse" aria-hidden="true" />
+                  {stage.status}
+                </span>
+              ) : (
+                <span class="hx-chip hx-chip--green">
+                  <span class="hx-chip__dot" aria-hidden="true" />
+                  Healthy
+                </span>
+              )}
+            </div>
+            <div class="hx-stage__meta">
+              <span>
+                <b>{stage.region}</b> · {stage.release}
+              </span>
+              <span>{stage.status}</span>
+            </div>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+  <div>
+    <span class="hx-label">Resources · production</span>
+    <ul class="hx-resources">
+      {
+        RESOURCES.map((resource) => (
+          <li class="hx-resource">
+            <span class="hx-resource__icon">
+              <ResourceGlyph type={resource.type} />
+            </span>
+            <span class="hx-resource__name">{resource.name}</span>
+            <span class="hx-resource__type">
+              <b>{resource.label}</b> · {resource.url ? resource.url.replace('https://', '') : resource.detail}
+            </span>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</ConsoleFrame>

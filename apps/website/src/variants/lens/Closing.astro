@@ -1,0 +1,16 @@
+---
+/** The closing: one line, the command again, the trust line, and the way in for existing users. */
+import { CommandBox } from './CommandBox';
+import { CLOSING_LINE, LINKS, SIGN_IN, TRUST_LINE } from './data';
+---
+
+<section class="ls-closing" aria-labelledby="ls-closing-title">
+  <div class="ls-container ls-closing__inner">
+    <h2 class="ls-closing__title" id="ls-closing-title">{CLOSING_LINE}</h2>
+    <div class="ls-closing__cta">
+      <CommandBox client:load label="Start" hint={false} />
+    </div>
+    <p class="ls-trust">{TRUST_LINE}</p>
+    <p class="ls-closing__signin">{SIGN_IN.lead} <a href={LINKS.console}>{SIGN_IN.link}</a></p>
+  </div>
+</section>

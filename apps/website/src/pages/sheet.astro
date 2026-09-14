@@ -1,0 +1,35 @@
+---
+// concept: A sheet of warm paper with the product's dark windows pinned to it, like screenshots on a spec sheet. The seven things Stacktape does are numbered line items read top to bottom, with a sticky index that ticks along; the product stays exactly as dark as it is, so the screens pop instead of blending in.
+// copy-angle: The headline states the promise; each line item names one thing Stacktape does, explains it in a paragraph, lists what you get, and shows the window where it happens.
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Closing from '../variants/sheet/Closing.astro';
+import { HEADLINE, SUBHEADLINE } from '../variants/sheet/data';
+import Footer from '../variants/sheet/Footer.astro';
+import Hero from '../variants/sheet/Hero.astro';
+import Nav from '../variants/sheet/Nav.astro';
+import Sheet from '../variants/sheet/Sheet.astro';
+import Testimonials from '../variants/sheet/Testimonials.astro';
+import '../variants/sheet/sheet.css';
+---
+
+<BaseLayout title={`Stacktape — ${HEADLINE}`} description={SUBHEADLINE} htmlClass="sh-html">
+  <Fragment slot="head">
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100,700..800&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+    />
+  </Fragment>
+
+  <div class="sh-root">
+    <Nav />
+    <main>
+      <div class="sh-board">
+        <Hero />
+        <Sheet />
+      </div>
+      <Closing />
+      <Testimonials />
+    </main>
+    <Footer />
+  </div>
+</BaseLayout>

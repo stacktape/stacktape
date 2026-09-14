@@ -1,0 +1,16 @@
+---
+/** A preview panel standing on an isometric base, casting a shadow onto the table. Rises into view on enter. */
+type Props = { class?: string; anchor?: string };
+
+const { class: className, anchor } = Astro.props;
+---
+
+<div class:list={['pl-billboard', className]} data-pl-rise>
+  <div class="pl-billboard__panel">
+    <slot />
+  </div>
+  <div class="pl-billboard__base" aria-hidden="true" data-pl-anchor={anchor}>
+    <svg viewBox="0 0 200 100" preserveAspectRatio="none"><polygon points="100,0 200,50 100,100 0,50"></polygon></svg>
+  </div>
+  <div class="pl-billboard__shadow" aria-hidden="true"></div>
+</div>

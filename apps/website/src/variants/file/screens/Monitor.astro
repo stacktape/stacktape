@@ -1,0 +1,72 @@
+---
+/** 03 — three metric tiles, the trace of one request, the uptime check, and where alerts go. */
+import { ALERTS, METRICS, sparkline, TRACE, UPTIME } from '../data';
+import { StatusBadge } from '../ui';
+
+const percent = (ms: number) => ((ms / TRACE.total) * 100).toFixed(1);
+---
+
+<div class="fl-tiles">
+  {
+    METRICS.map((metric) => (
+      <div class="fl-tile">
+        <p class="fl-tile__label">{metric.label}</p>
+        <p class="fl-tile__value">
+          {metric.value}<span class="fl-tile__unit">{metric.unit}</span>
+        </p>
+        <svg class="fl-spark" viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true">
+          <polyline points={sparkline(metric.points)} fill="none" stroke="currentColor" stroke-width="1.6" vector-effect="non-scaling-stroke" />
+        </svg>
+      </div>
+    ))
+  }
+</div>
+
+<div class="fl-mon">
+  <div class="fl-trace">
+    <p class="fl-trace__head">
+      <span class="fl-scr__label">Trace</span>
+      <span class="fl-mono fl-trace__name">{TRACE.name}</span>
+      <span class="fl-trace__total">{TRACE.total} ms</span>
+    </p>
+    <ol class="fl-spans" aria-label="Spans of one request">
+      <li class="fl-span fl-span--root">
+        <span class="fl-span__name">{TRACE.name}</span>
+        <span class="fl-span__lane"><span class="fl-span__bar" style="left: 0%; width: 100%"></span></span>
+        <span class="fl-span__ms">{TRACE.total} ms</span>
+      </li>
+      {
+        TRACE.spans.map((span) => (
+          <li class={`fl-span fl-span--${span.kind}`}>
+            <span class="fl-span__name">{span.name}</span>
+            <span class="fl-span__lane">
+              <span class="fl-span__bar" style={`left: ${percent(span.start)}%; width: ${percent(span.duration)}%`} />
+            </span>
+            <span class="fl-span__ms">{span.duration} ms</span>
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+
+  <div class="fl-side">
+    <div class="fl-uptime">
+      <p class="fl-uptime__head">
+        <span class="fl-mono fl-uptime__url">{UPTIME.url}</span>
+        <StatusBadge tone="success" dot>Up</StatusBadge>
+      </p>
+      <ul class="fl-uptime__regions">
+        {
+          UPTIME.regions.map((check) => (
+            <li>
+              <span>{check.region}</span>
+              <span class="fl-mono">{check.latency}</span>
+            </li>
+          ))
+        }
+      </ul>
+      <p class="fl-uptime__total">{UPTIME.thirtyDay}</p>
+    </div>
+    <p class="fl-chip"><span class="fl-chip__dot" aria-hidden="true"></span>{ALERTS}</p>
+  </div>
+</div>

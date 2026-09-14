@@ -1,0 +1,38 @@
+---
+/** 02 — the terminal during Package: three workloads, one of them skipped because nothing changed. */
+import { PACKAGE, TERMINAL_TITLE } from '../data';
+import Window from '../Window.astro';
+---
+
+<Window kind="terminal" title={TERMINAL_TITLE}>
+  <div class="ls-term">
+    <p class="ls-term__line">
+      <span class="ls-term__prompt">$</span> <span class="ls-term__cmd">{PACKAGE.command}</span>
+    </p>
+    <p class="ls-term__line ls-term__phase ls-term__phase--done">
+      <span class="ls-term__mark">✓</span> Initialize
+    </p>
+    <p class="ls-term__line ls-term__phase ls-term__phase--done">
+      <span class="ls-term__mark">✓</span> Package
+    </p>
+    <ul class="ls-term__rows" aria-label="Packaged workloads">
+      {
+        PACKAGE.rows.map((row) => (
+          <li class={row.skipped ? 'ls-term__row ls-term__row--skipped' : 'ls-term__row'}>
+            <span class="ls-term__name">{row.name}</span>
+            <span class="ls-term__kind">{row.kind}</span>
+            <span class="ls-term__result">{row.result}</span>
+            <span class="ls-term__time">{row.time}</span>
+          </li>
+        ))
+      }
+    </ul>
+    <p class="ls-term__line ls-term__summary">{PACKAGE.summary}</p>
+    <p class="ls-term__line ls-term__phase ls-term__phase--active">
+      <span class="ls-term__mark">●</span> {PACKAGE.next} <span class="ls-term__note">{PACKAGE.nextNote}</span>
+    </p>
+    <p class="ls-term__line ls-term__phase ls-term__phase--pending">
+      <span class="ls-term__mark"></span> Outputs
+    </p>
+  </div>
+</Window>

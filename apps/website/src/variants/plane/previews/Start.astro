@@ -1,0 +1,24 @@
+---
+import Frame from '../Frame.astro';
+import WizardRail from '../WizardRail.astro';
+---
+
+<Frame title="localhost · Put this project on AWS" tight>
+  <pre class="pl-term">$ <b>npx stacktape init</b>
+<i>➜</i> Opening the wizard in your browser…</pre>
+  <div class="pl-wizard">
+    <WizardRail active="Start" />
+    <div class="pl-wizard__main">
+      <h4 class="pl-wizard__title">Put this project on AWS</h4>
+      <p class="pl-wizard__text">
+        Reading <span class="pl-mono">~/code/acme-project</span> with Claude Code, found on this machine. Without a coding
+        agent, a built-in scanner reads it instead.
+      </p>
+      <ul class="pl-assure">
+        <li>Nothing leaves your machine.</li>
+        <li>Nothing is created on AWS and nothing is billed until you press Deploy.</li>
+      </ul>
+      <span class="pl-fake-btn pl-fake-btn--primary">Analyze my project</span>
+    </div>
+  </div>
+</Frame>

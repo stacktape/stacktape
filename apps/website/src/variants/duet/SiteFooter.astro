@@ -1,0 +1,19 @@
+---
+import Logo from '../../components/Logo.astro';
+import { LINKS } from './data';
+---
+
+<footer class="du-footer">
+  <div class="du-footer__in">
+    <a href="/" aria-label="Stacktape home"><Logo height={18} /></a>
+    <nav class="du-footer__links" aria-label="Footer">
+      <a href={LINKS.docs}>Docs</a>
+      <a href={LINKS.github}>GitHub</a>
+      <a href={LINKS.console}>Console</a>
+      <a href={LINKS.demo}>Book a demo</a>
+      <a href={LINKS.discord}>Discord</a>
+      <a href={LINKS.privacy}>Privacy</a>
+    </nav>
+    <p class="du-footer__note">Open-source CLI (MIT) · hosted Console</p>
+  </div>
+</footer>

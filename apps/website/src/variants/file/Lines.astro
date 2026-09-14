@@ -1,0 +1,66 @@
+---
+/**
+ * One segment of the file: its lines, the lens rows above them, and the gutter bracket that spans
+ * the lines the next comment refers to.
+ *
+ * Everything is placed on an explicit grid row. A bracket spanning several rows in the gutter
+ * column would otherwise push the auto-placed line numbers out of that column. Lens rows and price
+ * inlays are rendered from the start and only made visible later, so the file never jumps.
+ */
+import type { Segment, Typing } from './data';
+
+type Props = {
+  segment: Segment;
+  /** Present for the first segment only: its lines type themselves on load. */
+  typing?: Map<number, Typing>;
+  /** The last line that types; its caret keeps blinking. */
+  lastTyped?: number;
+};
+
+const { segment, typing, lastTyped } = Astro.props;
+const { chapter, rows, bracket } = segment;
+---
+
+<div class="fl-lines">
+  <span
+    class={`fl-bracket fl-bracket--${chapter.tone}`}
+    data-ch={chapter.index}
+    style={`grid-row: ${bracket.from} / ${bracket.to}`}
+    aria-hidden="true"></span>
+  {
+    rows.map((row, index) => {
+      const gridRow = `grid-row: ${index + 1}`;
+      if (row.kind === 'lens') {
+        return (
+          <span
+            class={`fl-lens fl-lens--${row.lens.kind}`}
+            data-ch={row.lens.chapter}
+            style={`${gridRow}; --fl-indent: ${row.indent}`}
+          >
+            {row.lens.kind === 'lock' ? (
+              <svg class="fl-lens__lock" viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden="true">
+                <rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5" />
+                <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+              </svg>
+            ) : (
+              <i class="fl-lens__dot" aria-hidden="true" />
+            )}
+            <span class="fl-lens__text">{row.lens.text}</span>
+          </span>
+        );
+      }
+      const type = typing?.get(row.n);
+      const style = type
+        ? `${gridRow}; --fl-d: ${type.delay.toFixed(3)}s; --fl-t: ${type.duration.toFixed(3)}s; --fl-n: ${type.chars}`
+        : gridRow;
+      return (
+        <>
+          <span class="fl-num" style={gridRow} aria-hidden="true">
+            {row.n}
+          </span>
+          <code class={type ? 'fl-code fl-type' : 'fl-code'} style={style}><span class="fl-code__text" set:html={row.html} />{type && <i class={row.n === lastTyped ? 'fl-caret fl-caret--last' : 'fl-caret'} aria-hidden="true" />}{row.price && <span class="fl-price" data-ch="6">{row.price}</span>}</code>
+        </>
+      );
+    })
+  }
+</div>

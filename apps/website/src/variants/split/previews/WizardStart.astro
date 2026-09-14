@@ -1,0 +1,36 @@
+---
+import Frame from '../Frame.astro';
+---
+
+<Frame url="<b>localhost</b> · stacktape init">
+  <div class="sp-frame__body">
+    <ol class="sp-rail" aria-label="Wizard steps">
+      <li class="is-on">Start</li>
+      <li>Analyze</li>
+      <li>Review</li>
+      <li>Deploy</li>
+    </ol>
+    <h3 class="sp-h sp-h--lg">Put this project on AWS</h3>
+    <p class="sp-p">
+      <b>acme/acme-project</b> · pnpm workspace · <code>web</code> and <code>api</code> packages found
+    </p>
+    <div class="sp-chips" style="margin-top:12px">
+      <span class="sp-chip sp-chip--ok"><i aria-hidden="true"></i>Claude Code found on this machine</span>
+      <span class="sp-chip"><i aria-hidden="true"></i>fallback: built-in scanner</span>
+    </div>
+    <hr class="sp-hr" />
+    <div class="sp-two">
+      <div class="sp-panel">
+        <p class="sp-kicker">Nothing leaves your machine</p>
+        <p class="sp-p">The analysis runs here, with your own coding agent. Stacktape receives nothing.</p>
+      </div>
+      <div class="sp-panel">
+        <p class="sp-kicker">Nothing is billed</p>
+        <p class="sp-p">Nothing is created on AWS until you press Deploy on the last step.</p>
+      </div>
+    </div>
+    <div style="margin-top:16px">
+      <span class="sp-wbtn">Analyze my project</span>
+    </div>
+  </div>
+</Frame>

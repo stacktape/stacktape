@@ -1,0 +1,46 @@
+---
+/**
+ * The hero and the six surfaces in one scrolling column, with the stage pinned beside them.
+ *
+ * The grid has three cells: the hero copy (top left), the stage (right, spanning both rows) and
+ * the flow of surfaces and the closing (bottom left). Below 1000px the same three cells stack, so
+ * the stage lands once between the hero copy and the first surface.
+ */
+import Closing from './Closing.astro';
+import { CommandBox } from './CommandBox';
+import { EYEBROW, HEADLINE, SUBHEADLINE, SURFACES, TRUST_LINE } from './data';
+import StageWindow from './StageWindow.astro';
+import Costs from './strips/Costs.astro';
+import Design from './strips/Design.astro';
+import Incident from './strips/Incident.astro';
+import Live from './strips/Live.astro';
+import Monitor from './strips/Monitor.astro';
+import Secure from './strips/Secure.astro';
+import Surface from './Surface.astro';
+---
+
+<section class="sg-journey" aria-labelledby="sg-hero-title">
+  <div class="sg-container sg-grid">
+    <div class="sg-hero">
+      <p class="sg-eyebrow">{EYEBROW}</p>
+      <h1 class="sg-hero__title" id="sg-hero-title">{HEADLINE}</h1>
+      <p class="sg-hero__sub">{SUBHEADLINE}</p>
+      <div class="sg-hero__cta">
+        <CommandBox client:load label="Get started" />
+      </div>
+      <p class="sg-trust">{TRUST_LINE}</p>
+    </div>
+
+    <StageWindow />
+
+    <div class="sg-flow">
+      <Surface surface={SURFACES[0]} chapter={1}><Design /></Surface>
+      <Surface surface={SURFACES[1]} chapter={2}><Live /></Surface>
+      <Surface surface={SURFACES[2]} chapter={3}><Monitor /></Surface>
+      <Surface surface={SURFACES[3]} chapter={4}><Secure /></Surface>
+      <Surface surface={SURFACES[4]} chapter={5}><Incident /></Surface>
+      <Surface surface={SURFACES[5]} chapter={6}><Costs /></Surface>
+      <Closing />
+    </div>
+  </div>
+</section>

@@ -1,0 +1,19 @@
+---
+/** The sticky index of the seven line items. The current one is set by the sheet's observer. */
+import { SECTIONS } from './data';
+---
+
+<nav class="sh-index" aria-label="Sections" data-sh-index>
+  <ol class="sh-index__list">
+    {
+      SECTIONS.map((section) => (
+        <li>
+          <a class="sh-index__link" href={`#${section.id}`} data-sh-index-link={section.id}>
+            <span class="sh-index__num">{section.number}</span>
+            <span class="sh-index__name">{section.name}</span>
+          </a>
+        </li>
+      ))
+    }
+  </ol>
+</nav>

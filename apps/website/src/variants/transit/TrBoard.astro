@@ -1,0 +1,60 @@
+---
+/**
+ * The ops board: one example account's day as a departure board. Rows flip in on load (CSS keyed
+ * off `--i`). The first row, `init`, is expanded to show the file it wrote, so the generated
+ * configuration is visible before the visitor scrolls.
+ */
+import { BOARD_ROWS, BOARD_YAML } from './data';
+
+const escape = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+// Colour keys and trailing comments; the output is set:html, so every piece is escaped first.
+const yamlHtml = BOARD_YAML.map((line) => {
+  const [code, comment] = line.split(/\s+(?=#)/);
+  const match = code!.match(/^(\s*)([\w]+):(.*)$/);
+  const head = match
+    ? `${match[1]}<span class="y-k">${escape(match[2]!)}</span>:<span class="y-v">${escape(match[3]!)}</span>`
+    : escape(code!);
+  return comment ? `${head}  <span class="y-c">${escape(comment)}</span>` : head;
+}).join('\n');
+---
+
+<figure class="tr-board" data-board>
+  <figcaption class="tr-board__head">
+    <span class="tr-board__title">acme-project</span>
+    <span class="tr-board__meta">production · eu-west-1</span>
+    <span class="tr-board__meta tr-board__meta--right">
+      <span class="tr-dot tr-dot--ok" aria-hidden="true"></span> live
+    </span>
+  </figcaption>
+  <ol class="tr-board__rows">
+    {
+      BOARD_ROWS.map((row, index) => {
+        const [before, after] = row.highlight ? row.detail.split(row.highlight) : [row.detail, undefined];
+        return (
+          <li class={`tr-board__row is-${row.status}`} style={`--i: ${index}`}>
+            <span class="tr-board__time">{row.time}</span>
+            <span class="tr-board__event">{row.event}</span>
+            <span class="tr-board__detail">
+              {before}
+              {row.highlight && <mark class="tr-board__mark">{row.highlight}</mark>}
+              {after}
+            </span>
+            <span class="tr-board__status">{row.status}</span>
+            {index === 0 && (
+              <div class="tr-board__file">
+                <div class="tr-board__file-head">
+                  <span class="tr-board__file-name">stacktape.yml</span>
+                  <span class="tr-board__badge">written from 41 files in your repo · 38s</span>
+                </div>
+                <pre class="tr-board__yaml"><code set:html={yamlHtml} /></pre>
+                <span class="tr-board__file-foot">… plus properties, scripts and hooks · 0 lines typed by you</span>
+              </div>
+            )}
+          </li>
+        );
+      })
+    }
+  </ol>
+  <p class="tr-board__legend">example account · times illustrative</p>
+</figure>

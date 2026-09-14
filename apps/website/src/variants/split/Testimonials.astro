@@ -1,0 +1,38 @@
+---
+import { TESTIMONIALS } from './data';
+---
+
+<section class="sp-quotes" aria-labelledby="sp-quotes-title">
+  <div class="sp-split sp-quotes__head">
+    <div class="sp-cell sp-cell--you">
+      <div class="sp-cell__in">
+        <h2 class="sp-mono" id="sp-quotes-title" style="margin:0;color:var(--sp-brand)">Who says so</h2>
+      </div>
+    </div>
+    <div class="sp-cell sp-cell--stp">
+      <div class="sp-cell__in">
+        <p class="sp-band__range" style="margin:0">Three customers, in their own words</p>
+      </div>
+    </div>
+  </div>
+  {
+    TESTIMONIALS.map((item, index) => (
+      <div class="sp-split">
+        <div class={['sp-cell', 'sp-cell--you', index < TESTIMONIALS.length - 1 && 'sp-cell--rule'].filter(Boolean).join(' ')}>
+          <div class="sp-cell__in">
+            <p class="sp-quote__name">{item.name}</p>
+            <p class="sp-quote__role">
+              {item.role}, <a href={item.url}>{item.company}</a>
+            </p>
+          </div>
+        </div>
+        <div class={['sp-cell', 'sp-cell--stp', index < TESTIMONIALS.length - 1 && 'sp-cell--rule'].filter(Boolean).join(' ')}>
+          <div class="sp-cell__in">
+            <blockquote class="sp-quote__text">{item.quote}</blockquote>
+            <p class="sp-quote__facts">{item.facts}</p>
+          </div>
+        </div>
+      </div>
+    ))
+  }
+</section>

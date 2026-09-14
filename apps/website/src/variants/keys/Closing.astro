@@ -1,0 +1,22 @@
+---
+import { CommandBox } from './CommandBox';
+import { CLOSING_TITLE, LINKS, TRUST_LINE } from './data';
+import Key from './Key.astro';
+
+// One sentence per line, so the break never lands inside "DevOps job".
+const lines = CLOSING_TITLE.split(/(?<=\.)\s+/);
+---
+
+<section class="ky-closing" aria-labelledby="ky-closing-title" data-ky-stage="closing">
+  <div class="ky-container ky-closing__inner">
+    <h2 class="ky-closing__title" id="ky-closing-title">
+      {lines.map((line) => <span class="ky-closing__line">{line}</span>)}
+    </h2>
+    <div class="ky-closing__cta">
+      <CommandBox client:load label="Get started" />
+      <Key class="ky-closing__key" label="⏎" mono pressed />
+    </div>
+    <p class="ky-trust">{TRUST_LINE}</p>
+    <p class="ky-closing__signin">Already set up? <a href={LINKS.console}>Sign in to the Console</a></p>
+  </div>
+</section>

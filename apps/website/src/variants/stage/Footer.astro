@@ -1,0 +1,18 @@
+---
+import Logo from '../../components/Logo.astro';
+import { LINKS } from './data';
+---
+
+<footer class="sg-footer">
+  <div class="sg-container sg-footer__inner">
+    <a href="/" aria-label="Stacktape home"><Logo height={18} /></a>
+    <ul class="sg-footer__links">
+      <li><a href={LINKS.docs}>Docs</a></li>
+      <li><a href={LINKS.github}>GitHub</a></li>
+      <li><a href={LINKS.console}>Console</a></li>
+      <li><a href={LINKS.discord}>Discord</a></li>
+      <li><a href={LINKS.privacy}>Privacy</a></li>
+    </ul>
+    <span class="sg-footer__note">Open-source CLI (MIT) · hosted Console</span>
+  </div>
+</footer>

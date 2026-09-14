@@ -81,28 +81,27 @@ identifier and any documented provider routing. A missing model, expired login, 
 permission to silently substitute another model. Update an outdated CLI or use an already installed current binary
 before retrying. Model availability still depends on the account.
 
-Set `$reviewRequest` to the completed request above, then run one command from the repository root. For long requests,
-prefer stdin or a prompt file; Windows has a process argument-length limit.
+Put the completed request in a shell variable, `reviewRequest`, then run one command from the repository root (bash; the
+repository is worked on from WSL/Linux). For long requests, prefer stdin or a prompt file over an argument.
 
-```powershell
+```bash
 # Codex: GPT-6 Astra / ultra (requires a current CLI)
-$reviewRequest | codex exec -m gpt-6-astra -c 'model_reasoning_effort="ultra"' -s read-only --ephemeral -C $PWD.Path -
+printf '%s' "$reviewRequest" | codex exec -m gpt-6-astra -c 'model_reasoning_effort="ultra"' -s read-only --ephemeral -C "$PWD" -
 
 # Claude: Fable 5.1 / max
-$reviewRequest | claude -p --model claude-fable-5-1 --effort max --permission-mode plan --output-format text --no-session-persistence
+printf '%s' "$reviewRequest" | claude -p --model claude-fable-5-1 --effort max --permission-mode plan --output-format text --no-session-persistence
 
 # Grok: 4.6 / xhigh (its highest supported effort)
-grok -p $reviewRequest --model grok-4.6 --reasoning-effort xhigh --agent explore --permission-mode plan --sandbox read-only --cwd $PWD.Path --output-format plain --no-memory --no-subagents
+grok -p "$reviewRequest" --model grok-4.6 --reasoning-effort xhigh --agent explore --permission-mode plan --sandbox read-only --cwd "$PWD" --output-format plain --no-memory --no-subagents
 
 # Antigravity: Gemini 3.8 Flash / high (agy's highest supported effort)
-agy -p $reviewRequest --model gemini-3.8-flash-high --effort high --mode plan --sandbox --output-format text --print-timeout 15m
+agy -p "$reviewRequest" --model gemini-3.8-flash-high --effort high --mode plan --sandbox --output-format text --print-timeout 15m
 
 # DeepSeek Harness: V4.1 Flash / max (the patch pins deepseek-flash)
-$env:DSH_PERMISSION_MODE = 'read-only'
-dsh --profile headless --patch .agents/prompts/external-review.dsh.yml $reviewRequest
+DSH_PERMISSION_MODE=read-only dsh --profile headless --patch .agents/prompts/external-review.dsh.yml "$reviewRequest"
 
 # Z.ai GLM: GLM-5.3 / max
-$reviewRequest | glm
+printf '%s' "$reviewRequest" | glm
 ```
 
 Provider references: [Fable 5.1](https://platform.claude.com/docs/en/models/fable-5-1/overview),
@@ -122,9 +121,9 @@ completed outputs so a missing version is visible.
 Claude's `plan` permission mode can return only a plan and wait for an approval tool that does not exist in a headless
 session. For an already authorized prose deliverable, supply the complete evidence packet and disable all tools instead:
 
-```powershell
-$reviewRequest | claude -p --model claude-fable-5-1 --effort max `
-  --permission-mode dontAsk --tools "" --safe-mode --strict-mcp-config `
+```bash
+printf '%s' "$reviewRequest" | claude -p --model claude-fable-5-1 --effort max \
+  --permission-mode dontAsk --tools "" --safe-mode --strict-mcp-config \
   --output-format stream-json --verbose --no-session-persistence
 ```
 

@@ -1,0 +1,43 @@
+---
+/** 01 — the Review screen: what the wizard decided, the estimate, and Deploy under the visitor's pointer. */
+import Cursor from '../Cursor.astro';
+import { DECIDED, ESTIMATE, REVIEW } from '../data';
+import { PreviewButton } from '../ui';
+---
+
+<div class="fl-scr__head">
+  <h3 class="fl-scr__heading">{REVIEW.heading}</h3>
+  <p class="fl-scr__note">{REVIEW.note}</p>
+</div>
+
+<div>
+  <p class="fl-scr__label">Decided for you</p>
+  <ul class="fl-decided">
+    {
+      DECIDED.map((item) => (
+        <li class="fl-decided__row">
+          <span class="fl-check" aria-hidden="true">
+            <svg viewBox="0 0 12 12" width="11" height="11" fill="none">
+              <path d="m2.5 6.3 2.3 2.3 4.7-5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </span>
+          <span class="fl-decided__text">
+            <span class="fl-decided__what">{item.what}</span>
+            <span class="fl-decided__why">{item.why}</span>
+          </span>
+          <PreviewButton variant="secondary" small>Change</PreviewButton>
+        </li>
+      ))
+    }
+  </ul>
+</div>
+
+<div class="fl-decided__foot">
+  <p class="fl-decided__estimate">
+    <b>{ESTIMATE.resources}</b> <span aria-hidden="true">·</span> <b>{ESTIMATE.monthly}</b>
+  </p>
+  <span class="fl-press">
+    <PreviewButton variant="primary" icon="arrow" iconPosition="end">Deploy</PreviewButton>
+    <Cursor />
+  </span>
+</div>

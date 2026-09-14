@@ -1,0 +1,93 @@
+---
+/**
+ * One station row: the gutter cell (line in, marker, line out, the bend to the next station) and
+ * the full-width card beside it. The card header carries the name plate and the timetable entry;
+ * the body is the narrative text and the product preview side by side. Colours come from CSS
+ * variables set per row so the Deploy interchange can change line colour on the marker itself.
+ */
+import type { Station } from './data';
+import { LINES } from './data';
+
+type Props = { station: Station; next: Station | undefined };
+const { station, next } = Astro.props;
+
+const lineOut = station.interchange ? 'l1' : station.line;
+// Lane x positions inside the desktop gutter; must match --tr-lane-l / --tr-lane-r in transit.css.
+const TRACK = 120;
+const DOG = 44;
+const laneOf = (side: 'left' | 'right') => (side === 'left' ? 38 : 82);
+const fromX = laneOf(station.side);
+const toX = next ? laneOf(next.side) : fromX;
+// The incident branch runs in the other lane, beside the main line.
+const branchX = laneOf(station.side === 'left' ? 'right' : 'left');
+
+const plateLine = station.interchange
+  ? `Interchange · ${LINES.l0.name} → ${LINES.l1.name}`
+  : station.branch
+    ? `${LINES[station.line].name} · branch`
+    : `${LINES[station.line].name} · ${LINES[station.line].sub.split(' · ')[0]}`;
+
+const classes = [
+  'tr-station',
+  `tr-station--${station.side}`,
+  station.interchange && 'tr-station--interchange',
+  station.branch && 'tr-station--branch',
+  !next && 'tr-station--last'
+]
+  .filter(Boolean)
+  .join(' ');
+---
+
+<section
+  class={classes}
+  id={`station-${station.id}`}
+  data-station={station.id}
+  style={`--line-in: var(--tr-${station.line}); --line-out: var(--tr-${lineOut}); --bx: ${branchX}px`}
+  aria-labelledby={`station-${station.id}-name`}
+>
+  <div class="tr-track" aria-hidden="true">
+    <span class="tr-track__in tr-draw"></span>
+    <span class="tr-track__out tr-draw"></span>
+    {
+      station.branch && (
+        <>
+          <svg class="tr-branch tr-branch--out" viewBox={`0 0 ${TRACK} ${DOG}`} width={TRACK} height={DOG}>
+            <path class="tr-draw-path" d={`M${fromX} 0 L${branchX} ${DOG}`} pathLength="1" />
+          </svg>
+          <span class="tr-branch__run tr-draw" />
+          <svg class="tr-branch tr-branch--in" viewBox={`0 0 ${TRACK} ${DOG}`} width={TRACK} height={DOG}>
+            <path class="tr-draw-path" d={`M${branchX} 0 L${fromX} ${DOG}`} pathLength="1" />
+          </svg>
+        </>
+      )
+    }
+    {
+      next && (
+        <svg class="tr-dog" viewBox={`0 0 ${TRACK} ${DOG}`} width={TRACK} height={DOG}>
+          <path class="tr-draw-path" d={`M${fromX} 0 L${toX} ${DOG}`} pathLength="1" />
+        </svg>
+      )
+    }
+    <span class={station.interchange ? 'tr-marker tr-marker--interchange' : 'tr-marker'}></span>
+  </div>
+
+  <article class="tr-card">
+    <header class="tr-plate">
+      <span class="tr-plate__no">{station.no}</span>
+      <h3 class="tr-plate__name" id={`station-${station.id}-name`}>{station.name}</h3>
+      <p class="tr-plate__meta">
+        <span class="tr-plate__line">{plateLine}</span>
+        <span class="tr-plate__clock">{station.time}</span>
+        <span class="tr-plate__note">{station.note}</span>
+      </p>
+    </header>
+    <div class="tr-card__body">
+      <div class="tr-card__text">
+        <p class="tr-lead">{station.lead}</p>
+      </div>
+      <div class="tr-preview">
+        <slot />
+      </div>
+    </div>
+  </article>
+</section>

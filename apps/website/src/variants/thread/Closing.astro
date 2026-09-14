@@ -1,0 +1,16 @@
+---
+/** Under the thread: the closing line, the same command box, the way back in. */
+import { CommandBox } from './CommandBox';
+import { CLOSING_LINE, LINKS, TRUST_LINE } from './data';
+---
+
+<section class="th-closing" aria-labelledby="th-closing-title">
+  <div class="th-container">
+    <div class="th-closing__surface">
+      <h2 class="th-closing__title" id="th-closing-title">{CLOSING_LINE}</h2>
+      <CommandBox client:load label="Get started" hint={false} />
+      <p class="th-trust">{TRUST_LINE}</p>
+      <p class="th-closing__signin">Already set up? <a href={LINKS.console}>Sign in to the Console</a></p>
+    </div>
+  </div>
+</section>

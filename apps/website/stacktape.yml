@@ -1,0 +1,31 @@
+# The marketing site: a static Astro build served from a bucket behind a CDN.
+#
+# `pnpm deploy` / `pnpm deploy:preview` here, or `deploy:web` / `deploy:web:preview` from the
+# repository root, build the site, upload `dist` and invalidate the CDN. The domains come from
+# `directives.ts`: `stacktape.com` + `www` for the production stage, `<stage>-web.stacktape.com`
+# for every other stage.
+directives:
+  - name: getWebDomains
+    filePath: directives.ts:getWebDomains
+
+scripts:
+  build:
+    type: local-script
+    properties:
+      executeCommand: npm run build
+
+hooks:
+  beforeDeploy:
+    - scriptName: build
+
+resources:
+  webBucket:
+    type: bucket
+    properties:
+      directoryUpload:
+        directoryPath: dist
+        headersPreset: static-website
+      cdn:
+        enabled: true
+        errorDocument: /404.html
+        customDomains: $getWebDomains($Stage())

@@ -1,0 +1,46 @@
+---
+/**
+ * The primary CTA: one command, a switcher between install targets and a copy button.
+ * The behaviour (switching, clipboard, feedback) lives in client.ts and keys off `data-cmd`.
+ */
+import { INSTALL_COMMANDS } from './data';
+
+type Props = { id: string };
+const { id } = Astro.props;
+---
+
+<div class="tr-cmd" data-cmd>
+  <div class="tr-cmd__tabs" role="tablist" aria-label="Install method">
+    {
+      INSTALL_COMMANDS.map((item, index) => (
+        <button
+          class="tr-cmd__tab"
+          type="button"
+          role="tab"
+          id={`${id}-tab-${item.id}`}
+          aria-selected={index === 0 ? 'true' : 'false'}
+          aria-controls={`${id}-panel`}
+          data-cmd-tab={item.id}
+          tabindex={index === 0 ? 0 : -1}
+        >
+          {item.label}
+        </button>
+      ))
+    }
+  </div>
+  <div class="tr-cmd__row" id={`${id}-panel`} role="tabpanel">
+    <span class="tr-cmd__prompt" aria-hidden="true">$</span>
+    <code class="tr-cmd__text" data-cmd-text>
+      {INSTALL_COMMANDS[0]!.command}
+    </code>
+    <button class="tr-cmd__copy" type="button" data-cmd-copy aria-label="Copy command">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.4"></rect>
+        <path d="M10.5 5.5V3.5A1 1 0 0 0 9.5 2.5h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" stroke="currentColor" stroke-width="1.4"></path>
+      </svg>
+      <span data-cmd-copy-label>Copy</span>
+    </button>
+  </div>
+  <p class="tr-cmd__live" data-cmd-live aria-live="polite"></p>
+  {INSTALL_COMMANDS.map((item) => <template data-cmd-template={item.id}>{item.command}</template>)}
+</div>

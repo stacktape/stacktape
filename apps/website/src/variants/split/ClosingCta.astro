@@ -1,0 +1,41 @@
+---
+import { LINKS, STACKTAPE_TOTAL, YOU_TOTAL } from './data';
+import CommandBox from './CommandBox.astro';
+---
+
+<section class="sp-close" aria-labelledby="sp-close-title">
+  <div class="sp-close__in">
+    <div>
+      <p class="sp-mono" style="margin:0 0 18px;color:var(--sp-brand)">Start with one command</p>
+      <h2 class="sp-close__title" id="sp-close-title">Everything a world-class AWS DevOps team does. <em>In your account.</em></h2>
+      <p class="sp-close__text">
+        Run the wizard on your machine. Nothing is created on AWS and nothing is billed until you press Deploy, and the Deploy step tells you
+        which account it is about to touch before it touches it.
+      </p>
+      <div class="sp-cta">
+        <CommandBox id="sp-close-cmd" />
+        <div class="sp-cta__row">
+          <a class="sp-btn sp-btn--ghost" href={LINKS.signUp}>Sign up</a>
+          <a class="sp-btn sp-btn--ghost" href={LINKS.demo}>Book a demo</a>
+        </div>
+      </div>
+    </div>
+    <div class="sp-tally" aria-label="Actions in the journey above">
+      <div class="sp-tally__col sp-tally__col--you">
+        <span class="sp-mono">You</span>
+        <span class="sp-tally__n" data-sp-counter="you">{YOU_TOTAL}</span>
+        <span class="sp-tally__d">
+          actions across both days: one command, two wizard buttons, a pull request, a merge, one handoff to your agent, one approval, one click on
+          Convert to $Secret.
+        </span>
+      </div>
+      <div class="sp-tally__col sp-tally__col--stp">
+        <span class="sp-mono" style="color:var(--sp-brand)">Stacktape</span>
+        <span class="sp-tally__n" data-sp-counter="stacktape">{STACKTAPE_TOTAL}</span>
+        <span class="sp-tally__d">
+          things a DevOps team would otherwise do by hand: design, deploy, watch, correlate, hand off, secure, price. All in your AWS account.
+        </span>
+      </div>
+    </div>
+  </div>
+</section>

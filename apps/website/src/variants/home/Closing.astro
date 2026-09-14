@@ -1,0 +1,15 @@
+---
+import { CommandBox } from './CommandBox';
+import { CLOSING_TITLE, LINKS, TRUST_LINE } from './data';
+---
+
+<section class="hm-section hm-closing" aria-labelledby="hm-closing-title">
+  <div class="hm-container">
+    <div class="hm-closing__panel">
+      <h2 class="hm-closing__title" id="hm-closing-title">{CLOSING_TITLE}</h2>
+      <CommandBox client:load label="Get started" />
+      <p class="hm-trust">{TRUST_LINE}</p>
+      <p class="hm-closing__signin">Already set up? <a href={LINKS.console}>Sign in to the Console</a></p>
+    </div>
+  </div>
+</section>

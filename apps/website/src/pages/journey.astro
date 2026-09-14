@@ -1,0 +1,36 @@
+---
+// concept: A drafting table. The hero sits on an isometric dotted ground; from it a path runs from "your repository" to "production" through six numbered stops, one for each thing Stacktape does, with a product screen standing on the table at every stop.
+// copy-angle: Explain before you impress. Each stop names the job, says in plain words what it does for you and, only where it is true, what you have to do; every screen is one focused Console or wizard view with callouts that say what matters.
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Closing from '../variants/journey/Closing.astro';
+import { HEADLINE, SUBHEADLINE } from '../variants/journey/data';
+import Footer from '../variants/journey/Footer.astro';
+import Hero from '../variants/journey/Hero.astro';
+import Journey from '../variants/journey/Journey.astro';
+import Nav from '../variants/journey/Nav.astro';
+import Testimonials from '../variants/journey/Testimonials.astro';
+import '../variants/journey/journey.css';
+---
+
+<BaseLayout title={`Stacktape — ${HEADLINE}`} description={SUBHEADLINE} htmlClass="jn-html">
+  <Fragment slot="head">
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
+    />
+    <script is:inline>
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) document.documentElement.classList.add('jn-js');
+    </script>
+  </Fragment>
+
+  <div class="jn-root">
+    <Nav />
+    <main>
+      <Hero />
+      <Journey />
+      <Closing />
+      <Testimonials />
+    </main>
+    <Footer />
+  </div>
+</BaseLayout>

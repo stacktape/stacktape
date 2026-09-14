@@ -1,0 +1,19 @@
+---
+/**
+ * The product window every screen sits in: a slim title bar for orientation and the body. The
+ * title is trusted markup from this study's own components (`<b>` for the emphasised word).
+ */
+type Props = { title: string; class?: string };
+
+const { title, class: className } = Astro.props;
+---
+
+<div class={['th-win', className].filter(Boolean).join(' ')}>
+  <div class="th-win__bar">
+    <span class="th-win__title" set:html={title} />
+    <slot name="bar" />
+  </div>
+  <div class="th-win__body">
+    <slot />
+  </div>
+</div>

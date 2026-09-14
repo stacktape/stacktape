@@ -1,0 +1,53 @@
+---
+/** 06 — per-resource cost bars from the AWS bill, and the budget with its alert marker. */
+import { BILLED_LINE, BUDGET, COST_TOTAL, COSTS, PROJECT } from '../data';
+import Window from '../Window.astro';
+
+const largest = Math.max(...COSTS.map((cost) => cost.amount));
+const money = (amount: number) => `$${amount.toFixed(2)}`;
+---
+
+<Window title={`<b>${PROJECT.name}</b> · production · costs`}>
+  <div class="ky-screen__head ky-screen__head--row">
+    <div>
+      <h4 class="ky-screen__title">Cost by resource</h4>
+      <p class="ky-screen__sub">month to date</p>
+    </div>
+    <p class="ky-cost__total">{money(COST_TOTAL)}</p>
+  </div>
+
+  <ul class="ky-bars" aria-label="Cost per resource">
+    {
+      COSTS.map((cost) => (
+        <li class="ky-bar">
+          <span class="ky-bar__name ky-mono">{cost.name}</span>
+          <span class="ky-bar__lane">
+            <span class="ky-bar__fill" style={`width: ${((cost.amount / largest) * 100).toFixed(1)}%`} />
+          </span>
+          <span class="ky-bar__amount ky-mono">{money(cost.amount)}</span>
+        </li>
+      ))
+    }
+  </ul>
+
+  <div class="ky-budget">
+    <div class="ky-panel__head">
+      <span class="ky-panel__title">Budget</span>
+      <span class="ky-panel__meta"><b class="ky-budget__limit">${BUDGET.limit}</b> / month</span>
+    </div>
+    <div
+      class="ky-budget__lane"
+      role="img"
+      aria-label={`${BUDGET.used}% of $${BUDGET.limit} used; alert at ${BUDGET.alertAt}% ($${BUDGET.alertAmount})`}
+    >
+      <span class="ky-budget__fill" style={`width: ${BUDGET.used}%`}></span>
+      <span class="ky-budget__mark" style={`left: ${BUDGET.alertAt}%`}></span>
+    </div>
+    <p class="ky-budget__legend">
+      <span><b>{BUDGET.used} %</b> used</span>
+      <span>alert at <b>{BUDGET.alertAt} %</b> (${BUDGET.alertAmount})</span>
+    </p>
+  </div>
+
+  <p class="ky-billed">{BILLED_LINE}</p>
+</Window>

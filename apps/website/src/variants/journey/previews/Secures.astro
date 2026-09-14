@@ -1,0 +1,73 @@
+---
+/** 05 — security posture with its three findings, and the guardrails that are on. */
+import Callout from '../Callout.astro';
+import { GUARDRAILS_ON, POSTURE, PROJECT } from '../data';
+import Window from '../Window.astro';
+import { PreviewButton, StatusBadge } from './ui';
+
+const RADIUS = 26;
+const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+const passingArc = (POSTURE.passing / POSTURE.total) * CIRCUMFERENCE;
+---
+
+<Window title={`Console · ${PROJECT.name} · security · <b>posture</b>`}>
+  <div class="jn-posture">
+    <svg class="jn-ring" viewBox="0 0 64 64" width="64" height="64" aria-hidden="true">
+      <circle cx="32" cy="32" r={RADIUS} class="jn-ring__track"></circle>
+      <circle
+        cx="32"
+        cy="32"
+        r={RADIUS}
+        class="jn-ring__value"
+        stroke-dasharray={`${passingArc.toFixed(2)} ${CIRCUMFERENCE.toFixed(2)}`}
+        transform="rotate(-90 32 32)"></circle>
+    </svg>
+    <div class="jn-posture__num">
+      <p class="jn-posture__big"><b>{POSTURE.passing}</b> of {POSTURE.total}</p>
+      <p class="jn-posture__sub">checks passing · both environments</p>
+    </div>
+    <Callout side="right" text="checked against the same rules guardrails enforce" />
+  </div>
+
+  <ul class="jn-findings" aria-label="Findings">
+    {
+      POSTURE.findings.map((item) => (
+        <li class="jn-finding">
+          <span class="jn-finding__mark" aria-hidden="true" />
+          <span class="jn-finding__text">
+            <span class="jn-finding__what">{item.finding}</span>
+            <span class="jn-finding__rule">{item.rule}</span>
+          </span>
+          <span class="jn-finding__action">
+            {'badge' in item && (
+              <StatusBadge tone="success" dot>
+                {item.badge}
+              </StatusBadge>
+            )}
+            <PreviewButton variant="secondary" small>
+              {item.action}
+            </PreviewButton>
+          </span>
+        </li>
+      ))
+    }
+  </ul>
+  <Callout side="below" text="images are scanned in the pipeline; the fix is already a pull request" />
+
+  <div class="jn-panel jn-guardrails" data-jn-phone="hide">
+    <div class="jn-panel__head">
+      <h5 class="jn-panel__title">Guardrails on</h5>
+      <p class="jn-panel__meta">organization rules · 18 available</p>
+    </div>
+    <p class="jn-guardrails__list">
+      {
+        GUARDRAILS_ON.map((rule) => (
+          <StatusBadge tone="brand" caps={false}>
+            {rule}
+          </StatusBadge>
+        ))
+      }
+    </p>
+    <Callout side="below" text="a rule blocks a non-compliant deploy before anything changes" />
+  </div>
+</Window>

@@ -1,0 +1,21 @@
+---
+/**
+ * A plate on the board: a diamond outline that the path passes through, drawn two grid cells
+ * wide so all four of its edges lie on the board's lines once `board.ts` has snapped its centre
+ * to a grid intersection. Moments carry their number beside the outer vertex; the start and
+ * arrival plates carry a label through the slot. Geometry only: the card carries the words.
+ */
+type Props = { kind: 'start' | 'moment' | 'end'; number?: string; class?: string };
+
+const { kind, number, class: className } = Astro.props;
+---
+
+<div class:list={['hm-plate', `hm-plate--${kind}`, className]} data-hm-plate={kind}>
+  <span class="hm-plate__tile" data-hm-tile aria-hidden="true">
+    <svg viewBox="0 0 128 64" preserveAspectRatio="none">
+      <polygon class="hm-plate__face" points="64,1 127,32 64,63 1,32"></polygon>
+    </svg>
+    {number && <span class="hm-plate__num">{number}</span>}
+  </span>
+  <slot />
+</div>

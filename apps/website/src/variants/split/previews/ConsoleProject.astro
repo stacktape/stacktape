@@ -1,0 +1,38 @@
+---
+import Frame from '../Frame.astro';
+import ConsoleNav from './ConsoleNav.astro';
+---
+
+<Frame url="<b>console.stacktape.com</b> / acme-project">
+  <div class="sp-console">
+    <ConsoleNav active="Organization/Projects" />
+    <div class="sp-console__main">
+      <p class="sp-crumb">Projects · <b>acme-project</b> · github.com/acme/acme-project</p>
+      <div class="sp-inc__head">
+        <h3 class="sp-h" style="margin:0">acme-project</h3>
+        <span class="sp-chip"><i aria-hidden="true"></i>2 stages · eu-west-1</span>
+      </div>
+      <div class="sp-stage sp-stage--busy">
+        <span class="sp-stage__name">production <small>eu-west-1</small></span>
+        <span class="sp-stage__sub">v41 · a1b2c3d — orders: add fulfillment status column · push to main</span>
+        <span class="sp-stage__status sp-chip sp-chip--live"><i aria-hidden="true"></i>Deploying…</span>
+      </div>
+      <div class="sp-stage">
+        <span class="sp-stage__name">staging <small>eu-west-1</small></span>
+        <span class="sp-stage__sub">v41 · a1b2c3d — same commit, deployed from the staging branch</span>
+        <span class="sp-stage__status sp-chip sp-chip--ok"><i aria-hidden="true"></i>Updated 2 hours ago</span>
+      </div>
+      <hr class="sp-hr" />
+      <p class="sp-kicker">Deploy v41 · production · started by push to main</p>
+      <ul class="sp-run__steps" aria-label="Pipeline steps">
+        <li class="is-done">checkout 3s</li>
+        <li class="is-done">build on runner · caches warm 58s</li>
+        <li class="is-on">deploy · rolling apiService, 2 → 2 instances</li>
+        <li>outputs</li>
+      </ul>
+      <p class="sp-p" style="margin-top:12px;font-size:12px">
+        Zero downtime: new instances must pass their health check before old ones are drained. v40 stays available for a rollback.
+      </p>
+    </div>
+  </div>
+</Frame>

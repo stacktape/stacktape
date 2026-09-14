@@ -1,0 +1,151 @@
+---
+import { ROWS } from './data';
+import DayBand from './DayBand.astro';
+import JourneyRow from './JourneyRow.astro';
+import CicdPreview from './previews/CicdPreview.astro';
+import ConsoleProject from './previews/ConsoleProject.astro';
+import Costs from './previews/Costs.astro';
+import IncidentCorrelate from './previews/IncidentCorrelate.astro';
+import IncidentDetect from './previews/IncidentDetect.astro';
+import IncidentHandoff from './previews/IncidentHandoff.astro';
+import IncidentRecover from './previews/IncidentRecover.astro';
+import Observability from './previews/Observability.astro';
+import Remediation from './previews/Remediation.astro';
+import Security from './previews/Security.astro';
+import WizardAnalyze from './previews/WizardAnalyze.astro';
+import WizardDeploy from './previews/WizardDeploy.astro';
+import WizardLive from './previews/WizardLive.astro';
+import WizardReview from './previews/WizardReview.astro';
+import WizardStart from './previews/WizardStart.astro';
+
+const previews = {
+  'wizard-start': WizardStart,
+  'wizard-analyze': WizardAnalyze,
+  'wizard-review': WizardReview,
+  'wizard-deploy': WizardDeploy,
+  'wizard-live': WizardLive,
+  'cicd-preview': CicdPreview,
+  observability: Observability,
+  'console-project': ConsoleProject,
+  'incident-detect': IncidentDetect,
+  'incident-correlate': IncidentCorrelate,
+  'incident-handoff': IncidentHandoff,
+  'incident-recover': IncidentRecover,
+  remediation: Remediation,
+  security: Security,
+  costs: Costs
+};
+
+const day0 = ROWS.filter((row) => row.day === 0);
+const day1 = ROWS.filter((row) => row.day === 1);
+---
+
+<section class="sp-journey" aria-label="The customer journey">
+  <DayBand day={0} />
+  {
+    day0.map((row) => {
+      const Preview = previews[row.preview];
+      return (
+        <JourneyRow row={row}>
+          <Preview />
+        </JourneyRow>
+      );
+    })
+  }
+  <DayBand day={1} />
+  {
+    day1.map((row) => {
+      const Preview = previews[row.preview];
+      return (
+        <JourneyRow row={row}>
+          <Preview />
+        </JourneyRow>
+      );
+    })
+  }
+</section>
+
+<script>
+  const rows = Array.from(document.querySelectorAll<HTMLElement>('[data-sp-row]'));
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (!('IntersectionObserver' in window)) {
+    for (const row of rows) row.classList.add('is-revealed');
+  } else {
+    // Reveal once.
+    const reveal = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          entry.target.classList.add('is-revealed');
+          reveal.unobserve(entry.target);
+        }
+      },
+      { rootMargin: '0px 0px -8% 0px', threshold: 0.02 }
+    );
+
+    // Seam glow for the row crossing the middle of the viewport.
+    const active = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) entry.target.classList.toggle('is-active', entry.isIntersecting);
+      },
+      { rootMargin: '-42% 0px -42% 0px', threshold: 0 }
+    );
+
+    for (const row of rows) {
+      reveal.observe(row);
+      active.observe(row);
+    }
+
+    // Running counters. With reduced motion the server-rendered totals stay as they are.
+    if (!reduced) {
+      const counters = {
+        you: Array.from(document.querySelectorAll<HTMLElement>('[data-sp-counter="you"]')),
+        stacktape: Array.from(document.querySelectorAll<HTMLElement>('[data-sp-counter="stacktape"]'))
+      };
+      const bumpTimers = new WeakMap<HTMLElement, ReturnType<typeof setTimeout>>();
+
+      const paint = (elements: HTMLElement[], value: number) => {
+        for (const element of elements) {
+          const next = String(value);
+          if (element.textContent === next) continue;
+          element.textContent = next;
+          element.classList.add('is-bump');
+          const previous = bumpTimers.get(element);
+          if (previous) clearTimeout(previous);
+          bumpTimers.set(
+            element,
+            setTimeout(() => element.classList.remove('is-bump'), 220)
+          );
+        }
+      };
+
+      // A row counts once its top has crossed the upper 55% of the viewport. Recounting every row on
+      // scroll (one frame at a time) means a jump, an anchor link or a restored scroll position cannot
+      // skip rows the way an intersection-only approach would.
+      let scheduled = false;
+      const recount = () => {
+        scheduled = false;
+        const line = window.innerHeight * 0.55;
+        let you = 0;
+        let stacktape = 0;
+        for (const row of rows) {
+          if (row.getBoundingClientRect().top >= line) continue;
+          you += Number(row.dataset.you ?? 0);
+          stacktape += Number(row.dataset.stacktape ?? 0);
+        }
+        paint(counters.you, you);
+        paint(counters.stacktape, stacktape);
+      };
+      const schedule = () => {
+        if (scheduled) return;
+        scheduled = true;
+        window.requestAnimationFrame(recount);
+      };
+
+      window.addEventListener('scroll', schedule, { passive: true });
+      window.addEventListener('resize', schedule, { passive: true });
+      recount();
+    }
+  }
+</script>

@@ -1,0 +1,44 @@
+---
+/** 01 — the wizard's review: the resource list with its reasons and prices on the left, the picture on the right, the estimate and Deploy below. */
+import { ACME_CONFIG, DIAGRAM_LABEL, REVIEW } from '../data';
+import DiagramIsland from '../DiagramIsland';
+import { PreviewButton } from '../ui';
+import Window from '../Window.astro';
+---
+
+<Window kind="browser" title={REVIEW.url} lock={false} class="sh-window--review">
+  <div class="sh-rv">
+    <div class="sh-screen__head">
+      <h3 class="sh-screen__h">{REVIEW.heading}</h3>
+      <p class="sh-screen__sub">{REVIEW.line}</p>
+    </div>
+
+    <div class="sh-rv__focal">
+      <ul class="sh-rv__list" aria-label="Resources">
+        {
+          REVIEW.rows.map((row) => (
+            <li class="sh-rv__row">
+              <span class={`sh-kind sh-kind--${row.kind}`} aria-hidden="true" />
+              <span class="sh-rv__main">
+                <span class="sh-rv__name">{row.name}</span>
+                <span class="sh-rv__type">{row.type}</span>
+              </span>
+              <span class="sh-rv__price">{row.price}</span>
+              <span class="sh-rv__because">{row.because}</span>
+            </li>
+          ))
+        }
+      </ul>
+      <div class="sh-rv__picture">
+        <DiagramIsland client:only="react" config={ACME_CONFIG} ariaLabel={DIAGRAM_LABEL} />
+      </div>
+    </div>
+
+    <div class="sh-rv__foot">
+      <p class="sh-rv__estimate">
+        <b>{REVIEW.footer.resources}</b> <span class="sh-screen__sep" aria-hidden="true">·</span> <b>{REVIEW.footer.monthly}</b>
+      </p>
+      <PreviewButton variant="primary" icon="arrow" iconPosition="end">{REVIEW.deploy}</PreviewButton>
+    </div>
+  </div>
+</Window>

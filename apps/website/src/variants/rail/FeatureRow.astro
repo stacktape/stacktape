@@ -1,0 +1,63 @@
+---
+/**
+ * One row down the seam. Left: the reader's part as a serif statement and a checklist (ticks for the
+ * things they do, a dash for nothing). Right: the meta-feature, its plain explanation, and the preview.
+ */
+import type { Feature } from './data';
+import Check from './Check.astro';
+
+type Props = { feature: Feature };
+
+const { feature } = Astro.props;
+const nothing = feature.items.length === 0;
+const titleId = `f-${feature.id}-title`;
+---
+
+<article class="rl-row rl-split" id={`f-${feature.id}`} data-rl-row aria-labelledby={titleId}>
+  <span class="rl-row__pin" aria-hidden="true">{feature.number}</span>
+  <div class="rl-cell rl-cell--you rl-cell--rule">
+    <div class="rl-cell__in">
+      <div class="rl-you">
+        <p class="rl-you__chapter">
+          <span class="rl-you__who">You</span>
+          <span class="rl-you__num">{feature.number}</span>
+          <span>{feature.chapter}</span>
+        </p>
+        <p class={nothing ? 'rl-you__statement rl-you__statement--nothing' : 'rl-you__statement'}>{feature.statement}</p>
+        <ul class="rl-checklist" aria-label="Your part">
+          {
+            nothing ? (
+              <li class="is-nothing">
+                <span class="rl-checklist__dash" aria-hidden="true">
+                  —
+                </span>
+                <span>nothing to do</span>
+              </li>
+            ) : (
+              feature.items.map((item) => (
+                <li class={item.done ? 'is-done' : 'is-maybe'}>
+                  <Check kind={item.done ? 'brand' : 'maybe'} label={item.done ? 'You do this' : 'Only if needed'} />
+                  {item.code ? <code>{item.text}</code> : <span>{item.text}</span>}
+                </li>
+              ))
+            )
+          }
+        </ul>
+        {feature.note && <p class="rl-you__note">{feature.note}</p>}
+      </div>
+    </div>
+  </div>
+  <div class="rl-cell rl-cell--stp rl-cell--rule">
+    <div class="rl-cell__in">
+      <header class="rl-feat">
+        <p class="rl-feat__kicker rl-mono">
+          <span class="rl-feat__who">Stacktape</span>
+          {feature.number} · {feature.chapter}
+        </p>
+        <h2 class="rl-feat__name" id={titleId}>{feature.name}</h2>
+        <p class="rl-feat__explain">{feature.explain}</p>
+      </header>
+      <slot />
+    </div>
+  </div>
+</article>

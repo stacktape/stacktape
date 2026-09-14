@@ -1,0 +1,400 @@
+---
+// concept: The page reads like the runbook a senior DevOps engineer would leave behind, except every step is already done by Stacktape: a single calm column of numbered sections, each with a status line saying who does it, a plain explanation, and a wide figure that recreates the product screen for that step.
+// copy-angle: Say what Stacktape is in the first two sentences, put the whole job on the first screen as a six-line contents block, then explain each step in the reader's words (private network, permissions, environment) with the example project acme-project carried through every figure.
+import BaseLayout from '../layouts/BaseLayout.astro';
+import CommandBox from '../variants/runbook/CommandBox.astro';
+import FigCosts from '../variants/runbook/FigCosts.astro';
+import FigIncident from '../variants/runbook/FigIncident.astro';
+import FigReview from '../variants/runbook/FigReview.astro';
+import FigSecurity from '../variants/runbook/FigSecurity.astro';
+import FigShip from '../variants/runbook/FigShip.astro';
+import FigWatch from '../variants/runbook/FigWatch.astro';
+import Figure from '../variants/runbook/Figure.astro';
+import SiteFooter from '../variants/runbook/SiteFooter.astro';
+import SiteNav from '../variants/runbook/SiteNav.astro';
+import '../variants/runbook/runbook.css';
+
+type Step = { id: string; num: string; name: string; what: string; tag: string; you: boolean };
+
+const STEPS: Step[] = [
+  { id: 'designs', num: '01', name: 'Designs your infrastructure', what: 'reads your code, writes the setup, you review it', tag: 'you: 1 step', you: true },
+  { id: 'ships', num: '02', name: 'Ships it', what: 'builds and deploys; after that, every push deploys', tag: 'you: 1 step', you: true },
+  { id: 'watches', num: '03', name: 'Watches it', what: 'metrics, logs, traces and uptime, wired up by the deploy', tag: 'automated', you: false },
+  { id: 'incidents', num: '04', name: 'Handles incidents', what: 'finds the release that broke it, hands your agent the fix', tag: 'you: approve', you: true },
+  { id: 'secures', num: '05', name: 'Secures it', what: 'private network, least privilege, scans and guardrails', tag: 'automated', you: false },
+  { id: 'costs', num: '06', name: 'Keeps costs in check', what: 'per-resource costs, a budget that warns you', tag: 'you: 1 step', you: true }
+];
+
+const next = (index: number) => STEPS[index + 1];
+
+const QUOTES = [
+  {
+    text: 'With Stacktape, we fast-tracked our AWS deployment process. Our development and production environments were operational in just two days.',
+    who: 'Eric Allam, CTO & Founder, Trigger.dev',
+    fact: 'Series A startup, London · runs ECS + Aurora PostgreSQL on Stacktape'
+  },
+  {
+    text: 'They abstract away so much of the complexity of AWS, and let us focus on our application logic, instead of infrastructure configuration.',
+    who: 'Henry Garrett, Founding Engineer, Receipts',
+    fact: 'Early-stage startup, US · runs ECS + Lambda + RDS + SQS'
+  },
+  {
+    text: 'It’s allowed our small team to efficiently handle environments using GitOps, all while keeping a tight rein on costs.',
+    who: 'Rhys Williams, CTO & Founder, Lastmyle',
+    fact: 'Early-stage startup, New Zealand · GitOps with Java, Node.js, Next.js'
+  }
+];
+---
+
+<BaseLayout
+  title="AWS DevOps, fully automated — Stacktape"
+  description="Stacktape puts your app on your own AWS account and does the DevOps work for you: it reads your code, sets up the infrastructure, deploys, and keeps the app running — monitored, secured, and within budget."
+  htmlClass="rb-root"
+>
+  <Fragment slot="head">
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap"
+    />
+    <script is:inline>document.documentElement.classList.add('rb-js');</script>
+  </Fragment>
+
+  <SiteNav />
+
+  <main>
+    <header class="rb-hero" id="top">
+      <p class="rb-eyebrow">Like a PaaS, but in your own AWS account</p>
+      <h1 class="rb-h1">AWS DevOps, fully&nbsp;automated.</h1>
+      <p class="rb-lede">
+        <strong>Stacktape puts your app on your own AWS account and does the DevOps work for you.</strong> It reads your
+        code, sets up the infrastructure, deploys, and then keeps the app running: monitored, secured, and within budget.
+      </p>
+      <div class="rb-hero__cta">
+        <CommandBox label="Get started" />
+      </div>
+      <p class="rb-hero__note">
+        Open-source CLI (MIT) with a hosted Console. The command reads your project on your machine; nothing is created
+        in AWS until you press Deploy.
+      </p>
+
+      <nav class="rb-toc" aria-label="Contents">
+        <div class="rb-toc__head">
+          <span>Contents — the whole DevOps job, in six steps</span>
+          <span>who does it</span>
+        </div>
+        <ol class="rb-toc__list">
+          {
+            STEPS.map((step) => (
+              <li>
+                <a class="rb-toc__row" href={`#${step.id}`}>
+                  <span class="rb-toc__num">{step.num}</span>
+                  <span>
+                    <span class="rb-toc__name">{step.name}</span>
+                    <span class="rb-toc__what"> — {step.what}</span>
+                  </span>
+                  <span class:list={['rb-tag', { 'rb-tag--you': step.you }]}>{step.tag}</span>
+                </a>
+              </li>
+            ))
+          }
+        </ol>
+      </nav>
+    </header>
+
+    <nav class="rb-mini" aria-label="Sections" data-rb-mini>
+      {
+        STEPS.map((step) => (
+          <a class="rb-mini__link" href={`#${step.id}`}>
+            {step.num}
+            <span class="rb-mini__label">{step.name}</span>
+          </a>
+        ))
+      }
+    </nav>
+
+    <div class="rb-steps" data-rb-steps>
+      <!-- 01 -->
+      <section class="rb-step" id="designs" aria-labelledby="h-designs">
+        <div class="rb-step__text">
+          <span class="rb-step__num" aria-hidden="true">01</span>
+          <h2 class="rb-step__title" id="h-designs">Designs your infrastructure</h2>
+          <p class="rb-step__status">
+            <span class="rb-tag">Automated</span>
+            <span class="rb-tag rb-tag--you">You: 1 step</span>
+            <span>run one command, then read what it decided</span>
+          </p>
+          <div class="rb-step__body">
+            <p>
+              Stacktape reads your repository, on your machine, and works out what your app needs on AWS: where each part
+              runs, its database, cache and queues, and how they connect. It writes that down as one file you can read,
+              <code>stacktape.yml</code>, with the production defaults you would otherwise have to know: a private network
+              (the database gets no public address), least-privilege permissions (each part may reach only what it
+              needs), and backups. Nothing is created in AWS until you say so.
+            </p>
+            <p class="rb-step__you">
+              <strong>What you do.</strong> Run <code>npx stacktape init</code>. A wizard opens in your browser, shows what
+              it decided, and lets you change any decision with one click.
+            </p>
+          </div>
+        </div>
+        <Figure n={1}>
+          <FigReview />
+          <Fragment slot="caption">
+            the wizard's Review screen: the file Stacktape wrote and the AWS architecture it describes, in one window. Drag
+            the divider to see more of either. Below, the decisions it made for you and the estimated price.
+          </Fragment>
+        </Figure>
+      </section>
+      <div class="rb-next" aria-hidden="true">next <span class="rb-next__to">{next(0)?.num} · {next(0)?.name}</span></div>
+
+      <!-- 02 -->
+      <section class="rb-step" id="ships" aria-labelledby="h-ships">
+        <div class="rb-step__text">
+          <span class="rb-step__num" aria-hidden="true">02</span>
+          <h2 class="rb-step__title" id="h-ships">Ships it</h2>
+          <p class="rb-step__status">
+            <span class="rb-tag">Automated</span>
+            <span class="rb-tag rb-tag--you">You: 1 step</span>
+            <span>press Deploy once, then push code</span>
+          </p>
+          <div class="rb-step__body">
+            <p>
+              Stacktape builds your containers and functions from source and deploys them into your AWS account. AWS
+              creates the resources from a plain CloudFormation template, so nothing custom runs underneath. After the
+              first deploy, every push to your main branch deploys, and every pull request gets its own preview
+              environment: a separate copy of the app with its own URL, deleted when the pull request closes. Deploys are
+              zero-downtime and can be rolled back.
+            </p>
+            <p class="rb-step__you"><strong>What you do.</strong> Press Deploy once. From then on, push code.</p>
+          </div>
+        </div>
+        <Figure n={2}>
+          <FigShip />
+          <Fragment slot="caption">
+            the project page in the Console: two environments, deploy #42 running in production after a push to
+            <code class="rb-code">main</code>, and the preview environment pull request #128 got on its own.
+          </Fragment>
+        </Figure>
+      </section>
+      <div class="rb-next" aria-hidden="true">next <span class="rb-next__to">{next(1)?.num} · {next(1)?.name}</span></div>
+
+      <!-- 03 -->
+      <section class="rb-step" id="watches" aria-labelledby="h-watches">
+        <div class="rb-step__text">
+          <span class="rb-step__num" aria-hidden="true">03</span>
+          <h2 class="rb-step__title" id="h-watches">Watches it</h2>
+          <p class="rb-step__status">
+            <span class="rb-tag">Automated</span>
+            <span>you: nothing; look when you want to</span>
+          </p>
+          <div class="rb-step__body">
+            <p>
+              Metrics, logs, traces, uptime checks and alarms are wired up by the deploy itself. There are no agents to
+              install and no dashboards to build. A trace shows one request step by step, so a slow page points at the
+              query that made it slow. Everything is read from your own AWS account, so the numbers you see are the
+              numbers AWS sees.
+            </p>
+            <p class="rb-step__you">
+              <strong>What you do.</strong> Nothing. Look when you want to; an alarm tells you when you should.
+            </p>
+          </div>
+        </div>
+        <Figure n={3}>
+          <FigWatch />
+          <Fragment slot="caption">
+            production monitoring for apiService: request rate, latency and errors, one request traced step by step,
+            uptime from three regions, and the live log.
+          </Fragment>
+        </Figure>
+      </section>
+      <div class="rb-next" aria-hidden="true">next <span class="rb-next__to">{next(2)?.num} · {next(2)?.name}</span></div>
+
+      <!-- 04 -->
+      <section class="rb-step" id="incidents" aria-labelledby="h-incidents">
+        <div class="rb-step__text">
+          <span class="rb-step__num" aria-hidden="true">04</span>
+          <h2 class="rb-step__title" id="h-incidents">Handles incidents</h2>
+          <p class="rb-step__status">
+            <span class="rb-tag">Automated</span>
+            <span class="rb-tag rb-tag--you">You: approve</span>
+            <span>respond only when a human is needed</span>
+          </p>
+          <div class="rb-step__body">
+            <p>
+              When something breaks, Stacktape opens an incident from the signals it already watches: a failed uptime
+              check, a burst of errors, an alarm. It tells you which release caused it and what changed, and packages
+              everything a coding agent needs to fix it: the release diff, the evidence, the timeline. You review the fix;
+              nothing reaches production without your approval. Letting an agent fix and deploy on its own is opt-in and
+              off by default.
+            </p>
+            <p class="rb-step__you"><strong>What you do.</strong> Respond only when a human is needed.</p>
+          </div>
+        </div>
+        <Figure n={4}>
+          <FigIncident />
+          <Fragment slot="caption">
+            the incident page four minutes after deploy v41, with the release that caused it, the handoff for your coding
+            agent, the autonomous-fix switch off, and the timeline to "recovered".
+          </Fragment>
+        </Figure>
+      </section>
+      <div class="rb-next" aria-hidden="true">next <span class="rb-next__to">{next(3)?.num} · {next(3)?.name}</span></div>
+
+      <!-- 05 -->
+      <section class="rb-step" id="secures" aria-labelledby="h-secures">
+        <div class="rb-step__text">
+          <span class="rb-step__num" aria-hidden="true">05</span>
+          <h2 class="rb-step__title" id="h-secures">Secures it</h2>
+          <p class="rb-step__status">
+            <span class="rb-tag">Automated</span>
+            <span>you: nothing; turn on stricter rules if you want them</span>
+          </p>
+          <div class="rb-step__body">
+            <p>
+              Least-privilege permissions, private networking and managed secrets are the defaults of the generated
+              setup, not options you have to find. Guardrails are organization-wide rules that block a risky change
+              before it deploys. What you ship is scanned for known vulnerabilities, with a fix pull request opened where
+              there is one.
+            </p>
+            <p class="rb-step__you">
+              <strong>What you do.</strong> Nothing. Turn on stricter rules if you want them.
+            </p>
+          </div>
+        </div>
+        <Figure n={5}>
+          <FigSecurity />
+          <Fragment slot="caption">
+            security in the Console: posture with 27 of 30 checks passing, a vulnerability in the apiService image with
+            its fix pull request, and the guardrails that are on.
+          </Fragment>
+        </Figure>
+      </section>
+      <div class="rb-next" aria-hidden="true">next <span class="rb-next__to">{next(4)?.num} · {next(4)?.name}</span></div>
+
+      <!-- 06 -->
+      <section class="rb-step" id="costs" aria-labelledby="h-costs">
+        <div class="rb-step__text">
+          <span class="rb-step__num" aria-hidden="true">06</span>
+          <h2 class="rb-step__title" id="h-costs">Keeps costs in check</h2>
+          <p class="rb-step__status">
+            <span class="rb-tag">Automated</span>
+            <span class="rb-tag rb-tag--you">You: 1 step</span>
+            <span>set a budget once</span>
+          </p>
+          <div class="rb-step__body">
+            <p>
+              See what every resource costs, per project and environment, straight from your AWS bill. AWS bills you
+              directly; Stacktape only reads the numbers. Set a budget and you are warned before a surprise.
+            </p>
+            <p class="rb-step__you"><strong>What you do.</strong> Set a budget once.</p>
+          </div>
+        </div>
+        <Figure n={6}>
+          <FigCosts />
+          <Fragment slot="caption">
+            production costs for the month so far, per resource, with the $150 budget and its 80% warning.
+          </Fragment>
+        </Figure>
+      </section>
+    </div>
+
+    <section class="rb-close" aria-labelledby="h-close">
+      <h2 class="rb-close__title" id="h-close">That is the whole DevOps job.</h2>
+      <p class="rb-close__lead">
+        One command reads your code and writes the setup. One press deploys it. Everything after that is done for you,
+        in your own AWS account.
+      </p>
+      <div class="rb-close__cta">
+        <CommandBox label="Get started" />
+      </div>
+      <p class="rb-close__trust">
+        Open-source CLI (MIT). Plain CloudFormation in your own AWS account. Extend with any AWS resource. Eject anytime.
+      </p>
+      <p class="rb-close__signin">Already using it? <a href="https://console.stacktape.com">Sign in to the Console</a></p>
+    </section>
+
+    <section class="rb-quotes" aria-label="What teams say">
+      {
+        QUOTES.map((quote) => (
+          <blockquote class="rb-quote">
+            <p class="rb-quote__text">“{quote.text}”</p>
+            <footer>
+              <p class="rb-quote__who">{quote.who}</p>
+              <p class="rb-quote__fact">{quote.fact}</p>
+            </footer>
+          </blockquote>
+        ))
+      }
+    </section>
+  </main>
+
+  <SiteFooter />
+</BaseLayout>
+
+<script>
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const canObserve = 'IntersectionObserver' in window;
+
+  // Figures fade in as they enter; reduced motion (or no observer) shows them at once.
+  const figures = Array.from(document.querySelectorAll<HTMLElement>('[data-rb-figure]'));
+  if (reduceMotion || !canObserve) {
+    figures.forEach((figure) => figure.classList.add('is-in'));
+  } else {
+    const reveal = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          entry.target.classList.add('is-in');
+          reveal.unobserve(entry.target);
+        });
+      },
+      { rootMargin: '0px 0px -8% 0px' }
+    );
+    figures.forEach((figure) => reveal.observe(figure));
+  }
+
+  // The mini contents: shown once the hero has scrolled away and while the numbered sections are on
+  // screen, with the current one marked.
+  const mini = document.querySelector<HTMLElement>('[data-rb-mini]');
+  const hero = document.querySelector<HTMLElement>('.rb-hero');
+  const steps = document.querySelector<HTMLElement>('[data-rb-steps]');
+  const sections = Array.from(document.querySelectorAll<HTMLElement>('.rb-step'));
+  const links = mini ? Array.from(mini.querySelectorAll<HTMLAnchorElement>('a')) : [];
+
+  if (mini && hero && steps && canObserve) {
+    let heroGone = false;
+    let stepsShown = false;
+    const show = () => mini.classList.toggle('is-visible', heroGone && stepsShown);
+    new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        heroGone = !entry.isIntersecting;
+      });
+      show();
+    }).observe(hero);
+    new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        stepsShown = entry.isIntersecting;
+      });
+      show();
+    }).observe(steps);
+
+    const mark = (id: string) => {
+      links.forEach((link) => {
+        const active = link.getAttribute('href') === `#${id}`;
+        link.classList.toggle('is-active', active);
+        if (active) link.setAttribute('aria-current', 'true');
+        else link.removeAttribute('aria-current');
+      });
+    };
+
+    const current = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) mark(entry.target.id);
+        });
+      },
+      { rootMargin: '-30% 0px -60% 0px' }
+    );
+    sections.forEach((section) => current.observe(section));
+  }
+</script>

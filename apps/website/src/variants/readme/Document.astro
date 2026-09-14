@@ -1,0 +1,143 @@
+---
+/**
+ * The README itself, in reading order: the title with its badges, the v4 note, the tagline and
+ * the description, the cover, Install, the seven things with their screenshots, the teams, Start
+ * and License. Every element is a markdown construct a README renderer would draw.
+ */
+import Cover from '../../components/Cover.astro';
+import { CodeBlock } from './CodeBlock';
+import {
+  ANNOUNCEMENT,
+  BADGES,
+  CAPTIONS,
+  CLOSING,
+  COVER_CAPTION,
+  HEADLINE,
+  LICENSE,
+  SECTIONS,
+  type Section as SectionData,
+  SIGN_IN,
+  SUBHEADLINE,
+  TESTIMONIALS,
+  TESTIMONIALS_TITLE,
+  TRUST_CHIPS
+} from './data';
+import Figure from './Figure.astro';
+import Section from './Section.astro';
+import Costs from './screens/Costs.astro';
+import Deploys from './screens/Deploys.astro';
+import Diagram from './screens/Diagram.astro';
+import Editor from './screens/Editor.astro';
+import Incidents from './screens/Incidents.astro';
+import Monitors from './screens/Monitors.astro';
+import Packages from './screens/Packages.astro';
+import Secures from './screens/Secures.astro';
+
+const trustLabel = TRUST_CHIPS.join(', ');
+
+/**
+ * The screenshots under each section, in order. Section 01 shows the editor with its callouts (a
+ * composition that brings its own rim, so the figure is plain) and the diagram.
+ */
+const FIGURES: Record<SectionData['id'], readonly { screen: typeof Editor; caption: string; plain?: boolean }[]> = {
+  designs: [
+    { screen: Editor, caption: CAPTIONS.editor, plain: true },
+    { screen: Diagram, caption: CAPTIONS.diagram }
+  ],
+  packages: [{ screen: Packages, caption: CAPTIONS.build }],
+  deploys: [{ screen: Deploys, caption: CAPTIONS.deployments }],
+  monitors: [{ screen: Monitors, caption: CAPTIONS.monitoring }],
+  secures: [{ screen: Secures, caption: CAPTIONS.security }],
+  incidents: [{ screen: Incidents, caption: CAPTIONS.incident }],
+  costs: [{ screen: Costs, caption: CAPTIONS.costs }]
+};
+---
+
+<article class="rm-doc" aria-labelledby="rm-title">
+  <h1 class="rm-h1" id="rm-title">
+    <span>Stacktape</span>
+    <span class="rm-badges" aria-label="npm v4.0.0, license MIT, checks passing">
+      {
+        BADGES.map((badge) => (
+          <span class={`rm-badge rm-badge--${badge.tone}`}>
+            <span class="rm-badge__k">{badge.label}</span>
+            <span class="rm-badge__v">{badge.value}</span>
+          </span>
+        ))
+      }
+    </span>
+  </h1>
+
+  <blockquote class="rm-quote rm-quote--note">
+    <p>
+      <b>{ANNOUNCEMENT.text} {ANNOUNCEMENT.accent}</b> <span class="rm-quote__sep" aria-hidden="true">·</span>{' '}
+      <a href={ANNOUNCEMENT.href}>{ANNOUNCEMENT.cta} <span class="rm-arrow" aria-hidden="true">→</span></a>
+    </p>
+  </blockquote>
+
+  <p class="rm-tagline">{HEADLINE}</p>
+  <p class="rm-p rm-lead">{SUBHEADLINE}</p>
+
+  <Figure caption={COVER_CAPTION} plain class="rm-cover">
+    <Cover />
+  </Figure>
+
+  <h2 class="rm-h2" id="install">Install</h2>
+  <CodeBlock client:load id="get-started" label="Install" />
+  <ul class="rm-chips" aria-label={trustLabel}>
+    {TRUST_CHIPS.map((chip) => <li class="rm-chip">{chip}</li>)}
+  </ul>
+
+  <h2 class="rm-h2" id="what-stacktape-does">What Stacktape does</h2>
+  <ol class="rm-toc" aria-label="Contents">
+    {
+      SECTIONS.map((section) => (
+        <li>
+          <a href={`#${section.id}`}>
+            <span class="rm-toc__num">{section.number}</span>
+            {section.name}
+          </a>
+        </li>
+      ))
+    }
+  </ol>
+
+  {
+    SECTIONS.map((section) => (
+      <Section section={section}>
+        {FIGURES[section.id].map(({ screen: Screen, caption, plain }) => (
+          <Figure caption={caption} plain={plain}>
+            <Screen />
+          </Figure>
+        ))}
+      </Section>
+    ))
+  }
+
+  <h2 class="rm-h2" id="teams">{TESTIMONIALS_TITLE}</h2>
+  {
+    TESTIMONIALS.map((voice) => (
+      <blockquote class="rm-quote rm-quote--voice">
+        <p>{voice.quote}</p>
+        <footer>
+          <span aria-hidden="true">— </span>
+          <b>{voice.name}</b>, {voice.role}
+        </footer>
+      </blockquote>
+    ))
+  }
+
+  <h2 class="rm-h2" id="start">{CLOSING.title}</h2>
+  <p class="rm-p">{CLOSING.text}</p>
+  <CodeBlock client:load label="Start" hint={false} />
+  <ul class="rm-chips" aria-label={trustLabel}>
+    {TRUST_CHIPS.map((chip) => <li class="rm-chip">{chip}</li>)}
+  </ul>
+  <p class="rm-p rm-signin-line">{SIGN_IN.before} <a href={SIGN_IN.href}>{SIGN_IN.link}</a>.</p>
+
+  <h2 class="rm-h2" id="license">License</h2>
+  <p class="rm-p">
+    The CLI is open source under the <a href={LICENSE.cli.href}>MIT license</a>. The Console is a hosted service with a
+    free plan; see <a href={LICENSE.console.href}>pricing</a>.
+  </p>
+</article>

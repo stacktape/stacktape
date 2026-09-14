@@ -1,0 +1,67 @@
+---
+/** 03 — apiService in production: three metric tiles, one request followed through the services, one uptime line. */
+import { ALERTS, METRICS, sparkline, TRACE, UPTIME } from '../data';
+import Screen from '../Screen.astro';
+import { StatusBadge } from '../ui';
+
+const pct = (ms: number) => `${((ms / TRACE.total) * 100).toFixed(2)}%`;
+---
+
+<Screen kind="console" current="apiService">
+  <div class="dk-tiles">
+    {
+      METRICS.map((metric) => (
+        <div class="dk-tile">
+          <p class="dk-tile__label">{metric.label}</p>
+          <p class="dk-tile__value">
+            {metric.value}<span class="dk-tile__unit">{metric.unit}</span>
+          </p>
+          <svg class="dk-spark" viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true">
+            <polyline points={sparkline(metric.points)} fill="none" stroke="currentColor" stroke-width="1.6" vector-effect="non-scaling-stroke" />
+          </svg>
+        </div>
+      ))
+    }
+  </div>
+
+  <div class="dk-trace">
+    <p class="dk-trace__head">
+      <span class="dk-mono">{TRACE.name}</span>
+      <span class="dk-trace__total">{TRACE.total} ms</span>
+    </p>
+    <ol class="dk-trace__spans" aria-label="Spans">
+      {
+        TRACE.spans.map((span) => (
+          <li class={`dk-span dk-span--${span.kind}`}>
+            <span class="dk-span__name">{span.name}</span>
+            <span class="dk-span__lane">
+              <span class="dk-span__bar" style={`left: ${pct(span.start)}; width: max(${pct(span.duration)}, 3px)`} />
+            </span>
+            <span class="dk-span__ms">{span.duration} ms</span>
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+
+  <div class="dk-mon__foot">
+    <p class="dk-uptime">
+      <span class="dk-uptime__url">{UPTIME.url}</span>
+      <StatusBadge tone="success" dot>Up</StatusBadge>
+      {
+        UPTIME.regions.map((check) => (
+          <span class="dk-uptime__region">
+            {check.region} <span class="dk-mono">{check.latency}</span>
+          </span>
+        ))
+      }
+      <span class="dk-uptime__total">{UPTIME.thirtyDay}</span>
+    </p>
+    <p class="dk-mon__alerts">
+      <span class="dk-chip">
+        <span class="dk-chip__dot" aria-hidden="true"></span>
+        {ALERTS}
+      </span>
+    </p>
+  </div>
+</Screen>

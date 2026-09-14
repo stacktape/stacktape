@@ -1,0 +1,49 @@
+---
+/** 03 — the deployments list: a canary rolling out, the live release under it, and a pull request's preview. */
+import { DEPLOYMENTS, URLS } from '../data';
+import { PreviewButton, StatusBadge } from '../ui';
+import Window from '../Window.astro';
+---
+
+<Window kind="browser" url={URLS.deployments}>
+  <div class="ls-scr__head">
+    <p class="ls-scr__h">{DEPLOYMENTS.heading}</p>
+    <p class="ls-scr__sub">{DEPLOYMENTS.line}</p>
+  </div>
+
+  <ul class="ls-dep" aria-label="Deployments">
+    {
+      DEPLOYMENTS.rows.map((row) => (
+        <li class="ls-dep__row">
+          <div class="ls-dep__top">
+            <span class="ls-dep__id">{row.id}</span>
+            {'ref' in row && <span class="ls-dep__ref">{row.ref}</span>}
+            {'message' in row && <span class="ls-dep__msg">“{row.message}”</span>}
+            <span class="ls-dep__badge">
+              <StatusBadge tone={row.tone} dot={row.tone !== 'info'}>
+                {row.badge}
+              </StatusBadge>
+            </span>
+          </div>
+          {'traffic' in row && (
+            <div class="ls-dep__traffic">
+              <span class="ls-dep__lane" aria-hidden="true">
+                <span class="ls-dep__fill" style={`width: ${row.traffic.percent}%`} />
+              </span>
+              <span class="ls-dep__shift">
+                {row.traffic.from} → {row.traffic.to}
+              </span>
+              <span class="ls-dep__note">{row.traffic.note}</span>
+              <span class="ls-dep__action">
+                <PreviewButton variant="secondary" small>
+                  {row.action}
+                </PreviewButton>
+              </span>
+            </div>
+          )}
+          {'url' in row && <p class="ls-dep__url">{row.url}</p>}
+        </li>
+      ))
+    }
+  </ul>
+</Window>

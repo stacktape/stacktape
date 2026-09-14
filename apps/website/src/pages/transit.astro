@@ -1,0 +1,39 @@
+---
+// concept: An operations board in the hero tells one example account's whole DevOps day in eight lines, then the customer journey is drawn as a transit map — Line 0 "Day 0" and Line 1 "Day 1" meeting at the Deploy interchange, with the real product UI at every station and an amber branch for the incident.
+// copy-angle: "AWS DevOps, fully automated" is stated plainly and then proven station by station; the agent handoff is one stop on the incident branch, and automatic remediation is shown as an opt-in switch that is off.
+import BaseLayout from '../layouts/BaseLayout.astro';
+import TrClosing from '../variants/transit/TrClosing.astro';
+import TrFooter from '../variants/transit/TrFooter.astro';
+import TrHero from '../variants/transit/TrHero.astro';
+import TrJourney from '../variants/transit/TrJourney.astro';
+import TrNav from '../variants/transit/TrNav.astro';
+import TrTestimonials from '../variants/transit/TrTestimonials.astro';
+import '../variants/transit/transit.css';
+---
+
+<BaseLayout
+  title="Stacktape — AWS DevOps, fully automated"
+  description="Stacktape reads your codebase, writes the infrastructure configuration, and runs deployment and operations in your own AWS account."
+  htmlClass="tr-html"
+>
+  <Fragment slot="head">
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=DM+Sans:wght@400;500&family=DM+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+  </Fragment>
+  <div class="tr-root">
+    <TrNav />
+    <main>
+      <TrHero />
+      <TrJourney />
+      <TrTestimonials />
+      <TrClosing />
+    </main>
+    <TrFooter />
+  </div>
+</BaseLayout>
+
+<script>
+  import '../variants/transit/client';
+</script>

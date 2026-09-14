@@ -1,0 +1,94 @@
+---
+/** 06 Incident: detection, release correlation, agent handoff, verified recovery, and the opt-in switch OFF. */
+import ConsoleShell from './ConsoleShell.astro';
+import Icon from '../Icon.astro';
+import { APP, INCIDENT } from '../data';
+
+type Props = { variant: 'sticky' | 'inline' };
+const { correlation } = INCIDENT;
+---
+
+<ConsoleShell active={['Observability/Incidents']} crumb={[APP.project, 'Incidents', INCIDENT.id]}>
+  <span slot="top-right" class="lp-p-chip">CLI · incidents:show</span>
+
+  <div class="lp-inc__chips">
+    <span class="lp-p-chip lp-p-chip--ok"><i class="lp-p-dot lp-p-dot--ok"></i>Resolved</span>
+    <span class="lp-p-chip lp-p-chip--err">{INCIDENT.severity}</span>
+    <span class="lp-p-chip">{INCIDENT.stage}</span>
+    <span class="lp-p-chip">opened 09:41 · 11 min</span>
+  </div>
+
+  <p class="lp-inc__release">
+    {correlation.opened} · <b>{correlation.release}</b> · <span class="lp-p-mono">{correlation.commit}</span> — {correlation.message} ·
+    previous release {correlation.previous} · {correlation.config} · <a>{correlation.changed}</a>
+  </p>
+
+  <div class="lp-p-h"><span>Signals</span><span class="lp-p-dim">2 · both recovered</span></div>
+  {
+    INCIDENT.signals.map((s) => (
+      <div class="lp-inc__signal">
+        <Icon name="alert" class="lp-ico--err" />
+        <div>
+          <strong>{s.kind}</strong>
+          <span>{s.detail}</span>
+        </div>
+      </div>
+    ))
+  }
+
+  <div class="lp-inc__actions">
+    <span class="lp-p-btn lp-p-btn--primary"><Icon name="copy" class="lp-ico--inline" />Copy details for agent</span>
+    <span class="lp-p-btn">Acknowledge</span>
+    <span class="lp-p-btn">Resolve</span>
+  </div>
+
+  <div class="lp-inc__cols">
+    <div>
+      <div class="lp-p-h"><span>Timeline</span></div>
+      <ul class="lp-timeline">
+        {
+          INCIDENT.timeline.map((e) => (
+            <li data-tone={e.tone}>
+              <time>{e.at}</time>
+              <span>{e.text}</span>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+    <div>
+      <div class="lp-p-h"><span>Recovery verified</span></div>
+      <div class="lp-p-panel lp-inc__verified">
+        <span class="lp-p-chip lp-p-chip--ok lp-p-chip--wrap">recovered on its own signals</span>
+        <span class="lp-p-mono lp-p-muted">{INCIDENT.recovery}</span>
+        <span class="lp-p-dim">Checked by the same signals that opened it.</span>
+      </div>
+      <div class="lp-inc__remed">
+        <span class="lp-p-switch" role="img" aria-label="Automatic remediation: off"><i></i></span>
+        <div>
+          {INCIDENT.remediation}
+          <span>{INCIDENT.remediationNote}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</ConsoleShell>
+
+<style>
+  .lp-inc__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  .lp-inc__verified {
+    display: grid;
+    gap: 5px;
+    font-size: 11px;
+  }
+
+  .lp-inc__verified .lp-p-chip {
+    justify-self: start;
+  }
+</style>

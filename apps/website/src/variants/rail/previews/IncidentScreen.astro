@@ -1,0 +1,94 @@
+---
+/** 04 · the incident page: signals, release correlation, the agent handoff, the timeline, the opt-in switch off. */
+import Check from '../Check.astro';
+import ConsoleNav from '../ConsoleNav.astro';
+import Frame from '../Frame.astro';
+
+const timeline = [
+  { t: '18:01', kind: 'ok', text: '<b>Deploy finished</b> · v41 · production · push to main' },
+  { t: '18:04', kind: 'amber', text: '<b>Alarm firing</b> · apiService 5xx rate above 1%' },
+  { t: '18:05', kind: 'err', text: '<b>Uptime check down</b> · https://api.acme.com/health · 3 of 3 regions' },
+  { t: '18:05', kind: 'err', text: '<b>Incident opened</b> · Error · sent to #ops on Slack' },
+  { t: '18:09', kind: 'amber', text: '<b>Details copied for agent</b> · by matus' },
+  { t: '18:11', kind: 'ok', text: '<b>Fix approved</b> · PR #129 · production: run the migration hook after deploy' },
+  { t: '18:13', kind: 'ok', text: '<b>v42 deployed</b> · production · through the normal pipeline' },
+  { t: '18:16', kind: 'ok', text: '<b>Resolved</b> · recovered on its own signals' }
+];
+---
+
+<Frame url="<b>console.stacktape.com</b> / acme-project / incidents / inc_8f2k">
+  <div class="rl-console">
+    <ConsoleNav active="Observability/Incidents" />
+    <div class="rl-console__main">
+      <p class="rl-crumb">Incidents · <b>inc_8f2k</b> · production</p>
+      <div class="rl-head">
+        <span class="rl-sev rl-sev--error">Error</span>
+        <span class="rl-sev rl-sev--resolved">Resolved</span>
+        <span class="rl-inc__id">inc_8f2k · production · opened 18:05 · resolved 18:16 · 11 min</span>
+      </div>
+      <h3 class="rl-h">apiService is failing on https://api.acme.com</h3>
+      <div class="rl-corr" role="note">
+        <b>Opened 4m after the last deploy</b> · v41 · commit a1b2c3d — orders: add fulfillment status column · previous release v40 ·
+        config unchanged · <span class="rl-link">what changed (3 commits)</span>
+      </div>
+
+      <div class="rl-two rl-gap">
+        <div>
+          <p class="rl-kicker">Signals</p>
+          <ul class="rl-signals" aria-label="Signals">
+            <li>
+              <Check kind="err" label="failing" />
+              <span>
+                <span class="rl-signals__t">Uptime check down</span>
+                <span class="rl-signals__d">https://api.acme.com/health · 3 of 3 regions · Ireland, Virginia, Singapore</span>
+              </span>
+            </li>
+            <li>
+              <Check kind="err" label="failing" />
+              <span>
+                <span class="rl-signals__t">Application error</span>
+                <span class="rl-signals__d">PrismaClientKnownRequestError: column "fulfillment_status" does not exist · apiService · 214 occurrences</span>
+              </span>
+            </li>
+          </ul>
+          <div class="rl-actions">
+            <span class="rl-wbtn rl-wbtn--sm">Copy details for agent</span>
+            <span class="rl-wbtn rl-wbtn--ghost rl-wbtn--sm">Acknowledge</span>
+          </div>
+          <p class="rl-p rl-small rl-gap-sm">
+            The copied bundle holds the release diff, the failing stack frames, the timeline and links scoped to this environment, plus a
+            four-step protocol that ends in <code>stacktape incidents:resolve</code>. Paste it into your coding agent.
+          </p>
+        </div>
+        <div>
+          <p class="rl-kicker">Timeline</p>
+          <ul class="rl-timeline">
+            {
+              timeline.map((event) => (
+                <li>
+                  <span class="rl-timeline__t">{event.t}</span>
+                  <span class={`rl-dot rl-dot--${event.kind}`} aria-hidden="true" />
+                  <span set:html={event.text} />
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+      </div>
+
+      <div class="rl-switchrow rl-gap">
+        <span>
+          <span class="rl-switchrow__t">Automatic remediation</span>
+          <span class="rl-switchrow__d">
+            Let an agent apply verified fixes and deploy them. Opt-in. Off by default. While it is off, the agent only proposes a pull request
+            and you approve it.
+          </span>
+        </span>
+        <span class="rl-switch" role="img" aria-label="Automatic remediation switch, off">
+          <span class="rl-switch__track" aria-hidden="true"></span>
+          <span aria-hidden="true">off</span>
+        </span>
+      </div>
+    </div>
+  </div>
+</Frame>

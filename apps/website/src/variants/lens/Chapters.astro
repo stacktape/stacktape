@@ -1,0 +1,97 @@
+---
+/**
+ * The seven chapters on the left, the rail on the boundary, the lens pinned on the right.
+ *
+ * Every screen is in the markup twice: once inside the lens and once inline inside its chapter.
+ * The stylesheet shows one set per breakpoint; nothing is cloned or moved by script. The observer
+ * below only says which chapter is in the middle of the viewport.
+ */
+import Chapter from './Chapter.astro';
+import { CHAPTERS } from './data';
+import Lens from './Lens.astro';
+import Rail from './Rail.astro';
+import Costs from './screens/Costs.astro';
+import Deploy from './screens/Deploy.astro';
+import Design from './screens/Design.astro';
+import Incident from './screens/Incident.astro';
+import Monitor from './screens/Monitor.astro';
+import Package from './screens/Package.astro';
+import Secure from './screens/Secure.astro';
+
+const screens = [Design, Package, Deploy, Monitor, Secure, Incident, Costs];
+---
+
+<section class="ls-chapters" aria-label="What Stacktape does">
+  <div class="ls-container ls-chapters__grid">
+    <div class="ls-chapters__flow">
+      {
+        CHAPTERS.map((chapter, i) => {
+          const Screen = screens[i]!;
+          return (
+            <Chapter chapter={chapter}>
+              <Screen />
+            </Chapter>
+          );
+        })
+      }
+    </div>
+    <div class="ls-chapters__rail">
+      <Rail />
+    </div>
+    <div class="ls-chapters__lens">
+      <Lens />
+    </div>
+  </div>
+</section>
+
+<script>
+  const lens = document.querySelector<HTMLElement>('[data-ls-lens]');
+  const rail = document.querySelector<HTMLElement>('[data-ls-rail]');
+  const dots = Array.from(document.querySelectorAll<HTMLElement>('[data-ls-dot]'));
+  const chapters = Array.from(document.querySelectorAll<HTMLElement>('[data-ls-chapter]'));
+  const screens = lens ? Array.from(lens.querySelectorAll<HTMLElement>('[data-screen]')) : [];
+  let current = 1;
+
+  // The lens takes the height of the screen it shows. The screens are laid out even while
+  // invisible, so the current one can be measured at any time; fonts, the diagram island and
+  // resizes all change that height, hence the observer below.
+  const fit = () => {
+    const screen = screens[current - 1];
+    if (!lens || !screen) return;
+    lens.style.setProperty('--ls-lens-h', `${screen.offsetHeight}px`);
+  };
+
+  const setCurrent = (index: number) => {
+    current = index;
+    fit();
+    lens?.setAttribute('data-current', String(index));
+    rail?.setAttribute('data-current', String(index));
+    for (const dot of dots) {
+      const own = Number(dot.dataset.lsDot);
+      dot.classList.toggle('is-current', own === index);
+      dot.classList.toggle('is-passed', own < index);
+      if (own === index) dot.setAttribute('aria-current', 'step');
+      else dot.removeAttribute('aria-current');
+    }
+  };
+
+  // The band is the middle tenth of the viewport: the chapter crossing it is the current one.
+  const observer = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const index = Number((entry.target as HTMLElement).dataset.lsChapter);
+        if (index) setCurrent(index);
+      }
+    },
+    { rootMargin: '-45% 0px -45%', threshold: 0 }
+  );
+
+  for (const chapter of chapters) observer.observe(chapter);
+
+  fit();
+  document.fonts?.ready.then(fit);
+  const sizes = new ResizeObserver(fit);
+  for (const screen of screens) sizes.observe(screen);
+  window.addEventListener('resize', fit, { passive: true });
+</script>

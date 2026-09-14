@@ -1,0 +1,56 @@
+---
+import Frame from '../Frame.astro';
+import WizardRail from '../WizardRail.astro';
+import { DEPLOY, PROJECT } from '../data';
+
+const packaged = DEPLOY.packaged.map((item) => `${item.name} ${item.time}`).join(' · ');
+---
+
+<Frame title="localhost · Put this project on AWS" tag="example project" tight>
+  <div class="pl-wizard">
+    <WizardRail active="Deploy" />
+    <div class="pl-wizard__main">
+      <h4 class="pl-wizard__title">Deploy</h4>
+      <p class="pl-wizard__text">{DEPLOY.intro}</p>
+      <ol class="pl-phases" aria-label="Deployment phases">
+        <li class="pl-phase pl-phase--done">
+          <span class="pl-phase__mark">✓</span>
+          <span class="pl-phase__name">Initialize</span>
+          <span class="pl-phase__detail">stack {PROJECT.name}-production · {PROJECT.region}</span>
+        </li>
+        <li class="pl-phase pl-phase--done">
+          <span class="pl-phase__mark">✓</span>
+          <span class="pl-phase__name">Package</span>
+          <span class="pl-phase__detail">{packaged}</span>
+        </li>
+        <li class="pl-phase pl-phase--done">
+          <span class="pl-phase__mark">✓</span>
+          <span class="pl-phase__name">Deploy</span>
+          <span class="pl-phase__detail pl-phase__progress">
+            <span class="pl-bar"><span class="pl-bar__fill"></span></span>
+            <span class="pl-phase__count">
+              <span class="pl-phase__count--during" aria-hidden="true">{DEPLOY.resources - 3} of {DEPLOY.resources} resources</span>
+              <span class="pl-phase__count--final">{DEPLOY.resources} of {DEPLOY.resources} resources</span>
+            </span>
+          </span>
+        </li>
+        <li class="pl-phase pl-phase--done">
+          <span class="pl-phase__mark">✓</span>
+          <span class="pl-phase__name">Outputs</span>
+          <span class="pl-phase__detail">2 public URLs</span>
+        </li>
+      </ol>
+      <div class="pl-live">
+        <p class="pl-live__title"><span class="pl-pill pl-pill--green pl-pill--live">It's live</span></p>
+        <ul class="pl-live__urls">
+          <li>{PROJECT.urls.web}</li>
+          <li>{PROJECT.urls.api}</li>
+        </ul>
+        <p class="pl-live__next">
+          Where to go from here: open the project in the Console, connect the GitHub repository for push-to-deploy, or
+          run <span class="pl-mono">stacktape dev</span> against the deployed resources.
+        </p>
+      </div>
+    </div>
+  </div>
+</Frame>

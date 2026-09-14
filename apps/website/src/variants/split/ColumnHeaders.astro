@@ -1,0 +1,26 @@
+---
+/**
+ * Sticky scoreboard. Server-rendered with the final totals so the page reads correctly without
+ * JavaScript; the journey script resets them to zero and counts as rows scroll into view.
+ */
+import { STACKTAPE_TOTAL, YOU_TOTAL } from './data';
+---
+
+<div class="sp-cols sp-split">
+  <div class="sp-cell sp-cell--you">
+    <span class="sp-cols__label">
+      <strong>You</strong>
+      <span class="sp-cols__sep" aria-hidden="true">·</span>
+      <span class="sp-cols__count" data-sp-counter="you">{YOU_TOTAL}</span>
+      <span class="sp-cols__unit">actions</span>
+    </span>
+  </div>
+  <div class="sp-cell sp-cell--stp">
+    <span class="sp-cols__label">
+      <strong>Stacktape</strong>
+      <span class="sp-cols__sep" aria-hidden="true">·</span>
+      <span class="sp-cols__count" data-sp-counter="stacktape">{STACKTAPE_TOTAL}</span>
+      <span class="sp-cols__unit">actions</span>
+    </span>
+  </div>
+</div>

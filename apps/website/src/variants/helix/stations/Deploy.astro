@@ -1,0 +1,57 @@
+---
+import WizardFrame from '../WizardFrame.astro';
+import { DEPLOY, PROJECT } from '../data';
+
+const packaging = DEPLOY.packaging.map((item) => `${item.name} ${item.time}`).join(' · ');
+---
+
+<WizardFrame step="Deploy">
+  <h4 class="hx-wiz__title">Ready to deploy</h4>
+  <div class="hx-deploy__account">
+    <p class="hx-p"><b>{DEPLOY.intro}</b></p>
+    <p class="hx-p hx-m-hide">{DEPLOY.scope}</p>
+  </div>
+  <pre class="hx-code hx-m-hide"><i>$</i> <b>{DEPLOY.command}</b></pre>
+  <ol class="hx-phases" aria-label="Deployment progress">
+    <li>
+      <span class="hx-tick" aria-hidden="true">✓</span>
+      <span class="hx-phases__name">Initialize</span>
+      <span class="hx-phases__detail">stack {PROJECT.name}-production</span>
+    </li>
+    <li>
+      <span class="hx-tick" aria-hidden="true">✓</span>
+      <span class="hx-phases__name">Package</span>
+      <span class="hx-phases__detail">{packaging}</span>
+    </li>
+    <li>
+      <span class="hx-tick hx-deploy__tick" aria-hidden="true">✓</span>
+      <span class="hx-phases__name">Deploy</span>
+      <span class="hx-phases__progress">
+        <span class="hx-bar"><span class="hx-bar__fill hx-deploy__fill"></span></span>
+        <span class="hx-phases__detail"
+          ><span data-hx-count={`${DEPLOY.resourcesDone},${DEPLOY.resourcesTotal}`}>{DEPLOY.resourcesTotal}</span>/{DEPLOY.resourcesTotal} resources</span
+        >
+      </span>
+    </li>
+    <li class="hx-deploy__outputs">
+      <span class="hx-tick hx-deploy__tick" aria-hidden="true">✓</span>
+      <span class="hx-phases__name">Outputs</span>
+      <span class="hx-phases__detail">2 public URLs</span>
+    </li>
+  </ol>
+  <div class="hx-live">
+    <p class="hx-live__title">
+      <span class="hx-chip__dot" aria-hidden="true" style="width: 8px; height: 8px; background: var(--hx-green);"></span>
+      It's live
+    </p>
+    <ul class="hx-live__urls">
+      <li><b>{DEPLOY.urls[0]}</b> <span>· web</span></li>
+      <li><b>{DEPLOY.urls[1]}</b> <span>· apiService</span></li>
+    </ul>
+  </div>
+  <div class="hx-row hx-m-hide">
+    <span class="hx-label" style="margin: 0;">Where to go from here</span>
+    <span class="hx-chip">Open in Console</span>
+    <span class="hx-chip">Set up push-to-deploy</span>
+  </div>
+</WizardFrame>

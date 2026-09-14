@@ -1,0 +1,80 @@
+---
+/** 07 Push again: security posture, vulnerabilities and guardrails above costs and the budget. */
+import ConsoleShell from './ConsoleShell.astro';
+import Icon from '../Icon.astro';
+import { APP, COSTS, SECURITY } from '../data';
+
+type Props = { variant: 'sticky' | 'inline' };
+
+const maxCost = Math.max(...COSTS.rows.map((r) => r.amount));
+const spent = COSTS.rows.reduce((sum, r) => sum + r.amount, 0);
+const spentPct = Math.round((spent / COSTS.budget) * 100);
+const ICON_FOR = { posture: 'shield', vuln: 'bug', secret: 'key' } as const;
+---
+
+<ConsoleShell active={['Security/Posture', 'Organization/Costs']} crumb={[APP.project, 'production', 'Security']}>
+  <span slot="top-right" class="lp-p-chip">SBOM per deploy</span>
+
+  <div class="lp-sec">
+    <div class="lp-p-h" style="margin: 0;">
+      <span>Posture <span class="lp-p-dim">· re-graded nightly</span></span>
+      <span class="lp-sec__score">
+        <b>{SECURITY.posture.passing}</b>
+        <span class="lp-p-muted">/ {SECURITY.posture.total} checks passing</span>
+      </span>
+    </div>
+    <div class="lp-p-bar"><i style={`width:${(SECURITY.posture.passing / SECURITY.posture.total) * 100}%`}></i></div>
+    <ul class="lp-findings">
+      {
+        SECURITY.findings.map((f) => (
+          <li>
+            <span class={`lp-p-icon ${f.kind === 'posture' ? 'lp-p-icon--network' : 'lp-p-icon--security'}`}>
+              <Icon name={ICON_FOR[f.kind as keyof typeof ICON_FOR]} />
+            </span>
+            <div>
+              {f.text} <span>· {f.rule}</span>
+            </div>
+            <span class="lp-p-btn lp-p-btn--small">{f.kind === 'secret' ? 'Convert' : f.kind === 'vuln' ? 'View PR' : 'Fix'}</span>
+          </li>
+        ))
+      }
+    </ul>
+    <div class="lp-guardrails">
+      <span class="lp-p-dim" style="font-size: 11px;">Guardrails on:</span>
+      {SECURITY.guardrails.map((g) => <span class="lp-p-chip lp-p-chip--brand">{g}</span>)}
+    </div>
+  </div>
+
+  <div class="lp-p-h" style="margin-top: 14px;">
+    <span>Costs · production · month to date</span>
+    <span class="lp-p-mono" style="color: var(--lp-ui-text);">{COSTS.total}</span>
+  </div>
+  <ul class="lp-costs">
+    {
+      COSTS.rows.map((r) => (
+        <li>
+          <span class="lp-p-mono">{r.name}</span>
+          <span class="lp-p-bar">
+            <i style={`width:${(r.amount / maxCost) * 100}%`} />
+          </span>
+          <span class="lp-costs__amount">${r.amount.toFixed(2)}</span>
+        </li>
+      ))
+    }
+  </ul>
+  <div class="lp-costs__budget">
+    <div class="lp-p-h" style="margin: 0;">
+      <span>Budget ${COSTS.budget}</span>
+      <span class="lp-p-mono lp-p-muted">{spentPct}% used · alert at {COSTS.alertAt}%</span>
+    </div>
+    <div class="lp-p-bar">
+      <i style={`width:${spentPct}%`}></i>
+      <em style={`left:${COSTS.alertAt}%`} title="alert threshold"></em>
+    </div>
+  </div>
+
+  <p class="lp-again">
+    <span>next push → production, same loop</span>
+    <Icon name="loop" />
+  </p>
+</ConsoleShell>

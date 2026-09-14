@@ -1,0 +1,27 @@
+---
+import WizardFrame from '../WizardFrame.astro';
+import { PROJECT } from '../data';
+---
+
+<WizardFrame step="Start">
+  <h4 class="hx-wiz__title">Put this project on AWS</h4>
+  <div class="hx-start__repo">
+    <span class="hx-label">Project</span>
+    <b>./{PROJECT.name}</b>
+    <span class="hx-p">git · {PROJECT.repo} · pnpm workspace</span>
+  </div>
+  <ul class="hx-start__assure">
+    <li>
+      <span class="hx-tick" aria-hidden="true">✓</span>
+      <span>Reads the repository on this machine with <b>Claude Code</b>, found in your PATH. Without a coding agent, a built-in scanner reads it instead. Nothing is sent to Stacktape.</span>
+    </li>
+    <li>
+      <span class="hx-tick" aria-hidden="true">✓</span>
+      <span>Nothing is created on AWS and nothing is billed until you press <b>Deploy</b>.</span>
+    </li>
+  </ul>
+  <div class="hx-row">
+    <span class="hx-minibtn hx-minibtn--primary">Analyze my project</span>
+    <span class="hx-p hx-m-hide">You will see everything it decided before anything is written.</span>
+  </div>
+</WizardFrame>

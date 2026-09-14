@@ -1,0 +1,38 @@
+---
+/**
+ * One responsibility of the posting: the heading struck through and marked handled, the
+ * explanation, the three requirements met, and the product window showing it done.
+ */
+import Check from './Check.astro';
+import type { Section } from './data';
+import { POSTING } from './data';
+
+type Props = { section: Section };
+const { section } = Astro.props;
+---
+
+<article class="hr-resp" id={section.id}>
+  <h3 class="hr-resp__title">
+    <span class="hr-resp__num">{section.number}</span>
+    <s class="hr-resp__name">{section.name}</s>
+    <span class="hr-chip hr-chip--filled"><Check />{POSTING.handled}</span>
+  </h3>
+
+  <p class="hr-prose">{section.text}</p>
+
+  <p class="hr-label hr-resp__met">{POSTING.requirementsMet}</p>
+  <ul class="hr-resp__gets">
+    {
+      section.gets.map((line) => (
+        <li>
+          <Check size={14} />
+          <span>{line}</span>
+        </li>
+      ))
+    }
+  </ul>
+
+  <div class="hr-resp__stage">
+    <slot />
+  </div>
+</article>

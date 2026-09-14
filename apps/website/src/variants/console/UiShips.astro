@@ -1,0 +1,111 @@
+---
+/**
+ * Screen 02: the Console project page. Environments with one deploy in progress, the pull-request
+ * preview, and the deployment detail with its phases.
+ */
+import Frame from './Frame.astro';
+
+const environments = [
+  {
+    name: 'production',
+    kind: 'environment',
+    status: 'Deploying',
+    tone: 'busy',
+    release: 'v42 · #42 · push to main',
+    url: 'https://acme.com'
+  },
+  { name: 'staging', kind: 'environment', status: 'Deployed', tone: 'ok', release: 'v42 · 14 min ago', url: 'https://staging.acme.com' },
+  {
+    name: 'pr-128',
+    kind: 'preview',
+    status: 'Preview',
+    tone: 'info',
+    release: 'PR #128 · checkout: retry payment webhook',
+    url: 'https://pr-128.acme-preview.com'
+  }
+];
+
+const phases = [
+  { name: 'Initialize', state: 'done', detail: '4s' },
+  { name: 'Package', state: 'done', detail: 'web 41s · apiService 58s · worker 6s' },
+  { name: 'Deploy', state: 'busy', detail: '21 of 33 resources' },
+  { name: 'Outputs', state: 'todo', detail: 'URLs and endpoints' }
+];
+---
+
+<Frame crumbs={['Projects', 'acme-project']} label="The Console project page for acme-project with a deploy in progress">
+  <div class="cs-ships">
+    <div class="cs-ships__head">
+      <div>
+        <p class="cs-ships__name">acme-project</p>
+        <p class="cs-ships__meta">
+          <span>acme/acme-project</span>
+          <span>eu-west-1</span>
+          <span>AWS account acme-dev (4128…9903)</span>
+        </p>
+      </div>
+      <p class="cs-ships__pipeline">
+        <span>push to <code>main</code> → production</span>
+        <span>pull request → preview environment</span>
+      </p>
+    </div>
+
+    <div class="cs-ships__grid">
+      <div class="cs-panel cs-ships__envs">
+        <p class="cs-panel__title">Environments</p>
+        <ul class="cs-envs">
+          {
+            environments.map((env) => (
+              <li class:list={['cs-envs__row', env.tone === 'busy' && 'is-busy']}>
+                <div class="cs-envs__id">
+                  <span class="cs-envs__name">{env.name}</span>
+                  <span class="cs-envs__kind">{env.kind}</span>
+                </div>
+                <span class:list={['cs-chip', `cs-chip--${env.tone}`]}>
+                  {env.tone === 'busy' && <i class="cs-spin" aria-hidden="true" />}
+                  {env.status}
+                </span>
+                <span class="cs-envs__info">
+                  <span class="cs-envs__release">{env.release}</span>
+                  <span class="cs-envs__url">{env.url}</span>
+                </span>
+                {env.tone === 'busy' && (
+                  <span class="cs-envs__progress" aria-hidden="true">
+                    <span class="cs-envs__bar" />
+                  </span>
+                )}
+              </li>
+            ))
+          }
+        </ul>
+        <p class="cs-panel__foot">Every push to <code>main</code> deploys. Rolling out with zero downtime; one click rolls back.</p>
+      </div>
+
+      <div class="cs-panel cs-ships__deploy">
+        <p class="cs-panel__title">
+          Deployment #42 <span class="cs-panel__title-sub">→ production</span>
+        </p>
+        <p class="cs-ships__commit">
+          <code>c4d5e6f</code> orders: apply fulfillment migration · pushed by matus · 1m 52s so far
+        </p>
+        <ol class="cs-phases">
+          {
+            phases.map((phase) => (
+              <li class:list={['cs-phases__row', `is-${phase.state}`]}>
+                <i class="cs-phases__mark" aria-hidden="true" />
+                <span class="cs-phases__name">{phase.name}</span>
+                <span class="cs-phases__detail">{phase.detail}</span>
+              </li>
+            ))
+          }
+        </ol>
+        <div class="cs-ships__runner">
+          <p class="cs-ships__runner-title">Build runner</p>
+          <p>
+            <code>c7a.2xlarge</code> in your AWS account. Keeps build caches between runs; stops after 15 minutes idle.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</Frame>

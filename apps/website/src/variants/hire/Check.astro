@@ -1,0 +1,9 @@
+---
+/** The check mark the posting uses: in the "filled" chip, the "Handled by Stacktape" chip and the checklist. */
+type Props = { size?: number; class?: string };
+const { size = 12, class: className } = Astro.props;
+---
+
+<svg class={className} viewBox="0 0 16 16" width={size} height={size} fill="none" aria-hidden="true">
+  <path d="m3 8.4 3.2 3.1L13 4.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>

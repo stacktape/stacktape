@@ -1,0 +1,25 @@
+---
+/** The closing: the line, the command once more, the trust line, and the way in for existing users. */
+import { CommandBox } from './CommandBox';
+import { CLOSING_LINE, LINKS, SIGN_IN_LINE, TRUST_LINE } from './data';
+
+/* The line breaks between its two sentences rather than wherever balancing would put it. */
+const closingLines = CLOSING_LINE.split(/(?<=\.) /);
+---
+
+<section class="su-closing" aria-labelledby="su-closing-title">
+  <div class="su-container">
+    <div class="su-closing__inner">
+      <h2 class="su-closing__title" id="su-closing-title">
+        {closingLines.map((line) => <span class="su-closing__line">{line}</span>)}
+      </h2>
+      <div class="su-closing__cta">
+        <CommandBox client:load label="Start" hint={false} />
+      </div>
+      <p class="su-trust">{TRUST_LINE}</p>
+      <p class="su-closing__signin">
+        {SIGN_IN_LINE.before} <a href={LINKS.console}>{SIGN_IN_LINE.link}</a>
+      </p>
+    </div>
+  </div>
+</section>

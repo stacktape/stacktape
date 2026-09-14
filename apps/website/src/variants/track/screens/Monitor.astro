@@ -1,0 +1,78 @@
+---
+/** 03 — apiService in production: three metric tiles, the trace of one request, one uptime line. */
+import { ALERTS_CHIP, METRICS, PROJECT, TRACE, UPTIME } from '../data';
+import { StatusBadge } from '../ui';
+import Window from '../Window.astro';
+
+const sparkline = (points: readonly number[]) => {
+  const max = Math.max(...points);
+  const min = Math.min(...points);
+  const range = Math.max(1, max - min);
+  return points
+    .map((point, index) => {
+      const x = (index / (points.length - 1)) * 100;
+      const y = 30 - ((point - min) / range) * 24;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+};
+
+const pct = (value: number) => `${((value / TRACE.total) * 100).toFixed(2)}%`;
+---
+
+<Window title={`${PROJECT.name} · <b>production</b>`}>
+  <div class="tk-screen__head tk-screen__head--row">
+    <h3 class="tk-screen__title">apiService</h3>
+    <span class="tk-chip tk-chip--quiet">{ALERTS_CHIP}</span>
+  </div>
+
+  <div class="tk-tiles">
+    {
+      METRICS.map((metric) => (
+        <div class="tk-tile">
+          <p class="tk-tile__label">{metric.label}</p>
+          <p class="tk-tile__value">
+            {metric.value}
+            <span class="tk-tile__unit">{metric.unit}</span>
+          </p>
+          <svg class="tk-spark" viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true">
+            <polyline points={sparkline(metric.points)} fill="none" stroke="currentColor" stroke-width="1.6" vector-effect="non-scaling-stroke" />
+          </svg>
+        </div>
+      ))
+    }
+  </div>
+
+  <div class="tk-panel">
+    <div class="tk-panel__head">
+      <span class="tk-panel__title">Trace</span>
+      <span class="tk-panel__meta"><b class="tk-mono">{TRACE.name}</b> · {TRACE.total} ms</span>
+    </div>
+    <ol class="tk-trace">
+      {
+        TRACE.spans.map((span) => (
+          <li class={`tk-trace__row tk-trace__row--${span.kind}`}>
+            <span class="tk-trace__name">{span.name}</span>
+            <span class="tk-trace__lane">
+              <span class="tk-trace__bar" style={`left: ${pct(span.start)}; width: ${pct(span.duration)}`} />
+            </span>
+            <span class="tk-trace__ms">{span.duration} ms</span>
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+
+  <p class="tk-uptime">
+    <span class="tk-uptime__url tk-mono">{UPTIME.url}</span>
+    <StatusBadge tone="success" dot>Up</StatusBadge>
+    {
+      UPTIME.regions.map((check) => (
+        <span class="tk-uptime__region">
+          {check.region} <b class="tk-mono">{check.latency}</b>
+        </span>
+      ))
+    }
+    <span class="tk-uptime__total">{UPTIME.thirtyDay}</span>
+  </p>
+</Window>

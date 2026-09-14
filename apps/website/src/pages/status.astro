@@ -1,0 +1,40 @@
+---
+// concept: The homepage is a status page. A green banner says all systems are operational, seven components (the seven things Stacktape does for acme-project) carry 90-day bars, and the incident history holds the one incident, resolved in eleven minutes. The headline and the command box sit on top; each component expands into its card with the product screen where it happens.
+// copy-angle: The page shows the subheadline's last promise, "makes sure your app runs flawlessly forever after", instead of saying it. Every component is Operational; the calm is the argument.
+import Cover from '../components/Cover.astro';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Activity from '../variants/status/Activity.astro';
+import Banner from '../variants/status/Banner.astro';
+import Closing from '../variants/status/Closing.astro';
+import Components from '../variants/status/Components.astro';
+import { HEADLINE, SUBHEADLINE } from '../variants/status/data';
+import Footer from '../variants/status/Footer.astro';
+import Hero from '../variants/status/Hero.astro';
+import Incidents from '../variants/status/Incidents.astro';
+import Nav from '../variants/status/Nav.astro';
+import Testimonials from '../variants/status/Testimonials.astro';
+import '../variants/status/status.css';
+---
+
+<BaseLayout title={`Stacktape — ${HEADLINE}`} description={SUBHEADLINE} htmlClass="su-html">
+  <Fragment slot="head">
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+    />
+  </Fragment>
+
+  <div class="su-root">
+    <Nav />
+    <main>
+      <Hero />
+      <Banner />
+      <Activity><Cover /></Activity>
+      <Components />
+      <Incidents />
+      <Closing />
+      <Testimonials />
+    </main>
+    <Footer />
+  </div>
+</BaseLayout>

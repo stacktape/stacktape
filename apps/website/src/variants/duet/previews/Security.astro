@@ -1,0 +1,98 @@
+---
+/** 05 — security posture, the vulnerability finding with its fix PR, and the guardrails that are on. */
+import Frame from '../Frame.astro';
+import { GUARDRAILS, POSTURE, PROJECT } from '../data';
+
+const RADIUS = 27;
+const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+const passingArc = (POSTURE.passing / POSTURE.total) * CIRCUMFERENCE;
+---
+
+<Frame url={`console.stacktape.com/projects/${PROJECT.name}/security/<b>posture</b>`} active="Posture">
+  <div class="du-sec-ui">
+    <div class="du-sec-ui__grid">
+      <div class="du-panel du-posture">
+        <div class="du-panel__row">
+          <p class="du-panel__title">Posture</p>
+          <p class="du-panel__meta">both environments</p>
+        </div>
+        <div class="du-posture__score">
+          <svg class="du-ring" viewBox="0 0 64 64" width="72" height="72" aria-hidden="true">
+            <circle cx="32" cy="32" r={RADIUS} class="du-ring__track"></circle>
+            <circle
+              cx="32"
+              cy="32"
+              r={RADIUS}
+              class="du-ring__value"
+              stroke-dasharray={`${passingArc.toFixed(2)} ${CIRCUMFERENCE.toFixed(2)}`}
+              transform="rotate(-90 32 32)"></circle>
+          </svg>
+          <p class="du-posture__num">
+            <b>{POSTURE.passing}</b> of {POSTURE.total}
+            <span>checks passing</span>
+          </p>
+        </div>
+        <ul class="du-findings">
+          {
+            POSTURE.failing.map((item) => (
+              <li class="du-finding">
+                <span class="du-finding__mark" aria-hidden="true" />
+                <span class="du-finding__text">
+                  <span class="du-finding__what">{item.finding}</span>
+                  <span class="du-finding__rule">{item.rule} · {item.note}</span>
+                </span>
+                <button type="button" class="du-btn du-btn--ghost du-finding__action">{item.action}</button>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+
+      <div class="du-sec-ui__col">
+        <div class="du-panel">
+          <div class="du-panel__row">
+            <p class="du-panel__title">Vulnerabilities</p>
+            <p class="du-panel__meta">scanned in the pipeline · SBOM per deploy</p>
+          </div>
+          <div class="du-vuln">
+            <p class="du-vuln__head">
+              <span class="du-chip du-chip--error">2 critical</span>
+              <span class="du-vuln__pkg">openssl <span class="du-mono">3.0.13</span></span>
+              <span class="du-vuln__in">in apiService image · deploy #41</span>
+            </p>
+            <p class="du-vuln__fix">
+              <span class="du-chip du-chip--ok"><i class="du-chip__dot" aria-hidden="true"></i>Fix PR opened</span>
+              <span class="du-mono">#132</span> bump base image to patched openssl
+            </p>
+          </div>
+        </div>
+
+        <div class="du-panel">
+          <div class="du-panel__row">
+            <p class="du-panel__title">Guardrails</p>
+            <p class="du-panel__meta">organization rules · block a deploy before any change</p>
+          </div>
+          <ul class="du-rules">
+            {
+              GUARDRAILS.map((guardrail) => (
+                <li class={guardrail.on ? 'du-rule is-on' : 'du-rule'}>
+                  <span
+                    class={guardrail.on ? 'stp-ui-switch stp-ui-switch--checked du-rule__switch' : 'stp-ui-switch du-rule__switch'}
+                    role="switch"
+                    aria-checked={guardrail.on ? 'true' : 'false'}
+                    aria-readonly="true"
+                    aria-label={guardrail.rule}
+                  >
+                    <span class="stp-ui-switch__thumb" aria-hidden="true" />
+                  </span>
+                  <span class="du-rule__name">{guardrail.rule}</span>
+                  <span class="du-rule__state">{guardrail.on ? 'on' : 'off'}</span>
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</Frame>

@@ -1,0 +1,15 @@
+---
+import { CommandBox } from './CommandBox';
+import { CLOSING_TITLE, LINKS, TRUST_LINE } from './data';
+---
+
+<section class="zz-section zz-closing" aria-labelledby="zz-closing-title">
+  <div class="zz-container">
+    <div class="zz-closing__panel">
+      <h2 class="zz-closing__title" id="zz-closing-title">{CLOSING_TITLE}</h2>
+      <CommandBox client:load label="Get started" />
+      <p class="zz-trust">{TRUST_LINE}</p>
+      <p class="zz-closing__signin">Already set up? <a href={LINKS.console}>Sign in to the Console</a></p>
+    </div>
+  </div>
+</section>

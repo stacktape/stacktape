@@ -1,0 +1,26 @@
+---
+/**
+ * The lens: one pinned window holding all seven screens, stacked; the current one is opaque and
+ * the rest are invisible. `data-current` is written by the chapters' observer; the stylesheet
+ * does the crossfade. Each screen carries its own chrome bar, so the address changes with it.
+ */
+import Costs from './screens/Costs.astro';
+import Deploy from './screens/Deploy.astro';
+import Design from './screens/Design.astro';
+import Incident from './screens/Incident.astro';
+import Monitor from './screens/Monitor.astro';
+import Package from './screens/Package.astro';
+import Secure from './screens/Secure.astro';
+
+const screens = [Design, Package, Deploy, Monitor, Secure, Incident, Costs];
+---
+
+<div class="ls-lens" data-ls-lens data-current="1">
+  {
+    screens.map((Screen, i) => (
+      <div class="ls-lens__screen" data-screen={i + 1}>
+        <Screen />
+      </div>
+    ))
+  }
+</div>

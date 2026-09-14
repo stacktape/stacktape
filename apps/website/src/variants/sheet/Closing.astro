@@ -1,0 +1,23 @@
+---
+/** The closing: a full-width band of the Console material with the line, the command, the trust line and the sign-in line. */
+import { CommandBox } from './CommandBox';
+import { CLOSING_LINE, SIGN_IN, TRUST_LINE } from './data';
+---
+
+<section class="sh-closing" aria-labelledby="sh-closing-title">
+  <div class="sh-container sh-closing__inner">
+    <h2 class="sh-closing__title" id="sh-closing-title">{CLOSING_LINE}</h2>
+    <div class="sh-closing__cta">
+      <CommandBox client:load label="Start" />
+    </div>
+    <p class="sh-trust sh-trust--dark">
+      {TRUST_LINE.map((item, index) => (
+        <>
+          {index > 0 && <span class="sh-trust__sep" aria-hidden="true">·</span>}
+          <span class="sh-trust__item">{item}</span>
+        </>
+      ))}
+    </p>
+    <p class="sh-closing__signin">{SIGN_IN.lead} <a href={SIGN_IN.href}>{SIGN_IN.label}</a></p>
+  </div>
+</section>

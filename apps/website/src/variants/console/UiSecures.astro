@@ -1,0 +1,123 @@
+---
+/**
+ * Screen 05: the Security section. Posture with the failing checks explained, one vulnerability
+ * finding with its fix PR, and the organisation's guardrails.
+ */
+import Frame from './Frame.astro';
+
+const failing = [
+  {
+    rule: 'Require recoverable data stores',
+    finding: 'mainDatabase backups retained 1 day (staging)',
+    action: 'Set 7 days',
+    note: 'The guardrail with the same name will block the next staging deploy until this is fixed.'
+  },
+  { rule: 'Require deletion protection', finding: 'mainDatabase (staging)', action: 'Turn on' },
+  { rule: 'No plaintext secrets in config', finding: 'plaintext STRIPE_KEY in config', action: 'Convert to $Secret' }
+];
+
+const images = [
+  { name: 'apiService', critical: 2, detail: 'openssl 3.0.13 · fix PR #133 opened', tone: 'bad' },
+  { name: 'web', critical: 0, detail: 'clean', tone: 'ok' },
+  { name: 'worker', critical: 0, detail: 'clean', tone: 'ok' }
+];
+
+const guardrails = [
+  { name: 'Keep SQL and OpenSearch private', on: true },
+  { name: 'Require WAF on load balancers', on: true },
+  { name: 'Require recoverable data stores', on: true },
+  { name: 'Require deletion protection', on: false },
+  { name: 'Require dead-letter queue', on: false },
+  { name: 'Require multiple container instances', on: false }
+];
+
+// Ring geometry: 27 of 30 passing on a circle of radius 26.
+const circumference = 2 * Math.PI * 26;
+const passingArc = (27 / 30) * circumference;
+---
+
+<Frame
+  crumbs={['acme-project', 'Security']}
+  tabs={['Overview', 'Vulnerabilities', 'Posture']}
+  active="Overview"
+  label="The Security section: posture, a vulnerability finding with its fix, and the guardrails that are on"
+>
+  <div class="cs-sec">
+    <div class="cs-sec__grid">
+      <div class="cs-panel cs-posture">
+        <p class="cs-panel__title">Posture</p>
+        <div class="cs-posture__score">
+          <svg viewBox="0 0 60 60" width="64" height="64" aria-hidden="true">
+            <circle cx="30" cy="30" r="26" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="5"></circle>
+            <circle
+              cx="30"
+              cy="30"
+              r="26"
+              fill="none"
+              stroke="var(--cs-brand)"
+              stroke-width="5"
+              stroke-linecap="round"
+              stroke-dasharray={`${passingArc} ${circumference}`}
+              transform="rotate(-90 30 30)"></circle>
+          </svg>
+          <div>
+            <p class="cs-posture__num"><strong>27</strong> of 30 checks passing</p>
+            <p class="cs-posture__sub">Same catalogue as the guardrails, checked against what is deployed.</p>
+          </div>
+        </div>
+        <ul class="cs-posture__list">
+          {
+            failing.map((row) => (
+              <li class="cs-posture__row">
+                <i class="cs-dot cs-dot--warn" aria-hidden="true" />
+                <div>
+                  <p class="cs-posture__finding">{row.finding}</p>
+                  <p class="cs-posture__rule">{row.rule}</p>
+                  {row.note && <p class="cs-posture__note">{row.note}</p>}
+                </div>
+                <span class="cs-btn cs-btn--ghost">{row.action}</span>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+
+      <div class="cs-sec__side">
+        <div class="cs-panel cs-vulns">
+          <p class="cs-panel__title">Vulnerabilities <span class="cs-panel__title-sub">deploy #42 · scanned in the pipeline</span></p>
+          <ul class="cs-vulns__list">
+            {
+              images.map((image) => (
+                <li class="cs-vulns__row">
+                  <span class="cs-vulns__name">{image.name} <small>image</small></span>
+                  <span class:list={['cs-chip', image.tone === 'bad' ? 'cs-chip--bad' : 'cs-chip--ok']}>
+                    {image.critical} critical
+                  </span>
+                  <span class="cs-vulns__detail">{image.detail}</span>
+                </li>
+              ))
+            }
+          </ul>
+          <p class="cs-panel__foot">A software bill of materials is kept for every deploy.</p>
+        </div>
+
+        <div class="cs-panel cs-guard">
+          <p class="cs-panel__title">Guardrails <span class="cs-panel__title-sub">organisation · 3 of 18 rules on</span></p>
+          <ul class="cs-guard__list">
+            {
+              guardrails.map((rule) => (
+                <li class="cs-guard__row">
+                  <span class:list={['stp-ui-switch', rule.on && 'stp-ui-switch--checked']} role="switch" aria-checked={rule.on} aria-disabled="true" aria-label={rule.name}>
+                    <span class="stp-ui-switch__thumb" />
+                  </span>
+                  <span class="cs-guard__name">{rule.name}</span>
+                </li>
+              ))
+            }
+          </ul>
+          <p class="cs-panel__foot">A rule that is on blocks a non-compliant deploy before any change is made.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</Frame>

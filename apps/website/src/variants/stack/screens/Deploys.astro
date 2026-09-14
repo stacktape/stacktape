@@ -1,0 +1,65 @@
+---
+/** 03 — deployments: a canary rolling out, the release before it live, a pull request's preview. */
+import { DEPLOYMENTS, URLS } from '../data';
+import { PreviewButton, StatusBadge } from '../ui';
+import Window from '../Window.astro';
+
+const { rolling, live, preview } = DEPLOYMENTS;
+---
+
+<Window kind="browser" host={URLS.deployments.host} path={URLS.deployments.path}>
+  <div class="st-scr__head">
+    <h3 class="st-scr__h">{DEPLOYMENTS.heading}</h3>
+    <p class="st-scr__line">{DEPLOYMENTS.line}</p>
+  </div>
+
+  <ul class="st-dep" aria-label="Deployments">
+    <li class="st-dep__row st-dep__row--rolling">
+      <div class="st-dep__main">
+        <p class="st-dep__title">
+          <b>{rolling.version}</b>
+          <span class="st-dep__ref">{rolling.ref}</span>
+          <span class="st-dep__msg">“{rolling.message}”</span>
+        </p>
+        <div class="st-dep__traffic">
+          <span class="st-dep__lane" aria-hidden="true">
+            <span class="st-dep__fill" style={`width: ${rolling.traffic.percent}%`}></span>
+          </span>
+          <span class="st-dep__shift">
+            {rolling.traffic.from} <span aria-hidden="true">→</span> {rolling.traffic.to}
+          </span>
+          <span class="st-dep__note">{rolling.traffic.label}</span>
+        </div>
+      </div>
+      <div class="st-dep__side">
+        <StatusBadge tone="brand" dot>{rolling.badge}</StatusBadge>
+        <PreviewButton variant="secondary" small>{rolling.rollback}</PreviewButton>
+      </div>
+    </li>
+
+    <li class="st-dep__row">
+      <div class="st-dep__main">
+        <p class="st-dep__title">
+          <b>{live.version}</b>
+          <span class="st-dep__ref">{live.ref}</span>
+        </p>
+      </div>
+      <div class="st-dep__side">
+        <StatusBadge tone="success" dot>{live.badge}</StatusBadge>
+      </div>
+    </li>
+
+    <li class="st-dep__row">
+      <div class="st-dep__main">
+        <p class="st-dep__title">
+          <b>{preview.version}</b>
+          <span class="st-dep__msg">“{preview.message}”</span>
+        </p>
+        <p class="st-dep__url">{preview.url}</p>
+      </div>
+      <div class="st-dep__side">
+        <StatusBadge tone="info">{preview.badge}</StatusBadge>
+      </div>
+    </li>
+  </ul>
+</Window>

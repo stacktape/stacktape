@@ -1,0 +1,101 @@
+---
+import Billboard from './Billboard.astro';
+import { JOURNEY_TITLE, PROJECT, STOPS } from './data';
+import Costs from './previews/Costs.astro';
+import Incident from './previews/Incident.astro';
+import Review from './previews/Review.astro';
+import Secures from './previews/Secures.astro';
+import Ships from './previews/Ships.astro';
+import Watches from './previews/Watches.astro';
+import Stop from './Stop.astro';
+
+const stop = (id: string) => {
+  const found = STOPS.find((candidate) => candidate.id === id);
+  if (!found) throw new Error(`journey: no stop with id "${id}"`);
+  return found;
+};
+
+const designs = stop('designs');
+const ships = stop('ships');
+const watches = stop('watches');
+const incidents = stop('incidents');
+const secures = stop('secures');
+const costs = stop('costs');
+---
+
+<section class="jn-section jn-journey" aria-labelledby="jn-journey-title" data-jn-journey>
+  <svg class="jn-path" aria-hidden="true" focusable="false">
+    <path class="jn-path__road" d=""></path>
+    <path class="jn-path__plan" d=""></path>
+    <path class="jn-path__line" d=""></path>
+    <g class="jn-marker">
+      <circle class="jn-marker__ring" r="14"></circle>
+      <polygon points="0,-10 12,-4 0,2 -12,-4" fill="#7ee6e3"></polygon>
+      <polygon points="-12,-4 0,2 0,10 -12,4" fill="#1c8a8a"></polygon>
+      <polygon points="0,2 12,-4 12,4 0,10" fill="#2fb5b4"></polygon>
+    </g>
+  </svg>
+
+  <div class="jn-container">
+    <div class="jn-journey__intro">
+      <p class="jn-label jn-label--brand">The route</p>
+      <h2 class="jn-journey__title" id="jn-journey-title">{JOURNEY_TITLE}</h2>
+      <p class="jn-journey__lead">
+        Six things Stacktape does for you, shown on one example app, <span class="jn-mono">{PROJECT.name}</span>, from
+        the first command to a resolved production incident. Every screen is a simplified version of the real wizard and
+        Console.
+      </p>
+    </div>
+
+    <div class="jn-terminus" data-jn-terminus>
+      <span class="jn-terminus__plate" data-jn-anchor="station">Your repository</span>
+      <span class="jn-label">github.com/{PROJECT.repo}</span>
+    </div>
+
+    <div class="jn-phase">
+      <span class="jn-phase__num">Stops 01–02</span>
+      <h3 class="jn-phase__title">The first ten minutes</h3>
+    </div>
+
+    <ol class="jn-stops">
+      <Stop stop={designs} side="left" wide>
+        <Billboard><Review /></Billboard>
+      </Stop>
+      <Stop stop={ships} side="right" wide>
+        <Billboard><Ships /></Billboard>
+      </Stop>
+    </ol>
+
+    <div class="jn-phase">
+      <span class="jn-phase__num">Stops 03–06</span>
+      <h3 class="jn-phase__title">Every day after</h3>
+    </div>
+
+    <ol class="jn-stops">
+      <Stop stop={watches} side="left">
+        <Billboard><Watches /></Billboard>
+      </Stop>
+      <Stop stop={incidents} side="right" wide variant="incident">
+        <Billboard><Incident /></Billboard>
+      </Stop>
+      <Stop stop={secures} side="left">
+        <Billboard><Secures /></Billboard>
+      </Stop>
+      <Stop stop={costs} side="right">
+        <Billboard><Costs /></Billboard>
+      </Stop>
+    </ol>
+
+    <div class="jn-terminus jn-terminus--end" data-jn-terminus>
+      <span class="jn-terminus__plate" data-jn-anchor="station">production · {PROJECT.region}</span>
+      <ul class="jn-terminus__urls">
+        <li><a href={PROJECT.urls.web}>{PROJECT.urls.web}</a></li>
+        <li><a href={PROJECT.urls.api}>{PROJECT.urls.api}</a></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<script>
+  import './journey-path';
+</script>

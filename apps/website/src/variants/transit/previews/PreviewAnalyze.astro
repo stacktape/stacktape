@@ -1,0 +1,29 @@
+---
+import { ANALYZE_FEED } from '../data';
+import TrWizard from '../TrWizard.astro';
+---
+
+<TrWizard band="Analyze">
+  <div class="tr-feed__head">
+    <span class="tr-spinner" aria-hidden="true"></span>
+    <span>Reading your project — <strong>12 files so far</strong></span>
+  </div>
+  <ol class="tr-feed" aria-label="Files opened by the wizard">
+    {
+      ANALYZE_FEED.map((entry, index) => (
+        <li class="tr-feed__row" style={`--i: ${index}`}>
+          <span class="tr-feed__file tr-mono">{entry.file}</span>
+          <span class="tr-feed__note">{entry.note}</span>
+        </li>
+      ))
+    }
+    <li class="tr-feed__row tr-feed__row--more" style={`--i: ${ANALYZE_FEED.length}`}>
+      <span class="tr-feed__file tr-mono">… 32 more</span>
+      <span class="tr-feed__note">lockfile, tsconfig, routes, tests</span>
+    </li>
+  </ol>
+  <p class="tr-feed__done">
+    <span class="tr-tick" aria-hidden="true"></span>
+    Opened 41 files in 38s, all on this machine.
+  </p>
+</TrWizard>

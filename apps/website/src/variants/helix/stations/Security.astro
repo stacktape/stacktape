@@ -1,0 +1,42 @@
+---
+import ConsoleFrame from '../ConsoleFrame.astro';
+import { PROJECT, SECURITY } from '../data';
+
+const pct = Math.round((SECURITY.passing / SECURITY.total) * 100);
+const tone = (kind: string) => (kind === 'Vulnerabilities' ? 'hx-tick--red' : 'hx-tick--amber');
+---
+
+<ConsoleFrame active="Security/Overview" crumb={['Security', PROJECT.name]}>
+  <div class="hx-posture">
+    <div class="hx-ring" style={`--hx-pct: ${pct}`} role="img" aria-label={`${SECURITY.passing} of ${SECURITY.total} posture checks passing`}>
+      <span>{SECURITY.passing}/{SECURITY.total}</span>
+    </div>
+    <div>
+      <h4 class="hx-h">Posture · {SECURITY.passing} of {SECURITY.total} checks passing</h4>
+      <p class="hx-p hx-m-hide">Built images scanned in the pipeline, an SBOM per deploy, re-graded nightly. Checks come from the same catalogue guardrails enforce.</p>
+    </div>
+  </div>
+  <ul class="hx-findings" aria-label="Open findings">
+    {
+      SECURITY.findings.map((finding) => (
+        <li>
+          <span class:list={['hx-tick', tone(finding.kind)]} aria-hidden="true">!</span>
+          <span class="hx-findings__text">{finding.text}</span>
+          <span class="hx-findings__rule">
+            {finding.kind} · {finding.rule}
+          </span>
+          <span class:list={['hx-minibtn', 'hx-findings__action', finding.action === 'Convert to $Secret' && 'hx-minibtn--primary']}>
+            {finding.action}
+          </span>
+        </li>
+      ))
+    }
+  </ul>
+  <div class="hx-m-hide">
+    <span class="hx-label">Guardrails · on for this organization</span>
+    <div class="hx-guardrails">
+      {SECURITY.guardrails.map((rule) => <span class="hx-chip hx-chip--brand">✓ {rule}</span>)}
+      <span class="hx-chip">15 more types</span>
+    </div>
+  </div>
+</ConsoleFrame>

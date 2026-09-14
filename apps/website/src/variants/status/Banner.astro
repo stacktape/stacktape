@@ -1,0 +1,62 @@
+---
+/**
+ * The status page proper: the green-edged banner, then the seven components in one card, each with
+ * its 90-day bar, its availability and its state. A row links to the component's card further down.
+ *
+ * The bars fill once, left to right, when the list enters the viewport. The inline script arms the
+ * list before it paints so nothing flashes; it does nothing when the visitor prefers reduced motion.
+ */
+import Bar from './Bar.astro';
+import { COMPONENTS, STATUS } from './data';
+---
+
+<section class="su-status" aria-label="Status">
+  <div class="su-container">
+    <div class="su-banner">
+      <i class="su-dot" aria-hidden="true"></i>
+      <p class="su-banner__text">{STATUS.banner}</p>
+      <p class="su-banner__scope">{STATUS.scope}</p>
+    </div>
+
+    <ul class="su-list" data-su-bars>
+      {
+        COMPONENTS.map((component, index) => (
+          <li>
+            <a class="su-row" href={`#${component.id}`} style={`--i: ${index}`}>
+              <i class="su-dot" aria-hidden="true" />
+              <span class="su-row__name">
+                <span class="su-row__num">{component.number}</span>
+                {component.name}
+              </span>
+              <span class="su-row__bar">
+                <Bar incidentDay={component.incidentDay} />
+              </span>
+              <span class="su-row__pct">{component.uptime}</span>
+              <span class="su-row__state">{STATUS.state}</span>
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+
+    <script is:inline>
+      (function () {
+        var list = document.querySelector('[data-su-bars]');
+        if (!list || !('IntersectionObserver' in window)) return;
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        list.classList.add('is-armed');
+        var observer = new IntersectionObserver(
+          function (entries) {
+            if (!entries.some(function (entry) { return entry.isIntersecting; })) return;
+            list.classList.add('is-filled');
+            observer.disconnect();
+          },
+          { threshold: 0.15 }
+        );
+        observer.observe(list);
+      })();
+    </script>
+
+    <p class="su-list__note">{STATUS.listNote}</p>
+  </div>
+</section>

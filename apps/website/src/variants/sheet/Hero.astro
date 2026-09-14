@@ -1,0 +1,35 @@
+---
+/** The hero: announcement, headline, subheadline, the command and the trust line on the left; the cover composite on the right. */
+import { CommandBox } from './CommandBox';
+import Cover from './Cover.astro';
+import { ANNOUNCEMENT, HEADLINE_LINES, SUBHEADLINE, TRUST_LINE } from './data';
+---
+
+<section class="sh-hero" aria-labelledby="sh-hero-title">
+  <div class="sh-container sh-hero__grid">
+    <div class="sh-hero__copy">
+      <a class="sh-pill" href={ANNOUNCEMENT.href}>
+        <span class="sh-pill__text">{ANNOUNCEMENT.lead} <b class="sh-pill__v">{ANNOUNCEMENT.version}</b> {ANNOUNCEMENT.tail}</span>
+        <span class="sh-pill__cta">{ANNOUNCEMENT.cta} <span class="sh-pill__arrow" aria-hidden="true">→</span></span>
+      </a>
+      <h1 class="sh-hero__title" id="sh-hero-title">
+        <span class="sh-hero__line">{HEADLINE_LINES[0]}</span> <span class="sh-hero__line">{HEADLINE_LINES[1]}</span>
+      </h1>
+      <p class="sh-hero__sub">{SUBHEADLINE}</p>
+      <div class="sh-hero__cta">
+        <CommandBox client:load id="get-started" label="Get started" hint />
+      </div>
+      <p class="sh-trust">
+        {TRUST_LINE.map((item, index) => (
+          <>
+            {index > 0 && <span class="sh-trust__sep" aria-hidden="true">·</span>}
+            <span class="sh-trust__item">{item}</span>
+          </>
+        ))}
+      </p>
+    </div>
+    <div class="sh-hero__cover">
+      <Cover />
+    </div>
+  </div>
+</section>

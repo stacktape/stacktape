@@ -1,0 +1,24 @@
+---
+import { TESTIMONIALS, TESTIMONIALS_TITLE } from './data';
+---
+
+<section class="dk-voices" aria-labelledby="dk-voices-title">
+  <div class="dk-container">
+    <h2 class="dk-voices__title" id="dk-voices-title">{TESTIMONIALS_TITLE}</h2>
+    <ul class="dk-voices__list">
+      {
+        TESTIMONIALS.map((item) => (
+          <li class="dk-voice">
+            <blockquote class="dk-voice__quote">
+              <p>“{item.quote}”</p>
+            </blockquote>
+            <p class="dk-voice__who">
+              <span class="dk-voice__name">{item.name}</span>
+              <span class="dk-voice__role">{item.role}</span>
+            </p>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</section>

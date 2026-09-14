@@ -1,0 +1,84 @@
+---
+/** 04 — the incident page, from the first signal to "recovered", with the opt-in switch off. */
+import Frame from '../Frame.astro';
+import { INCIDENT, PROJECT } from '../data';
+---
+
+<Frame url={`console.stacktape.com/projects/${PROJECT.name}/incidents/<b>${INCIDENT.id}</b>`} active="Incidents">
+  <div class="du-inc">
+    <div class="du-inc__head">
+      <p class="du-inc__chips">
+        <span class="du-mono du-inc__id">{INCIDENT.id}</span>
+        <span class="du-chip du-chip--error">Error</span>
+        <span class="du-chip du-chip--mono">production</span>
+        <span class="du-chip du-chip--ok"><i class="du-chip__dot" aria-hidden="true"></i>Resolved</span>
+      </p>
+      <h3 class="du-inc__title">{INCIDENT.title}</h3>
+      <p class="du-inc__release">
+        Opened <b>4m after the last deploy</b> · <span class="du-mono">v41</span> · commit <span class="du-mono">a1b2c3d</span> — orders: add fulfillment
+        status column · previous release <span class="du-mono">v40</span> · config unchanged · <a href="#incidents" class="du-inc__link">what changed (3 commits)</a>
+      </p>
+    </div>
+
+    <div class="du-inc__grid">
+      <div class="du-inc__main">
+        <p class="du-panel__title">Signals</p>
+        <ul class="du-signals">
+          {
+            INCIDENT.signals.map((signal) => (
+              <li class="du-signal">
+                <span class="du-signal__kind">{signal.kind}</span>
+                <span class="du-signal__text">{signal.text}</span>
+                <span class="du-signal__meta">{signal.meta}</span>
+              </li>
+            ))
+          }
+        </ul>
+
+        <p class="du-panel__title du-panel__title--gap">Timeline</p>
+        <ol class="du-timeline">
+          {
+            INCIDENT.timeline.map((event) => (
+              <li class={`du-tl du-tl--${event.tone}`}>
+                <span class="du-tl__time">{event.time}</span>
+                <span class="du-tl__mark" aria-hidden="true" />
+                <span class="du-tl__text">{event.text}</span>
+              </li>
+            ))
+          }
+        </ol>
+      </div>
+
+      <aside class="du-inc__side">
+        <div class="du-side">
+          <p class="du-panel__title">Hand it to an agent</p>
+          <button type="button" class="du-btn du-btn--brand du-inc__copy">
+            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
+              <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.4"></rect>
+              <path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" stroke="currentColor" stroke-width="1.4"></path>
+            </svg>
+            Copy details for agent
+          </button>
+          <p class="du-side__note">
+            One bundle with the release diff, the evidence with stack frames, the timeline, scoped links, and a four-step
+            protocol that ends in <code>stacktape incidents:resolve</code>.
+          </p>
+        </div>
+
+        <div class="du-side">
+          <p class="du-panel__title">Automatic remediation</p>
+          <div class="du-optin">
+            <span class="stp-ui-switch du-optin__switch" role="switch" aria-checked="false" aria-readonly="true" aria-label="Let an agent fix and deploy on its own">
+              <span class="stp-ui-switch__thumb" aria-hidden="true"></span>
+            </span>
+            <span class="du-optin__text">
+              <span class="du-optin__what">Let an agent fix and deploy on its own</span>
+              <span class="du-optin__state">Opt-in. Off by default.</span>
+            </span>
+          </div>
+          <p class="du-side__note">Until you turn this on, every fix is a pull request you review and approve.</p>
+        </div>
+      </aside>
+    </div>
+  </div>
+</Frame>

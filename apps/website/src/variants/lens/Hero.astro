@@ -1,0 +1,27 @@
+---
+/** The centred hero: the announcement, the headline, the command, and the cover composite on the floor. */
+import { CommandBox } from './CommandBox';
+import Cover from './Cover.astro';
+import { HEADLINE_LINES, PILL, SUBHEADLINE, TRUST_LINE } from './data';
+---
+
+<section class="ls-hero" aria-labelledby="ls-hero-title">
+  <div class="ls-container">
+    <div class="ls-hero__copy">
+      <a class="ls-pill" href={PILL.href}>
+        <span class="ls-pill__news">{PILL.lead} <b>{PILL.version}</b> {PILL.rest}</span>
+        <span class="ls-pill__link">{PILL.link} <span class="ls-pill__arrow" aria-hidden="true">→</span></span>
+      </a>
+      <h1 class="ls-hero__title" id="ls-hero-title">
+        <span class="ls-hero__line">{HEADLINE_LINES[0]}</span>
+        <span class="ls-hero__line">{HEADLINE_LINES[1]}</span>
+      </h1>
+      <p class="ls-hero__sub">{SUBHEADLINE}</p>
+      <div class="ls-hero__cta">
+        <CommandBox client:load id="get-started" label="Get started" />
+      </div>
+      <p class="ls-trust">{TRUST_LINE}</p>
+    </div>
+    <Cover />
+  </div>
+</section>

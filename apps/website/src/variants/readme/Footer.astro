@@ -1,0 +1,24 @@
+---
+/**
+ * One row on the page colour: the wordmark, the notes and the few links the sidebar does not
+ * already carry (legal and status). Docs, contact and pricing live in the sidebar.
+ */
+import Logo from '../../components/Logo.astro';
+import { FOOTER_LINKS, FOOTER_NOTES } from './data';
+---
+
+<footer class="rm-footer">
+  <div class="rm-container rm-footer__row">
+    <a class="rm-footer__logo" href="/" aria-label="Stacktape home"><Logo height={18} /></a>
+    {FOOTER_NOTES.map((note) => <span class="rm-footer__note">{note}</span>)}
+    <ul class="rm-footer__links">
+      {
+        FOOTER_LINKS.map((link) => (
+          <li>
+            <a href={link.href}>{link.label}</a>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</footer>

@@ -1,0 +1,17 @@
+---
+/** The posting's "Not required" section: three lines the position no longer asks for. No screen. */
+import { POSTING } from './data';
+---
+
+<section class="hr-section hr-nope" aria-labelledby="hr-nope-title">
+  <h2 class="hr-h2" id="hr-nope-title">{POSTING.notRequired}</h2>
+  <ul class="hr-nope__list">
+    {
+      POSTING.notRequiredItems.map((item) => (
+        <li class="hr-nope__item">
+          <s>{item}</s>
+        </li>
+      ))
+    }
+  </ul>
+</section>

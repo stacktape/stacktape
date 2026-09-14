@@ -1,0 +1,105 @@
+---
+/**
+ * The two tracks. Each row is its own `240px 40px 1fr` grid: the left cell carries the plate that
+ * marks the surface's top (and, where the visitor does something, the gold node), the right cell
+ * carries the surface. Because plate and surface share a row, the plate sits at the surface's top
+ * by layout alone; `route.ts` only measures the result to draw the line.
+ *
+ * The lead row holds the first visitor node, above surface 01; the route's first diagonal lands
+ * on it. After the last row, the arrival plate sits on the page's centre line, one 2:1 diagonal
+ * away from the track.
+ */
+import { NODES, PROJECT, STEPS } from './data';
+import Node from './Node.astro';
+import Plate from './Plate.astro';
+import Costs from './screens/Costs.astro';
+import Deploy from './screens/Deploy.astro';
+import Incident from './screens/Incident.astro';
+import Monitor from './screens/Monitor.astro';
+import Review from './screens/Review.astro';
+import Secure from './screens/Secure.astro';
+import Surface from './Surface.astro';
+
+const step = (id: string) => {
+  const found = STEPS.find((candidate) => candidate.id === id);
+  if (!found) throw new Error(`track: no step with id "${id}"`);
+  return found;
+};
+
+const node = (id: string) => {
+  const found = NODES.find((candidate) => candidate.id === id);
+  if (!found) throw new Error(`track: no visitor node with id "${id}"`);
+  return found;
+};
+---
+
+<section class="tk-journey" aria-label="What Stacktape does">
+  <div class="tk-rows">
+    <div class="tk-row tk-row--lead" data-tk-lead>
+      <div class="tk-cell">
+        <Node node={node('init')} />
+      </div>
+    </div>
+
+    <div class="tk-row">
+      <div class="tk-cell"><Plate number="01" /></div>
+      <Surface step={step('designs')}><Review /></Surface>
+    </div>
+
+    <div class="tk-row">
+      <div class="tk-cell">
+        <Plate number="02" />
+        <Node node={node('deploy')} />
+      </div>
+      <Surface step={step('deploys')}><Deploy /></Surface>
+    </div>
+
+    <div class="tk-row">
+      <div class="tk-cell"><Plate number="03" /></div>
+      <Surface step={step('monitors')}><Monitor /></Surface>
+    </div>
+
+    <div class="tk-row">
+      <div class="tk-cell"><Plate number="04" /></div>
+      <Surface step={step('secures')}><Secure /></Surface>
+    </div>
+
+    <div class="tk-row">
+      <div class="tk-cell">
+        <Plate number="05" />
+        <Node node={node('review')} alignTo="you" />
+      </div>
+      <Surface step={step('incidents')}><Incident /></Surface>
+    </div>
+
+    <div class="tk-row">
+      <div class="tk-cell">
+        <Plate number="06" />
+        <Node node={node('budget')} />
+      </div>
+      <Surface step={step('costs')}><Costs /></Surface>
+    </div>
+  </div>
+
+  <div class="tk-end">
+    <div class="tk-end__tile" data-tk-end-tile aria-hidden="true">
+      <svg viewBox="0 0 96 48" width="96" height="48">
+        <polygon class="tk-end__face" points="48,0.5 95.5,24 48,47.5 0.5,24"></polygon>
+      </svg>
+      <i class="tk-end__live"></i>
+    </div>
+    <div class="tk-end__panel">
+      <p class="tk-end__line">
+        <b>{PROJECT.name}</b> <span aria-hidden="true">·</span> production <span aria-hidden="true">·</span> running
+      </p>
+      <p class="tk-end__urls">
+        <a href={PROJECT.urls.web}>{PROJECT.urls.web}</a>
+        <a href={PROJECT.urls.api}>{PROJECT.urls.api}</a>
+      </p>
+    </div>
+  </div>
+</section>
+
+<script>
+  import './route';
+</script>

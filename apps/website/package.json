@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "astro build",
+    "deploy": "stacktape deploy --region eu-west-1 --stage production --awsAccount stacktape-dev --hotSwap --projectName web",
+    "deploy:preview": "stacktape deploy --region eu-west-1 --stage preview --awsAccount stacktape-dev --hotSwap --projectName web",
     "dev": "astro dev --port 9002",
     "preview": "astro preview --port 9002",
     "typecheck": "astro check"

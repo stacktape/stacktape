@@ -1,0 +1,67 @@
+---
+/**
+ * The hero: the copy and the command box in front, and behind them the road ahead — the six
+ * screens as billboards standing on the floor, nearest at the bottom-left, farthest by the horizon
+ * on the right. The billboards live in a second perspective scene with exactly the floor's
+ * geometry, so they land on the fixed floor's grid; `--u` is the lateral offset on the floor and
+ * `--v` the distance from its near edge, both in floor pixels.
+ */
+import Billboard from './Billboard.astro';
+import { CommandBox } from './CommandBox';
+import { EYEBROW, HEADLINE_A, HEADLINE_B, STAGES, SUBHEADLINE, TRUST_LINE } from './data';
+
+const BOARDS = [
+  { id: 'designs', title: 'stacktape init', u: '-36.3vw', v: '180px' },
+  { id: 'deploys', title: 'stacktape init', u: '-22.6vw', v: '569px' },
+  { id: 'monitors', title: 'acme-project', u: '-2.4vw', v: '1100px' },
+  { id: 'secures', title: 'security', u: '30vw', v: '1600px' },
+  { id: 'incidents', title: 'inc_8f2k', u: '66vw', v: '2597px' },
+  { id: 'costs', title: 'costs', u: '117vw', v: '3656px' }
+] as const;
+
+const nameOf = (id: string) => STAGES.find((stage) => stage.id === id)?.name ?? id;
+---
+
+<section class="ky-hero" aria-labelledby="ky-hero-title" data-ky-stage="hero">
+  <div class="ky-road" aria-hidden="true">
+    <div class="ky-road__floor">
+      {
+        BOARDS.map((board, index) => (
+          <>
+            <div class="ky-board" style={`--u:${board.u};--v:${board.v};--i:${index}`}>
+              <Billboard kind={board.id} title={board.title} />
+            </div>
+            <div class="ky-board-plate" style={`--u:${board.u};--v:${board.v};--i:${index}`}>
+              {nameOf(board.id)}
+            </div>
+          </>
+        ))
+      }
+    </div>
+  </div>
+
+  <div class="ky-container ky-hero__inner">
+    <p class="ky-eyebrow">{EYEBROW}</p>
+    <h1 class="ky-hero__title" id="ky-hero-title">
+      <span class="ky-hero__line">{HEADLINE_A}</span>
+      <span class="ky-hero__line">{HEADLINE_B}</span>
+    </h1>
+    <p class="ky-hero__sub">{SUBHEADLINE}</p>
+    <div class="ky-hero__cta">
+      <CommandBox client:load label="Get started" hint="Nothing is created on AWS until you press Deploy" />
+    </div>
+    <p class="ky-trust">{TRUST_LINE}</p>
+
+    <!-- Below 900px the floor is flat, so the road becomes a row of three thumbnails under the command box. -->
+    <div class="ky-hero__thumbs" aria-hidden="true">
+      {
+        BOARDS.slice(0, 3).map((board) => (
+          <div class="ky-thumb">
+            <Billboard kind={board.id} title={board.title} />
+            <span class="ky-thumb__name">{nameOf(board.id)}</span>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</section>

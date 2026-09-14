@@ -1,0 +1,21 @@
+---
+import { ButtonLink } from '@stacktape/ui-react/button';
+import Logo from '../../components/Logo.astro';
+import { LINKS } from './data';
+---
+
+<header class="fl-nav">
+  <div class="fl-container fl-nav__inner">
+    <a class="fl-nav__logo" href="/" aria-label="Stacktape home"><Logo height={24} /></a>
+    <nav aria-label="Primary">
+      <ul class="fl-nav__links">
+        <li><a class="fl-nav__link fl-nav__link--phone-optional" href={LINKS.docs}>Docs</a></li>
+        <li><a class="fl-nav__link fl-nav__link--optional" href={LINKS.github}>GitHub</a></li>
+        <li><a class="fl-nav__link" href={LINKS.console}>Sign in</a></li>
+        <li>
+          <ButtonLink className="fl-nav__demo" href={LINKS.demo} variant="secondary">Book a demo</ButtonLink>
+        </li>
+      </ul>
+    </nav>
+  </div>
+</header>

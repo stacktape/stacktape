@@ -1,0 +1,20 @@
+---
+import { TESTIMONIALS } from './data';
+---
+
+<section class="du-voices" aria-label="What customers say">
+  <div class="du-voices__in">
+    {
+      TESTIMONIALS.map((item) => (
+        <figure class="du-voice">
+          <blockquote class="du-voice__quote">{item.quote}</blockquote>
+          <figcaption class="du-voice__by">
+            <span class="du-voice__name">{item.name}</span>
+            <span class="du-voice__role">{item.role}</span>
+            <span class="du-voice__fact">{item.fact}</span>
+          </figcaption>
+        </figure>
+      ))
+    }
+  </div>
+</section>

@@ -1,6 +1,6 @@
 {
   "includes": ["apps/**/*.astro"],
-  "excludes": ["apps/cli/starter-projects/**", "apps/website/src/pages/hero-competition/**"],
+  "excludes": ["apps/cli/starter-projects/**", "apps/website/src/**"],
   "plugins": ["https://plugins.dprint.dev/g-plane/markup_fmt-v0.27.3.wasm"],
   "markup": {
     "printWidth": 120

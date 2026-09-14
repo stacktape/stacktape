@@ -1,0 +1,18 @@
+---
+import Logo from '../../components/Logo.astro';
+import { LINKS } from './data';
+---
+
+<header class="sp-nav sp-split">
+  <div class="sp-cell sp-cell--you">
+    <a href="/" aria-label="Stacktape home"><Logo height={24} /></a>
+  </div>
+  <nav class="sp-cell sp-cell--stp" aria-label="Primary">
+    <ul class="sp-nav__links">
+      <li><a href={LINKS.docs}>Docs</a></li>
+      <li><a href={LINKS.github}>GitHub</a></li>
+      <li class="is-quiet"><a href={LINKS.demo}>Book a demo</a></li>
+      <li><a class="is-primary" href={LINKS.signIn}>Sign in</a></li>
+    </ul>
+  </nav>
+</header>
