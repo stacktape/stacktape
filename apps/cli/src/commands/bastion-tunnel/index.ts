@@ -57,7 +57,12 @@ export const commandBastionTunnel = async () => {
       await tunnel.waitForExit();
       return tunnel;
     })
-  );
+  ).finally(async () => {
+    // A signal's cleanup hook closes the plugin before AWS session termination finishes.
+    // Keep the command alive until that shared cleanup completes; otherwise the CLI wrapper
+    // can exit from the interrupted command while the server session is still active.
+    await Promise.all(tunnels.map((tunnel) => tunnel.kill()));
+  });
   throw new CliError({
     category: 'AWS',
     code: 'SSM_TUNNEL_CLOSED',

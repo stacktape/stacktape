@@ -11,6 +11,10 @@ Record the checkout or uncommitted revision, local/deployed API target, and rele
 process/runtime failures, include the host environment and tool versions that affect the result; WSL execution and a
 native Windows process are different environments even when they access the same checkout.
 
+Recheck executable paths and versions if module resolution suddenly changes during a long session. A global Bun symlink
+changed during provider acceptance and selected an older runtime. Use the repository's supported version in a task-owned
+location, verifying its published checksum; do not overwrite another task's global runtime configuration.
+
 - **Browser:** observe the actual request origin and effective authentication identifiers before supplying test
   credentials. A localhost string in a bundle does not prove the browser uses localhost: Console's `STP_INJECTED_ENV`
   can override bundled `import.meta.env` values. Check the loaded runtime configuration and network request before
@@ -23,7 +27,11 @@ native Windows process are different environments even when they access the same
   interactive action in a browser. A root-mounted preview can hide broken absolute asset URLs; Forge Custom UI requires
   relative URLs. A substituted host bridge can qualify asset loading and local UI behavior, but the installed provider
   page and real pairing still need separate acceptance. Inspect the visible page or failed requests before attributing
-  every blank page to the same packaging defect.
+  every blank page to the same packaging defect. For permission changes, distinguish deployment from upgrading the
+  installed app. A working old installation does not prove it received new permissions. Confirm the operator command
+  completed, then read a real private repository through that connection. Forge's major-version approval can stop a
+  standalone lint before deployment starts; use the maintained setup helper, which acknowledges only the requested
+  development upgrade and keeps validation on.
 - **Provider callback:** trace the start origin, provider redirect destination and API handling the return. Installation
   setup URLs and OAuth callback URLs are distinct provider settings; changing one may not fix the other. Verify the
   non-secret registration settings against current provider documentation. Use the existing sign-in helpers and
@@ -36,6 +44,21 @@ native Windows process are different environments even when they access the same
   the handler. HTTP API payload 1.0 uses `path`; payload 2.0 uses `rawPath`. A fabricated V2 fixture once hid a deployed
   Bitbucket handler returning 404 after successful authentication. A missing-auth probe cannot qualify routing because
   it exits before that code. Check the response status and intended side effect even when Lambda reports no errors.
+
+Before an uninstall/reinstall test, snapshot the complete installation scope: provider account, all-versus-selected
+repository access, repository identities, permissions, event subscriptions, Console bindings and deployment
+configurations. Restore and compare those values after reinstall, including unrelated bindings. Providers may assign a
+new installation or connection ID; update the current fixture inventory without rewriting historical evidence. An
+already authenticated provider browser can still require a new identity check for reinstall. Ask the owner only when
+that actual prompt appears, then resume and verify the persisted result.
+
+For organization isolation, use a separate browser context for the restricted identity and verify its actual
+memberships. Test both a non-member requesting another organization's data and a member of two organizations supplying a
+connection from the wrong one. After a denial, make an allowed request and reload: an access-denied response must not
+invalidate a valid login. Also begin a provider connection in one tab, switch organizations in another, and verify the
+callback cannot change the original association. Keep OAuth state only in memory; record hashes or transaction IDs for
+cleanup. Capture navigation before clicking a control that immediately leaves Console, since the browser may discard the
+preceding response body after the redirect.
 
 For credential storage and refresh, check each worker's runtime environment, parameter map and IAM access. Include
 non-secret selectors such as `STAGE`: it determines the credential namespace and Console origin. Pass the
@@ -56,11 +79,20 @@ outside the task's authorization, and state which deployed-handler boundary rema
 If a previously healthy browser session starts failing on database reads, check the owned database tunnel before
 changing authentication or provider code. An SSM idle timeout can close the tunnel while a wrapper process remains
 alive. Qualify tunnel supervision by closing only the recorded task-owned session and verifying the local API, UI,
-container and listeners stop; server-start success alone does not prove this lifetime behavior.
+container and listeners stop; server-start success alone does not prove this lifetime behavior. Also stop a healthy
+session normally and verify its exact AWS session is no longer active. A child process can exit before asynchronous
+server cleanup completes, especially when a CLI wrapper explicitly exits the process.
+
+If a Windows browser-control tool fails before initialization on a WSL workspace path, treat that as a host/tool
+problem, not a Console login failure. Verify a controllable headed WSL browser before requesting provider sign-in,
+following the private-profile guidance in the Console E2E README. Never copy personal browser sessions to work around
+the tool failure.
 
 A running local API can still contain the previous build. After editing API code, confirm that a rebuild/restart
-completed before attributing a failed acceptance check to the new code. Restart full local mode when its reload status
-is uncertain; the request origin alone identifies the server, not its loaded revision.
+completed before attributing a failed acceptance check to the new code. UI hot reload does not rebuild the API
+container. In the full local terminal, use **Ctrl+R**, then select **apiServer** from the workload picker; wait for the
+rebuild to finish. Restart full local mode when its reload status is uncertain. The request origin alone identifies the
+server, not its loaded revision.
 
 Wait for the dev CloudFormation update to finish before starting full local mode. The launcher rejects
 `UPDATE_IN_PROGRESS` even after packaging and artifact uploads have finished.
@@ -82,12 +114,29 @@ affected. For Console EC2 work, reuse the
 [runner qualification lanes](../../../../apps/console/e2e/README.md#ec2-runner-qualification) and their documented
 coverage before creating another harness.
 
+For a runner image distributed to customer accounts, qualify a privately shared candidate from the documented
+receiving-account fixture. An available AMI launched by its owner does not prove another account can use it. Check every
+regional copy's launch permissions and encryption: AWS cannot publish encrypted base snapshots, while customer root
+disks must remain encrypted at launch. Use an explicit candidate AMI in the qualification command. Dev consumers must
+use their independent stage pointer; verify the deployed selector before changing it. A test build must not replace the
+production release pointer. After changing a pinned tool version, compare its checksum with the publisher's release
+metadata and verify the download before spending time on an EC2 rebuild. Keep build success, customer launch, real
+workload success and release publication as separate evidence.
+
 ## Follow the same operation through every boundary
 
 For credential-backed connections, include access after the short-lived credential expires. Exercise discovery as well
 as the refresh helper: filtering an expired connection out of a repository query can prevent refresh from running at
-all. When approval and account selection are separate steps, check cancellation and retry after a lost response, and
-verify that cleanup of the pending approval preserves credentials transferred to the completed connection.
+all. Check the connection card too: an expired OAuth access token with a usable refresh token should not ask the
+customer to reconnect. Separately revoke authorization before access-token expiry and verify both repository reads and
+runner credential handoff are denied; an independently created deploy token can outlive the OAuth grant.
+
+Observe retries as well as the first failure. A connection query that excludes a newly invalidated credential can turn
+the next repository request into a misleading successful empty list. Explicitly selecting an unavailable connection must
+preserve the access error. When approval and account selection are separate steps, check cancellation and retry after a
+lost response, and verify that cleanup of the pending approval preserves credentials transferred to the completed
+connection. If cancellation defers cleanup to maintenance, record that distinction and exercise the cleanup service with
+only the owned selection IDs; do not invoke unrelated scheduled work to accelerate the test.
 
 For a migration that retires an integration, seed both obsolete and current records with dependent project bindings. Run
 the actual migration and assert the surviving identities, detached links and removed fields. A schema-only test cannot
@@ -96,7 +145,15 @@ missing; replay predicates cannot use columns that have already been dropped.
 
 Identify the intended organization, connection, repository and event by stable IDs as well as readable labels. Existing
 connections can coexist with a new one. Do not let a test pass against the first matching row or an older installation.
-After connecting, reload through the real API and check repository access through the newly verified connection.
+After connecting, reload through the real API and check repository access through the newly verified connection. Use
+that same project binding when checking provider deployment statuses and PR comments. A successful checkout can hide a
+status reporter that selects an unrelated installation from the same organization; verify the provider-visible result as
+well as the AWS deployment.
+
+Test local CLI reporting through its actual sequence of start, project resolution, progress and completion. Startup can
+create a durable operation before the project name is known; a provider status hook that runs only on the first request
+can therefore miss every local deployment. Verify the resulting GitHub deployment and final status, including its
+account and region, independently of CLI success.
 
 For an asynchronous provider journey, collect the evidence relevant to the operation:
 
@@ -106,6 +163,21 @@ For an asynchronous provider journey, collect the evidence relevant to the opera
 | Ingress and worker | Correlate that delivery with the accepted request and worker execution. HTTP 202 proves acceptance, not worker completion; HTTP 207 may contain a failed tRPC procedure.                                                    |
 | Durable outcome    | Read the delivery/job record and the expected application result through the API/database. A processed event that schedules no work proves delivery handling, not a deployment.                                             |
 | Duplicate or retry | Replay only an identified, task-authorized event. Verify the repeat reached the consumer, then assert one durable result and no repeated side effects; an unchanged database row alone could mean the repeat never arrived. |
+
+Do not assume delivery rows contain project or connection routing metadata. GitHub ingress stores neither; correlate its
+exact provider delivery GUID with the operation's delivery key before checking processing or payload cleanup.
+
+For queued dispatch, verify the producer's deployed queue URL and permission, and observe delivery through that queue.
+Successful scheduled recovery can hide a broken enqueue path. Record dispatch latency and distinguish ordinary queue
+delivery from recovery. Group jobs by the actual runner identity, including AWS account and region; one busy account
+must not prevent independent runners for that project from starting.
+
+A lost-dispatch-response test should cross the actual acceptance boundary: stop the task-owned caller after AWS accepts
+its command but before the caller records the command ID. Then observe the deployed reconciler without repairing its
+state. Verify the original command is recovered, executes once, releases ownership and credentials, and exposes the
+workload logs. Distinguish failure of a local process running production dispatch code from termination of an actual
+Lambda invocation. Compare the recovered log reference with an ordinary dispatch; a UI fallback can hide stale
+provisioning metadata.
 
 Prefer the provider's real redelivery mechanism when testing provider retries. Confirm the event's identity and effect
 before replaying it; do not replay the latest event across a shared App indiscriminately. Replaying an event after
@@ -171,6 +243,12 @@ Keep exact IDs for task-created instances, disks, containers, processes, tempora
 their removal or revocation where applicable, including after a failed attempt. A stopped launcher does not prove its UI
 child, container or tunnel exited; check the owned processes and listeners. Never kill an unidentified process just
 because it occupies the expected port.
+
+Project deletion needs provider cleanup evidence too. Verify the exact GitLab webhook disappears, and that a failed
+provider cleanup preserves its project recovery identifiers for retry. Include an already-removed webhook response.
+Delete deployed test stages before deleting their Console project when possible: a later CLI deletion report can
+recreate a project record. If the scenario intentionally reverses that order, check for and remove the resulting owned
+record as well as the stack, runner and provider hook.
 
 Inspect process IDs and executable names without dumping command arguments or environment variables, for example
 `ps -p <owned-pids> -o pid,ppid,comm`. The SSM session-manager plugin receives its temporary session token in an

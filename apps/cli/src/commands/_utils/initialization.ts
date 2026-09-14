@@ -648,7 +648,10 @@ export const initializeStackServicesForWorkingWithDeployedStack = async ({
     permissions: globalStateManager.permissions,
     projects: globalStateManager.projects
   });
-  await startStackOperationRecording({ stackName: globalStateManager.targetStack.stackName });
+  await startStackOperationRecording({
+    stackName: globalStateManager.targetStack.stackName,
+    projectName: globalStateManager.targetStack.projectName
+  });
 
   const stackContext = getStackContext();
   await configManager.init({ configRequired: commandRequiresConfig, context: getConfigManagerContext(stackContext) });
@@ -804,7 +807,7 @@ export const startStackOperationRecording = async ({
   projectName
 }: {
   stackName: string;
-  projectName?: string;
+  projectName: string;
 }) => {
   // for recorded stacktape commands we are sending logs into cloudwatch
   // we are also recording the start and end of operation through Stacktape API
