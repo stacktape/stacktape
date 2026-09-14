@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { getPlatform } from '@utils/bin-executable';
@@ -7,10 +7,8 @@ import packageJson from '../package.json';
 import { packageHelperLambdas } from './package-helper-lambdas';
 import { buildBinaryFile } from './release/build-cli-sources';
 
-// Compiles the CLI the way a release does and runs the two commands every installation must answer. Neither
-// command touches AWS, reads a project, or reaches the network: `version` prints the version compiled into the
-// binary, `help` prints the command table, and both are in `commandsWithDisabledAnnouncements`, so neither runs
-// the update check or the announcements fetch. Telemetry is switched off so nothing is reported from a check run.
+// Compiles the release entrypoint and checks version/help, nested invocation isolation and removed runner input.
+// These paths finish before AWS or announcements initialize. Telemetry is disabled in every child process.
 const runBinary = (binaryPath: string, args: string[]) => {
   const result = Bun.spawnSync({
     cmd: [binaryPath, ...args],
@@ -60,6 +58,69 @@ const verifyCliSmoke = async () => {
       output: runBinary(binaryPath, ['--help']),
       expected: ['Available commands:', 'deploy', 'delete', 'package', 'CLI Documentation']
     });
+
+    const fixtureDirectory = join(directory, 'nested-invocation');
+    const fixtureHome = join(directory, 'home');
+    await mkdir(fixtureHome, { recursive: true });
+    await cp(join(binaryFolderPath, 'helper-lambdas'), join(fixtureDirectory, '__stacktape-dist/dev/helper-lambdas'), {
+      recursive: true
+    });
+    const nested = Bun.spawnSync({
+      cmd: [process.execPath, join(import.meta.dir, 'fixtures/nested-cli-invocation.ts'), binaryPath],
+      cwd: fixtureDirectory,
+      env: {
+        PATH: process.env.PATH,
+        SystemRoot: process.env.SystemRoot,
+        HOME: fixtureHome,
+        USERPROFILE: fixtureHome,
+        STP_DEV_MODE: 'true',
+        STP_DISABLE_TELEMETRY: '1',
+        STP_INVOCATION_ID: 'runner-parent-smoke',
+        AWS_EC2_METADATA_DISABLED: 'true'
+      },
+      stdout: 'pipe',
+      stderr: 'pipe',
+      timeout: 60_000
+    });
+    if (nested.exitCode !== 0) {
+      throw new Error(`Nested CLI invocation failed:\n${nested.stdout.toString()}${nested.stderr.toString()}`);
+    }
+    console.info(nested.stdout.toString().trim());
+
+    const removedRunner = Bun.spawnSync({
+      cmd: [
+        binaryPath,
+        'deploy',
+        '--runner',
+        'codebuild',
+        '--projectName',
+        'proof',
+        '--stage',
+        'proof',
+        '--region',
+        'eu-west-1'
+      ],
+      cwd: fixtureDirectory,
+      env: {
+        HOME: fixtureHome,
+        USERPROFILE: fixtureHome,
+        STP_DISABLE_TELEMETRY: '1',
+        AWS_EC2_METADATA_DISABLED: 'true'
+      },
+      stdout: 'pipe',
+      stderr: 'pipe',
+      timeout: 30_000
+    });
+    const removedRunnerOutput = stripAnsi(`${removedRunner.stdout.toString()}${removedRunner.stderr.toString()}`);
+    if (
+      removedRunner.exitCode !== 1 ||
+      !/runner/i.test(removedRunnerOutput) ||
+      !/local/.test(removedRunnerOutput) ||
+      !/ec2/.test(removedRunnerOutput)
+    ) {
+      throw new Error(`Removed CodeBuild runner did not fail with supported alternatives:\n${removedRunnerOutput}`);
+    }
+    console.info('Verified removed CodeBuild runner fails with the supported local/ec2 alternatives.');
 
     console.info(`Verified compiled ${platform} CLI ${packageJson.version}: version and help output.`);
   } finally {

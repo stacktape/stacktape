@@ -113,6 +113,9 @@ export class GlobalStateManager {
   apiKey: string;
 
   init = async (opts: RunCommandOptions) => {
+    // The runner's override belongs to this invocation. Hooks and builds must not pass it to nested CLIs,
+    // whose startup/exit cleanup would otherwise remove this deployment's temporary artifacts.
+    delete process.env.STP_INVOCATION_ID;
     clearTimeout(this.credentialsRefreshTimeout);
     this.credentialsRefreshTimeout = undefined;
     this.credentialRefreshGeneration += 1;
