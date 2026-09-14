@@ -19,6 +19,11 @@ on:
         description: SemVer version (preview publication requires, for example, 4.0.0-preview.1)
         required: true
         type: string
+      recovery_run_id:
+        description: Recover assets/installers from a verified run whose npm upload succeeded (no rebuild or republish)
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
@@ -34,6 +39,7 @@ env:
 
 jobs:
   verify:
+    if: inputs.recovery_run_id == ''
     name: Verify public workspace
     runs-on: ubuntu-latest
     steps:
@@ -323,7 +329,7 @@ jobs:
           LATEST_BEFORE: ${{ steps.dist-tags-before.outputs.latest }}
           PREVIEW_BEFORE: ${{ steps.dist-tags-before.outputs.preview }}
         run: |
-          for attempt in $(seq 1 12); do
+          for attempt in $(seq 1 90); do
             tags=$(npm view stacktape dist-tags --json --prefer-online)
             latest_after=$(printf '%s' "$tags" | jq -r '.latest // ""')
             preview_after=$(printf '%s' "$tags" | jq -r '.preview // ""')
@@ -334,14 +340,14 @@ jobs:
             elif [ "$latest_after" = "$RELEASE_VERSION" ] && [ "$preview_after" = "$PREVIEW_BEFORE" ]; then
               exit 0
             fi
-            printf 'npm dist-tags have not converged yet (attempt %s/12): latest=%s preview=%s\n' \
+            printf 'npm dist-tags have not converged yet (attempt %s/90): latest=%s preview=%s\n' \
               "$attempt" "$latest_after" "$preview_after"
             sleep 10
           done
           printf 'npm dist-tags did not converge: latest=%s preview=%s\n' "$latest_after" "$preview_after"
           exit 1
       - name: Remove retryable GitHub release after pre-publish failure
-        if: always() && steps.create-release.outputs.release-id != '' && steps.npm-publish.outcome != 'success'
+        if: always() && steps.create-release.outputs.release-id != '' && steps.npm-publish.outcome == 'skipped'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -358,9 +364,110 @@ jobs:
             exit 1
           fi
 
+  recover:
+    name: Recover accepted npm publication
+    if: inputs.recovery_run_id != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: release-publish
+    permissions:
+      contents: write
+      actions: read
+    env:
+      RECOVERY_RUN_ID: ${{ inputs.recovery_run_id }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: false
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.17.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.1
+      - run: pnpm install --frozen-lockfile
+      - name: Verify the original release run
+        id: original
+        run: |
+          bun apps/cli/scripts/release/validate-release-input.ts
+          test "$GITHUB_REF" = refs/heads/main
+          printf '%s' "$RECOVERY_RUN_ID" | grep -Eq '^[0-9]+$'
+          run_json=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RECOVERY_RUN_ID")
+          test "$(printf '%s' "$run_json" | jq -r .path)" = .github/workflows/release.yml
+          test "$(printf '%s' "$run_json" | jq -r .event)" = workflow_dispatch
+          test "$(printf '%s' "$run_json" | jq -r .head_branch)" = main
+          source_sha=$(printf '%s' "$run_json" | jq -r .head_sha)
+          printf '%s' "$source_sha" | grep -Eq '^[0-9a-f]{40}$'
+          jobs=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RECOVERY_RUN_ID/jobs?per_page=100")
+          for job_name in 'Verify public workspace' 'Build linux' 'Build linux-arm' 'Build alpine' 'Build macos' 'Build macos-arm' 'Build win' 'Assemble verified candidate'; do
+            printf '%s' "$jobs" | jq -e --arg name "$job_name" 'any(.jobs[]; .name == $name and .conclusion == "success")' >/dev/null
+          done
+          printf '%s' "$jobs" | jq -e --arg name "Publish $RELEASE_CHANNEL" \
+            'any(.jobs[]; .name == $name and any(.steps[]; .name == "Publish npm release" and .conclusion == "success"))' >/dev/null
+          echo "source-sha=$source_sha" >> "$GITHUB_OUTPUT"
+      - name: Download the original verified bytes
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: stacktape-${{ inputs.version }}-candidate
+          path: apps/cli/__dist
+          run-id: ${{ inputs.recovery_run_id }}
+          github-token: ${{ github.token }}
+      - name: Verify npm contains the original package and still selects this version
+        run: |
+          npm_tag=$([ "$RELEASE_CHANNEL" = preview ] && printf preview || printf latest)
+          expected_integrity="sha512-$(openssl dgst -sha512 -binary "apps/cli/__dist/stacktape-$RELEASE_VERSION.tgz" | openssl base64 -A)"
+          actual_integrity=$(npm view "stacktape@$RELEASE_VERSION" dist.integrity --prefer-online)
+          test "$actual_integrity" = "$expected_integrity"
+          selected_version=$(npm view "stacktape" "dist-tags.$npm_tag" --prefer-online)
+          test "$selected_version" = "$RELEASE_VERSION"
+      - name: Restore missing GitHub assets without overwriting a release
+        env:
+          RECOVERY_SOURCE_SHA: ${{ steps.original.outputs.source-sha }}
+        run: |
+          set +e
+          existing=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_VERSION" 2>&1)
+          lookup_status=$?
+          set -e
+          if [ "$lookup_status" -eq 0 ]; then
+            tag_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_VERSION" --jq .object.sha)
+            test "$tag_sha" = "$RECOVERY_SOURCE_SHA"
+            echo 'Keeping the existing release; its public bytes will be verified next.'
+          else
+            printf '%s' "$existing" | grep -q 'HTTP 404'
+            printf 'Release from %s. Recovered verified artifacts from run %s.\n' "$RECOVERY_SOURCE_SHA" "$RECOVERY_RUN_ID" > "$RUNNER_TEMP/release-recovery.md"
+            if [ "$RELEASE_CHANNEL" = preview ]; then
+              classification=(--prerelease --latest=false)
+            else
+              classification=(--latest)
+            fi
+            gh release create "$RELEASE_VERSION" --repo "$GITHUB_REPOSITORY" --target "$RECOVERY_SOURCE_SHA" \
+              --title "$RELEASE_VERSION" --notes-file "$RUNNER_TEMP/release-recovery.md" "${classification[@]}"
+          fi
+          existing_assets=$(gh release view "$RELEASE_VERSION" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')
+          missing_assets=()
+          for asset in apps/cli/__dist/*.tar.gz apps/cli/__dist/*.zip apps/cli/__dist/SHA256SUMS; do
+            if ! printf '%s\n' "$existing_assets" | grep -Fxq "$(basename "$asset")"; then
+              missing_assets+=("$asset")
+            fi
+          done
+          if [ "${#missing_assets[@]}" -gt 0 ]; then
+            gh release upload "$RELEASE_VERSION" --repo "$GITHUB_REPOSITORY" "${missing_assets[@]}"
+          fi
+      - name: Verify recovered public assets and npm launcher
+        working-directory: apps/cli
+        env:
+          RELEASE_DIST_DIRECTORY: ${{ github.workspace }}/apps/cli/__dist
+        run: bun scripts/release/verify-published-release.ts
+
   publish-installers:
     name: Publish ${{ inputs.channel }} installers
-    needs: publish
+    needs: [publish, recover]
+    if: always() && (needs.publish.result == 'success' || needs.recover.result == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: release-installers
@@ -413,7 +520,7 @@ jobs:
 
   cleanup-release-publication:
     name: Recover canceled release publication
-    if: ${{ always() && needs.publish.result != 'success' }}
+    if: ${{ always() && needs.publish.result != 'success' && needs.publish.result != 'skipped' }}
     needs:
       - publish
     runs-on: ubuntu-latest
@@ -421,11 +528,20 @@ jobs:
     environment: release-publish
     permissions:
       contents: write
+      actions: read
     steps:
       - name: Remove only this run's retryable release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # A successful npm upload can remain invisible while npm processes it. Cancellation or an error during
+          # upload is also ambiguous. Preserve assets whenever npm publication started, regardless of registry 404s.
+          jobs=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100")
+          if printf '%s' "$jobs" | jq -e --arg name "Publish $RELEASE_CHANNEL" \
+            'any(.jobs[]; .name == $name and any(.steps[]; .name == "Publish npm release" and (.status == "in_progress" or (.status == "completed" and .conclusion != "skipped"))))' >/dev/null; then
+            echo 'npm publication was attempted; preserving its required GitHub assets.'
+            exit 0
+          fi
           release_json=''
           release_lookup=''
           release_status=1

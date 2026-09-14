@@ -40,6 +40,25 @@ pnpm dlx stacktape@preview version
 The installer upload is a separate dependent job. If only that job fails, use GitHub's **Re-run failed jobs** action;
 the already successful npm publication is not repeated.
 
+npm can accept an upload before the version becomes publicly available. The workflow waits up to 15 minutes for its
+dist-tag and preserves the GitHub assets once npm publication has been attempted. A temporary registry 404 does not
+prove that the version is unpublished.
+
+If npm accepted the package but the publication job failed afterward, wait until `npm view stacktape@<version> version`
+succeeds, then recover through the same workflow:
+
+```sh
+gh workflow run release.yml --repo stacktape/stacktape --ref main \
+  -f channel=preview -f version=4.0.0-preview.9 -f recovery_run_id=34906260392
+```
+
+Use the original run ID and its version/channel. Recovery requires a successful public gate, all platform builds,
+candidate assembly and npm upload in that original run. It downloads those original artifacts, matches the npm tarball
+integrity and current channel tag, restores missing GitHub assets, exercises the public launcher, and publishes the
+installers. It never rebuilds, republishes npm or overwrites an existing asset. The original candidate artifact must
+still be retained by GitHub Actions. A failure before npm upload needs investigation before removing an unused release
+or choosing another immutable version.
+
 ## Authentication boundaries
 
 The workflow uses no long-lived publishing secret:
@@ -62,8 +81,8 @@ AWS account `977946299200` contains GitHub's OIDC provider and the narrow instal
 `release-publish` and `release-installers` must allow only `main`; the installer environment holds the account, role,
 region, bucket, distribution and public-URL identifiers for both channels.
 
-The remaining owner-only step is npm trusted publishing. npm supports one trusted publisher per package, so both
-channels intentionally use the same `release-publish` environment:
+For a new setup, configure npm trusted publishing as the package owner. npm supports one trusted publisher per package,
+so both channels intentionally use the same `release-publish` environment:
 
 ```powershell
 npm login

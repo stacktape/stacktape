@@ -171,7 +171,12 @@ describe('release candidate workflow', () => {
       }
     }
 
-    expect(privilegedJobNames.sort()).toEqual(['cleanup-release-publication', 'publish', 'publish-installers']);
+    expect(privilegedJobNames.sort()).toEqual([
+      'cleanup-release-publication',
+      'publish',
+      'publish-installers',
+      'recover'
+    ]);
     expect(isRecord(jobs.publish) && jobs.publish.permissions).toEqual({
       contents: 'write',
       'id-token': 'write'
@@ -181,8 +186,11 @@ describe('release candidate workflow', () => {
       'id-token': 'write'
     });
     expect(isRecord(jobs['cleanup-release-publication']) && jobs['cleanup-release-publication'].permissions).toEqual({
-      contents: 'write'
+      contents: 'write',
+      actions: 'read'
     });
+    expect(isRecord(jobs.recover) && jobs.recover.permissions).toEqual({ contents: 'write', actions: 'read' });
+    expect(isRecord(jobs.recover) && jobs.recover.environment).toBe('release-publish');
     expect(isRecord(jobs.publish) && jobs.publish.environment).toBe('release-publish');
     expect(isRecord(jobs['cleanup-release-publication']) && jobs['cleanup-release-publication'].environment).toBe(
       'release-publish'
@@ -213,7 +221,7 @@ describe('release candidate workflow', () => {
     expect(workflow).toContain('target_commitish="$GITHUB_SHA"');
     expect(workflow).toContain('[ "$latest_after" = "$LATEST_BEFORE" ]');
     expect(workflow).toContain('[ "$preview_after" = "$PREVIEW_BEFORE" ]');
-    expect(workflow).toContain('for attempt in $(seq 1 12)');
+    expect(workflow).toContain('for attempt in $(seq 1 90)');
     expect(workflow).toContain('npm view stacktape dist-tags --json --prefer-online');
     expect(workflow).toContain('bun scripts/publish-install-scripts.ts');
     expect(workflow).toContain('allowed-account-ids: ${{ vars.STACKTAPE_RELEASE_AWS_ACCOUNT_ID }}');
@@ -236,13 +244,18 @@ describe('release candidate workflow', () => {
 
     expect(publicationCleanup.if).toContain('always()');
     expect(publicationCleanup.if).toContain("needs.publish.result != 'success'");
-    expect(installerPublication.needs).toBe('publish');
+    expect(installerPublication.needs).toEqual(['publish', 'recover']);
 
     const workflow = await readReleaseWorkflow();
     expect(workflow).toContain('Release owner: $RELEASE_OWNER.');
     expect(workflow).toContain('grep -Fq "Release owner: $RELEASE_OWNER."');
     expect(workflow).toContain('GitHub release state is ambiguous; cleanup cannot report success:');
     expect(workflow).toContain('name: Upload and verify installer assets');
+    expect(workflow).toContain("steps.npm-publish.outcome == 'skipped'");
+    expect(workflow).toContain('npm publication was attempted; preserving its required GitHub assets.');
+    expect(workflow).toContain('test "$actual_integrity" = "$expected_integrity"');
+    expect(workflow).toContain('test "$selected_version" = "$RELEASE_VERSION"');
+    expect(workflow).toContain('test "$tag_sha" = "$RECOVERY_SOURCE_SHA"');
   });
 
   test('pins every third-party action and toolchain version', async () => {
