@@ -1,9 +1,10 @@
 ---
 name: load
 description:
-  Load context from earlier Claude Code or Codex sessions into the current session, selected by title or recency (0 =
-  newest, -1 = the one before). Use when the user says "load", "load context from", "continue the session about", or
-  names an earlier conversation from either tool.
+  Load context from an earlier Claude Code or Codex session, selected by conversation name or recency. Explicit
+  invocation only: `/load` in Claude Code, `$load` in Codex. Never trigger this from ordinary wording such as "load"
+  or "continue".
+disable-model-invocation: true
 ---
 
 # Load context from earlier sessions
@@ -11,6 +12,27 @@ description:
 Both tools keep every conversation on disk: Claude Code as `~/.claude/projects/<project>/<id>.jsonl`, Codex as
 `~/.codex/sessions/**/rollout-*.jsonl` indexed by `~/.codex/state_5.sqlite`. The script in this skill reads both,
 including the other OS side of a WSL setup, and writes an extraction to a file that you then read.
+
+## Invocation
+
+The user invokes this skill explicitly, with everything after the command as arguments. In Claude Code they arrive as
+`$ARGUMENTS`; in Codex they are the rest of the message after `$load`.
+
+```text
+/load <selector>[, <selector>...] [tactic] [--query TEXT]
+```
+
+Arguments for this invocation: `$ARGUMENTS`
+
+- `/load Security navigation section` loads the session whose title contains that name.
+- `/load codex:0` loads the newest Codex thread; `/load -1` the second-newest session from either tool.
+- `/load Security navigation section, codex:0` loads two sessions into one file.
+- `/load website redesign actions` uses the `actions` tactic; a trailing word that names a tactic is the tactic,
+  everything before it is the selector. `/load website redesign search --query trivy` searches.
+- `/load` with no arguments: run `list`, show the newest ten sessions, and ask which one to load.
+
+Treat the arguments as a conversation name unless they are an index, a `tool:` prefixed selector, a session id, or a
+path. Do not run this skill when it was not invoked by name.
 
 Run every command from the repository root with Bun:
 
@@ -25,8 +47,9 @@ bun .agents/skills/load/scripts/load-context.ts extract SELECTOR... [--tactic TA
 
 - `0` is the newest session, `-1` the one before, and so on. A bare index counts across both tools; `claude:0` or
   `codex:-1` counts within one tool. The current session is excluded when the tool exposes its id.
-- A title substring matches case-insensitively. Claude titles are the session name or AI title; Codex titles are the
-  thread name or the first prompt. An ambiguous name prints the candidates; pick one by index.
+- A name matches a title case-insensitively, first as a substring, then as a set of words in any order. Claude titles
+  are the session name or AI title; Codex titles are the thread name or the first prompt. An ambiguous name prints the
+  candidates; pick one by index.
 - Sessions are filtered to the current project directory name. Pass `--all-projects` to widen.
 
 ## Tactics
@@ -68,5 +91,3 @@ with a read-only sandbox; Claude handoff runs with tools disabled.
 - Transcripts can contain secrets from tool output. Extractions go to the temp directory; never commit them or paste raw
   tool output into a shared place.
 - Numbers from `list` are transcript size divided by four and overstate what a tactic loads.
-
-In Codex invoke this skill as `$load`; in Claude Code as `/load`.

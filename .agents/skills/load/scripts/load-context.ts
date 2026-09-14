@@ -523,7 +523,15 @@ const resolveSelector = (selector: string, sessions: Session[]): Session => {
     if (byId) return byId;
   }
   const needle = rest.toLowerCase();
-  const matches = pool.filter((s) => s.title.toLowerCase().includes(needle));
+  let matches = pool.filter((s) => s.title.toLowerCase().includes(needle));
+  if (matches.length === 0) {
+    // Fall back to matching every word of the name, in any order, so "nav security" finds "Security navigation section".
+    const words = needle.split(/\s+/).filter(Boolean);
+    matches = pool.filter((s) => {
+      const title = s.title.toLowerCase();
+      return words.every((w) => title.includes(w));
+    });
+  }
   if (matches.length === 1 && matches[0]) return matches[0];
   if (matches.length === 0)
     return fail(`selector ${JSON.stringify(selector)}: no session title contains it (run \`list\` to see titles)`);
