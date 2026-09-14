@@ -1,7 +1,8 @@
 ---
 /**
- * The entry to every homepage study, by round. The README concept from round 7 is the homepage itself
- * (`/`); the rest stay here for comparison.
+ * The entry to the homepage studies that are still around: the README concept is the homepage
+ * itself (`/`); the other six stay here for comparison. Earlier rounds were removed once the README
+ * direction was chosen.
  */
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Logo from '../components/Logo.astro';
@@ -54,94 +55,8 @@ const roundSix = [
   }
 ];
 
-const roundFive = [
-  {
-    href: '/deck',
-    name: 'Deck',
-    summary:
-      'Novel: a deck of full-viewport cards that pile up as you scroll; passed cards stay as thin edges, amber tabs mark where you decided.'
-  },
-  {
-    href: '/thread',
-    name: 'Thread',
-    summary:
-      'Novel: a first week with Stacktape as one thread of events across the terminal, the wizard, GitHub, the Console and Slack.'
-  },
-  {
-    href: '/file',
-    name: 'File',
-    summary:
-      'Novel: the page is one tall editor showing stacktape.yml; the six things are review comments pinned to the lines they touch.'
-  },
-  {
-    href: '/track',
-    name: 'Track',
-    summary:
-      'Two tracks: the four things you do on a narrow left track, the six things Stacktape does on wide surfaces on the right; one route line on an isometric board.'
-  },
-  {
-    href: '/zigzag',
-    name: 'Zigzag',
-    summary:
-      'One column, one line: straight where Stacktape carries on alone, bending out at 45° to a gold interchange wherever you make a decision.'
-  },
-  {
-    href: '/stage',
-    name: 'Stage',
-    summary:
-      'Novel: one architecture diagram stays pinned as a stage and changes chapter by chapter, from the first command to the monthly bill.'
-  },
-  {
-    href: '/keys',
-    name: 'Keys',
-    summary:
-      'Novel, 3D: six full-height stages on a perspective floor, screens that stand up as you arrive, and a physical keycap wherever you decide.'
-  }
-];
-
-const roundThree = [
-  {
-    href: '/home',
-    name: 'Home',
-    summary: "Round 4: the story told from the visitor's side, with your app travelling across the board from repository to production."
-  },
-  {
-    href: '/journey',
-    name: 'Journey',
-    summary: "Plane's drafting-table journey carrying duet's six jobs: the combination asked for in round 3."
-  }
-];
-
-const roundTwo = [
-  {
-    href: '/duet',
-    name: 'Duet',
-    summary: 'Two tracks: what you do on the left, the six things Stacktape does on the right, each with a big UI recreation.'
-  },
-  {
-    href: '/rail',
-    name: 'Rail',
-    summary: 'The split rail from round 1, re-cut around the six meta-features with a checklist of your part.'
-  },
-  {
-    href: '/runbook',
-    name: 'Runbook',
-    summary: 'A numbered runbook where every step is already done: contents in the hero, wide figures with captions.'
-  },
-  {
-    href: '/console',
-    name: 'Console',
-    summary: 'A product-shaped page: a Console-like shell whose sidebar is the six meta-features.'
-  }
-];
-
-const roundOne = [
-  { href: '/helix', name: 'Helix', summary: 'Receipt spine timeline.' },
-  { href: '/loop', name: 'Loop', summary: 'Poster typography, sticky window.' },
-  { href: '/plane', name: 'Plane', summary: 'Isometric drafting table.' },
-  { href: '/split', name: 'Split', summary: 'You / Stacktape ledger.' },
-  { href: '/transit', name: 'Transit', summary: 'Ops board and transit map.' }
-];
+const card =
+  'display: block; padding: 18px 20px; border: 1px solid var(--stp-border-subtle); border-radius: 8px; color: inherit; text-decoration: none; background: var(--stp-surface-element);';
 ---
 
 <BaseLayout title="Stacktape homepage studies" description="Homepage directions for stacktape.com.">
@@ -150,16 +65,13 @@ const roundOne = [
     <h1 style="font-size: 1.6rem; margin: 32px 0 8px;">Homepage studies</h1>
     <p style="color: var(--stp-text-muted); margin: 0 0 24px;">
       The README concept from round 7 is the homepage at <a href="/" style="color: var(--stp-color-brand);">/</a>. The
-      other round 7 concepts, each a different idea of what the page is, and the earlier rounds are below.
+      other round 7 concepts and the three round 6 versions are below.
     </p>
     <ol style="list-style: none; padding: 0; margin: 0 0 40px; display: grid; gap: 14px;">
       {
         roundSeven.map((study) => (
           <li>
-            <a
-              href={study.href}
-              style="display: block; padding: 18px 20px; border: 1px solid var(--stp-border-subtle); border-radius: 8px; color: inherit; text-decoration: none; background: var(--stp-surface-element);"
-            >
+            <a href={study.href} style={card}>
               <strong style="display: block; font-size: 1.05rem; margin-bottom: 4px;">{study.name}</strong>
               <span style="color: var(--stp-text-muted); font-size: 0.95rem;">{study.summary}</span>
             </a>
@@ -168,14 +80,11 @@ const roundOne = [
       }
     </ol>
     <h2 style="font-size: 1.1rem; margin: 0 0 12px; color: var(--stp-text-muted);">Round 6</h2>
-    <ol style="list-style: none; padding: 0; margin: 0 0 40px; display: grid; gap: 14px;">
+    <ol style="list-style: none; padding: 0; margin: 0; display: grid; gap: 14px;">
       {
         roundSix.map((study) => (
           <li>
-            <a
-              href={study.href}
-              style="display: block; padding: 18px 20px; border: 1px solid var(--stp-border-subtle); border-radius: 8px; color: inherit; text-decoration: none; background: var(--stp-surface-element);"
-            >
+            <a href={study.href} style={card}>
               <strong style="display: block; font-size: 1.05rem; margin-bottom: 4px;">{study.name}</strong>
               <span style="color: var(--stp-text-muted); font-size: 0.95rem;">{study.summary}</span>
             </a>
@@ -183,63 +92,5 @@ const roundOne = [
         ))
       }
     </ol>
-    <h2 style="font-size: 1.1rem; margin: 0 0 12px; color: var(--stp-text-muted);">Round 5</h2>
-    <ol style="list-style: none; padding: 0; margin: 0 0 40px; display: grid; gap: 14px;">
-      {
-        roundFive.map((study) => (
-          <li>
-            <a
-              href={study.href}
-              style="display: block; padding: 18px 20px; border: 1px solid var(--stp-border-subtle); border-radius: 8px; color: inherit; text-decoration: none; background: var(--stp-surface-element);"
-            >
-              <strong style="display: block; font-size: 1.05rem; margin-bottom: 4px;">{study.name}</strong>
-              <span style="color: var(--stp-text-muted); font-size: 0.95rem;">{study.summary}</span>
-            </a>
-          </li>
-        ))
-      }
-    </ol>
-    <h2 style="font-size: 1.1rem; margin: 0 0 12px; color: var(--stp-text-muted);">Round 4</h2>
-    <ol style="list-style: none; padding: 0; margin: 0 0 40px; display: grid; gap: 14px;">
-      {
-        roundThree.map((study) => (
-          <li>
-            <a
-              href={study.href}
-              style="display: block; padding: 18px 20px; border: 1px solid var(--stp-border-subtle); border-radius: 8px; color: inherit; text-decoration: none; background: var(--stp-surface-element);"
-            >
-              <strong style="display: block; font-size: 1.05rem; margin-bottom: 4px;">{study.name}</strong>
-              <span style="color: var(--stp-text-muted); font-size: 0.95rem;">{study.summary}</span>
-            </a>
-          </li>
-        ))
-      }
-    </ol>
-    <h2 style="font-size: 1.1rem; margin: 0 0 12px; color: var(--stp-text-muted);">Round 2</h2>
-    <ul style="list-style: none; padding: 0; margin: 0 0 32px; display: flex; flex-wrap: wrap; gap: 10px;">
-      {
-        roundTwo.map((study) => (
-          <li>
-            <a href={study.href} title={study.summary} style="display: inline-block; padding: 8px 14px; border: 1px solid var(--stp-border-subtle); border-radius: 999px; color: var(--stp-text-muted); text-decoration: none; font-size: 0.9rem;">{study.name}</a>
-          </li>
-        ))
-      }
-    </ul>
-    <h2 style="font-size: 1.1rem; margin: 0 0 12px; color: var(--stp-text-muted);">Round 1</h2>
-    <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 10px;">
-      {
-        roundOne.map((study) => (
-          <li>
-            <a
-              href={study.href}
-              title={study.summary}
-              style="display: inline-block; padding: 8px 14px; border: 1px solid var(--stp-border-subtle); border-radius: 999px; color: var(--stp-text-muted); text-decoration: none; font-size: 0.9rem;"
-            >
-              {study.name}
-            </a>
-          </li>
-        ))
-      }
-    </ul>
   </main>
 </BaseLayout>
