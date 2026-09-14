@@ -16,6 +16,8 @@
     "**/pnpm-lock.yaml",
     "apps/*/src/pages/index.astro",
     "apps/website/src/pages/hero-competition/**",
+    "apps/website/src/variants/{hire,lens,session,sheet,stack,status}/**",
+    "apps/website/src/components/Cover.astro",
     "apps/website/src/lib/snippets/yaml-hover.ts",
     "apps/website/src/styles/global.css",
     "apps/website/src/styles/surfaces/**",
