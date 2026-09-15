@@ -5,6 +5,7 @@ import fsExtra from 'fs-extra';
 import { getStacktapeVersion } from '../../utils/versioning';
 import {
   carryOverComponents,
+  coverageLost,
   type CycloneDxDocument,
   type InventoryPart,
   type InventorySummary,
@@ -103,6 +104,7 @@ export const buildSecurityInventory = async ({
   await fsExtra.ensureDir(outputDirectory);
   const parts: InventoryPart[] = [];
   const warnings: string[] = [];
+  const uncovered: string[] = [];
 
   const projectOutput = join(outputDirectory, 'security-inventory-project.cdx.json');
   await runTrivy({
@@ -148,6 +150,7 @@ export const buildSecurityInventory = async ({
         document: parseCycloneDx(await fsExtra.readFile(imageOutput, 'utf8'))
       });
     } catch (err) {
+      uncovered.push(image.workload);
       warnings.push(`The image of ${image.workload} could not be read: ${err instanceof Error ? err.message : err}`);
     }
   }
@@ -162,10 +165,20 @@ export const buildSecurityInventory = async ({
         document: { bomFormat: 'CycloneDX', specVersion: previousInventory!.specVersion, components }
       });
     } else {
+      uncovered.push(unchanged.workload);
       warnings.push(
         `The image of ${unchanged.workload} was not rebuilt and no earlier inventory describes it; its packages are not listed until it is rebuilt.`
       );
     }
+  }
+
+  // An inventory that lists fewer workloads than the previous one would tell the Console that their packages are
+  // gone, and the Console would resolve their findings. No inventory this time is better than a misleading one.
+  const lost = coverageLost({ previous: previousInventory, uncovered });
+  if (lost.length) {
+    throw new Error(
+      `the packages of ${lost.map((workload) => `\`${workload}\``).join(', ')} could not be read this time; recording an inventory without them would wrongly resolve their findings, so the previous inventory stays in effect`
+    );
   }
 
   const document = mergeInventoryParts({

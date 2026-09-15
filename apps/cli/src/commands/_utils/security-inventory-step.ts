@@ -74,7 +74,8 @@ export const startSecurityInventory = ({
       const { jobName, digest } = parseImageTag(tag);
       return { workload: jobName, artifactDigest: digest };
     });
-    const previousInventory = carryOver.length ? await loadPreviousInventory(deploymentArtifacts) : null;
+    // Needed for the images this deployment did not rebuild, and to make sure the new inventory covers no less.
+    const previousInventory = await loadPreviousInventory(deploymentArtifacts);
     return buildSecurityInventory({
       workingDirectory: stackContext.workingDir,
       outputDirectory: fsPaths.absoluteTempFolderPath({ invocationId: globalStateManager.invocationId }),

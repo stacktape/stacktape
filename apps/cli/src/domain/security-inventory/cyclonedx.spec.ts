@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   carryOverComponents,
+  coverageLost,
   type CycloneDxDocument,
   mergeInventoryParts,
   parseCycloneDx,
@@ -118,6 +119,20 @@ describe('inventory merge', () => {
       ],
       ecosystems: { npm: 2, deb: 1 }
     });
+  });
+
+  test('tells which previously listed workloads an inventory would silently drop', () => {
+    const previous = mergeInventoryParts({
+      parts: [
+        { workload: null, source: 'filesystem', document: trivyDocument([lodash]) },
+        { workload: 'api', artifactDigest: 'abc', source: 'image', document: trivyDocument([openssl]) }
+      ],
+      application: { name: 'shop-production', version: '6' },
+      tools: []
+    });
+    expect(coverageLost({ previous, uncovered: ['api', 'worker'] })).toEqual(['api']);
+    expect(coverageLost({ previous, uncovered: [] })).toEqual([]);
+    expect(coverageLost({ previous: null, uncovered: ['api'] })).toEqual([]);
   });
 
   test('accepts an empty CycloneDX document and rejects other JSON', () => {

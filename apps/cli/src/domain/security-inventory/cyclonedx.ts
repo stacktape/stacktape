@@ -111,6 +111,24 @@ export const carryOverComponents = ({
       propertyValue(component, STACKTAPE_COMPONENT_PROPERTY.artifactDigest) === artifactDigest
   );
 
+/**
+ * Workloads whose packages an earlier inventory listed but this deployment could not read again (a failed image
+ * scan, an unchanged image no earlier inventory describes). Recording an inventory without them would tell the
+ * Console their packages are gone and resolve their findings, so the caller refuses to record it. Workloads that were
+ * never listed before add nothing to lose and are only warned about.
+ */
+export const coverageLost = ({
+  previous,
+  uncovered
+}: {
+  previous: CycloneDxDocument | null;
+  uncovered: string[];
+}): string[] => {
+  if (!previous || !uncovered.length) return [];
+  const previouslyCovered = new Set(summarizeInventory(previous).workloads.map(({ name }) => name));
+  return uncovered.filter((workload) => previouslyCovered.has(workload));
+};
+
 const compareSpecVersions = (a: string, b: string) => {
   const [aMajor = 0, aMinor = 0] = a.split('.').map(Number);
   const [bMajor = 0, bMinor = 0] = b.split('.').map(Number);
