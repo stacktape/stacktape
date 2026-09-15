@@ -22,6 +22,23 @@ obsolete v3 behavior by default.
 4. Run `pnpm test:plan` (or `pnpm test:plan -- --since=<ref>`) and choose evidence for each affected failure boundary.
 5. Run focused checks while working and the relevant repository gate before handoff.
 
+## Documentation and v4 launch work
+
+Use [the maintainer documentation index](docs/README.md) to find the owning guide. Keep reusable procedures there and
+per-run results in the task handoff or ignored evidence files; do not create committed session diaries or completed
+acceptance checklists.
+
+When the private submodule is available, read [V4 launch readiness](apps/console/documents/releases/v4-readiness.md) for
+launch dependencies relevant to your task. Before handoff, add or update a concrete migration, external configuration,
+publication or cutover action your work requires at launch. Include its timing, owning code/procedure and completion
+check. Deduplicate existing items; ordinary feature TODOs and speculative hardening do not belong there.
+
+[My v4 checklist](apps/console/documents/releases/v4-product-checklist.md) belongs to the owner. Agents must not add,
+rewrite, reorder or check off its items unless asked to maintain that document. Neither checklist authorizes production
+actions. Public clones can work without these private planning files.
+
+## Workspace commands
+
 Use pnpm for workspace orchestration and Bun where package scripts already use it.
 
 ```sh

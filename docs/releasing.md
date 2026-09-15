@@ -1,4 +1,8 @@
-# Releasing Stacktape v4
+# Publishing Stacktape CLI releases
+
+This is the reusable publishing procedure. Track v4-specific launch actions in
+[V4 launch readiness](../apps/console/documents/releases/v4-readiness.md) (private), and product priorities in the
+[owner's checklist](../apps/console/documents/releases/v4-product-checklist.md). Publication does not deploy Console.
 
 `.github/workflows/release.yml` is the only release path. It always builds and verifies the same six platform archives,
 checksum manifest, and npm tarball. The explicit channel changes only the public pointers:
@@ -15,7 +19,7 @@ Neither channel deploys a Stacktape project or uses `STACKTAPE_API_KEY`.
 
 The local command validates its arguments and dispatches GitHub Actions; it never builds or publishes locally:
 
-```powershell
+```sh
 pnpm release:preview 4.0.0-preview.1
 pnpm release 4.0.0
 ```
@@ -23,7 +27,7 @@ pnpm release 4.0.0
 The low-level CLI release script accepts `--ref <branch>` for an intentionally configured preview source; ordinary
 releases should use the top-level commands above. Follow a run with:
 
-```powershell
+```sh
 gh run list --repo stacktape/stacktape --workflow release.yml --limit 1
 gh run watch <run-id> --repo stacktape/stacktape
 ```
@@ -31,7 +35,7 @@ gh run watch <run-id> --repo stacktape/stacktape
 Every npm version and GitHub release is immutable. Increment the preview sequence instead of attempting to overwrite an
 existing version. Verify a preview with:
 
-```powershell
+```sh
 npm view stacktape@4.0.0-preview.1 version
 npm view stacktape dist-tags.preview
 pnpm dlx stacktape@preview version
@@ -49,7 +53,7 @@ succeeds, then recover through the same workflow:
 
 ```sh
 gh workflow run release.yml --repo stacktape/stacktape --ref main \
-  -f channel=preview -f version=4.0.0-preview.9 -f recovery_run_id=34906260392
+  -f channel=preview -f version='<original-version>' -f recovery_run_id='<original-run-id>'
 ```
 
 Use the original run ID and its version/channel. Recovery requires a successful public gate, all platform builds,
@@ -84,7 +88,7 @@ region, bucket, distribution and public-URL identifiers for both channels.
 For a new setup, configure npm trusted publishing as the package owner. npm supports one trusted publisher per package,
 so both channels intentionally use the same `release-publish` environment:
 
-```powershell
+```sh
 npm login
 npm --version # must be 11.15.0 or newer; the workflow pins 11.16.0
 npm trust list stacktape

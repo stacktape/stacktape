@@ -16,8 +16,9 @@ skill is an execution guide, not a claim that every feature already has E2E cove
 
 Run `pnpm test:plan` (or `pnpm test:plan -- --since=<ref>`). Treat path-based suggestions as candidate commands: explain
 any substitution with equivalent evidence at the same failure boundary. Do not deploy simply because a path matcher
-suggested a deployment. Inspect existing tests and, for Console, the current
-[readiness ledger](../../../apps/console/e2e/readiness.md) before assuming fixtures or runners are qualified.
+suggested a deployment. Inspect existing tests, supplied results and the
+[Console fixture guide](../../../apps/console/e2e/README.md) before choosing a lane. Check each result's source/artifact
+revision and scope before reusing it.
 
 Write a short plan connecting each affected behavior to:
 
@@ -46,8 +47,8 @@ already recorded in this task. Read the fixture instructions only for the scenar
 
 For Console browser tests, start with [agent browser access](../../../apps/console/e2e/README.md#agent-browser-access).
 Reuse its SSM-backed login and the appropriate Developer or Admin fixture before asking the owner to perform Console
-clicks. Provider sign-in and MFA are separate from Console login. Keep the detailed setup in that guide and its
-qualification status in the readiness ledger.
+clicks. Provider sign-in and MFA are separate from Console login. Keep reusable setup instructions in that guide and
+per-run results in the task handoff or CI artifacts.
 
 - UI changes supported by deployed dev can use UI-only mode. API, permissions or API/UI changes require full local
   `pnpm dev:console` and a browser scenario that verifies its actual API target.
@@ -83,8 +84,9 @@ follow-up, validate instructions, formatting and links; do not repeat live deplo
 
 Handoff: state the behavior proved, `command — result`, final source revision or uncommitted diff, and remaining
 untested boundaries. For live work, include account, region, fixture ownership, cleanup result and reservation release.
-Update the Console readiness ledger when qualifying reusable infrastructure or discovering a reusable blocker; do not
-turn it into a log of every ordinary feature change. Keep detailed per-run commands and sanitized results in the ignored
-`.stacktape/` evidence directory; put only reusable conclusions and prerequisites in the ledger. Update fixture
-qualification only for the exact capability proved. A missing required fixture or failed acceptance case stays
-unqualified even when the repository gate is green.
+Keep detailed per-run commands and sanitized results in ignored `.stacktape/` task files or CI artifacts. Update the
+existing fixture/procedure guide when its reusable contract changes; do not create committed session histories or
+completed acceptance checklists. Add a concrete production migration, external configuration or cutover action to
+[V4 launch readiness](../../../apps/console/documents/releases/v4-readiness.md) when the task discovers one. Keep
+general test inventories and feature TODOs out of that document, and leave the owner's separate checklist under their
+control. A missing required fixture or failed acceptance case stays unqualified even when the repository gate is green.

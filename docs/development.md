@@ -1,5 +1,7 @@
 # Development
 
+See [the maintainer documentation index](README.md) for architecture, testing, release procedures and internal v4 plans.
+
 For importer, packaging, runtime, and guarded live-deployment qualification against real or synthetic applications, see
 [`project-qualification.md`](project-qualification.md). The repeatable agent workflow is in
 [`hardening-work-instructions.md`](hardening-work-instructions.md). Use [`testing.md`](testing.md) to choose the test
