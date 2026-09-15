@@ -218,11 +218,24 @@ const bucketRules = ({ configManager }: RuleContext): SecurityReportFinding[] =>
 const statementIdentity = (statement: StpIamRoleStatement) => {
   const list = (value: unknown) =>
     Array.isArray(value) ? value.map(String).toSorted() : value === undefined ? [] : [String(value)];
+  // Object keys and value lists are sorted, so writing the same condition in another order changes nothing.
+  const canonical = (value: unknown): unknown => {
+    if (Array.isArray(value))
+      return value.map(canonical).toSorted((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+    if (value && typeof value === 'object') {
+      return Object.fromEntries(
+        Object.entries(value as Record<string, unknown>)
+          .toSorted(([a], [b]) => a.localeCompare(b))
+          .map(([key, child]) => [key, canonical(child)])
+      );
+    }
+    return value ?? null;
+  };
   const normalized = JSON.stringify({
     effect: statement.Effect || 'Allow',
     actions: list(statement.Action),
     resources: list(statement.Resource),
-    condition: (statement as { Condition?: unknown }).Condition ?? null
+    condition: canonical((statement as { Condition?: unknown }).Condition)
   });
   let hash = 0x811c9dc5;
   for (let index = 0; index < normalized.length; index++) {
@@ -362,10 +375,11 @@ const resilienceRules = ({ configManager, isProduction }: RuleContext): Security
 // ── Secret detection over the raw configuration ──
 
 /**
- * A directive such as `$Secret('name')` or `$SsmParam('name')` is a reference, never a value, whether it is the
- * whole setting or embedded in one such as a connection string.
+ * A directive such as `$Secret('name')` or `$SsmParam('name')` is a reference, never a value. Directives are cut out
+ * of a setting before it is examined, so `postgres://app:$Secret('pw')@host` is clean while a literal password next
+ * to a `$ResourceParam('db', 'host')` is still found.
  */
-const DIRECTIVE_PATTERN = /\$[A-Z][A-Za-z]*\(/;
+const DIRECTIVE_PATTERN = /\$[A-Z][A-Za-z]*\([^()]*\)/g;
 const SECRET_LIKE_NAME =
   /(secret|token|passw(or)?d|pwd|api[_-]?key|private[_-]?key|access[_-]?key|credential|auth[_-]?key|signing[_-]?key|client[_-]?secret)/i;
 const PLACEHOLDER_VALUE =
@@ -398,8 +412,8 @@ const shannonEntropy = (value: string) => {
 /** Which pattern a plain environment value matches, or null when it looks like ordinary configuration. */
 export const detectSecretLikeValue = ({ name, value }: { name: string; value: unknown }): string | null => {
   if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  if (!trimmed || DIRECTIVE_PATTERN.test(trimmed)) return null;
+  const trimmed = value.replaceAll(DIRECTIVE_PATTERN, '').trim();
+  if (!trimmed) return null;
   const known = KNOWN_SECRET_PATTERNS.find(({ test }) => test(trimmed));
   if (known) return known.id;
   if (!SECRET_LIKE_NAME.test(name)) return null;

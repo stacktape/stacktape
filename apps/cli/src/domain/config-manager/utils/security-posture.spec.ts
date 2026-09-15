@@ -173,6 +173,16 @@ describe('security posture rules', () => {
       before.findings.map(({ fingerprint }) => fingerprint)
     );
 
+    // Writing the same condition with its keys in another order is the same statement.
+    const conditioned = (Condition: Record<string, unknown>) =>
+      assess({ functions: [{ name: 'worker', iamRoleStatements: [{ ...wildcard, Condition }] }] }).findings[0]
+        ?.fingerprint;
+    expect(
+      conditioned({ Bool: { 'aws:SecureTransport': 'true' }, StringEquals: { 'aws:RequestedRegion': ['eu-west-1'] } })
+    ).toBe(
+      conditioned({ StringEquals: { 'aws:RequestedRegion': ['eu-west-1'] }, Bool: { 'aws:SecureTransport': 'true' } })
+    );
+
     const secretValue = 'q8Zr2Lm9Xv4Kp7Ws1Tn6Yb3Hd5Fg0Jc';
     const app = { name: 'app', environment: [{ name: 'CLIENT_SECRET', value: secretValue }] };
     const proxy = { name: 'proxy', environment: [{ name: 'PORT', value: '8080' }] };
@@ -250,6 +260,15 @@ describe('secret detection in raw configuration', () => {
     // A directive embedded in a larger value, such as the password part of a connection string, is still a reference.
     const connectionStringWithReference = ['postgres://app', "$Secret('db-password')@db.internal:5432/app"].join(':');
     expect(detectSecretLikeValue({ name: 'DATABASE_URL', value: connectionStringWithReference })).toBeNull();
+    // A literal password stays a finding even when another part of the value is a directive.
+    const literalPasswordWithReference = [
+      'postgres://app',
+      "not-a-real-password@$ResourceParam('db', 'host'):5432/app"
+    ].join(':');
+    expect(detectSecretLikeValue({ name: 'DATABASE_URL', value: literalPasswordWithReference })).toBe(
+      'connection-string-with-password'
+    );
+    expect(detectSecretLikeValue({ name: 'API_SECRET', value: "$Secret('api-secret')-v2" })).toBeNull();
     expect(detectSecretLikeValue({ name: 'API_SECRET', value: '<your-api-secret-here>' })).toBeNull();
     expect(detectSecretLikeValue({ name: 'API_SECRET', value: 'change-me-before-deploying' })).toBeNull();
     expect(detectSecretLikeValue({ name: 'TOKEN_TTL_SECONDS', value: '3600' })).toBeNull();
@@ -292,6 +311,7 @@ describe('secret detection in raw configuration', () => {
       resourceType: 'multi-container-workload',
       fingerprint: 'secret-in-environment-variable:api:containers.app.environment.CLIENT_SECRET'
     });
+    expect(finding?.remediation).toContain('`stacktape secret:set`');
     expect(JSON.stringify(finding)).not.toContain(secretValue);
   });
 });

@@ -225,7 +225,7 @@ export type SecurityExposureEntry = z.infer<typeof securityExposureEntrySchema>;
 export type RecordSecurityReportResponse = {
   accepted: boolean;
   /** Present when the report was not applied. */
-  reason?: 'operation-not-found' | 'operation-not-a-deployment' | 'disabled-by-organization';
+  reason?: 'operation-not-found' | 'operation-not-a-deployment' | 'disabled-by-organization' | 'stack-deleted';
   opened: number;
   reopened: number;
   resolved: number;

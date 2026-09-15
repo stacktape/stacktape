@@ -17,6 +17,8 @@ export const describeSecurityReportRejection = (reason: RecordSecurityReportResp
       return 'the Console has no record of this deployment';
     case 'operation-not-a-deployment':
       return 'the Console could not tell which project and stage this deployment belongs to';
+    case 'stack-deleted':
+      return 'the stack was deleted after this deployment, so its findings are already closed';
     default:
       return 'the Console did not accept the report';
   }
