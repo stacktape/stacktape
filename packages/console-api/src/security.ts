@@ -204,6 +204,34 @@ export const securityExposureEntrySchema = z.object({
   details: z.record(z.string(), z.unknown()).optional()
 });
 
+/**
+ * Where the deployment's dependency inventory lives. The CycloneDX file itself stays in the customer's deployment
+ * bucket; the Console reads it through the account connection when it grades packages against known vulnerabilities,
+ * and stores only what it finds.
+ */
+export const securityInventoryPointerSchema = z.object({
+  bucket: boundedText(63),
+  key: boundedText(300),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  sizeBytes: z.number().int().nonnegative(),
+  format: z.literal('cyclonedx-json'),
+  specVersion: boundedText(10),
+  componentCount: z.number().int().nonnegative(),
+  generator: z.object({ tool: boundedText(40), version: boundedText(40) }),
+  /** Which workloads the inventory covers and how each one was read; `project` stands for the source tree's lockfiles. */
+  workloads: z
+    .array(
+      z.object({
+        name: boundedText(200),
+        source: z.enum(['filesystem', 'image', 'carried-over']),
+        componentCount: z.number().int().nonnegative(),
+        artifactDigest: boundedText(200).optional()
+      })
+    )
+    .max(200)
+});
+export type SecurityInventoryPointer = z.infer<typeof securityInventoryPointerSchema>;
+
 export const recordSecurityReportInputSchema = z.object({
   /** The deployment this report belongs to. The Console takes project, stage and region from that operation. */
   invocationId: boundedText(200),
@@ -215,7 +243,9 @@ export const recordSecurityReportInputSchema = z.object({
     .min(1)
     .max(2),
   findings: z.array(securityReportFindingSchema).max(1000),
-  exposure: z.array(securityExposureEntrySchema).max(1000).default([])
+  exposure: z.array(securityExposureEntrySchema).max(1000).default([]),
+  /** The deployment's dependency inventory, when the CLI could produce one. */
+  inventory: securityInventoryPointerSchema.optional()
 });
 
 export type RecordSecurityReportParams = z.input<typeof recordSecurityReportInputSchema>;

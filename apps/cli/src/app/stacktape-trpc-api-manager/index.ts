@@ -2,6 +2,7 @@ import { tuiManager } from '@application-services/tui-manager';
 import { withStacktapeOperationInvocationContext } from '@application-services/operation-invocation-context';
 import { ApiKeyProtectedClient, type ApiKeyRequestExecutor } from '@stacktape-api/api-key-protected';
 import type { SecurityPostureAssessment } from '@domain-services/config-manager/utils/security-posture';
+import type { SecurityInventoryPointer } from '@stacktape/console-api/security';
 import { SECURITY_RULE_CATALOG_VERSION } from '@stacktape/console-api/security';
 import { TRPCClientError } from '@trpc/client';
 import { CliError } from '@utils/errors';
@@ -162,14 +163,19 @@ export class StacktapeTrpcApiManager {
    * Reports the security posture evaluated for this deployment. The Console binds the report to the recorded
    * operation, so only the invocation id travels with the findings.
    */
-  recordSecurityReport = async ({ findings, exposure }: Pick<SecurityPostureAssessment, 'findings' | 'exposure'>) => {
+  recordSecurityReport = async ({
+    findings,
+    exposure,
+    inventory
+  }: Pick<SecurityPostureAssessment, 'findings' | 'exposure'> & { inventory?: SecurityInventoryPointer }) => {
     return this.apiClient.recordSecurityReport({
       invocationId: globalStateManager.invocationId,
       catalogVersion: SECURITY_RULE_CATALOG_VERSION,
       stacktapeVersion: getStacktapeVersion(),
       coveredKinds: ['POSTURE', 'SECRET'],
       findings,
-      exposure
+      exposure,
+      ...(inventory ? { inventory } : {})
     });
   };
 

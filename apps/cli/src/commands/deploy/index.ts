@@ -30,6 +30,7 @@ import { promptCiCdSetupAfterDeploy } from '../_utils/cicd-setup';
 import { deployConvexFunctions } from '../_utils/convex-post-deploy';
 import { buildUptimeChecksSyncPayload, withSyncRetries } from '@domain-services/config-manager/utils/uptime-checks';
 import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
+import { startSecurityInventory, uploadSecurityInventory } from '../_utils/security-inventory-step';
 import { assessAndPrintSecurityPosture, describeSecurityReportRejection } from '../_utils/security-posture-output';
 import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
 import { deployWithEc2Runner } from './ec2-runner';
@@ -321,6 +322,12 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   progress.setPhase('UPLOAD');
   await deploymentArtifacts.uploadAllArtifacts({ useHotswap });
 
+  // The dependency inventory (lockfiles plus the packages inside every image this deployment rebuilt) is read while
+  // CloudFormation works; it is uploaded and reported only after the deployment succeeds.
+  const securityInventoryPromise = securityAssessment
+    ? startSecurityInventory({ deploymentArtifacts, stackContext, version: stack.nextVersion, tui })
+    : null;
+
   // Release identity: stamped onto every event this operation reports, so the Console can associate
   // incidents and error-group resolutions with the release that produced them.
   notification.setReleaseContext({
@@ -475,8 +482,18 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   }
 
   if (securityAssessment) {
+    const securityInventory = await uploadSecurityInventory({
+      inventory: securityInventoryPromise ? await securityInventoryPromise : null,
+      deploymentArtifacts,
+      version: stack.nextVersion,
+      tui
+    });
     try {
-      const receipt = await stacktapeApi.recordSecurityReport(securityAssessment);
+      const receipt = await stacktapeApi.recordSecurityReport({
+        findings: securityAssessment.findings,
+        exposure: securityAssessment.exposure,
+        ...(securityInventory ? { inventory: securityInventory } : {})
+      });
       if (!receipt.accepted) {
         tui.warn(
           `The Stacktape Console did not store the security findings: ${describeSecurityReportRejection(receipt.reason)}.`

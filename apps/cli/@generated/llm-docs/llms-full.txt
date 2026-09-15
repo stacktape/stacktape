@@ -89846,10 +89846,12 @@ type SecurityScanningConfig = {
 
 Turns security scanning on or off for this stack.
 
-When enabled, every deployment evaluates the resolved configuration against Stacktape's security rules and
-reports the findings to the Security section of the Stacktape Console. Findings describe risky settings, for
-example a database reachable from the internet or a secret stored as a plain environment variable. When
-disabled, nothing is evaluated or uploaded for this stack.
+When enabled, every deployment evaluates the resolved configuration against Stacktape's security rules, records
+which packages the source tree and the rebuilt container images use (a CycloneDX inventory stored in the stack's
+deployment bucket), and reports the findings and the inventory's location to the Security section of the
+Stacktape Console, which grades the packages against known vulnerabilities. Findings describe risky settings,
+for example a database reachable from the internet or a secret stored as a plain environment variable. When
+disabled, nothing is evaluated, recorded or uploaded for this stack.
 
 ## Property: `stages`
 

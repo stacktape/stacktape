@@ -52925,7 +52925,7 @@
         "name": "enabled",
         "required": false,
         "shortDescription": "<p> Turns security scanning on or off for this stack.</p>",
-        "longDescription": "<p>When enabled, every deployment evaluates the resolved configuration against Stacktape&#39;s security rules and\nreports the findings to the Security section of the Stacktape Console. Findings describe risky settings, for\nexample a database reachable from the internet or a secret stored as a plain environment variable. When\ndisabled, nothing is evaluated or uploaded for this stack.</p>",
+        "longDescription": "<p>When enabled, every deployment evaluates the resolved configuration against Stacktape&#39;s security rules, records\nwhich packages the source tree and the rebuilt container images use (a CycloneDX inventory stored in the stack&#39;s\ndeployment bucket), and reports the findings and the inventory&#39;s location to the Security section of the\nStacktape Console, which grades the packages against known vulnerabilities. Findings describe risky settings,\nfor example a database reachable from the internet or a secret stored as a plain environment variable. When\ndisabled, nothing is evaluated, recorded or uploaded for this stack.</p>",
         "defaultValue": "true",
         "typeInfo": {
           "kind": "primitive",
