@@ -1,8 +1,26 @@
 import type { SecurityPostureAssessment } from '@domain-services/config-manager/utils/security-posture';
 import type { ConfigManager } from '@domain-services/config-manager';
+import type { RecordSecurityReportResponse } from '@stacktape/console-api/security';
 import { summarizeSecurityFindings } from '@domain-services/config-manager/utils/security-posture';
 
 const LISTED_FINDINGS_LIMIT = 8;
+
+/**
+ * Why the Console declined a report, in the words of the person reading deploy output. A declined report is not an
+ * error: the deploy succeeded and the findings were printed, they are only missing from the Console.
+ */
+export const describeSecurityReportRejection = (reason: RecordSecurityReportResponse['reason']): string => {
+  switch (reason) {
+    case 'disabled-by-organization':
+      return 'security scanning is turned off for your organization in the Stacktape Console';
+    case 'operation-not-found':
+      return 'the Console has no record of this deployment';
+    case 'operation-not-a-deployment':
+      return 'the Console could not tell which project and stage this deployment belongs to';
+    default:
+      return 'the Console did not accept the report';
+  }
+};
 
 type Printer = { info: (message: string) => void; warn: (message: string) => void; hint: (message: string) => void };
 

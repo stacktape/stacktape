@@ -52938,7 +52938,7 @@
         "name": "stages",
         "required": false,
         "shortDescription": "<p> Limits security scanning to the listed stages.</p>",
-        "longDescription": "<p>When omitted, every stage is scanned. Stage names are matched exactly.</p>",
+        "longDescription": "<p>When omitted or empty, every stage is scanned. Stage names are matched exactly.</p>",
         "typeInfo": {
           "kind": "array",
           "itemType": {

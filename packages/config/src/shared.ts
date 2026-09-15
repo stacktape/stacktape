@@ -2059,7 +2059,7 @@ export interface SecurityScanningConfig {
    *
    * ---
    *
-   * When omitted, every stage is scanned. Stage names are matched exactly.
+   * When omitted or empty, every stage is scanned. Stage names are matched exactly.
    *
    * **Example (YAML):**
    *

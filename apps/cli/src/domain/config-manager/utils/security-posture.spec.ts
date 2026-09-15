@@ -16,14 +16,17 @@ const stackContext: StackContext = {
 };
 
 const emptyConfigManager = {
+  agentCoreRuntimes: [],
   allApplicationLoadBalancers: [],
   allContainerWorkloads: [],
   applicationLoadBalancers: [],
   astroWebs: [],
   batchJobs: [],
   buckets: [],
+  customResourceDefinitions: [],
   databases: [],
   deploymentConfig: {},
+  deploymentScripts: [],
   dsqlDatabases: [],
   dynamoDbTables: [],
   edgeLambdaFunctions: [],
@@ -104,12 +107,14 @@ describe('security posture rules', () => {
     ).toEqual([]);
   });
 
-  test('load balancers need a firewall except the fixed Convex one', () => {
+  test('internet-facing load balancers need a firewall; internal ones and the fixed Convex one do not', () => {
     const assessment = assess({
       allApplicationLoadBalancers: [
         { name: 'public', configParentResourceType: 'application-load-balancer' },
         { name: 'convex-internal', configParentResourceType: 'convex' },
-        { name: 'protected', useFirewall: 'apiFirewall', configParentResourceType: 'web-service' }
+        { name: 'protected', useFirewall: 'apiFirewall', configParentResourceType: 'web-service' },
+        { name: 'private-service-lb', interface: 'internal', configParentResourceType: 'private-service' },
+        { name: 'internal', interface: 'internal', configParentResourceType: 'application-load-balancer' }
       ]
     });
     expect(assessment.findings.map(({ resourceName }) => resourceName)).toEqual(['public']);
@@ -151,6 +156,26 @@ describe('security posture rules', () => {
     ]);
   });
 
+  test('IAM statements on rendered webs, deployment scripts and other role-bearing resources are checked too', () => {
+    const anyAction = [{ Effect: 'Allow', Action: ['*'], Resource: ['*'] }];
+    const assessment = assess({
+      nextjsWebs: [{ name: 'site', type: 'nextjs-web', iamRoleStatements: anyAction }],
+      deploymentScripts: [{ name: 'migrate', type: 'deployment-script', iamRoleStatements: anyAction }],
+      customResourceDefinitions: [{ name: 'seed', iamRoleStatements: anyAction }],
+      agentCoreRuntimes: [{ name: 'agent', iamRoleStatements: anyAction }]
+    });
+    const subjects = assessment.findings.map(({ resourceType, resourceName }) => `${resourceType}:${resourceName}`);
+    expect(subjects).toHaveLength(4);
+    expect(subjects).toEqual(
+      expect.arrayContaining([
+        'nextjs-web:site',
+        'deployment-script:migrate',
+        'custom-resource-definition:seed',
+        'agentcore-runtime:agent'
+      ])
+    );
+  });
+
   test('queues without a redrive policy are reported on every stage', () => {
     const assessment = assess({
       sqsQueues: [{ name: 'jobs' }, { name: 'events', redrivePolicy: { targetSqsQueueName: 'dlq' } }]
@@ -189,6 +214,9 @@ describe('secret detection in raw configuration', () => {
     );
     expect(detectSecretLikeValue({ name: 'API_SECRET', value: "$Secret('api-secret')" })).toBeNull();
     expect(detectSecretLikeValue({ name: 'API_SECRET', value: "$SsmParam('/app/api-secret')" })).toBeNull();
+    // A directive embedded in a larger value, such as the password part of a connection string, is still a reference.
+    const connectionStringWithReference = ['postgres://app', "$Secret('db-password')@db.internal:5432/app"].join(':');
+    expect(detectSecretLikeValue({ name: 'DATABASE_URL', value: connectionStringWithReference })).toBeNull();
     expect(detectSecretLikeValue({ name: 'API_SECRET', value: '<your-api-secret-here>' })).toBeNull();
     expect(detectSecretLikeValue({ name: 'API_SECRET', value: 'change-me-before-deploying' })).toBeNull();
     expect(detectSecretLikeValue({ name: 'TOKEN_TTL_SECONDS', value: '3600' })).toBeNull();
@@ -236,6 +264,21 @@ describe('secret detection in raw configuration', () => {
 });
 
 describe('exposure inventory', () => {
+  test('an internal load balancer is not something the internet can reach', () => {
+    const assessment = assess({
+      applicationLoadBalancers: [{ name: 'edge' }, { name: 'internal-lb', interface: 'internal' }]
+    });
+    expect(assessment.exposure).toEqual([
+      {
+        kind: 'public-endpoint',
+        resourceName: 'edge',
+        resourceType: 'application-load-balancer',
+        accessibility: 'internet',
+        protectedByFirewall: false
+      }
+    ]);
+  });
+
   test('lists what the internet can reach and whether a firewall stands in front', () => {
     const assessment = assess({
       webServices: [{ name: 'api', useFirewall: 'apiFirewall' }],

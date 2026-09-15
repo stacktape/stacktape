@@ -30,7 +30,7 @@ import { promptCiCdSetupAfterDeploy } from '../_utils/cicd-setup';
 import { deployConvexFunctions } from '../_utils/convex-post-deploy';
 import { buildUptimeChecksSyncPayload, withSyncRetries } from '@domain-services/config-manager/utils/uptime-checks';
 import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
-import { assessAndPrintSecurityPosture } from '../_utils/security-posture-output';
+import { assessAndPrintSecurityPosture, describeSecurityReportRejection } from '../_utils/security-posture-output';
 import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
 import { deployWithEc2Runner } from './ec2-runner';
 import { buildPreviewResourceChanges } from '../diff/utils';
@@ -476,7 +476,12 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
 
   if (securityAssessment) {
     try {
-      await stacktapeApi.recordSecurityReport(securityAssessment);
+      const receipt = await stacktapeApi.recordSecurityReport(securityAssessment);
+      if (!receipt.accepted) {
+        tui.warn(
+          `The Stacktape Console did not store the security findings: ${describeSecurityReportRejection(receipt.reason)}.`
+        );
+      }
     } catch (err) {
       tui.warn(`Could not report the security findings to the Stacktape Console: ${err}`);
     }

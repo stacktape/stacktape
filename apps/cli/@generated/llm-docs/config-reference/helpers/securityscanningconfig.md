@@ -31,7 +31,7 @@ disabled, nothing is evaluated or uploaded for this stack.
 
 Limits security scanning to the listed stages.
 
-When omitted, every stage is scanned. Stage names are matched exactly.
+When omitted or empty, every stage is scanned. Stage names are matched exactly.
 
 ### Example 1 (yaml)
 

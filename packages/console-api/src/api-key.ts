@@ -370,6 +370,8 @@ export type CurrentUserAndOrgDataResponse = {
     id: string;
     name: string;
     role: string;
+    /** The organization-wide switch for security scanning; the CLI skips its evaluation when this is false. */
+    securityScanningEnabled?: boolean;
     [otherProperties: string]: unknown;
   };
   connectedAwsAccounts: Array<{

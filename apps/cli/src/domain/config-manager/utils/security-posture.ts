@@ -160,14 +160,20 @@ const databaseRules = ({ configManager, isProduction }: RuleContext): SecurityRe
   return findings;
 };
 
+/** A load balancer the internet can reach: not the internal ones private services get, nor the fixed Convex one. */
+const isInternetFacingLoadBalancer = (
+  alb: StpApplicationLoadBalancer & { configParentResourceType?: string; interface?: string }
+) => alb.interface !== 'internal' && alb.configParentResourceType !== 'convex';
+
 const loadBalancerRules = ({ configManager }: RuleContext): SecurityReportFinding[] => {
   const findings: SecurityReportFinding[] = [];
-  // Convex owns a fixed internal load balancer without a `useFirewall` setting; the same exclusion the guardrail uses.
+  // An internal load balancer has no internet traffic for a firewall to filter, so it is not a finding here even
+  // though the `require-waf` guardrail still counts it.
   const configurable = (
     configManager.allApplicationLoadBalancers as (StpApplicationLoadBalancer & {
       configParentResourceType?: string;
     } & NamedResource)[]
-  ).filter(({ configParentResourceType }) => configParentResourceType !== 'convex');
+  ).filter(isInternetFacingLoadBalancer);
   for (const alb of configurable) {
     if (!alb.useFirewall) {
       findings.push(
@@ -224,6 +230,30 @@ const iamRules = ({ configManager }: RuleContext): SecurityReportFinding[] => {
     ...(configManager.batchJobs as WorkloadWithRole[]).map((job) => ({
       ...job,
       type: resourceTypeOf(job, 'batch-job')
+    })),
+    // Server-side rendered webs run on a function with its own role, and these resources take statements too.
+    ...(
+      [
+        ...configManager.nextjsWebs,
+        ...configManager.astroWebs,
+        ...configManager.nuxtWebs,
+        ...configManager.sveltekitWebs,
+        ...configManager.solidstartWebs,
+        ...configManager.tanstackWebs,
+        ...configManager.remixWebs
+      ] as WorkloadWithRole[]
+    ).map((web) => ({ ...web, type: resourceTypeOf(web, 'ssr-web') })),
+    ...(configManager.deploymentScripts as WorkloadWithRole[]).map((script) => ({
+      ...script,
+      type: resourceTypeOf(script, 'deployment-script')
+    })),
+    ...(configManager.customResourceDefinitions as WorkloadWithRole[]).map((definition) => ({
+      ...definition,
+      type: resourceTypeOf(definition, 'custom-resource-definition')
+    })),
+    ...(configManager.agentCoreRuntimes as WorkloadWithRole[]).map((runtime) => ({
+      ...runtime,
+      type: resourceTypeOf(runtime, 'agentcore-runtime')
     }))
   ] as WorkloadWithRole[];
   for (const workload of workloads) {
@@ -310,8 +340,11 @@ const resilienceRules = ({ configManager, isProduction }: RuleContext): Security
 
 // ── Secret detection over the raw configuration ──
 
-/** A directive such as `$Secret('name')` or `$SsmParam('name')`: a reference, never a value. */
-const DIRECTIVE_PATTERN = /^\$[A-Z][A-Za-z]*\(/;
+/**
+ * A directive such as `$Secret('name')` or `$SsmParam('name')` is a reference, never a value, whether it is the
+ * whole setting or embedded in one such as a connection string.
+ */
+const DIRECTIVE_PATTERN = /\$[A-Z][A-Za-z]*\(/;
 const SECRET_LIKE_NAME =
   /(secret|token|passw(or)?d|pwd|api[_-]?key|private[_-]?key|access[_-]?key|credential|auth[_-]?key|signing[_-]?key|client[_-]?secret)/i;
 const PLACEHOLDER_VALUE =
@@ -430,8 +463,9 @@ const exposureEntries = ({ configManager }: RuleContext): SecurityExposureEntry[
       ...(firewallCapable ? { protectedByFirewall: Boolean(resource.useFirewall) } : {})
     });
   for (const service of configManager.webServices as Endpoint[]) publicEndpoint(service, 'web-service');
-  for (const alb of configManager.applicationLoadBalancers as Endpoint[])
-    publicEndpoint(alb, 'application-load-balancer');
+  for (const alb of configManager.applicationLoadBalancers as (Endpoint & { interface?: string })[]) {
+    if (alb.interface !== 'internal') publicEndpoint(alb, 'application-load-balancer');
+  }
   for (const gateway of configManager.httpApiGateways as Endpoint[]) publicEndpoint(gateway, 'http-api-gateway', false);
   for (const bucket of configManager.hostingBuckets as Endpoint[]) publicEndpoint(bucket, 'hosting-bucket');
   for (const web of [

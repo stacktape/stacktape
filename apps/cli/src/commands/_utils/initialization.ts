@@ -92,7 +92,6 @@ export const getConfigManagerContext = (stackContext: StackContext): ConfigManag
         issuesAllProjectsEnabled?: boolean;
         issuesEnabledStages?: string[];
         issuesEventSamplingRate?: number;
-        securityScanningEnabled?: boolean;
       })
     | undefined;
   const projects = globalStateManager.projects as

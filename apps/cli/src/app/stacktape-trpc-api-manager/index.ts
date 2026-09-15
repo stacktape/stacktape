@@ -9,6 +9,7 @@ import { IS_DEV } from '../../config/random';
 import { gitInfoManager } from '../../utils/git-info-manager';
 import { getStacktapeVersion } from '../../utils/versioning';
 import { globalStateManager } from '../global-state-manager';
+import { commandArgsForRecording } from './recorded-command-args';
 
 const LOGIN_HINT = 'Run `stacktape login` to authenticate with a new API key.';
 
@@ -108,7 +109,9 @@ export class StacktapeTrpcApiManager {
 
     return this.apiClient.recordStackOperation({
       invocationId: globalStateManager.invocationId,
-      commandArgs: withStacktapeOperationInvocationContext(globalStateManager.args),
+      commandArgs: withStacktapeOperationInvocationContext(
+        commandArgsForRecording({ args: globalStateManager.args, stage: globalStateManager.stage })
+      ),
       command: globalStateManager.command,
       region: globalStateManager.region,
       stackName,
@@ -143,7 +146,9 @@ export class StacktapeTrpcApiManager {
       success,
       interrupted,
       description: error ? `${error}` : interrupted ? 'Operation was interrupted' : undefined,
-      commandArgs: withStacktapeOperationInvocationContext(globalStateManager.args),
+      commandArgs: withStacktapeOperationInvocationContext(
+        commandArgsForRecording({ args: globalStateManager.args, stage: globalStateManager.stage })
+      ),
       region: globalStateManager.region,
       stackName,
       logStreamName,
@@ -179,7 +184,9 @@ export class StacktapeTrpcApiManager {
       awsAccountId: globalStateManager.targetAwsAccount.awsAccountId || undefined,
       accountConnectionId: globalStateManager.targetAwsAccount.id || undefined,
       region: globalStateManager.region,
-      commandArgs: withStacktapeOperationInvocationContext(globalStateManager.args),
+      commandArgs: withStacktapeOperationInvocationContext(
+        commandArgsForRecording({ args: globalStateManager.args, stage: globalStateManager.stage })
+      ),
       // git information
       gitBranch: gitInfo.branch,
       gitCommit: gitInfo.commit,
