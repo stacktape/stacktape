@@ -1,9 +1,9 @@
 ---
 name: load
-description:
+description: >-
   Load context from an earlier Claude Code or Codex session, selected by conversation name or recency. Explicit
-  invocation only: `/load` in Claude Code, `$load` in Codex. Never trigger this from ordinary wording such as "load"
-  or "continue".
+  invocation only: `/load` in Claude Code, `$load` in Codex. Never trigger this from ordinary wording such as "load" or
+  "continue".
 disable-model-invocation: true
 ---
 
