@@ -163,8 +163,11 @@ export const SECURITY_RULES = {
 export type SecurityRuleId = keyof typeof SECURITY_RULES;
 export const SECURITY_RULE_IDS = Object.keys(SECURITY_RULES) as SecurityRuleId[];
 
+/** The catalog entry for a rule id, or undefined for an id this version does not know (including `constructor`). */
 export const getSecurityRule = (ruleId: string): SecurityRuleDefinition | undefined =>
-  (SECURITY_RULES as Record<string, SecurityRuleDefinition>)[ruleId];
+  Object.hasOwn(SECURITY_RULES, ruleId)
+    ? (SECURITY_RULES as Record<string, SecurityRuleDefinition>)[ruleId]
+    : undefined;
 
 const boundedText = (max: number) => z.string().trim().min(1).max(max);
 

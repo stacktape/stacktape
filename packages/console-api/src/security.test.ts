@@ -3,6 +3,7 @@ import test from 'node:test';
 import { guardrailDefinitionSchema } from './guardrails.js';
 import {
   countSecurityFindingsBySeverity,
+  getSecurityRule,
   recordSecurityReportInputSchema,
   SECURITY_RULE_IDS,
   SECURITY_RULES,
@@ -47,6 +48,14 @@ test('findings describe themselves, so an unknown rule id is still accepted', ()
   ]) {
     assert.equal(securityReportFindingSchema.safeParse(broken).success, false, JSON.stringify(broken).slice(0, 80));
   }
+});
+
+test('rule lookup ignores inherited object properties, so every accepted rule id is safe to display', () => {
+  for (const ruleId of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+    assert.equal(securityReportFindingSchema.safeParse({ ...finding, ruleId }).success, true);
+    assert.equal(getSecurityRule(ruleId), undefined);
+  }
+  assert.equal(getSecurityRule('database-reachable-from-internet')?.kind, 'POSTURE');
 });
 
 test('every guardrail mapping in the catalog names a guardrail that exists', () => {

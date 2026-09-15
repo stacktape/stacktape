@@ -211,6 +211,27 @@ const bucketRules = ({ configManager }: RuleContext): SecurityReportFinding[] =>
   return findings;
 };
 
+/**
+ * A statement's identity is what it says, not where it sits in the list: inserting another statement above it must
+ * not turn an old, possibly ignored finding into a new one. A short FNV-1a digest of the normalized statement.
+ */
+const statementIdentity = (statement: StpIamRoleStatement) => {
+  const list = (value: unknown) =>
+    Array.isArray(value) ? value.map(String).toSorted() : value === undefined ? [] : [String(value)];
+  const normalized = JSON.stringify({
+    effect: statement.Effect || 'Allow',
+    actions: list(statement.Action),
+    resources: list(statement.Resource),
+    condition: (statement as { Condition?: unknown }).Condition ?? null
+  });
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < normalized.length; index++) {
+    hash ^= normalized.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, '0');
+};
+
 type WorkloadWithRole = NamedResource & { iamRoleStatements?: StpIamRoleStatement[] };
 const iamRules = ({ configManager }: RuleContext): SecurityReportFinding[] => {
   const findings: SecurityReportFinding[] = [];
@@ -261,7 +282,7 @@ const iamRules = ({ configManager }: RuleContext): SecurityReportFinding[] => {
       if (statement.Effect && statement.Effect !== 'Allow') return;
       const actions = statement.Action || [];
       const resources = statement.Resource || [];
-      const suffix = `statement-${index}`;
+      const suffix = `statement-${statementIdentity(statement)}`;
       if (actions.includes('*')) {
         findings.push(
           createFinding('iam-statement-allows-any-action', {
@@ -414,7 +435,12 @@ const collectEnvironmentBlocks = (
 ) => {
   if (!value || typeof value !== 'object' || depth > 8) return;
   if (Array.isArray(value)) {
-    value.forEach((item, index) => collectEnvironmentBlocks(item, [...path, String(index)], onBlock, depth + 1));
+    // A named list item (a container, for example) is addressed by its name, so the finding keeps its identity
+    // when another item is inserted before it.
+    value.forEach((item, index) => {
+      const name = item && typeof item === 'object' && typeof item.name === 'string' ? item.name : String(index);
+      collectEnvironmentBlocks(item, [...path, name], onBlock, depth + 1);
+    });
     return;
   }
   for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
@@ -439,7 +465,7 @@ const secretRules = ({ rawConfig }: RuleContext): SecurityReportFinding[] => {
             resourceType: resource?.type,
             fingerprintSuffix: `${path.join('.')}.${name}`,
             message: `Environment variable \`${name}\` on \`${resourceName}\`${location} holds a value that looks like a credential (${pattern.replaceAll('-', ' ')}).`,
-            remediation: `Store the value with \`stacktape secret:create\`, reference it as \`$Secret('...')\`, remove it from the configuration, and rotate the credential: a value committed to Git stays valid until it is revoked.`,
+            remediation: `Store the value with \`stacktape secret:set\`, reference it as \`$Secret('...')\`, remove it from the configuration, and rotate the credential: a value committed to Git stays valid until it is revoked.`,
             details: { pattern, variableName: name, path }
           })
         );

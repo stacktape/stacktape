@@ -150,10 +150,43 @@ describe('security posture rules', () => {
         }
       ]
     });
-    expect(assessment.findings.map(({ ruleId, fingerprint }) => `${ruleId} ${fingerprint}`)).toEqual([
-      'iam-statement-allows-any-action iam-statement-allows-any-action:worker:statement-0',
-      'iam-statement-wildcard-service-on-any-resource iam-statement-wildcard-service-on-any-resource:worker:statement-1'
+    expect(assessment.findings.map(({ ruleId }) => ruleId)).toEqual([
+      'iam-statement-allows-any-action',
+      'iam-statement-wildcard-service-on-any-resource'
     ]);
+    for (const finding of assessment.findings) {
+      expect(finding.fingerprint).toMatch(new RegExp(`^${finding.ruleId}:worker:statement-[0-9a-f]{8}$`));
+    }
+    expect(new Set(assessment.findings.map(({ fingerprint }) => fingerprint)).size).toBe(2);
+  });
+
+  test('a finding keeps its identity when an unrelated statement or container is inserted before it', () => {
+    const wildcard = { Effect: 'Allow', Action: ['s3:*'], Resource: ['*'] };
+    const scoped = {
+      Effect: 'Allow',
+      Action: ['sqs:SendMessage'],
+      Resource: ['arn:aws:sqs:eu-west-1:123456789012:jobs']
+    };
+    const before = assess({ functions: [{ name: 'worker', iamRoleStatements: [wildcard] }] });
+    const after = assess({ functions: [{ name: 'worker', iamRoleStatements: [scoped, wildcard] }] });
+    expect(after.findings.map(({ fingerprint }) => fingerprint)).toEqual(
+      before.findings.map(({ fingerprint }) => fingerprint)
+    );
+
+    const secretValue = 'q8Zr2Lm9Xv4Kp7Ws1Tn6Yb3Hd5Fg0Jc';
+    const app = { name: 'app', environment: [{ name: 'CLIENT_SECRET', value: secretValue }] };
+    const proxy = { name: 'proxy', environment: [{ name: 'PORT', value: '8080' }] };
+    const rawConfig = (containers: unknown[]) => ({
+      resources: { api: { type: 'multi-container-workload', properties: { containers } } }
+    });
+    const single = assess({}, { rawConfig: rawConfig([app]) });
+    const shifted = assess({}, { rawConfig: rawConfig([proxy, app]) });
+    expect(single.findings[0]?.fingerprint).toBe(
+      'secret-in-environment-variable:api:containers.app.environment.CLIENT_SECRET'
+    );
+    expect(shifted.findings.map(({ fingerprint }) => fingerprint)).toEqual(
+      single.findings.map(({ fingerprint }) => fingerprint)
+    );
   });
 
   test('IAM statements on rendered webs, deployment scripts and other role-bearing resources are checked too', () => {
@@ -257,7 +290,7 @@ describe('secret detection in raw configuration', () => {
       severity: 'CRITICAL',
       resourceName: 'api',
       resourceType: 'multi-container-workload',
-      fingerprint: 'secret-in-environment-variable:api:containers.0.environment.CLIENT_SECRET'
+      fingerprint: 'secret-in-environment-variable:api:containers.app.environment.CLIENT_SECRET'
     });
     expect(JSON.stringify(finding)).not.toContain(secretValue);
   });
