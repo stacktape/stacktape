@@ -25360,6 +25360,26 @@
         ]
       },
       {
+        "name": "securityScanning",
+        "required": false,
+        "shortDescription": "<p> Security scanning of this stack&#39;s configuration on every deployment.</p>",
+        "longDescription": "<p>Enabled by default for every stage. The findings appear in the deploy output and in the Security section of\nthe Stacktape Console, where they can be reviewed, ignored or turned into organization-wide guardrails. Turn\nscanning off for a stack, or limit it to selected stages, when a stack must not report anything. An\norganization administrator can also disable it for all projects in the Console.</p>",
+        "typeInfo": {
+          "kind": "reference",
+          "typeName": "SecurityScanningConfig"
+        },
+        "examples": [
+          {
+            "lang": "yaml",
+            "code": "deploymentConfig:\n  # [!code focus-start]\n  securityScanning:\n    stages: [production]\n  # [!code focus-end]\nresources:\n  api:\n    type: web-service\n    properties:\n      packaging:\n        type: stacktape-image-buildpack\n        properties:\n          entryfilePath: src/server.ts\n      resources:\n        cpu: 0.25\n        memory: 512"
+          },
+          {
+            "lang": "typescript",
+            "code": "import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new WebService({\n    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),\n    resources: { cpu: 0.25, memory: 512 }\n  });\n\n  return {\n    // [!code focus-start]\n    deploymentConfig: { securityScanning: { stages: ['production'] } },\n    // [!code focus-end]\n    resources: { api }\n  };\n});"
+          }
+        ]
+      },
+      {
         "name": "terminationProtection",
         "required": false,
         "shortDescription": "<p> Prevents accidental stack deletion. Must be disabled before you can delete.</p>",
@@ -25410,9 +25430,9 @@
     ],
     "stats": {
       "requiredCount": 0,
-      "optionalCount": 8
+      "optionalCount": 9
     },
-    "typeDeclaration": "// [!code focus-start]\ntype DeploymentConfig = {\n  /** IAM role for CloudFormation to assume during create/update/delete operations. */\n  cloudformationRoleArn?: string;\n  /** Keep the stack in a failed state instead of rolling back on deployment failure. */\n  disableAutoRollback?: boolean;\n  /** Disable faster uploads via S3 Transfer Acceleration. */\n  disableS3TransferAcceleration?: boolean;\n  /** How long (in minutes) to monitor rollback alarms after deployment completes. */\n  monitoringTimeAfterDeploymentInMinutes?: number;\n  /** How many old deployment artifacts (Lambda bundles, container images) to keep. */\n  previousVersionsToKeep?: number;\n  /** SNS topic ARNs to receive CloudFormation stack events during deployment. */\n  publishEventsToArn?: Array<string>;\n  /** Prevents accidental stack deletion. Must be disabled before you can delete. */\n  terminationProtection?: boolean;\n  /** Alarms that trigger automatic rollback if they fire during deployment. */\n  triggerRollbackOnAlarms?: Array<string>;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { SecurityScanningConfig } from 'stacktape';\n\n// [!code focus-start]\ntype DeploymentConfig = {\n  /** IAM role for CloudFormation to assume during create/update/delete operations. */\n  cloudformationRoleArn?: string;\n  /** Keep the stack in a failed state instead of rolling back on deployment failure. */\n  disableAutoRollback?: boolean;\n  /** Disable faster uploads via S3 Transfer Acceleration. */\n  disableS3TransferAcceleration?: boolean;\n  /** How long (in minutes) to monitor rollback alarms after deployment completes. */\n  monitoringTimeAfterDeploymentInMinutes?: number;\n  /** How many old deployment artifacts (Lambda bundles, container images) to keep. */\n  previousVersionsToKeep?: number;\n  /** SNS topic ARNs to receive CloudFormation stack events during deployment. */\n  publishEventsToArn?: Array<string>;\n  /** Security scanning of this stack's configuration on every deployment. */\n  securityScanning?: SecurityScanningConfig;\n  /** Prevents accidental stack deletion. Must be disabled before you can delete. */\n  terminationProtection?: boolean;\n  /** Alarms that trigger automatic rollback if they fire during deployment. */\n  triggerRollbackOnAlarms?: Array<string>;\n};\n// [!code focus-end]"
   },
   "DeploymentScript": {
     "definitionName": "DeploymentScript",
@@ -52897,6 +52917,50 @@
       "optionalCount": 0
     },
     "typeDeclaration": "// [!code focus-start]\ntype SecretEnvironmentVar = {\n  /** Environment variable name exposed to the container (e.g., `DATABASE_PASSWORD`, `API_KEY`). */\n  name: string;\n  /** Secret source injected by the container runtime.\n\nUse an exact `$SsmParam(...)` or `$Secret(...)` directive. Unlike `environment`, Stacktape passes only the\nparameter or secret ARN to the container orchestrator; the sensitive value is never stored in the task\ndefinition. */\n  valueFrom: string;\n};\n// [!code focus-end]"
+  },
+  "SecurityScanningConfig": {
+    "definitionName": "SecurityScanningConfig",
+    "properties": [
+      {
+        "name": "enabled",
+        "required": false,
+        "shortDescription": "<p> Turns security scanning on or off for this stack.</p>",
+        "longDescription": "<p>When enabled, every deployment evaluates the resolved configuration against Stacktape&#39;s security rules and\nreports the findings to the Security section of the Stacktape Console. Findings describe risky settings, for\nexample a database reachable from the internet or a secret stored as a plain environment variable. When\ndisabled, nothing is evaluated or uploaded for this stack.</p>",
+        "defaultValue": "true",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "boolean"
+          ]
+        }
+      },
+      {
+        "name": "stages",
+        "required": false,
+        "shortDescription": "<p> Limits security scanning to the listed stages.</p>",
+        "longDescription": "<p>When omitted, every stage is scanned. Stage names are matched exactly.</p>",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "primitive",
+            "types": [
+              "string"
+            ]
+          }
+        },
+        "examples": [
+          {
+            "lang": "yaml",
+            "code": "deploymentConfig:\n  securityScanning:\n    # [!code focus-start]\n    stages: [production, staging]\n    # [!code focus-end]\nresources:\n  api:\n    type: web-service\n    properties:\n      packaging:\n        type: stacktape-image-buildpack\n        properties:\n          entryfilePath: src/server.ts\n      resources:\n        cpu: 0.25\n        memory: 512"
+          }
+        ]
+      }
+    ],
+    "stats": {
+      "requiredCount": 0,
+      "optionalCount": 2
+    },
+    "typeDeclaration": "// [!code focus-start]\ntype SecurityScanningConfig = {\n  /** Turns security scanning on or off for this stack. */\n  enabled?: boolean;\n  /** Limits security scanning to the listed stages. */\n  stages?: Array<string>;\n};\n// [!code focus-end]"
   },
   "SelectIntrinsic": {
     "definitionName": "SelectIntrinsic",

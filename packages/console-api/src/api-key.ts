@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { GuardrailDefinition } from './guardrails.js';
+import type { RecordSecurityReportParams, RecordSecurityReportResponse } from './security.js';
 
 /**
  * The Console API's API-key surface: procedures a Stacktape API key authorizes, scoped to the organization
@@ -611,6 +612,9 @@ export type ApiKeyTrpcClient = {
   recordStackOperation: {
     /** Responds with the stored operation. Clients record and move on, so the shape is not part of the contract. */
     mutate: (args: RecordStackOperationParams) => Promise<unknown>;
+  };
+  recordSecurityReport: {
+    mutate: (args: RecordSecurityReportParams) => Promise<RecordSecurityReportResponse>;
   };
   globalConfig: {
     query: (args?: void) => Promise<GlobalConfigResponse>;

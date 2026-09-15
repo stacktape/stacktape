@@ -2040,7 +2040,104 @@ export interface DirectiveDefinition {
 }
 
 
+export interface SecurityScanningConfig {
+  /**
+   * #### Turns security scanning on or off for this stack.
+   *
+   * ---
+   *
+   * When enabled, every deployment evaluates the resolved configuration against Stacktape's security rules and
+   * reports the findings to the Security section of the Stacktape Console. Findings describe risky settings, for
+   * example a database reachable from the internet or a secret stored as a plain environment variable. When
+   * disabled, nothing is evaluated or uploaded for this stack.
+   *
+   * @default true
+   */
+  enabled?: boolean;
+  /**
+   * #### Limits security scanning to the listed stages.
+   *
+   * ---
+   *
+   * When omitted, every stage is scanned. Stage names are matched exactly.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * deploymentConfig:
+   *   securityScanning:
+   *     # stp-focus
+   *     stages: [production, staging]
+   *     # stp-end-focus
+   * resources:
+   *   api:
+   *     type: web-service
+   *     properties:
+   *       packaging:
+   *         type: stacktape-image-buildpack
+   *         properties:
+   *           entryfilePath: src/server.ts
+   *       resources:
+   *         cpu: 0.25
+   *         memory: 512
+   * ```
+   */
+  stages?: string[];
+}
+
 export interface DeploymentConfig {
+  /**
+   * #### Security scanning of this stack's configuration on every deployment.
+   *
+   * ---
+   *
+   * Enabled by default for every stage. The findings appear in the deploy output and in the Security section of
+   * the Stacktape Console, where they can be reviewed, ignored or turned into organization-wide guardrails. Turn
+   * scanning off for a stack, or limit it to selected stages, when a stack must not report anything. An
+   * organization administrator can also disable it for all projects in the Console.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * deploymentConfig:
+   *   # stp-focus
+   *   securityScanning:
+   *     stages: [production]
+   *   # stp-end-focus
+   * resources:
+   *   api:
+   *     type: web-service
+   *     properties:
+   *       packaging:
+   *         type: stacktape-image-buildpack
+   *         properties:
+   *           entryfilePath: src/server.ts
+   *       resources:
+   *         cpu: 0.25
+   *         memory: 512
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const api = new WebService({
+   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     resources: { cpu: 0.25, memory: 512 }
+   *   });
+   *
+   *   return {
+   *     // stp-focus
+   *     deploymentConfig: { securityScanning: { stages: ['production'] } },
+   *     // stp-end-focus
+   *     resources: { api }
+   *   };
+   * });
+   * ```
+   */
+  securityScanning?: SecurityScanningConfig;
   /**
    * #### Prevents accidental stack deletion. Must be disabled before you can delete.
    *

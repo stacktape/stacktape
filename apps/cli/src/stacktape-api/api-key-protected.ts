@@ -50,6 +50,7 @@ import type {
   TemplateParams,
   TemplateResponse
 } from '@stacktape/console-api/api-key';
+import type { RecordSecurityReportParams, RecordSecurityReportResponse } from '@stacktape/console-api/security';
 import { STACKTAPE_TRPC_API_ENDPOINT } from 'src/config/params';
 import { createTypedTrpcClient } from './client';
 
@@ -149,6 +150,10 @@ export class ApiKeyProtectedClient {
   // including commands that are not direct stack deploy/delete operations.
   recordStackOperation = async (args: RecordStackOperationParams): Promise<void> => {
     await this.#request('recordStackOperation', () => this.#ensureInitialized().recordStackOperation.mutate(args));
+  };
+
+  recordSecurityReport = async (args: RecordSecurityReportParams): Promise<RecordSecurityReportResponse> => {
+    return this.#request('recordSecurityReport', () => this.#ensureInitialized().recordSecurityReport.mutate(args));
   };
 
   globalConfig = async (): Promise<GlobalConfigResponse> => {

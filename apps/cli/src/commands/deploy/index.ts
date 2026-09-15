@@ -30,6 +30,7 @@ import { promptCiCdSetupAfterDeploy } from '../_utils/cicd-setup';
 import { deployConvexFunctions } from '../_utils/convex-post-deploy';
 import { buildUptimeChecksSyncPayload, withSyncRetries } from '@domain-services/config-manager/utils/uptime-checks';
 import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
+import { assessAndPrintSecurityPosture } from '../_utils/security-posture-output';
 import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
 import { deployWithEc2Runner } from './ec2-runner';
 import { buildPreviewResourceChanges } from '../diff/utils';
@@ -167,6 +168,9 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   }
 
   config.validateGuardrails({ hasConfig: true });
+  // Evaluated before the build so the findings sit next to the other pre-deploy notes; reported only after the
+  // deployment succeeds, because they describe the configuration that is then actually running.
+  const securityAssessment = assessAndPrintSecurityPosture({ config, tui });
 
   const issueDetectionPolicy = config.issueDetectionPolicy;
   if (issueDetectionPolicy.enabled) {
@@ -470,10 +474,21 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     lifecycle.addFinalAction(() => promptCiCdSetupAfterDeploy());
   }
 
+  if (securityAssessment) {
+    try {
+      await stacktapeApi.recordSecurityReport(securityAssessment);
+    } catch (err) {
+      tui.warn(`Could not report the security findings to the Stacktape Console: ${err}`);
+    }
+  }
+
   return {
     stackInfo: detailedStackInfoSensitive,
     packagedWorkloads,
-    ...(changePlan ? { changePlan } : {})
+    ...(changePlan ? { changePlan } : {}),
+    ...(securityAssessment
+      ? { securityFindings: securityAssessment.findings, securityExposure: securityAssessment.exposure }
+      : {})
   };
 };
 

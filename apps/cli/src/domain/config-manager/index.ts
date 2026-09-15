@@ -115,10 +115,11 @@ import type { DomainConfiguration, StackConfig, StackOutput } from '@stacktape/c
 import type { WebServiceAlbLoadBalancing, WebServiceNlbLoadBalancing } from '@stacktape/config/web-services';
 import { configErrors } from './errors';
 import type { StackContext } from '@domain-services/stack-context';
-import type { ConfigManagerInitContext, IssueDetectionContext } from './context';
+import type { ConfigManagerInitContext, IssueDetectionContext, SecurityScanningContext } from './context';
 import type { HelperLambdaDetails } from '@utils/helper-lambdas';
 import { CliError } from '@utils/errors';
 import { canonicalizeEmailIdentity } from '@domain-services/email-sender-manager/identity';
+import { assessSecurityPosture } from './utils/security-posture';
 
 /**
  * A CDN-capable resource whose `cdn` block is present, as proved by reading `cdn.enabled` off it. Only the block
@@ -150,6 +151,7 @@ export class ConfigManager {
   #stackContext: StackContext | undefined;
   #helperLambdaDetails: HelperLambdaDetails | undefined;
   #issueDetection: IssueDetectionContext = {};
+  #securityScanning: SecurityScanningContext = {};
   #discoveredConfig: DiscoveredConfig | undefined;
 
   private get stackContext(): StackContext {
@@ -216,6 +218,7 @@ export class ConfigManager {
     candidate.setStackContext(context.stack);
     candidate.#helperLambdaDetails = context.helperLambdaDetails;
     candidate.#issueDetection = context.issueDetection;
+    candidate.#securityScanning = context.securityScanning ?? {};
     // Reuse what discovery loaded rather than loading the configuration again, so a TypeScript config and its
     // transform side channel are produced by exactly one execution of the user's module.
     const discoveredConfig = this.#getDiscoveredConfigFor(context.resolver);
@@ -276,6 +279,7 @@ export class ConfigManager {
     this.#stackContext = candidate.#stackContext;
     this.#helperLambdaDetails = candidate.#helperLambdaDetails;
     this.#issueDetection = candidate.#issueDetection;
+    this.#securityScanning = candidate.#securityScanning;
   };
 
   reset = () => {
@@ -292,6 +296,7 @@ export class ConfigManager {
     this.#stackContext = undefined;
     this.#helperLambdaDetails = undefined;
     this.#issueDetection = {};
+    this.#securityScanning = {};
     this.#discoveredConfig = undefined;
   };
 
@@ -1557,6 +1562,31 @@ export class ConfigManager {
   get guardrails() {
     return this.globalConfigGuardrails || [];
   }
+
+  /**
+   * Whether this stack's configuration is evaluated for security findings. The organization switch from the
+   * Console wins; then `deploymentConfig.securityScanning` decides per stack and stage. On by default.
+   */
+  get securityScanningPolicy(): { enabled: boolean; reason: string } {
+    if (this.#securityScanning.organization?.securityScanningEnabled === false) {
+      return { enabled: false, reason: 'disabled for the whole organization in the Stacktape Console' };
+    }
+    const setting = this.deploymentConfig.securityScanning;
+    if (setting?.enabled === false) {
+      return { enabled: false, reason: 'disabled by `deploymentConfig.securityScanning.enabled`' };
+    }
+    const stage = this.stackContext.stage;
+    if (setting?.stages?.length && !setting.stages.includes(stage)) {
+      return {
+        enabled: false,
+        reason: `stage \`${stage}\` is not listed in \`deploymentConfig.securityScanning.stages\``
+      };
+    }
+    return { enabled: true, reason: setting ? 'enabled by `deploymentConfig.securityScanning`' : 'enabled by default' };
+  }
+
+  assessSecurityPosture = () =>
+    assessSecurityPosture({ configManager: this, rawConfig: this.rawConfig, stackContext: this.stackContext });
 
   get deploymentNotifications(): DeploymentNotificationDefinition[] {
     return this.globalConfigDeploymentNotifications || [];

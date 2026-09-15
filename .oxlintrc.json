@@ -86,6 +86,7 @@
         "apps/console/api/src/middlewares.ts",
         "apps/console/api/src/model-helpers/**",
         "apps/console/api/src/permissions.ts",
+        "apps/console/api/src/security/**",
         "apps/console/api/src/services/**",
         "apps/console/api/src/utils/**"
       ],
