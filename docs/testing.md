@@ -245,18 +245,17 @@ contract are documented in [`../apps/cli/scripts/real-aws/README.md`](../apps/cl
 
 ## Feature acceptance plans
 
-The private Console [readiness ledger](../apps/console/e2e/readiness.md) records the verified setup and remaining
-fixture, local API, provider and live-AWS qualification work. Re-check it before relying on a lane. Run
+Use the private [Console E2E guide](../apps/console/e2e/README.md) for reusable fixtures and each lane's coverage.
+Inspect the relevant tests and any supplied results for the actual source/artifact revision. Run
 `pnpm test:doctor -- --for=console` for Console prerequisites; the default doctor checks workspace tools only.
 
 The older packaging/init canaries below require a genuinely disposable account. The authorization to deploy uniquely
 owned test resources in the shared Console hosting account does not make it disposable. Do not lie to the canary's
 account acknowledgement; use a separate test account or first qualify an explicitly scoped shared-account runner.
 
-The following sections define required evidence, not completed automated coverage. Packaging and init have existing AWS
-runners. Observability has an unqualified fixture and checklist; security, runner, and provider journeys still need
-scenario-specific execution. A dev deployment only makes code reachable. It does not prove delivery, ingestion,
-authorization, or cleanup. Fixture readiness also checks local configuration, not whether provider grants work.
+The following sections guide evidence selection for the changed feature. They do not report current automated coverage
+or form a checklist to run in every task. A dev deployment only makes code reachable. It does not prove delivery,
+ingestion, authorization, or cleanup. Fixture readiness checks local configuration, not whether provider grants work.
 
 ### Observability
 
@@ -295,3 +294,13 @@ command only if cleanup did not finish. Do not paste large logs or any secret-be
 
 If an important boundary was not tested, say exactly what remains and why. Passing unrelated unit tests is not evidence
 for an untested boundary.
+
+Keep per-run details in ignored `.stacktape/` task files or CI artifacts, with a concise result in the task handoff or
+commit/PR description. Reuse applicable results when their source, artifact and environment still match; do not repeat
+live scenarios solely because a historical status document was removed. Missing evidence is not a pass. Retain cleanup
+recovery state until deletion is verified. Preserve repeatable tests and fixture/setup instructions in source control.
+
+Do not create a committed evidence diary or a completed acceptance checklist for each task. Update the existing guide
+when a reusable procedure changes. Record a concrete production migration, provider configuration or cutover action in
+[V4 launch readiness](../apps/console/documents/releases/v4-readiness.md); general test coverage and feature TODOs do
+not belong there. The [documentation index](README.md) describes ownership of the other documents.

@@ -31,7 +31,7 @@ location, verifying its published checksum; do not overwrite another task's glob
   installed app. A working old installation does not prove it received new permissions. Confirm the operator command
   completed, then read a real private repository through that connection. Forge's major-version approval can stop a
   standalone lint before deployment starts; use the maintained setup helper, which acknowledges only the requested
-  development upgrade and keeps validation on.
+  environment's upgrade and keeps validation on.
 - **Provider callback:** trace the start origin, provider redirect destination and API handling the return. Installation
   setup URLs and OAuth callback URLs are distinct provider settings; changing one may not fix the other. Verify the
   non-secret registration settings against current provider documentation. Use the existing sign-in helpers and

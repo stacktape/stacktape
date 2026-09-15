@@ -1,8 +1,8 @@
 # Example: security findings spanning CLI and Console
 
 Adapt this recipe to the requested feature. It describes how to choose evidence, not an existing complete security E2E
-suite. Read [the security policy](../../../../docs/testing.md#security-and-guardrails) and current
-[Console readiness](../../../../apps/console/e2e/readiness.md) first. Include only behavior the feature actually has.
+suite. Read [the security policy](../../../../docs/testing.md#security-and-guardrails) and the
+[Console fixture guide](../../../../apps/console/e2e/README.md) first. Include only behavior the feature actually has.
 
 ## Start with the complete behavior
 
