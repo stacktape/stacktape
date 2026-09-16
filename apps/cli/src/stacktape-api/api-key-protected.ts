@@ -24,6 +24,8 @@ import type {
   Ec2DeployFromCliResponse,
   Ec2DeployStatusFromCliParams,
   Ec2DeployStatusFromCliResponse,
+  ExchangeGithubActionsTokenParams,
+  ExchangeGithubActionsTokenResponse,
   GetAwsConnectionStatusInput,
   GetAwsConnectionStatusResponse,
   GetGitProviderConnectionStatusInput,
@@ -132,6 +134,13 @@ export class ApiKeyProtectedClient {
   init = async ({ apiKey }: { apiKey: string }) => {
     this.#client = createTrpcApiKeyProtectedClient({ apiKey });
   };
+
+  exchangeGithubActionsToken = async (
+    args: ExchangeGithubActionsTokenParams
+  ): Promise<ExchangeGithubActionsTokenResponse> =>
+    this.#request('exchangeGithubActionsToken', () =>
+      this.#ensureInitialized().exchangeGithubActionsToken.mutate(args)
+    );
 
   #ensureInitialized = () => {
     if (!this.#client) {

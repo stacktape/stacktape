@@ -12,6 +12,8 @@ import type { HelperLambdaDetails } from '@utils/helper-lambdas';
 import type { StacktapeRecordedCommand } from '@config';
 import type { LogLevel, StacktapeArgs, StacktapeCliArgs, StacktapeCommand } from 'src/config/cli/types';
 import { dirname, isAbsolute, join } from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { ApiKeyProtectedClient } from '@stacktape-api/api-key-protected';
 import { operationReporter } from '@application-services/operation-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
@@ -52,6 +54,7 @@ import type { StacktapeConfig } from '@stacktape/config';
 import type { CurrentUserAndOrgDataResponse } from '@stacktape/console-api/api-key';
 import { selectAwsCredentialProfile } from './credential-source';
 import { getPersistedApiKey, withPersistedApiKey } from './api-key-storage';
+import { consumeRunnerCredentials } from './runner-credentials';
 
 const CREDENTIAL_REFRESH_LEAD_TIME_MS = 5 * 60 * 1000;
 const CREDENTIAL_REFRESH_RETRY_DELAY_MS = 30 * 1000;
@@ -116,6 +119,7 @@ export class GlobalStateManager {
     // The runner's override belongs to this invocation. Hooks and builds must not pass it to nested CLIs,
     // whose startup/exit cleanup would otherwise remove this deployment's temporary artifacts.
     delete process.env.STP_INVOCATION_ID;
+    const runnerCredentials = consumeRunnerCredentials();
     clearTimeout(this.credentialsRefreshTimeout);
     this.credentialsRefreshTimeout = undefined;
     this.credentialRefreshGeneration += 1;
@@ -126,6 +130,17 @@ export class GlobalStateManager {
     this.rawArgs = args;
     this.additionalArgs = additionalArgs || {};
     validateCommand({ rawCommands: globalStateManager.rawCommands });
+    if (
+      !runnerCredentials.apiKey &&
+      runnerCredentials.githubActionsToken &&
+      !['version', 'help', 'login', 'logout', 'upgrade', 'mcp:add'].includes(this.command)
+    ) {
+      const client = new ApiKeyProtectedClient();
+      await client.init({ apiKey: runnerCredentials.githubActionsToken });
+      const operation = await client.exchangeGithubActionsToken({ nonce: randomUUID() });
+      this.invocationId = operation.invocationId;
+      runnerCredentials.apiKey = operation.apiKey;
+    }
     this.persistedState = {
       systemId: null,
       cliArgsDefaults: {} as any,
@@ -185,7 +200,7 @@ export class GlobalStateManager {
     if (!persistedSystemId) {
       await this.saveSystemId();
     }
-    this.apiKey = process.env.STACKTAPE_API_KEY || getPersistedApiKey({ persistedState: this.persistedState });
+    this.apiKey = runnerCredentials.apiKey || getPersistedApiKey({ persistedState: this.persistedState });
     if (!this.apiKey && !commandsNotRequiringApiKey.includes(this.command)) {
       if (process.stdout.isTTY) {
         // Run interactive auth flow (sign up, login, or Google OAuth)

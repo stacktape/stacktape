@@ -47,6 +47,10 @@ export const createDeploymentTokenFromCliInputSchema = z.object({
   templateId: z.string().trim().min(1).optional().nullable()
 });
 
+export const exchangeGithubActionsTokenInputSchema = z.object({ nonce: z.uuid() });
+export type ExchangeGithubActionsTokenParams = z.infer<typeof exchangeGithubActionsTokenInputSchema>;
+export type ExchangeGithubActionsTokenResponse = { apiKey: string; invocationId: string };
+
 export const ec2DeployFromCliInputSchema = z.object({
   invocationId: z.string().optional(),
   projectName: z.string(),
@@ -608,6 +612,11 @@ export type StackDetailsResponse = {
 
 /** The procedures a Stacktape API key may call, and nothing else. */
 export type ApiKeyTrpcClient = {
+  /** A job-scoped completion hint; the server verifies AWS completion before releasing the runner. */
+  runnerCommandFinished: { mutate: (args?: void) => Promise<{ accepted: boolean }> };
+  exchangeGithubActionsToken: {
+    mutate: (args: ExchangeGithubActionsTokenParams) => Promise<ExchangeGithubActionsTokenResponse>;
+  };
   recordStackOperation: {
     /** Responds with the stored operation. Clients record and move on, so the shape is not part of the contract. */
     mutate: (args: RecordStackOperationParams) => Promise<unknown>;

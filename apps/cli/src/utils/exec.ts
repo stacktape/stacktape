@@ -88,6 +88,10 @@ const getChildProcess = (
 ) => {
   const inheritedEnv = serialize(process.env);
   inheritEnvVarsExcept.forEach((envName) => delete inheritedEnv[envName]);
+  const childEnv = { ...(!disableExtendEnv && inheritedEnv), FORCE_COLOR: '3', ...env };
+  for (const name of Object.keys(childEnv)) {
+    if (name.startsWith('STACKTAPE_API_KEY') || name === 'STACKTAPE_GITHUB_ACTIONS_TOKEN') delete childEnv[name];
+  }
 
   const stdio =
     stdinInput !== undefined
@@ -101,9 +105,9 @@ const getChildProcess = (
     ...rawOptions,
     encoding: 'utf8' as const,
     lines: false as const,
-    env: { FORCE_COLOR: '3', ...(inheritEnvVarsExcept?.length ? inheritedEnv : {}), ...env },
+    env: childEnv,
     cwd,
-    extendEnv: !disableExtendEnv && !inheritEnvVarsExcept?.length,
+    extendEnv: false,
     windowsHide: true,
     stdio,
     ...(stdinInput === undefined ? {} : { input: stdinInput })
