@@ -7804,6 +7804,7 @@
         "monitoringTimeAfterDeploymentInMinutes",
         "previousVersionsToKeep",
         "publishEventsToArn",
+        "securityScanning",
         "terminationProtection",
         "triggerRollbackOnAlarms"
       ],
@@ -7828,12 +7829,15 @@
         "config-reference:DeploymentConfig#property-publisheventstoarn",
         "config-reference:DeploymentConfig#example-1-yaml-6",
         "config-reference:DeploymentConfig#example-2-typescript-6",
-        "config-reference:DeploymentConfig#property-terminationprotection",
+        "config-reference:DeploymentConfig#property-securityscanning",
         "config-reference:DeploymentConfig#example-1-yaml-7",
         "config-reference:DeploymentConfig#example-2-typescript-7",
-        "config-reference:DeploymentConfig#property-triggerrollbackonalarms",
+        "config-reference:DeploymentConfig#property-terminationprotection",
         "config-reference:DeploymentConfig#example-1-yaml-8",
-        "config-reference:DeploymentConfig#example-2-typescript-8"
+        "config-reference:DeploymentConfig#example-2-typescript-8",
+        "config-reference:DeploymentConfig#property-triggerrollbackonalarms",
+        "config-reference:DeploymentConfig#example-1-yaml-9",
+        "config-reference:DeploymentConfig#example-2-typescript-9"
       ]
     },
     {
@@ -8228,6 +8232,30 @@
         "config-reference:SecretEnvironmentVar#typescript-definition",
         "config-reference:SecretEnvironmentVar#property-name",
         "config-reference:SecretEnvironmentVar#property-valuefrom"
+      ]
+    },
+    {
+      "id": "config-reference:SecurityScanningConfig",
+      "title": "SecurityScanningConfig API Reference",
+      "route": "/config-reference/helpers",
+      "sourcePath": "packages/config/src/shared.ts",
+      "outputPath": "config-reference/helpers/securityscanningconfig.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "SecurityScanningConfig"
+      ],
+      "tags": [
+        "config-reference",
+        "SecurityScanningConfig",
+        "enabled",
+        "stages"
+      ],
+      "chunks": [
+        "config-reference:SecurityScanningConfig#securityscanningconfig-api-reference",
+        "config-reference:SecurityScanningConfig#typescript-definition",
+        "config-reference:SecurityScanningConfig#property-enabled",
+        "config-reference:SecurityScanningConfig#property-stages",
+        "config-reference:SecurityScanningConfig#example-1-yaml"
       ]
     },
     {

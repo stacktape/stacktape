@@ -7,8 +7,9 @@ import { getHomeDir } from '@utils/misc';
  * Retention is intentionally visible in the API:
  *
  * - User-persistent: CLI defaults, machine identity and authentication state in `persistedStateFile`; native-install
- *   binaries in `nativeInstallBinDirectory`; and local development proxy routes, CA and private keys in
- *   `devProxyDirectory`.
+ *   binaries in `nativeInstallBinDirectory`; local development proxy routes, CA and private keys in
+ *   `devProxyDirectory`; and downloaded, checksum-verified scanner binaries with their caches in `toolsDirectory`
+ *   (one directory per tool and version, so an upgrade never overwrites a binary in use; old versions may be deleted).
  * - Project-persistent: local development database contents in `devResourceDataDirectory` (until `dev --freshDb`).
  * - Runtime coordination: dev-agent logs and lock files, plus dependency-install hashes and locks.
  * - Invocation-temporary: `invocationDirectory`; normal commands remove it unless temporary files are preserved,
@@ -33,6 +34,12 @@ export const localStatePaths = {
   },
   devProxyDirectory() {
     return process.env.STACKTAPE_DEV_PROXY_STATE_DIR || join(localStatePaths.userDataDirectory(), 'dev-proxy');
+  },
+  toolsDirectory() {
+    return process.env.STACKTAPE_TOOLS_DIR || join(localStatePaths.userDataDirectory(), 'tools');
+  },
+  toolDirectory({ tool, version }: { tool: string; version: string }) {
+    return join(localStatePaths.toolsDirectory(), tool, version);
   },
   projectStateDirectory({ workingDirectory }: { workingDirectory: string }) {
     return join(workingDirectory, '.stacktape');

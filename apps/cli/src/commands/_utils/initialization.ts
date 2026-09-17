@@ -110,6 +110,9 @@ export const getConfigManagerContext = (stackContext: StackContext): ConfigManag
         : undefined,
       projects: projects?.map(({ issuesEnabled, name }) => ({ issuesEnabled, name }))
     },
+    securityScanning: {
+      organization: organization ? { securityScanningEnabled: organization.securityScanningEnabled } : undefined
+    },
     resolver: getConfigResolverContext(stackContext),
     stack: stackContext
   };

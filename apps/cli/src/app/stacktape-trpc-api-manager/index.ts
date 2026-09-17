@@ -1,12 +1,16 @@
 import { tuiManager } from '@application-services/tui-manager';
 import { withStacktapeOperationInvocationContext } from '@application-services/operation-invocation-context';
 import { ApiKeyProtectedClient, type ApiKeyRequestExecutor } from '@stacktape-api/api-key-protected';
+import type { SecurityPostureAssessment } from '@domain-services/config-manager/utils/security-posture';
+import type { SecurityInventoryPointer } from '@stacktape/console-api/security';
+import { SECURITY_RULE_CATALOG_VERSION } from '@stacktape/console-api/security';
 import { TRPCClientError } from '@trpc/client';
 import { CliError } from '@utils/errors';
 import { IS_DEV } from '../../config/random';
 import { gitInfoManager } from '../../utils/git-info-manager';
 import { getStacktapeVersion } from '../../utils/versioning';
 import { globalStateManager } from '../global-state-manager';
+import { commandArgsForRecording } from './recorded-command-args';
 
 const LOGIN_HINT = 'Run `stacktape login` to authenticate with a new API key.';
 
@@ -106,7 +110,9 @@ export class StacktapeTrpcApiManager {
 
     return this.apiClient.recordStackOperation({
       invocationId: globalStateManager.invocationId,
-      commandArgs: withStacktapeOperationInvocationContext(globalStateManager.args),
+      commandArgs: withStacktapeOperationInvocationContext(
+        commandArgsForRecording({ args: globalStateManager.args, stage: globalStateManager.stage })
+      ),
       command: globalStateManager.command,
       region: globalStateManager.region,
       stackName,
@@ -141,13 +147,35 @@ export class StacktapeTrpcApiManager {
       success,
       interrupted,
       description: error ? `${error}` : interrupted ? 'Operation was interrupted' : undefined,
-      commandArgs: withStacktapeOperationInvocationContext(globalStateManager.args),
+      commandArgs: withStacktapeOperationInvocationContext(
+        commandArgsForRecording({ args: globalStateManager.args, stage: globalStateManager.stage })
+      ),
       region: globalStateManager.region,
       stackName,
       logStreamName,
       command: globalStateManager.command,
       inProgress: false,
       stacktapeVersion: getStacktapeVersion()
+    });
+  };
+
+  /**
+   * Reports the security posture evaluated for this deployment. The Console binds the report to the recorded
+   * operation, so only the invocation id travels with the findings.
+   */
+  recordSecurityReport = async ({
+    findings,
+    exposure,
+    inventory
+  }: Pick<SecurityPostureAssessment, 'findings' | 'exposure'> & { inventory?: SecurityInventoryPointer }) => {
+    return this.apiClient.recordSecurityReport({
+      invocationId: globalStateManager.invocationId,
+      catalogVersion: SECURITY_RULE_CATALOG_VERSION,
+      stacktapeVersion: getStacktapeVersion(),
+      coveredKinds: ['POSTURE', 'SECRET'],
+      findings,
+      exposure,
+      ...(inventory ? { inventory } : {})
     });
   };
 
@@ -162,7 +190,9 @@ export class StacktapeTrpcApiManager {
       awsAccountId: globalStateManager.targetAwsAccount.awsAccountId || undefined,
       accountConnectionId: globalStateManager.targetAwsAccount.id || undefined,
       region: globalStateManager.region,
-      commandArgs: withStacktapeOperationInvocationContext(globalStateManager.args),
+      commandArgs: withStacktapeOperationInvocationContext(
+        commandArgsForRecording({ args: globalStateManager.args, stage: globalStateManager.stage })
+      ),
       // git information
       gitBranch: gitInfo.branch,
       gitCommit: gitInfo.commit,

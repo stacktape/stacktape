@@ -2,6 +2,7 @@ import type { PackageWorkloadOutput } from '@domain-services/packaging-manager/t
 import { stringifyToYaml } from '@utils/yaml';
 import fsExtra from 'fs-extra';
 import { initializeValidateOperation } from '../_utils/initialization';
+import { assessAndPrintSecurityPosture } from '../_utils/security-posture-output';
 
 export const commandValidate = async () => {
   const {
@@ -17,6 +18,7 @@ export const commandValidate = async () => {
   const shouldPackage = Boolean(withPackage || thorough);
 
   config.validateGuardrails({ hasConfig: true });
+  const securityAssessment = assessAndPrintSecurityPosture({ config, tui });
 
   let packagedWorkloads: PackageWorkloadOutput[] | undefined;
   if (shouldPackage) {
@@ -59,6 +61,9 @@ export const commandValidate = async () => {
       packaging: shouldPackage,
       cloudformation: Boolean(thorough)
     },
+    ...(securityAssessment
+      ? { securityFindings: securityAssessment.findings, securityExposure: securityAssessment.exposure }
+      : {}),
     ...(packagedWorkloads ? { packagedWorkloads } : {})
   };
 };

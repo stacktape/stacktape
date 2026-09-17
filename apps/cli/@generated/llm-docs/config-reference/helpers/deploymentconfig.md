@@ -3,6 +3,8 @@
 ## TypeScript definition
 
 ```typescript
+import type { SecurityScanningConfig } from 'stacktape';
+
 type DeploymentConfig = {
   /** IAM role for CloudFormation to assume during create/update/delete operations. */
   cloudformationRoleArn?: string;
@@ -16,6 +18,8 @@ type DeploymentConfig = {
   previousVersionsToKeep?: number;
   /** SNS topic ARNs to receive CloudFormation stack events during deployment. */
   publishEventsToArn?: Array<string>;
+  /** Security scanning of this stack's configuration on every deployment. */
+  securityScanning?: SecurityScanningConfig;
   /** Prevents accidental stack deletion. Must be disabled before you can delete. */
   terminationProtection?: boolean;
   /** Alarms that trigger automatic rollback if they fire during deployment. */
@@ -306,6 +310,55 @@ export default defineConfig(() => {
 
   return {
     deploymentConfig: { publishEventsToArn: ['arn:aws:sns:eu-west-1:123456789012:deployment-events'] },
+    resources: { api }
+  };
+});
+```
+
+## Property: `securityScanning`
+
+- Required: no
+- Type: `SecurityScanningConfig`
+
+Security scanning of this stack's configuration on every deployment.
+
+Enabled by default for every stage. The findings appear in the deploy output and in the Security section of
+the Stacktape Console, where they can be reviewed, ignored or turned into organization-wide guardrails. Turn
+scanning off for a stack, or limit it to selected stages, when a stack must not report anything. An
+organization administrator can also disable it for all projects in the Console.
+
+### Example 1 (yaml)
+
+```yaml
+deploymentConfig:
+  securityScanning:
+    stages: [production]
+resources:
+  api:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/server.ts
+      resources:
+        cpu: 0.25
+        memory: 512
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+    resources: { cpu: 0.25, memory: 512 }
+  });
+
+  return {
+    deploymentConfig: { securityScanning: { stages: ['production'] } },
     resources: { api }
   };
 });
