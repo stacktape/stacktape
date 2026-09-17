@@ -36,7 +36,9 @@ export const recordStackOperationInputSchema = z.object({
   pullRequestNumber: z.string().optional().nullable(),
   stacktapeVersion: z.string().optional().nullable(),
   accountConnectionId: z.string().optional().nullable(),
-  ciProvider: z.string().optional().nullable()
+  ciProvider: z.string().optional().nullable(),
+  /** Whether this deployment wired Issues (runtime errors read from logs) for its stack; the Console shows coverage from it. */
+  issuesEnabled: z.boolean().optional().nullable()
 });
 
 export const createDeploymentTokenFromCliInputSchema = z.object({
@@ -373,6 +375,8 @@ export type CurrentUserAndOrgDataResponse = {
     id: string;
     name: string;
     role: string;
+    /** The organization-wide Issues switch; the Console enforces it when error events arrive. */
+    issuesEnabled?: boolean;
     [otherProperties: string]: unknown;
   };
   connectedAwsAccounts: Array<{

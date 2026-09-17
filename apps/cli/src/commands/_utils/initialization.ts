@@ -86,34 +86,11 @@ export const getConfigResolverContext = (stackContext?: StackContext): ConfigRes
   };
 };
 
-export const getConfigManagerContext = (stackContext: StackContext): ConfigManagerInitContext => {
-  const organization = globalStateManager.organizationData as
-    | (typeof globalStateManager.organizationData & {
-        issuesAllProjectsEnabled?: boolean;
-        issuesEnabledStages?: string[];
-        issuesEventSamplingRate?: number;
-      })
-    | undefined;
-  const projects = globalStateManager.projects as
-    | ((typeof globalStateManager.projects)[number] & { issuesEnabled?: boolean })[]
-    | undefined;
-
-  return {
-    helperLambdaDetails: globalStateManager.helperLambdaDetails,
-    issueDetection: {
-      organization: organization
-        ? {
-            issuesAllProjectsEnabled: organization.issuesAllProjectsEnabled,
-            issuesEnabledStages: organization.issuesEnabledStages,
-            issuesEventSamplingRate: organization.issuesEventSamplingRate
-          }
-        : undefined,
-      projects: projects?.map(({ issuesEnabled, name }) => ({ issuesEnabled, name }))
-    },
-    resolver: getConfigResolverContext(stackContext),
-    stack: stackContext
-  };
-};
+export const getConfigManagerContext = (stackContext: StackContext): ConfigManagerInitContext => ({
+  helperLambdaDetails: globalStateManager.helperLambdaDetails,
+  resolver: getConfigResolverContext(stackContext),
+  stack: stackContext
+});
 
 const detectConfigPath = () => {
   globalStateManager.setConfigPath(getConfigPath());
@@ -795,7 +772,9 @@ export const recordStackOperationStart = async () => {
           stackName: globalStateManager.targetStack?.stackName,
           success,
           interrupted,
-          error: err
+          error: err,
+          // Tells the Console whether this deployment wired Issues for the stack, so it can show coverage.
+          issuesEnabled: globalStateManager.command === 'deploy' ? configManager.issuesEnabledForRecording : undefined
         });
       });
     }

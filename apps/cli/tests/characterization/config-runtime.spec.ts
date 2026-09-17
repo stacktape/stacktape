@@ -192,7 +192,6 @@ const getInitContext = ({
       cdnOriginResponseLambda: helperLambda,
       uptimeProber: helperLambda
     },
-    issueDetection: {},
     resolver: {
       authoringParams,
       builtInDirectives: {

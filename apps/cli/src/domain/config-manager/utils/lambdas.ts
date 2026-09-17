@@ -67,13 +67,11 @@ export const getStacktapeServiceLambdaEnvironment = ({
   projectName,
   stackName,
   globallyUniqueStackHash,
-  issueEventSamplingRate,
   stage
 }: {
   stackName: string;
   projectName: string;
   globallyUniqueStackHash: string;
-  issueEventSamplingRate: number;
   stage: string;
 }) => {
   return [
@@ -108,10 +106,6 @@ export const getStacktapeServiceLambdaEnvironment = ({
     {
       name: 'NODE_OPTIONS',
       value: '--enable-source-maps'
-    },
-    {
-      name: 'ISSUE_EVENT_SAMPLE_RATE_PERCENT',
-      value: String(issueEventSamplingRate)
     },
     {
       name: 'ISSUE_MAX_ERRORS_PER_INVOCATION',

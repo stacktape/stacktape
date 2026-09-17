@@ -125,13 +125,7 @@ export const commandDiff = async () => {
   config.validateGuardrails({ hasConfig: true });
 
   const issueDetectionPolicy = config.issueDetectionPolicy;
-  if (issueDetectionPolicy.enabled) {
-    const issueHighVolumeProtection =
-      issueDetectionPolicy.eventSamplingRate < 100
-        ? `, processing ${issueDetectionPolicy.eventSamplingRate}% of matching events`
-        : ', processing all matching events';
-    tui.info(`Issues: enabled (${issueDetectionPolicy.reason}${issueHighVolumeProtection}).`);
-  }
+  tui.info(`Issues: ${issueDetectionPolicy.enabled ? 'on' : 'off'} (${issueDetectionPolicy.reason}).`);
 
   await ensureMissingSecretsCreated();
   await ensureMissingSsmParamsCreated();

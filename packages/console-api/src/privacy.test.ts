@@ -56,6 +56,7 @@ test('the package publishes only the reviewed external contracts', () => {
     'aws-identity.ts',
     'guardrails.ts',
     'permissions.ts',
+    'sensitive-text.ts',
     'stages.ts'
   ]);
 });

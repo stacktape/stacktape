@@ -25289,6 +25289,26 @@
         ]
       },
       {
+        "name": "issues",
+        "required": false,
+        "shortDescription": "<p> Issues: runtime errors read from this stack&#39;s logs and grouped in the Console.</p>",
+        "longDescription": "<p>On by default for every stage. Turn it off here, or limit it to some stages. See <code>IssuesConfig</code> for what is sent\nand how sensitive text is masked.</p>",
+        "typeInfo": {
+          "kind": "reference",
+          "typeName": "IssuesConfig"
+        },
+        "examples": [
+          {
+            "lang": "yaml",
+            "code": "deploymentConfig:\n  # [!code focus-start]\n  issues:\n    enabled: false\n  # [!code focus-end]\nresources:\n  api:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/api.ts"
+          },
+          {
+            "lang": "typescript",
+            "code": "import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => ({\n  // [!code focus-start]\n  deploymentConfig: { issues: { stages: ['production', 'staging'] } },\n  // [!code focus-end]\n  resources: {\n    api: new LambdaFunction({\n      packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/api.ts' })\n    })\n  }\n}));"
+          }
+        ]
+      },
+      {
         "name": "monitoringTimeAfterDeploymentInMinutes",
         "required": false,
         "shortDescription": "<p> How long (in minutes) to monitor rollback alarms after deployment completes.</p>",
@@ -25410,9 +25430,9 @@
     ],
     "stats": {
       "requiredCount": 0,
-      "optionalCount": 8
+      "optionalCount": 9
     },
-    "typeDeclaration": "// [!code focus-start]\ntype DeploymentConfig = {\n  /** IAM role for CloudFormation to assume during create/update/delete operations. */\n  cloudformationRoleArn?: string;\n  /** Keep the stack in a failed state instead of rolling back on deployment failure. */\n  disableAutoRollback?: boolean;\n  /** Disable faster uploads via S3 Transfer Acceleration. */\n  disableS3TransferAcceleration?: boolean;\n  /** How long (in minutes) to monitor rollback alarms after deployment completes. */\n  monitoringTimeAfterDeploymentInMinutes?: number;\n  /** How many old deployment artifacts (Lambda bundles, container images) to keep. */\n  previousVersionsToKeep?: number;\n  /** SNS topic ARNs to receive CloudFormation stack events during deployment. */\n  publishEventsToArn?: Array<string>;\n  /** Prevents accidental stack deletion. Must be disabled before you can delete. */\n  terminationProtection?: boolean;\n  /** Alarms that trigger automatic rollback if they fire during deployment. */\n  triggerRollbackOnAlarms?: Array<string>;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { IssuesConfig } from 'stacktape';\n\n// [!code focus-start]\ntype DeploymentConfig = {\n  /** IAM role for CloudFormation to assume during create/update/delete operations. */\n  cloudformationRoleArn?: string;\n  /** Keep the stack in a failed state instead of rolling back on deployment failure. */\n  disableAutoRollback?: boolean;\n  /** Disable faster uploads via S3 Transfer Acceleration. */\n  disableS3TransferAcceleration?: boolean;\n  /** Issues: runtime errors read from this stack's logs and grouped in the Console. */\n  issues?: IssuesConfig;\n  /** How long (in minutes) to monitor rollback alarms after deployment completes. */\n  monitoringTimeAfterDeploymentInMinutes?: number;\n  /** How many old deployment artifacts (Lambda bundles, container images) to keep. */\n  previousVersionsToKeep?: number;\n  /** SNS topic ARNs to receive CloudFormation stack events during deployment. */\n  publishEventsToArn?: Array<string>;\n  /** Prevents accidental stack deletion. Must be disabled before you can delete. */\n  terminationProtection?: boolean;\n  /** Alarms that trigger automatic rollback if they fire during deployment. */\n  triggerRollbackOnAlarms?: Array<string>;\n};\n// [!code focus-end]"
   },
   "DeploymentScript": {
     "definitionName": "DeploymentScript",
@@ -33769,6 +33789,50 @@
       "optionalCount": 3
     },
     "typeDeclaration": "// [!code focus-start]\ntype InviteMessageConfig = {\n  /** Invitation email body */\n  emailMessage?: string;\n  /** Invitation email subject */\n  emailSubject?: string;\n  /** Invitation SMS body */\n  smsMessage?: string;\n};\n// [!code focus-end]"
+  },
+  "IssuesConfig": {
+    "definitionName": "IssuesConfig",
+    "properties": [
+      {
+        "name": "enabled",
+        "required": false,
+        "shortDescription": "<p> Records runtime errors from this stack&#39;s logs as Issues in the Stacktape Console.</p>",
+        "longDescription": "<p>When enabled, every deployment subscribes the stack&#39;s function and container log groups to Stacktape&#39;s error\ndetector. Matching error lines are grouped into Issues (one per distinct error and resource) with their stack\ntraces and occurrence counts, shown on the Issues page and by <code>stacktape issues:list</code>.</p>\n<p>What leaves your AWS account per error: the error message and type, the stack frames, the matching log line and\nthe request id. Known shapes of sensitive data (secrets and tokens, values under sensitive key names such as\n<code>password</code> or <code>authorization</code>, email addresses, IP addresses, card numbers and user home paths) are masked before\nthe event is sent. Logs themselves stay in your account.</p>\n<p>When disabled, no log subscriptions are created for this stack and nothing is sent. The Console also has an\norganization-wide switch that turns Issues off for every stack at once.</p>",
+        "defaultValue": "true",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "boolean"
+          ]
+        }
+      },
+      {
+        "name": "stages",
+        "required": false,
+        "shortDescription": "<p> Stages that record Issues. When omitted or empty, every stage does.</p>",
+        "longDescription": "<p>Use it to keep short-lived preview stages out of the Issues page while production and staging report.</p>",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "primitive",
+            "types": [
+              "string"
+            ]
+          }
+        },
+        "examples": [
+          {
+            "lang": "yaml",
+            "code": "deploymentConfig:\n  issues:\n    # [!code focus-start]\n    stages: [production, staging]\n    # [!code focus-end]\nresources:\n  api:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/api.ts"
+          }
+        ]
+      }
+    ],
+    "stats": {
+      "requiredCount": 0,
+      "optionalCount": 2
+    },
+    "typeDeclaration": "// [!code focus-start]\ntype IssuesConfig = {\n  /** Records runtime errors from this stack's logs as Issues in the Stacktape Console. */\n  enabled?: boolean;\n  /** Stages that record Issues. When omitted or empty, every stage does. */\n  stages?: Array<string>;\n};\n// [!code focus-end]"
   },
   "JavaLanguageSpecificConfig": {
     "definitionName": "JavaLanguageSpecificConfig",

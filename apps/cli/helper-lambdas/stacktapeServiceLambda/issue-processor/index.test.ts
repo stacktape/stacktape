@@ -128,3 +128,47 @@ describe('issue processor parsing', () => {
     ]);
   });
 });
+
+describe('issue processor grouping and scrubbing', () => {
+  test('reports one event per distinct error with its number of occurrences, and caps distinct errors per batch', () => {
+    const parse = (message: string) => issueProcessor.parseLogMessageForError(message)!;
+    const errors = [
+      parse('TypeError: Cannot read properties of undefined (reading "id")'),
+      parse('TypeError: Cannot read properties of undefined (reading "id")'),
+      parse('RangeError: Maximum call stack size exceeded'),
+      parse('ReferenceError: foo is not defined')
+    ];
+
+    const { groups, dropped } = issueProcessor.groupErrorsByFingerprint(errors, 'apiService', 2);
+
+    expect(groups.map((group) => [group.error.errorMessage, group.occurrences])).toEqual([
+      ['TypeError: Cannot read properties of undefined (reading "id")', 2],
+      ['RangeError: Maximum call stack size exceeded', 1]
+    ]);
+    expect(dropped).toBe(1);
+    expect(groups[0].error.fingerprint).toHaveLength(16);
+    expect(groups[0].error.fingerprint).not.toBe(groups[1].error.fingerprint);
+  });
+
+  test('masks sensitive text before grouping, so errors that differ only by a secret or an address share an issue', () => {
+    const first = issueProcessor.scrubParsedError(
+      issueProcessor.parseLogMessageForError('Error: login failed for ana@example.com with token=abc123')!
+    );
+    const second = issueProcessor.scrubParsedError(
+      issueProcessor.parseLogMessageForError('Error: login failed for bob@example.com with token=zzz999')!
+    );
+
+    expect(first.errorMessage).toBe('Error: login failed for [redacted:email]@example.com with token=[redacted]');
+    expect(first.rawLog).not.toContain('abc123');
+    const { groups } = issueProcessor.groupErrorsByFingerprint([first, second], 'apiService', 20);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].occurrences).toBe(2);
+  });
+
+  test('masks user home directories inside stack frames', () => {
+    const parsed = issueProcessor.parseLogMessageForError(
+      'TypeError: bad things\n    at handler (/Users/ana/projects/app/index.js:4:3)'
+    )!;
+    expect(issueProcessor.scrubParsedError(parsed).stackTrace[0].file).toBe('/Users/[user]/projects/app/index.js');
+  });
+});

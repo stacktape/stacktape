@@ -9,6 +9,7 @@
     "./aws-identity": "./src/aws-identity.ts",
     "./guardrails": "./src/guardrails.ts",
     "./permissions": "./src/permissions.ts",
+    "./sensitive-text": "./src/sensitive-text.ts",
     "./stages": "./src/stages.ts"
   },
   "scripts": {

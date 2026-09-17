@@ -4,6 +4,7 @@ import { gunzipSync } from 'node:zlib';
 import { CloudWatchLogsClient, FilterLogEventsCommand, GetLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
 import { defaultProvider } from '@aws-sdk/credential-provider-node';
 import { AwsIdentityProtectedClient } from '@stacktape-api/aws-identity-protected';
+import { scrubSensitiveText } from '@stacktape/console-api/sensitive-text';
 
 const cwLogsClient = new CloudWatchLogsClient({});
 
@@ -78,13 +79,6 @@ const readIntegerEnv = ({
   return Math.min(max, Math.max(min, parsed));
 };
 
-const issueEventSampleRatePercent = readIntegerEnv({
-  name: 'ISSUE_EVENT_SAMPLE_RATE_PERCENT',
-  defaultValue: 100,
-  min: 1,
-  max: 100
-});
-const issueOccurrenceWeight = Math.max(1, Math.round(100 / issueEventSampleRatePercent));
 const maxErrorsPerInvocation = readIntegerEnv({
   name: 'ISSUE_MAX_ERRORS_PER_INVOCATION',
   defaultValue: DEFAULT_MAX_ERRORS_PER_INVOCATION,
@@ -107,11 +101,40 @@ const maxLogAgeMs = readIntegerEnv({
 const truncateRawLog = (rawLog: string) =>
   rawLog.length > MAX_RAW_LOG_LENGTH ? `${rawLog.slice(0, MAX_RAW_LOG_LENGTH)}...` : rawLog;
 
-const shouldProcessSampledError = (error: ParsedError) => {
-  if (issueEventSampleRatePercent >= 100) return true;
-  const sampleKey = `${error.fingerprint}:${error.sourceLogEventId || error.sourceTimestamp || error.rawLog}`;
-  const bucket = createHash('sha256').update(sampleKey).digest().readUInt8(0) % 100;
-  return bucket < issueEventSampleRatePercent;
+/** Masks known sensitive shapes before an error is grouped or leaves the account; the fingerprint is built from the masked text. */
+const scrubParsedError = (error: ParsedError): ParsedError => ({
+  ...error,
+  errorMessage: scrubSensitiveText(error.errorMessage),
+  rawLog: scrubSensitiveText(error.rawLog),
+  stackTrace: error.stackTrace.map((frame) => ({
+    ...frame,
+    function: scrubSensitiveText(frame.function),
+    file: scrubSensitiveText(frame.file)
+  }))
+});
+
+type ErrorGroup = { error: ParsedError; occurrences: number };
+
+/**
+ * One group per error fingerprint within a log batch. An error storm is one fingerprint repeated hundreds of times per
+ * batch; reporting it once with its count keeps the Console's work proportional to distinct errors, not log lines.
+ * Groups past the cap are counted as dropped so the log can say what was left out.
+ */
+const groupErrorsByFingerprint = (
+  errors: ParsedError[],
+  functionName: string,
+  maxGroups: number
+): { groups: ErrorGroup[]; dropped: number } => {
+  const groups = new Map<string, ErrorGroup>();
+  let dropped = 0;
+  for (const error of errors) {
+    const fingerprint = generateFingerprint(error.errorMessage, functionName);
+    const group = groups.get(fingerprint);
+    if (group) group.occurrences += 1;
+    else if (groups.size < maxGroups) groups.set(fingerprint, { error: { ...error, fingerprint }, occurrences: 1 });
+    else dropped += 1;
+  }
+  return { groups: [...groups.values()], dropped };
 };
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -578,7 +601,7 @@ const extractResourceNameFromLogGroup = (logGroup: string): string => {
   return parts[parts.length - 1] || logGroup;
 };
 
-const reportToConsoleApi = async (errors: ParsedError[], logGroup: string) => {
+const reportToConsoleApi = async (groups: ErrorGroup[], logGroup: string) => {
   const apiUrl = process.env.STACKTAPE_TRPC_API_ENDPOINT;
   const region = process.env.AWS_REGION;
   const project = process.env.PROJECT_NAME;
@@ -591,10 +614,10 @@ const reportToConsoleApi = async (errors: ParsedError[], logGroup: string) => {
     await client.init({ credentials: await defaultProvider()(), region, apiUrl });
     const functionName = extractResourceNameFromLogGroup(logGroup);
 
-    for (const error of errors) {
+    for (const { error, occurrences } of groups) {
       try {
         await client.reportIssueEvent.mutate({
-          fingerprint: generateFingerprint(error.errorMessage, functionName),
+          fingerprint: error.fingerprint,
           errorMessage: error.errorMessage,
           errorType: error.errorType,
           stackTrace: error.stackTrace,
@@ -605,7 +628,7 @@ const reportToConsoleApi = async (errors: ParsedError[], logGroup: string) => {
           stage,
           region,
           rawLog: error.rawLog,
-          occurrenceWeight: issueOccurrenceWeight
+          occurrenceWeight: occurrences
         });
       } catch (err) {
         console.info(`Failed to report issue event: ${err}`);
@@ -727,14 +750,22 @@ export default async (event: CloudWatchLogsEvent) => {
       continue;
     }
     const parsed = parseLogEventForErrors(logEvent, decodedData.logEvents, i);
-    if (parsed && shouldProcessSampledError(parsed)) errors.push(parsed);
-    if (errors.length >= maxErrorsPerInvocation) break;
+    if (parsed) errors.push(scrubParsedError(parsed));
+  }
+  if (errors.length === 0) return;
+
+  const functionName = extractResourceNameFromLogGroup(decodedData.logGroup);
+  const { groups, dropped } = groupErrorsByFingerprint(errors, functionName, maxErrorsPerInvocation);
+  if (dropped > 0) {
+    console.info(
+      `Issue detector: ${dropped} error line(s) beyond ${maxErrorsPerInvocation} distinct errors in one batch were not reported.`
+    );
   }
 
-  // For errors without stack frames, fetch surrounding context from CloudWatch
-  const enrichedErrors: ParsedError[] = [];
+  // For errors without stack frames, fetch surrounding context from CloudWatch: once per distinct error.
   let contextFetches = 0;
-  for (const error of errors) {
+  for (const group of groups) {
+    const { error } = group;
     const matchingLogEvent =
       decodedData.logEvents.find((e) => e.id === error.sourceLogEventId) ||
       decodedData.logEvents.find(
@@ -751,22 +782,21 @@ export default async (event: CloudWatchLogsEvent) => {
         decodedData.logStream,
         matchingLogEvent.timestamp
       );
-      enrichedErrors.push(enriched);
-    } else {
-      enrichedErrors.push(error);
+      // The context came from CloudWatch unmasked; the group keeps the fingerprint it was counted under.
+      group.error = { ...scrubParsedError(enriched), fingerprint: error.fingerprint };
     }
   }
 
-  if (enrichedErrors.length > 0) {
-    await reportToConsoleApi(enrichedErrors, decodedData.logGroup);
-  }
+  await reportToConsoleApi(groups, decodedData.logGroup);
 };
 
 export const __issueProcessorTestUtils = {
   extractErrorMessage,
   extractRelevantContextLines,
+  groupErrorsByFingerprint,
   parseLogEventForErrors,
   parseLogMessageForError,
   parseStackTraceMultiLang,
+  scrubParsedError,
   shouldFetchLogContext
 };

@@ -63,7 +63,8 @@ export const reportIssueEventInputSchema = z.object({
   stage: z.string(),
   region: z.string(),
   rawLog: z.string().optional(),
-  occurrenceWeight: z.number().int().min(1).max(100).optional()
+  /** How many occurrences this event stands for: the detector sends one event per distinct error per log batch. */
+  occurrenceWeight: z.number().int().min(1).max(100_000).optional()
 });
 
 export const reportUptimeResultsInputSchema = z.object({

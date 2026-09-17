@@ -2040,6 +2040,55 @@ export interface DirectiveDefinition {
 }
 
 
+export interface IssuesConfig {
+  /**
+   * #### Records runtime errors from this stack's logs as Issues in the Stacktape Console.
+   *
+   * ---
+   *
+   * When enabled, every deployment subscribes the stack's function and container log groups to Stacktape's error
+   * detector. Matching error lines are grouped into Issues (one per distinct error and resource) with their stack
+   * traces and occurrence counts, shown on the Issues page and by `stacktape issues:list`.
+   *
+   * What leaves your AWS account per error: the error message and type, the stack frames, the matching log line and
+   * the request id. Known shapes of sensitive data (secrets and tokens, values under sensitive key names such as
+   * `password` or `authorization`, email addresses, IP addresses, card numbers and user home paths) are masked before
+   * the event is sent. Logs themselves stay in your account.
+   *
+   * When disabled, no log subscriptions are created for this stack and nothing is sent. The Console also has an
+   * organization-wide switch that turns Issues off for every stack at once.
+   *
+   * @default true
+   */
+  enabled?: boolean;
+  /**
+   * #### Stages that record Issues. When omitted or empty, every stage does.
+   *
+   * ---
+   *
+   * Use it to keep short-lived preview stages out of the Issues page while production and staging report.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * deploymentConfig:
+   *   issues:
+   *     # stp-focus
+   *     stages: [production, staging]
+   *     # stp-end-focus
+   * resources:
+   *   api:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/api.ts
+   * ```
+   */
+  stages?: string[];
+}
+
 export interface DeploymentConfig {
   /**
    * #### Prevents accidental stack deletion. Must be disabled before you can delete.
@@ -2361,6 +2410,50 @@ export interface DeploymentConfig {
    * ```
    */
   publishEventsToArn?: Arn[];
+  /**
+   * #### Issues: runtime errors read from this stack's logs and grouped in the Console.
+   *
+   * ---
+   *
+   * On by default for every stage. Turn it off here, or limit it to some stages. See `IssuesConfig` for what is sent
+   * and how sensitive text is masked.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * deploymentConfig:
+   *   # stp-focus
+   *   issues:
+   *     enabled: false
+   *   # stp-end-focus
+   * resources:
+   *   api:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/api.ts
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => ({
+   *   // stp-focus
+   *   deploymentConfig: { issues: { stages: ['production', 'staging'] } },
+   *   // stp-end-focus
+   *   resources: {
+   *     api: new LambdaFunction({
+   *       packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/api.ts' })
+   *     })
+   *   }
+   * }));
+   * ```
+   */
+  issues?: IssuesConfig;
   /**
    * #### How many old deployment artifacts (Lambda bundles, container images) to keep.
    *
