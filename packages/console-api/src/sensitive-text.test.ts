@@ -72,3 +72,72 @@ test('leaves the numbers and names that error messages are made of alone', () =>
   assert.equal(containsSensitiveText('nothing here'), false);
   assert.equal(containsSensitiveText('mail ana@example.com'), true);
 });
+
+test('reaches secrets inside serialized JSON, lists and short or scheme-prefixed credentials', () => {
+  assert.equal(
+    scrubSensitiveText(
+      'Invoke Error {"errorMessage":"{\\"password\\":\\"synthetic-password\\",\\"user\\":\\"ana\\"}"}'
+    ),
+    'Invoke Error {"errorMessage":"{\\"password\\":[redacted],\\"user\\":\\"ana\\"}"}'
+  );
+  assert.equal(
+    scrubSensitiveText('{"tokens":["first-synthetic","second-synthetic"],"count":2}'),
+    '{"tokens":[redacted],"count":2}'
+  );
+  assert.equal(scrubSensitiveText('Authorization: Basic dTpw'), 'Authorization: Basic [redacted:secret]');
+  assert.equal(scrubSensitiveText('password=Basic!fake-password'), 'password=[redacted]');
+  assert.equal(scrubSensitiveText('ENOENT "/home/alice" not found'), 'ENOENT "/home/[user]" not found');
+  assert.equal(scrubSensitiveText('ENOENT C:\\Users\\Alice not found'), 'ENOENT C:\\Users\\[user] not found');
+});
+
+test('stays fast on long runs of key-like characters', () => {
+  const long = `${'a'.repeat(40_000)} password=x`;
+  const started = performance.now();
+  assert.equal(scrubSensitiveText(long), `${'a'.repeat(40_000)} password=[redacted]`);
+  assert.ok(performance.now() - started < 500, 'a 40k-character line must scrub in well under a second');
+});
+
+test('leaves error names, code and prose that merely contain a sensitive word alone', () => {
+  const untouched = [
+    'TokenExpiredError: jwt expired',
+    'CredentialsProviderError: Could not load credentials from any providers',
+    'ExpiredTokenException: The security token included in the request is expired',
+    'not authorized to perform: secretsmanager:GetSecretValue on resource: arn:aws:secretsmanager:eu-west-1:000000000000:secret:app/db-Ab12Cd',
+    '    at verify (/var/task/src/auth/token.ts:42:7)',
+    'Error: token validation failed',
+    'Bearer token is missing from the request',
+    'Basic authentication required. Token expired.',
+    'TOKEN_ERROR=5'
+  ];
+  for (const text of untouched) assert.equal(scrubSensitiveText(text), text, text);
+});
+
+test('masks a value after a colon only when a space or a quote follows the colon', () => {
+  assert.equal(scrubSensitiveText('{"password":"synthetic-value"}'), '{"password":[redacted]}');
+  assert.equal(scrubSensitiveText('password: synthetic-value'), 'password: [redacted]');
+  assert.equal(scrubSensitiveText('DB_PASSWORD = synthetic-value'), 'DB_PASSWORD = [redacted]');
+  assert.equal(scrubSensitiveText('Authorization: Bearer abc.def.ghi'), 'Authorization: Bearer [redacted:secret]');
+  assert.equal(scrubSensitiveText('token 9f8e7d6c5b4a'), 'token [redacted:secret]');
+  // A colon glued to the next character is code, not a key/value pair; this is a deliberate limit of the rule.
+  assert.equal(scrubSensitiveText('password:synthetic-value'), 'password:synthetic-value');
+});
+
+/** The Luhn checksum the scrubber applies, used to build long numbers that pass it but are not card numbers. */
+const luhnValid = (digits: string) =>
+  [...digits].reduce((sum, char, index) => {
+    const fromRight = digits.length - 1 - index;
+    const doubled = fromRight % 2 === 1 ? Number(char) * 2 : Number(char);
+    return sum + (doubled > 9 ? doubled - 9 : doubled);
+  }, 0) %
+    10 ===
+  0;
+const withCheckDigit = (body: string) => [...'0123456789'].map((d) => `${body}${d}`).find(luhnValid) as string;
+
+test('masks card numbers of known networks and leaves other long numbers alone', () => {
+  assert.equal(scrubSensitiveText('card 4242 4242 4242 4242 declined'), 'card [redacted:card] declined');
+  assert.equal(scrubSensitiveText('card 5500-0000-0000-0004 declined'), 'card [redacted:card] declined');
+  const timestamp = withCheckDigit('175809123456');
+  const orderId = withCheckDigit('98765432109876');
+  assert.ok(luhnValid(timestamp) && luhnValid(orderId));
+  assert.equal(scrubSensitiveText(`order ${orderId} at ${timestamp}`), `order ${orderId} at ${timestamp}`);
+});

@@ -151,18 +151,19 @@ describe('issue processor grouping and scrubbing', () => {
   });
 
   test('masks sensitive text before grouping, so errors that differ only by a secret or an address share an issue', () => {
-    const first = issueProcessor.scrubParsedError(
-      issueProcessor.parseLogMessageForError('Error: login failed for ana@example.com with token=abc123')!
-    );
-    const second = issueProcessor.scrubParsedError(
-      issueProcessor.parseLogMessageForError('Error: login failed for bob@example.com with token=zzz999')!
-    );
+    const first = issueProcessor.parseLogMessageForError('Error: login failed for ana@example.com with token=abc123')!;
+    const second = issueProcessor.parseLogMessageForError('Error: login failed for bob@example.com with token=zzz999')!;
 
-    expect(first.errorMessage).toBe('Error: login failed for [redacted:email]@example.com with token=[redacted]');
-    expect(first.rawLog).not.toContain('abc123');
     const { groups } = issueProcessor.groupErrorsByFingerprint([first, second], 'apiService', 20);
+
     expect(groups).toHaveLength(1);
     expect(groups[0].occurrences).toBe(2);
+    expect(groups[0].error.errorMessage).toBe(
+      'Error: login failed for [redacted:email]@example.com with token=[redacted]'
+    );
+    expect(groups[0].error.rawLog).not.toContain('abc123');
+    // The unscrubbed copy stays available for matching the log lines the error came from.
+    expect(groups[0].raw.errorMessage).toContain('ana@example.com');
   });
 
   test('masks user home directories inside stack frames', () => {
@@ -170,5 +171,23 @@ describe('issue processor grouping and scrubbing', () => {
       'TypeError: bad things\n    at handler (/Users/ana/projects/app/index.js:4:3)'
     )!;
     expect(issueProcessor.scrubParsedError(parsed).stackTrace[0].file).toBe('/Users/[user]/projects/app/index.js');
+  });
+});
+
+describe('review follow-ups', () => {
+  test('a masked card number and another long number share one issue', () => {
+    const first = issueProcessor.parseLogMessageForError('Error: charge failed for card 4242424242424242')!;
+    const second = issueProcessor.parseLogMessageForError('Error: charge failed for card 1234567890123')!;
+
+    const { groups } = issueProcessor.groupErrorsByFingerprint([first, second], 'paymentsService', 20);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].occurrences).toBe(2);
+    expect(groups[0].error.errorMessage).toBe('Error: charge failed for card [redacted:card]');
+  });
+
+  test('a storm larger than the API accepts is reported at the bound instead of being dropped', () => {
+    expect(issueProcessor.toOccurrenceWeight(3)).toBe(3);
+    expect(issueProcessor.toOccurrenceWeight(250_000)).toBe(100_000);
   });
 });

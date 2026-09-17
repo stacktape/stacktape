@@ -1409,3 +1409,38 @@ export default defineConfig(() => ({ projectName, resources: {} }));
     expect(stacktapeConfigSchema.safeParse(configWithAccessPoint({ arbitrary: 'object' })).success).toBe(false);
   });
 });
+
+test('decides Issues from the configuration alone and records the decision for the deployment', async () => {
+  const manager = new ConfigManager();
+  await manager.init({
+    configRequired: true,
+    context: getInitContext({
+      accountId: '777777777777',
+      stage: 'issues',
+      stackName: 'issues-project-issues',
+      presetConfig: singleFunctionConfig({ projectName: 'issues-project', resourceName: 'issuesFunction' })
+    })
+  });
+  expect(manager.issueDetectionPolicy).toEqual({ enabled: true, reason: 'on by default' });
+  expect(manager.issuesEnabledForRecording, 'a configuration without stackConfig still records').toBe(true);
+
+  const limited = new ConfigManager();
+  await limited.init({
+    configRequired: true,
+    context: getInitContext({
+      accountId: '777777777777',
+      stage: 'preview',
+      stackName: 'issues-project-preview',
+      presetConfig: {
+        ...singleFunctionConfig({ projectName: 'issues-project', resourceName: 'issuesFunction' }),
+        deploymentConfig: { issues: { stages: ['production'] } }
+      } as StacktapeConfig
+    })
+  });
+  expect(limited.issueDetectionPolicy).toEqual({
+    enabled: false,
+    reason: 'stage "preview" is not listed in deploymentConfig.issues.stages'
+  });
+  expect(limited.issuesEnabledForRecording).toBe(false);
+  expect(new ConfigManager().issuesEnabledForRecording, 'nothing loaded, nothing recorded').toBeUndefined();
+});

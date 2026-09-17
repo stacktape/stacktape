@@ -1521,7 +1521,7 @@ export class ConfigManager {
 
   /** For the deployment record: whether this operation wires Issues for its stack; undefined until a configuration is loaded. */
   get issuesEnabledForRecording(): boolean | undefined {
-    if (!this.#stackContext || !this.config?.stackConfig) return undefined;
+    if (!this.#stackContext || !this.config) return undefined;
     return this.issueDetectionPolicy.enabled;
   }
 

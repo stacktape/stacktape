@@ -4,6 +4,7 @@ import { gunzipSync } from 'node:zlib';
 import { CloudWatchLogsClient, FilterLogEventsCommand, GetLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
 import { defaultProvider } from '@aws-sdk/credential-provider-node';
 import { AwsIdentityProtectedClient } from '@stacktape-api/aws-identity-protected';
+import { MAX_ISSUE_OCCURRENCE_WEIGHT } from '@stacktape/console-api/aws-identity';
 import { scrubSensitiveText } from '@stacktape/console-api/sensitive-text';
 
 const cwLogsClient = new CloudWatchLogsClient({});
@@ -113,12 +114,14 @@ const scrubParsedError = (error: ParsedError): ParsedError => ({
   }))
 });
 
-type ErrorGroup = { error: ParsedError; occurrences: number };
+/** The scrubbed error that is reported, the unscrubbed one that still matches the log lines it came from, and the count. */
+type ErrorGroup = { error: ParsedError; raw: ParsedError; occurrences: number };
 
 /**
- * One group per error fingerprint within a log batch. An error storm is one fingerprint repeated hundreds of times per
- * batch; reporting it once with its count keeps the Console's work proportional to distinct errors, not log lines.
- * Groups past the cap are counted as dropped so the log can say what was left out.
+ * One group per error fingerprint within a log batch, the fingerprint taken from the scrubbed message so two lines
+ * that differ only by a secret or an address share a group. An error storm is one fingerprint repeated hundreds of
+ * times per batch; reporting it once with its count keeps the Console's work proportional to distinct errors, not log
+ * lines. Groups past the cap are counted as dropped so the log can say what was left out.
  */
 const groupErrorsByFingerprint = (
   errors: ParsedError[],
@@ -127,11 +130,13 @@ const groupErrorsByFingerprint = (
 ): { groups: ErrorGroup[]; dropped: number } => {
   const groups = new Map<string, ErrorGroup>();
   let dropped = 0;
-  for (const error of errors) {
-    const fingerprint = generateFingerprint(error.errorMessage, functionName);
+  for (const raw of errors) {
+    const scrubbed = scrubParsedError(raw);
+    const fingerprint = generateFingerprint(scrubbed.errorMessage, functionName);
     const group = groups.get(fingerprint);
     if (group) group.occurrences += 1;
-    else if (groups.size < maxGroups) groups.set(fingerprint, { error: { ...error, fingerprint }, occurrences: 1 });
+    else if (groups.size < maxGroups)
+      groups.set(fingerprint, { error: { ...scrubbed, fingerprint }, raw, occurrences: 1 });
     else dropped += 1;
   }
   return { groups: [...groups.values()], dropped };
@@ -482,8 +487,11 @@ const extractRequestId = (message: string): string | undefined => {
 };
 
 const generateFingerprint = (errorMessage: string, resourceName?: string): string => {
+  // A masked card number is a long number like any other; without this, one error with two order ids, one of them
+  // card-shaped, would become two issues.
   const normalizedMessage = errorMessage
     .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '<uuid>')
+    .replace(/\[redacted:card\]/g, '<num>')
     .replace(/\b\d{4,}\b/g, '<num>')
     .replace(/https?:\/\/[^\s)]+/g, '<url>')
     .replace(/0x[0-9a-f]+/gi, '<addr>')
@@ -628,7 +636,7 @@ const reportToConsoleApi = async (groups: ErrorGroup[], logGroup: string) => {
           stage,
           region,
           rawLog: error.rawLog,
-          occurrenceWeight: occurrences
+          occurrenceWeight: toOccurrenceWeight(occurrences)
         });
       } catch (err) {
         console.info(`Failed to report issue event: ${err}`);
@@ -750,7 +758,7 @@ export default async (event: CloudWatchLogsEvent) => {
       continue;
     }
     const parsed = parseLogEventForErrors(logEvent, decodedData.logEvents, i);
-    if (parsed) errors.push(scrubParsedError(parsed));
+    if (parsed) errors.push(parsed);
   }
   if (errors.length === 0) return;
 
@@ -762,33 +770,37 @@ export default async (event: CloudWatchLogsEvent) => {
     );
   }
 
-  // For errors without stack frames, fetch surrounding context from CloudWatch: once per distinct error.
+  // For errors without stack frames, fetch surrounding context from CloudWatch: once per distinct error. The search
+  // uses the unscrubbed error, because the log lines it has to match are unscrubbed; the result is scrubbed after.
   let contextFetches = 0;
   for (const group of groups) {
-    const { error } = group;
+    const { raw } = group;
     const matchingLogEvent =
-      decodedData.logEvents.find((e) => e.id === error.sourceLogEventId) ||
+      decodedData.logEvents.find((e) => e.id === raw.sourceLogEventId) ||
       decodedData.logEvents.find(
         (e) =>
-          e.message === error.sourceMessage ||
-          error.rawLog.startsWith(e.message.slice(0, 50)) ||
-          e.message.includes(error.errorMessage.slice(0, 50))
+          e.message === raw.sourceMessage ||
+          raw.rawLog.startsWith(e.message.slice(0, 50)) ||
+          e.message.includes(raw.errorMessage.slice(0, 50))
       );
-    if (matchingLogEvent && shouldFetchLogContext(error) && contextFetches < maxContextFetchesPerInvocation) {
+    if (matchingLogEvent && shouldFetchLogContext(raw) && contextFetches < maxContextFetchesPerInvocation) {
       contextFetches += 1;
       const enriched = await enrichWithLogContext(
-        error,
+        raw,
         decodedData.logGroup,
         decodedData.logStream,
         matchingLogEvent.timestamp
       );
-      // The context came from CloudWatch unmasked; the group keeps the fingerprint it was counted under.
-      group.error = { ...scrubParsedError(enriched), fingerprint: error.fingerprint };
+      // The group keeps the fingerprint it was counted under.
+      group.error = { ...scrubParsedError(enriched), fingerprint: group.error.fingerprint };
     }
   }
 
   await reportToConsoleApi(groups, decodedData.logGroup);
 };
+
+/** The API accepts a bounded weight; a larger storm is reported at the bound rather than dropped by validation. */
+const toOccurrenceWeight = (occurrences: number): number => Math.min(occurrences, MAX_ISSUE_OCCURRENCE_WEIGHT);
 
 export const __issueProcessorTestUtils = {
   extractErrorMessage,
@@ -798,5 +810,6 @@ export const __issueProcessorTestUtils = {
   parseLogMessageForError,
   parseStackTraceMultiLang,
   scrubParsedError,
-  shouldFetchLogContext
+  shouldFetchLogContext,
+  toOccurrenceWeight
 };
