@@ -115,7 +115,7 @@ import type { DomainConfiguration, StackConfig, StackOutput } from '@stacktape/c
 import type { WebServiceAlbLoadBalancing, WebServiceNlbLoadBalancing } from '@stacktape/config/web-services';
 import { configErrors } from './errors';
 import type { StackContext } from '@domain-services/stack-context';
-import type { ConfigManagerInitContext, IssueDetectionContext, SecurityScanningContext } from './context';
+import type { ConfigManagerInitContext, SecurityScanningContext } from './context';
 import type { HelperLambdaDetails } from '@utils/helper-lambdas';
 import { CliError } from '@utils/errors';
 import { canonicalizeEmailIdentity } from '@domain-services/email-sender-manager/identity';
@@ -150,7 +150,6 @@ export class ConfigManager {
   finalTransform: FinalTransform | null = null;
   #stackContext: StackContext | undefined;
   #helperLambdaDetails: HelperLambdaDetails | undefined;
-  #issueDetection: IssueDetectionContext = {};
   #securityScanning: SecurityScanningContext = {};
   #discoveredConfig: DiscoveredConfig | undefined;
 
@@ -217,7 +216,6 @@ export class ConfigManager {
     const candidate = new ConfigManager();
     candidate.setStackContext(context.stack);
     candidate.#helperLambdaDetails = context.helperLambdaDetails;
-    candidate.#issueDetection = context.issueDetection;
     candidate.#securityScanning = context.securityScanning ?? {};
     // Reuse what discovery loaded rather than loading the configuration again, so a TypeScript config and its
     // transform side channel are produced by exactly one execution of the user's module.
@@ -278,7 +276,6 @@ export class ConfigManager {
     this.finalTransform = candidate.finalTransform;
     this.#stackContext = candidate.#stackContext;
     this.#helperLambdaDetails = candidate.#helperLambdaDetails;
-    this.#issueDetection = candidate.#issueDetection;
     this.#securityScanning = candidate.#securityScanning;
   };
 
@@ -295,7 +292,6 @@ export class ConfigManager {
     this.finalTransform = null;
     this.#stackContext = undefined;
     this.#helperLambdaDetails = undefined;
-    this.#issueDetection = {};
     this.#securityScanning = {};
     this.#discoveredConfig = undefined;
   };
@@ -1507,56 +1503,31 @@ export class ConfigManager {
     return this.issueDetectionPolicy.enabled;
   }
 
-  get issueDetectionPolicy(): {
-    enabled: boolean;
-    reason: string;
-    eventSamplingRate: number;
-  } {
-    const organization = this.#issueDetection.organization;
+  /**
+   * Whether this stack's logs feed Issues, decided from `deploymentConfig.issues` alone: on for every stage unless the
+   * configuration turns it off or lists other stages. The Console's organization-wide switch is enforced when events
+   * arrive, not here, so a deploy never has to reach the Console to decide.
+   */
+  get issueDetectionPolicy(): { enabled: boolean; reason: string } {
+    const issues = this.config?.deploymentConfig?.issues;
     const stage = this.stackContext.stage;
-    const eventSamplingRate = Math.min(100, Math.max(1, Number(organization?.issuesEventSamplingRate || 100)));
-
-    if (!organization || !stage) {
-      return {
-        enabled: false,
-        reason: 'disabled because Console issue settings could not be loaded',
-        eventSamplingRate
-      };
+    if (issues?.enabled === false) {
+      return { enabled: false, reason: 'turned off by deploymentConfig.issues.enabled' };
     }
-
-    const enabledStages = organization.issuesEnabledStages || [];
-    if (enabledStages.length > 0 && !enabledStages.includes('*') && !enabledStages.includes(stage)) {
-      return {
-        enabled: false,
-        reason: `disabled by Console policy for stage "${stage}"`,
-        eventSamplingRate
-      };
+    const stages = issues?.stages ?? [];
+    if (stages.length > 0 && !stages.includes(stage)) {
+      return { enabled: false, reason: `stage "${stage}" is not listed in deploymentConfig.issues.stages` };
     }
-
-    if (organization.issuesAllProjectsEnabled) {
-      return {
-        enabled: true,
-        reason: 'enabled by Console policy for all projects',
-        eventSamplingRate
-      };
-    }
-
-    const projectName = this.stackContext.projectName;
-    const project = this.#issueDetection.projects?.find((projectData) => projectData.name === projectName);
-
-    if (project?.issuesEnabled) {
-      return {
-        enabled: true,
-        reason: `enabled by Console policy for project "${projectName}"`,
-        eventSamplingRate
-      };
-    }
-
     return {
-      enabled: false,
-      reason: 'disabled by Console policy',
-      eventSamplingRate
+      enabled: true,
+      reason: stages.length > 0 ? `stage "${stage}" is listed in deploymentConfig.issues.stages` : 'on by default'
     };
+  }
+
+  /** For the deployment record: whether this operation wires Issues for its stack; undefined until a configuration is loaded. */
+  get issuesEnabledForRecording(): boolean | undefined {
+    if (!this.#stackContext || !this.config) return undefined;
+    return this.issueDetectionPolicy.enabled;
   }
 
   get guardrails() {
@@ -2255,8 +2226,7 @@ export class ConfigManager {
         projectName: this.stackContext.projectName,
         globallyUniqueStackHash: this.globallyUniqueStackHash,
         stackName: this.stackContext.stackName,
-        stage: this.stackContext.stage,
-        issueEventSamplingRate: this.issueDetectionPolicy.eventSamplingRate
+        stage: this.stackContext.stage
       }),
       iamRoleStatements: [
         ...getStacktapeServiceLambdaCustomResourceInducedStatements({

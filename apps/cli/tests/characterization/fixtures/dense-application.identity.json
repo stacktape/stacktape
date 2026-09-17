@@ -77,6 +77,13 @@
       "type": "AWS::ApiGatewayV2::Stage",
       "dependencies": ["ApiGatewayApi", "ApiGatewayLogGroup"]
     },
+    "ApiIssueDetectionSubscriptionFilter": {
+      "type": "AWS::Logs::SubscriptionFilter",
+      "physicalNames": {
+        "LogGroupName": "/aws/lambda/characterization-baseline-api"
+      },
+      "dependencies": ["ApiLogGroup", "StacktapeServiceLambdaCustomResourceFunction", "StpIssueDetectionLogsPermission"]
+    },
     "ApiLogGroup": {
       "type": "AWS::Logs::LogGroup",
       "physicalNames": {
@@ -115,6 +122,17 @@
         "FunctionName": "characterization-baseline-audit"
       },
       "dependencies": ["AuditLogGroup", "AuditRole"]
+    },
+    "AuditIssueDetectionSubscriptionFilter": {
+      "type": "AWS::Logs::SubscriptionFilter",
+      "physicalNames": {
+        "LogGroupName": "/aws/lambda/characterization-baseline-audit"
+      },
+      "dependencies": [
+        "AuditLogGroup",
+        "StacktapeServiceLambdaCustomResourceFunction",
+        "StpIssueDetectionLogsPermission"
+      ]
     },
     "AuditLogGroup": {
       "type": "AWS::Logs::LogGroup",
@@ -391,6 +409,15 @@
       "type": "AWS::EC2::Route",
       "dependencies": ["StpInternetGateway", "StpPublicSubnet2RouteTable", "StpVpcGatewayAttachment"]
     },
+    "StpIssueDetectionLogsPermission": {
+      "type": "AWS::Lambda::Permission",
+      "physicalNames": {
+        "FunctionName": {
+          "Fn::GetAtt": ["StacktapeServiceLambdaCustomResourceFunction", "Arn"]
+        }
+      },
+      "dependencies": ["StacktapeServiceLambdaCustomResourceFunction"]
+    },
     "StpPublicSubnet0": {
       "type": "AWS::EC2::Subnet",
       "dependencies": ["StpVpc"]
@@ -535,6 +562,17 @@
         "WebTaskDefinition"
       ]
     },
+    "WebServiceContainerIssueDetectionSubscriptionFilter": {
+      "type": "AWS::Logs::SubscriptionFilter",
+      "physicalNames": {
+        "LogGroupName": "/stp/characterization-baseline/ecs/web/service-container/process-logs"
+      },
+      "dependencies": [
+        "StacktapeServiceLambdaCustomResourceFunction",
+        "StpIssueDetectionLogsPermission",
+        "WebServiceContainerLogGroup"
+      ]
+    },
     "WebServiceContainerLogGroup": {
       "type": "AWS::Logs::LogGroup",
       "physicalNames": {
@@ -580,6 +618,17 @@
         "FunctionName": "characterization-baseline-worker"
       },
       "dependencies": ["EventsEventBus", "RecordsGlobalTable", "WorkerLogGroup", "WorkerRole"]
+    },
+    "WorkerIssueDetectionSubscriptionFilter": {
+      "type": "AWS::Logs::SubscriptionFilter",
+      "physicalNames": {
+        "LogGroupName": "/aws/lambda/characterization-baseline-worker"
+      },
+      "dependencies": [
+        "StacktapeServiceLambdaCustomResourceFunction",
+        "StpIssueDetectionLogsPermission",
+        "WorkerLogGroup"
+      ]
     },
     "WorkerLogGroup": {
       "type": "AWS::Logs::LogGroup",

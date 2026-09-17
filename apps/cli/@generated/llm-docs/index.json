@@ -7801,6 +7801,7 @@
         "cloudformationRoleArn",
         "disableAutoRollback",
         "disableS3TransferAcceleration",
+        "issues",
         "monitoringTimeAfterDeploymentInMinutes",
         "previousVersionsToKeep",
         "publishEventsToArn",
@@ -7820,24 +7821,27 @@
         "config-reference:DeploymentConfig#property-disables3transferacceleration",
         "config-reference:DeploymentConfig#example-1-yaml-3",
         "config-reference:DeploymentConfig#example-2-typescript-3",
-        "config-reference:DeploymentConfig#property-monitoringtimeafterdeploymentinminutes",
+        "config-reference:DeploymentConfig#property-issues",
         "config-reference:DeploymentConfig#example-1-yaml-4",
         "config-reference:DeploymentConfig#example-2-typescript-4",
-        "config-reference:DeploymentConfig#property-previousversionstokeep",
+        "config-reference:DeploymentConfig#property-monitoringtimeafterdeploymentinminutes",
         "config-reference:DeploymentConfig#example-1-yaml-5",
         "config-reference:DeploymentConfig#example-2-typescript-5",
-        "config-reference:DeploymentConfig#property-publisheventstoarn",
+        "config-reference:DeploymentConfig#property-previousversionstokeep",
         "config-reference:DeploymentConfig#example-1-yaml-6",
         "config-reference:DeploymentConfig#example-2-typescript-6",
-        "config-reference:DeploymentConfig#property-securityscanning",
+        "config-reference:DeploymentConfig#property-publisheventstoarn",
         "config-reference:DeploymentConfig#example-1-yaml-7",
         "config-reference:DeploymentConfig#example-2-typescript-7",
-        "config-reference:DeploymentConfig#property-terminationprotection",
+        "config-reference:DeploymentConfig#property-securityscanning",
         "config-reference:DeploymentConfig#example-1-yaml-8",
         "config-reference:DeploymentConfig#example-2-typescript-8",
-        "config-reference:DeploymentConfig#property-triggerrollbackonalarms",
+        "config-reference:DeploymentConfig#property-terminationprotection",
         "config-reference:DeploymentConfig#example-1-yaml-9",
-        "config-reference:DeploymentConfig#example-2-typescript-9"
+        "config-reference:DeploymentConfig#example-2-typescript-9",
+        "config-reference:DeploymentConfig#property-triggerrollbackonalarms",
+        "config-reference:DeploymentConfig#example-1-yaml-10",
+        "config-reference:DeploymentConfig#example-2-typescript-10"
       ]
     },
     {
@@ -7995,6 +7999,30 @@
         "config-reference:Hooks#property-beforedev",
         "config-reference:Hooks#example-1-yaml-8",
         "config-reference:Hooks#example-2-typescript-8"
+      ]
+    },
+    {
+      "id": "config-reference:IssuesConfig",
+      "title": "IssuesConfig API Reference",
+      "route": "/config-reference/helpers",
+      "sourcePath": "packages/config/src/shared.ts",
+      "outputPath": "config-reference/helpers/issuesconfig.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "IssuesConfig"
+      ],
+      "tags": [
+        "config-reference",
+        "IssuesConfig",
+        "enabled",
+        "stages"
+      ],
+      "chunks": [
+        "config-reference:IssuesConfig#issuesconfig-api-reference",
+        "config-reference:IssuesConfig#typescript-definition",
+        "config-reference:IssuesConfig#property-enabled",
+        "config-reference:IssuesConfig#property-stages",
+        "config-reference:IssuesConfig#example-1-yaml"
       ]
     },
     {
@@ -18632,8 +18660,8 @@
         "page:/observability/issues#issues",
         "page:/observability/issues#when-to-use",
         "page:/observability/issues#when-not-to-use",
-        "page:/observability/issues#enabling-issue-monitoring",
-        "page:/observability/issues#event-sampling-rate",
+        "page:/observability/issues#turning-issues-off-or-limiting-stages",
+        "page:/observability/issues#what-leaves-your-aws-account",
         "page:/observability/issues#error-types",
         "page:/observability/issues#issue-statuses",
         "page:/observability/issues#viewing-issues-in-the-console",
@@ -18645,8 +18673,8 @@
         "page:/observability/issues#issues-vs-logs-vs-alarms",
         "page:/observability/issues#limitations",
         "page:/observability/issues#faq",
-        "page:/observability/issues#how-do-i-enable-issue-monitoring-for-my-projects",
-        "page:/observability/issues#why-aren-t-my-issues-showing-up-after-i-enabled-monitoring",
+        "page:/observability/issues#how-do-i-turn-issues-off-for-a-stack",
+        "page:/observability/issues#why-aren-t-my-issues-showing-up",
         "page:/observability/issues#does-issue-monitoring-add-cost",
         "page:/observability/issues#how-is-stacktape-issues-different-from-sentry-or-datadog",
         "page:/observability/issues#what-happens-to-existing-issues-when-i-disable-monitoring",

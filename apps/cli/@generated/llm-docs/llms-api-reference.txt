@@ -38575,7 +38575,7 @@ Route: `/config-reference/helpers`
 ## TypeScript definition
 
 ```typescript
-import type { SecurityScanningConfig } from 'stacktape';
+import type { IssuesConfig, SecurityScanningConfig } from 'stacktape';
 
 type DeploymentConfig = {
   /** IAM role for CloudFormation to assume during create/update/delete operations. */
@@ -38584,6 +38584,8 @@ type DeploymentConfig = {
   disableAutoRollback?: boolean;
   /** Disable faster uploads via S3 Transfer Acceleration. */
   disableS3TransferAcceleration?: boolean;
+  /** Issues: runtime errors read from this stack's logs and grouped in the Console. */
+  issues?: IssuesConfig;
   /** How long (in minutes) to monitor rollback alarms after deployment completes. */
   monitoringTimeAfterDeploymentInMinutes?: number;
   /** How many old deployment artifacts (Lambda bundles, container images) to keep. */
@@ -38740,6 +38742,47 @@ export default defineConfig(() => {
     resources: { api }
   };
 });
+```
+
+## Property: `issues`
+
+- Required: no
+- Type: `IssuesConfig`
+
+Issues: runtime errors read from this stack's logs and grouped in the Console.
+
+On by default for every stage. Turn it off here, or limit it to some stages. See `IssuesConfig` for what is sent
+and how sensitive text is masked.
+
+### Example 1 (yaml)
+
+```yaml
+deploymentConfig:
+  issues:
+    enabled: false
+resources:
+  api:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/api.ts
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+
+export default defineConfig(() => ({
+  deploymentConfig: { issues: { stages: ['production', 'staging'] } },
+  resources: {
+    api: new LambdaFunction({
+      packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/api.ts' })
+    })
+  }
+}));
 ```
 
 ## Property: `monitoringTimeAfterDeploymentInMinutes`
@@ -39918,6 +39961,69 @@ export default defineConfig(() => {
     resources: { cache }
   };
 });
+```
+
+---
+
+# IssuesConfig API Reference
+
+Source: `packages/config/src/shared.ts`
+Route: `/config-reference/helpers`
+
+## TypeScript definition
+
+```typescript
+type IssuesConfig = {
+  /** Records runtime errors from this stack's logs as Issues in the Stacktape Console. */
+  enabled?: boolean;
+  /** Stages that record Issues. When omitted or empty, every stage does. */
+  stages?: Array<string>;
+};
+```
+
+## Property: `enabled`
+
+- Required: no
+- Type: `boolean`
+- Default: `true`
+
+Records runtime errors from this stack's logs as Issues in the Stacktape Console.
+
+When enabled, every deployment subscribes the stack's function and container log groups to Stacktape's error
+detector. Matching error lines are grouped into Issues (one per distinct error and resource) with their stack
+traces and occurrence counts, shown on the Issues page and by `stacktape issues:list`.
+
+What leaves your AWS account per error: the error message and type, the stack frames, the matching log line and
+the request id. Known shapes of sensitive data (secrets and tokens, values under sensitive key names such as
+`password` or `authorization`, email addresses, IP addresses, card numbers and user home paths) are masked before
+the event is sent. Logs themselves stay in your account.
+
+When disabled, no log subscriptions are created for this stack and nothing is sent. The Console also has an
+organization-wide switch that turns Issues off for every stack at once.
+
+## Property: `stages`
+
+- Required: no
+- Type: `Array<string>`
+
+Stages that record Issues. When omitted or empty, every stage does.
+
+Use it to keep short-lived preview stages out of the Issues page while production and staging report.
+
+### Example 1 (yaml)
+
+```yaml
+deploymentConfig:
+  issues:
+    stages: [production, staging]
+resources:
+  api:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/api.ts
 ```
 
 ---

@@ -19458,7 +19458,7 @@ Stacktape Issues is a built-in error inbox available in the [Stacktape Console](
 
 ## When to use
 
-Stacktape Issues gives you structured error tracking with no additional SDK or external service. Enable it when:
+Stacktape Issues gives you structured error tracking with no additional SDK or external service. It is on by default and fits when:
 
 - You want to see which runtime errors are recurring across projects and stages without scanning raw log lines.
 - You need a lightweight triage workflow — open, resolve, or ignore issues — without leaving Stacktape.
@@ -19474,25 +19474,28 @@ Issues works well as a first line of error visibility. For most teams shipping A
 
 Stacktape Issues displays recorded runtime errors in the Console and CLI without requiring you to add an SDK to your application. It does not instrument your application process directly. If you need breadcrumbs, custom tags, user session tracking, release tracking, or performance profiling, use a dedicated APM tool like Sentry or Datadog alongside or instead of Issues. Issues is best for triaging recurring runtime failures — not for full-stack observability.
 
-## Enabling issue monitoring
+## Turning Issues off or limiting stages
 
-Issue monitoring is off by default for new projects. Configure it from the Issues page in the Stacktape Console by clicking **Configure Issues**. Displaying the configure button requires the `projects:update-settings` permission in your organization.
+Issues are on for every stage of every stack by default. Nothing needs to be set up: each deployment subscribes the stack's function and container log groups to Stacktape's error detector, and errors appear on the Issues page within a minute of being logged.
 
-Clicking **Configure Issues** opens a setup modal pre-populated with the organization's current settings: organization-wide enablement, the list of enabled stages, the event sampling rate (defaulting to 100 when no organization-level rate is set), and per-project issue-enabled state for every project in the organization.
+The stack's configuration decides. Turn Issues off for a stack, or limit them to some stages, in `deploymentConfig.issues`; the change takes effect at the stack's next deployment.
 
-After enabling monitoring, matching stages need to be deployed with Stacktape CLI 3.8.0 or newer before AWS log subscriptions are added.
+```yaml
+deploymentConfig:
+  issues:
+    enabled: true                    # default; false turns Issues off for this stack
+    stages: [production, staging]    # omitted or empty means every stage
+```
 
+The Console has one organization-wide switch as well (**Issues settings** on the Issues page, for organization admins). While it is off, no error events are recorded for any stack. The same panel lists the deployed stacks and whether their last successful deployment wired Issues, so you can see which stacks still run an older CLI.
 
-> **Warning:** Stages deployed with CLI versions older than 3.8.0 do not report issues. Redeploy after enabling monitoring so the AWS log subscriptions are added.
+## What leaves your AWS account
 
+For each detected error, the detector running in your account sends the error message and type, the parsed stack frames, the matching log line (a few kilobytes at most) and the request id. Logs themselves stay in your account.
 
-### Event sampling rate
+Before sending, known shapes of sensitive text are masked: secrets and tokens (AWS keys, GitHub, Stripe, Slack and Google tokens, JWTs, private key blocks), values under sensitive key names such as `password`, `token` or `authorization`, credentials in URLs, email addresses (the domain stays), IP addresses, card numbers and user home directories in file paths. Masked text reads `[redacted:email]`, `[redacted:secret]` and so on. The Console masks the same shapes again on arrival. Names, street addresses and phone numbers are not detected, because those patterns would also match ids and timestamps in log lines.
 
-The setup modal includes an event sampling rate setting (`issuesEventSamplingRate`), which defaults to `100` when no organization-level value is set. Consider adjusting the rate for high-traffic stages where you want to tune issue event volume while maintaining trend visibility.
-
-
-> **Info:** Issues remain visible in the Console even after monitoring is turned off for a project. Existing issues are not deleted when monitoring is disabled.
-
+During an error storm the detector reports each distinct error once per log batch with its occurrence count, and the Console stores a few occurrence samples per issue per minute. Occurrence counts stay exact.
 
 ## Error types
 
@@ -19610,17 +19613,17 @@ Issues complement [alarms](/observability/alarms): alarms tell you *something is
 
 ## FAQ
 
-### How do I enable issue monitoring for my projects?
+### How do I turn Issues off for a stack?
 
-Open the Issues page in the [Stacktape Console](/stacktape-console/console-overview) and click **Configure Issues** (this requires the `projects:update-settings` permission). You can enable monitoring organization-wide or for individual projects, and optionally restrict it to specific stage names. Monitoring is off by default for new projects.
+Set `deploymentConfig.issues.enabled: false` in the stack's configuration and deploy. To keep only some stages, list them in `deploymentConfig.issues.stages`. Organization admins can also turn Issues off for every stack at once in **Issues settings** on the Issues page.
 
-### Why aren't my issues showing up after I enabled monitoring?
+### Why aren't my issues showing up?
 
-Enabling monitoring in the Console only configures the platform to process incoming errors — the AWS log subscriptions that actually report errors are added to your resources during deployment. You must redeploy matching stages with Stacktape CLI 3.8.0 or newer; stages last deployed with an older CLI report nothing until redeployed.
+The log subscriptions that report errors are added during deployment, so a stack reports only after it has been deployed with Stacktape v4. Open **Issues settings** on the Issues page: it lists each deployed stack and whether its last deployment wired Issues. Also check that the organization switch is on and that the resource does not use `logging.logClass: infrequent-access`.
 
 ### Does issue monitoring add cost?
 
-The main lever is the `issuesEventSamplingRate` setting (defaults to `100`), which you can lower for high-traffic stages to reduce issue event volume while keeping trend visibility. See [Managing Costs](/managing-costs/overview) for broader cost guidance across Stacktape features.
+Very little. The detector is a Lambda function in your account that runs only when a log line matches an error pattern, and it reports each distinct error once per log batch. See [Managing Costs](/managing-costs/overview) for broader cost guidance across Stacktape features.
 
 ### How is Stacktape Issues different from Sentry or Datadog?
 
@@ -87012,7 +87015,7 @@ Route: `/config-reference/helpers`
 ## TypeScript definition
 
 ```typescript
-import type { SecurityScanningConfig } from 'stacktape';
+import type { IssuesConfig, SecurityScanningConfig } from 'stacktape';
 
 type DeploymentConfig = {
   /** IAM role for CloudFormation to assume during create/update/delete operations. */
@@ -87021,6 +87024,8 @@ type DeploymentConfig = {
   disableAutoRollback?: boolean;
   /** Disable faster uploads via S3 Transfer Acceleration. */
   disableS3TransferAcceleration?: boolean;
+  /** Issues: runtime errors read from this stack's logs and grouped in the Console. */
+  issues?: IssuesConfig;
   /** How long (in minutes) to monitor rollback alarms after deployment completes. */
   monitoringTimeAfterDeploymentInMinutes?: number;
   /** How many old deployment artifacts (Lambda bundles, container images) to keep. */
@@ -87177,6 +87182,47 @@ export default defineConfig(() => {
     resources: { api }
   };
 });
+```
+
+## Property: `issues`
+
+- Required: no
+- Type: `IssuesConfig`
+
+Issues: runtime errors read from this stack's logs and grouped in the Console.
+
+On by default for every stage. Turn it off here, or limit it to some stages. See `IssuesConfig` for what is sent
+and how sensitive text is masked.
+
+### Example 1 (yaml)
+
+```yaml
+deploymentConfig:
+  issues:
+    enabled: false
+resources:
+  api:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/api.ts
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+
+export default defineConfig(() => ({
+  deploymentConfig: { issues: { stages: ['production', 'staging'] } },
+  resources: {
+    api: new LambdaFunction({
+      packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/api.ts' })
+    })
+  }
+}));
 ```
 
 ## Property: `monitoringTimeAfterDeploymentInMinutes`
@@ -88355,6 +88401,69 @@ export default defineConfig(() => {
     resources: { cache }
   };
 });
+```
+
+---
+
+# IssuesConfig API Reference
+
+Source: `packages/config/src/shared.ts`
+Route: `/config-reference/helpers`
+
+## TypeScript definition
+
+```typescript
+type IssuesConfig = {
+  /** Records runtime errors from this stack's logs as Issues in the Stacktape Console. */
+  enabled?: boolean;
+  /** Stages that record Issues. When omitted or empty, every stage does. */
+  stages?: Array<string>;
+};
+```
+
+## Property: `enabled`
+
+- Required: no
+- Type: `boolean`
+- Default: `true`
+
+Records runtime errors from this stack's logs as Issues in the Stacktape Console.
+
+When enabled, every deployment subscribes the stack's function and container log groups to Stacktape's error
+detector. Matching error lines are grouped into Issues (one per distinct error and resource) with their stack
+traces and occurrence counts, shown on the Issues page and by `stacktape issues:list`.
+
+What leaves your AWS account per error: the error message and type, the stack frames, the matching log line and
+the request id. Known shapes of sensitive data (secrets and tokens, values under sensitive key names such as
+`password` or `authorization`, email addresses, IP addresses, card numbers and user home paths) are masked before
+the event is sent. Logs themselves stay in your account.
+
+When disabled, no log subscriptions are created for this stack and nothing is sent. The Console also has an
+organization-wide switch that turns Issues off for every stack at once.
+
+## Property: `stages`
+
+- Required: no
+- Type: `Array<string>`
+
+Stages that record Issues. When omitted or empty, every stage does.
+
+Use it to keep short-lived preview stages out of the Issues page while production and staging report.
+
+### Example 1 (yaml)
+
+```yaml
+deploymentConfig:
+  issues:
+    stages: [production, staging]
+resources:
+  api:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/api.ts
 ```
 
 ---

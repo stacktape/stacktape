@@ -133,19 +133,23 @@ export class StacktapeTrpcApiManager {
     interrupted,
     error,
     stackName,
-    logStreamName
+    logStreamName,
+    issuesEnabled
   }: {
     success: boolean;
     interrupted: boolean;
     error?: Error;
     stackName?: string;
     logStreamName?: string;
+    /** Whether a deploy wired Issues for its stack; omitted for other commands and when no configuration was loaded. */
+    issuesEnabled?: boolean;
   }) => {
     return this.apiClient.recordStackOperation({
       invocationId: globalStateManager.invocationId,
       endTime: Date.now(),
       success,
       interrupted,
+      ...(issuesEnabled === undefined ? {} : { issuesEnabled }),
       description: error ? `${error}` : interrupted ? 'Operation was interrupted' : undefined,
       commandArgs: withStacktapeOperationInvocationContext(
         commandArgsForRecording({ args: globalStateManager.args, stage: globalStateManager.stage })

@@ -3,7 +3,7 @@
 ## TypeScript definition
 
 ```typescript
-import type { SecurityScanningConfig } from 'stacktape';
+import type { IssuesConfig, SecurityScanningConfig } from 'stacktape';
 
 type DeploymentConfig = {
   /** IAM role for CloudFormation to assume during create/update/delete operations. */
@@ -12,6 +12,8 @@ type DeploymentConfig = {
   disableAutoRollback?: boolean;
   /** Disable faster uploads via S3 Transfer Acceleration. */
   disableS3TransferAcceleration?: boolean;
+  /** Issues: runtime errors read from this stack's logs and grouped in the Console. */
+  issues?: IssuesConfig;
   /** How long (in minutes) to monitor rollback alarms after deployment completes. */
   monitoringTimeAfterDeploymentInMinutes?: number;
   /** How many old deployment artifacts (Lambda bundles, container images) to keep. */
@@ -168,6 +170,47 @@ export default defineConfig(() => {
     resources: { api }
   };
 });
+```
+
+## Property: `issues`
+
+- Required: no
+- Type: `IssuesConfig`
+
+Issues: runtime errors read from this stack's logs and grouped in the Console.
+
+On by default for every stage. Turn it off here, or limit it to some stages. See `IssuesConfig` for what is sent
+and how sensitive text is masked.
+
+### Example 1 (yaml)
+
+```yaml
+deploymentConfig:
+  issues:
+    enabled: false
+resources:
+  api:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/api.ts
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+
+export default defineConfig(() => ({
+  deploymentConfig: { issues: { stages: ['production', 'staging'] } },
+  resources: {
+    api: new LambdaFunction({
+      packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/api.ts' })
+    })
+  }
+}));
 ```
 
 ## Property: `monitoringTimeAfterDeploymentInMinutes`

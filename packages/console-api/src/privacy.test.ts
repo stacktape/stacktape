@@ -57,6 +57,7 @@ test('the package publishes only the reviewed external contracts', () => {
     'guardrails.ts',
     'permissions.ts',
     'security.ts',
+    'sensitive-text.ts',
     'stages.ts'
   ]);
 });

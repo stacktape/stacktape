@@ -569,6 +569,14 @@ beforeAll(async () => {
   if (outputPath) {
     await Bun.write(outputPath, JSON.stringify(synthesizedTemplate, null, 2));
   }
+  // Refreshes the identity fixture after a deliberate synthesis change; review the diff before committing it.
+  const identityOutputPath = process.env.STACKTAPE_SYNTHESIS_IDENTITY_OUTPUT;
+  if (identityOutputPath) {
+    await Bun.write(
+      identityOutputPath,
+      `${JSON.stringify(createSynthesisIdentityManifest(synthesizedTemplate), null, 2)}\n`
+    );
+  }
 });
 
 const normalizeIamSequence = (value: unknown) =>

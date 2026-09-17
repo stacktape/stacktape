@@ -44,9 +44,13 @@ export const reportAlarmEventInputSchema = z.object({
   details: z.record(z.string(), z.unknown()).optional()
 });
 
+/** The most occurrences one aggregated report may carry; the detector caps at this so a larger storm still counts. */
+export const MAX_ISSUE_OCCURRENCE_WEIGHT = 100_000;
+
 export const reportIssueEventInputSchema = z.object({
   fingerprint: z.string(),
-  errorMessage: z.string(),
+  /** Bounded so a runaway line cannot make the Console scrub megabytes; the detector sends far less. */
+  errorMessage: z.string().max(4000),
   errorType: z.string(),
   stackTrace: z.array(
     z.object({
@@ -62,8 +66,9 @@ export const reportIssueEventInputSchema = z.object({
   project: z.string(),
   stage: z.string(),
   region: z.string(),
-  rawLog: z.string().optional(),
-  occurrenceWeight: z.number().int().min(1).max(100).optional()
+  rawLog: z.string().max(20_000).optional(),
+  /** How many occurrences this event stands for: the detector sends one event per distinct error per log batch. */
+  occurrenceWeight: z.number().int().min(1).max(MAX_ISSUE_OCCURRENCE_WEIGHT).optional()
 });
 
 export const reportUptimeResultsInputSchema = z.object({
