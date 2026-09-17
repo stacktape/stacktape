@@ -25,7 +25,9 @@ handoffs, and pull-request summaries. Preserve exact commands, identifiers, sche
 - Group related information. Use sections only when each section answers a distinct reader question.
 - Make relationships between sections and steps obvious. Avoid a wall of text and avoid a collection of unrelated
   headings.
-- Put questions together, preferably at the end.
+- When a message asks several questions, keep them together, preferably at the end, instead of scattering them through
+  the text or across several messages. This does not apply to the harness's native question tool: use that tool whenever
+  the user has to decide something, and let it carry the questions.
 - In a handoff, state what changed, which checks ran, and what remains uncertain. Mention implementation details only
   when they help the reader understand or maintain the result.
 
