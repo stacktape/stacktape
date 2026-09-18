@@ -46,6 +46,11 @@ Use the concise index below to locate the canonical documentation page for a tas
 - [diff](/cli/diff) - source: apps/docs/content/cli/diff.mdx
 - [domain:add](/cli/domain-add) - source: apps/docs/content/cli/domain-add.mdx
 - [help](/cli/help) - source: apps/docs/content/cli/help.mdx
+- [incidents:ack](/cli/incidents-ack) - source: apps/docs/content/cli/incidents-ack.mdx
+- [incidents:resolve](/cli/incidents-resolve) - source: apps/docs/content/cli/incidents-resolve.mdx
+- [incidents:show](/cli/incidents-show) - source: apps/docs/content/cli/incidents-show.mdx
+- [incidents:watch](/cli/incidents-watch) - source: apps/docs/content/cli/incidents-watch.mdx
+- [incidents](/cli/incidents) - source: apps/docs/content/cli/incidents.mdx
 - [info:operations](/cli/info-operations) - source: apps/docs/content/cli/info-operations.mdx
 - [info:stack](/cli/info-stack) - source: apps/docs/content/cli/info-stack.mdx
 - [info:stacks](/cli/info-stacks) - source: apps/docs/content/cli/info-stacks.mdx
@@ -125,6 +130,7 @@ Use the concise index below to locate the canonical documentation page for a tas
 - [Alarms](/observability/alarms) - source: apps/docs/content/observability/alarms.mdx
 - [Alert Channels](/observability/alert-channels) - source: apps/docs/content/observability/alert-channels.mdx
 - [Alert History](/observability/alert-history) - source: apps/docs/content/observability/alert-history.mdx
+- [Incidents](/observability/incidents) - source: apps/docs/content/observability/incidents.mdx
 - [Issues](/observability/issues) - source: apps/docs/content/observability/issues.mdx
 - [Log Forwarding](/observability/log-forwarding) - source: apps/docs/content/observability/log-forwarding.mdx
 - [Logs](/observability/logs) - source: apps/docs/content/observability/logs.mdx

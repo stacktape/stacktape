@@ -357,6 +357,13 @@ export type IncidentActionResponse = {
   success: boolean;
 };
 
+/** The current incident state used by long-running CLI verification. */
+export type IncidentStatusResponse = ListIncidentsResponse[number];
+
+/**
+ * The agent handoff bundle: a self-contained markdown document with everything a coding agent (or
+ * a person) needs to diagnose the incident, fix it, verify the fix, and resolve it.
+ */
 export type IncidentHandoffResponse = {
   markdown: string;
 };
@@ -714,6 +721,9 @@ export type ApiKeyTrpcClient = {
   };
   incidentHandoffFromCli: {
     query: (args: IncidentActionParams) => Promise<IncidentHandoffResponse>;
+  };
+  incidentStatusFromCli: {
+    query: (args: IncidentActionParams) => Promise<IncidentStatusResponse>;
   };
   acknowledgeIncidentFromCli: {
     mutate: (args: IncidentActionParams) => Promise<IncidentActionResponse>;

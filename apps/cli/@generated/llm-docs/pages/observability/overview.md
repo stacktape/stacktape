@@ -14,6 +14,7 @@ Stacktape provides multiple observability surfaces for supported workloads and A
 | [Uptime checks](/observability/uptime-checks) | — | Live status, availability history, incidents | See [Uptime checks](/observability/uptime-checks) |
 | [Synthetic tests](/observability/synthetic-tests) | — | Run history with screenshots | See [Synthetic tests](/observability/synthetic-tests) |
 | [Alarms](/observability/alarms) | [`stacktape alarms`](/cli/alarms) | Alarm state overview, alarm rules editor | See [Alarms](/observability/alarms) |
+| [Incidents](/observability/incidents) | [`stacktape incidents`](/cli/incidents) and lifecycle commands | Correlated incident queue and evidence | — |
 | [Issues](/observability/issues) | [`stacktape issues:list`](/cli/issues-list), [`issues:resolve`](/cli/issues-resolve), [`issues:ignore`](/cli/issues-ignore), [`issues:reopen`](/cli/issues-reopen) | Error inbox with grouping and occurrence counts | Enabled in Console for all projects, selected projects, or specific stage names |
 | [Alert channels](/observability/alert-channels) | — | Create and manage channels | See [Alert channels](/observability/alert-channels) |
 | [Notifications](/observability/notifications) | — | Notification rules for deployment events | — |

@@ -15984,6 +15984,114 @@
       ]
     },
     {
+      "id": "page:/cli/incidents-ack",
+      "title": "incidents:ack",
+      "route": "/cli/incidents-ack",
+      "sourcePath": "apps/docs/content/cli/incidents-ack.mdx",
+      "outputPath": "pages/cli/incidents-ack.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "incidents-ack"
+      ],
+      "chunks": [
+        "page:/cli/incidents-ack#incidents-ack",
+        "page:/cli/incidents-ack#usage",
+        "page:/cli/incidents-ack#flags-reference",
+        "page:/cli/incidents-ack#cli-options-stacktape-incidents-ack",
+        "page:/cli/incidents-ack#examples",
+        "page:/cli/incidents-ack#related-commands"
+      ]
+    },
+    {
+      "id": "page:/cli/incidents-resolve",
+      "title": "incidents:resolve",
+      "route": "/cli/incidents-resolve",
+      "sourcePath": "apps/docs/content/cli/incidents-resolve.mdx",
+      "outputPath": "pages/cli/incidents-resolve.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "incidents-resolve"
+      ],
+      "chunks": [
+        "page:/cli/incidents-resolve#incidents-resolve",
+        "page:/cli/incidents-resolve#usage",
+        "page:/cli/incidents-resolve#flags-reference",
+        "page:/cli/incidents-resolve#cli-options-stacktape-incidents-resolve",
+        "page:/cli/incidents-resolve#examples",
+        "page:/cli/incidents-resolve#related-commands"
+      ]
+    },
+    {
+      "id": "page:/cli/incidents-show",
+      "title": "incidents:show",
+      "route": "/cli/incidents-show",
+      "sourcePath": "apps/docs/content/cli/incidents-show.mdx",
+      "outputPath": "pages/cli/incidents-show.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "incidents-show"
+      ],
+      "chunks": [
+        "page:/cli/incidents-show#incidents-show",
+        "page:/cli/incidents-show#usage",
+        "page:/cli/incidents-show#flags-reference",
+        "page:/cli/incidents-show#cli-options-stacktape-incidents-show",
+        "page:/cli/incidents-show#examples",
+        "page:/cli/incidents-show#untrusted-evidence",
+        "page:/cli/incidents-show#related-commands"
+      ]
+    },
+    {
+      "id": "page:/cli/incidents-watch",
+      "title": "incidents:watch",
+      "route": "/cli/incidents-watch",
+      "sourcePath": "apps/docs/content/cli/incidents-watch.mdx",
+      "outputPath": "pages/cli/incidents-watch.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "incidents-watch"
+      ],
+      "chunks": [
+        "page:/cli/incidents-watch#incidents-watch",
+        "page:/cli/incidents-watch#usage",
+        "page:/cli/incidents-watch#flags-reference",
+        "page:/cli/incidents-watch#cli-options-stacktape-incidents-watch",
+        "page:/cli/incidents-watch#examples",
+        "page:/cli/incidents-watch#exit-behavior",
+        "page:/cli/incidents-watch#related-commands"
+      ]
+    },
+    {
+      "id": "page:/cli/incidents",
+      "title": "incidents",
+      "route": "/cli/incidents",
+      "sourcePath": "apps/docs/content/cli/incidents.mdx",
+      "outputPath": "pages/cli/incidents.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "incidents"
+      ],
+      "chunks": [
+        "page:/cli/incidents#incidents",
+        "page:/cli/incidents#usage",
+        "page:/cli/incidents#flags-reference",
+        "page:/cli/incidents#cli-options-stacktape-incidents",
+        "page:/cli/incidents#examples",
+        "page:/cli/incidents#output",
+        "page:/cli/incidents#related-commands"
+      ]
+    },
+    {
       "id": "page:/cli/info-operations",
       "title": "info:operations",
       "route": "/cli/info-operations",
@@ -18642,6 +18750,28 @@
         "page:/observability/alert-history#what-does-no-rules-matched-mean-in-the-delivery-column",
         "page:/observability/alert-history#what-delivery-statuses-can-an-alert-have",
         "page:/observability/alert-history#can-i-view-alert-history-from-the-cli"
+      ]
+    },
+    {
+      "id": "page:/observability/incidents",
+      "title": "Incidents",
+      "route": "/observability/incidents",
+      "sourcePath": "apps/docs/content/observability/incidents.mdx",
+      "outputPath": "pages/observability/incidents.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "observability",
+        "incidents"
+      ],
+      "chunks": [
+        "page:/observability/incidents#incidents",
+        "page:/observability/incidents#what-opens-an-incident",
+        "page:/observability/incidents#lifecycle",
+        "page:/observability/incidents#cli-workflow",
+        "page:/observability/incidents#agent-handoff-bundle",
+        "page:/observability/incidents#recovery-semantics",
+        "page:/observability/incidents#related-cli-commands"
       ]
     },
     {

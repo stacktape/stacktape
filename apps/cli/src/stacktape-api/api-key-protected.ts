@@ -33,8 +33,14 @@ import type {
   GlobalConfigResponse,
   InitAwsConnectionForCliInput,
   InitAwsConnectionForCliResponse,
+  IncidentActionParams,
+  IncidentActionResponse,
+  IncidentHandoffResponse,
+  IncidentStatusResponse,
   IssueActionParams,
   IssueActionResponse,
+  ListIncidentsParams,
+  ListIncidentsResponse,
   ListIssuesParams,
   ListIssuesResponse,
   ListOrganizationsResponse,
@@ -88,8 +94,14 @@ export type {
   GlobalConfigResponse,
   InitAwsConnectionForCliInput,
   InitAwsConnectionForCliResponse,
+  IncidentActionParams,
+  IncidentActionResponse,
+  IncidentHandoffResponse,
+  IncidentStatusResponse,
   IssueActionParams,
   IssueActionResponse,
+  ListIncidentsParams,
+  ListIncidentsResponse,
   ListIssuesParams,
   ListIssuesResponse,
   ListOrganizationsResponse,
@@ -305,5 +317,27 @@ export class ApiKeyProtectedClient {
 
   reopenIssue = async (args: IssueActionParams): Promise<IssueActionResponse> => {
     return this.#request('reopenIssueFromCli', () => this.#ensureInitialized().reopenIssueFromCli.mutate(args));
+  };
+
+  listIncidents = async (args: ListIncidentsParams): Promise<ListIncidentsResponse> => {
+    return this.#request('incidentsFromCli', () => this.#ensureInitialized().incidentsFromCli.query(args));
+  };
+
+  incidentHandoff = async (args: IncidentActionParams): Promise<IncidentHandoffResponse> => {
+    return this.#request('incidentHandoffFromCli', () => this.#ensureInitialized().incidentHandoffFromCli.query(args));
+  };
+
+  incidentStatus = async (args: IncidentActionParams): Promise<IncidentStatusResponse> => {
+    return this.#request('incidentStatusFromCli', () => this.#ensureInitialized().incidentStatusFromCli.query(args));
+  };
+
+  acknowledgeIncident = async (args: IncidentActionParams): Promise<IncidentActionResponse> => {
+    return this.#request('acknowledgeIncidentFromCli', () =>
+      this.#ensureInitialized().acknowledgeIncidentFromCli.mutate(args)
+    );
+  };
+
+  resolveIncident = async (args: IncidentActionParams): Promise<IncidentActionResponse> => {
+    return this.#request('resolveIncidentFromCli', () => this.#ensureInitialized().resolveIncidentFromCli.mutate(args));
   };
 }

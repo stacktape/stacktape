@@ -28,6 +28,11 @@
 /cli/diff
 /cli/domain-add
 /cli/help
+/cli/incidents
+/cli/incidents-ack
+/cli/incidents-resolve
+/cli/incidents-show
+/cli/incidents-watch
 /cli/info-operations
 /cli/info-stack
 /cli/info-stacks
@@ -106,6 +111,7 @@
 /observability/alarms
 /observability/alert-channels
 /observability/alert-history
+/observability/incidents
 /observability/issues
 /observability/log-forwarding
 /observability/logs
