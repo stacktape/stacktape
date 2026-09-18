@@ -14227,6 +14227,48 @@
       ]
     },
     {
+      "id": "config-reference:SlackAppIntegration",
+      "title": "SlackAppIntegration API Reference",
+      "route": "/config-reference/user-integrations",
+      "sourcePath": "packages/config/src/user-integrations.ts",
+      "outputPath": "config-reference/user-integrations/slackappintegration.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "SlackAppIntegration"
+      ],
+      "tags": [
+        "config-reference",
+        "SlackAppIntegration",
+        "properties"
+      ],
+      "chunks": [
+        "config-reference:SlackAppIntegration#slackappintegration-api-reference",
+        "config-reference:SlackAppIntegration#typescript-definition",
+        "config-reference:SlackAppIntegration#property-properties"
+      ]
+    },
+    {
+      "id": "config-reference:SlackAppIntegrationProps",
+      "title": "SlackAppIntegrationProps API Reference",
+      "route": "/config-reference/user-integrations",
+      "sourcePath": "packages/config/src/user-integrations.ts",
+      "outputPath": "config-reference/user-integrations/slackappintegrationprops.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "SlackAppIntegrationProps"
+      ],
+      "tags": [
+        "config-reference",
+        "SlackAppIntegrationProps",
+        "channel"
+      ],
+      "chunks": [
+        "config-reference:SlackAppIntegrationProps#slackappintegrationprops-api-reference",
+        "config-reference:SlackAppIntegrationProps#typescript-definition",
+        "config-reference:SlackAppIntegrationProps#property-channel"
+      ]
+    },
+    {
       "id": "config-reference:SlackIntegration",
       "title": "SlackIntegration API Reference",
       "route": "/config-reference/user-integrations",
@@ -18704,6 +18746,7 @@
         "page:/observability/alert-channels#when-to-use-alert-channels",
         "page:/observability/alert-channels#when-not-to-use-alert-channels",
         "page:/observability/alert-channels#channel-types",
+        "page:/observability/alert-channels#slack-stacktape-app",
         "page:/observability/alert-channels#slack",
         "page:/observability/alert-channels#microsoft-teams",
         "page:/observability/alert-channels#discord",

@@ -1,4 +1,11 @@
-import type { DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackIntegration, WebhookIntegration } from './user-integrations';
+import type {
+  DiscordIntegration,
+  EmailIntegration,
+  MsTeamsIntegration,
+  SlackAppIntegration,
+  SlackIntegration,
+  WebhookIntegration
+} from './user-integrations';
 
 export interface ConsoleChannelIntegrationProps {
   /**
@@ -69,11 +76,13 @@ export interface ConsoleChannelIntegration {
  * ---
  *
  * Either an inline destination with its own credentials (`slack`, `ms-teams`, `discord`, `email`, `webhook`),
+ * a channel of the Slack workspace connected through the Stacktape Slack app (`slack-app`),
  * or a reference to a channel configured once in the Stacktape Console (`console-channel`).
  */
 export type NotificationChannel =
   | MsTeamsIntegration
   | SlackIntegration
+  | SlackAppIntegration
   | EmailIntegration
   | DiscordIntegration
   | WebhookIntegration

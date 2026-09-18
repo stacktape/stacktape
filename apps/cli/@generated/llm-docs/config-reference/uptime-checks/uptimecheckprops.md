@@ -3,7 +3,7 @@
 ## TypeScript definition
 
 ```typescript
-import type { BodyContainsAssertion, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackIntegration, StatusCodeAssertion, UptimeCheckEvaluation, WebhookIntegration } from 'stacktape';
+import type { BodyContainsAssertion, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackAppIntegration, SlackIntegration, StatusCodeAssertion, UptimeCheckEvaluation, WebhookIntegration } from 'stacktape';
 
 type UptimeCheckProps = {
   /** The URL to monitor. */
@@ -35,6 +35,7 @@ type UptimeCheckAssertions =
 
 type UptimeCheckNotificationChannels =
   | SlackIntegration
+  | SlackAppIntegration
   | MsTeamsIntegration
   | EmailIntegration
   | DiscordIntegration
@@ -337,7 +338,7 @@ export default defineConfig(() => {
 ## Property: `notificationChannels`
 
 - Required: no
-- Type: `Array<slack | ms-teams | email | discord | webhook | console-channel>`
+- Type: `Array<slack | slack-app | ms-teams | email | discord | webhook | console-channel>`
 
 Where to send notifications when the check goes down or recovers.
 
@@ -347,6 +348,7 @@ Console's monitoring history, even with no channels configured.
 
 Choices:
 - `slack` (`SlackIntegration`). Properties: `conversationId: string`, `accessToken: string`.
+- `slack-app` (`SlackAppIntegration`). Properties: `channel: string`.
 - `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.

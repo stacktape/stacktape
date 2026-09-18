@@ -91,7 +91,7 @@ printf '%s' "$reviewRequest" | codex exec -m gpt-6-astra -c 'model_reasoning_eff
 # Claude: Fable 5.1 / max
 printf '%s' "$reviewRequest" | claude -p --model claude-fable-5-1 --effort max --permission-mode plan --output-format text --no-session-persistence
 
-# Grok: 4.6 / xhigh (its highest supported effort)
+# Grok: 4.6 / xhigh (its highest supported effort); on Linux `--sandbox read-only` needs the bubblewrap package
 grok -p "$reviewRequest" --model grok-4.6 --reasoning-effort xhigh --agent explore --permission-mode plan --sandbox read-only --cwd "$PWD" --output-format plain --no-memory --no-subagents
 
 # DeepSeek Harness: V4.1 Flash / max (the patch pins deepseek-flash)

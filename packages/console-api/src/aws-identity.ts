@@ -37,7 +37,7 @@ export const reportAlarmEventInputSchema = z.object({
     z.object({
       id: z.string().optional(),
       name: z.string(),
-      type: z.enum(['slack', 'ms_teams', 'e_mail', 'discord', 'webhook', 'console-channel']),
+      type: z.enum(['slack', 'slack_app', 'ms_teams', 'e_mail', 'discord', 'webhook', 'console-channel']),
       properties: z.unknown()
     })
   ),

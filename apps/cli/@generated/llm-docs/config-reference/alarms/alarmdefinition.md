@@ -3,7 +3,7 @@
 ## TypeScript definition
 
 ```typescript
-import type { AlarmEvaluation, ApplicationLoadBalancerCustomTrigger, ApplicationLoadBalancerErrorRateTrigger, ApplicationLoadBalancerUnhealthyTargetsTrigger, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, HttpApiGatewayErrorRateTrigger, HttpApiGatewayLatencyTrigger, LambdaDurationTrigger, LambdaErrorRateTrigger, MsTeamsIntegration, RelationalDatabaseCPUUtilizationTrigger, RelationalDatabaseConnectionCountTrigger, RelationalDatabaseFreeMemoryTrigger, RelationalDatabaseFreeStorageTrigger, RelationalDatabaseReadLatencyTrigger, RelationalDatabaseWriteLatencyTrigger, SlackIntegration, SqsQueueNotEmptyTrigger, SqsQueueReceivedMessagesCountTrigger, WebhookIntegration } from 'stacktape';
+import type { AlarmEvaluation, ApplicationLoadBalancerCustomTrigger, ApplicationLoadBalancerErrorRateTrigger, ApplicationLoadBalancerUnhealthyTargetsTrigger, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, HttpApiGatewayErrorRateTrigger, HttpApiGatewayLatencyTrigger, LambdaDurationTrigger, LambdaErrorRateTrigger, MsTeamsIntegration, RelationalDatabaseCPUUtilizationTrigger, RelationalDatabaseConnectionCountTrigger, RelationalDatabaseFreeMemoryTrigger, RelationalDatabaseFreeStorageTrigger, RelationalDatabaseReadLatencyTrigger, RelationalDatabaseWriteLatencyTrigger, SlackAppIntegration, SlackIntegration, SqsQueueNotEmptyTrigger, SqsQueueReceivedMessagesCountTrigger, WebhookIntegration } from 'stacktape';
 
 type AlarmDefinition = {
   /** A unique name for this alarm (e.g., `api-error-rate`, `db-cpu-high`). */
@@ -44,6 +44,7 @@ type AlarmDefinitionTrigger =
 
 type AlarmDefinitionNotificationChannels =
   | SlackIntegration
+  | SlackAppIntegration
   | MsTeamsIntegration
   | EmailIntegration
   | DiscordIntegration
@@ -277,12 +278,13 @@ export default defineConfig(() => {
 ## Property: `notificationChannels`
 
 - Required: no
-- Type: `Array<slack | ms-teams | email | discord | webhook | console-channel>`
+- Type: `Array<slack | slack-app | ms-teams | email | discord | webhook | console-channel>`
 
 Where to send notifications when the alarm fires — Slack, MS Teams, or email.
 
 Choices:
 - `slack` (`SlackIntegration`). Properties: `conversationId: string`, `accessToken: string`.
+- `slack-app` (`SlackAppIntegration`). Properties: `channel: string`.
 - `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.

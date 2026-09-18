@@ -1442,7 +1442,7 @@ Route: `/config-reference/alarms`
 ## TypeScript definition
 
 ```typescript
-import type { AlarmEvaluation, ApplicationLoadBalancerCustomTrigger, ApplicationLoadBalancerErrorRateTrigger, ApplicationLoadBalancerUnhealthyTargetsTrigger, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, HttpApiGatewayErrorRateTrigger, HttpApiGatewayLatencyTrigger, LambdaDurationTrigger, LambdaErrorRateTrigger, MsTeamsIntegration, RelationalDatabaseCPUUtilizationTrigger, RelationalDatabaseConnectionCountTrigger, RelationalDatabaseFreeMemoryTrigger, RelationalDatabaseFreeStorageTrigger, RelationalDatabaseReadLatencyTrigger, RelationalDatabaseWriteLatencyTrigger, SlackIntegration, SqsQueueNotEmptyTrigger, SqsQueueReceivedMessagesCountTrigger, WebhookIntegration } from 'stacktape';
+import type { AlarmEvaluation, ApplicationLoadBalancerCustomTrigger, ApplicationLoadBalancerErrorRateTrigger, ApplicationLoadBalancerUnhealthyTargetsTrigger, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, HttpApiGatewayErrorRateTrigger, HttpApiGatewayLatencyTrigger, LambdaDurationTrigger, LambdaErrorRateTrigger, MsTeamsIntegration, RelationalDatabaseCPUUtilizationTrigger, RelationalDatabaseConnectionCountTrigger, RelationalDatabaseFreeMemoryTrigger, RelationalDatabaseFreeStorageTrigger, RelationalDatabaseReadLatencyTrigger, RelationalDatabaseWriteLatencyTrigger, SlackAppIntegration, SlackIntegration, SqsQueueNotEmptyTrigger, SqsQueueReceivedMessagesCountTrigger, WebhookIntegration } from 'stacktape';
 
 type AlarmDefinition = {
   /** A unique name for this alarm (e.g., `api-error-rate`, `db-cpu-high`). */
@@ -1483,6 +1483,7 @@ type AlarmDefinitionTrigger =
 
 type AlarmDefinitionNotificationChannels =
   | SlackIntegration
+  | SlackAppIntegration
   | MsTeamsIntegration
   | EmailIntegration
   | DiscordIntegration
@@ -1716,12 +1717,13 @@ export default defineConfig(() => {
 ## Property: `notificationChannels`
 
 - Required: no
-- Type: `Array<slack | ms-teams | email | discord | webhook | console-channel>`
+- Type: `Array<slack | slack-app | ms-teams | email | discord | webhook | console-channel>`
 
 Where to send notifications when the alarm fires — Slack, MS Teams, or email.
 
 Choices:
 - `slack` (`SlackIntegration`). Properties: `conversationId: string`, `accessToken: string`.
+- `slack-app` (`SlackAppIntegration`). Properties: `channel: string`.
 - `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
@@ -2001,7 +2003,7 @@ Route: `/config-reference/alarms`
 ## TypeScript definition
 
 ```typescript
-import type { AlarmEvaluation, ApplicationLoadBalancerCustomTrigger, ApplicationLoadBalancerErrorRateTrigger, ApplicationLoadBalancerUnhealthyTargetsTrigger, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';
+import type { AlarmEvaluation, ApplicationLoadBalancerCustomTrigger, ApplicationLoadBalancerErrorRateTrigger, ApplicationLoadBalancerUnhealthyTargetsTrigger, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackAppIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';
 
 type ApplicationLoadBalancerAlarm = {
   trigger: ApplicationLoadBalancerAlarmTrigger;
@@ -2023,6 +2025,7 @@ type ApplicationLoadBalancerAlarmTrigger =
 
 type ApplicationLoadBalancerAlarmNotificationChannels =
   | SlackIntegration
+  | SlackAppIntegration
   | MsTeamsIntegration
   | EmailIntegration
   | DiscordIntegration
@@ -2219,12 +2222,13 @@ export default defineConfig(() => {
 ## Property: `notificationChannels`
 
 - Required: no
-- Type: `Array<slack | ms-teams | email | discord | webhook | console-channel>`
+- Type: `Array<slack | slack-app | ms-teams | email | discord | webhook | console-channel>`
 
 Where to send notifications when the alarm fires — Slack, MS Teams, or email.
 
 Choices:
 - `slack` (`SlackIntegration`). Properties: `conversationId: string`, `accessToken: string`.
+- `slack-app` (`SlackAppIntegration`). Properties: `channel: string`.
 - `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
@@ -2753,7 +2757,7 @@ Route: `/config-reference/alarms`
 ## TypeScript definition
 
 ```typescript
-import type { AlarmEvaluation, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, HttpApiGatewayErrorRateTrigger, HttpApiGatewayLatencyTrigger, MsTeamsIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';
+import type { AlarmEvaluation, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, HttpApiGatewayErrorRateTrigger, HttpApiGatewayLatencyTrigger, MsTeamsIntegration, SlackAppIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';
 
 type HttpApiGatewayAlarm = {
   trigger: HttpApiGatewayAlarmTrigger;
@@ -2774,6 +2778,7 @@ type HttpApiGatewayAlarmTrigger =
 
 type HttpApiGatewayAlarmNotificationChannels =
   | SlackIntegration
+  | SlackAppIntegration
   | MsTeamsIntegration
   | EmailIntegration
   | DiscordIntegration
@@ -2969,12 +2974,13 @@ export default defineConfig(() => {
 ## Property: `notificationChannels`
 
 - Required: no
-- Type: `Array<slack | ms-teams | email | discord | webhook | console-channel>`
+- Type: `Array<slack | slack-app | ms-teams | email | discord | webhook | console-channel>`
 
 Where to send notifications when the alarm fires — Slack, MS Teams, or email.
 
 Choices:
 - `slack` (`SlackIntegration`). Properties: `conversationId: string`, `accessToken: string`.
+- `slack-app` (`SlackAppIntegration`). Properties: `channel: string`.
 - `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
@@ -3424,7 +3430,7 @@ Route: `/config-reference/alarms`
 ## TypeScript definition
 
 ```typescript
-import type { AlarmEvaluation, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, LambdaDurationTrigger, LambdaErrorRateTrigger, MsTeamsIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';
+import type { AlarmEvaluation, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, LambdaDurationTrigger, LambdaErrorRateTrigger, MsTeamsIntegration, SlackAppIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';
 
 type LambdaAlarm = {
   trigger: LambdaAlarmTrigger;
@@ -3445,6 +3451,7 @@ type LambdaAlarmTrigger =
 
 type LambdaAlarmNotificationChannels =
   | SlackIntegration
+  | SlackAppIntegration
   | MsTeamsIntegration
   | EmailIntegration
   | DiscordIntegration
@@ -3640,12 +3647,13 @@ export default defineConfig(() => {
 ## Property: `notificationChannels`
 
 - Required: no
-- Type: `Array<slack | ms-teams | email | discord | webhook | console-channel>`
+- Type: `Array<slack | slack-app | ms-teams | email | discord | webhook | console-channel>`
 
 Where to send notifications when the alarm fires — Slack, MS Teams, or email.
 
 Choices:
 - `slack` (`SlackIntegration`). Properties: `conversationId: string`, `accessToken: string`.
+- `slack-app` (`SlackAppIntegration`). Properties: `channel: string`.
 - `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
@@ -4107,7 +4115,7 @@ Route: `/config-reference/alarms`
 ## TypeScript definition
 
 ```typescript
-import type { AlarmEvaluation, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, RelationalDatabaseCPUUtilizationTrigger, RelationalDatabaseConnectionCountTrigger, RelationalDatabaseFreeMemoryTrigger, RelationalDatabaseFreeStorageTrigger, RelationalDatabaseReadLatencyTrigger, RelationalDatabaseWriteLatencyTrigger, SlackIntegration, WebhookIntegration } from 'stacktape';
+import type { AlarmEvaluation, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, RelationalDatabaseCPUUtilizationTrigger, RelationalDatabaseConnectionCountTrigger, RelationalDatabaseFreeMemoryTrigger, RelationalDatabaseFreeStorageTrigger, RelationalDatabaseReadLatencyTrigger, RelationalDatabaseWriteLatencyTrigger, SlackAppIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';
 
 type RelationalDatabaseAlarm = {
   trigger: RelationalDatabaseAlarmTrigger;
@@ -4132,6 +4140,7 @@ type RelationalDatabaseAlarmTrigger =
 
 type RelationalDatabaseAlarmNotificationChannels =
   | SlackIntegration
+  | SlackAppIntegration
   | MsTeamsIntegration
   | EmailIntegration
   | DiscordIntegration
@@ -4331,12 +4340,13 @@ export default defineConfig(() => {
 ## Property: `notificationChannels`
 
 - Required: no
-- Type: `Array<slack | ms-teams | email | discord | webhook | console-channel>`
+- Type: `Array<slack | slack-app | ms-teams | email | discord | webhook | console-channel>`
 
 Where to send notifications when the alarm fires — Slack, MS Teams, or email.
 
 Choices:
 - `slack` (`SlackIntegration`). Properties: `conversationId: string`, `accessToken: string`.
+- `slack-app` (`SlackAppIntegration`). Properties: `channel: string`.
 - `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
@@ -5806,7 +5816,7 @@ Route: `/config-reference/alarms`
 ## TypeScript definition
 
 ```typescript
-import type { AlarmEvaluation, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackIntegration, SqsQueueNotEmptyTrigger, SqsQueueReceivedMessagesCountTrigger, WebhookIntegration } from 'stacktape';
+import type { AlarmEvaluation, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackAppIntegration, SlackIntegration, SqsQueueNotEmptyTrigger, SqsQueueReceivedMessagesCountTrigger, WebhookIntegration } from 'stacktape';
 
 type SqsQueueAlarm = {
   trigger: SqsQueueAlarmTrigger;
@@ -5827,6 +5837,7 @@ type SqsQueueAlarmTrigger =
 
 type SqsQueueAlarmNotificationChannels =
   | SlackIntegration
+  | SlackAppIntegration
   | MsTeamsIntegration
   | EmailIntegration
   | DiscordIntegration
@@ -6022,12 +6033,13 @@ export default defineConfig(() => {
 ## Property: `notificationChannels`
 
 - Required: no
-- Type: `Array<slack | ms-teams | email | discord | webhook | console-channel>`
+- Type: `Array<slack | slack-app | ms-teams | email | discord | webhook | console-channel>`
 
 Where to send notifications when the alarm fires — Slack, MS Teams, or email.
 
 Choices:
 - `slack` (`SlackIntegration`). Properties: `conversationId: string`, `accessToken: string`.
+- `slack-app` (`SlackAppIntegration`). Properties: `channel: string`.
 - `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
@@ -20349,8 +20361,8 @@ Alarms for this Convex deployment (backend container, ALB, database). Merged wit
 alarms from the Stacktape Console.
 
 Choices:
-- `ApplicationLoadBalancerAlarm` (`ApplicationLoadBalancerAlarm`). Properties: `trigger: application-load-balancer-custom | application-load-balancer-error-rate | application-load-balancer-unhealthy-targets`, `evaluation?: AlarmEvaluation`, `notificationChannels?: Array<slack | ms-teams | email | discord | webhook | console-channel>`, `includeInHistory?: boolean`, `description?: string`.
-- `RelationalDatabaseAlarm` (`RelationalDatabaseAlarm`). Properties: `trigger: database-read-latency | database-write-latency | database-cpu-utilization | database-free-storage | database-free-memory | database-connection-count`, `evaluation?: AlarmEvaluation`, `notificationChannels?: Array<slack | ms-teams | email | discord | webhook | console-channel>`, `includeInHistory?: boolean`, `description?: string`.
+- `ApplicationLoadBalancerAlarm` (`ApplicationLoadBalancerAlarm`). Properties: `trigger: application-load-balancer-custom | application-load-balancer-error-rate | application-load-balancer-unhealthy-targets`, `evaluation?: AlarmEvaluation`, `notificationChannels?: Array<slack | slack-app | ms-teams | email | discord | webhook | console-channel>`, `includeInHistory?: boolean`, `description?: string`.
+- `RelationalDatabaseAlarm` (`RelationalDatabaseAlarm`). Properties: `trigger: database-read-latency | database-write-latency | database-cpu-utilization | database-free-storage | database-free-memory | database-connection-count`, `evaluation?: AlarmEvaluation`, `notificationChannels?: Array<slack | slack-app | ms-teams | email | discord | webhook | console-channel>`, `includeInHistory?: boolean`, `description?: string`.
 
 ### Example 1 (yaml)
 
@@ -68029,7 +68041,7 @@ Route: `/config-reference/synthetic-tests`
 ## TypeScript definition
 
 ```typescript
-import type { ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, EnvironmentVar, MsTeamsIntegration, SlackIntegration, SyntheticApiTest, SyntheticBrowserTest, WebhookIntegration } from 'stacktape';
+import type { ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, EnvironmentVar, MsTeamsIntegration, SlackAppIntegration, SlackIntegration, SyntheticApiTest, SyntheticBrowserTest, WebhookIntegration } from 'stacktape';
 
 type SyntheticTestProps = {
   /** What the test does: drive a real browser, or call APIs directly. */
@@ -68055,6 +68067,7 @@ type SyntheticTestTest =
 
 type SyntheticTestNotificationChannels =
   | SlackIntegration
+  | SlackAppIntegration
   | MsTeamsIntegration
   | EmailIntegration
   | DiscordIntegration
@@ -68169,7 +68182,7 @@ die without a script error.
 ## Property: `notificationChannels`
 
 - Required: no
-- Type: `Array<slack | ms-teams | email | discord | webhook | console-channel>`
+- Type: `Array<slack | slack-app | ms-teams | email | discord | webhook | console-channel>`
 
 Where to send an alert when the test starts failing (and when it recovers).
 
@@ -68179,6 +68192,7 @@ Stacktape Console. Without a channel, failures are still visible in the Console.
 
 Choices:
 - `slack` (`SlackIntegration`). Properties: `conversationId: string`, `accessToken: string`.
+- `slack-app` (`SlackAppIntegration`). Properties: `channel: string`.
 - `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
@@ -69423,7 +69437,7 @@ Route: `/config-reference/uptime-checks`
 ## TypeScript definition
 
 ```typescript
-import type { BodyContainsAssertion, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackIntegration, StatusCodeAssertion, UptimeCheckEvaluation, WebhookIntegration } from 'stacktape';
+import type { BodyContainsAssertion, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackAppIntegration, SlackIntegration, StatusCodeAssertion, UptimeCheckEvaluation, WebhookIntegration } from 'stacktape';
 
 type UptimeCheckProps = {
   /** The URL to monitor. */
@@ -69455,6 +69469,7 @@ type UptimeCheckAssertions =
 
 type UptimeCheckNotificationChannels =
   | SlackIntegration
+  | SlackAppIntegration
   | MsTeamsIntegration
   | EmailIntegration
   | DiscordIntegration
@@ -69757,7 +69772,7 @@ export default defineConfig(() => {
 ## Property: `notificationChannels`
 
 - Required: no
-- Type: `Array<slack | ms-teams | email | discord | webhook | console-channel>`
+- Type: `Array<slack | slack-app | ms-teams | email | discord | webhook | console-channel>`
 
 Where to send notifications when the check goes down or recovers.
 
@@ -69767,6 +69782,7 @@ Console's monitoring history, even with no channels configured.
 
 Choices:
 - `slack` (`SlackIntegration`). Properties: `conversationId: string`, `accessToken: string`.
+- `slack-app` (`SlackAppIntegration`). Properties: `channel: string`.
 - `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
@@ -74753,6 +74769,55 @@ export default defineConfig(() => {
 
 ---
 
+# SlackAppIntegration API Reference
+
+Source: `packages/config/src/user-integrations.ts`
+Route: `/config-reference/user-integrations`
+
+## TypeScript definition
+
+```typescript
+import type { SlackAppIntegrationProps } from 'stacktape';
+
+type SlackAppIntegration = {
+  properties: SlackAppIntegrationProps;
+};
+```
+
+## Property: `properties`
+
+- Required: yes
+- Type: `SlackAppIntegrationProps`
+
+---
+
+# SlackAppIntegrationProps API Reference
+
+Source: `packages/config/src/user-integrations.ts`
+Route: `/config-reference/user-integrations`
+
+## TypeScript definition
+
+```typescript
+type SlackAppIntegrationProps = {
+  /** The Slack channel to notify, in the workspace connected to your organization through the Stacktape Slack app. */
+  channel: string;
+};
+```
+
+## Property: `channel`
+
+- Required: yes
+- Type: `string`
+
+The Slack channel to notify, in the workspace connected to your organization through the Stacktape Slack app.
+
+Write the channel name (`#alerts` or `alerts`) or its ID. The name is resolved to the channel ID when you deploy,
+so renaming the channel in Slack later does not break delivery. Public channels are joined by the app
+automatically; invite the app to a private channel first (`/invite
+
+---
+
 # SlackIntegration API Reference
 
 Source: `packages/config/src/user-integrations.ts`
@@ -78785,8 +78850,8 @@ export default defineConfig(() => {
 Alarms for this service (merged with global alarms from the Stacktape Console).
 
 Choices:
-- `ApplicationLoadBalancerAlarm` (`ApplicationLoadBalancerAlarm`). Properties: `trigger: application-load-balancer-custom | application-load-balancer-error-rate | application-load-balancer-unhealthy-targets`, `evaluation?: AlarmEvaluation`, `notificationChannels?: Array<slack | ms-teams | email | discord | webhook | console-channel>`, `includeInHistory?: boolean`, `description?: string`.
-- `HttpApiGatewayAlarm` (`HttpApiGatewayAlarm`). Properties: `trigger: http-api-gateway-error-rate | http-api-gateway-latency`, `evaluation?: AlarmEvaluation`, `notificationChannels?: Array<slack | ms-teams | email | discord | webhook | console-channel>`, `includeInHistory?: boolean`, `description?: string`.
+- `ApplicationLoadBalancerAlarm` (`ApplicationLoadBalancerAlarm`). Properties: `trigger: application-load-balancer-custom | application-load-balancer-error-rate | application-load-balancer-unhealthy-targets`, `evaluation?: AlarmEvaluation`, `notificationChannels?: Array<slack | slack-app | ms-teams | email | discord | webhook | console-channel>`, `includeInHistory?: boolean`, `description?: string`.
+- `HttpApiGatewayAlarm` (`HttpApiGatewayAlarm`). Properties: `trigger: http-api-gateway-error-rate | http-api-gateway-latency`, `evaluation?: AlarmEvaluation`, `notificationChannels?: Array<slack | slack-app | ms-teams | email | discord | webhook | console-channel>`, `includeInHistory?: boolean`, `description?: string`.
 
 ### Example 1 (yaml)
 

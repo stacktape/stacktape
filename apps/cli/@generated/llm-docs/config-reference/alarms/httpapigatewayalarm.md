@@ -3,7 +3,7 @@
 ## TypeScript definition
 
 ```typescript
-import type { AlarmEvaluation, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, HttpApiGatewayErrorRateTrigger, HttpApiGatewayLatencyTrigger, MsTeamsIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';
+import type { AlarmEvaluation, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, HttpApiGatewayErrorRateTrigger, HttpApiGatewayLatencyTrigger, MsTeamsIntegration, SlackAppIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';
 
 type HttpApiGatewayAlarm = {
   trigger: HttpApiGatewayAlarmTrigger;
@@ -24,6 +24,7 @@ type HttpApiGatewayAlarmTrigger =
 
 type HttpApiGatewayAlarmNotificationChannels =
   | SlackIntegration
+  | SlackAppIntegration
   | MsTeamsIntegration
   | EmailIntegration
   | DiscordIntegration
@@ -219,12 +220,13 @@ export default defineConfig(() => {
 ## Property: `notificationChannels`
 
 - Required: no
-- Type: `Array<slack | ms-teams | email | discord | webhook | console-channel>`
+- Type: `Array<slack | slack-app | ms-teams | email | discord | webhook | console-channel>`
 
 Where to send notifications when the alarm fires — Slack, MS Teams, or email.
 
 Choices:
 - `slack` (`SlackIntegration`). Properties: `conversationId: string`, `accessToken: string`.
+- `slack-app` (`SlackAppIntegration`). Properties: `channel: string`.
 - `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.

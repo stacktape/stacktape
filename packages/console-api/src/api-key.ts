@@ -222,6 +222,33 @@ export const listIncidentsInputSchema = z.object({
 
 export const incidentActionInputSchema = z.object({ incidentId: z.string() });
 
+/**
+ * Deploy-time resolution of `slack-app` channels in the config: a channel name (with or without `#`) or ID in the
+ * organization's connected Slack workspace becomes the stable ID delivery uses. Public channels are joined so
+ * evidence uploads work; private ones must have the app invited first.
+ */
+export const resolveSlackChannelsInputSchema = z.object({
+  channels: z.array(z.string().trim().min(1).max(200)).min(1).max(100)
+});
+
+export type ResolveSlackChannelsParams = z.input<typeof resolveSlackChannelsInputSchema>;
+
+export type ResolvedSlackChannel = {
+  /** The reference exactly as written in the config. */
+  channel: string;
+  connectionId: string;
+  channelId: string;
+  channelName: string;
+};
+
+export type ResolveSlackChannelsResponse = {
+  /** Null when the organization has no active Slack workspace connection. */
+  workspace: { teamName: string } | null;
+  resolved: ResolvedSlackChannel[];
+  /** References that could not be resolved, each with the reason to show the deployer. */
+  unresolved: Array<{ channel: string; reason: string }>;
+};
+
 export const syncUptimeChecksInputSchema = z.object({
   project: z.string().min(1),
   stage: z.string().min(1),
@@ -245,7 +272,7 @@ export const syncUptimeChecksInputSchema = z.object({
           .array(
             z.object({
               name: z.string().min(1),
-              type: z.enum(['slack', 'ms_teams', 'e_mail', 'discord', 'webhook', 'console-channel']),
+              type: z.enum(['slack', 'slack_app', 'ms_teams', 'e_mail', 'discord', 'webhook', 'console-channel']),
               properties: z.unknown()
             })
           )
@@ -712,6 +739,9 @@ export type ApiKeyTrpcClient = {
   };
   syncUptimeChecks: {
     mutate: (args: SyncUptimeChecksParams) => Promise<SyncUptimeChecksResponse>;
+  };
+  resolveSlackChannels: {
+    mutate: (args: ResolveSlackChannelsParams) => Promise<ResolveSlackChannelsResponse>;
   };
   issuesFromCli: {
     query: (args: ListIssuesParams) => Promise<ListIssuesResponse>;

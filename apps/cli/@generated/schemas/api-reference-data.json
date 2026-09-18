@@ -3814,6 +3814,24 @@
                 ]
               },
               {
+                "label": "slack-app",
+                "typeName": "SlackAppIntegration",
+                "properties": [
+                  {
+                    "name": "channel",
+                    "required": true,
+                    "shortDescription": "<p> The Slack channel to notify, in the workspace connected to your organization through the Stacktape Slack app.</p>",
+                    "longDescription": "<p>Write the channel name (<code>#alerts</code> or <code>alerts</code>) or its ID. The name is resolved to the channel ID when you deploy,\nso renaming the channel in Slack later does not break delivery. Public channels are joined by the app\nautomatically; invite the app to a private channel first (`/invite</p>",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
                 "label": "ms-teams",
                 "typeName": "MsTeamsIntegration",
                 "properties": [
@@ -4035,7 +4053,7 @@
       "requiredCount": 2,
       "optionalCount": 6
     },
-    "typeDeclaration": "import type { AlarmEvaluation, ApplicationLoadBalancerCustomTrigger, ApplicationLoadBalancerErrorRateTrigger, ApplicationLoadBalancerUnhealthyTargetsTrigger, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, HttpApiGatewayErrorRateTrigger, HttpApiGatewayLatencyTrigger, LambdaDurationTrigger, LambdaErrorRateTrigger, MsTeamsIntegration, RelationalDatabaseCPUUtilizationTrigger, RelationalDatabaseConnectionCountTrigger, RelationalDatabaseFreeMemoryTrigger, RelationalDatabaseFreeStorageTrigger, RelationalDatabaseReadLatencyTrigger, RelationalDatabaseWriteLatencyTrigger, SlackIntegration, SqsQueueNotEmptyTrigger, SqsQueueReceivedMessagesCountTrigger, WebhookIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype AlarmDefinition = {\n  /** A unique name for this alarm (e.g., `api-error-rate`, `db-cpu-high`). */\n  name: string;\n  /** The metric and threshold that fires this alarm. */\n  trigger: AlarmDefinitionTrigger;\n  /** Custom alarm description used in notification messages and the AWS console. */\n  description?: string;\n  /** How long and how often to evaluate the metric before triggering. */\n  evaluation?: AlarmEvaluation;\n  /** Only activate this alarm for these services. If omitted, applies to all services. */\n  forServices?: Array<string>;\n  /** Only activate this alarm for these stages (e.g., `production`). If omitted, applies to all stages. */\n  forStages?: Array<string>;\n  /** Whether alarm state changes should appear in monitoring history. */\n  includeInHistory?: boolean;\n  /** Where to send notifications when the alarm fires — Slack, MS Teams, or email. */\n  notificationChannels?: Array<AlarmDefinitionNotificationChannels>;\n};\n\n/** Union choices used by the properties above. */\ntype AlarmDefinitionTrigger =\n  | ApplicationLoadBalancerCustomTrigger\n  | ApplicationLoadBalancerErrorRateTrigger\n  | ApplicationLoadBalancerUnhealthyTargetsTrigger\n  | SqsQueueReceivedMessagesCountTrigger\n  | SqsQueueNotEmptyTrigger\n  | LambdaErrorRateTrigger\n  | LambdaDurationTrigger\n  | HttpApiGatewayErrorRateTrigger\n  | HttpApiGatewayLatencyTrigger\n  | RelationalDatabaseReadLatencyTrigger\n  | RelationalDatabaseWriteLatencyTrigger\n  | RelationalDatabaseCPUUtilizationTrigger\n  | RelationalDatabaseFreeStorageTrigger\n  | RelationalDatabaseFreeMemoryTrigger\n  | RelationalDatabaseConnectionCountTrigger;\n\ntype AlarmDefinitionNotificationChannels =\n  | SlackIntegration\n  | MsTeamsIntegration\n  | EmailIntegration\n  | DiscordIntegration\n  | WebhookIntegration\n  | ConsoleChannelIntegration;\n// [!code focus-end]"
+    "typeDeclaration": "import type { AlarmEvaluation, ApplicationLoadBalancerCustomTrigger, ApplicationLoadBalancerErrorRateTrigger, ApplicationLoadBalancerUnhealthyTargetsTrigger, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, HttpApiGatewayErrorRateTrigger, HttpApiGatewayLatencyTrigger, LambdaDurationTrigger, LambdaErrorRateTrigger, MsTeamsIntegration, RelationalDatabaseCPUUtilizationTrigger, RelationalDatabaseConnectionCountTrigger, RelationalDatabaseFreeMemoryTrigger, RelationalDatabaseFreeStorageTrigger, RelationalDatabaseReadLatencyTrigger, RelationalDatabaseWriteLatencyTrigger, SlackAppIntegration, SlackIntegration, SqsQueueNotEmptyTrigger, SqsQueueReceivedMessagesCountTrigger, WebhookIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype AlarmDefinition = {\n  /** A unique name for this alarm (e.g., `api-error-rate`, `db-cpu-high`). */\n  name: string;\n  /** The metric and threshold that fires this alarm. */\n  trigger: AlarmDefinitionTrigger;\n  /** Custom alarm description used in notification messages and the AWS console. */\n  description?: string;\n  /** How long and how often to evaluate the metric before triggering. */\n  evaluation?: AlarmEvaluation;\n  /** Only activate this alarm for these services. If omitted, applies to all services. */\n  forServices?: Array<string>;\n  /** Only activate this alarm for these stages (e.g., `production`). If omitted, applies to all stages. */\n  forStages?: Array<string>;\n  /** Whether alarm state changes should appear in monitoring history. */\n  includeInHistory?: boolean;\n  /** Where to send notifications when the alarm fires — Slack, MS Teams, or email. */\n  notificationChannels?: Array<AlarmDefinitionNotificationChannels>;\n};\n\n/** Union choices used by the properties above. */\ntype AlarmDefinitionTrigger =\n  | ApplicationLoadBalancerCustomTrigger\n  | ApplicationLoadBalancerErrorRateTrigger\n  | ApplicationLoadBalancerUnhealthyTargetsTrigger\n  | SqsQueueReceivedMessagesCountTrigger\n  | SqsQueueNotEmptyTrigger\n  | LambdaErrorRateTrigger\n  | LambdaDurationTrigger\n  | HttpApiGatewayErrorRateTrigger\n  | HttpApiGatewayLatencyTrigger\n  | RelationalDatabaseReadLatencyTrigger\n  | RelationalDatabaseWriteLatencyTrigger\n  | RelationalDatabaseCPUUtilizationTrigger\n  | RelationalDatabaseFreeStorageTrigger\n  | RelationalDatabaseFreeMemoryTrigger\n  | RelationalDatabaseConnectionCountTrigger;\n\ntype AlarmDefinitionNotificationChannels =\n  | SlackIntegration\n  | SlackAppIntegration\n  | MsTeamsIntegration\n  | EmailIntegration\n  | DiscordIntegration\n  | WebhookIntegration\n  | ConsoleChannelIntegration;\n// [!code focus-end]"
   },
   "AlarmEvaluation": {
     "definitionName": "AlarmEvaluation",
@@ -5391,6 +5409,24 @@
                 ]
               },
               {
+                "label": "slack-app",
+                "typeName": "SlackAppIntegration",
+                "properties": [
+                  {
+                    "name": "channel",
+                    "required": true,
+                    "shortDescription": "<p> The Slack channel to notify, in the workspace connected to your organization through the Stacktape Slack app.</p>",
+                    "longDescription": "<p>Write the channel name (<code>#alerts</code> or <code>alerts</code>) or its ID. The name is resolved to the channel ID when you deploy,\nso renaming the channel in Slack later does not break delivery. Public channels are joined by the app\nautomatically; invite the app to a private channel first (`/invite</p>",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
                 "label": "ms-teams",
                 "typeName": "MsTeamsIntegration",
                 "properties": [
@@ -5612,7 +5648,7 @@
       "requiredCount": 1,
       "optionalCount": 4
     },
-    "typeDeclaration": "import type { AlarmEvaluation, ApplicationLoadBalancerCustomTrigger, ApplicationLoadBalancerErrorRateTrigger, ApplicationLoadBalancerUnhealthyTargetsTrigger, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype ApplicationLoadBalancerAlarm = {\n  trigger: ApplicationLoadBalancerAlarmTrigger;\n  /** Custom alarm description used in notification messages and the AWS console. */\n  description?: string;\n  /** How long and how often to evaluate the metric before triggering. */\n  evaluation?: AlarmEvaluation;\n  /** Whether alarm state changes should appear in monitoring history. */\n  includeInHistory?: boolean;\n  /** Where to send notifications when the alarm fires — Slack, MS Teams, or email. */\n  notificationChannels?: Array<ApplicationLoadBalancerAlarmNotificationChannels>;\n};\n\n/** Union choices used by the properties above. */\ntype ApplicationLoadBalancerAlarmTrigger =\n  | ApplicationLoadBalancerCustomTrigger\n  | ApplicationLoadBalancerErrorRateTrigger\n  | ApplicationLoadBalancerUnhealthyTargetsTrigger;\n\ntype ApplicationLoadBalancerAlarmNotificationChannels =\n  | SlackIntegration\n  | MsTeamsIntegration\n  | EmailIntegration\n  | DiscordIntegration\n  | WebhookIntegration\n  | ConsoleChannelIntegration;\n// [!code focus-end]"
+    "typeDeclaration": "import type { AlarmEvaluation, ApplicationLoadBalancerCustomTrigger, ApplicationLoadBalancerErrorRateTrigger, ApplicationLoadBalancerUnhealthyTargetsTrigger, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackAppIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype ApplicationLoadBalancerAlarm = {\n  trigger: ApplicationLoadBalancerAlarmTrigger;\n  /** Custom alarm description used in notification messages and the AWS console. */\n  description?: string;\n  /** How long and how often to evaluate the metric before triggering. */\n  evaluation?: AlarmEvaluation;\n  /** Whether alarm state changes should appear in monitoring history. */\n  includeInHistory?: boolean;\n  /** Where to send notifications when the alarm fires — Slack, MS Teams, or email. */\n  notificationChannels?: Array<ApplicationLoadBalancerAlarmNotificationChannels>;\n};\n\n/** Union choices used by the properties above. */\ntype ApplicationLoadBalancerAlarmTrigger =\n  | ApplicationLoadBalancerCustomTrigger\n  | ApplicationLoadBalancerErrorRateTrigger\n  | ApplicationLoadBalancerUnhealthyTargetsTrigger;\n\ntype ApplicationLoadBalancerAlarmNotificationChannels =\n  | SlackIntegration\n  | SlackAppIntegration\n  | MsTeamsIntegration\n  | EmailIntegration\n  | DiscordIntegration\n  | WebhookIntegration\n  | ConsoleChannelIntegration;\n// [!code focus-end]"
   },
   "ApplicationLoadBalancerCdnConfiguration": {
     "definitionName": "ApplicationLoadBalancerCdnConfiguration",
@@ -21419,6 +21455,24 @@
                             ]
                           },
                           {
+                            "label": "slack-app",
+                            "typeName": "SlackAppIntegration",
+                            "properties": [
+                              {
+                                "name": "channel",
+                                "required": true,
+                                "shortDescription": "<p> The Slack channel to notify, in the workspace connected to your organization through the Stacktape Slack app.</p>",
+                                "longDescription": "<p>Write the channel name (<code>#alerts</code> or <code>alerts</code>) or its ID. The name is resolved to the channel ID when you deploy,\nso renaming the channel in Slack later does not break delivery. Public channels are joined by the app\nautomatically; invite the app to a private channel first (`/invite</p>",
+                                "typeInfo": {
+                                  "kind": "primitive",
+                                  "types": [
+                                    "string"
+                                  ]
+                                }
+                              }
+                            ]
+                          },
+                          {
                             "label": "ms-teams",
                             "typeName": "MsTeamsIntegration",
                             "properties": [
@@ -22310,6 +22364,24 @@
                                     "code": "import { LambdaFunction, defineConfig, $Secret } from 'stacktape';\n\nexport default defineConfig(() => {\n  const workerFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: { entryfilePath: 'src/worker.ts' }\n    },\n    memory: 512,\n    timeout: 30,\n    alarms: [\n      {\n        trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 5 } },\n        description: 'Worker error rate is too high',\n        notificationChannels: [\n          {\n            type: 'slack',\n            properties: {\n              conversationId: 'C0123456789',\n              // [!code focus-start]\n              accessToken: $Secret('slack-bot-token')\n              // [!code focus-end]\n            }\n          }\n        ]\n      }\n    ]\n  });\n  return { resources: { workerFunction } };\n});"
                                   }
                                 ]
+                              }
+                            ]
+                          },
+                          {
+                            "label": "slack-app",
+                            "typeName": "SlackAppIntegration",
+                            "properties": [
+                              {
+                                "name": "channel",
+                                "required": true,
+                                "shortDescription": "<p> The Slack channel to notify, in the workspace connected to your organization through the Stacktape Slack app.</p>",
+                                "longDescription": "<p>Write the channel name (<code>#alerts</code> or <code>alerts</code>) or its ID. The name is resolved to the channel ID when you deploy,\nso renaming the channel in Slack later does not break delivery. Public channels are joined by the app\nautomatically; invite the app to a private channel first (`/invite</p>",
+                                "typeInfo": {
+                                  "kind": "primitive",
+                                  "types": [
+                                    "string"
+                                  ]
+                                }
                               }
                             ]
                           },
@@ -32608,6 +32680,24 @@
                 ]
               },
               {
+                "label": "slack-app",
+                "typeName": "SlackAppIntegration",
+                "properties": [
+                  {
+                    "name": "channel",
+                    "required": true,
+                    "shortDescription": "<p> The Slack channel to notify, in the workspace connected to your organization through the Stacktape Slack app.</p>",
+                    "longDescription": "<p>Write the channel name (<code>#alerts</code> or <code>alerts</code>) or its ID. The name is resolved to the channel ID when you deploy,\nso renaming the channel in Slack later does not break delivery. Public channels are joined by the app\nautomatically; invite the app to a private channel first (`/invite</p>",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
                 "label": "ms-teams",
                 "typeName": "MsTeamsIntegration",
                 "properties": [
@@ -32829,7 +32919,7 @@
       "requiredCount": 1,
       "optionalCount": 4
     },
-    "typeDeclaration": "import type { AlarmEvaluation, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, HttpApiGatewayErrorRateTrigger, HttpApiGatewayLatencyTrigger, MsTeamsIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype HttpApiGatewayAlarm = {\n  trigger: HttpApiGatewayAlarmTrigger;\n  /** Custom alarm description used in notification messages and the AWS console. */\n  description?: string;\n  /** How long and how often to evaluate the metric before triggering. */\n  evaluation?: AlarmEvaluation;\n  /** Whether alarm state changes should appear in monitoring history. */\n  includeInHistory?: boolean;\n  /** Where to send notifications when the alarm fires — Slack, MS Teams, or email. */\n  notificationChannels?: Array<HttpApiGatewayAlarmNotificationChannels>;\n};\n\n/** Union choices used by the properties above. */\ntype HttpApiGatewayAlarmTrigger =\n  | HttpApiGatewayErrorRateTrigger\n  | HttpApiGatewayLatencyTrigger;\n\ntype HttpApiGatewayAlarmNotificationChannels =\n  | SlackIntegration\n  | MsTeamsIntegration\n  | EmailIntegration\n  | DiscordIntegration\n  | WebhookIntegration\n  | ConsoleChannelIntegration;\n// [!code focus-end]"
+    "typeDeclaration": "import type { AlarmEvaluation, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, HttpApiGatewayErrorRateTrigger, HttpApiGatewayLatencyTrigger, MsTeamsIntegration, SlackAppIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype HttpApiGatewayAlarm = {\n  trigger: HttpApiGatewayAlarmTrigger;\n  /** Custom alarm description used in notification messages and the AWS console. */\n  description?: string;\n  /** How long and how often to evaluate the metric before triggering. */\n  evaluation?: AlarmEvaluation;\n  /** Whether alarm state changes should appear in monitoring history. */\n  includeInHistory?: boolean;\n  /** Where to send notifications when the alarm fires — Slack, MS Teams, or email. */\n  notificationChannels?: Array<HttpApiGatewayAlarmNotificationChannels>;\n};\n\n/** Union choices used by the properties above. */\ntype HttpApiGatewayAlarmTrigger =\n  | HttpApiGatewayErrorRateTrigger\n  | HttpApiGatewayLatencyTrigger;\n\ntype HttpApiGatewayAlarmNotificationChannels =\n  | SlackIntegration\n  | SlackAppIntegration\n  | MsTeamsIntegration\n  | EmailIntegration\n  | DiscordIntegration\n  | WebhookIntegration\n  | ConsoleChannelIntegration;\n// [!code focus-end]"
   },
   "HttpApiGatewayErrorRateTrigger": {
     "definitionName": "HttpApiGatewayErrorRateTrigger",
@@ -35150,6 +35240,24 @@
                 ]
               },
               {
+                "label": "slack-app",
+                "typeName": "SlackAppIntegration",
+                "properties": [
+                  {
+                    "name": "channel",
+                    "required": true,
+                    "shortDescription": "<p> The Slack channel to notify, in the workspace connected to your organization through the Stacktape Slack app.</p>",
+                    "longDescription": "<p>Write the channel name (<code>#alerts</code> or <code>alerts</code>) or its ID. The name is resolved to the channel ID when you deploy,\nso renaming the channel in Slack later does not break delivery. Public channels are joined by the app\nautomatically; invite the app to a private channel first (`/invite</p>",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
                 "label": "ms-teams",
                 "typeName": "MsTeamsIntegration",
                 "properties": [
@@ -35371,7 +35479,7 @@
       "requiredCount": 1,
       "optionalCount": 4
     },
-    "typeDeclaration": "import type { AlarmEvaluation, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, LambdaDurationTrigger, LambdaErrorRateTrigger, MsTeamsIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype LambdaAlarm = {\n  trigger: LambdaAlarmTrigger;\n  /** Custom alarm description used in notification messages and the AWS console. */\n  description?: string;\n  /** How long and how often to evaluate the metric before triggering. */\n  evaluation?: AlarmEvaluation;\n  /** Whether alarm state changes should appear in monitoring history. */\n  includeInHistory?: boolean;\n  /** Where to send notifications when the alarm fires — Slack, MS Teams, or email. */\n  notificationChannels?: Array<LambdaAlarmNotificationChannels>;\n};\n\n/** Union choices used by the properties above. */\ntype LambdaAlarmTrigger =\n  | LambdaErrorRateTrigger\n  | LambdaDurationTrigger;\n\ntype LambdaAlarmNotificationChannels =\n  | SlackIntegration\n  | MsTeamsIntegration\n  | EmailIntegration\n  | DiscordIntegration\n  | WebhookIntegration\n  | ConsoleChannelIntegration;\n// [!code focus-end]"
+    "typeDeclaration": "import type { AlarmEvaluation, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, LambdaDurationTrigger, LambdaErrorRateTrigger, MsTeamsIntegration, SlackAppIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype LambdaAlarm = {\n  trigger: LambdaAlarmTrigger;\n  /** Custom alarm description used in notification messages and the AWS console. */\n  description?: string;\n  /** How long and how often to evaluate the metric before triggering. */\n  evaluation?: AlarmEvaluation;\n  /** Whether alarm state changes should appear in monitoring history. */\n  includeInHistory?: boolean;\n  /** Where to send notifications when the alarm fires — Slack, MS Teams, or email. */\n  notificationChannels?: Array<LambdaAlarmNotificationChannels>;\n};\n\n/** Union choices used by the properties above. */\ntype LambdaAlarmTrigger =\n  | LambdaErrorRateTrigger\n  | LambdaDurationTrigger;\n\ntype LambdaAlarmNotificationChannels =\n  | SlackIntegration\n  | SlackAppIntegration\n  | MsTeamsIntegration\n  | EmailIntegration\n  | DiscordIntegration\n  | WebhookIntegration\n  | ConsoleChannelIntegration;\n// [!code focus-end]"
   },
   "LambdaAuthorizer": {
     "definitionName": "LambdaAuthorizer",
@@ -50075,6 +50183,24 @@
                 ]
               },
               {
+                "label": "slack-app",
+                "typeName": "SlackAppIntegration",
+                "properties": [
+                  {
+                    "name": "channel",
+                    "required": true,
+                    "shortDescription": "<p> The Slack channel to notify, in the workspace connected to your organization through the Stacktape Slack app.</p>",
+                    "longDescription": "<p>Write the channel name (<code>#alerts</code> or <code>alerts</code>) or its ID. The name is resolved to the channel ID when you deploy,\nso renaming the channel in Slack later does not break delivery. Public channels are joined by the app\nautomatically; invite the app to a private channel first (`/invite</p>",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
                 "label": "ms-teams",
                 "typeName": "MsTeamsIntegration",
                 "properties": [
@@ -50296,7 +50422,7 @@
       "requiredCount": 1,
       "optionalCount": 4
     },
-    "typeDeclaration": "import type { AlarmEvaluation, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, RelationalDatabaseCPUUtilizationTrigger, RelationalDatabaseConnectionCountTrigger, RelationalDatabaseFreeMemoryTrigger, RelationalDatabaseFreeStorageTrigger, RelationalDatabaseReadLatencyTrigger, RelationalDatabaseWriteLatencyTrigger, SlackIntegration, WebhookIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype RelationalDatabaseAlarm = {\n  trigger: RelationalDatabaseAlarmTrigger;\n  /** Custom alarm description used in notification messages and the AWS console. */\n  description?: string;\n  /** How long and how often to evaluate the metric before triggering. */\n  evaluation?: AlarmEvaluation;\n  /** Whether alarm state changes should appear in monitoring history. */\n  includeInHistory?: boolean;\n  /** Where to send notifications when the alarm fires — Slack, MS Teams, or email. */\n  notificationChannels?: Array<RelationalDatabaseAlarmNotificationChannels>;\n};\n\n/** Union choices used by the properties above. */\ntype RelationalDatabaseAlarmTrigger =\n  | RelationalDatabaseReadLatencyTrigger\n  | RelationalDatabaseWriteLatencyTrigger\n  | RelationalDatabaseCPUUtilizationTrigger\n  | RelationalDatabaseFreeStorageTrigger\n  | RelationalDatabaseFreeMemoryTrigger\n  | RelationalDatabaseConnectionCountTrigger;\n\ntype RelationalDatabaseAlarmNotificationChannels =\n  | SlackIntegration\n  | MsTeamsIntegration\n  | EmailIntegration\n  | DiscordIntegration\n  | WebhookIntegration\n  | ConsoleChannelIntegration;\n// [!code focus-end]"
+    "typeDeclaration": "import type { AlarmEvaluation, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, RelationalDatabaseCPUUtilizationTrigger, RelationalDatabaseConnectionCountTrigger, RelationalDatabaseFreeMemoryTrigger, RelationalDatabaseFreeStorageTrigger, RelationalDatabaseReadLatencyTrigger, RelationalDatabaseWriteLatencyTrigger, SlackAppIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype RelationalDatabaseAlarm = {\n  trigger: RelationalDatabaseAlarmTrigger;\n  /** Custom alarm description used in notification messages and the AWS console. */\n  description?: string;\n  /** How long and how often to evaluate the metric before triggering. */\n  evaluation?: AlarmEvaluation;\n  /** Whether alarm state changes should appear in monitoring history. */\n  includeInHistory?: boolean;\n  /** Where to send notifications when the alarm fires — Slack, MS Teams, or email. */\n  notificationChannels?: Array<RelationalDatabaseAlarmNotificationChannels>;\n};\n\n/** Union choices used by the properties above. */\ntype RelationalDatabaseAlarmTrigger =\n  | RelationalDatabaseReadLatencyTrigger\n  | RelationalDatabaseWriteLatencyTrigger\n  | RelationalDatabaseCPUUtilizationTrigger\n  | RelationalDatabaseFreeStorageTrigger\n  | RelationalDatabaseFreeMemoryTrigger\n  | RelationalDatabaseConnectionCountTrigger;\n\ntype RelationalDatabaseAlarmNotificationChannels =\n  | SlackIntegration\n  | SlackAppIntegration\n  | MsTeamsIntegration\n  | EmailIntegration\n  | DiscordIntegration\n  | WebhookIntegration\n  | ConsoleChannelIntegration;\n// [!code focus-end]"
   },
   "RelationalDatabaseCPUUtilizationTrigger": {
     "definitionName": "RelationalDatabaseCPUUtilizationTrigger",
@@ -54598,6 +54724,48 @@
     },
     "typeDeclaration": "import type { ContainerDependency, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, SecretEnvironmentVar, StpBuildpackCwImagePackaging } from 'stacktape';\n\n// [!code focus-start]\ntype ServiceHelperContainer = {\n  /** When and how this sidecar container runs. */\n  containerType: \"always-running\" | \"run-on-init\";\n  /** Unique container name within this workload. */\n  name: string;\n  /** How to build or specify the container image. */\n  packaging: ServiceHelperContainerPackaging;\n  /** Start this container only after the listed containers reach a specific state. */\n  dependsOn?: Array<ContainerDependency>;\n  /** Environment variables injected at runtime. Use `$ResourceParam()` or `$Secret()` for dynamic values. */\n  environment?: Array<EnvironmentVar>;\n  /** If `true` (default), the entire workload restarts when this container fails. */\n  essential?: boolean;\n  /** Command-based health check. If it fails on an essential container, the workload instance is replaced. */\n  internalHealthCheck?: ContainerHealthCheck;\n  /** Container logging (stdout/stderr). Sent to CloudWatch, viewable with `stacktape logs`. */\n  logging?: ContainerWorkloadContainerLogging;\n  /** Sensitive environment variables fetched by ECS instead of stored in the task definition.\n\nEach `valueFrom` must be an exact `$SsmParam(...)` or `$Secret(...)` directive. */\n  secrets?: Array<SecretEnvironmentVar>;\n  /** Seconds to wait after SIGTERM before SIGKILL (2-120). */\n  stopTimeout?: number;\n  /** Mount EFS volumes for persistent, shared storage across containers. */\n  volumeMounts?: Array<ContainerEfsMount>;\n};\n\n/** Union choices used by the properties above. */\ntype ServiceHelperContainerPackaging =\n  | PrebuiltCwImagePackaging\n  | CustomDockerfileCwImagePackaging\n  | ExternalBuildpackCwImagePackaging\n  | NixpacksCwImagePackaging\n  | StpBuildpackCwImagePackaging;\n// [!code focus-end]"
   },
+  "SlackAppIntegration": {
+    "definitionName": "SlackAppIntegration",
+    "properties": [
+      {
+        "name": "properties",
+        "required": true,
+        "shortDescription": "",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "reference",
+          "typeName": "SlackAppIntegrationProps"
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 0
+    },
+    "typeDeclaration": "import type { SlackAppIntegrationProps } from 'stacktape';\n\n// [!code focus-start]\ntype SlackAppIntegration = {\n  properties: SlackAppIntegrationProps;\n};\n// [!code focus-end]"
+  },
+  "SlackAppIntegrationProps": {
+    "definitionName": "SlackAppIntegrationProps",
+    "properties": [
+      {
+        "name": "channel",
+        "required": true,
+        "shortDescription": "<p> The Slack channel to notify, in the workspace connected to your organization through the Stacktape Slack app.</p>",
+        "longDescription": "<p>Write the channel name (<code>#alerts</code> or <code>alerts</code>) or its ID. The name is resolved to the channel ID when you deploy,\nso renaming the channel in Slack later does not break delivery. Public channels are joined by the app\nautomatically; invite the app to a private channel first (`/invite</p>",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 1,
+      "optionalCount": 0
+    },
+    "typeDeclaration": "// [!code focus-start]\ntype SlackAppIntegrationProps = {\n  /** The Slack channel to notify, in the workspace connected to your organization through the Stacktape Slack app. */\n  channel: string;\n};\n// [!code focus-end]"
+  },
   "SlackIntegration": {
     "definitionName": "SlackIntegration",
     "properties": [
@@ -55548,6 +55716,24 @@
                 ]
               },
               {
+                "label": "slack-app",
+                "typeName": "SlackAppIntegration",
+                "properties": [
+                  {
+                    "name": "channel",
+                    "required": true,
+                    "shortDescription": "<p> The Slack channel to notify, in the workspace connected to your organization through the Stacktape Slack app.</p>",
+                    "longDescription": "<p>Write the channel name (<code>#alerts</code> or <code>alerts</code>) or its ID. The name is resolved to the channel ID when you deploy,\nso renaming the channel in Slack later does not break delivery. Public channels are joined by the app\nautomatically; invite the app to a private channel first (`/invite</p>",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
                 "label": "ms-teams",
                 "typeName": "MsTeamsIntegration",
                 "properties": [
@@ -55769,7 +55955,7 @@
       "requiredCount": 1,
       "optionalCount": 4
     },
-    "typeDeclaration": "import type { AlarmEvaluation, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackIntegration, SqsQueueNotEmptyTrigger, SqsQueueReceivedMessagesCountTrigger, WebhookIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype SqsQueueAlarm = {\n  trigger: SqsQueueAlarmTrigger;\n  /** Custom alarm description used in notification messages and the AWS console. */\n  description?: string;\n  /** How long and how often to evaluate the metric before triggering. */\n  evaluation?: AlarmEvaluation;\n  /** Whether alarm state changes should appear in monitoring history. */\n  includeInHistory?: boolean;\n  /** Where to send notifications when the alarm fires — Slack, MS Teams, or email. */\n  notificationChannels?: Array<SqsQueueAlarmNotificationChannels>;\n};\n\n/** Union choices used by the properties above. */\ntype SqsQueueAlarmTrigger =\n  | SqsQueueReceivedMessagesCountTrigger\n  | SqsQueueNotEmptyTrigger;\n\ntype SqsQueueAlarmNotificationChannels =\n  | SlackIntegration\n  | MsTeamsIntegration\n  | EmailIntegration\n  | DiscordIntegration\n  | WebhookIntegration\n  | ConsoleChannelIntegration;\n// [!code focus-end]"
+    "typeDeclaration": "import type { AlarmEvaluation, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackAppIntegration, SlackIntegration, SqsQueueNotEmptyTrigger, SqsQueueReceivedMessagesCountTrigger, WebhookIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype SqsQueueAlarm = {\n  trigger: SqsQueueAlarmTrigger;\n  /** Custom alarm description used in notification messages and the AWS console. */\n  description?: string;\n  /** How long and how often to evaluate the metric before triggering. */\n  evaluation?: AlarmEvaluation;\n  /** Whether alarm state changes should appear in monitoring history. */\n  includeInHistory?: boolean;\n  /** Where to send notifications when the alarm fires — Slack, MS Teams, or email. */\n  notificationChannels?: Array<SqsQueueAlarmNotificationChannels>;\n};\n\n/** Union choices used by the properties above. */\ntype SqsQueueAlarmTrigger =\n  | SqsQueueReceivedMessagesCountTrigger\n  | SqsQueueNotEmptyTrigger;\n\ntype SqsQueueAlarmNotificationChannels =\n  | SlackIntegration\n  | SlackAppIntegration\n  | MsTeamsIntegration\n  | EmailIntegration\n  | DiscordIntegration\n  | WebhookIntegration\n  | ConsoleChannelIntegration;\n// [!code focus-end]"
   },
   "SqsQueueEventBusIntegration": {
     "definitionName": "SqsQueueEventBusIntegration",
@@ -61547,6 +61733,24 @@
                 ]
               },
               {
+                "label": "slack-app",
+                "typeName": "SlackAppIntegration",
+                "properties": [
+                  {
+                    "name": "channel",
+                    "required": true,
+                    "shortDescription": "<p> The Slack channel to notify, in the workspace connected to your organization through the Stacktape Slack app.</p>",
+                    "longDescription": "<p>Write the channel name (<code>#alerts</code> or <code>alerts</code>) or its ID. The name is resolved to the channel ID when you deploy,\nso renaming the channel in Slack later does not break delivery. Public channels are joined by the app\nautomatically; invite the app to a private channel first (`/invite</p>",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
                 "label": "ms-teams",
                 "typeName": "MsTeamsIntegration",
                 "properties": [
@@ -61817,7 +62021,7 @@
       "requiredCount": 1,
       "optionalCount": 6
     },
-    "typeDeclaration": "import type { ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, EnvironmentVar, MsTeamsIntegration, SlackIntegration, SyntheticApiTest, SyntheticBrowserTest, WebhookIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype SyntheticTestProps = {\n  /** What the test does: drive a real browser, or call APIs directly. */\n  test: SyntheticTestTest;\n  /** Environment variables available to the test script. */\n  environment?: Array<EnvironmentVar>;\n  /** Memory available to the test run, in MB. */\n  memory?: number;\n  /** Where to send an alert when the test starts failing (and when it recovers). */\n  notificationChannels?: Array<SyntheticTestNotificationChannels>;\n  /** How long run results (pass/fail history and reports) are kept, in days. */\n  retentionDays?: number;\n  /** How often the test runs. */\n  scheduleRate?: string;\n  /** How long one run may take before it counts as failed, in seconds. */\n  timeoutSeconds?: number;\n};\n\n/** Union choices used by the properties above. */\ntype SyntheticTestTest =\n  | SyntheticBrowserTest\n  | SyntheticApiTest;\n\ntype SyntheticTestNotificationChannels =\n  | SlackIntegration\n  | MsTeamsIntegration\n  | EmailIntegration\n  | DiscordIntegration\n  | WebhookIntegration\n  | ConsoleChannelIntegration;\n// [!code focus-end]"
+    "typeDeclaration": "import type { ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, EnvironmentVar, MsTeamsIntegration, SlackAppIntegration, SlackIntegration, SyntheticApiTest, SyntheticBrowserTest, WebhookIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype SyntheticTestProps = {\n  /** What the test does: drive a real browser, or call APIs directly. */\n  test: SyntheticTestTest;\n  /** Environment variables available to the test script. */\n  environment?: Array<EnvironmentVar>;\n  /** Memory available to the test run, in MB. */\n  memory?: number;\n  /** Where to send an alert when the test starts failing (and when it recovers). */\n  notificationChannels?: Array<SyntheticTestNotificationChannels>;\n  /** How long run results (pass/fail history and reports) are kept, in days. */\n  retentionDays?: number;\n  /** How often the test runs. */\n  scheduleRate?: string;\n  /** How long one run may take before it counts as failed, in seconds. */\n  timeoutSeconds?: number;\n};\n\n/** Union choices used by the properties above. */\ntype SyntheticTestTest =\n  | SyntheticBrowserTest\n  | SyntheticApiTest;\n\ntype SyntheticTestNotificationChannels =\n  | SlackIntegration\n  | SlackAppIntegration\n  | MsTeamsIntegration\n  | EmailIntegration\n  | DiscordIntegration\n  | WebhookIntegration\n  | ConsoleChannelIntegration;\n// [!code focus-end]"
   },
   "TanStackWeb": {
     "definitionName": "TanStackWeb",
@@ -62812,6 +63016,24 @@
                 ]
               },
               {
+                "label": "slack-app",
+                "typeName": "SlackAppIntegration",
+                "properties": [
+                  {
+                    "name": "channel",
+                    "required": true,
+                    "shortDescription": "<p> The Slack channel to notify, in the workspace connected to your organization through the Stacktape Slack app.</p>",
+                    "longDescription": "<p>Write the channel name (<code>#alerts</code> or <code>alerts</code>) or its ID. The name is resolved to the channel ID when you deploy,\nso renaming the channel in Slack later does not break delivery. Public channels are joined by the app\nautomatically; invite the app to a private channel first (`/invite</p>",
+                    "typeInfo": {
+                      "kind": "primitive",
+                      "types": [
+                        "string"
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
                 "label": "ms-teams",
                 "typeName": "MsTeamsIntegration",
                 "properties": [
@@ -63104,7 +63326,7 @@
       "requiredCount": 1,
       "optionalCount": 9
     },
-    "typeDeclaration": "import type { BodyContainsAssertion, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackIntegration, StatusCodeAssertion, UptimeCheckEvaluation, WebhookIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype UptimeCheckProps = {\n  /** The URL to monitor. */\n  url: string;\n  /** Conditions the response must meet for the probe to count as successful. */\n  assertions?: Array<UptimeCheckAssertions>;\n  /** Temporarily pause the check without deleting it. */\n  enabled?: boolean;\n  /** How many consecutive failed or successful evaluations flip the check between up and down. */\n  evaluation?: UptimeCheckEvaluation;\n  /** Whether the probe follows HTTP redirects (up to 5). */\n  followRedirects?: boolean;\n  /** How often each monitoring region probes the URL, in seconds. */\n  intervalSeconds?: 30 | 60;\n  /** HTTP method used for the probe. */\n  method?: \"GET\" | \"HEAD\";\n  /** Where to send notifications when the check goes down or recovers. */\n  notificationChannels?: Array<UptimeCheckNotificationChannels>;\n  /** AWS regions the URL is probed from. */\n  regions?: Array<\"af-south-1\" | \"ap-east-1\" | \"ap-northeast-1\" | \"ap-northeast-2\" | \"ap-northeast-3\" | \"ap-south-1\" | \"ap-southeast-1\" | \"ap-southeast-2\" | \"ca-central-1\" | \"eu-central-1\" | \"eu-north-1\" | \"eu-south-1\" | \"eu-west-1\" | \"eu-west-2\" | \"eu-west-3\" | \"me-south-1\" | \"sa-east-1\" | \"us-east-1\" | \"us-east-2\" | \"us-west-1\" | \"us-west-2\">;\n  /** How long to wait for a response before the probe counts as failed, in seconds. */\n  timeoutSeconds?: number;\n};\n\n/** Union choices used by the properties above. */\ntype UptimeCheckAssertions =\n  | StatusCodeAssertion\n  | BodyContainsAssertion;\n\ntype UptimeCheckNotificationChannels =\n  | SlackIntegration\n  | MsTeamsIntegration\n  | EmailIntegration\n  | DiscordIntegration\n  | WebhookIntegration\n  | ConsoleChannelIntegration;\n// [!code focus-end]"
+    "typeDeclaration": "import type { BodyContainsAssertion, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackAppIntegration, SlackIntegration, StatusCodeAssertion, UptimeCheckEvaluation, WebhookIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype UptimeCheckProps = {\n  /** The URL to monitor. */\n  url: string;\n  /** Conditions the response must meet for the probe to count as successful. */\n  assertions?: Array<UptimeCheckAssertions>;\n  /** Temporarily pause the check without deleting it. */\n  enabled?: boolean;\n  /** How many consecutive failed or successful evaluations flip the check between up and down. */\n  evaluation?: UptimeCheckEvaluation;\n  /** Whether the probe follows HTTP redirects (up to 5). */\n  followRedirects?: boolean;\n  /** How often each monitoring region probes the URL, in seconds. */\n  intervalSeconds?: 30 | 60;\n  /** HTTP method used for the probe. */\n  method?: \"GET\" | \"HEAD\";\n  /** Where to send notifications when the check goes down or recovers. */\n  notificationChannels?: Array<UptimeCheckNotificationChannels>;\n  /** AWS regions the URL is probed from. */\n  regions?: Array<\"af-south-1\" | \"ap-east-1\" | \"ap-northeast-1\" | \"ap-northeast-2\" | \"ap-northeast-3\" | \"ap-south-1\" | \"ap-southeast-1\" | \"ap-southeast-2\" | \"ca-central-1\" | \"eu-central-1\" | \"eu-north-1\" | \"eu-south-1\" | \"eu-west-1\" | \"eu-west-2\" | \"eu-west-3\" | \"me-south-1\" | \"sa-east-1\" | \"us-east-1\" | \"us-east-2\" | \"us-west-1\" | \"us-west-2\">;\n  /** How long to wait for a response before the probe counts as failed, in seconds. */\n  timeoutSeconds?: number;\n};\n\n/** Union choices used by the properties above. */\ntype UptimeCheckAssertions =\n  | StatusCodeAssertion\n  | BodyContainsAssertion;\n\ntype UptimeCheckNotificationChannels =\n  | SlackIntegration\n  | SlackAppIntegration\n  | MsTeamsIntegration\n  | EmailIntegration\n  | DiscordIntegration\n  | WebhookIntegration\n  | ConsoleChannelIntegration;\n// [!code focus-end]"
   },
   "UserAuthPool": {
     "definitionName": "UserAuthPool",
@@ -67348,6 +67570,24 @@
                             ]
                           },
                           {
+                            "label": "slack-app",
+                            "typeName": "SlackAppIntegration",
+                            "properties": [
+                              {
+                                "name": "channel",
+                                "required": true,
+                                "shortDescription": "<p> The Slack channel to notify, in the workspace connected to your organization through the Stacktape Slack app.</p>",
+                                "longDescription": "<p>Write the channel name (<code>#alerts</code> or <code>alerts</code>) or its ID. The name is resolved to the channel ID when you deploy,\nso renaming the channel in Slack later does not break delivery. Public channels are joined by the app\nautomatically; invite the app to a private channel first (`/invite</p>",
+                                "typeInfo": {
+                                  "kind": "primitive",
+                                  "types": [
+                                    "string"
+                                  ]
+                                }
+                              }
+                            ]
+                          },
+                          {
                             "label": "ms-teams",
                             "typeName": "MsTeamsIntegration",
                             "properties": [
@@ -67851,6 +68091,24 @@
                                     "code": "import { LambdaFunction, defineConfig, $Secret } from 'stacktape';\n\nexport default defineConfig(() => {\n  const workerFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: { entryfilePath: 'src/worker.ts' }\n    },\n    memory: 512,\n    timeout: 30,\n    alarms: [\n      {\n        trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 5 } },\n        description: 'Worker error rate is too high',\n        notificationChannels: [\n          {\n            type: 'slack',\n            properties: {\n              conversationId: 'C0123456789',\n              // [!code focus-start]\n              accessToken: $Secret('slack-bot-token')\n              // [!code focus-end]\n            }\n          }\n        ]\n      }\n    ]\n  });\n  return { resources: { workerFunction } };\n});"
                                   }
                                 ]
+                              }
+                            ]
+                          },
+                          {
+                            "label": "slack-app",
+                            "typeName": "SlackAppIntegration",
+                            "properties": [
+                              {
+                                "name": "channel",
+                                "required": true,
+                                "shortDescription": "<p> The Slack channel to notify, in the workspace connected to your organization through the Stacktape Slack app.</p>",
+                                "longDescription": "<p>Write the channel name (<code>#alerts</code> or <code>alerts</code>) or its ID. The name is resolved to the channel ID when you deploy,\nso renaming the channel in Slack later does not break delivery. Public channels are joined by the app\nautomatically; invite the app to a private channel first (`/invite</p>",
+                                "typeInfo": {
+                                  "kind": "primitive",
+                                  "types": [
+                                    "string"
+                                  ]
+                                }
                               }
                             ]
                           },

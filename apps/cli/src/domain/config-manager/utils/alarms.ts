@@ -76,11 +76,15 @@ export const resourceTypesForAlarmType: {
 };
 
 const validateAlarmNotificationChannels = (alarm: StpAlarm) => {
-  if (
-    alarm.includeInHistory === false &&
-    (alarm.notificationChannels || []).some(({ type }) => type === 'console-channel')
-  ) {
-    throw configErrors.alarmConsoleChannelRequiresHistory({ alarmName: alarm.nameChain.join('.') });
+  // Both kinds are delivered by the Stacktape Console (it holds the credentials), so they need history routing.
+  const consoleDelivered = (alarm.notificationChannels || []).find(
+    ({ type }) => type === 'console-channel' || type === 'slack-app'
+  );
+  if (alarm.includeInHistory === false && consoleDelivered) {
+    throw configErrors.alarmConsoleChannelRequiresHistory({
+      alarmName: alarm.nameChain.join('.'),
+      channelType: consoleDelivered.type as 'console-channel' | 'slack-app'
+    });
   }
   return alarm;
 };

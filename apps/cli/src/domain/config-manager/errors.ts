@@ -848,18 +848,49 @@ export const configErrors = {
       ]
     });
   },
-  alarmConsoleChannelRequiresHistory({ alarmName }: { alarmName: string }): CliError {
+  slackAppChannelsUnresolved({
+    unresolved,
+    workspaceConnected
+  }: {
+    unresolved: Array<{ channel: string; reason: string }>;
+    workspaceConnected: boolean;
+  }): CliError {
+    const list = unresolved.map(({ channel, reason }) => `${inlineCode(channel)}: ${reason}`).join('\n');
+    return new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_SLACK_APP_CHANNEL_UNRESOLVED',
+      message: workspaceConnected
+        ? `Some ${inlineCode('slack-app')} notification channels do not exist in the connected Slack workspace:\n${list}`
+        : `The configuration uses ${inlineCode('slack-app')} notification channels, but no Slack workspace is connected to your organization.`,
+      hints: workspaceConnected
+        ? [
+            'Check the channel name in Slack; a private channel needs the Stacktape app invited first (/invite @Stacktape).',
+            `You can also write the channel ID instead of the name.`
+          ]
+        : [
+            'Connect Slack on the Channels page of the Stacktape Console, then deploy again.',
+            `Or use the ${inlineCode('slack')} channel type with your own bot token.`
+          ]
+    });
+  },
+  alarmConsoleChannelRequiresHistory({
+    alarmName,
+    channelType = 'console-channel'
+  }: {
+    alarmName: string;
+    channelType?: 'console-channel' | 'slack-app';
+  }): CliError {
     return new CliError({
       category: 'CONFIG_VALIDATION',
       code: 'CONFIG_ALARM_CONSOLE_CHANNEL_REQUIRES_HISTORY',
       message: `Alarm ${inlineCode(alarmName)} uses a ${inlineCode(
-        'console-channel'
+        channelType
       )} notification channel together with ${inlineCode(
         'includeInHistory: false'
-      )}. Console channels are delivered through the Stacktape Console, which requires history routing.`,
+      )}. ${channelType === 'slack-app' ? 'Slack app channels' : 'Console channels'} are delivered through the Stacktape Console, which requires history routing.`,
       hints: [
         `Remove ${inlineCode('includeInHistory: false')}, or replace the ${inlineCode(
-          'console-channel'
+          channelType
         )} entry with an inline channel (slack, ms-teams, discord, email, webhook).`
       ]
     });

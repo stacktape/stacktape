@@ -51,6 +51,8 @@ import type {
   RecentStackOperationsResponse,
   RecordStackOperationParams,
   ReportEventParams,
+  ResolveSlackChannelsParams,
+  ResolveSlackChannelsResponse,
   StackDetailsParams,
   StackDetailsResponse,
   SyncUptimeChecksParams,
@@ -113,6 +115,8 @@ export type {
   RecentStackOperationsResponse,
   RecordStackOperationParams,
   ReportEventParams,
+  ResolveSlackChannelsParams,
+  ResolveSlackChannelsResponse,
   StackDetailsParams,
   StackDetailsResponse,
   SyncUptimeChecksParams,
@@ -179,6 +183,10 @@ export class ApiKeyProtectedClient {
 
   globalConfig = async (): Promise<GlobalConfigResponse> => {
     return this.#request('globalConfig', () => this.#ensureInitialized().globalConfig.query());
+  };
+
+  resolveSlackChannels = async (args: ResolveSlackChannelsParams): Promise<ResolveSlackChannelsResponse> => {
+    return this.#request('resolveSlackChannels', () => this.#ensureInitialized().resolveSlackChannels.mutate(args));
   };
 
   syncUptimeChecks = async (args: SyncUptimeChecksParams): Promise<SyncUptimeChecksResponse> => {

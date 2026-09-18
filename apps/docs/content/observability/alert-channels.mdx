@@ -9,7 +9,7 @@ seoDescription: 'Configure Slack, Microsoft Teams, Email, Discord, and Webhook a
 
 Alert channels are the destinations where Stacktape delivers alerts — a Slack channel, an email inbox, a Discord webhook, or a custom HTTP endpoint. You create channels in the Stacktape Console, then use them in [alarm rules](/observability/alarms), [notification rules](/observability/notifications), and [budget alerts](/managing-costs/budgets) so every alert reaches the right people.
 
-Stacktape supports five channel types: **Slack**, **Microsoft Teams**, **Discord**, **Email**, and **Webhook**.
+Stacktape supports six channel types: **Slack (Stacktape app)**, **Slack** (your own bot token), **Microsoft Teams**, **Discord**, **Email**, and **Webhook**.
 
 ## When to use alert channels
 
@@ -23,9 +23,24 @@ Alert channels are a Console-only feature. If your team does not use the Stackta
 
 Stacktape supports five channel types. When a channel has properties named `webhookUrl`, `accessToken`, or `secret`, the details modal masks them as sensitive values.
 
+### Slack (Stacktape app)
+
+Connect your Slack workspace once with the **Connect Slack** button on the **Channels** page, then pick channels from a list. No bot token is stored anywhere. Messages posted this way are cards that Stacktape keeps up to date: an incident is one message that changes as the incident is acknowledged or resolved, with later events in its thread. A new Slack-app channel starts with default rules: incidents from every stage, failed deployments from every stage, successful deployments from production stages only, and new security findings. Mark a channel as a preview channel to receive pull-request preview deployments there instead.
+
+The app asks only for what it uses: posting and editing messages, uploading evidence images, listing channels, and reading member names and emails to match Slack users to Console users. It never reads message history. Public channels are joined automatically; invite the app to a private channel first (`/invite @Stacktape`).
+
+In your configuration, reference a channel of the connected workspace with the `slack-app` type and a channel name or ID. The name is resolved to the channel ID when you deploy, so renaming the channel later does not break delivery:
+
+```yaml
+notificationChannels:
+  - type: slack-app
+    properties:
+      channel: '#alerts'
+```
+
 ### Slack
 
-Slack is one of the supported alert channel types. Slack is a good default for teams that already use Slack for communication — alerts appear in context alongside other team discussions.
+Slack is one of the supported alert channel types. Slack is a good default for teams that already use Slack for communication — alerts appear in context alongside other team discussions. This type uses a bot token you create yourself; prefer **Slack (Stacktape app)** unless you need your own app.
 
 ### Microsoft Teams
 

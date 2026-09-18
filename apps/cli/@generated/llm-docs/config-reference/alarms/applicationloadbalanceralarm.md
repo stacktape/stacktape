@@ -3,7 +3,7 @@
 ## TypeScript definition
 
 ```typescript
-import type { AlarmEvaluation, ApplicationLoadBalancerCustomTrigger, ApplicationLoadBalancerErrorRateTrigger, ApplicationLoadBalancerUnhealthyTargetsTrigger, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';
+import type { AlarmEvaluation, ApplicationLoadBalancerCustomTrigger, ApplicationLoadBalancerErrorRateTrigger, ApplicationLoadBalancerUnhealthyTargetsTrigger, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackAppIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';
 
 type ApplicationLoadBalancerAlarm = {
   trigger: ApplicationLoadBalancerAlarmTrigger;
@@ -25,6 +25,7 @@ type ApplicationLoadBalancerAlarmTrigger =
 
 type ApplicationLoadBalancerAlarmNotificationChannels =
   | SlackIntegration
+  | SlackAppIntegration
   | MsTeamsIntegration
   | EmailIntegration
   | DiscordIntegration
@@ -221,12 +222,13 @@ export default defineConfig(() => {
 ## Property: `notificationChannels`
 
 - Required: no
-- Type: `Array<slack | ms-teams | email | discord | webhook | console-channel>`
+- Type: `Array<slack | slack-app | ms-teams | email | discord | webhook | console-channel>`
 
 Where to send notifications when the alarm fires — Slack, MS Teams, or email.
 
 Choices:
 - `slack` (`SlackIntegration`). Properties: `conversationId: string`, `accessToken: string`.
+- `slack-app` (`SlackAppIntegration`). Properties: `channel: string`.
 - `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.

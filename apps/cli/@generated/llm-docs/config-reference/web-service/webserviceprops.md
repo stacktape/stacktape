@@ -185,8 +185,8 @@ export default defineConfig(() => {
 Alarms for this service (merged with global alarms from the Stacktape Console).
 
 Choices:
-- `ApplicationLoadBalancerAlarm` (`ApplicationLoadBalancerAlarm`). Properties: `trigger: application-load-balancer-custom | application-load-balancer-error-rate | application-load-balancer-unhealthy-targets`, `evaluation?: AlarmEvaluation`, `notificationChannels?: Array<slack | ms-teams | email | discord | webhook | console-channel>`, `includeInHistory?: boolean`, `description?: string`.
-- `HttpApiGatewayAlarm` (`HttpApiGatewayAlarm`). Properties: `trigger: http-api-gateway-error-rate | http-api-gateway-latency`, `evaluation?: AlarmEvaluation`, `notificationChannels?: Array<slack | ms-teams | email | discord | webhook | console-channel>`, `includeInHistory?: boolean`, `description?: string`.
+- `ApplicationLoadBalancerAlarm` (`ApplicationLoadBalancerAlarm`). Properties: `trigger: application-load-balancer-custom | application-load-balancer-error-rate | application-load-balancer-unhealthy-targets`, `evaluation?: AlarmEvaluation`, `notificationChannels?: Array<slack | slack-app | ms-teams | email | discord | webhook | console-channel>`, `includeInHistory?: boolean`, `description?: string`.
+- `HttpApiGatewayAlarm` (`HttpApiGatewayAlarm`). Properties: `trigger: http-api-gateway-error-rate | http-api-gateway-latency`, `evaluation?: AlarmEvaluation`, `notificationChannels?: Array<slack | slack-app | ms-teams | email | discord | webhook | console-channel>`, `includeInHistory?: boolean`, `description?: string`.
 
 ### Example 1 (yaml)
 

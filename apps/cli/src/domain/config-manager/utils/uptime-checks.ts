@@ -57,6 +57,14 @@ export const translateNotificationChannelsForConsole = (channels: NotificationCh
     if (channel.type === 'console-channel') {
       return { name: channel.properties.channelName, type: 'console-channel' as const, properties: {} };
     }
+    if (channel.type === 'slack-app') {
+      // Resolved at deploy time (resolveSlackAppChannels): the wire carries the stable IDs, not the name.
+      return {
+        name: `#${channel.properties.channel.replace(/^#/u, '')}`,
+        type: 'slack_app' as const,
+        properties: channel.properties
+      };
+    }
     return {
       name: channel.type === 'slack' ? 'Slack' : channel.type === 'email' ? 'Email' : channel.type,
       type:

@@ -3,7 +3,7 @@
 ## TypeScript definition
 
 ```typescript
-import type { ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, EnvironmentVar, MsTeamsIntegration, SlackIntegration, SyntheticApiTest, SyntheticBrowserTest, WebhookIntegration } from 'stacktape';
+import type { ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, EnvironmentVar, MsTeamsIntegration, SlackAppIntegration, SlackIntegration, SyntheticApiTest, SyntheticBrowserTest, WebhookIntegration } from 'stacktape';
 
 type SyntheticTestProps = {
   /** What the test does: drive a real browser, or call APIs directly. */
@@ -29,6 +29,7 @@ type SyntheticTestTest =
 
 type SyntheticTestNotificationChannels =
   | SlackIntegration
+  | SlackAppIntegration
   | MsTeamsIntegration
   | EmailIntegration
   | DiscordIntegration
@@ -143,7 +144,7 @@ die without a script error.
 ## Property: `notificationChannels`
 
 - Required: no
-- Type: `Array<slack | ms-teams | email | discord | webhook | console-channel>`
+- Type: `Array<slack | slack-app | ms-teams | email | discord | webhook | console-channel>`
 
 Where to send an alert when the test starts failing (and when it recovers).
 
@@ -153,6 +154,7 @@ Stacktape Console. Without a channel, failures are still visible in the Console.
 
 Choices:
 - `slack` (`SlackIntegration`). Properties: `conversationId: string`, `accessToken: string`.
+- `slack-app` (`SlackAppIntegration`). Properties: `channel: string`.
 - `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.

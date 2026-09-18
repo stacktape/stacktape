@@ -150,6 +150,68 @@ export interface SlackIntegration {
 }
 
 
+export interface SlackAppIntegrationProps {
+  /**
+   * #### The Slack channel to notify, in the workspace connected to your organization through the Stacktape Slack app.
+   *
+   * ---
+   *
+   * Write the channel name (`#alerts` or `alerts`) or its ID. The name is resolved to the channel ID when you deploy,
+   * so renaming the channel in Slack later does not break delivery. Public channels are joined by the app
+   * automatically; invite the app to a private channel first (`/invite @Stacktape`).
+   *
+   * Connect the workspace once on the **Channels** page of the Stacktape Console. Unlike `slack`, no bot token is
+   * stored in your configuration.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   apiHealth:
+   *     type: uptime-check
+   *     properties:
+   *       url: https://api.example.com/health
+   *       notificationChannels:
+   *         - type: slack-app
+   *           properties:
+   *             # stp-focus
+   *             channel: '#alerts'
+   *             # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { UptimeCheck, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const apiHealth = new UptimeCheck({
+   *     url: 'https://api.example.com/health',
+   *     notificationChannels: [
+   *       {
+   *         type: 'slack-app',
+   *         properties: {
+   *           // stp-focus
+   *           channel: '#alerts'
+   *           // stp-end-focus
+   *         }
+   *       }
+   *     ]
+   *   });
+   *   return { resources: { apiHealth } };
+   * });
+   * ```
+   */
+  channel: string;
+}
+
+
+export interface SlackAppIntegration {
+  type: 'slack-app';
+  properties: SlackAppIntegrationProps;
+}
+
+
 export interface MsTeamsIntegrationProps {
   /**
    * #### Incoming Webhook URL for the MS Teams channel. Store as `$Secret()` for security.

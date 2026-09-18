@@ -66,6 +66,13 @@ const reportToConsoleApi = async (event: AlarmNotificationEventRuleInput) => {
       if (channel.type === 'console-channel') {
         return { name: channel.properties.channelName, type: channel.type, properties: {} };
       }
+      if (channel.type === 'slack-app') {
+        return {
+          name: `#${channel.properties.channel.replace(/^#/u, '')}`,
+          type: 'slack_app',
+          properties: channel.properties
+        };
+      }
       return {
         name: channel.type === 'slack' ? 'Slack' : channel.type === 'email' ? 'Email' : channel.type,
         type: channel.type === 'ms-teams' ? 'ms_teams' : channel.type === 'email' ? 'e_mail' : channel.type,
