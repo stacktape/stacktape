@@ -41,6 +41,7 @@
     "migrate:console:dev": "pnpm console:dev:reservation check && pnpm dev:cli script:run --scriptName migrateDbDev --region eu-west-1 --stage dev --configPath ../console/api/stacktape.ts --projectName console-app --awsAccount stacktape-dev",
     "parameters:check:console:dev": "pnpm --filter @stacktape/console-api-app run parameters:check --stage dev",
     "parameters:check:console:devlocal": "pnpm --filter @stacktape/console-api-app run parameters:check --stage devlocal",
+    "parameters:setup:slack-app:console:dev": "pnpm --filter @stacktape/console-api-app run parameters:setup:slack-app --stage dev",
     "package:vscode-extension": "pnpm --filter vscode-stacktape run package",
     "prepare": "node scripts/workspace/configure-hooks.ts",
     "qualify:projects": "pnpm --filter @stacktape/cli run qualify:projects",
