@@ -138,6 +138,60 @@ describe('AWS ECS operations', () => {
     ]);
   });
 
+  test('waits for the rolling deployment to converge, not just to reach its task count', async () => {
+    // A rolling deployment reports runningCount === desiredCount while ECS is still validating the
+    // new tasks against load balancer and Cloud Map health. Treating that as success reported a
+    // healthy update for a rollout that was stuck IN_PROGRESS and that the circuit breaker could
+    // still roll back.
+    const serviceArn = 'arn:aws:ecs:eu-west-1:123456789999:service/application/api';
+    const rolloutStates = ['IN_PROGRESS', 'IN_PROGRESS', 'COMPLETED'];
+    let polls = 0;
+    const ecs = ecsWith({
+      ecsSend: (async (command: DescribeServicesCommand) => {
+        expect(command.input).toEqual({ services: [serviceArn], cluster: 'application' });
+        const rolloutState = rolloutStates[Math.min(polls, rolloutStates.length - 1)];
+        polls += 1;
+        return {
+          services: [
+            {
+              status: 'ACTIVE',
+              deployments: [{ id: 'ecs-svc/1', status: 'PRIMARY', desiredCount: 1, runningCount: 1, rolloutState }]
+            }
+          ]
+        };
+      }) as EcsSend
+    });
+
+    await ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn });
+
+    expect(polls).toBe(rolloutStates.length);
+  }, 30_000);
+
+  test('fails a rolling deployment the circuit breaker rolled back, and accepts a converged scale to zero', async () => {
+    const serviceArn = 'arn:aws:ecs:eu-west-1:123456789999:service/application/api';
+    const describing = (deployment: Record<string, unknown>) =>
+      ecsWith({
+        ecsSend: (async () => ({
+          services: [{ status: 'ACTIVE', deployments: [{ id: 'ecs-svc/1', status: 'PRIMARY', ...deployment }] }]
+        })) as EcsSend
+      });
+
+    const rolledBack = describing({
+      desiredCount: 1,
+      runningCount: 1,
+      rolloutState: 'FAILED',
+      rolloutStateReason: 'ECS deployment circuit breaker: task failed to start.'
+    });
+    await expect(rolledBack.waitForRollingUpdate({ ecsServiceArn: serviceArn })).rejects.toThrow(
+      `ECS service ${serviceArn} failed to update.`
+    );
+
+    // A service scaled to zero converges with no running task; the previous task-count condition
+    // could never be met and the waiter ran to its one-hour limit.
+    const scaledToZero = describing({ desiredCount: 0, runningCount: 0, rolloutState: 'COMPLETED' });
+    await scaledToZero.waitForRollingUpdate({ ecsServiceArn: serviceArn });
+  }, 30_000);
+
   test('maps an ECS Exec session to the session-manager plugin contract', async () => {
     let request: ExecuteCommandCommand | undefined;
     const ecs = ecsWith({

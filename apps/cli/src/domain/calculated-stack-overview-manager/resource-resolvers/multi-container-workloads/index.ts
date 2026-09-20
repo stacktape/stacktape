@@ -126,6 +126,30 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
       });
     }
   }
+  // An `http-api-gateway` event registers the task in a Cloud Map service whose health ECS reports
+  // itself. ECS registers the instance as UNHEALTHY and waits for the task health status whenever
+  // the task definition declares any container health check, but task health only aggregates
+  // essential containers. A health check that sits solely on a non-essential container therefore
+  // pins the instance at UNHEALTHY: the rolling deployment never completes and CloudFormation fails
+  // the service hours later with a bare "Exceeded attempts to wait".
+  const isRegisteredInCloudMap = definition.containers.some(({ events }) =>
+    (events || []).some(({ type }) => type === 'http-api-gateway')
+  );
+  if (isRegisteredInCloudMap) {
+    const healthCheckedContainers = definition.containers.filter(({ internalHealthCheck }) => internalHealthCheck);
+    const essentialHealthCheckedContainers = healthCheckedContainers.filter(({ essential }) => essential !== false);
+    if (healthCheckedContainers.length && !essentialHealthCheckedContainers.length) {
+      const names = healthCheckedContainers.map(({ name }) => `\`${name}\``).join(', ');
+      throw new CliError({
+        category: 'CONFIG_VALIDATION',
+        code: 'CONFIG_HEALTH_CHECK_ON_NON_ESSENTIAL_CONTAINER_ONLY',
+        message: `Workload \`${definition.name}\` is reachable through an HTTP API gateway, but only its non-essential container(s) ${names} define \`internalHealthCheck\`. Amazon ECS would never report the task as healthy to Cloud Map and the deployment would hang until it times out.`,
+        hints:
+          'Move `internalHealthCheck` to an essential container, mark a health-checked container `essential: true`, or remove `internalHealthCheck` from the non-essential container.'
+      });
+    }
+  }
+
   if (definition.scaling) {
     const { scalingPolicy } = definition.scaling;
     calculatedStackOverviewManager.addCfChildResource({

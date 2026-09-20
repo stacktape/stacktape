@@ -43,6 +43,8 @@ import {
   KafkaCluster,
   KafkaTopicIntegration,
   LambdaFunction,
+  MultiContainerWorkload,
+  MultiContainerWorkloadHttpApiIntegration,
   RdsEnginePostgres,
   RelationalDatabase,
   SqsIntegration,
@@ -1084,6 +1086,72 @@ describe('full synthesis contract', () => {
         .filter(Boolean);
       expect(unreportableTasks).toEqual([]);
     }
+  });
+
+  test('rejects a Cloud Map registered workload whose only health check is non-essential', async () => {
+    // Same unsatisfiable gate as the test above, but reachable from authored config rather than from
+    // a Stacktape-generated sidecar. Fail during synthesis instead of hanging the rollout for hours.
+    const buildConfig = ({ sidecarEssential }: { sidecarEssential?: boolean }) =>
+      defineConfig(() => {
+        const gateway = new HttpApiGateway({});
+        const app = new MultiContainerWorkload({
+          containers: [
+            {
+              name: 'app',
+              packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/web.ts' }),
+              events: [
+                new MultiContainerWorkloadHttpApiIntegration({
+                  httpApiGatewayName: gateway,
+                  containerPort: 3000,
+                  method: '*',
+                  path: '/{proxy+}'
+                })
+              ]
+            },
+            {
+              name: 'metrics',
+              packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/worker.ts' }),
+              essential: sidecarEssential,
+              internalHealthCheck: { healthCheckCommand: ['CMD-SHELL', 'exit 0'] }
+            }
+          ],
+          resources: { cpu: 0.5, memory: 1024 }
+        });
+        return { resources: { gateway, app } };
+      })({
+        projectName: 'characterization',
+        stage: 'baseline',
+        region: 'eu-west-1',
+        cliArgs: {} as any,
+        command: 'synth',
+        awsProfile: '',
+        user: { id: 'test-user', name: 'Test User', email: 'test@example.com' }
+      });
+
+    const error = await captureRejectedError(() =>
+      synthesizeFixture({
+        compiledConfig: buildConfig({ sidecarEssential: false }),
+        workingDir: join(import.meta.dir, 'fixtures', 'dense-application')
+      })
+    );
+    expect(error).toBeInstanceOf(CliError);
+    expect(error).toMatchObject({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_HEALTH_CHECK_ON_NON_ESSENTIAL_CONTAINER_ONLY'
+    });
+    expect((error as Error).message).toContain('`metrics`');
+
+    // The same health check on an essential container is exactly what ECS needs, so it stays legal.
+    const template = await synthesizeFixture({
+      compiledConfig: buildConfig({ sidecarEssential: true }),
+      workingDir: join(import.meta.dir, 'fixtures', 'dense-application')
+    });
+    const containers = (template.Resources as Record<string, any>)[cfLogicalNames.ecsTaskDefinition('app')].Properties
+      .ContainerDefinitions as any[];
+    expect(containers.find(({ Name }) => Name === 'metrics')).toMatchObject({
+      Essential: true,
+      HealthCheck: { Command: ['CMD-SHELL', 'exit 0'] }
+    });
   });
 
   test('synthesizes the complete AppSync Lambda-resolver and connectTo contract', async () => {

@@ -153,7 +153,17 @@ export class AwsEcs {
           };
         }
 
-        if (targetedDeployment.desiredCount && targetedDeployment.runningCount === targetedDeployment.desiredCount) {
+        // A rolling deployment reaches its task count well before ECS finishes validating it: the
+        // new tasks still have to pass load balancer and Cloud Map health reporting, and the circuit
+        // breaker can still roll the deployment back afterwards. Succeeding on the task count alone
+        // reported a healthy update for a rollout that was in fact stuck IN_PROGRESS, and it never
+        // succeeded at all for a service scaled to zero. `rolloutState` is the ECS-controller signal
+        // that the deployment converged; it is omitted only for services behind a Classic Load
+        // Balancer, which Stacktape never creates, so fall back to the task count if it is absent.
+        const converged = targetedDeployment.rolloutState
+          ? targetedDeployment.rolloutState === DeploymentRolloutState.COMPLETED
+          : targetedDeployment.runningCount === targetedDeployment.desiredCount;
+        if (converged) {
           return {
             state: WaiterState.SUCCESS,
             reason: `ECS service ${ecsServiceArn} updated successfully.`
