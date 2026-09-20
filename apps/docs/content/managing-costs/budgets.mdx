@@ -74,7 +74,7 @@ Set up at least one budget alert before going to production. AWS spend can incre
 - **Start with a Whole organization budget** at 80% and 100% of your expected AWS bill. This catches any stack that misbehaves.
 - **Add Per stack budgets** for production stacks where you need tighter accountability per team or project.
 - **Enable forecast alerts** on production budgets so you get advance warning before overruns.
-- **Connect alert channels** such as Slack, email, or a webhook so budget alerts reach the tools your team already monitors. In a channel of the connected Slack workspace, a budget card can be snoozed until the end of the month (`org:manage-budgets` permission); the budget's details in the Console show the snooze and can resume the alerts.
+- **Connect alert channels** such as Slack, email, or a webhook so budget alerts reach the tools your team already monitors. In a channel of the connected Slack workspace, a budget card shows the spending pace, answers **Show drivers** with the stacks behind the spend, and can be snoozed until the end of the month (`org:manage-budgets` permission); the budget's details in the Console show the snooze and can resume the alerts.
 
 Budgets complement other cost management tools in the Console:
 
