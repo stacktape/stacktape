@@ -325,7 +325,13 @@ const getOtelCollectorSidecarDefinition = (workload: StpContainerWorkload): Cont
     Cpu: OTEL_COLLECTOR_CPU_UNITS,
     Memory: OTEL_COLLECTOR_MEMORY_MB,
     Environment: [{ Name: 'AOT_CONFIG_CONTENT', Value: buildOtelCollectorConfigYaml({ region }) }],
-    HealthCheck: { Command: ['CMD', '/healthcheck'], Interval: 5, Timeout: 6, Retries: 5, StartPeriod: 1 },
+    // No ECS HealthCheck on purpose. A container health check anywhere in the task definition makes
+    // ECS register the task's Cloud Map instance as UNHEALTHY and then wait for the *task* health
+    // status before flipping it. Task health only aggregates essential containers, so a health check
+    // on this non-essential sidecar leaves the instance UNHEALTHY forever whenever the application
+    // container defines none — and a Cloud Map registered service (any `http-api-gateway` event)
+    // never reaches a completed deployment. The collector still serves its own health_check
+    // extension for manual probing; nothing in the deployment path depends on it.
     StopTimeout: 2,
     LogConfiguration: {
       LogDriver: 'awslogs',

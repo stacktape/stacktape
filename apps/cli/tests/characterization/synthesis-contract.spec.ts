@@ -999,8 +999,8 @@ describe('full synthesis contract', () => {
     expect(collector.Essential).toBe(false);
     expect(collector.Cpu).toBe(128);
     expect(collector.Memory).toBe(256);
-    // ECS requires the CMD/CMD-SHELL prefix; a bare command fails task-definition registration.
-    expect(collector.HealthCheck.Command).toEqual(['CMD', '/healthcheck']);
+    // The sidecar carries no ECS health check; see the Cloud Map registration test below.
+    expect(collector.HealthCheck).toBeUndefined();
     const collectorConfig = collector.Environment.find(({ Name }: any) => Name === 'AOT_CONFIG_CONTENT').Value;
     expect(collectorConfig).toContain('https://xray.eu-west-1.amazonaws.com/v1/traces');
     expect(collectorConfig).toContain('sigv4auth');
@@ -1043,6 +1043,47 @@ describe('full synthesis contract', () => {
     // Dev stacks skip tracing entirely.
     const devTemplate = await synthesizeDenseFixture({ includeTracing: true, command: 'dev' });
     expect(devTemplate.Resources[cfLogicalNames.customResourceTransactionSearch()]).toBeUndefined();
+  });
+
+  test('keeps Cloud Map registered tasks reachable by ECS health reporting', async () => {
+    // A container workload with an `http-api-gateway` event is registered into a Cloud Map service
+    // that ECS drives through custom health status. ECS registers the instance as UNHEALTHY and
+    // waits for the *task* health status whenever the task definition declares any container health
+    // check, but task health only aggregates essential containers. A health check that sits solely
+    // on a non-essential container therefore pins the instance at UNHEALTHY, and the rolling
+    // deployment never completes — CloudFormation eventually fails the ECS service with
+    // "Exceeded attempts to wait". Assert the invariant over every registered workload so no future
+    // sidecar can reintroduce it.
+    for (const template of [await synthesizeDenseFixture({ includeTracing: true }), await synthesizeDenseFixture()]) {
+      const resources = template.Resources as Record<string, any>;
+      const registeredServices = Object.values(resources).filter(
+        (resource: any) => resource.Type === 'AWS::ECS::Service' && resource.Properties.ServiceRegistries?.length
+      );
+      expect(registeredServices.length).toBeGreaterThan(0);
+
+      // The registries these services use are Cloud Map services with custom health config, which is
+      // what makes ECS responsible for reporting instance health at all.
+      for (const service of registeredServices) {
+        for (const registry of service.Properties.ServiceRegistries) {
+          const registryLogicalName = registry.RegistryArn['Fn::GetAtt'][0];
+          expect(resources[registryLogicalName].Type).toBe('AWS::ServiceDiscovery::Service');
+          expect(resources[registryLogicalName].Properties.HealthCheckCustomConfig).toBeDefined();
+        }
+      }
+
+      const unreportableTasks = registeredServices
+        .map((service: any) => {
+          const taskDefinitionLogicalName = service.Properties.TaskDefinition.Ref;
+          const containers = resources[taskDefinitionLogicalName].Properties.ContainerDefinitions as any[];
+          const healthChecked = containers.filter(({ HealthCheck }) => HealthCheck);
+          const essentialHealthChecked = healthChecked.filter(({ Essential }) => Essential !== false);
+          return healthChecked.length > 0 && essentialHealthChecked.length === 0
+            ? { taskDefinitionLogicalName, healthCheckedContainers: healthChecked.map(({ Name }) => Name) }
+            : undefined;
+        })
+        .filter(Boolean);
+      expect(unreportableTasks).toEqual([]);
+    }
   });
 
   test('synthesizes the complete AppSync Lambda-resolver and connectTo contract', async () => {
