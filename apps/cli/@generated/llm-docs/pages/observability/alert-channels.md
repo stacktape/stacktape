@@ -22,6 +22,8 @@ Connect your Slack workspace once with the **Connect Slack** button on the **Cha
 
 The app asks only for what it uses: posting and editing messages, uploading evidence images, listing channels, and reading member names and emails to match Slack users to Console users. It never reads message history. Public channels are joined automatically; invite the app to a private channel first (`/invite @Stacktape`).
 
+Incident cards have buttons. **Acknowledge** works for anyone in the workspace and shows the Slack name of the person who clicked. **Mute 1 hour**, **Mute 24 hours** and **Resolve** run as your Console user, so they need the same `incidents:manage` permission and project access as in the Console. The first time you click one, Stacktape matches your Slack email to your Console account; if they differ, you get a private link that connects the two in one click (valid for 15 minutes), and after that every click is attributed to you. Resolve asks for confirmation inside the card before it does anything.
+
 In your configuration, reference a channel of the connected workspace with the `slack-app` type and a channel name or ID. The name is resolved to the channel ID when you deploy, so renaming the channel later does not break delivery:
 
 ```yaml
