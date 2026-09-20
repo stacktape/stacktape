@@ -26,6 +26,8 @@ Deployments are one card per deployment as well: it appears when the deployment 
 
 New security findings arrive as one digest card per security report, listing the critical and high findings with links to their Console pages; each open finding has an **Ignore** button, which needs the `security:manage` permission and marks the finding ignored with the reason "Ignored from Slack" (reopen it in the Console at any time). Budget alerts that target a Slack-app channel arrive as one card per budget and month, updated as higher thresholds are crossed, with the amounts, the forecast and links to Budgets and Costs.
 
+When an incident is caused by a CloudWatch alarm, the card's thread also gets a graph of the alarm's metric over the last three hours with the threshold drawn, so you can judge the situation without opening AWS.
+
 Incident cards have buttons. **Acknowledge** works for anyone in the workspace and shows the Slack name of the person who clicked. **Mute 1 hour**, **Mute 24 hours** and **Resolve** run as your Console user, so they need the same `incidents:manage` permission and project access as in the Console. The first time you click one, Stacktape matches your Slack email to your Console account; if they differ, you get a private link that connects the two in one click (valid for 15 minutes), and after that every click is attributed to you. Resolve asks for confirmation inside the card before it does anything.
 
 In your configuration, reference a channel of the connected workspace with the `slack-app` type and a channel name or ID. The name is resolved to the channel ID when you deploy, so renaming the channel later does not break delivery:
