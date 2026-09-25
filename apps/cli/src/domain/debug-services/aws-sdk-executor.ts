@@ -1,12 +1,12 @@
 /**
- * AWS SDK Executor
- * Executes AWS SDK v3 commands directly.
- * LLMs know AWS SDK v3 well - this provides direct access.
+ * Sends one AWS SDK v3 operation by name: `aws:call` and the dev agent's `/aws/sdk` endpoint both come through here.
+ * Callers may sign with the user's own AWS credentials, so this is where the reviewed read-only allowlist is enforced:
+ * an operation outside it is refused before a client is even created.
  */
 
 import type { AwsCredentialIdentity } from '@aws-sdk/types';
 import type { AwsReadOnlyService } from './aws-read-only-operations';
-import { AWS_READ_ONLY_OPERATIONS, resolveAwsServiceName } from './aws-read-only-operations';
+import { AWS_READ_ONLY_OPERATIONS, isReadOnlyAwsCommand, resolveAwsServiceName } from './aws-read-only-operations';
 import * as lambda from '@aws-sdk/client-lambda';
 import * as dynamodb from '@aws-sdk/client-dynamodb';
 import * as s3 from '@aws-sdk/client-s3';
@@ -106,7 +106,7 @@ const SERVICE_MAP: Record<AwsReadOnlyService, ClientConfig> = {
 };
 
 /**
- * Execute an AWS SDK command
+ * Execute an AWS SDK command, if it is a reviewed read-only operation for the service.
  *
  * @param service - Service name (e.g., "lambda", "s3", "dynamodb")
  * @param command - Command name without "Command" suffix (e.g., "ListFunctions", "GetObject")
@@ -126,6 +126,14 @@ export const executeAwsSdkCommand = async (
         ok: false,
         error: `Unknown service: ${service}`,
         hint: `Supported services: ${Object.keys(SERVICE_MAP).join(', ')}`
+      };
+    }
+
+    if (!isReadOnlyAwsCommand(service, command)) {
+      return {
+        ok: false,
+        error: `Command \`${command}\` is not an accepted read-only operation for service \`${service}\`.`,
+        hint: `Accepted for ${canonicalService}: ${AWS_READ_ONLY_OPERATIONS[canonicalService].join(', ')}`
       };
     }
 
@@ -175,13 +183,45 @@ export const executeAwsSdkCommand = async (
     // Clean up response (remove $metadata for cleaner output)
     if (result && typeof result === 'object' && '$metadata' in result) {
       const { $metadata: _, ...data } = result as Record<string, unknown>;
-      return { ok: true, data };
+      return { ok: true, data: redactEnvironmentValues(canonicalService, data) };
     }
 
-    return { ok: true, data: result };
+    return { ok: true, data: redactEnvironmentValues(canonicalService, result) };
   } catch (err: unknown) {
     return handleAwsError(err);
   }
+};
+
+const REDACTED_VALUE = '[redacted]';
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype;
+
+/**
+ * Environment variable values where AWS returns them as structured data: Lambda function configurations
+ * (`GetFunction`, `GetFunctionConfiguration`, `ListFunctions`, `ListVersionsByFunction`) and ECS container environments
+ * (`DescribeTaskDefinition`, and the task overrides in `DescribeTasks`). Applications keep secrets there, so every
+ * caller gets the variable names and the rest of the metadata, never the values. Other content reads are not touched.
+ */
+const redactEnvironmentValues = (service: AwsReadOnlyService, response: unknown): unknown => {
+  if (service !== 'lambda' && service !== 'ecs') return response;
+  const visit = (node: unknown): unknown => {
+    if (Array.isArray(node)) return node.map(visit);
+    if (!isPlainObject(node)) return node;
+    return Object.fromEntries(
+      Object.entries(node).map(([key, value]) => {
+        if (service === 'lambda' && key === 'Environment' && isPlainObject(value) && isPlainObject(value.Variables)) {
+          const names = Object.keys(value.Variables);
+          return [key, { ...value, Variables: Object.fromEntries(names.map((name) => [name, REDACTED_VALUE])) }];
+        }
+        if (service === 'ecs' && key === 'environment' && Array.isArray(value)) {
+          return [key, value.map((entry) => (isPlainObject(entry) ? { ...entry, value: REDACTED_VALUE } : entry))];
+        }
+        return [key, visit(value)];
+      })
+    );
+  };
+  return visit(response);
 };
 
 const TIMESTAMP_KEY_PATTERN = /(Time|Date|Timestamp)$/i;

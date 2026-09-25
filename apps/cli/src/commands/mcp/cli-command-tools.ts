@@ -7,6 +7,11 @@ import {
   getRequiredArgs,
   validateCommandArgs
 } from '../../config/cli/utils';
+import {
+  AWS_READ_ONLY_OPERATIONS,
+  getReadOnlyAwsOperations,
+  isReadOnlyAwsCommand
+} from '../../domain/debug-services/aws-read-only-operations';
 import { isDefinitelyReadOnlySql } from '../_utils/read-only-diagnostics';
 
 export type CliCommandSafety = 'readOnly' | 'diagnostic' | 'local' | 'mutating' | 'destructive' | 'interactive';
@@ -151,7 +156,8 @@ const policyOverrides: Partial<Record<StacktapeCommand, Partial<CliCommandPolicy
   'query:redis': { category: 'diagnostics', safety: 'diagnostic' },
   'query:opensearch': { category: 'diagnostics', safety: 'diagnostic' },
   'container:exec': { category: 'diagnostics', safety: 'mutating' },
-  'aws:call': { category: 'diagnostics', safety: 'mutating' },
+  // The shared AWS SDK executor sends only reviewed read-only operations, whoever calls it.
+  'aws:call': { category: 'diagnostics', safety: 'diagnostic' },
   'bastion:session': { category: 'diagnostics', safety: 'interactive' },
   'bastion:tunnel': { category: 'diagnostics', safety: 'interactive' },
   'container:session': { category: 'diagnostics', safety: 'interactive' },
@@ -373,6 +379,24 @@ const validateReadOnlyDiagnosticArgs = ({
     return undefined;
   }
 
+  // The executor refuses these anyway; refusing here keeps the CLI from starting and names what is accepted.
+  if (command === 'aws:call' && typeof args.service === 'string' && typeof args.command === 'string') {
+    if (isReadOnlyAwsCommand(args.service, args.command)) return undefined;
+    const acceptedOperations = getReadOnlyAwsOperations(args.service);
+    return {
+      ok: false,
+      code: 'VALIDATION_ERROR',
+      message: `\`aws:call\` sends only reviewed read-only operations, and \`${args.service}\` \`${args.command}\` is not one of them.`,
+      data: acceptedOperations.length
+        ? { acceptedOperations }
+        : { supportedServices: Object.keys(AWS_READ_ONLY_OPERATIONS) },
+      nextActions: [
+        'Choose an accepted operation; stacktape_cli action=describe command=aws:call lists them for every service.',
+        'Writes and the Secrets Manager and SSM value reads are not available through aws:call.'
+      ]
+    };
+  }
+
   const supportedOperations = READ_ONLY_DIAGNOSTIC_OPERATIONS[command];
   if (!supportedOperations || args.operation === undefined) return undefined;
   if (typeof args.operation === 'string' && supportedOperations.has(args.operation.toLowerCase())) return undefined;
@@ -517,7 +541,9 @@ export const describeCliCommand = (command: string) => {
     unsupportedReason: policy.unsupportedReason,
     requiredArgs: getMcpRequiredArgs(command),
     allowedArgs: getAllowedArgs(command),
-    args: getCommandInfo(command).args
+    args: getCommandInfo(command).args,
+    // The SDK operation names aws:call accepts per service; inputs are the SDK command's own input shape as JSON.
+    ...(command === 'aws:call' ? { acceptedOperations: AWS_READ_ONLY_OPERATIONS } : {})
   };
 };
 

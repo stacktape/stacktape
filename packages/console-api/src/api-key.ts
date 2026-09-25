@@ -388,8 +388,9 @@ export type IncidentActionResponse = {
 export type IncidentStatusResponse = ListIncidentsResponse[number];
 
 /**
- * The agent handoff bundle: a self-contained markdown document with everything a coding agent (or
- * a person) needs to diagnose the incident, fix it, verify the fix, and resolve it.
+ * The incident handoff: a self-contained markdown document with what a coding agent (or a person)
+ * needs to diagnose the incident and watch its recovery read-only. It asks for a diagnosis, not a
+ * deploy or a resolve.
  */
 export type IncidentHandoffResponse = {
   markdown: string;

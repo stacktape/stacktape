@@ -2,9 +2,10 @@ import { tuiManager } from '@application-services/tui-manager';
 import { initializeControlPlaneOperation } from '../_utils/initialization';
 
 /**
- * Prints the incident's agent handoff bundle: a self-contained markdown document with the
- * incident's state, signals, evidence, release context, timeline, and the fix/verify/resolve
- * protocol. The same document the Console's "Copy details for agent" button produces.
+ * Prints the incident's handoff: a self-contained markdown document with the incident's state,
+ * signals, evidence, release context, timeline, related history and AI assessment, and guidance
+ * for diagnosing it and watching its recovery read-only. The same document the Console's "Copy
+ * details for agent" button produces.
  */
 export const commandIncidentsShow = async () => {
   const { apiClient, args } = await initializeControlPlaneOperation();

@@ -19,10 +19,10 @@ describe('aws:call read-only allowlist', () => {
     expect(isReadOnlyAwsCommand('sfn', 'DescribeExecution')).toBe(true);
     expect(isReadOnlyAwsCommand('sfn', 'GetExecutionHistory')).toBe(true);
 
-    // Logs Insights queries are reads: starting/stopping a query mutates only the query job. The
-    // debug-agent IAM role has always granted them on the stack's log groups.
+    // Logs Insights `StartQuery` is accepted as an explicit diagnostic job, which AWS can charge for. `StopQuery` is not
+    // a read: it stops a query job, which need not be the caller's.
     expect(isReadOnlyAwsCommand('logs', 'StartQuery')).toBe(true);
-    expect(isReadOnlyAwsCommand('logs', 'StopQuery')).toBe(true);
+    expect(isReadOnlyAwsCommand('logs', 'StopQuery')).toBe(false);
   });
 
   test('rejects the mutating operations the old prefix rule let through', () => {
@@ -53,6 +53,28 @@ describe('aws:call read-only allowlist', () => {
       ['xray', 'GetSamplingTargets']
     ] as const) {
       expect(isReadOnlyAwsCommand(service, command)).toBe(false);
+    }
+  });
+
+  test('does not accept reads that return plaintext secret or parameter values, only their metadata', () => {
+    for (const [service, command] of [
+      ['secretsmanager', 'GetSecretValue'],
+      ['secretsmanager', 'BatchGetSecretValue'],
+      ['ssm', 'GetParameter'],
+      ['ssm', 'GetParameters'],
+      ['ssm', 'GetParametersByPath'],
+      ['ssm', 'GetParameterHistory']
+    ] as const) {
+      expect(isReadOnlyAwsCommand(service, command)).toBe(false);
+    }
+
+    for (const [service, command] of [
+      ['secretsmanager', 'DescribeSecret'],
+      ['secretsmanager', 'ListSecrets'],
+      ['secretsmanager', 'ListSecretVersionIds'],
+      ['ssm', 'DescribeParameters']
+    ] as const) {
+      expect(isReadOnlyAwsCommand(service, command)).toBe(true);
     }
   });
 

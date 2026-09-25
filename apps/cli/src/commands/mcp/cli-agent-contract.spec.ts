@@ -151,7 +151,8 @@ describe('MCP CLI agent contract', () => {
     expect(serverSource).toContain('Stacktape MCP reuses the local Stacktape CLI authentication state');
     expect(serverSource).toContain('Never pass apiKey/STACKTAPE_API_KEY/STP_API_KEY as MCP arguments');
     expect(serverSource).toContain('Do not repeat API-key-like strings');
-    expect(serverSource).toContain('Tool discovery/selection alone is not enough');
+    expect(serverSource).toContain('agent-supplied confirm=true is not sufficient');
+    expect(serverSource).toContain('Incidents: start with stacktape_incident');
     expect(serverSource).toContain('tools are discoverable immediately');
     expect(outputSource).toContain('Full info:stack output was compacted for MCP');
   });

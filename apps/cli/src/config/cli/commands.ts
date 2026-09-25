@@ -618,7 +618,7 @@ Examples:
   'aws:call': {
     description: `Execute read-only AWS SDK commands against deployed resources.
 
-Provides direct access to AWS SDK v3 for inspecting deployed resources. Each supported service has an explicit list of operations reviewed as read-only for that service, and everything outside it is rejected — including operations that only look like reads, such as Step Functions \`GetActivityTask\` (it claims a task and starts its timeout) and SQS \`ReceiveMessage\` (it hides messages from the real consumer). A rejection names the operations the service does accept. Coverage is deliberately partial: a genuinely read-only operation that is missing has not been reviewed yet.
+Provides direct access to AWS SDK v3 for inspecting deployed resources. Each supported service has an explicit list of operations reviewed as read-only for that service, and everything outside it is rejected — including operations that only look like reads, such as Step Functions \`GetActivityTask\` (it claims a task and starts its timeout) and SQS \`ReceiveMessage\` (it hides messages from the real consumer). The Secrets Manager and SSM value reads (\`GetSecretValue\`, \`GetParameter*\`) are rejected too; their metadata operations are accepted. Lambda and ECS environment variable values come back redacted, while other reads, such as log events and S3 objects, return application data as it is. Logs Insights \`StartQuery\` starts a query that AWS charges for. A rejection names the operations the service does accept. Coverage is deliberately partial: a genuinely read-only operation that is missing has not been reviewed yet.
 
 This name check is the only guard: the call uses the deployed stack's debug role when one is available and falls back to your own AWS credentials when it is not, so an accepted operation runs with whatever those credentials allow.
 
@@ -974,9 +974,9 @@ Shows status, severity, title, stack, and each incident's signals. Filter by sta
     requiredArgs: [] as const
   },
   'incidents:show': {
-    description: `Prints an incident's agent handoff bundle: a self-contained markdown document with the incident's state, signals, evidence, release context, timeline, and the fix/verify/resolve protocol.
+    description: `Prints an incident's handoff: a self-contained markdown document with the incident's state, signals, evidence, release context, timeline, related earlier incidents and AI assessment, and guidance for diagnosing it and watching its recovery read-only.
 
-Pipe it to a coding agent (or read it yourself) to fix the incident.`,
+Pipe it to a coding agent (or read it yourself) to find the likely cause and a recommended next action. The handoff asks for a diagnosis; it never instructs anyone to deploy or resolve.`,
     args: {
       logLevel: logLevel.optional(),
       agent: agent.optional(),

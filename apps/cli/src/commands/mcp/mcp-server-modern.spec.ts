@@ -98,6 +98,7 @@ describe('modern-only Stacktape MCP server', () => {
 
     const listed = await client.listTools();
     expect(listed.tools.map((tool) => tool.name)).toEqual([
+      'stacktape_incident',
       'stacktape_docs',
       'stacktape_project',
       'stacktape_cli',
@@ -177,6 +178,44 @@ describe('modern-only Stacktape MCP server', () => {
     });
     expect(confirmations).toBe(0);
     expect(executions).toBe(1);
+  });
+
+  test('runs diagnostic AWS reads directly, rejects unreviewed operations, and keeps mutations gated', async () => {
+    const executed: string[] = [];
+    const client = await createTestClient({
+      runCli: ({ command, cwd }) => {
+        executed.push(command);
+        return successfulRun(cwd || process.cwd());
+      }
+    });
+    const awsCall = (operation: { service: string; command: string }) =>
+      client.callTool({
+        name: 'stacktape_cli',
+        arguments: {
+          action: 'run',
+          command: 'aws:call',
+          args: { stage: 'production', region: 'eu-west-1', ...operation }
+        }
+      });
+
+    expect(readEnvelope(await awsCall({ service: 'logs', command: 'FilterLogEvents' }))).toMatchObject({
+      ok: true,
+      code: 'OK'
+    });
+    expect(readEnvelope(await awsCall({ service: 'secretsmanager', command: 'GetSecretValue' }))).toMatchObject({
+      ok: false,
+      code: 'VALIDATION_ERROR',
+      data: { acceptedOperations: expect.arrayContaining(['DescribeSecret', 'ListSecrets']) }
+    });
+    expect(
+      readEnvelope(
+        await client.callTool({
+          name: 'stacktape_cli',
+          arguments: { action: 'run', command: 'deploy', args: { stage: 'production', region: 'eu-west-1' } }
+        })
+      )
+    ).toMatchObject({ ok: false, code: 'CONFIRMATION_REQUIRED' });
+    expect(executed).toEqual(['aws:call']);
   });
 
   test('passes the explicit top-level project cwd to the CLI executor', async () => {
@@ -264,6 +303,161 @@ describe('modern-only Stacktape MCP server', () => {
       ok: false,
       code: 'USER_CONFIRMATION_REQUIRED'
     });
+    expect(executions).toBe(1);
+  });
+});
+
+// The CLI's final agent record carries a command's own return value under `data.result`.
+const cliResult = (result: unknown, cwd: string): RunStacktapeResult => ({
+  ...successfulRun(cwd),
+  message: 'incidents:show completed',
+  data: { result }
+});
+
+describe('stacktape_incident', () => {
+  test('returns one incident handoff from the CLI, through the same command a person would run', async () => {
+    const calls: Array<{ command: string; args?: Record<string, unknown> }> = [];
+    const handoff = '# Incident: Uptime check "home" is down\n\n## For the investigating agent\nDiagnose first.';
+    const client = await createTestClient({
+      runCli: ({ command, args, cwd }) => {
+        calls.push({ command, args });
+        return cliResult({ markdown: handoff }, cwd || process.cwd());
+      }
+    });
+
+    const result = readEnvelope(
+      await client.callTool({ name: 'stacktape_incident', arguments: { action: 'show', incidentId: 'inc_123' } })
+    );
+
+    expect(calls).toEqual([{ command: 'incidents:show', args: { incidentId: 'inc_123' } }]);
+    expect(result).toMatchObject({ ok: true, data: { incidentId: 'inc_123', format: 'markdown', content: handoff } });
+  });
+
+  test('lists incidents with the filters mapped to the CLI arguments', async () => {
+    const calls: Array<{ command: string; args?: Record<string, unknown> }> = [];
+    const incident = {
+      id: 'inc_123',
+      status: 'RESOLVED',
+      severity: 'ERROR',
+      title: 'Uptime check "home" is down',
+      project: 'shop',
+      stage: 'production',
+      region: 'eu-west-1',
+      isProduction: true,
+      openedAt: '2026-09-20T10:00:00.000Z',
+      acknowledgedAt: null,
+      resolvedAt: '2026-09-20T10:20:00.000Z',
+      resolveReason: 'RECOVERED',
+      deploymentVersion: 'v000042',
+      gitCommit: 'abc123',
+      signals: [{ kind: 'UPTIME_DOWN', state: 'RECOVERED', title: 'Uptime check "home" is down' }]
+    };
+    const client = await createTestClient({
+      runCli: ({ command, args, cwd }) => {
+        calls.push({ command, args });
+        return cliResult([incident], cwd || process.cwd());
+      }
+    });
+
+    const result = readEnvelope(
+      await client.callTool({
+        name: 'stacktape_incident',
+        arguments: { action: 'list', projectName: 'shop', stage: 'production', status: 'ALL', limit: 5 }
+      })
+    );
+
+    expect(calls).toEqual([
+      { command: 'incidents', args: { projectName: 'shop', stage: 'production', incidentStatus: 'ALL', limit: 5 } }
+    ]);
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        incidents: [
+          {
+            id: 'inc_123',
+            status: 'RESOLVED',
+            title: 'Uptime check "home" is down',
+            signals: { total: 1, active: 0, kinds: ['UPTIME_DOWN'] }
+          }
+        ]
+      }
+    });
+  });
+
+  test('keeps a full page of incidents with many long signals inside one bounded response', async () => {
+    const kinds = [
+      'ERROR_GROUP',
+      'ALARM_FIRING',
+      'UPTIME_DOWN',
+      'PROBER_SILENT',
+      'SYNTHETIC_FAILING',
+      'STACK_UNHEALTHY',
+      'CERT_EXPIRING'
+    ];
+    const signalTitle = (index: number) => `Error: ${'x'.repeat(180)} ${index}`;
+    const incidents = Array.from({ length: 100 }, (_, incidentIndex) => ({
+      id: `inc_${String(incidentIndex).padStart(22, '0')}`,
+      status: 'OPEN',
+      severity: 'ERROR',
+      title: `Error: TypeError: Cannot read properties of undefined (reading "items") in handler ${incidentIndex}`,
+      project: 'shop',
+      stage: 'production',
+      region: 'eu-west-1',
+      isProduction: true,
+      openedAt: '2026-09-24T10:00:00.000Z',
+      acknowledgedAt: null,
+      resolvedAt: null,
+      resolveReason: null,
+      deploymentVersion: 'v000042',
+      gitCommit: 'abc123',
+      signals: Array.from({ length: 12 }, (_, index) => ({
+        kind: kinds[index % kinds.length],
+        state: index % 3 ? 'ACTIVE' : 'RECOVERED',
+        title: signalTitle(index)
+      }))
+    }));
+    const client = await createTestClient({ runCli: ({ cwd }) => cliResult(incidents, cwd || process.cwd()) });
+
+    const result = await client.callTool({ name: 'stacktape_incident', arguments: { action: 'list', limit: 100 } });
+    const envelope = readEnvelope(result);
+    const listed = envelope.data?.incidents as Array<Record<string, unknown>>;
+
+    expect(envelope).toMatchObject({ ok: true, code: 'OK' });
+    expect((result.content as Array<{ text: string }>)[0].text.length).toBeLessThan(30_000);
+    expect(listed.length).toBeGreaterThan(0);
+    expect(envelope.data?.omitted ?? 0).toBe(100 - listed.length);
+    expect(listed[0]).toMatchObject({
+      id: incidents[0].id,
+      signals: { total: 12, active: 8, kinds: kinds.slice(0, 5) }
+    });
+    expect(JSON.stringify(listed)).not.toContain(signalTitle(0));
+  });
+
+  test('reports a failed lookup without context and does not run the CLI without an incident ID', async () => {
+    let executions = 0;
+    const client = await createTestClient({
+      runCli: ({ cwd }) => {
+        executions += 1;
+        return {
+          ...successfulRun(cwd || process.cwd()),
+          ok: false,
+          code: 'NOT_FOUND',
+          message: 'Incident not found.',
+          data: undefined
+        };
+      }
+    });
+
+    expect(
+      readEnvelope(await client.callTool({ name: 'stacktape_incident', arguments: { action: 'show' } }))
+    ).toMatchObject({ ok: false, code: 'VALIDATION_ERROR' });
+    expect(executions).toBe(0);
+
+    const failed = readEnvelope(
+      await client.callTool({ name: 'stacktape_incident', arguments: { action: 'show', incidentId: 'inc_other' } })
+    );
+    expect(failed).toMatchObject({ ok: false, code: 'NOT_FOUND', message: 'Incident not found.' });
+    expect(failed.data?.content).toBeUndefined();
     expect(executions).toBe(1);
   });
 });
