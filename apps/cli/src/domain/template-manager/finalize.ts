@@ -2,6 +2,7 @@ import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource'
 
 import type { StpResource } from '@domain-services/config-manager/resolved-types/resources';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
+import { stampLambdaVersionPublishers } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/functions/versioned-configuration';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { outputNames } from '@stacktape/naming/stack-output-names';
@@ -252,6 +253,8 @@ export const finalizeTemplate = async () => {
     itemToResolve: templateManager.getTemplate(),
     resolveRuntime: true
   });
+  // Last, so that each version publisher sees its function exactly as it will be deployed.
+  stampLambdaVersionPublishers(templateManager.template);
 
   validateInfrequentAccessSubscriptions({ candidateTemplate: templateManager.template });
   validateImmutableLogGroupClasses({

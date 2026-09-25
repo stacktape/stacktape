@@ -224,8 +224,8 @@ export const getLambdaVersionPublisherCustomResource = ({
   const resource = cfnResource('AWS::CloudFormation::CustomResource', {
     ServiceToken: getAtt(configManager.stacktapeServiceLambdaProps.cfLogicalName, 'Arn')
   });
-  // Note: codeDigest property is added via templateManager.addFinalTemplateOverrideFn in index.ts
-  // This ensures the custom resource is re-invoked when (and only when) lambda code changes.
+  // `codeDigest` (index.ts) and `versionedConfiguration` (`stampLambdaVersionPublishers`, last in finalization) are
+  // added later, so the custom resource runs again whenever the function's code or versioned configuration changes.
   const additionalProperties: Pick<StpServiceCustomResourceProperties, 'publishLambdaVersion'> = {
     publishLambdaVersion: {
       functionName: ref(lambdaProps.cfLogicalName)

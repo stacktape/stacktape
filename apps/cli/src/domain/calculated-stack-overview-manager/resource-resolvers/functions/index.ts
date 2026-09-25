@@ -29,7 +29,7 @@ import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { tagNames } from '@stacktape/naming/tag-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
 import { isCompositeWebResourceType } from '@utils/composite-web-resources';
-import { getAugmentedEnvironment, getLanguageFromExtension } from '@utils/environment';
+import { getAugmentedEnvironment, getLanguageFromExtension, shipsSourceMapsInPackage } from '@utils/environment';
 import { CliError } from '@utils/errors';
 import { getLambdaIssueFilterPattern, isIssueDetectionSupportedLanguage } from '../_utils/issue-detection';
 import { resolveAlarmsForResource } from '../_utils/alarms';
@@ -271,7 +271,8 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     workloadType: 'function',
     packagingType,
     entryfilePath,
-    nodeVersion
+    nodeVersion,
+    sourceMapsInPackage: shipsSourceMapsInPackage(languageSpecificConfig)
   }).forEach(({ name: varName, value: varVal }) => {
     transformedEnvVars[varName] = varVal;
   });
@@ -435,8 +436,8 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
       cfLogicalName: cfLogicalNames.lambdaStpAlias(name),
       resource: getLambdaAliasResource({ lambdaProps, provisionedConcurrency })
     });
-    // Add codeDigest to version publisher custom resource so it's re-invoked when (and only when) code changes.
-    // This replaces the old forceUpdate: Date.now() which caused false positives in diff.
+    // codeDigest re-invokes the version publisher when code changes (it replaced a forceUpdate: Date.now() that showed
+    // in every diff). Configuration changes reach it through `stampLambdaVersionPublishers`.
     templateManager.addFinalTemplateOverrideFn(async (template) => {
       const { digest } = deploymentArtifactManager.getLambdaS3UploadInfo({ artifactName, packaging });
       const versionPublisherProperties = template.Resources[versionPublisherLogicalName].Properties as {
@@ -692,7 +693,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
       cfLogicalName: cfLogicalNames.lambdaStpAlias(name),
       resource: getLambdaAliasResource({ lambdaProps })
     });
-    // Add codeDigest to version publisher custom resource so it's re-invoked when (and only when) code changes.
+    // codeDigest re-invokes the version publisher when code changes (configuration: `stampLambdaVersionPublishers`).
     templateManager.addFinalTemplateOverrideFn(async (template) => {
       const { digest } = deploymentArtifactManager.getLambdaS3UploadInfo({ artifactName, packaging });
       const versionPublisherProperties = template.Resources[deployVersionPublisherLogicalName].Properties as {

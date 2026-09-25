@@ -1,36 +1,36 @@
 import type { CloudFormationCustomResourceEvent, CloudFormationCustomResourceResponse } from 'aws-lambda';
-import { StackStatus } from '@aws-sdk/client-cloudformation';
+import type { StackStatus } from '@aws-sdk/client-cloudformation';
 import { consoleLinks } from '@stacktape/naming/console-links';
 
 export const STACK_IS_READY_FOR_MODIFYING_OPERATION_STATUS = [
-  StackStatus.CREATE_COMPLETE,
-  StackStatus.DELETE_COMPLETE,
-  StackStatus.IMPORT_ROLLBACK_COMPLETE,
-  StackStatus.IMPORT_COMPLETE,
-  StackStatus.ROLLBACK_COMPLETE,
-  StackStatus.UPDATE_COMPLETE,
-  StackStatus.UPDATE_FAILED,
-  StackStatus.UPDATE_ROLLBACK_COMPLETE
-];
+  'CREATE_COMPLETE',
+  'DELETE_COMPLETE',
+  'IMPORT_ROLLBACK_COMPLETE',
+  'IMPORT_COMPLETE',
+  'ROLLBACK_COMPLETE',
+  'UPDATE_COMPLETE',
+  'UPDATE_FAILED',
+  'UPDATE_ROLLBACK_COMPLETE'
+] satisfies StackStatus[];
 
 export const STACK_IS_READY_FOR_ROLLBACK_OPERATION_STATUS = [
-  StackStatus.UPDATE_FAILED,
-  StackStatus.CREATE_FAILED,
-  StackStatus.UPDATE_ROLLBACK_FAILED
-];
+  'UPDATE_FAILED',
+  'CREATE_FAILED',
+  'UPDATE_ROLLBACK_FAILED'
+] satisfies StackStatus[];
 
 export const STACK_OPERATION_IN_PROGRESS_STATUS = [
-  StackStatus.CREATE_IN_PROGRESS,
-  StackStatus.DELETE_IN_PROGRESS,
-  StackStatus.IMPORT_IN_PROGRESS,
-  StackStatus.IMPORT_ROLLBACK_IN_PROGRESS,
-  StackStatus.REVIEW_IN_PROGRESS,
-  StackStatus.ROLLBACK_IN_PROGRESS,
-  StackStatus.UPDATE_COMPLETE_CLEANUP_IN_PROGRESS,
-  StackStatus.UPDATE_IN_PROGRESS,
-  StackStatus.UPDATE_ROLLBACK_IN_PROGRESS,
-  StackStatus.UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS
-];
+  'CREATE_IN_PROGRESS',
+  'DELETE_IN_PROGRESS',
+  'IMPORT_IN_PROGRESS',
+  'IMPORT_ROLLBACK_IN_PROGRESS',
+  'REVIEW_IN_PROGRESS',
+  'ROLLBACK_IN_PROGRESS',
+  'UPDATE_COMPLETE_CLEANUP_IN_PROGRESS',
+  'UPDATE_IN_PROGRESS',
+  'UPDATE_ROLLBACK_IN_PROGRESS',
+  'UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS'
+] satisfies StackStatus[];
 
 export const respondToCloudformation = async ({
   event,
@@ -64,7 +64,8 @@ export const respondToCloudformation = async ({
   const stringifiedBody = JSON.stringify(body);
 
   return globalThis.fetch(event.ResponseURL, {
-    headers: { 'content-length': `${stringifiedBody.length}` },
+    // Bytes, not characters: a reason with a non-ASCII path is longer in UTF-8, and a short length never completes.
+    headers: { 'content-length': `${Buffer.byteLength(stringifiedBody)}` },
     method: 'PUT',
     body: stringifiedBody
   });

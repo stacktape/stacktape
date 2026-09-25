@@ -3,6 +3,12 @@ import { CF_TEMPLATE_FILE_NAME_WITHOUT_EXT, STP_TEMPLATE_FILE_NAME_WITHOUT_EXT }
 export const getEcrImageTag = (taskName: string, version: string, digest: string) =>
   `${taskName}--${digest}--${version}`;
 
+/**
+ * The tag a container job's BuildKit registry cache is exported under. It holds build cache, not a deployable image
+ * version, so retention keeps it for as long as the job exists instead of counting it among the job's versions.
+ */
+export const getEcrCacheImageTag = (jobName: string) => `${jobName}-cache`;
+
 export const getEcrImageUrl = (repositoryUrl: string, imageTag: string) => `${repositoryUrl}:${imageTag}`;
 
 export const getCloudformationTemplateUrl = (bucketName: string, region: string, version: string) => {

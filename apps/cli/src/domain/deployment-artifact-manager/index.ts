@@ -25,6 +25,7 @@ import {
   getBaseS3EndpointForRegion,
   getCfTemplateS3Key,
   getCloudformationTemplateUrl,
+  getEcrCacheImageTag,
   getEcrImageTag,
   getEcrImageUrl,
   getEcrRepositoryUrl,
@@ -40,6 +41,7 @@ import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorator
 import { ExpectedError } from '@utils/errors';
 import { getHotSwapDeployVersionString } from '@utils/versioning';
 import { getDeploymentBucketObjectType, parseBucketObjectS3Key, parseImageTag } from './utils';
+import { selectObsoleteArtifacts, type StoredArtifact } from './retention';
 import type { DirectoryUpload } from '@stacktape/config/buckets';
 import type { LambdaPackaging } from '@stacktape/config/deployment-artifacts';
 
@@ -59,7 +61,7 @@ export class DeploymentArtifactManager {
   deploymentBucketName: string;
   repositoryName: string;
   repositoryUrl: string;
-  previouslyUploadedLambdaS3KeysUsedInDeployment: string[] = [];
+  previouslyUploadedS3KeysUsedInDeployment: string[] = [];
   previouslyUploadedImageTagsUsedInDeployment: string[] = [];
   uploadedLayerS3Keys: Map<number, string> = new Map(); // layerNumber -> s3Key
 
@@ -71,12 +73,17 @@ export class DeploymentArtifactManager {
           packaging: lambda.packaging,
           hotSwapDeploy
         });
-        // Skip if no artifact path (lambda wasn't packaged, e.g., in dev mode for some resources)
-        if (!s3UploadInfo.artifactPath) {
+        /*
+         * A reused artifact uploads nothing, but the template points at its stored object, so retention must keep it.
+         * A user function reused this way has no `artifactPath`, so this is checked first: a function reverted to an
+         * earlier build reuses an object older than the kept versions under its name.
+         */
+        if (s3UploadInfo.alreadyUploaded) {
+          if (s3UploadInfo.s3Key) this.previouslyUploadedS3KeysUsedInDeployment.push(s3UploadInfo.s3Key);
           return null;
         }
-        if (s3UploadInfo.alreadyUploaded) {
-          this.previouslyUploadedLambdaS3KeysUsedInDeployment.push(s3UploadInfo.s3Key);
+        // Skip if no artifact path (lambda wasn't packaged, e.g., in dev mode for some resources)
+        if (!s3UploadInfo.artifactPath) {
           return null;
         }
         return s3UploadInfo;
@@ -185,12 +192,26 @@ export class DeploymentArtifactManager {
       return null;
     }
     const { skipped, digest } = packagingOutput;
+    /*
+     * A skipped workload reuses the image its digest already has in ECR — but that image can be gone: a
+     * registry lifecycle policy, an untagged entry, a repository someone cleaned out. Reading `.tag`
+     * straight off the lookup turned that into an unexplained TypeError partway through a deploy. The
+     * Lambda equivalent below has always used optional chaining; this now says what happened instead.
+     */
     const tag = skipped
       ? this.previousImages
           .filter(({ name }) => name === jobName)
           .sort(({ version: v1 }, { version: v2 }) => v2.localeCompare(v1))
-          .find((img) => img.digest === digest && img.name === jobName).tag
+          .find((img) => img.digest === digest && img.name === jobName)?.tag
       : getEcrImageTag(jobName, hotSwapDeploy ? getHotSwapDeployVersionString() : stackManager.nextVersion, digest);
+
+    if (skipped && !tag) {
+      throw new ExpectedError(
+        'STACK',
+        `The container image for ${jobName} was reported unchanged, but no matching image is left in the deployment repository.`,
+        'Deploy again with --disableCache to rebuild and push it.'
+      );
+    }
 
     const imageTagWithUrl = this.getImageUrlForJob({ tag });
 
@@ -334,7 +355,7 @@ export class DeploymentArtifactManager {
             ({ version, s3Key, type }) =>
               version === stackManager.nextVersion &&
               type === 'user-lambda' &&
-              !this.previouslyUploadedLambdaS3KeysUsedInDeployment.includes(s3Key)
+              !this.previouslyUploadedS3KeysUsedInDeployment.includes(s3Key)
           )
           .map(({ s3Key }) => s3Key)
       )
@@ -346,41 +367,22 @@ export class DeploymentArtifactManager {
     });
   };
 
-  getObsoleteItems = <T extends { version: string; name: string; s3Key?: string; tag?: string }>(
-    previousItems: T[]
-  ): T[] => {
-    return previousItems
-      .map((previousItem) => {
-        const sortedVersions = previousItems
-          .filter((item) => item.version && item.name === previousItem.name)
-          .map((item) => item.version)
-          .sort();
-
-        const wasSameNameItemUploadedDuringCurrentDeployment = Boolean(
-          (previousItem.tag && this.successfullyUploadedImages.find((img) => img.name === previousItem.name)) ||
-          (previousItem.s3Key && this.successfullyCreatedObjects.find((obj) => obj.name === previousItem.name))
-        );
-        const isItemUsedInCurrentDeployment = Boolean(
-          (previousItem.tag &&
-            (this.previouslyUploadedImageTagsUsedInDeployment.includes(previousItem.tag) ||
-              this.successfullyUploadedImages.find(({ tag }) => tag === previousItem.tag))) ||
-          (previousItem.s3Key &&
-            (this.previouslyUploadedLambdaS3KeysUsedInDeployment.includes(previousItem.s3Key) ||
-              this.successfullyCreatedObjects.find(({ s3Key }) => s3Key === previousItem.s3Key)))
-        );
-
-        const versionsToKeep = sortedVersions.slice(
-          Math.max(
-            sortedVersions.length -
-              this.maxArtifactVersionsToKeep +
-              (wasSameNameItemUploadedDuringCurrentDeployment ? 1 : 0),
-            0
-          )
-        );
-        return versionsToKeep.includes(previousItem.version) || isItemUsedInCurrentDeployment ? null : previousItem;
-      })
-      .filter(Boolean);
-  };
+  getObsoleteItems = <T extends StoredArtifact>(previousItems: T[]): T[] =>
+    selectObsoleteArtifacts({
+      artifacts: previousItems,
+      usage: {
+        uploadedObjects: this.successfullyCreatedObjects,
+        uploadedImages: this.successfullyUploadedImages,
+        reusedS3Keys: this.previouslyUploadedS3KeysUsedInDeployment,
+        reusedImageTags: this.previouslyUploadedImageTagsUsedInDeployment,
+        versionsToKeepPerName: this.maxArtifactVersionsToKeep,
+        // Every job that builds an image can export a registry cache (`getCacheRef` in the packaging manager).
+        registryCacheTags: [
+          ...configManager.allContainersRequiringPackaging,
+          ...configManager.agentCoreRuntimesRequiringPackaging
+        ].map(({ jobName }) => getEcrCacheImageTag(jobName))
+      }
+    });
 
   deleteAllObsoleteArtifacts = async () => {
     const obsoleteImages = this.getObsoleteItems(this.previousImages);
@@ -775,9 +777,18 @@ export class DeploymentArtifactManager {
     const layersToUpload = layerArtifacts.filter((layer) => !existingS3Keys.has(layer.s3Key));
     const cachedLayers = layerArtifacts.filter((layer) => existingS3Keys.has(layer.s3Key));
 
-    // Mark cached layers as uploaded (they already exist in S3)
+    /*
+     * Mark cached layers as uploaded (they already exist in S3).
+     *
+     * Reusing a layer still means this deployment's template points at it, so retention has to be told.
+     * Only freshly uploaded layers land in `successfullyCreatedObjects`, and a layer key's version
+     * segment is its content hash, so the "keep the newest N" window orders them lexicographically by
+     * hash rather than by age. A project with more than that many historical variants of one layer could
+     * therefore have the layer it is deploying right now deleted in the same run.
+     */
     for (const layer of cachedLayers) {
       this.uploadedLayerS3Keys.set(layer.layerNumber, layer.s3Key);
+      this.previouslyUploadedS3KeysUsedInDeployment.push(layer.s3Key);
     }
 
     // If all layers are cached, skip upload entirely
@@ -797,7 +808,7 @@ export class DeploymentArtifactManager {
 
     try {
       // Zip only the layers that need uploading
-      await packagingManager.publishSharedLayer();
+      await packagingManager.publishSharedLayer(layersToUpload);
 
       // Upload each layer to S3 using the S3 key computed during packaging
       for (const layer of layersToUpload) {
@@ -923,32 +934,46 @@ export class DeploymentArtifactManager {
       );
     }
 
-    // Verify Lambda artifacts exist for this version
-    const lambdaArtifactsForVersion = this.previousObjects.filter(
-      (obj) => obj.version === targetVersion && obj.type === 'user-lambda'
+    /*
+     * Check what the target template asks for against what is actually there.
+     *
+     * This used to filter the live listing for the target version and then assert each of those entries
+     * was in that same listing — always true, so a rollback to a version whose artifacts had been
+     * cleaned up passed verification and then failed inside CloudFormation. Layers were not looked at
+     * at all, and they are the ones retention is most likely to have removed: a layer key's version
+     * segment is a content hash, so the "keep the newest N" window orders them by hash, not by age.
+     *
+     * Reading the template is what makes this a real check: it names every artifact the rollback will
+     * try to create, including ones this deployment never produced.
+     */
+    const template = await this.getTemplate({ version: targetVersion });
+    const availableS3Keys = new Set(this.previousObjects.map((obj) => obj.s3Key));
+    const availableImageUris = new Set(
+      this.previousImages.filter(({ tag }) => tag).map(({ tag }) => getEcrImageUrl(this.repositoryUrl, tag))
     );
-    for (const artifact of lambdaArtifactsForVersion) {
-      const exists = this.previousObjects.some((obj) => obj.s3Key === artifact.s3Key);
-      if (!exists) {
-        throw new ExpectedError(
-          'STACK',
-          `Lambda artifact ${artifact.s3Key} for version ${targetVersion} not found`,
-          'The artifact may have been cleaned up.'
-        );
+
+    const missingS3Keys = new Set<string>();
+    const missingImages = new Set<string>();
+    for (const resource of Object.values(template.Resources ?? {})) {
+      const properties = (resource as { Properties?: Record<string, unknown> }).Properties ?? {};
+      // Lambda code, layer content and anything else pointing into the deployment bucket.
+      for (const source of [properties.Code, properties.Content] as { S3Bucket?: string; S3Key?: string }[]) {
+        if (source?.S3Bucket === this.deploymentBucketName && source.S3Key && !availableS3Keys.has(source.S3Key)) {
+          missingS3Keys.add(source.S3Key);
+        }
+      }
+      const imageUri = (properties.Code as { ImageUri?: string } | undefined)?.ImageUri;
+      if (imageUri?.startsWith(this.repositoryUrl) && !availableImageUris.has(imageUri)) {
+        missingImages.add(imageUri);
       }
     }
 
-    // Verify ECR images exist for this version
-    const imagesForVersion = this.previousImages.filter((img) => img.version === targetVersion);
-    for (const image of imagesForVersion) {
-      const exists = this.previousImages.some((img) => img.tag === image.tag);
-      if (!exists) {
-        throw new ExpectedError(
-          'STACK',
-          `Container image with tag ${image.tag} for version ${targetVersion} not found in ECR`,
-          'The image may have been cleaned up.'
-        );
-      }
+    if (missingS3Keys.size > 0 || missingImages.size > 0) {
+      throw new ExpectedError(
+        'STACK',
+        `Version ${targetVersion} cannot be restored: ${[...missingS3Keys, ...missingImages].join(', ')} ${missingS3Keys.size + missingImages.size === 1 ? 'is' : 'are'} no longer in this stack's deployment bucket or image repository.`,
+        'Those artifacts were removed by retention. Raise `deploymentConfig.previousVersionsToKeep` to keep more, and roll back to a version that is still complete.'
+      );
     }
   };
 
