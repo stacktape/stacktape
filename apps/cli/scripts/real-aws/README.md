@@ -39,6 +39,30 @@ export STP_AWS_CANARY_OWNER="local-$(date -u +%s)"
 pnpm --filter @stacktape/cli run test:real-aws-canary
 ```
 
+## Alias publication canary
+
+This deploys `_test-stacks/alias-publication` (one Node.js function behind a CodeDeploy alias) through the source CLI
+(`pnpm dev:cli`, which reads `STACKTAPE_API_KEY` from `apps/cli/.env.local` in dev mode). It changes only the function's
+environment value and requires the alias to serve it from a newly published version. It then redeploys unchanged and
+requires no new version, deletes the stack, and verifies that the stack, its deployment bucket, functions and log groups
+are gone. Its account preflight takes the expected account from the environment and refuses any other account; it has no
+disposable-account confirmation, so run it only where the owner has authorized a unique disposable stack. The CLI
+deploys through the single active Stacktape connection to that account, found with `info:whoami`: an organization with
+several connections needs `--awsAccount`, and a privileged connection gives the CLI Stacktape-issued credentials instead
+of the profile's.
+
+```sh
+export STP_AWS_ALIAS_CANARY_DEPLOY=1
+export STP_AWS_ALIAS_CANARY_EXPECTED_ACCOUNT_ID='<12-digit account id>'
+export STP_AWS_ALIAS_CANARY_PROFILE='<profile>'
+export STP_AWS_ALIAS_CANARY_OWNER="local-alias-$(date -u +%s)"
+export STP_AWS_ALIAS_CANARY_STATE_FILE="$(pwd)/.stacktape-alias-canary-${STP_AWS_ALIAS_CANARY_OWNER}.json"
+pnpm test:aws --aws-scenario=lambda-alias-configuration-update
+```
+
+The project name defaults to a new `v4aliascanary-` name and the region to `eu-west-1`. If cleanup does not finish, the
+canary prints one exact `--cleanup-only` command for the same run.
+
 ## Observability fixture (not yet qualified)
 
 `_test-stacks/observability-smoke` is a candidate fixture, not a verified end-to-end runner. Its

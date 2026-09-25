@@ -317,7 +317,7 @@ delete their owned snapshots after verification.
 Run existing guarded scenarios through:
 
 ```sh
-pnpm test:aws -- --aws-scenario=<name>
+pnpm test:aws --aws-scenario=<name>
 ```
 
 The required disposable-account confirmation, exact account ID, credential selection, unique name, state, and recovery

@@ -16,7 +16,7 @@ export const SMOKE_CASE_IDS = [
 
 export type AwsQualificationScenario = {
   id: string;
-  runner: 'packaging' | 'init';
+  runner: 'packaging' | 'init' | 'alias-publication';
   fixture?: 'express-basic' | 'express-postgres-migration' | 'vite-static' | 'fastapi-basic';
   policy: 'routine' | 'periodic' | 'deep';
   costClass: 'negligible' | 'low' | 'medium' | 'high';
@@ -33,6 +33,15 @@ export const AWS_QUALIFICATION_SCENARIOS: readonly AwsQualificationScenario[] = 
     coverage: ['lambda', 'function-url', 'shared-layer', 'no-op-update', 'environment-update', 'cleanup'],
     reason:
       'The existing packaging canary proves artifact identity, live invocation, no-op redeploy, update, and cleanup.'
+  },
+  {
+    id: 'lambda-alias-configuration-update',
+    runner: 'alias-publication',
+    policy: 'routine',
+    costClass: 'negligible',
+    coverage: ['lambda', 'codedeploy-alias', 'version-publication', 'environment-update', 'no-op-update', 'cleanup'],
+    reason:
+      'A configuration-only change must publish a version the alias serves, and an unchanged redeploy must publish none.'
   },
   {
     id: 'init-static-site',
