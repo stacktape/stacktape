@@ -143,8 +143,9 @@ Stacktape zips the directory before deployment. Make sure the file referenced by
 | **Build responsibility** | You build the artifact | Stacktape builds from source |
 | **Configuration** | `packagePath` + optional `handler` | `entryfilePath` + language config |
 | **Supported languages** | Any Lambda-compatible artifact you build yourself | JS, TS, Python, Java, Go, Ruby, PHP, .NET |
-| **JS/TS bundling** | Your responsibility | Automatic single-file bundle |
+| **JS/TS bundling** | Your responsibility | Automatic single-file bundle, minified |
 | **Source maps** | Your responsibility | Automatic (JS/TS) |
+| **Shared code between functions** | Your responsibility | Moved into a shared Lambda layer automatically |
 | **Best for** | Custom build processes, pre-built CI artifacts | Standard app code with minimal config |
 
 

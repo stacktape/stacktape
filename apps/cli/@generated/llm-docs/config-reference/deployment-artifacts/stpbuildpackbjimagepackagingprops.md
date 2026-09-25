@@ -277,7 +277,7 @@ export default defineConfig(() => {
 Language-specific packaging configuration.
 
 Choices:
-- `Es` (`EsLanguageSpecificConfig`). Properties: `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`.
+- `Es` (`EsLanguageSpecificConfig`). Properties: `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `minify?: boolean`, `minifyIdentifiers?: boolean`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`, `bundleAwsSdk?: boolean`.
 - `Py` (`PyLanguageSpecificConfig`). Properties: `packageManagerFile?: string`, `packageManager?: string = "uv"`, `uvOptionalDependencies?: Array<string>`, `uvWithGroups?: Array<string>`, `uvWithoutGroups?: Array<string>`, `uvOnlyGroups?: Array<string>`, `pythonVersion?: SupportedPythonVersion`, `runAppAs?: string: "ASGI" | "WSGI"`, `minify?: boolean`.
 - `Java` (`JavaLanguageSpecificConfig`). Properties: `useMaven?: boolean`, `packageManagerFile?: string`, `javaVersion?: number: 11 | 17 | 19 | 21 | 25 | 8`.
 - `Go` (`GoLanguageSpecificConfig`)

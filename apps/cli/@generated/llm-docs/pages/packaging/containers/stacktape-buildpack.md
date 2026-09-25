@@ -60,7 +60,7 @@ The container buildpack explicitly documents support for JavaScript, TypeScript,
 
 | Language | Default version | Key options |
 |---|---|---|
-| JavaScript / TypeScript | Node.js 24 | Module format, bundle exclusions, source maps, decorator metadata |
+| JavaScript / TypeScript | Node.js 24 | Module format, bundle exclusions, source maps, minification, decorator metadata |
 | Python | 3.12 | WSGI/ASGI server mode, dependency file, minification |
 | Java | 11 | Maven or Gradle, build file path |
 | Go | — | No language-specific options |
@@ -70,7 +70,7 @@ The container buildpack explicitly documents support for JavaScript, TypeScript,
 
 ## JavaScript and TypeScript
 
-For JavaScript and TypeScript projects, the buildpack bundles your code into a single file. Dependencies with native binaries are installed separately in the container rather than bundled. The buildpack generates source maps for JS/TS unless you set `disableSourceMaps: true`.
+For JavaScript and TypeScript projects, the buildpack bundles your code into a single file, minified with local names kept readable (see [Minification](#minification-javascript-and-typescript)). Dependencies with native binaries are installed separately in the container rather than bundled. The buildpack generates source maps for JS/TS unless you set `disableSourceMaps: true`.
 
 
 Example (TypeScript):
@@ -129,6 +129,10 @@ Set `tsConfigPath` to point to your `tsconfig.json` file. The buildpack reads it
 ### Source maps
 
 The buildpack generates source maps for JS/TS unless you set `disableSourceMaps: true`. Disabling source maps reduces image size but makes production errors harder to debug. Alternatively, `outputSourceMapsTo` saves source maps to a local directory for external error tracking (Sentry, Datadog); CloudWatch stack traces will not be mapped.
+
+### Minification (JavaScript and TypeScript)
+
+The bundle is minified by default: whitespace is removed and syntax is shortened, while local function and variable names are kept so stack traces and error messages stay readable. Set `minifyIdentifiers: true` to shorten the names as well for a slightly smaller image; they then change with every build, so Stacktape Console cannot group the same error across deployments. Set `minify: false` to deploy the code as written.
 
 ## Python
 

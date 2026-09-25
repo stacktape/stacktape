@@ -166,7 +166,7 @@ The `languageSpecificConfig` property tunes how the buildpack handles your speci
 
 ### Node.js and TypeScript
 
-For JavaScript and TypeScript projects, the buildpack bundles your code starting from the entry file into a single output file. Source maps are generated automatically. If you set `outputSourceMapsTo`, source maps are saved locally instead of uploaded, and CloudWatch stack traces will not be mapped.
+For JavaScript and TypeScript projects, the buildpack bundles your code starting from the entry file into a single output file. The bundle is minified (whitespace and syntax only, so function names stay readable in stack traces), and on Node.js 18 and later, imports of `@aws-sdk/client-*` and `@aws-sdk/lib-*` are left out of the package because the Lambda runtime provides them. Source maps are generated automatically. If you set `outputSourceMapsTo`, source maps are saved locally instead of uploaded, and CloudWatch stack traces will not be mapped.
 
 Key options:
 
@@ -178,6 +178,9 @@ Key options:
 - **`dependenciesToExcludeFromDeploymentPackage`** — removes non-bundled dependencies from the final package. Only applies to dependencies already excluded from the bundle. Set the array to `['*']` to exclude all non-bundled dependencies.
 - **`disableSourceMaps`** — skips source map generation, reducing package size but making production errors harder to debug.
 - **`outputSourceMapsTo`** — saves source maps to a local directory instead of uploading them to AWS. Useful for external error tracking tools like Sentry or Datadog. CloudWatch stack traces won't be mapped when this is set.
+- **`minify`** — minifies the bundle (whitespace and syntax). Local function and variable names are kept, so stack traces and error messages stay readable. Default: `true`.
+- **`minifyIdentifiers`** — also shortens local variable and function names. Slightly smaller bundle, but the names disappear from stack traces and error messages and change with every build, so Stacktape Console cannot group the same error across deployments. Default: `false`.
+- **`bundleAwsSdk`** — bundles `@aws-sdk/*` from your `node_modules` instead of using the copy the Lambda runtime provides. Enable it when you need a newer SDK than the runtime ships. Default: `false`.
 
 
 Example (TypeScript):
@@ -339,6 +342,32 @@ See the [API reference](#api-reference) for the full set of language-specific pr
 
 The Stacktape Lambda buildpack caches deployment packages based on a checksum, so unchanged code is not re-packaged. This makes iterative deployments faster when only some functions have changed. Caching works automatically with no configuration needed.
 
+## Shared code between functions
+
+When a stack has two or more JavaScript or TypeScript Lambda functions the buildpack can package together, it builds them in a single pass and moves the code they have in common — your own modules and their npm dependencies — into [Lambda layers](https://docs.aws.amazon.com/lambda/latest/dg/chapter-layers.html) that those functions share. Each function package then contains only its own code. Nothing needs to be configured, and your imports do not change.
+
+The effect grows with the number of functions. Twenty-five functions that share a library and the AWS SDK produce twenty-five small packages plus one layer, instead of twenty-five packages that each carry a full copy of the shared code.
+
+Stacktape creates at most three layers, leaving two of Lambda's five layer slots for layers you attach yourself. Code that only one function uses is never moved into a layer.
+
+### When a function is packaged on its own
+
+A function is packaged individually, without a shared layer, when it uses an option the shared build cannot honor:
+
+- [tracing](/observability/tracing) is enabled for it (its handler is wrapped at the bundle entry)
+- `outputModuleFormat: 'cjs'`
+- `emitTsDecoratorMetadata: true`
+- `outputSourceMapsTo`
+- `dependenciesToExcludeFromDeploymentPackage`
+- `includeFiles` or `excludeFiles`
+- a `nodeVersion` other than 18, 20, 22 or 24
+
+Functions also have to agree with each other to share a build. Architecture, `nodeVersion`, `tsConfigPath`, `disableSourceMaps`, `minify`, `minifyIdentifiers`, `bundleAwsSdk`, `dependenciesToExcludeFromBundle` and `excludeDependencies` must match; functions that differ are grouped separately. The largest group shares a build and the rest are packaged individually, so one unusual function no longer costs the others their shared layer.
+
+
+> **Info:** Changing shared code changes every package that depends on it, because each function's entry file references the shared chunk by a content hash. Changing one handler's own code changes only that one package.
+
+
 ## Processor architecture
 
 `StacktapeLambdaBuildpackPackaging` does not expose an architecture setting. Configure architecture on the [Lambda function resource](/resources/compute/lambda-function); see that page for details. If your function uses native binary dependencies, verify they ship builds compatible with your chosen architecture before switching.
@@ -372,15 +401,23 @@ Yes. Node.js 24 and later use ES Module output automatically. With an earlier No
 
 ### What is the maximum Lambda deployment package size?
 
-Underneath, AWS Lambda enforces deployment package size limits (50 MB zipped for direct upload, 250 MB unzipped). The buildpack's single-file bundling (for JS/TS), `excludeFiles`, and `excludeDependencies` options help keep packages small. If your dependencies cannot fit within these limits, consider moving the workload to a container resource such as a [web service](/resources/compute/web-service), [worker service](/resources/compute/worker-service), or [batch job](/resources/compute/batch-job).
+AWS Lambda allows 250 MB unzipped for a function and all its layers together. Its 50 MB zipped limit applies only to direct uploads; Stacktape deploys code through S3, so it doesn't apply. For JS/TS the buildpack keeps packages small on its own: it bundles to a single minified file, leaves the runtime-provided AWS SDK out, and moves code shared between functions into [a shared layer](#shared-code-between-functions). `excludeFiles` and `excludeDependencies` trim further. If your dependencies still cannot fit, consider moving the workload to a container resource such as a [web service](/resources/compute/web-service), [worker service](/resources/compute/worker-service), or [batch job](/resources/compute/batch-job).
 
 ### How do I handle native binary dependencies like sharp or Prisma?
 
 Add native binary packages to `dependenciesToExcludeFromBundle` in your Node.js/TypeScript `languageSpecificConfig`. Excluded dependencies are installed separately in the deployment package rather than being statically bundled. If a dependency works locally but fails in Lambda with a binary error, excluding it from the bundle is usually the fix.
 
+### My function runs an older AWS SDK than the one in my package.json — why?
+
+On Node.js 18 and later, the Lambda runtime ships the AWS SDK v3, and the buildpack leaves `@aws-sdk/client-*` and `@aws-sdk/lib-*` imports out of the package so they resolve from the runtime. The runtime's copy can lag behind npm. If your code needs a newer SDK, set `bundleAwsSdk: true` in your Node.js/TypeScript `languageSpecificConfig` to bundle the version from your `node_modules`.
+
 ### My Python (or minified) Lambda works locally but breaks in production — why?
 
 Python minification is enabled by default (`minify: true`). It reduces package size but rewrites your deployed source, which can make production behavior diverge from local and makes stack traces harder to read. If a function works locally but misbehaves after deployment, set `minify: false` in your Python `languageSpecificConfig`. The trade-off is a larger deployment package.
+
+### Why does my stack contain Lambda layers I did not configure?
+
+When several JS/TS functions can be packaged together, the buildpack moves the code they share into layers so each package carries only its own code. This is automatic. See [shared code between functions](#shared-code-between-functions) for what goes into a layer and which options keep a function off that path.
 
 ### How do I debug a Lambda function packaged with the buildpack?
 

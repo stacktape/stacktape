@@ -256,11 +256,11 @@ Stacktape supports two Lambda packaging modes: [Stacktape Lambda buildpack](/pac
 | **Stacktape Lambda buildpack** (recommended) | Point to a source file — Stacktape bundles, uploads, and configures the function. Supports JS, TS, Python, Java, Go, Ruby, PHP, and .NET. |
 | **Custom artifact** | Provide a pre-built zip. Use when your CI already produces a deployment package or when you need a build step Stacktape does not support. |
 
-The Stacktape Lambda buildpack is the better default: it auto-detects the runtime, builds for the selected architecture, generates source maps (JS/TS), and caches unchanged packages. Use [custom artifact](/packaging/function/custom-artifact) only when you own the build outside Stacktape.
+The Stacktape Lambda buildpack is the better default: it auto-detects the runtime, builds for the selected architecture, minifies and generates source maps (JS/TS), moves code shared between functions into a shared layer, and caches unchanged packages. Use [custom artifact](/packaging/function/custom-artifact) only when you own the build outside Stacktape.
 
 ### Stacktape Lambda buildpack
 
-The `StacktapeLambdaBuildpackPackaging` class accepts a `languageSpecificConfig` property for runtime-specific settings — Node.js version, Python version, Java build tool, ESM vs CJS output, source map control, and more. See [Stacktape Lambda buildpack](/packaging/function/stacktape-buildpack) for language-specific details.
+The `StacktapeLambdaBuildpackPackaging` class accepts a `languageSpecificConfig` property for runtime-specific settings — Node.js version, Python version, Java build tool, ESM vs CJS output, source map and minification control, and more. See [Stacktape Lambda buildpack](/packaging/function/stacktape-buildpack) for language-specific details.
 
 <CodeBlock
   intellisense

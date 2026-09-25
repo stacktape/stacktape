@@ -33,10 +33,10 @@ Function packaging bundles your code and dependencies into a Lambda deployment z
 
 | Mode | Use when |
 |------|----------|
-| [**Stacktape buildpack**](/packaging/function/stacktape-buildpack) | **Recommended.** Point to your source file — Stacktape handles bundling, source maps, and dependency installation. For JS/TS, code is bundled into a single file and dependencies with native binaries are installed separately. Supports JavaScript, TypeScript, Python, Java, Go, Ruby, PHP, and .NET. |
+| [**Stacktape buildpack**](/packaging/function/stacktape-buildpack) | **Recommended.** Point to your source file — Stacktape handles bundling, minification, source maps, and dependency installation. For JS/TS, code is bundled into a single minified file, code shared between functions moves into a shared layer, and dependencies with native binaries are installed separately. Supports JavaScript, TypeScript, Python, Java, Go, Ruby, PHP, and .NET. |
 | [**Custom artifact**](/packaging/function/custom-artifact) | You have your own build process and want to provide a pre-built deployment package. Provide a zip, directory, or other file — Stacktape zips directories and non-zip files automatically. |
 
-The Stacktape buildpack is the right choice for most projects. For JavaScript and TypeScript, it bundles your code into a single file with auto-generated source maps, and installs dependencies with native binaries separately. For Python, the `packageManagerFile` property can point to a `requirements.txt`, `Pipfile`, or `pyproject.toml` file. For Java, it supports both Gradle and Maven. Switch to custom artifact only when your build process can't be expressed through the buildpack's configuration — for example, when you need a custom compiler step, a monorepo build tool, or an artifact produced by a separate CI job. Custom artifact accepts a `packagePath` pointing to your pre-built zip, directory, or file, and optionally a `handler` in `{{filepath}}:{{functionName}}` format to set the Lambda handler explicitly.
+The Stacktape buildpack is the right choice for most projects. For JavaScript and TypeScript, it bundles your code into a single minified file with auto-generated source maps, leaves the AWS SDK to the Lambda runtime that provides it, moves code shared between functions into a shared layer, and installs dependencies with native binaries separately. For Python, the `packageManagerFile` property can point to a `requirements.txt`, `Pipfile`, or `pyproject.toml` file. For Java, it supports both Gradle and Maven. Switch to custom artifact only when your build process can't be expressed through the buildpack's configuration — for example, when you need a custom compiler step, a monorepo build tool, or an artifact produced by a separate CI job. Custom artifact accepts a `packagePath` pointing to your pre-built zip, directory, or file, and optionally a `handler` in `{{filepath}}:{{functionName}}` format to set the Lambda handler explicitly.
 
 <CodeBlock
   intellisense
@@ -127,7 +127,7 @@ The [Lambda buildpack](/packaging/function/stacktape-buildpack) supports JavaScr
 
 ### How large can a Lambda deployment package be?
 
-AWS Lambda has deployment package size limits that can constrain large applications. The Stacktape buildpack helps by bundling JavaScript and TypeScript into a single file with source maps generated separately. If your package exceeds AWS limits, consider moving to a container-based resource like a [web service](/resources/compute/web-service) — container images can be significantly larger.
+AWS Lambda has deployment package size limits that can constrain large applications. The Stacktape buildpack helps by bundling JavaScript and TypeScript into a single minified file, leaving the runtime-provided AWS SDK out of the package, and moving code shared between functions into [a shared layer](/packaging/function/stacktape-buildpack#shared-code-between-functions). If your package exceeds AWS limits, consider moving to a container-based resource like a [web service](/resources/compute/web-service) — container images can be significantly larger.
 
 ### Where does Stacktape store container images?
 

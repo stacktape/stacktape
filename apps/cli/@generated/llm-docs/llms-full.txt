@@ -22946,7 +22946,7 @@ The container buildpack explicitly documents support for JavaScript, TypeScript,
 
 | Language | Default version | Key options |
 |---|---|---|
-| JavaScript / TypeScript | Node.js 24 | Module format, bundle exclusions, source maps, decorator metadata |
+| JavaScript / TypeScript | Node.js 24 | Module format, bundle exclusions, source maps, minification, decorator metadata |
 | Python | 3.12 | WSGI/ASGI server mode, dependency file, minification |
 | Java | 11 | Maven or Gradle, build file path |
 | Go | — | No language-specific options |
@@ -22956,7 +22956,7 @@ The container buildpack explicitly documents support for JavaScript, TypeScript,
 
 ## JavaScript and TypeScript
 
-For JavaScript and TypeScript projects, the buildpack bundles your code into a single file. Dependencies with native binaries are installed separately in the container rather than bundled. The buildpack generates source maps for JS/TS unless you set `disableSourceMaps: true`.
+For JavaScript and TypeScript projects, the buildpack bundles your code into a single file, minified with local names kept readable (see [Minification](#minification-javascript-and-typescript)). Dependencies with native binaries are installed separately in the container rather than bundled. The buildpack generates source maps for JS/TS unless you set `disableSourceMaps: true`.
 
 
 Example (TypeScript):
@@ -23015,6 +23015,10 @@ Set `tsConfigPath` to point to your `tsconfig.json` file. The buildpack reads it
 ### Source maps
 
 The buildpack generates source maps for JS/TS unless you set `disableSourceMaps: true`. Disabling source maps reduces image size but makes production errors harder to debug. Alternatively, `outputSourceMapsTo` saves source maps to a local directory for external error tracking (Sentry, Datadog); CloudWatch stack traces will not be mapped.
+
+### Minification (JavaScript and TypeScript)
+
+The bundle is minified by default: whitespace is removed and syntax is shortened, while local function and variable names are kept so stack traces and error messages stay readable. Set `minifyIdentifiers: true` to shorten the names as well for a slightly smaller image; they then change with every build, so Stacktape Console cannot group the same error across deployments. Set `minify: false` to deploy the code as written.
 
 ## Python
 
@@ -23440,8 +23444,9 @@ Stacktape zips the directory before deployment. Make sure the file referenced by
 | **Build responsibility** | You build the artifact | Stacktape builds from source |
 | **Configuration** | `packagePath` + optional `handler` | `entryfilePath` + language config |
 | **Supported languages** | Any Lambda-compatible artifact you build yourself | JS, TS, Python, Java, Go, Ruby, PHP, .NET |
-| **JS/TS bundling** | Your responsibility | Automatic single-file bundle |
+| **JS/TS bundling** | Your responsibility | Automatic single-file bundle, minified |
 | **Source maps** | Your responsibility | Automatic (JS/TS) |
+| **Shared code between functions** | Your responsibility | Moved into a shared Lambda layer automatically |
 | **Best for** | Custom build processes, pre-built CI artifacts | Standard app code with minimal config |
 
 
@@ -23649,7 +23654,7 @@ The `languageSpecificConfig` property tunes how the buildpack handles your speci
 
 ### Node.js and TypeScript
 
-For JavaScript and TypeScript projects, the buildpack bundles your code starting from the entry file into a single output file. Source maps are generated automatically. If you set `outputSourceMapsTo`, source maps are saved locally instead of uploaded, and CloudWatch stack traces will not be mapped.
+For JavaScript and TypeScript projects, the buildpack bundles your code starting from the entry file into a single output file. The bundle is minified (whitespace and syntax only, so function names stay readable in stack traces), and on Node.js 18 and later, imports of `@aws-sdk/client-*` and `@aws-sdk/lib-*` are left out of the package because the Lambda runtime provides them. Source maps are generated automatically. If you set `outputSourceMapsTo`, source maps are saved locally instead of uploaded, and CloudWatch stack traces will not be mapped.
 
 Key options:
 
@@ -23661,6 +23666,9 @@ Key options:
 - **`dependenciesToExcludeFromDeploymentPackage`** — removes non-bundled dependencies from the final package. Only applies to dependencies already excluded from the bundle. Set the array to `['*']` to exclude all non-bundled dependencies.
 - **`disableSourceMaps`** — skips source map generation, reducing package size but making production errors harder to debug.
 - **`outputSourceMapsTo`** — saves source maps to a local directory instead of uploading them to AWS. Useful for external error tracking tools like Sentry or Datadog. CloudWatch stack traces won't be mapped when this is set.
+- **`minify`** — minifies the bundle (whitespace and syntax). Local function and variable names are kept, so stack traces and error messages stay readable. Default: `true`.
+- **`minifyIdentifiers`** — also shortens local variable and function names. Slightly smaller bundle, but the names disappear from stack traces and error messages and change with every build, so Stacktape Console cannot group the same error across deployments. Default: `false`.
+- **`bundleAwsSdk`** — bundles `@aws-sdk/*` from your `node_modules` instead of using the copy the Lambda runtime provides. Enable it when you need a newer SDK than the runtime ships. Default: `false`.
 
 
 Example (TypeScript):
@@ -23822,6 +23830,32 @@ See the [API reference](#api-reference) for the full set of language-specific pr
 
 The Stacktape Lambda buildpack caches deployment packages based on a checksum, so unchanged code is not re-packaged. This makes iterative deployments faster when only some functions have changed. Caching works automatically with no configuration needed.
 
+## Shared code between functions
+
+When a stack has two or more JavaScript or TypeScript Lambda functions the buildpack can package together, it builds them in a single pass and moves the code they have in common — your own modules and their npm dependencies — into [Lambda layers](https://docs.aws.amazon.com/lambda/latest/dg/chapter-layers.html) that those functions share. Each function package then contains only its own code. Nothing needs to be configured, and your imports do not change.
+
+The effect grows with the number of functions. Twenty-five functions that share a library and the AWS SDK produce twenty-five small packages plus one layer, instead of twenty-five packages that each carry a full copy of the shared code.
+
+Stacktape creates at most three layers, leaving two of Lambda's five layer slots for layers you attach yourself. Code that only one function uses is never moved into a layer.
+
+### When a function is packaged on its own
+
+A function is packaged individually, without a shared layer, when it uses an option the shared build cannot honor:
+
+- [tracing](/observability/tracing) is enabled for it (its handler is wrapped at the bundle entry)
+- `outputModuleFormat: 'cjs'`
+- `emitTsDecoratorMetadata: true`
+- `outputSourceMapsTo`
+- `dependenciesToExcludeFromDeploymentPackage`
+- `includeFiles` or `excludeFiles`
+- a `nodeVersion` other than 18, 20, 22 or 24
+
+Functions also have to agree with each other to share a build. Architecture, `nodeVersion`, `tsConfigPath`, `disableSourceMaps`, `minify`, `minifyIdentifiers`, `bundleAwsSdk`, `dependenciesToExcludeFromBundle` and `excludeDependencies` must match; functions that differ are grouped separately. The largest group shares a build and the rest are packaged individually, so one unusual function no longer costs the others their shared layer.
+
+
+> **Info:** Changing shared code changes every package that depends on it, because each function's entry file references the shared chunk by a content hash. Changing one handler's own code changes only that one package.
+
+
 ## Processor architecture
 
 `StacktapeLambdaBuildpackPackaging` does not expose an architecture setting. Configure architecture on the [Lambda function resource](/resources/compute/lambda-function); see that page for details. If your function uses native binary dependencies, verify they ship builds compatible with your chosen architecture before switching.
@@ -23855,15 +23889,23 @@ Yes. Node.js 24 and later use ES Module output automatically. With an earlier No
 
 ### What is the maximum Lambda deployment package size?
 
-Underneath, AWS Lambda enforces deployment package size limits (50 MB zipped for direct upload, 250 MB unzipped). The buildpack's single-file bundling (for JS/TS), `excludeFiles`, and `excludeDependencies` options help keep packages small. If your dependencies cannot fit within these limits, consider moving the workload to a container resource such as a [web service](/resources/compute/web-service), [worker service](/resources/compute/worker-service), or [batch job](/resources/compute/batch-job).
+AWS Lambda allows 250 MB unzipped for a function and all its layers together. Its 50 MB zipped limit applies only to direct uploads; Stacktape deploys code through S3, so it doesn't apply. For JS/TS the buildpack keeps packages small on its own: it bundles to a single minified file, leaves the runtime-provided AWS SDK out, and moves code shared between functions into [a shared layer](#shared-code-between-functions). `excludeFiles` and `excludeDependencies` trim further. If your dependencies still cannot fit, consider moving the workload to a container resource such as a [web service](/resources/compute/web-service), [worker service](/resources/compute/worker-service), or [batch job](/resources/compute/batch-job).
 
 ### How do I handle native binary dependencies like sharp or Prisma?
 
 Add native binary packages to `dependenciesToExcludeFromBundle` in your Node.js/TypeScript `languageSpecificConfig`. Excluded dependencies are installed separately in the deployment package rather than being statically bundled. If a dependency works locally but fails in Lambda with a binary error, excluding it from the bundle is usually the fix.
 
+### My function runs an older AWS SDK than the one in my package.json — why?
+
+On Node.js 18 and later, the Lambda runtime ships the AWS SDK v3, and the buildpack leaves `@aws-sdk/client-*` and `@aws-sdk/lib-*` imports out of the package so they resolve from the runtime. The runtime's copy can lag behind npm. If your code needs a newer SDK, set `bundleAwsSdk: true` in your Node.js/TypeScript `languageSpecificConfig` to bundle the version from your `node_modules`.
+
 ### My Python (or minified) Lambda works locally but breaks in production — why?
 
 Python minification is enabled by default (`minify: true`). It reduces package size but rewrites your deployed source, which can make production behavior diverge from local and makes stack traces harder to read. If a function works locally but misbehaves after deployment, set `minify: false` in your Python `languageSpecificConfig`. The trade-off is a larger deployment package.
+
+### Why does my stack contain Lambda layers I did not configure?
+
+When several JS/TS functions can be packaged together, the buildpack moves the code they share into layers so each package carries only its own code. This is automatic. See [shared code between functions](#shared-code-between-functions) for what goes into a layer and which options keep a function off that path.
 
 ### How do I debug a Lambda function packaged with the buildpack?
 
@@ -23903,10 +23945,10 @@ Function packaging bundles your code and dependencies into a Lambda deployment z
 
 | Mode | Use when |
 |------|----------|
-| [**Stacktape buildpack**](/packaging/function/stacktape-buildpack) | **Recommended.** Point to your source file — Stacktape handles bundling, source maps, and dependency installation. For JS/TS, code is bundled into a single file and dependencies with native binaries are installed separately. Supports JavaScript, TypeScript, Python, Java, Go, Ruby, PHP, and .NET. |
+| [**Stacktape buildpack**](/packaging/function/stacktape-buildpack) | **Recommended.** Point to your source file — Stacktape handles bundling, minification, source maps, and dependency installation. For JS/TS, code is bundled into a single minified file, code shared between functions moves into a shared layer, and dependencies with native binaries are installed separately. Supports JavaScript, TypeScript, Python, Java, Go, Ruby, PHP, and .NET. |
 | [**Custom artifact**](/packaging/function/custom-artifact) | You have your own build process and want to provide a pre-built deployment package. Provide a zip, directory, or other file — Stacktape zips directories and non-zip files automatically. |
 
-The Stacktape buildpack is the right choice for most projects. For JavaScript and TypeScript, it bundles your code into a single file with auto-generated source maps, and installs dependencies with native binaries separately. For Python, the `packageManagerFile` property can point to a `requirements.txt`, `Pipfile`, or `pyproject.toml` file. For Java, it supports both Gradle and Maven. Switch to custom artifact only when your build process can't be expressed through the buildpack's configuration — for example, when you need a custom compiler step, a monorepo build tool, or an artifact produced by a separate CI job. Custom artifact accepts a `packagePath` pointing to your pre-built zip, directory, or file, and optionally a `handler` in `{{filepath}}:{{functionName}}` format to set the Lambda handler explicitly.
+The Stacktape buildpack is the right choice for most projects. For JavaScript and TypeScript, it bundles your code into a single minified file with auto-generated source maps, leaves the AWS SDK to the Lambda runtime that provides it, moves code shared between functions into a shared layer, and installs dependencies with native binaries separately. For Python, the `packageManagerFile` property can point to a `requirements.txt`, `Pipfile`, or `pyproject.toml` file. For Java, it supports both Gradle and Maven. Switch to custom artifact only when your build process can't be expressed through the buildpack's configuration — for example, when you need a custom compiler step, a monorepo build tool, or an artifact produced by a separate CI job. Custom artifact accepts a `packagePath` pointing to your pre-built zip, directory, or file, and optionally a `handler` in `{{filepath}}:{{functionName}}` format to set the Lambda handler explicitly.
 
 
 Example (TypeScript):
@@ -23987,7 +24029,7 @@ The [Lambda buildpack](/packaging/function/stacktape-buildpack) supports JavaScr
 
 ### How large can a Lambda deployment package be?
 
-AWS Lambda has deployment package size limits that can constrain large applications. The Stacktape buildpack helps by bundling JavaScript and TypeScript into a single file with source maps generated separately. If your package exceeds AWS limits, consider moving to a container-based resource like a [web service](/resources/compute/web-service) — container images can be significantly larger.
+AWS Lambda has deployment package size limits that can constrain large applications. The Stacktape buildpack helps by bundling JavaScript and TypeScript into a single minified file, leaving the runtime-provided AWS SDK out of the package, and moving code shared between functions into [a shared layer](/packaging/function/stacktape-buildpack#shared-code-between-functions). If your package exceeds AWS limits, consider moving to a container-based resource like a [web service](/resources/compute/web-service) — container images can be significantly larger.
 
 ### Where does Stacktape store container images?
 
@@ -28471,11 +28513,11 @@ Stacktape supports two Lambda packaging modes: [Stacktape Lambda buildpack](/pac
 | **Stacktape Lambda buildpack** (recommended) | Point to a source file — Stacktape bundles, uploads, and configures the function. Supports JS, TS, Python, Java, Go, Ruby, PHP, and .NET. |
 | **Custom artifact** | Provide a pre-built zip. Use when your CI already produces a deployment package or when you need a build step Stacktape does not support. |
 
-The Stacktape Lambda buildpack is the better default: it auto-detects the runtime, builds for the selected architecture, generates source maps (JS/TS), and caches unchanged packages. Use [custom artifact](/packaging/function/custom-artifact) only when you own the build outside Stacktape.
+The Stacktape Lambda buildpack is the better default: it auto-detects the runtime, builds for the selected architecture, minifies and generates source maps (JS/TS), moves code shared between functions into a shared layer, and caches unchanged packages. Use [custom artifact](/packaging/function/custom-artifact) only when you own the build outside Stacktape.
 
 ### Stacktape Lambda buildpack
 
-The `StacktapeLambdaBuildpackPackaging` class accepts a `languageSpecificConfig` property for runtime-specific settings — Node.js version, Python version, Java build tool, ESM vs CJS output, source map control, and more. See [Stacktape Lambda buildpack](/packaging/function/stacktape-buildpack) for language-specific details.
+The `StacktapeLambdaBuildpackPackaging` class accepts a `languageSpecificConfig` property for runtime-specific settings — Node.js version, Python version, Java build tool, ESM vs CJS output, source map and minification control, and more. See [Stacktape Lambda buildpack](/packaging/function/stacktape-buildpack) for language-specific details.
 
 
 Example (TypeScript):
@@ -71622,6 +71664,8 @@ Route: `/config-reference/deployment-artifacts`
 
 ```typescript
 type EsLanguageSpecificConfig = {
+  /** Bundle the AWS SDK from your `node_modules` instead of using the copy the Lambda runtime provides. */
+  bundleAwsSdk?: boolean;
   /** A list of dependencies to exclude from the main bundle. */
   dependenciesToExcludeFromBundle?: Array<string>;
   /** A list of dependencies to exclude from the deployment package. */
@@ -71633,6 +71677,10 @@ type EsLanguageSpecificConfig = {
 Source maps are disabled for this artifact because the decorator transform and bundler cannot yet compose their
 mappings accurately. Emitting a map would give production stack traces incorrect line numbers. */
   emitTsDecoratorMetadata?: boolean;
+  /** Minify the bundled code. Local names are kept, so stack traces stay readable. */
+  minify?: boolean;
+  /** Also shorten local variable and function names when minifying. */
+  minifyIdentifiers?: boolean;
   /** The major version of Node.js the buildpack uses to create the artifact. For Lambda packaging, keep the function's `runtime` aligned with this value. */
   nodeVersion?: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24;
   /** Output module format: `cjs` (CommonJS) or `esm` (ES Modules, enables top-level `await`). */
@@ -71642,6 +71690,58 @@ mappings accurately. Emitting a map would give production stack traces incorrect
   /** The path to the `tsconfig.json` file. */
   tsConfigPath?: string;
 };
+```
+
+## Property: `bundleAwsSdk`
+
+- Required: no
+- Type: `boolean`
+- Default: `false`
+
+Bundle the AWS SDK from your `node_modules` instead of using the copy the Lambda runtime provides.
+
+The Node.js 18+ Lambda runtimes ship the AWS SDK v3. By default, imports of `@aws-sdk/client-*` and
+`@aws-sdk/lib-*` packages are left out of the deployment package and resolved from the runtime, which keeps the
+package smaller. The runtime's copy can be older than the version in your `package.json`. Enable this when your
+code needs a newer SDK than the runtime ships. Container workloads have no runtime-provided SDK and always
+bundle it.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  apiFunction:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/handlers/api.ts
+          languageSpecificConfig:
+            bundleAwsSdk: true
+      memory: 512
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const apiFunction = new LambdaFunction({
+    packaging: {
+      type: 'stacktape-lambda-buildpack',
+      properties: {
+        entryfilePath: 'src/handlers/api.ts',
+        languageSpecificConfig: {
+          bundleAwsSdk: true
+        }
+      }
+    },
+    memory: 512
+  });
+  return { resources: { apiFunction } };
+});
 ```
 
 ## Property: `dependenciesToExcludeFromBundle`
@@ -71838,6 +71938,107 @@ export default defineConfig(() => {
    memory: 1024
  });
  return { resources: { apiFunction } };
+});
+```
+
+## Property: `minify`
+
+- Required: no
+- Type: `boolean`
+- Default: `true`
+
+Minify the bundled code. Local names are kept, so stack traces stay readable.
+
+Whitespace is removed and syntax is shortened. Local variable and function names are kept, so stack traces and
+error messages read as your source does. Shortening the names as well is a separate opt-in, `minifyIdentifiers`.
+Set `minify: false` to deploy the bundle as written.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  apiFunction:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/handlers/api.ts
+          languageSpecificConfig:
+            minify: false
+      memory: 512
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const apiFunction = new LambdaFunction({
+    packaging: {
+      type: 'stacktape-lambda-buildpack',
+      properties: {
+        entryfilePath: 'src/handlers/api.ts',
+        languageSpecificConfig: {
+          minify: false
+        }
+      }
+    },
+    memory: 512
+  });
+  return { resources: { apiFunction } };
+});
+```
+
+## Property: `minifyIdentifiers`
+
+- Required: no
+- Type: `boolean`
+- Default: `false`
+
+Also shorten local variable and function names when minifying.
+
+Produces a slightly smaller bundle, but local names disappear from stack traces and from error messages
+(`TypeError: Ln is not a function`), and the short names change with every build. Stacktape Console groups
+runtime errors by message and function name, so the same error would open a new issue after each deployment.
+Has no effect when `minify` is `false`.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  apiFunction:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/handlers/api.ts
+          languageSpecificConfig:
+            minifyIdentifiers: true
+      memory: 512
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const apiFunction = new LambdaFunction({
+    packaging: {
+      type: 'stacktape-lambda-buildpack',
+      properties: {
+        entryfilePath: 'src/handlers/api.ts',
+        languageSpecificConfig: {
+          minifyIdentifiers: true
+        }
+      }
+    },
+    memory: 512
+  });
+  return { resources: { apiFunction } };
 });
 ```
 
@@ -75364,7 +75565,7 @@ export default defineConfig(() => {
 Language-specific packaging configuration.
 
 Choices:
-- `Es` (`EsLanguageSpecificConfig`). Properties: `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`.
+- `Es` (`EsLanguageSpecificConfig`). Properties: `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `minify?: boolean`, `minifyIdentifiers?: boolean`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`, `bundleAwsSdk?: boolean`.
 - `Py` (`PyLanguageSpecificConfig`). Properties: `packageManagerFile?: string`, `packageManager?: string = "uv"`, `uvOptionalDependencies?: Array<string>`, `uvWithGroups?: Array<string>`, `uvWithoutGroups?: Array<string>`, `uvOnlyGroups?: Array<string>`, `pythonVersion?: SupportedPythonVersion`, `runAppAs?: string: "ASGI" | "WSGI"`, `minify?: boolean`.
 - `Java` (`JavaLanguageSpecificConfig`). Properties: `useMaven?: boolean`, `packageManagerFile?: string`, `javaVersion?: number: 11 | 17 | 19 | 21 | 25 | 8`.
 - `Go` (`GoLanguageSpecificConfig`)
@@ -75774,7 +75975,7 @@ export default defineConfig(() => {
 Language-specific packaging configuration.
 
 Choices:
-- `Es` (`EsLanguageSpecificConfig`). Properties: `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`.
+- `Es` (`EsLanguageSpecificConfig`). Properties: `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `minify?: boolean`, `minifyIdentifiers?: boolean`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`, `bundleAwsSdk?: boolean`.
 - `Py` (`PyLanguageSpecificConfig`). Properties: `packageManagerFile?: string`, `packageManager?: string = "uv"`, `uvOptionalDependencies?: Array<string>`, `uvWithGroups?: Array<string>`, `uvWithoutGroups?: Array<string>`, `uvOnlyGroups?: Array<string>`, `pythonVersion?: SupportedPythonVersion`, `runAppAs?: string: "ASGI" | "WSGI"`, `minify?: boolean`.
 - `Java` (`JavaLanguageSpecificConfig`). Properties: `useMaven?: boolean`, `packageManagerFile?: string`, `javaVersion?: number: 11 | 17 | 19 | 21 | 25 | 8`.
 - `Go` (`GoLanguageSpecificConfig`)
@@ -76167,7 +76368,7 @@ export default defineConfig(() => {
 Language-specific packaging configuration.
 
 Choices:
-- `Es` (`EsLanguageSpecificConfig`). Properties: `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`.
+- `Es` (`EsLanguageSpecificConfig`). Properties: `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `minify?: boolean`, `minifyIdentifiers?: boolean`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`, `bundleAwsSdk?: boolean`.
 - `Py` (`PyLanguageSpecificConfig`). Properties: `packageManagerFile?: string`, `packageManager?: string = "uv"`, `uvOptionalDependencies?: Array<string>`, `uvWithGroups?: Array<string>`, `uvWithoutGroups?: Array<string>`, `uvOnlyGroups?: Array<string>`, `pythonVersion?: SupportedPythonVersion`, `runAppAs?: string: "ASGI" | "WSGI"`, `minify?: boolean`.
 - `Java` (`JavaLanguageSpecificConfig`). Properties: `useMaven?: boolean`, `packageManagerFile?: string`, `javaVersion?: number: 11 | 17 | 19 | 21 | 25 | 8`.
 - `Go` (`GoLanguageSpecificConfig`)
