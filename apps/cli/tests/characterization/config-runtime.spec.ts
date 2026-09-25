@@ -389,6 +389,31 @@ describe('configuration runtime contract', () => {
     });
   });
 
+  test('refuses a configuration the schema rejects, before publishing anything', async () => {
+    // Structure validation loads the generated validator on first use; initialization must still always run it.
+    const manager = new ConfigManager();
+    const config = singleFunctionConfig({ projectName: 'schema-project', resourceName: 'schemaFunction' });
+    (config.resources.schemaFunction as { properties: { environment: unknown } }).properties.environment = [
+      { name: 'CONFIG_REVISION', value: ['not-a-string'] }
+    ];
+
+    await expect(
+      manager.init({
+        configRequired: true,
+        context: getInitContext({
+          accountId: '777777777777',
+          stage: 'schema',
+          stackName: 'schema-project-schema',
+          presetConfig: config
+        })
+      })
+    ).rejects.toMatchObject({
+      code: 'CONFIG_SCHEMA_INVALID',
+      message: expect.stringContaining('.resources.schemaFunction.properties.environment[0].value')
+    });
+    expect(manager.config).toBeUndefined();
+  });
+
   test('keeps the working configuration when a later initialization fails, and keeps resolving runtime directives', async () => {
     const manager = new ConfigManager();
     await manager.init({

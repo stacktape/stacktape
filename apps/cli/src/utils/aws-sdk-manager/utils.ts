@@ -8,6 +8,7 @@ import { retryPlugin } from 'src/aws/client-middleware';
 import { redactAwsRequestInput } from 'src/aws/redact-request-input';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { CliError } from '@utils/errors';
+import { timeAsync } from '@utils/timings';
 
 export const getErrorHandler = (message: string) => (err: Error) => {
   if (err instanceof CliError) {
@@ -78,7 +79,8 @@ export const loggingPlugin = {
 
         const start = Date.now();
 
-        const result = await next(args);
+        // One span per HTTP attempt: retries run this middleware again. Only the operation name is recorded.
+        const result = await timeAsync('aws:request', () => next(args), { operation });
 
         const end = Date.now();
 

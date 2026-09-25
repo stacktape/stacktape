@@ -14,6 +14,7 @@ import {
 import { killPythonBridge } from '@utils/file-loaders';
 import { reportErrorToPostHog, reportTelemetryEvent } from '@utils/telemetry';
 import { deleteTempFolder } from '@utils/temp-files';
+import { timeAsync } from '@utils/timings';
 import { tuiDebug } from '@application-services/tui-manager/debug';
 import { shouldWriteTerminalControlSequences } from '@application-services/tui-manager/output/mode';
 import kill from 'tree-kill';
@@ -93,12 +94,14 @@ export class ApplicationManager {
     this.cancelPendingPromises(stacktapeError);
     await this.reportTelemetryEvent({ outcome: stacktapeError.details.code });
     if (!(stacktapeError instanceof CliError) && !IS_TELEMETRY_DISABLED) {
-      const errorTrackingId = await reportErrorToPostHog({
-        error: stacktapeError,
-        command: globalStateManager.command,
-        invocationId: globalStateManager.invocationId,
-        mechanism: 'command_handler'
-      });
+      const errorTrackingId = await timeAsync('telemetry:report-error', () =>
+        reportErrorToPostHog({
+          error: stacktapeError,
+          command: globalStateManager.command,
+          invocationId: globalStateManager.invocationId,
+          mechanism: 'command_handler'
+        })
+      );
       stacktapeError.details.errorTrackingId = errorTrackingId;
     }
     // Capture only after error reporting so the TTY snapshot includes its searchable error ID.
@@ -171,12 +174,14 @@ export class ApplicationManager {
 
   private reportTelemetryEvent = ({ outcome }: { outcome: string }) => {
     if (!IS_TELEMETRY_DISABLED) {
-      return reportTelemetryEvent({
-        outcome,
-        args: propertyFromObjectOrNull(globalStateManager, 'args'),
-        command: propertyFromObjectOrNull(globalStateManager, 'command'),
-        invocationId: propertyFromObjectOrNull(globalStateManager, 'invocationId')
-      });
+      return timeAsync('telemetry:report', () =>
+        reportTelemetryEvent({
+          outcome,
+          args: propertyFromObjectOrNull(globalStateManager, 'args'),
+          command: propertyFromObjectOrNull(globalStateManager, 'command'),
+          invocationId: propertyFromObjectOrNull(globalStateManager, 'invocationId')
+        })
+      );
     }
   };
 
@@ -192,10 +197,15 @@ export class ApplicationManager {
     const { command, args } = globalStateManager;
     globalStateManager.stopCredentialRefresh();
     const shouldCleanTemp = !args.preserveTempFiles && command !== 'package' && !(this.usesStdinWatch && success);
-    const promiseResults = await Promise.allSettled([
-      ...this.cleanUpHooks.map((hook) => hook({ success, interrupted, err })),
-      shouldCleanTemp && deleteTempFolder()
-    ]);
+    const promiseResults = await timeAsync(
+      'cleanup:run',
+      () =>
+        Promise.allSettled([
+          ...this.cleanUpHooks.map((hook) => hook({ success, interrupted, err })),
+          shouldCleanTemp && deleteTempFolder()
+        ]),
+      { hooks: this.cleanUpHooks.length, deleteTemp: Boolean(shouldCleanTemp) }
+    );
     const cleanupErrorMessages: string[] = [];
     promiseResults.forEach((result) => {
       if (result.status === 'rejected') {

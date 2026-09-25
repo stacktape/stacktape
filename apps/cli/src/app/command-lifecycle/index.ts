@@ -1,13 +1,13 @@
 import { globalStateManager } from '@application-services/global-state-manager';
 import { operationSession } from '@application-services/operation-manager';
-import { configManager } from '@domain-services/config-manager';
+import type { configManager } from '@domain-services/config-manager';
 import type { Script } from '@domain-services/config-manager/resolved-types/resources';
 import { stpErrors } from '@errors';
 import type { HookType, ScriptFn } from '@utils/scripts';
+import { startTiming } from '@utils/timings';
 import type { AnyFunction } from '@utils/type-helpers';
 import { camelCase } from 'change-case';
 import ci from 'ci-info';
-import { getExecutableScriptFunction } from 'src/commands/script-run/utils';
 import type { HookableEvent } from 'src/config/cli/types';
 import type { Hooks, NamedScriptLifecycleHook } from '@stacktape/config/shared';
 
@@ -16,6 +16,9 @@ type HookFailure = { hookEvent: HookableEvent; error: unknown };
 
 const hookEventsRequiringFreshDirectiveResolve: (keyof Hooks)[] = ['afterDeploy'];
 const hookEventsRequiringDirectiveCleanup: (keyof Hooks)[] = ['beforeDeploy'];
+// Only reached once hooks are registered, when the config manager is already loaded.
+const invalidateDirectiveResults = async () =>
+  (await import('@domain-services/config-manager')).configManager.invalidatePotentiallyChangedDirectiveResults();
 
 /** Hooks and final actions for one command; intentionally unaware of terminal presentation. */
 class CommandLifecycle {
@@ -45,7 +48,10 @@ class CommandLifecycle {
     return Promise.all(this.finalActions.map((action) => action()));
   }
 
-  getEligibleHookScripts(hooks: Hooks): (Script & { hookTrigger: string })[] {
+  getEligibleHookScripts(
+    hooks: Hooks,
+    scripts: (typeof configManager)['scripts']
+  ): (Script & { hookTrigger: string })[] {
     const candidates = [
       ...(hooks[camelCase(`before-${globalStateManager.command}`) as keyof Hooks] || []).map((hook) => ({
         ...hook,
@@ -59,14 +65,20 @@ class CommandLifecycle {
     return candidates
       .filter(({ skipOnCI, skipOnLocal }) => (ci.isCI && !skipOnCI) || (!ci.isCI && !skipOnLocal))
       .map((hook) => {
-        const definition = configManager.scripts[(hook as NamedScriptLifecycleHook).scriptName];
+        const definition = scripts[(hook as NamedScriptLifecycleHook).scriptName];
         if (!definition) throw stpErrors.e17({ scriptName: (hook as NamedScriptLifecycleHook).scriptName });
         return { ...definition, ...hook };
       });
   }
 
+  // The config manager and script runner are loaded on use: every command starts through this module, and most never
+  // register hooks.
   async registerHooks(hooks: Hooks) {
-    for (const definition of this.getEligibleHookScripts(hooks)) {
+    const [{ configManager: loadedConfigManager }, { getExecutableScriptFunction }] = await Promise.all([
+      import('@domain-services/config-manager'),
+      import('src/commands/script-run/utils')
+    ]);
+    for (const definition of this.getEligibleHookScripts(hooks, loadedConfigManager.scripts)) {
       const trigger = definition.hookTrigger;
       const executable = getExecutableScriptFunction({ scriptDefinition: definition, hookTrigger: trigger });
       if (!this.hookMap[trigger]) this.hookMap[trigger] = [];
@@ -85,8 +97,9 @@ class CommandLifecycle {
     const hookEvent = camelCase(`${hookType}-${globalStateManager.command}`) as HookableEvent;
 
     if (hookEventsRequiringFreshDirectiveResolve.includes(hookEvent) && this.hookMap[hookEvent]) {
-      configManager.invalidatePotentiallyChangedDirectiveResults();
+      await invalidateDirectiveResults();
     }
+    const endTiming = startTiming(`hooks:${hookType}`, { hooks: this.hookMap[hookEvent]?.length ?? 0 });
     for (const hook of this.hookMap[hookEvent] ?? []) {
       try {
         await hook({ hookType });
@@ -100,8 +113,9 @@ class CommandLifecycle {
         );
       }
     }
+    endTiming();
     if (hookEventsRequiringDirectiveCleanup.includes(hookEvent) && this.hookMap[hookEvent]) {
-      configManager.invalidatePotentiallyChangedDirectiveResults();
+      await invalidateDirectiveResults();
     }
   }
 }

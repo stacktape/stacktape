@@ -7,8 +7,8 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { tuiDebug } from '@application-services/tui-manager/debug';
 import { commandsWithDisabledAnnouncements } from './config/cli/commands';
-import { notificationManager } from '@domain-services/notification-manager';
 import { deleteTempFolder } from '@utils/temp-files';
+import { markTiming, startTiming } from '@utils/timings';
 import { initAgentMode } from './commands/_utils/agent-mode';
 
 /**
@@ -116,19 +116,28 @@ export const runCommand = async (opts: RunCommandOptions) => {
     if (opts.args.ui) tuiManager.setTtyView(opts.args.ui);
     // Output must be configured before argument validation so early failures use the requested machine format.
     tuiManager.init({ logLevel: opts.args.logLevel });
+    const endDeleteTemp = startTiming('command:delete-temp-folder');
     await deleteTempFolder();
+    endDeleteTemp();
+    const endGlobalState = startTiming('command:init-global-state');
     await globalStateManager.init(opts);
+    endGlobalState();
     await commandLifecycle.init();
-    await announcementsManager.init();
-    initAgentMode();
     const command = globalStateManager.command;
+    const showsNotices = !commandsWithDisabledAnnouncements.includes(command) && tuiManager.mode !== 'jsonl';
+    await announcementsManager.init({ enabled: showsNotices });
+    initAgentMode();
     const ui = commandUi[command];
     if (ui.ui === 'progress') {
       tuiDebug('MAIN', 'starting TUI', { command: globalStateManager.command, phases: ui.phases });
       tuiManager.start({ phases: ui.phases });
     }
+    const endLoadCommand = startTiming('command:load-module', { command });
     const executor = await getCommandExecutor(globalStateManager.command);
+    endLoadCommand();
+    const endExecute = startTiming('command:execute', { command });
     commandResult = await executor();
+    endExecute();
     commandLifecycle.clearHookFailures();
     const shouldContinueAfterHookFailure = globalStateManager.command === 'deploy';
     await commandLifecycle.processHooks({
@@ -147,15 +156,18 @@ export const runCommand = async (opts: RunCommandOptions) => {
       hookFailureCount: commandLifecycle.hookFailures.length
     });
 
+    const endFinalActions = startTiming('command:final-actions');
     await commandLifecycle.processFinalActions();
+    endFinalActions();
 
     tuiDebug('MAIN', 'success path — calling tuiManager.stop()');
+    const endStopOutput = startTiming('command:stop-output');
     await tuiManager.stop();
+    endStopOutput();
 
     await applicationManager.cleanUpAfterSuccess();
-    if (!commandsWithDisabledAnnouncements.includes(command) && tuiManager.mode !== 'jsonl') {
-      await announcementsManager.checkForUpdates();
-      await announcementsManager.printAnnouncements();
+    if (showsNotices) {
+      announcementsManager.printNotices();
     }
 
     tuiManager.emitJsonlResult({
@@ -177,6 +189,7 @@ export const runCommand = async (opts: RunCommandOptions) => {
       })
     });
   } catch (err) {
+    markTiming('command:failed');
     tuiDebug('MAIN', 'catch block entered', {
       isInterrupted: applicationManager.isInterrupted,
       message: (err as Error)?.message?.slice(0, 200)
@@ -198,7 +211,11 @@ export const runCommand = async (opts: RunCommandOptions) => {
       });
       return;
     }
+    const endReportError = startTiming('notifications:report-error');
+    // Loaded only on failure: the notification manager's AWS dependencies would otherwise load with every command.
+    const { notificationManager } = await import('@domain-services/notification-manager');
     await notificationManager.reportError(returnableError.stack || returnableError.message || String(returnableError));
+    endReportError();
     // stop() already called (and awaited) inside handleError() — no need to call again
     const errorDetails = (returnableError as any).details || {};
     tuiManager.emitJsonlResult({
@@ -211,6 +228,9 @@ export const runCommand = async (opts: RunCommandOptions) => {
       }
     });
     throw returnableError;
+  } finally {
+    // A notices refresh still in flight must not outlive the command or keep the process running.
+    announcementsManager.stop();
   }
 };
 

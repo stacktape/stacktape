@@ -1,3 +1,4 @@
+import { markTiming, startTiming } from '@utils/timings';
 import { runUsingCli } from './cli';
 
 const drainStream = async (stream: NodeJS.WriteStream) => {
@@ -12,7 +13,9 @@ const drainStream = async (stream: NodeJS.WriteStream) => {
 };
 
 const finishProcess = async () => {
+  const endDrain = startTiming('shutdown:drain-output');
   await Promise.all([drainStream(process.stdout), drainStream(process.stderr)]);
+  endDrain();
   process.exit(process.exitCode ?? 0);
 };
 
@@ -26,6 +29,7 @@ runUsingCli()
     process.exitCode = 1;
   })
   .finally(async () => {
+    markTiming('shutdown:start');
     if (process.env.STP_DEBUG_ACTIVE_HANDLES === '1') {
       const activeResources = (process as any).getActiveResourcesInfo?.() || [];
       const activeHandles = ((process as any)._getActiveHandles?.() || []).map(

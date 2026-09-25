@@ -64,6 +64,7 @@ import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { getDirectiveParams, getIsDirective } from '@utils/directives';
 import { getApexDomain } from '@utils/domains';
+import { startTiming } from '@utils/timings';
 import { ConfigResolver, type ConfigResolverContext } from './config-resolver';
 import { getAuthoredOverrides } from './normalized-resource';
 import { getAlarmsToBeAppliedToResource, isGlobalAlarmEligibleForStack } from './utils/alarms';
@@ -180,7 +181,9 @@ export class ConfigManager {
     // A local path triggers discovery. The resolver still applies its existing input precedence, so a preset or
     // template present in the same context may supply the discovered configuration.
     if (context.configPath) {
+      const endTiming = startTiming('config:load-raw');
       await this.configResolver.loadRawConfig({ context });
+      endTiming();
       this.#discoveredConfig = {
         finalTransform: this.configResolver.finalTransform,
         rawConfig: this.configResolver.rawConfig,
@@ -235,11 +238,15 @@ export class ConfigManager {
       candidate.transforms = candidate.configResolver.transforms;
       candidate.finalTransform = candidate.configResolver.finalTransform;
       candidate.configResolver.registerUserDirectives(candidate.configResolver.rawConfig?.directives || []);
+      const endResolve = startTiming('config:resolve');
       await candidate.configResolver.loadResolvedConfig();
+      endResolve();
       candidate.config = candidate.configResolver.resolvedConfig;
       candidate.rawConfig = candidate.configResolver.rawConfig;
+      const endValidate = startTiming('config:validate');
       await validateConfigStructure({ config: candidate.config, configPath, templateId });
       runInitialValidations({ configManager: candidate, stackContext: candidate.stackContext });
+      endValidate();
     }
 
     this.#publishInitializedConfig(candidate);

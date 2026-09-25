@@ -44,7 +44,7 @@ export const getStacktapeVersion = (): string => {
   // @ts-expect-error - injected using define
   return STACKTAPE_VERSION;
 };
-export const getLatestStacktapeVersion = async () => {
-  const res = await jsonFetch('https://installs.stacktape.com/_data.json');
+export const getLatestStacktapeVersion = async (options?: { signal?: AbortSignal; timeoutMs?: number }) => {
+  const res = await jsonFetch('https://installs.stacktape.com/_data.json', options);
   return res.latestVersion;
 };

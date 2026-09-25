@@ -1,16 +1,29 @@
+// Imports nothing but Node built-ins, so loading it first adds no application modules to startup.
+import { markTiming, startTiming, timeAsync } from '@utils/timings';
+
 // OpenTUI checks this process-wide flag when its modules initialize. Set it
 // before dynamically loading either the CLI application or interactive launcher.
 process.env.OTUI_USE_CONSOLE = 'false';
+markTiming('cli:entry');
 
 const main = async () => {
-  const { configureNativeRuntimeForPlatform } = await import('@utils/bin-executable');
+  // Each span covers loading and evaluating a module graph, whatever work the runtime does for that.
+  const { configureNativeRuntimeForPlatform } = await timeAsync(
+    'startup:load-native-runtime',
+    () => import('@utils/bin-executable')
+  );
   configureNativeRuntimeForPlatform();
 
-  const { getCliInput } = await import('@utils/cli');
-  const { resolveOutputMode } = await import('@application-services/tui-manager/output/mode');
-  const { runCommand } = await import('../index');
+  const { getCliInput } = await timeAsync('startup:load-argument-reader', () => import('@utils/cli'));
+  const { resolveOutputMode } = await timeAsync(
+    'startup:load-output-mode',
+    () => import('@application-services/tui-manager/output/mode')
+  );
+  const { runCommand } = await timeAsync('startup:load-dispatcher', () => import('../index'));
 
+  const endReadArguments = startTiming('startup:read-arguments');
   const { commands, options, additionalArgs } = getCliInput();
+  endReadArguments();
   const forceTty = process.env.FORCE_TTY === '1';
   const outputMode = resolveOutputMode({
     explicitMode: options.outputFormat,
@@ -37,11 +50,13 @@ const main = async () => {
     });
   }
 
-  return runCommand({
-    args: options,
-    commands,
-    additionalArgs
-  });
+  return timeAsync('cli:run-command', () =>
+    runCommand({
+      args: options,
+      commands,
+      additionalArgs
+    })
+  );
 };
 
 export const runUsingCli = main;

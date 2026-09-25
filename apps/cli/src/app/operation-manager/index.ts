@@ -2,6 +2,7 @@ import { OperationJournal } from './journal';
 import { OperationReporter } from './reporter';
 import { OperationProgressReporter } from './progress-reporter';
 import { OperationStore } from './store';
+import { isTimingEnabled, startTiming } from '@utils/timings';
 import type {
   DeploymentPhase,
   OperationCancellation,
@@ -82,6 +83,21 @@ class OperationSession {
 }
 
 export const operationSession = new OperationSession();
+
+// Progress activities already mark most packaging and deployment phases, so opt-in timing follows them instead of
+// instrumenting the same places again. Only the event type, instance and parent are kept, never descriptions.
+if (isTimingEnabled()) {
+  const endByActivity = new Map<string, (detail?: { status: string }) => void>();
+  operationSession.journal.subscribe((record) => {
+    if (record.type === 'activity-started') {
+      const { id, eventType, instanceId, parentEventType } = record.activity;
+      endByActivity.set(id, startTiming(`event:${eventType}`, { instance: instanceId, parent: parentEventType }));
+    } else if (record.type === 'activity-finished') {
+      endByActivity.get(record.activityId)?.({ status: record.status });
+      endByActivity.delete(record.activityId);
+    }
+  });
+}
 export const operationReporter = new OperationProgressReporter(operationSession);
 export type * from './types';
 export { createInitialOperationState, getPhaseOrder, reduceOperationState, replayOperationRecords } from './reducer';

@@ -27,16 +27,14 @@ import {
 import { stpErrors } from '@errors';
 import type { LoadedAwsCredentials, ValidatedAwsCredentials } from 'src/aws/credentials';
 import type { AwsCredentialsProvider } from 'src/aws/context';
-import { defaultProvider } from '@aws-sdk/credential-provider-node';
 import { SUPPORTED_AWS_REGIONS, type SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regions';
 import { getRoleArnFromSessionArn } from '@stacktape/naming/arns';
 import { getGloballyUniqueStackHash } from '@stacktape/naming/stack-identity';
 import { propertyFromObjectOrNull } from '@utils/misc';
 import { listAwsProfiles, loadAwsConfigFileContent } from '@utils/aws-config';
-import { awsSdkManager } from '@utils/aws-sdk-manager';
-import { getAwsCredentialsIdentity } from '@utils/aws-sdk-manager/utils';
 import { loadHelperLambdaDetails } from '@utils/helper-lambdas';
 import { getAwsSynchronizedTime } from '@utils/time';
+import { timeAsync } from '@utils/timings';
 import { generateShortUuid, generateUuid } from '@utils/uuid';
 import {
   validateArgs,
@@ -49,7 +47,6 @@ import {
 import { kebabCase } from 'change-case';
 import dayjs from 'dayjs';
 import { loadPersistedState, savePersistedState } from './utils';
-import { runAuthFlow } from '../../commands/_utils/auth';
 import type { StacktapeConfig } from '@stacktape/config';
 import type { CurrentUserAndOrgDataResponse } from '@stacktape/console-api/api-key';
 import { selectAwsCredentialProfile } from './credential-source';
@@ -204,6 +201,7 @@ export class GlobalStateManager {
     if (!this.apiKey && !commandsNotRequiringApiKey.includes(this.command)) {
       if (process.stdout.isTTY) {
         // Run interactive auth flow (sign up, login, or Google OAuth)
+        const { runAuthFlow } = await import('../../commands/_utils/auth');
         const authResult = await runAuthFlow();
         if (!authResult.success || !authResult.apiKey) {
           throw stpErrors.e501({ operation: this.command });
@@ -351,8 +349,14 @@ export class GlobalStateManager {
       persistedProfile: this.persistedState?.cliArgsDefaults.profile,
       environment: process.env
     });
+    // Imported on use, like every AWS SDK module here, so commands that never use AWS do not evaluate the SDK at
+    // startup.
+    const [{ defaultProvider }, { getAwsCredentialsIdentity }] = await Promise.all([
+      import('@aws-sdk/credential-provider-node'),
+      import('@utils/aws-sdk-manager/utils')
+    ]);
     const credentialsProvider = defaultProvider(selectedProfile ? { profile: selectedProfile } : {});
-    const credentials = await credentialsProvider();
+    const credentials = await timeAsync('credentials:provider-chain', () => credentialsProvider());
     const identity = await getAwsCredentialsIdentity({ credentials });
     if (!identity.Account || !identity.Arn) {
       throw new Error('AWS STS returned an incomplete caller identity.');
@@ -425,6 +429,7 @@ export class GlobalStateManager {
 
     // loading method re-ASSUME ROLE
     const loadCredentialsUsingReAssumeRole = async (): Promise<LoadedAwsCredentials> => {
+      const { awsSdkManager } = await import('@utils/aws-sdk-manager');
       const credentials = await awsSdkManager.sts.assumeRoleCredentials({
         roleArn: getRoleArnFromSessionArn(this.credentials.identity.arn),
         roleSessionName: `stp-user-session_${this.userData.id}`

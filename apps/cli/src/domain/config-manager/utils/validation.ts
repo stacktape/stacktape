@@ -41,7 +41,6 @@ import { validateSnsTopicConfig } from './sns-topics';
 import { validateEmailSenderConfig, validateEmailSenderIdentityUniqueness } from './email-senders';
 import { validateSqsQueueConfig } from './sqs-queues';
 import { validateWebServiceConfig } from './web-services';
-import { validateConfigWithZod } from './zod-validator';
 import type { StacktapeConfig } from '@stacktape/config';
 import type {
   PyLanguageSpecificConfig,
@@ -296,7 +295,9 @@ export const validateConfigStructure = async ({
   configPath: string;
   templateId: string;
 }) => {
-  // Use Zod validator for better error messages (especially for discriminated unions)
+  // The generated validator is large to evaluate, so it is loaded here, when a configuration is validated, rather than
+  // at startup by every command. Use Zod validator for better error messages (especially for discriminated unions)
+  const { validateConfigWithZod } = await import('./zod-validator');
   const zodResult = validateConfigWithZod({ config, configPath, templateId });
   if (!zodResult.valid && 'errorMessage' in zodResult) {
     throw new CliError({

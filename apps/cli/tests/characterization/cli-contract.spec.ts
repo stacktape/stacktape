@@ -76,8 +76,8 @@ describe('CLI capability contract', () => {
   });
 
   test('answers help and version without update or announcement traffic', () => {
-    // `runCommand` skips `checkForUpdates`/`printAnnouncements` for these commands, which is what keeps
-    // `stacktape --help` and `--version` instant offline and the compiled smoke check network-free.
+    // `runCommand` neither refreshes nor prints update notices and announcements for these commands, which is what
+    // keeps `stacktape --help` and `--version` instant offline and the compiled smoke check network-free.
     expect(commandsWithDisabledAnnouncements).toEqual(expect.arrayContaining(['help', 'version']));
     expect(commandsWithDisabledAnnouncements.every((command) => cliCommands.includes(command))).toBe(true);
     expect(commandsWithDisabledAnnouncements).not.toContain('deploy');

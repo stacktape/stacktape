@@ -102,13 +102,17 @@ const pinpoint = (value: any, schema: any, path: string): ConfigIssue[] => {
   return leafIssues(value, schema, path);
 };
 
-export const validateConfigObject = (config: unknown): ConfigValidation => {
-  const result = stacktapeConfigSchema.safeParse(config);
+/** `schema` is the generated schema by default; the validator differential passes another generation of it. */
+export const validateConfigObject = (
+  config: unknown,
+  schema: typeof stacktapeConfigSchema = stacktapeConfigSchema
+): ConfigValidation => {
+  const result = schema.safeParse(config);
   const filtered = result.success
     ? []
     : result.error.issues.filter((i) => !getIsDirective(get(config, i.path.join('.'))));
   if (filtered.length === 0) return { valid: true, errors: [] };
-  const precise = pinpoint(config, stacktapeConfigSchema, '');
+  const precise = pinpoint(config, schema, '');
   const errors = precise.length
     ? precise
     : filtered.map((i) => ({ path: i.path.join('.') || '<root>', message: i.message }));

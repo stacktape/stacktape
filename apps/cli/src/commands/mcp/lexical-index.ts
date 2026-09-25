@@ -1,4 +1,5 @@
 import { dirname, join, resolve } from 'node:path';
+import { brotliDecompressSync } from 'node:zlib';
 import { pathExists, readFile } from 'fs-extra';
 import { LLM_DOCS_FOLDER_PATH } from 'src/config/project-paths';
 
@@ -355,6 +356,9 @@ const STREAM_TRIGGER_INTENT_TERMS = new Set(['stream', 'streams', 'dynamodb']);
 // ─── Lexical Index ───────────────────────────────────────────────────────────
 
 const LEXICAL_INDEX_FILE_NAME = 'lexical-index.json';
+const CHUNKS_PATH = join('chunks', 'chunks.jsonl');
+// Releases ship the corpus Brotli-compressed. The generated source tree has it plain.
+const COMPRESSED_CHUNKS_PATH = `${CHUNKS_PATH}.br`;
 
 const buildInvertedIndex = (docs: IndexedDoc[], field: 'titleTokens' | 'tagTokens' | 'contentTokens') => {
   const index = new Map<string, Map<number, number>>();
@@ -387,7 +391,10 @@ const resolveLlmDocsFolderPath = async (): Promise<string> => {
   ].filter(Boolean) as string[];
 
   for (const candidatePath of candidates) {
-    if (await pathExists(join(candidatePath, 'chunks', 'chunks.jsonl'))) {
+    if (
+      (await pathExists(join(candidatePath, COMPRESSED_CHUNKS_PATH))) ||
+      (await pathExists(join(candidatePath, CHUNKS_PATH)))
+    ) {
       return candidatePath;
     }
   }
@@ -395,6 +402,14 @@ const resolveLlmDocsFolderPath = async (): Promise<string> => {
   throw new Error(
     `LLM docs not found. Run 'pnpm --filter @stacktape/cli run generate' before starting MCP. Checked: ${candidates.join(', ')}`
   );
+};
+
+const readChunks = async (llmDocsFolderPath: string) => {
+  const compressedPath = join(llmDocsFolderPath, COMPRESSED_CHUNKS_PATH);
+  if (await pathExists(compressedPath)) {
+    return brotliDecompressSync(await readFile(compressedPath)).toString('utf-8');
+  }
+  return readFile(join(llmDocsFolderPath, CHUNKS_PATH), 'utf-8');
 };
 
 const parseChunks = (content: string): LlmDocChunk[] =>
@@ -477,8 +492,7 @@ const buildIndex = async (): Promise<LexicalIndex> => {
     return deserializeLexicalIndex(JSON.parse(await readFile(lexicalIndexPath, 'utf-8')) as SerializedLexicalIndex);
   }
 
-  const chunksContent = await readFile(join(llmDocsFolderPath, 'chunks', 'chunks.jsonl'), 'utf-8');
-  return buildIndexFromChunks(chunksContent);
+  return buildIndexFromChunks(await readChunks(llmDocsFolderPath));
 };
 
 // ─── BM25 Scoring ────────────────────────────────────────────────────────────

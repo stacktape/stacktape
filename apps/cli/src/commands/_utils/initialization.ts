@@ -38,6 +38,7 @@ import type { ConfigManagerInitContext } from '@domain-services/config-manager/c
 import type { GetConfigParams } from '@stacktape/config-authoring/tooling';
 import type { StacktapeCliArgs } from '../../config/cli/types';
 import { getConfigPath } from '@utils/file-loaders';
+import { startTiming, timeAsync } from '@utils/timings';
 import { finalizeTemplate, prepareTemplateForDeploy } from '@domain-services/template-manager/finalize';
 
 export const getStackContext = (): StackContext =>
@@ -107,21 +108,26 @@ export const loadTargetStackContext = async ({ skipRawConfig = false }: { skipRa
   if (!skipRawConfig) {
     await configManager.loadRawConfigOnly({ context: getConfigResolverContext() });
   }
-  await globalStateManager.loadTargetStackInfo({
-    configProjectName: skipRawConfig ? undefined : configManager.configResolver.rawConfig?.projectName
-  });
+  await timeAsync('context:target-stack', () =>
+    globalStateManager.loadTargetStackInfo({
+      configProjectName: skipRawConfig ? undefined : configManager.configResolver.rawConfig?.projectName
+    })
+  );
 };
 
 export const loadLocalTargetStackContext = async () => {
   detectConfigPath();
   await configManager.loadRawConfigOnly({ context: getConfigResolverContext() });
-  await globalStateManager.loadLocalTargetStackInfo({
-    configProjectName: configManager.configResolver.rawConfig?.projectName
-  });
+  await timeAsync('context:target-stack', () =>
+    globalStateManager.loadLocalTargetStackInfo({
+      configProjectName: configManager.configResolver.rawConfig?.projectName
+    })
+  );
 };
 
 export const loadLocalAwsContext = async () => {
   const credentialsProvider = await globalStateManager.loadLocalAwsCredentials();
+  const endSdkInit = startTiming('context:aws-sdk-init');
   awsSdkManager.init({
     credentials: credentialsProvider,
     region: globalStateManager.region,
@@ -129,6 +135,7 @@ export const loadLocalAwsContext = async () => {
     plugins: [loggingPlugin, retryPlugin, redirectPlugin],
     printer: tuiManager
   });
+  endSdkInit();
   await loadLocalTargetStackContext();
 };
 

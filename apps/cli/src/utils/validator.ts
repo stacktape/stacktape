@@ -17,7 +17,6 @@ import { renderPrettyJson } from '@utils/pretty-json';
 import { cliCommands, type StacktapeCommand } from '../config/cli/commands';
 import { argAliases as cliArgsAliases } from '../config/cli/options';
 import { getAllowedArgs, getArgInfo, getRequiredArgs } from '../config/cli/utils';
-import { getAwsCredentialsIdentity } from './aws-sdk-manager/utils';
 
 export const validateDomain = (domain: string) => {
   if (!domain.match(/^((?:(?:\w[.\-+]?)*\w)+)((?:(?:\w[.\-+]?){0,62}\w)+)\.(\w{2,6})$/)?.length) {
@@ -407,6 +406,8 @@ export const validateCredentialsWithRespectToAccount = async ({
   credentials: LoadedAwsCredentials;
   profile?: string;
 }): Promise<ValidatedAwsCredentials> => {
+  // Imported on use: this module loads with every command, and the STS client is only needed here.
+  const { getAwsCredentialsIdentity } = await import('./aws-sdk-manager/utils');
   const identity = await getAwsCredentialsIdentity({ credentials });
   if (identity.Account !== targetAccount.awsAccountId) {
     throw new CliError({
