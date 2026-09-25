@@ -1,0 +1,204 @@
+/**
+ * A per-process Docker stand-in for full-CLI measurements on a shared machine.
+ *
+ * `createDockerGuard` writes an owned `docker` executable for one measurement run. Put its `binDirectory` first on the
+ * measured process's PATH: the CLI then resolves `docker` to the guard. The guard never runs the real Docker CLI:
+ *
+ * - `docker info`, the CLI's daemon probe, is answered by the guard. In `daemon-unreachable` mode it fails as an
+ *   unreachable daemon does; in every other mode it succeeds. Either answer is simulated and says so in its output.
+ * - `docker buildx inspect [--bootstrap]` is answered by the guard too, with a controlled platform list or failure
+ *   chosen by the mode. That answer is also simulated: it says nothing about the real daemon's platforms.
+ * - Everything else is refused, including privileged containers, binfmt installation, builder creation or selection,
+ *   pruning and any image, container, volume, network, context or plugin change. A refused `run` exits 125, anything
+ *   else 1, and the reason goes to stderr.
+ *
+ * PATH is not a boundary: a process can still run a Docker CLI by absolute path or open the daemon socket itself. The
+ * network sandbox masks the daemon sockets for that (`network-sandbox.ts`); the guard decides what a PATH lookup of
+ * `docker` answers.
+ *
+ * Every invocation is appended to `logPath` as one JSON line: the decision, the Docker command name, the reason, the
+ * exit code, and whether the command asked for a privileged container or the binfmt installer. Arguments, environment
+ * and output are never recorded, so a secret passed to Docker cannot reach the log.
+ *
+ * The log path and the mode are written into the script, not read from the environment, so the measured process
+ * cannot redirect them. `DOCKER_CONFIG` points at an owned empty directory, so the user's Docker configuration,
+ * credentials and builder selection are not used.
+ */
+import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+
+export const DOCKER_GUARD_MODES = [
+  'platform-ready',
+  'missing-platform',
+  'buildx-failure',
+  'daemon-unreachable'
+] as const;
+export type DockerGuardMode = (typeof DOCKER_GUARD_MODES)[number];
+
+export type DockerGuardRecord = {
+  decision: 'simulated' | 'denied';
+  /** The Docker command name from a fixed list, such as `info` or `buildx inspect`; otherwise `unrecognized`. */
+  operation: string;
+  reason: string;
+  exitCode: number;
+  privileged: boolean;
+  binfmt: boolean;
+};
+
+export type DockerGuard = {
+  mode: DockerGuardMode;
+  /** Put first on PATH. */
+  binDirectory: string;
+  dockerPath: string;
+  dockerConfigDirectory: string;
+  logPath: string;
+  /** Environment the measured process needs in addition to PATH. */
+  env: Record<string, string>;
+  readLog: () => Promise<DockerGuardRecord[]>;
+};
+
+/** What `buildx inspect` prints in each simulated mode; the CLI reads only the `Platforms:` line. */
+const SIMULATED_PLATFORMS: Partial<Record<DockerGuardMode, string>> = {
+  'platform-ready': 'linux/amd64, linux/amd64/v2, linux/amd64/v3, linux/arm64',
+  'missing-platform': 'linux/amd64, linux/amd64/v2, linux/amd64/v3',
+  'daemon-unreachable': 'linux/amd64, linux/amd64/v2, linux/amd64/v3, linux/arm64'
+};
+
+const quoteForShell = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
+
+const renderGuardScript = ({ logPath, mode }: { logPath: string; mode: DockerGuardMode }) => {
+  const platforms = SIMULATED_PLATFORMS[mode];
+  const inspectAnswer = platforms
+    ? [
+        "  printf '%s\\n' 'Name:          default' 'Driver:        docker' \\",
+        "    'Simulated:     answered by the Stacktape measurement Docker guard, not by the Docker daemon' '' \\",
+        "    'Nodes:' 'Name:             default' 'Endpoint:         default' 'Status:           running' \\",
+        `    'Platforms:        ${platforms}'`,
+        `  record simulated 'buildx inspect' 'controlled platform list: ${platforms}' 0 false false`,
+        '  exit 0'
+      ]
+    : [
+        "  printf 'ERROR: simulated buildx failure (Stacktape measurement Docker guard)\\n' >&2",
+        "  record simulated 'buildx inspect' 'controlled buildx failure' 1 false false",
+        '  exit 1'
+      ];
+  const infoAnswer =
+    mode === 'daemon-unreachable'
+      ? [
+          "  printf '%s\\n' 'Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?' \\",
+          "    '(simulated by the Stacktape measurement Docker guard)' >&2",
+          "  record simulated info 'controlled daemon probe: unreachable' 1 false false",
+          '  exit 1'
+        ]
+      : [
+          "  printf '%s\\n' 'Client:' ' Context:    default' '' 'Server:' \\",
+          "    ' Simulated: answered by the Stacktape measurement Docker guard, not by the Docker daemon'",
+          "  record simulated info 'controlled daemon probe: running' 0 false false",
+          '  exit 0'
+        ];
+  return `#!/bin/sh
+# Generated by apps/cli/scripts/perf/docker-guard.ts for one measurement run (mode: ${mode}). Do not reuse.
+# Simulates \`docker info\` and \`docker buildx inspect\`, and refuses every other Docker command. Never runs Docker.
+log=${quoteForShell(logPath)}
+
+record() {
+  printf '{"decision":"%s","operation":"%s","reason":"%s","exitCode":%s,"privileged":%s,"binfmt":%s}\\n' \\
+    "$1" "$2" "$3" "$4" "$5" "$6" >>"$log"
+}
+
+# Only names from these fixed lists are ever recorded; anything else, which could be an argument value, is not.
+command_name() {
+  case "$1" in
+    attach | build | builder | buildx | commit | compose | config | container | context | cp | create | diff | events | \\
+      exec | export | history | image | images | import | info | init | inspect | kill | load | login | logout | logs | \\
+      manifest | network | node | pause | plugin | port | ps | pull | push | rename | restart | rm | rmi | run | save | \\
+      sbom | scout | search | secret | service | stack | start | stats | stop | swarm | system | tag | top | trust | \\
+      unpause | update | version | volume | wait) printf '%s' "$1" ;;
+    *) printf 'unrecognized' ;;
+  esac
+}
+subcommand_name() {
+  case "$1" in
+    bake | build | create | debug | dial | du | history | imagetools | inspect | install | ls | prune | rm | stop | \\
+      uninstall | use | version) printf '%s' "$1" ;;
+    *) printf 'unrecognized' ;;
+  esac
+}
+
+deny() {
+  printf 'Stacktape measurement Docker guard refused docker %s: %s.\\n' "$1" "$2" >&2
+  record denied "$1" "$2" "$3" "$4" "$5"
+  exit "$3"
+}
+
+privileged=false
+binfmt=false
+for argument in "$@"; do
+  case "$argument" in
+    --privileged | --privileged=true) privileged=true ;;
+    tonistiigi/binfmt | tonistiigi/binfmt:* | tonistiigi/binfmt@* | */tonistiigi/binfmt | */tonistiigi/binfmt[:@]*) binfmt=true ;;
+  esac
+done
+
+command=\${1-}
+case "$command" in
+  '' | -*) deny 'global-options' 'global options and bare invocations are refused' 1 "$privileged" "$binfmt" ;;
+esac
+
+if [ "$command" = info ] && [ "$#" -eq 1 ]; then
+${infoAnswer.join('\n')}
+fi
+
+if [ "$command" = buildx ] && [ "\${2-}" = inspect ] && { [ "$#" -eq 2 ] || { [ "$#" -eq 3 ] && [ "$3" = --bootstrap ]; }; }; then
+${inspectAnswer.join('\n')}
+fi
+
+if [ "$command" = run ]; then
+  if [ "$binfmt" = true ]; then
+    deny run 'binfmt installation' 125 "$privileged" "$binfmt"
+  elif [ "$privileged" = true ]; then
+    deny run 'privileged container' 125 "$privileged" "$binfmt"
+  fi
+  deny run 'containers are not needed by a pure-JavaScript package sample' 125 "$privileged" "$binfmt"
+fi
+
+case "$command" in
+  buildx | builder) deny "$command $(subcommand_name "\${2-}")" 'builder changes, builds and other buildx commands are refused' 1 "$privileged" "$binfmt" ;;
+  *) deny "$(command_name "$command")" 'not needed by a pure-JavaScript package sample' 1 "$privileged" "$binfmt" ;;
+esac
+`;
+};
+
+export const parseDockerGuardLog = (content: string): DockerGuardRecord[] =>
+  content
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as DockerGuardRecord);
+
+/** Writes the guard into `directory`, which the caller owns and which must not contain an earlier guard. */
+export const createDockerGuard = async ({
+  directory,
+  mode
+}: {
+  directory: string;
+  mode: DockerGuardMode;
+}): Promise<DockerGuard> => {
+  const binDirectory = join(directory, 'bin');
+  const dockerConfigDirectory = join(directory, 'docker-config');
+  const logPath = join(directory, 'docker-guard.jsonl');
+  const dockerPath = join(binDirectory, 'docker');
+  await mkdir(binDirectory, { recursive: true });
+  await mkdir(dockerConfigDirectory, { recursive: true });
+  await writeFile(logPath, '', { flag: 'wx' });
+  await writeFile(dockerPath, renderGuardScript({ logPath, mode }), { flag: 'wx' });
+  await chmod(dockerPath, 0o755);
+  return {
+    mode,
+    binDirectory,
+    dockerPath,
+    dockerConfigDirectory,
+    logPath,
+    env: { DOCKER_CONFIG: dockerConfigDirectory },
+    readLog: async () => parseDockerGuardLog(await readFile(logPath, 'utf8'))
+  };
+};
