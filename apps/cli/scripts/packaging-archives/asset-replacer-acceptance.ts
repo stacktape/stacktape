@@ -324,7 +324,7 @@ const helperEnvironment = () => {
     `AWS_ENDPOINT_URL_S3=${ENDPOINT}`,
     // Any other AWS client would also reach the fixture, which refuses and records it.
     `AWS_ENDPOINT_URL=${ENDPOINT}`,
-    'AWS_ACCESS_KEY_ID=AKIAASSETREPLACERTEST',
+    'AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE',
     'AWS_SECRET_ACCESS_KEY=asset-replacer-acceptance-inert-secret',
     'AWS_SESSION_TOKEN=asset-replacer-acceptance-inert-token',
     'AWS_REGION=eu-west-1',
