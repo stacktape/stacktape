@@ -319,10 +319,12 @@ export const getReleaseBundleOptions = ({
  * a target that cannot use it silently parses the source instead, so a target joins only after its cross-built
  * archive ran on its own host (`qualify-bytecode.ts`): identical behavior, and `--version` and `--help` in a quarter
  * to a third of the time. Linux x64 was qualified on its host (Wave 1D), Alpine x64 in an `alpine:3.22` container and
- * Windows x64 natively through WSL interop (Wave 1H). macOS and Linux ARM wait for the release workflow's
- * `bytecode_qualification` run on their own runners.
+ * Windows x64 natively through WSL interop (Wave 1H). macOS x64 (`macos-15-intel`), macOS arm64 (`macos-15`) and
+ * Linux arm64 (`ubuntu-24.04-arm`) were qualified by the release workflow's `bytecode_qualification` run 36174122384
+ * on 2026-09-25: 22/22 checks each and `--version` in 0.23-0.25 of the time. Linux arm64's depth-1 archive measured
+ * 89.6 MiB against its 90 MiB gate; strip its arm64 OpenTUI libraries if that gate trips.
  */
-const BYTECODE_PLATFORMS: SupportedPlatform[] = ['linux', 'alpine', 'win'];
+const BYTECODE_PLATFORMS: SupportedPlatform[] = ['linux', 'alpine', 'win', 'macos', 'macos-arm', 'linux-arm'];
 
 export const buildBinaryFile = async ({
   distFolderPath,
