@@ -58,7 +58,6 @@
     "packages/packaging/src/buildpacks/stacktape-rb-lambda-buildpack.ts",
     "packages/packaging/src/bundlers/dotnet/index.ts",
     "packages/packaging/src/bundlers/dotnet/utils.ts",
-    "packages/packaging/src/bundlers/es/index.ts",
     "packages/packaging/src/bundlers/go/index.ts",
     "packages/packaging/src/bundlers/go/utils.ts",
     "packages/packaging/src/bundlers/java/index.ts",

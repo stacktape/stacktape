@@ -134,5 +134,13 @@ endpoint completed with `model: glm-5.3`, `reasoning_effort: max`, enabled think
 the transport, not the model or effort. Use the existing provider credentials without placing their values in prompts or
 review artifacts. The resulting verification has packet-only scope unless additional source evidence is supplied.
 
+### Observed CLI behavior
+
+- `glm` prints only a pointer; the review itself lands in `~/.claude/plans/<name>.md` inside WSL. A run that looks empty
+  has not failed until that file has been checked.
+- `grok` completed a repository-only review, but on a longer request carrying a design packet it ended its turn after
+  narrating what it would investigate, on three attempts with and without `--agent explore`, `--no-plan` and a raised
+  `--max-turns` (2026-09-20). Record that as unable to complete instead of retrying a fourth time.
+
 The CLI output is evidence to investigate, not the final verdict. Verify surviving findings locally before presenting
 them as confirmed.

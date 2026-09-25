@@ -64,8 +64,9 @@ const RULES: Rule[] = [
     commands: ['pnpm test:packaging-e2e'],
     matches: (path) =>
       path.startsWith('packages/packaging/') ||
-      hasPart(path, /^apps\/cli\/src\/(packaging|domain\/packaging)/) ||
-      path.startsWith('apps/cli/scripts/packaging')
+      hasPart(path, /^apps\/cli\/src\/(packaging|domain\/packaging|utils\/zip)/) ||
+      path.startsWith('apps/cli/scripts/packaging') ||
+      path.startsWith('apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/asset-replacer')
   },
   {
     id: 'project-qualification',

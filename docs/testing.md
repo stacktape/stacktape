@@ -1,8 +1,14 @@
 # Testing Stacktape changes
 
-Tests are evidence for a behavior, not a quota. Choose the cheapest test that crosses the boundary where the change can
-fail. A mocked unit test is useful for a pure policy or algorithm. It is not sufficient evidence for behavior that
-depends on a process boundary, PostgreSQL, a browser, a built artifact, a provider callback, or AWS.
+Tests are evidence for a behavior, not a quota. Strongly prefer one end-to-end test at the boundary where a complex
+feature can fail as its sole behavioral test. An E2E run must leave a verifiable, repeatable evidence artifact with the
+source revision, inputs, commands, results, and cleanup where applicable. Choose realistic failure cases; do not test
+theoretical, very unlikely bugs when handling them would needlessly complicate the codebase.
+
+Never write unit tests after writing the implementation they cover. If isolation is necessary, first list all realistic
+ways the system could fail, then write the tests, then write the implementation. A mocked unit test may help prove a
+pure policy or algorithm, but cannot prove behavior that depends on a process boundary, PostgreSQL, a browser, a built
+artifact, a provider callback, or AWS.
 
 Before implementation, run `pnpm test:plan -- --since=<git-ref>` or `pnpm test:plan` for current working-tree changes.
 Use its output as a starting point, then add any risk that path matching cannot infer. Run `pnpm test:doctor` before a
@@ -51,20 +57,20 @@ mutating commands.
 
 ## Select evidence by failure boundary
 
-| Changed behavior                                            | Minimum useful evidence                                                                                    | Add when the risk crosses another boundary                                            |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| Pure parser, formatter, state machine, policy, or algorithm | Focused unit test with representative inputs and failure cases                                             | Property or fuzz cases for a large input space                                        |
-| Public schema, type boundary, or serialization              | Producer/consumer contract test using the serialized form                                                  | Process-level request through the real adapter                                        |
-| Naming, config normalization, IAM, or CloudFormation        | Semantic assertions against the resolved template; `cfn-lint` for CloudFormation                           | Disposable AWS scenario when an AWS service must interpret the result                 |
-| Package or runtime artifact                                 | Build the real archive/image and execute it in the target Docker runtime                                   | Disposable AWS invocation for service-specific runtime semantics                      |
-| CLI command or control-plane interaction                    | Run the source-built CLI as a child process and assert exit code, output, and durable result               | Dev API or disposable AWS scenario when the command contacts those systems            |
-| Console API routing, authentication, or API/UI contract     | Fastify injection through the real HTTP/tRPC adapter                                                       | Full `pnpm dev:console` browser flow against the dev data plane                       |
-| Prisma query, constraint, transaction, or migration         | Disposable PostgreSQL with real migrations and real queries                                                | Shared dev migration plus Console flow when existing dev data matters                 |
-| Console UI behavior                                         | Browser interaction with user-visible assertions                                                           | Full local API mode for changed contracts; deployed dev mode for callbacks/jobs       |
-| OAuth, provider webhook, or background Lambda               | Deploy `console-app-dev` and send a real provider event                                                    | Verify retry, idempotency, denial/cancellation, and recorded side effects             |
-| EC2 runner, AMI, instance profile, SSM, or boot behavior    | Pure policy/template test plus a real dev AMI or runner job                                                | Run a workload, collect the durable result, stop/terminate the runner, verify cleanup |
-| Observability or security detection                         | Deterministic policy/normalization tests plus an end-to-end signal through ingestion, storage, API, and UI | Real AWS event when its shape or delivery semantics are owned by AWS                  |
-| Documentation or cosmetic UI only                           | Relevant build plus browser or rendered inspection                                                         | Accessibility and responsive checks when layout or interaction changed                |
+| Changed behavior                                            | Minimum useful evidence                                                                           | Add when the risk crosses another boundary                                            |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Pure parser, formatter, state machine, policy, or algorithm | E2E consumer scenario when practical; otherwise a test-first unit test of realistic failure cases | Property or fuzz cases only when a real large input space warrants them               |
+| Public schema, type boundary, or serialization              | Producer/consumer contract test using the serialized form                                         | Process-level request through the real adapter                                        |
+| Naming, config normalization, IAM, or CloudFormation        | Semantic assertions against the resolved template; `cfn-lint` for CloudFormation                  | Disposable AWS scenario when an AWS service must interpret the result                 |
+| Package or runtime artifact                                 | Build the real archive/image and execute it in the target Docker runtime                          | Disposable AWS invocation for service-specific runtime semantics                      |
+| CLI command or control-plane interaction                    | Run the source-built CLI as a child process and assert exit code, output, and durable result      | Dev API or disposable AWS scenario when the command contacts those systems            |
+| Console API routing, authentication, or API/UI contract     | Fastify injection through the real HTTP/tRPC adapter                                              | Full `pnpm dev:console` browser flow against the dev data plane                       |
+| Prisma query, constraint, transaction, or migration         | Disposable PostgreSQL with real migrations and real queries                                       | Shared dev migration plus Console flow when existing dev data matters                 |
+| Console UI behavior                                         | Browser interaction with user-visible assertions                                                  | Full local API mode for changed contracts; deployed dev mode for callbacks/jobs       |
+| OAuth, provider webhook, or background Lambda               | Deploy `console-app-dev` and send a real provider event                                           | Verify retry, idempotency, denial/cancellation, and recorded side effects             |
+| EC2 runner, AMI, instance profile, SSM, or boot behavior    | Real dev AMI or runner job with an owned, reproducible result                                     | Run a workload, collect the durable result, stop/terminate the runner, verify cleanup |
+| Observability or security detection                         | End-to-end signal through ingestion, storage, API, and UI with a reproducible result              | Real AWS event when its shape or delivery semantics are owned by AWS                  |
+| Documentation or cosmetic UI only                           | Relevant build plus browser or rendered inspection                                                | Accessibility and responsive checks when layout or interaction changed                |
 
 The minimum column is a floor, not a list of tests to create automatically. Do not add a unit test that merely repeats
 the implementation, asserts mock call choreography, scans source text, or proves a language/library feature. Source
@@ -94,6 +100,80 @@ Use `pnpm test:packaging-e2e` for archive/image behavior. Use the import, packag
 customer projects as described in [`project-qualification.md`](project-qualification.md). The package lane intentionally
 blocks unreviewed project code on the host. Packaging proves that artifacts can be produced; only the runtime and AWS
 lanes prove that they run.
+
+`pnpm test:packaging-e2e` ends with five CLI-owned acceptances. The first is
+`pnpm --filter @stacktape/cli run test:lambda-archives`, the acceptance for ZIPs made by the CLI's own archiver. It
+extracts each archive with `unzip` into a new directory and invokes it in the official Lambda Node.js image as an
+unprivileged user that owns none of the files: executables, a single file, hidden entries, links, removed files and
+quoted paths, through archiver, zip, 7-Zip and a failing native tool. It also seeds local deployment buckets with
+permission-broken ZIPs under their pre-format keys. Custom and managed packaging must rebuild them, reuse the rebuilt
+objects, and rebuild after a chmod-only change. Split functions with their shared and native layers go through the
+deploy command's own packaging and upload code, with local stand-ins for S3, CloudFormation and Docker: they must
+replace the old objects, reuse unchanged ones, and rebuild after a mode-only change exactly where the archive changes.
+It needs Docker and `unzip`. Pass `--zip-dir` and `--7z-dir` for tools not on `PATH`; a native tool it cannot find is
+reported as not qualified.
+
+The second, `pnpm --filter @stacktape/cli run test:asset-replacer`, runs the service helper's Next.js asset replacer as
+a stack does. It builds every helper artifact with the release packaging and verifier, then runs the service helper's
+ZIP in the official Lambda Node.js 22 image for x86_64, its deployed runtime, as the same unprivileged user, with an
+owned host directory as `/tmp`. The helper container shares the network namespace of a fixture container that has no
+network, so the SDK the runtime provides reaches only the fixture's S3 and CloudFormation-response endpoints on
+loopback. One warm container receives two Creates for one key with different inputs and values, a key with several dots,
+an invalid ZIP, ZIPs with escaping links (one with non-ASCII names), a refused download, a refused upload and a Delete.
+A second container, whose `/tmp` is a 10 MiB tmpfs, must replace values in a package with 4 MiB of incompressible data.
+Each outcome is read from the CloudFormation response, not the invocation status. Uploaded ZIPs are extracted with
+`unzip`, inspected and run in the Lambda runtime; the helper's logs must not contain any search or replacement value,
+and its `/tmp` must be left as it was. It needs Docker and `unzip`, not AWS. `--helper-lambdas-dir` characterizes
+already built helper artifacts instead, and the report marks them as supplied.
+
+The third, `pnpm --filter @stacktape/cli run test:docker-preparation`, packages small projects through the CLI's own
+`packageAllWorkloads`, each in a fresh process whose `docker` is a generated stand-in. The stand-in records every
+command and answers only what the scenario's Docker state allows: a broken buildx, an unreachable or stuck daemon, a
+missing arm64 platform, or an existing registry-cache builder. It refuses privileged containers, binfmt installation and
+builder changes, and fails like Docker when a build targets an unsupported platform or uses the registry cache before
+`docker login`. Pure JavaScript and custom artifacts must be packaged without any Docker command, whatever Docker's
+state. A pure JavaScript split group is built together even when Docker is unreachable, stuck or not installed. Without
+Docker, its function ZIPs and its shared layer, zipped as a deployment zips it, must hold the same entries as with
+Docker ready, and each function must run in the Lambda Node.js image with the layer at `/opt`. A single function, and
+any group under `--disableLayerOptimization`, stays per function. A split group whose shared analysis finds a native
+dependency may only ask `docker info`, and without Docker must fail before any artifact, naming the dependency. Four
+deployments of two image jobs against a stand-in registry must keep each job's registry cache tag while the job exists,
+so later builds import it; old image versions and replaced cache images must still be deleted, and a removed job's cache
+tag with the next deployment. Lambda ZIPs over 50 MB, on their own, split and as a custom artifact, must package and run
+in the Lambda image; a split function whose package and Stacktape layers exceed 250 MB together must fail before any
+upload, naming each size. A job that needs Docker must prepare only the platform it builds for, once for concurrent
+jobs, using the pinned binfmt helper. The registry-cache builder and ECR login must be prepared only for a build that
+uses them. One more scenario builds a `FROM scratch` image for linux/amd64 on the real daemon. A guard forwards only
+that build and its inspections and refuses everything else. The acceptance then removes the image and checks the
+daemon's image events for pulls. It skips that scenario unless the default builder uses the docker driver and supports
+linux/amd64 natively. It contacts no AWS service or registry.
+
+The fourth, `pnpm --filter @stacktape/cli run test:layer-upload`, runs three deployments of the split project through
+the deploy command's own packaging and upload code into one local bucket. The shared layer is 12 MiB, and a
+native-dependency layer changes alone. A deployment must zip and upload only the layers its bucket does not hold yet.
+Each ZIP must extract with `unzip` to exactly its layer, and the bucket must store exactly that ZIP. Every layer key the
+template uses must stay protected from retention. It needs `unzip`, not Docker or AWS.
+
+The fifth, `pnpm --filter @stacktape/cli run test:fresh-install`, runs the first `package` of a fresh npm checkout with
+the compiled release CLI. The CLI installs dependencies and bundles in one process, and Bun caches the project
+directory's entries when that process starts; the acceptance fails if the bundler cannot see the `node_modules` the
+install just created. The CLI and a one-package registry run in the Lambda Node.js image with no network but loopback,
+no Docker, no capabilities and a read-only root filesystem. The project has only a lockfile and no `node_modules`
+anywhere above it. The first run must install and build; its ZIP, extracted with `unzip`, must return the dependency's
+value in the Lambda runtime. The repeat must skip the install and produce the same files. `report.json` records the
+executable, each run's install decision, ZIP checksums and file list, and every registry request. It needs Linux, Docker
+and `unzip`, not AWS. `--install` tests an already built release install instead.
+
+For packaging performance, `pnpm --filter @stacktape/cli run perf:packaging` measures the Node Lambda packaging
+entrypoints offline on deterministic 1–50 function fixtures: cold, unchanged, handler, shared-module, manifest and asset
+states, each sample in a fresh process. It reports phase timings, artifact sizes and which digests each edit changes in
+an ignored `.stacktape/packaging-perf/` directory. It is not CLI wall time, never installs dependencies (the fixtures
+vendor theirs) and never contacts AWS. `--docker` adds a container shape that builds with the local daemon and pulls
+public base images. `pnpm --filter @stacktape/cli run analyze:bundle` attributes the release executable's JavaScript to
+modules and dynamic import boundaries; `--verify-compile` also builds the host executable and reports its exact size and
+SHA-256. A given `--out` must be new or empty; both tools refuse existing content rather than overwrite it. Both record
+the Git source before and after measuring and fail when it changed or could not be read. Run measurements one at a time,
+with no other build or test running and no edits to the measured source.
 
 ### Console API and PostgreSQL
 

@@ -55,7 +55,7 @@
     "test:console:browser:dev-api": "pnpm --filter @stacktape/console-ui test:e2e:dev-api",
     "test:console:db": "pnpm --filter @stacktape/console-api-app test:db",
     "test:doctor": "node scripts/workspace/test-doctor.ts",
-    "test:packaging-e2e": "pnpm --filter @stacktape/packaging run test:docker-smoke && pnpm --filter @stacktape/packaging run test:node-lambda-e2e && pnpm --filter @stacktape/packaging run test:web-framework-e2e",
+    "test:packaging-e2e": "pnpm --filter @stacktape/packaging run test:docker-smoke && pnpm --filter @stacktape/packaging run test:node-lambda-e2e && pnpm --filter @stacktape/packaging run test:web-framework-e2e && pnpm --filter @stacktape/packaging run test:es-image-deps-e2e && pnpm --filter @stacktape/cli run test:lambda-archives && pnpm --filter @stacktape/cli run test:asset-replacer && pnpm --filter @stacktape/cli run test:docker-preparation && pnpm --filter @stacktape/cli run test:layer-upload && pnpm --filter @stacktape/cli run test:fresh-install",
     "test:plan": "node scripts/workspace/test-plan.ts",
     "test:tools": "node --test scripts/workspace/check-staged-secrets.test.ts scripts/workspace/child-process.test.ts scripts/workspace/configure-hooks.test.ts scripts/workspace/run-console-cli-script.test.ts scripts/workspace/run-console-dev.test.ts scripts/workspace/test-doctor.test.ts scripts/workspace/test-plan.test.ts scripts/workspace/verify-console-pointer.test.ts scripts/workspace/console-dev-reservation.test.ts",
     "typecheck": "turbo run typecheck",

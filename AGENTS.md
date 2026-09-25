@@ -97,6 +97,12 @@ known-violations file.
 
 ## Tests and external systems
 
+Prefer end-to-end tests as the sole behavioral test for complex features. Each E2E run must leave a verifiable,
+repeatable evidence artifact recording the source revision, inputs, commands, results, and cleanup where applicable.
+Never write unit tests after writing the implementation they cover. If a system must be tested in isolation, first list
+the realistic ways it can fail, then write the unit tests, then write the implementation. Do not add tests for
+theoretical, very unlikely bugs when handling them would needlessly complicate the codebase.
+
 Tests must prove user-visible behavior or a risky contract at the boundary where it can fail. Do not accept mock call
 choreography, source-text inspection, or a unit test as the only evidence for behavior that crosses a process, database,
 browser, provider, artifact-runtime, or AWS boundary. Use semantic assertions instead of large snapshots. Run
