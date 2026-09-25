@@ -24,8 +24,6 @@ import {
   generateLambdaTracingRuntime
 } from './release/build-cli-sources';
 
-const { debug, keepUnarchived } = getCliArgs();
-
 const recursivelyChmodPlusX = async (directoryPath: string) => {
   const entries = await readdir(directoryPath, { withFileTypes: true });
 
@@ -44,25 +42,35 @@ const recursivelyChmodPlusX = async (directoryPath: string) => {
   );
 };
 
-const buildEverything = async () => {
-  const argv = yargsParser(process.argv.slice(2));
-  const platform = (argv.platform as SupportedPlatform) || getPlatform();
-  const version = (argv.version as string) || 'dev';
-
-  if (!platform || !version) {
-    throw new Error('Platform and version are required. Usage: --platform <platform> --version <version>');
-  }
-
+/**
+ * Builds `platform`'s release archive into `distFolderPath`, which it empties first. `bytecodeDepth` overrides the
+ * platform's release bytecode, for `release/qualify-bytecode.ts` only.
+ */
+export const buildDistPackage = async ({
+  platform,
+  version,
+  debug,
+  keepUnarchived,
+  distFolderPath = DIST_PACKAGE_FOLDER_PATH,
+  bytecodeDepth
+}: {
+  platform: SupportedPlatform;
+  version: string;
+  debug?: boolean;
+  keepUnarchived?: boolean;
+  distFolderPath?: string;
+  bytecodeDepth?: number | 'off';
+}) => {
   logInfo(`Building binary for platform: ${platform}, version: ${version}`);
 
-  const distFolderPath = DIST_PACKAGE_FOLDER_PATH;
   await remove(distFolderPath);
 
   const platformDistFolderPath = await buildBinaryFile({
     distFolderPath,
     platform,
     debug,
-    version
+    version,
+    bytecodeDepth
   });
 
   await Promise.all([
@@ -97,8 +105,17 @@ const buildEverything = async () => {
   }
 
   logSuccess(`Binary for platform ${platform} built successfully: ${archivePath}`);
+  return { archivePath, platformDistFolderPath };
 };
 
 if (import.meta.main) {
-  buildEverything();
+  const argv = yargsParser(process.argv.slice(2));
+  const platform = (argv.platform as SupportedPlatform) || getPlatform();
+  const version = (argv.version as string) || 'dev';
+
+  if (!platform || !version) {
+    throw new Error('Platform and version are required. Usage: --platform <platform> --version <version>');
+  }
+  const { debug, keepUnarchived } = getCliArgs();
+  buildDistPackage({ platform, version, debug, keepUnarchived });
 }

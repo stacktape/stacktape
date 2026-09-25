@@ -1,6 +1,8 @@
 import type { SupportedPlatform } from '@utils/platform';
-import { arch } from 'node:os';
+import type { BunPlugin } from 'bun';
+import { arch, tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
+import { brotliCompressSync, constants } from 'node:zlib';
 import {
   COMPLETIONS_SCRIPTS_PATH,
   CONFIG_SCHEMA_PATH,
@@ -31,6 +33,8 @@ import {
   copy,
   ensureDir,
   mkdirSync,
+  mkdtemp,
+  outputFile,
   pathExists,
   readdir,
   readFile,
@@ -68,7 +72,6 @@ export const buildEsbuildRegister = async ({ distFolderPath }: { distFolderPath?
     sourceMaps: 'disabled',
     sourceMapBannerType: 'disabled',
     tsConfigPath: localBuildTsConfigPath,
-    keepNames: false,
     minify: true,
     nodeTarget: '18',
     cwd: process.cwd()
@@ -127,7 +130,6 @@ export const generateLambdaTracingRuntime = async ({ distFolderPath }: { distFol
     sourceMaps: 'disabled',
     sourceMapBannerType: 'disabled',
     tsConfigPath: localBuildTsConfigPath,
-    keepNames: true,
     minify: true,
     nodeTarget: '18.18',
     cwd: process.cwd()
@@ -146,7 +148,6 @@ export const generateSourceMapInstall = async ({ distFolderPath }: { distFolderP
     sourceMaps: 'disabled',
     sourceMapBannerType: 'disabled',
     tsConfigPath: localBuildTsConfigPath,
-    keepNames: true,
     nodeTarget: '18.18',
     cwd: process.cwd()
   });
@@ -245,16 +246,97 @@ const ensureOpenTuiPlatformPackages = async (platform: SupportedPlatform) => {
   await Promise.all(OPENTUI_PLATFORM_IDENTIFIERS[platform].map(ensureOpenTuiPlatformPackage));
 };
 
+// OpenTUI's Linux libraries are 26 MB each, three quarters of it debug information. The Linux and Alpine executables
+// embed copies without it: `strip --strip-debug` leaves the dynamic symbols the runtime binds unchanged. The files in
+// node_modules are not modified, and the lockfile-pinned packages keep the debug information for native crash
+// diagnosis. Alpine was qualified in an `alpine:3.22` container (Wave 1H): the interactive launcher drew, redrew for
+// input and quit on Ctrl+C while mapping exactly the stripped musl copy. Other targets embed their libraries unchanged
+// until they are qualified separately.
+const OPENTUI_DEBUG_STRIPPED_PLATFORMS: SupportedPlatform[] = ['linux', 'alpine'];
+
+const stripDebugInformation = async (libraryPath: string) => {
+  if (!Bun.which('strip')) {
+    throw new Error(
+      `Linux and Alpine builds need strip from GNU binutils to remove debug information from ${libraryPath}.`
+    );
+  }
+  const directory = await mkdtemp(join(tmpdir(), 'stacktape-opentui-'));
+  try {
+    const strippedPath = join(directory, basename(libraryPath));
+    const strip = Bun.spawnSync({ cmd: ['strip', '--strip-debug', '-o', strippedPath, libraryPath], stderr: 'pipe' });
+    if (!strip.success) {
+      throw new Error(`strip could not remove debug information from ${libraryPath}:\n${strip.stderr.toString()}`);
+    }
+    return await readFile(strippedPath);
+  } finally {
+    await remove(directory);
+  }
+};
+
+const createOpenTuiDebugStripPlugin = (): BunPlugin => ({
+  name: 'stacktape-opentui-strip-debug',
+  setup(build) {
+    build.onLoad({ filter: /[\\/]@opentui[\\/]core-linux-x64(-musl)?[\\/]libopentui\.so$/ }, async ({ path }) => ({
+      contents: await stripDebugInformation(path),
+      loader: 'file'
+    }));
+  }
+});
+
+/**
+ * Bundler settings of the executable released for `platform`, apart from its compile target and output file.
+ * `analyze:bundle` builds with the same settings so the graph it attributes is the one the release ships.
+ */
+export const getReleaseBundleOptions = ({
+  debug,
+  platform,
+  version
+}: {
+  debug?: boolean;
+  platform: SupportedPlatform;
+  version?: string;
+}) => ({
+  entrypoints: [join(process.cwd(), 'src', 'entrypoints', 'compiled-cli.ts')],
+  // Preserve command-level dynamic imports as ESM chunks inside the executable instead of initializing every command.
+  format: 'esm' as const,
+  // A compiled executable can emit a separate `compiled-cli.js.map`. It is useful while debugging, but shipping it
+  // added more than 70 MB to every installed release.
+  sourcemap: debug ? ('external' as const) : ('none' as const),
+  // Production executables do not ship their >70 MB source map. Minify syntax and whitespace while retaining
+  // identifiers so PostHog exception grouping and stack traces still contain useful function/class names.
+  minify: debug ? false : { whitespace: true, syntax: true, identifiers: false },
+  plugins: [
+    createStacktapeOpenTuiBuildPlugin(),
+    createCloudFormationSpecBuildPlugin(),
+    ...(OPENTUI_DEBUG_STRIPPED_PLATFORMS.includes(platform) ? [createOpenTuiDebugStripPlugin()] : [])
+  ],
+  tsconfig: localBuildTsConfigPath,
+  define: { STACKTAPE_VERSION: JSON.stringify(version || 'dev') }
+});
+
+/**
+ * Release targets whose executable carries Bun bytecode, at nesting depth 1. Bun generates it on the build host, and
+ * a target that cannot use it silently parses the source instead, so a target joins only after its cross-built
+ * archive ran on its own host (`qualify-bytecode.ts`): identical behavior, and `--version` and `--help` in a quarter
+ * to a third of the time. Linux x64 was qualified on its host (Wave 1D), Alpine x64 in an `alpine:3.22` container and
+ * Windows x64 natively through WSL interop (Wave 1H). macOS and Linux ARM wait for the release workflow's
+ * `bytecode_qualification` run on their own runners.
+ */
+const BYTECODE_PLATFORMS: SupportedPlatform[] = ['linux', 'alpine', 'win'];
+
 export const buildBinaryFile = async ({
   distFolderPath,
   debug,
   platform,
-  version
+  version,
+  bytecodeDepth = !debug && BYTECODE_PLATFORMS.includes(platform) ? 1 : 'off'
 }: {
   distFolderPath?: string;
   debug?: boolean;
   platform: SupportedPlatform;
   version?: string;
+  /** Overrides the platform's release bytecode, for `qualify-bytecode.ts` only. */
+  bytecodeDepth?: number | 'off';
 }) => {
   const binFolderName = BINARY_FOLDER_NAMES[platform];
   const outputFolderPath = join(distFolderPath, binFolderName);
@@ -269,30 +351,19 @@ export const buildBinaryFile = async ({
 
   const compileTarget = BUN_COMPILE_TARGETS[platform];
 
-  const entrypoint = join(process.cwd(), 'src', 'entrypoints', 'compiled-cli.ts');
   const outputFileName = platform === 'win' ? 'stacktape.exe' : 'stacktape';
   const outputPath = join(outputFolderPath, outputFileName);
-  const openTuiBuildPlugin = createStacktapeOpenTuiBuildPlugin();
 
   const result = await Bun.build({
-    entrypoints: [entrypoint],
-    // Preserve command-level dynamic imports as ESM chunks inside the executable instead of initializing every command.
-    format: 'esm',
+    ...getReleaseBundleOptions({ debug, platform, version }),
+    // Only the executable build: `getReleaseBundleOptions` also serves bundle analysis, which compiles nothing.
+    ...(bytecodeDepth !== 'off' && { bytecode: true, bytecodeDepth }),
     compile: {
       target: compileTarget,
       outfile: outputPath,
       autoloadTsconfig: true,
       autoloadPackageJson: true
     },
-    // A compiled executable can emit a separate `compiled-cli.js.map`. It is useful while debugging, but shipping it
-    // added more than 70 MB to every installed release.
-    sourcemap: debug ? 'external' : 'none',
-    // Production executables do not ship their >70 MB source map. Minify syntax and whitespace while retaining
-    // identifiers so PostHog exception grouping and stack traces still contain useful function/class names.
-    minify: debug ? false : { whitespace: true, syntax: true, identifiers: false },
-    plugins: [openTuiBuildPlugin, createCloudFormationSpecBuildPlugin()],
-    tsconfig: localBuildTsConfigPath,
-    define: { STACKTAPE_VERSION: JSON.stringify(version || 'dev') },
     throw: false
   });
 
@@ -458,14 +529,24 @@ export const copyHelperLambdas = async ({ distFolderPath }: { distFolderPath?: s
   logSuccess('Helper lambdas copied successfully.');
 };
 
+// Every platform's release build waits for this step. Quality 9 compresses the corpus in about 0.3 s; the maximum,
+// quality 11, saves another 72 KB but takes about 9.5 s.
+const MCP_DOCS_BROTLI_QUALITY = 9;
+
 export const copyMcpDocs = async ({ distFolderPath }: { distFolderPath?: string }) => {
-  logInfo('Copying MCP documentation corpus...');
+  logInfo('Compressing MCP documentation corpus...');
   // MCP builds its in-memory search index from this corpus. The generated lexical index, rendered pages and
   // single-file exports are publication artifacts for other consumers and only duplicate the same content here.
-  const sourcePath = join(LLM_DOCS_FOLDER_PATH, 'chunks', 'chunks.jsonl');
-  const destPath = join(distFolderPath, 'llm-docs', 'chunks', 'chunks.jsonl');
-  await copy(sourcePath, destPath);
-  logSuccess('MCP documentation corpus copied successfully.');
+  // Brotli shrinks the installed corpus from about 9.9 MB to 0.9 MB; MCP decodes it in memory.
+  const corpus = await readFile(join(LLM_DOCS_FOLDER_PATH, 'chunks', 'chunks.jsonl'));
+  const compressed = brotliCompressSync(corpus, {
+    params: {
+      [constants.BROTLI_PARAM_QUALITY]: MCP_DOCS_BROTLI_QUALITY,
+      [constants.BROTLI_PARAM_SIZE_HINT]: corpus.length
+    }
+  });
+  await outputFile(join(distFolderPath, 'llm-docs', 'chunks', 'chunks.jsonl.br'), compressed);
+  logSuccess('MCP documentation corpus compressed successfully.');
 };
 
 /**

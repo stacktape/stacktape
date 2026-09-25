@@ -1,5 +1,5 @@
 name: Stacktape release
-run-name: Publish v4 ${{ inputs.channel }} ${{ inputs.version }}
+run-name: ${{ inputs.bytecode_qualification && 'Qualify bytecode for macOS and Linux ARM' || format('Publish v4 {0} {1}', inputs.channel, inputs.version) }}
 
 # Preview and stable releases build the same verified artifacts. The selected channel changes only the npm dist-tag,
 # GitHub release classification, protected publishing environment, and installer endpoint. npm and AWS authenticate
@@ -24,6 +24,11 @@ on:
         required: false
         default: ''
         type: string
+      bytecode_qualification:
+        description: Only qualify bytecode for macOS and Linux ARM on their own runners; builds and publishes no release
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -39,7 +44,7 @@ env:
 
 jobs:
   verify:
-    if: inputs.recovery_run_id == ''
+    if: inputs.recovery_run_id == '' && !inputs.bytecode_qualification
     name: Verify public workspace
     runs-on: ubuntu-latest
     steps:
@@ -168,6 +173,103 @@ jobs:
           path: apps/cli/__dist/${{ matrix.archive }}
           if-no-files-found: error
           retention-days: 7
+
+  # Bytecode ships only for targets qualified on their own host (`BYTECODE_PLATFORMS` in
+  # apps/cli/scripts/release/build-cli-sources.ts). Dispatched with `bytecode_qualification`, this builds the remaining
+  # targets' archives the way the release builds them, cross-compiled here, then runs them on their own runners. A
+  # target passes when its bytecode archive is within its gate and behaves exactly like the build without bytecode
+  # while starting clearly faster (apps/cli/scripts/release/qualify-bytecode.ts).
+  bytecode-qualification-build:
+    name: Build ${{ matrix.platform }} bytecode candidates
+    if: inputs.bytecode_qualification && inputs.recovery_run_id == ''
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [macos, macos-arm, linux-arm]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: false
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.17.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.1
+      - run: pnpm install --frozen-lockfile
+      - name: Build init wizard interface
+        run: pnpm turbo run build --filter=@stacktape/init-ui
+      - name: Build the archive without bytecode and at depth 1
+        working-directory: apps/cli
+        run: >-
+          bun scripts/release/qualify-bytecode.ts build
+          --platform "${{ matrix.platform }}"
+          --out "$RUNNER_TEMP/bytecode-candidates"
+      - name: Upload bytecode candidates
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: bytecode-candidates-${{ matrix.platform }}
+          path: ${{ runner.temp }}/bytecode-candidates
+          if-no-files-found: error
+          retention-days: 7
+
+  bytecode-qualification:
+    name: Qualify ${{ matrix.platform }} bytecode on its own runner
+    needs: bytecode-qualification-build
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos
+            runner: macos-15-intel
+          - platform: macos-arm
+            runner: macos-15
+          - platform: linux-arm
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: false
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.17.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.1
+      - run: pnpm install --frozen-lockfile
+      - name: Download bytecode candidates
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: bytecode-candidates-${{ matrix.platform }}
+          path: ${{ runner.temp }}/bytecode-candidates
+      - name: Compare behavior and paired startup times on this runner
+        working-directory: apps/cli
+        run: >-
+          bun scripts/release/qualify-bytecode.ts check
+          --archives "$RUNNER_TEMP/bytecode-candidates"
+          --work "$RUNNER_TEMP/bytecode-check"
+          --out "$RUNNER_TEMP/bytecode-qualification-${{ matrix.platform }}.json"
+          --package-functions 1,10
+      - name: Upload qualification report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: bytecode-qualification-${{ matrix.platform }}
+          path: |
+            ${{ runner.temp }}/bytecode-candidates/build.json
+            ${{ runner.temp }}/bytecode-qualification-${{ matrix.platform }}.json
+          if-no-files-found: warn
+          retention-days: 30
 
   assemble:
     name: Assemble verified candidate
@@ -366,7 +468,7 @@ jobs:
 
   recover:
     name: Recover accepted npm publication
-    if: inputs.recovery_run_id != ''
+    if: inputs.recovery_run_id != '' && !inputs.bytecode_qualification
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: release-publish

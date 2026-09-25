@@ -386,7 +386,6 @@ const compileTsConfigHelpersSource = async () => {
   logInfo('Compiling TypeScript config helpers source...');
 
   await buildEsCode({
-    keepNames: true,
     sourceMapBannerType: 'pre-compiled',
     sourceMaps: 'inline',
     minify: false,

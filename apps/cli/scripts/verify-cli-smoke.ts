@@ -6,6 +6,7 @@ import stripAnsi from 'strip-ansi';
 import packageJson from '../package.json';
 import { packageHelperLambdas } from './package-helper-lambdas';
 import { buildBinaryFile } from './release/build-cli-sources';
+import { verifyInteractiveLauncher } from './verify-interactive-launcher';
 
 // Compiles the release entrypoint and checks version/help, nested invocation isolation and removed runner input.
 // These paths finish before AWS or announcements initialize. Telemetry is disabled in every child process.
@@ -121,6 +122,14 @@ const verifyCliSmoke = async () => {
       throw new Error(`Removed CodeBuild runner did not fail with supported alternatives:\n${removedRunnerOutput}`);
     }
     console.info('Verified removed CodeBuild runner fails with the supported local/ec2 alternatives.');
+
+    // Bun provides pseudo-terminals on POSIX hosts only.
+    if (platform === 'win') {
+      console.info('Skipped the interactive launcher check, which needs a POSIX terminal.');
+    } else {
+      await verifyInteractiveLauncher({ binaryPath, home: fixtureHome });
+      console.info('Verified the interactive launcher draws, redraws for typed input and quits on Ctrl+C.');
+    }
 
     console.info(`Verified compiled ${platform} CLI ${packageJson.version}: version and help output.`);
   } finally {
