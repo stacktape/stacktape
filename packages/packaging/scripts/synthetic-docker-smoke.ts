@@ -75,7 +75,6 @@ const common = {
   runDocker,
   archiveItem,
   sizeLimit: 250,
-  zippedSizeLimit: 50,
   // Lambda wrappers must override this for managed runtimes where musl artifacts are invalid.
   requiresGlibcBinaries: false
 };

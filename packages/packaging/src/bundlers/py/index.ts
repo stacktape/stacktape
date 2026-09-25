@@ -6,6 +6,7 @@ import { buildPythonArtifactDockerfile } from '../../docker/dockerfiles';
 import { transformToUnixPath } from '../../fs/files';
 import objectHash from 'object-hash';
 import {
+  canInstallRequirementsWithoutSource,
   getBundleDigest,
   getPythonDependencyFileType,
   getPythonDependencyRootPath,
@@ -32,6 +33,7 @@ export const buildPythonArtifact = async ({
   rawEntryfilePath,
   cwd,
   additionalDigestInput,
+  lambdaZip,
   distIndexFilePath,
   progressLogger,
   existingDigests,
@@ -63,7 +65,7 @@ export const buildPythonArtifact = async ({
       message: 'Only the "uv" package manager is supported for Python.'
     });
   }
-  const artifactFileSelection = await resolveArtifactFileSelection({ cwd, includeFiles });
+  const artifactFileSelection = await resolveArtifactFileSelection({ cwd, includeFiles, lambdaZip });
   const dependencyFilePath = await resolvePythonDependencyFile({
     cwd,
     sourcePath,
@@ -97,6 +99,7 @@ export const buildPythonArtifact = async ({
     ? transformToUnixPath(relative(dependencyRootPath, dependencyFilePath))
     : null;
   const digest = await getBundleDigest({
+    lambdaZip,
     externalDependencies: [],
     rootPath: dependencyRootPath,
     additionalDigestInput: objectHash({
@@ -139,9 +142,11 @@ export const buildPythonArtifact = async ({
   await progressLogger.startEvent({ eventType: 'BUILD_CODE', description: 'Building code' });
   const dockerfileContents = buildPythonArtifactDockerfile({
     pythonVersion,
-    minify: languageSpecificConfig?.minify ?? false,
+    // The documented default; the CLI fills it in as well, so this only matters for direct callers.
+    minify: languageSpecificConfig?.minify ?? true,
     alpine: !requiresGlibcBinaries,
-    target
+    target,
+    requirementsWithoutSource: await canInstallRequirementsWithoutSource(dependencyFilePath)
   });
 
   await runDockerArtifactBuild({

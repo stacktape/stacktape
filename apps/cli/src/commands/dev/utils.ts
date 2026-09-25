@@ -209,6 +209,8 @@ export const getWorkloadEnvironmentVars = async (jobDetails: {
   packagingType?: SupportedPackagingType;
   entryfilePath?: string;
   nodeVersion?: number;
+  /** Whether the local build leaves source maps next to the code. Dev builds do unless the config says otherwise. */
+  sourceMapsInPackage?: boolean;
   localResourceEnvVars?: Record<string, string>;
   skipAwsCredentials?: boolean;
   /** Port for the container - will be set as PORT env var */
@@ -222,7 +224,8 @@ export const getWorkloadEnvironmentVars = async (jobDetails: {
     workloadType: jobDetails.workloadType,
     packagingType: jobDetails.packagingType,
     entryfilePath: jobDetails.entryfilePath,
-    nodeVersion: jobDetails.nodeVersion
+    nodeVersion: jobDetails.nodeVersion,
+    sourceMapsInPackage: jobDetails.sourceMapsInPackage ?? true
   });
 
   const envVars = augmentedEnv.reduce((acc, item) => {

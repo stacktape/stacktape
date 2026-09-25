@@ -33,9 +33,20 @@ describe('project dependency install command', () => {
     ).toEqual(['pnpm', 'install']);
   });
 
-  test('does not change other package managers', () => {
+  test("runs npm without its informational audit and update check, and changes no other manager's command", () => {
     expect(
       getProjectDependencyInstallScript({ packageManager: 'npm', installType: 'CI', lockfile: 'not relevant' })
-    ).toEqual(['npm', 'ci']);
+    ).toEqual(['npm', 'ci', '--no-audit', '--no-update-notifier']);
+    expect(getProjectDependencyInstallScript({ packageManager: 'npm', installType: 'normal' })).toEqual([
+      'npm',
+      'install',
+      '--no-audit',
+      '--no-update-notifier'
+    ]);
+    expect(getProjectDependencyInstallScript({ packageManager: 'bun', installType: 'CI' })).toEqual([
+      'bun',
+      'install',
+      '--frozen-lockfile'
+    ]);
   });
 });

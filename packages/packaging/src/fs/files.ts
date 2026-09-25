@@ -5,6 +5,7 @@ import { getAllFilePaths } from 'cup-readdir';
 import fastGlob from 'fast-glob';
 import fsExtra, { createReadStream } from 'fs-extra';
 import getFolderSizeCb from 'get-folder-size';
+import { getHostExecutableRule, hasHostExecutableBit } from '../artifact/archive-entries';
 
 const { readFile, stat } = fsExtra;
 
@@ -68,9 +69,25 @@ export const getAllFilesInDir = async (dirPath: string, relativeOutput = true): 
  * Hashes stable caller-supplied file identities and their contents, in the supplied order. Length prefixes distinguish
  * adjacent values and missing files from empty files. Returned undigested so callers can mix in further inputs.
  */
-export const getHashFromMultipleFiles = async ({ files }: { files: Array<{ path: string; identity: string }> }) => {
-  const fileContents = await Promise.all(files.map(({ path }) => readFileOrNull(path)));
+export const getHashFromMultipleFiles = async ({
+  files,
+  recordExecutableBits = false
+}: {
+  files: Array<{ path: string; identity: string }>;
+  /**
+   * Also hash whether each file is executable, as a Lambda archive of it would be (`hasHostExecutableBit`), and the
+   * host's rule for deciding that (`getHostExecutableRule`).
+   */
+  recordExecutableBits?: boolean | undefined;
+}) => {
+  const [fileContents, executableBits] = await Promise.all([
+    Promise.all(files.map(({ path }) => readFileOrNull(path))),
+    recordExecutableBits ? Promise.all(files.map(({ path }) => isExecutableOrMissing(path))) : null
+  ]);
   const hash = createHash('sha1');
+  if (executableBits) {
+    hash.update(`executable-rule:${getHostExecutableRule()}\n`);
+  }
   fileContents.forEach((contents, index) => {
     const identity = files[index]!.identity.replace(/\\/g, '/');
     hash.update(`${Buffer.byteLength(identity)}:`);
@@ -81,6 +98,9 @@ export const getHashFromMultipleFiles = async ({ files }: { files: Array<{ path:
     }
     hash.update(`${Buffer.byteLength(contents)}:`);
     hash.update(contents);
+    if (executableBits) {
+      hash.update(executableBits[index] ? 'x' : '-');
+    }
   });
   return hash;
 };
@@ -92,6 +112,17 @@ const readFileOrNull = async (filePath: string): Promise<Buffer | null> =>
     }
     throw new Error(`Failed to read file at ${filePath}`);
   });
+
+const isExecutableOrMissing = async (filePath: string): Promise<boolean> =>
+  stat(filePath).then(
+    ({ mode }) => hasHostExecutableBit(mode),
+    (err: NodeJS.ErrnoException) => {
+      if (err.code === 'ENOENT') {
+        return false;
+      }
+      throw new Error(`Failed to read the mode of ${filePath}`, { cause: err });
+    }
+  );
 
 export const getFolderSize = (folderPath: string, unit: 'MB' | 'KB', decimals = 2): Promise<number> =>
   new Promise((resolve, reject) => {

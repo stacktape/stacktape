@@ -34,6 +34,7 @@ export const buildDotnetArtifact = async ({
   rawEntryfilePath,
   cwd,
   additionalDigestInput,
+  lambdaZip,
   distIndexFilePath,
   progressLogger,
   existingDigests,
@@ -84,9 +85,11 @@ export const buildDotnetArtifact = async ({
   });
   const artifactFileSelection = await resolveArtifactFileSelection({
     cwd,
-    includeFiles
+    includeFiles,
+    lambdaZip
   });
   const digest = await getBundleDigest({
+    lambdaZip,
     externalDependencies: [],
     rootPath: buildRootPath,
     additionalDigestInput: objectHash({

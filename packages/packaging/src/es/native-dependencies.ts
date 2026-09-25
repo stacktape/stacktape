@@ -6,10 +6,10 @@ import type {
 import type { SplitBundleDependency } from '../split-bundler/types';
 import { createHash, type Hash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { lstat, readdir, readlink } from 'node:fs/promises';
-import { join, relative, resolve as resolvePath } from 'node:path';
+import { join, resolve as resolvePath } from 'node:path';
 import { copy, emptyDir, ensureDir, outputJSON, pathExists, remove, writeFile } from 'fs-extra';
 import objectHash from 'object-hash';
+import { LAMBDA_ARCHIVE_FORMAT, listArchiveEntries } from '../artifact/archive-entries';
 import { getFolderSizeBytes } from '../fs/files';
 import { getInstallDependenciesCommand, getInstallPackageManagerCommand } from './package-manager-install';
 
@@ -37,58 +37,23 @@ const updateHashFile = async (hash: Hash, filePath: string, sizeBytes: number): 
   });
 };
 
+/**
+ * The layer's content identity, which also names its S3 object: every entry the layer ZIP will contain, as the
+ * archive policy lists it, with its normalized mode, bytes or link target, under the current archive format.
+ */
 const getLayerContentHash = async (layerPath: string): Promise<string> => {
-  const entries: Array<{
-    absolutePath: string;
-    relativePath: string;
-    sizeBytes?: number | undefined;
-    type: 'directory' | 'file' | 'other' | 'symlink';
-    symlinkTarget?: string | undefined;
-  }> = [];
-
-  const collectEntries = async (directoryPath: string): Promise<void> => {
-    await Promise.all(
-      (await readdir(directoryPath)).map(async (name) => {
-        const absolutePath = join(directoryPath, name);
-        const stats = await lstat(absolutePath);
-        const relativePath = transformToUnixPath(relative(layerPath, absolutePath));
-
-        if (stats.isSymbolicLink()) {
-          entries.push({
-            absolutePath,
-            relativePath,
-            symlinkTarget: await readlink(absolutePath),
-            type: 'symlink'
-          });
-        } else if (stats.isDirectory()) {
-          entries.push({ absolutePath, relativePath, type: 'directory' });
-          await collectEntries(absolutePath);
-        } else {
-          entries.push({
-            absolutePath,
-            relativePath,
-            ...(stats.isFile() && { sizeBytes: stats.size }),
-            type: stats.isFile() ? 'file' : 'other'
-          });
-        }
-      })
-    );
-  };
-
-  await collectEntries(layerPath);
-  entries.sort((left, right) =>
-    left.relativePath < right.relativePath ? -1 : left.relativePath > right.relativePath ? 1 : 0
-  );
-
+  const { entries } = await listArchiveEntries({ sourcePath: layerPath });
   const hash = createHash('sha256');
+  updateHashPart(hash, LAMBDA_ARCHIVE_FORMAT);
   for (const entry of entries) {
     updateHashPart(hash, entry.type);
-    updateHashPart(hash, entry.relativePath);
+    updateHashPart(hash, entry.path);
+    updateHashPart(hash, entry.mode.toString(8));
     if (entry.type === 'file') {
       // oxlint-disable-next-line no-await-in-loop -- Files must enter the shared digest in sorted order without being buffered.
-      await updateHashFile(hash, entry.absolutePath, entry.sizeBytes!);
+      await updateHashFile(hash, entry.sourcePath, entry.size);
     } else if (entry.type === 'symlink') {
-      updateHashPart(hash, entry.symlinkTarget ?? '');
+      updateHashPart(hash, entry.target);
     }
   }
   return hash.digest('hex').slice(0, 12);

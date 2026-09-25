@@ -45,7 +45,6 @@ export type StpBuildpackInput = StpBuildpackLambdaPackagingProps &
     additionalDigestInput?: string;
     progressLogger: ProgressLogger;
     invocationId: string;
-    keepNames?: boolean;
     includeFiles?: string[];
     distFolderPath: string;
     externals?: string[];

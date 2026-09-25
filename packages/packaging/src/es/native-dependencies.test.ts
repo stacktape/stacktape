@@ -1,10 +1,11 @@
 import type { RunDocker } from './native-dependencies';
 import type { SplitBundleDependency } from '../split-bundler/types';
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdtemp, readdir, readFile, rm, symlink, utimes } from 'node:fs/promises';
+import { chmod, mkdtemp, readdir, readFile, rm, symlink, utimes } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ensureDir, pathExists, writeFile } from 'fs-extra';
+import { UnsupportedArchiveEntryError } from '../artifact/archive-entries';
 import { buildNativeBinaryLayer, copyDockerInstalledModulesForLambda } from './native-dependencies';
 
 const tempDirectories: string[] = [];
@@ -24,12 +25,15 @@ const createFakeDocker = ({
   contents = () => 'native-binary',
   modifiedAt,
   rejectedCalls = [],
-  symlinkTarget
+  symlinkTarget,
+  executable = false
 }: {
   contents?: (callNumber: number) => string | undefined;
   modifiedAt?: Date | undefined;
   rejectedCalls?: number[] | undefined;
   symlinkTarget?: string | undefined;
+  /** Installs the native module with its execute bit set, as some packages ship their binaries. */
+  executable?: boolean | undefined;
 } = {}) => {
   const calls: string[][] = [];
   const runDocker: RunDocker = async (commands) => {
@@ -52,7 +56,11 @@ const createFakeDocker = ({
       throw new Error(`Fake Docker did not produce contents for call ${callNumber}.`);
     }
     await writeFile(nativeModulePath, fileContents);
+    await chmod(nativeModulePath, executable ? 0o755 : 0o644);
     if (symlinkTarget) {
+      // The target exists, so the link is a supported one and only its raw target text is under test.
+      await ensureDir(join(nodeModulesPath, 'foo'));
+      await writeFile(join(nodeModulesPath, 'foo', 'bar'), 'link target');
       await symlink(symlinkTarget, join(nodeModulesPath, 'native-link'));
     }
     if (modifiedAt) {
@@ -268,37 +276,63 @@ describe('native dependency packaging', () => {
   });
 
   linuxTest('hashes the raw symlink target independently of its installation root', async () => {
-    const firstWorkspace = await createWorkspace();
-    const secondWorkspace = await createWorkspace();
-    const slashWorkspace = await createWorkspace();
-    const input = {
-      dependencies: [dependency('native-symlink-test')],
-      lambdaRuntimeVersion: 20,
-      packageManager: 'npm' as const,
-      usedByLambdas: ['function']
-    };
+    const workspaces = await Promise.all([createWorkspace(), createWorkspace(), createWorkspace()]);
+    const build = (workspace: (typeof workspaces)[number], symlinkTarget: string) =>
+      buildNativeBinaryLayer({
+        dependencies: [dependency('native-symlink-test')],
+        lambdaRuntimeVersion: 20,
+        packageManager: 'npm' as const,
+        usedByLambdas: ['function'],
+        installationRootPath: workspace.installationRootPath,
+        layerBasePath: workspace.layerBasePath,
+        runDocker: createFakeDocker({ symlinkTarget }).runDocker
+      });
 
-    const first = await buildNativeBinaryLayer({
-      ...input,
-      installationRootPath: firstWorkspace.installationRootPath,
-      layerBasePath: firstWorkspace.layerBasePath,
-      runDocker: createFakeDocker({ symlinkTarget: 'foo\\bar' }).runDocker
-    });
-    const second = await buildNativeBinaryLayer({
-      ...input,
-      installationRootPath: secondWorkspace.installationRootPath,
-      layerBasePath: secondWorkspace.layerBasePath,
-      runDocker: createFakeDocker({ symlinkTarget: 'foo\\bar' }).runDocker
-    });
-    const slash = await buildNativeBinaryLayer({
-      ...input,
-      installationRootPath: slashWorkspace.installationRootPath,
-      layerBasePath: slashWorkspace.layerBasePath,
-      runDocker: createFakeDocker({ symlinkTarget: 'foo/bar' }).runDocker
-    });
+    const first = await build(workspaces[0]!, 'foo/bar');
+    const second = await build(workspaces[1]!, 'foo/bar');
+    // The same file through another spelling: the target text itself is what the layer contains.
+    const dotSlash = await build(workspaces[2]!, './foo/bar');
 
     expect(first?.contentHash).toBe(second?.contentHash);
-    expect(first?.contentHash).not.toBe(slash?.contentHash);
+    expect(first?.contentHash).not.toBe(dotSlash?.contentHash);
+  });
+
+  linuxTest(
+    'changes the layer identity, and so its S3 key, when only an installed file becomes executable',
+    async () => {
+      const [plainWorkspace, executableWorkspace] = await Promise.all([createWorkspace(), createWorkspace()]);
+      const build = (workspace: typeof plainWorkspace, executable: boolean) =>
+        buildNativeBinaryLayer({
+          dependencies: [dependency('native-mode-test')],
+          lambdaRuntimeVersion: 20,
+          packageManager: 'npm',
+          usedByLambdas: ['function'],
+          installationRootPath: workspace.installationRootPath,
+          layerBasePath: workspace.layerBasePath,
+          runDocker: createFakeDocker({ executable }).runDocker
+        });
+
+      const plain = await build(plainWorkspace, false);
+      const executable = await build(executableWorkspace, true);
+
+      expect(executable?.contentHash).not.toBe(plain?.contentHash);
+    }
+  );
+
+  linuxTest('refuses a symlink target with a backslash instead of normalizing it', async () => {
+    const workspace = await createWorkspace();
+
+    await expect(
+      buildNativeBinaryLayer({
+        dependencies: [dependency('native-backslash-test')],
+        lambdaRuntimeVersion: 20,
+        packageManager: 'npm',
+        usedByLambdas: ['function'],
+        installationRootPath: workspace.installationRootPath,
+        layerBasePath: workspace.layerBasePath,
+        runDocker: createFakeDocker({ symlinkTarget: 'foo\\bar' }).runDocker
+      })
+    ).rejects.toBeInstanceOf(UnsupportedArchiveEntryError);
   });
 
   test('rebuilds a deleted installation and does not reuse it across roots', async () => {

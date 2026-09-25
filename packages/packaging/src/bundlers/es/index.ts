@@ -1,28 +1,27 @@
 import { packagingMessages } from '../../runtime-contracts';
 import type { CreatePackagingError, EsBuildActions, StpBuildpackInput } from '../../runtime-contracts';
 import type { BunPlugin } from 'bun';
-import type { PackageJsonDepsInfo } from '../../es/bundler-helpers';
 import { existsSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { getRelativePath, isFileAccessible, transformToUnixPath } from '../../fs/files';
-import {
-  NODE_RUNTIME_VERSIONS_WITH_SKIPPED_SDK_V3_PACKAGING,
-  STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION
-} from '../constants';
+import { STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION } from '../constants';
 import { findProjectRoot } from '../../es/project-root';
 import { outputJSON, readFile, readFileSync, realpathSync, writeJson } from 'fs-extra';
 import objectHash from 'object-hash';
-import {
-  DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE,
-  FILES_TO_INCLUDE_IN_DIGEST,
-  IGNORED_MODULES,
-  IGNORED_OPTIONAL_PEER_DEPS_FROM_INSTALL_IN_DOCKER
-} from '../../es/config';
+import { FILES_TO_INCLUDE_IN_DIGEST, IGNORED_MODULES } from '../../es/config';
 import { copyDockerInstalledModulesForLambda } from '../../es/native-dependencies';
-import { isNodeBuiltinImport } from './module-specifier';
+import { createBunFfiShimPlugin, createNativeNodeModulesPlugin, isBareImportSpecifier } from '../../es/bun-plugins';
+import { getBunMinifyConfig } from '../../es/minify';
+import { writePackagedSourceMap } from '../../es/packaged-source-map';
+import { writeEditedJavaScript } from '../../es/source-map-edits';
+import {
+  classifyBeforeResolution,
+  classifyResolvedModule,
+  getModuleName as getModuleNameFromPath,
+  isNodeBuiltinImport
+} from '../../es/import-classification';
 import {
   getAllJsDependenciesFromMultipleFiles,
-  getExternalDeps,
   getLambdaRuntimeFromNodeTarget,
   getLockFileData,
   resolveDifferentSourceMapLocation,
@@ -30,8 +29,7 @@ import {
 } from './utils';
 import {
   createModuleResolver,
-  determineIfAlias,
-  ensureDefaultExport,
+  getDefaultExportEdit,
   ESM_SOURCE_MAP_BANNER,
   filterDuplicates,
   getInfoFromPackageJson,
@@ -48,21 +46,16 @@ import {
   copyExplicitlyIncludedFiles,
   removeExplicitlyExcludedFiles as removeArtifactFiles
 } from '../../artifact/file-selection';
-import { getDirectoryChecksum } from '../../artifact/hashing';
-import { rewriteLambdaAssetReferences } from '../../artifact/lambda-assets';
+import {
+  LAMBDA_ARCHIVE_FORMAT,
+  listArchiveEntries,
+  UnsupportedArchiveEntryError
+} from '../../artifact/archive-entries';
+import { getArchiveInventoryChecksum, getDirectoryChecksum } from '../../artifact/hashing';
+import { getLambdaAssetReferenceEdits } from '../../artifact/lambda-assets';
 
 /** Kept on the established ES bundler surface while file-selection ownership lives in the artifact layer. */
 export const removeExplicitlyExcludedFiles: typeof removeArtifactFiles = (options) => removeArtifactFiles(options);
-
-// Extract module name from import path (handles scoped packages)
-const getModuleNameFromPath = (importPath: string): string => {
-  const moduleName = importPath.endsWith('/') ? importPath.slice(0, importPath.length - 1) : importPath;
-  const [firstPart, secondPart] = moduleName.split('/');
-  if (!firstPart) {
-    return moduleName;
-  }
-  return firstPart.startsWith('@') && secondPart ? `${firstPart}/${secondPart}` : firstPart;
-};
 
 const dedupeDependenciesByName = <T extends { name: string }>(dependencies: T[]): T[] => {
   const seen = new Set<string>();
@@ -79,6 +72,8 @@ export const buildEsCode = async ({
   sourcePath,
   distPath,
   minify,
+  minifyIdentifiers,
+  bundleAwsSdk,
   rawCode,
   externals = [],
   sourceMaps,
@@ -113,7 +108,10 @@ export const buildEsCode = async ({
   tsConfigPath?: string | undefined;
   cwd: string;
   allowFailedImports?: boolean | undefined;
-  keepNames?: boolean | undefined;
+  /** Shorten local identifiers too; `es/minify` explains why this is off unless asked. */
+  minifyIdentifiers?: boolean | undefined;
+  /** Bundle `@aws-sdk/*` from `node_modules` instead of leaving it to the Lambda runtime. */
+  bundleAwsSdk?: boolean | undefined;
   nodeTarget?: string | undefined;
   splitting?: boolean | undefined;
   plugins?: BunPlugin[] | undefined;
@@ -154,12 +152,6 @@ export const buildEsCode = async ({
         tsConfigPath: tsConfigPathForBuild
       })
     : undefined;
-
-  const skipAwsSdkV3Deps =
-    isLambda &&
-    NODE_RUNTIME_VERSIONS_WITH_SKIPPED_SDK_V3_PACKAGING.some(
-      (v) => nodeTarget.includes(String(v)) || String(nodeTarget) === String(v)
-    );
 
   // Find monorepo root for resolving workspace packages
   const monorepoRoot = await findProjectRoot(cwd);
@@ -223,16 +215,12 @@ export const buildEsCode = async ({
         build.onResolve(
           { filter: /^[^.]/ },
           async (args): Promise<{ path: string; external?: boolean } | undefined> => {
-            // Skip relative imports (starting with . or /)
-            if (args.path.startsWith('.') || args.path.startsWith('/') || isAbsolute(args.path)) {
-              return undefined;
-            }
+            if (!isBareImportSpecifier(args.path)) return undefined;
 
             const moduleName = getModuleNameFromPath(args.path);
             allModules.push(moduleName);
 
-            // Skip built-in modules
-            if (isNodeBuiltinImport(args.path) || args.path === sourcePath) {
+            if (args.path === sourcePath) {
               return undefined;
             }
 
@@ -241,14 +229,22 @@ export const buildEsCode = async ({
               return { path: args.path, external: true };
             }
 
-            // Skip runtime-included AWS SDK v3 clients for Lambda
-            if (skipAwsSdkV3Deps && moduleName.startsWith('@aws-sdk/client-')) {
+            const preResolution = classifyBeforeResolution({
+              aliases,
+              bundleAwsSdk,
+              isLambda,
+              moduleName,
+              nodeTarget,
+              specifier: args.path
+            });
+            if (preResolution.outcome === 'builtin') {
+              return undefined;
+            }
+            if (preResolution.outcome === 'runtime-provided') {
               return { path: args.path, external: true };
             }
 
-            // Check if it's a tsconfig alias
-            const isAlias = await determineIfAlias({ moduleName, aliases });
-            if (isAlias) {
+            if (preResolution.outcome === 'alias') {
               // A tsconfig alias points at project sources, not at a package with export conditions, so
               // this deliberately stays on Bun's resolution rather than resolvePackageImport: a CommonJS
               // resolver would reach a real installed package that shadows the alias name.
@@ -300,9 +296,10 @@ export const buildEsCode = async ({
               return undefined;
             }
 
-            const isDynamicallyImported = dynamicallyImportedModules.includes(moduleName);
-
-            if (isDynamicallyImported || (shouldIgnoreAllDeps && modulePath)) {
+            // A module reached only through a runtime `import()` is never in the bundle graph, so it
+            // has to be installed alongside it. This is the one step the split bundler has no use
+            // for: split bundling refuses a config that could produce one.
+            if (dynamicallyImportedModules.includes(moduleName)) {
               if (modulePath) {
                 const packageInfo = await getInfoFromPackageJson({
                   directoryPath: modulePath,
@@ -310,56 +307,33 @@ export const buildEsCode = async ({
                   dependencyType: 'root'
                 });
                 if (packageInfo) {
-                  allDependenciesToInstallInDocker.push({
-                    ...packageInfo,
-                    note: isDynamicallyImported ? 'DYNAMIC_IMPORT' : 'WILDCARD_EXTERNALIZED'
-                  });
+                  allDependenciesToInstallInDocker.push({ ...packageInfo, note: 'DYNAMIC_IMPORT' });
                 }
               }
-              externalModules.push({
-                name: moduleName,
-                note: isDynamicallyImported ? 'DYNAMIC_IMPORT' : 'WILDCARD_EXTERNALIZED'
-              });
+              externalModules.push({ name: moduleName, note: 'DYNAMIC_IMPORT' });
               return { path: args.path, external: true };
             }
 
-            if (IGNORED_MODULES.concat(excludeDependencies || []).includes(moduleName)) {
-              if (modulePath) {
-                const pkgInfo = await getInfoFromPackageJson({
-                  directoryPath: modulePath,
-                  parentModule: null,
-                  dependencyType: 'root'
-                }).catch(() => null);
-                if (pkgInfo) {
-                  allDependenciesToInstallInDocker.push({ ...pkgInfo, note: 'IGNORED' });
-                }
+            const verdict = await classifyResolvedModule({
+              dependenciesToExcludeFromBundle,
+              excludeDependencies: excludeDependencies || [],
+              ignoredModules: IGNORED_MODULES,
+              modulePath,
+              moduleName,
+              shouldIgnoreAllDeps
+            });
+            allDependenciesToInstallInDocker.push(...verdict.dependenciesToInstallInDocker);
+
+            if (verdict.outcome === 'external') {
+              externalModules.push({ name: moduleName, note: verdict.note });
+              for (const dep of verdict.alsoExternal) {
+                externalModules.push({ name: dep, note: `ADDED_BY_${moduleName}` });
               }
-              externalModules.push({ name: moduleName, note: 'IGNORED' });
               return { path: args.path, external: true };
             }
 
             if (!modulePath) {
               return undefined;
-            }
-
-            let external = false;
-            const { dependenciesToInstallInDocker, allExternalDeps } = await analyzeDependency({
-              dependenciesToExcludeFromBundle,
-              dependency: { name: moduleName, path: modulePath }
-            });
-
-            allDependenciesToInstallInDocker.push(...dependenciesToInstallInDocker);
-
-            if (dependenciesToInstallInDocker.find((dep) => dep.name === moduleName)) {
-              externalModules.push({ name: moduleName, note: 'INSTALLED_IN_DOCKER' });
-              for (const dep of allExternalDeps) {
-                externalModules.push({ name: dep, note: `ADDED_BY_${moduleName}` });
-              }
-              external = true;
-            }
-
-            if (external) {
-              return { path: args.path, external: true };
             }
 
             if (process.platform === 'win32') {
@@ -370,18 +344,6 @@ export const buildEsCode = async ({
             return undefined;
           }
         );
-      }
-    };
-
-    // Bun plugin for native .node modules
-    const nativeNodeModulesPlugin: BunPlugin = {
-      name: 'native-node-modules',
-      setup(build) {
-        // Handle .node files by marking them as external
-        // Bun handles .node files natively with the 'file' loader
-        build.onResolve({ filter: /\.node$/ }, (args): { path: string; external: boolean } => {
-          return { path: args.path, external: true };
-        });
       }
     };
 
@@ -403,7 +365,7 @@ export const buildEsCode = async ({
         }
 
         build.onResolve({ filter: /^[^./]/ }, (args) => {
-          if (args.path.startsWith('.') || args.path.startsWith('/') || isAbsolute(args.path)) return undefined;
+          if (!isBareImportSpecifier(args.path)) return undefined;
 
           const moduleName = getModuleNameFromPath(args.path);
           if (isNodeBuiltinImport(args.path)) return undefined;
@@ -502,35 +464,11 @@ export const buildEsCode = async ({
       }
     };
 
-    const bunFfiShimPlugin: BunPlugin = {
-      name: 'stacktape-bun-ffi-shim',
-      setup(build) {
-        build.onResolve({ filter: /^bun:ffi$/ }, () => {
-          return { path: 'bun:ffi', namespace: 'stacktape-bun-ffi-shim' };
-        });
-
-        build.onLoad({ filter: /^bun:ffi$/, namespace: 'stacktape-bun-ffi-shim' }, () => {
-          return {
-            loader: 'js',
-            contents: [
-              'const fail = (name) => () => {',
-              '  throw new Error("Unsupported Bun module bun:ffi in Node runtime (attempted export: " + name + ").");',
-              '};',
-              "export const dlopen = fail('dlopen');",
-              "export const toArrayBuffer = fail('toArrayBuffer');",
-              "export const JSCallback = class { constructor() { fail('JSCallback')(); } };",
-              "export const ptr = fail('ptr');"
-            ].join('\n')
-          };
-        });
-      }
-    };
-
     const allBunPlugins: BunPlugin[] = [
-      bunFfiShimPlugin,
+      createBunFfiShimPlugin(),
       stpAnalyzeDepsPlugin,
       looseResolvePlugin,
-      nativeNodeModulesPlugin,
+      createNativeNodeModulesPlugin(),
       ...(decoratorMetadataPlugin ? [decoratorMetadataPlugin] : []),
       ...(plugins || [])
     ];
@@ -572,11 +510,7 @@ export const buildEsCode = async ({
     // Use monorepo root for module resolution if available
     // Convert to Unix paths for Bun compatibility on Windows
     const buildRoot = transformToUnixPath(monorepoRoot || cwd);
-    const shouldMinify = minify !== undefined ? minify : true;
-    const minifyConfig =
-      isLambda && outputModuleFormat === 'cjs' && shouldMinify
-        ? { syntax: true, whitespace: true, identifiers: false }
-        : shouldMinify;
+    const minifyConfig = getBunMinifyConfig({ minify, minifyIdentifiers });
 
     let buildResult: Awaited<ReturnType<typeof Bun.build>>;
     try {
@@ -636,10 +570,15 @@ export const buildEsCode = async ({
         await Promise.all(
           buildResult.outputs
             .filter(({ path }) => path.endsWith('.js'))
-            .map(async ({ path }) => {
-              const contents = await readFile(path, 'utf8');
-              await Bun.write(path, rewriteLambdaAssetReferences(contents, assetFiles));
-            })
+            // The file's map moves with its edited references (`es/source-map-edits`).
+            .map(({ path }) =>
+              writeEditedJavaScript({
+                from: path,
+                to: path,
+                edits: (code) => getLambdaAssetReferenceEdits(code, assetFiles),
+                packaged: false
+              })
+            )
         );
       }
     }
@@ -691,11 +630,12 @@ export const buildEsCode = async ({
     // Ensure default export exists for Lambda runtime compatibility
     // If user exports `handler` but not `default`, append a re-export
     if (outputModuleFormat === 'esm' && distPath) {
-      const content = await readFile(distPath, 'utf-8');
-      const updatedContent = ensureDefaultExport(content);
-      if (updatedContent !== content) {
-        await Bun.write(distPath, updatedContent);
-      }
+      await writeEditedJavaScript({
+        from: distPath,
+        to: distPath,
+        edits: (code) => [getDefaultExportEdit(code)].filter((edit) => edit !== null),
+        packaged: false
+      });
     }
 
     // CJS Lambda bundles are loaded with import() by modern Lambda runtimes and by the ADOT tracing
@@ -786,7 +726,6 @@ export const createEsBundle = async ({
   externals = [],
   additionalDigestInput,
   existingDigests,
-  keepNames = true,
   progressLogger,
   invocationId,
   excludeDependencies = [],
@@ -797,6 +736,8 @@ export const createEsBundle = async ({
   emitTsDecoratorMetadata,
   tsConfigPath,
   minify,
+  minifyIdentifiers,
+  bundleAwsSdk,
   nodeTarget,
   debug,
   sourceMaps,
@@ -812,7 +753,8 @@ export const createEsBundle = async ({
   installDependencies,
   nativeDependencyInstallationRootPath,
   runDocker,
-  sourceMapInstallPath
+  sourceMapInstallPath,
+  lambdaZip
 }: StpBuildpackInput &
   EsBuildActions &
   EsLanguageSpecificConfig & {
@@ -853,13 +795,20 @@ export const createEsBundle = async ({
       excludeDependencies,
       tsConfigPath,
       cwd,
-      keepNames,
+      minifyIdentifiers,
+      bundleAwsSdk,
       nodeTarget,
       isLambda,
       outputModuleFormat,
       createPackagingError,
       sourceMapInstallPath
     });
+  // A Lambda ZIP ships its map without `sourcesContent`. It is stripped before the digest, so the identity describes
+  // what is packaged. `outputSourceMapsTo` still receives the full map and ships none, so that map is left whole.
+  const packagedSourceMapPath = join(distFolderPath, 'index.js.map');
+  if (lambdaZip && !outputSourceMapsTo && existsSync(packagedSourceMapPath)) {
+    await writePackagedSourceMap({ from: packagedSourceMapPath, to: packagedSourceMapPath });
+  }
 
   await progressLogger.finishEvent({ eventType: 'BUILD_CODE' });
 
@@ -883,7 +832,10 @@ export const createEsBundle = async ({
       files: absoluteExplicitlyIncludedFiles.map((path, index) => ({
         path,
         identity: explicitlyIncludedFiles[index]!
-      }))
+      })),
+      // A Lambda archive keeps an included file's execute bit, and an image build context copies its mode, so either
+      // way `chmod +x` changes what runs. An image without included files records nothing and keeps its digest.
+      recordExecutableBits: lambdaZip || absoluteExplicitlyIncludedFiles.length > 0
     }),
     getAllJsDependenciesFromMultipleFiles({
       absoluteFilePaths: absoluteExplicitlyIncludedFiles,
@@ -929,7 +881,9 @@ export const createEsBundle = async ({
         additionalDigestInput,
         explicitlyIncludedFilesDigestHex,
         dockerBuildOutputArchitecture
-      ].join('')
+      ].join(''),
+      lambdaZip,
+      createPackagingError
     });
     if (existingDigests.includes(digest)) {
       await progressLogger.finishEvent({
@@ -1009,74 +963,62 @@ export const createEsBundle = async ({
   };
 };
 
+const getLambdaBundleChecksum = async ({
+  distFolderPath,
+  createPackagingError
+}: {
+  distFolderPath: string;
+  createPackagingError: CreatePackagingError;
+}) => {
+  try {
+    return await getArchiveInventoryChecksum((await listArchiveEntries({ sourcePath: distFolderPath })).entries);
+  } catch (cause) {
+    if (cause instanceof UnsupportedArchiveEntryError) {
+      throw createPackagingError({ type: 'PACKAGING', message: cause.message, cause });
+    }
+    throw cause;
+  }
+};
+
 const getBundleDigest = async ({
   distFolderPath,
   cwd,
   externalDependencies,
-  additionalDigestInput
+  additionalDigestInput,
+  lambdaZip,
+  createPackagingError
 }: {
   distFolderPath: string;
   cwd: string;
   externalDependencies: { name: string; version: string }[];
   additionalDigestInput: string;
+  createPackagingError: CreatePackagingError;
+  /**
+   * See `StpBuildpackInput.lambdaZip`. Included files bring their executable bits, and the host rule that decided them
+   * (`getHostExecutableRule`), in through `additionalDigestInput`, for archives and images alike; everything else in the
+   * directory is Stacktape's own bundle output, whose archived modes that rule also decides.
+   */
+  lambdaZip?: boolean | undefined;
 }) => {
   const filesToIncludeInDigest = FILES_TO_INCLUDE_IN_DIGEST.map((filePath) => ({
     path: join(cwd, filePath),
     identity: filePath
   }));
   const hash = await getHashFromMultipleFiles({ files: filesToIncludeInDigest });
-  hash.update(await getDirectoryChecksum({ absoluteDirectoryPath: distFolderPath }));
+  // A Lambda ZIP holds what the archive policy lists; an image build context keeps Docker's semantics (host modes, any
+  // link), which that inventory does not describe, so it keeps the earlier checksum.
+  hash.update(
+    lambdaZip
+      ? await getLambdaBundleChecksum({ distFolderPath, createPackagingError })
+      : await getDirectoryChecksum({ absoluteDirectoryPath: distFolderPath })
+  );
   hash.update(`stacktape-buildpack:${STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION}`);
   hash.update(objectHash(externalDependencies));
   hash.update(additionalDigestInput || '');
+  if (lambdaZip) {
+    hash.update(`lambda-archive:${LAMBDA_ARCHIVE_FORMAT}`);
+  }
   return hash.digest('hex');
-};
-
-const analyzeDependency = async ({
-  dependency,
-  dependenciesToExcludeFromBundle
-}: {
-  dependency: { path: string; name: string };
-  dependenciesToExcludeFromBundle: string[];
-}): Promise<{
-  dependenciesToInstallInDocker: PackageJsonDepsInfo[];
-  allExternalDeps: string[];
-}> => {
-  const packageInfo = await getInfoFromPackageJson({
-    directoryPath: dependency.path,
-    parentModule: null,
-    dependencyType: 'root'
-  });
-  if (!packageInfo) {
-    return { dependenciesToInstallInDocker: [], allExternalDeps: [] };
-  }
-
-  const allExternalDeps = Array.from(getExternalDeps(packageInfo, new Set()));
-  const dependenciesToInstallInDocker: PackageJsonDepsInfo[] = [];
-
-  // @todo recursively check binaries
-  if (packageInfo.hasBinary) {
-    dependenciesToInstallInDocker.push({ ...packageInfo, note: 'HAS_BINARY' });
-  } else if (dependenciesToExcludeFromBundle.includes(dependency.name)) {
-    dependenciesToInstallInDocker.push({ ...packageInfo, note: 'EXCLUDED_FROM_BUNDLE_BY_USER' });
-  } else if (DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE.includes(dependency.name)) {
-    dependenciesToInstallInDocker.push({ ...packageInfo, note: 'EXCLUDED_FROM_BUNDLE_BY_STACKTAPE' });
-  }
-  // Only externalize peer dependencies that have native binaries
-  // Pure JS peer deps (like zod, ajv) can be safely bundled
-  packageInfo.optionalPeerDependencies
-    .filter((dep) => !IGNORED_OPTIONAL_PEER_DEPS_FROM_INSTALL_IN_DOCKER.includes(dep.name))
-    .filter((dep) => dep.hasBinary)
-    .forEach((dep) => {
-      dependenciesToInstallInDocker.push({ ...dep, note: 'OPTIONAL_PEER_DEPENDENCY' });
-    });
-  packageInfo.peerDependencies
-    .filter((dep) => dep.hasBinary)
-    .forEach((dep) => {
-      dependenciesToInstallInDocker.push({ ...dep, note: 'PEER_DEPENDENCY' });
-    });
-
-  return { dependenciesToInstallInDocker, allExternalDeps };
 };
 
 const cjsSourceMapBannersByPath = new Map<string, string>();

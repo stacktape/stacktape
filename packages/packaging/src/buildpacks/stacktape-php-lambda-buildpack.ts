@@ -12,13 +12,11 @@ export const buildUsingStacktapePhpLambdaBuildpack = async ({
   name,
   entryfilePath,
   sizeLimit,
-  zippedSizeLimit,
   languageSpecificConfig,
   cwd,
   ...otherProps
 }: StpBuildpackInput &
   LambdaArtifactActions & {
-    zippedSizeLimit: number;
     languageSpecificConfig?: PhpLanguageSpecificConfig | undefined;
   }): Promise<PackagingOutput> => {
   const absoluteSourcePath = findNearestProjectRoot({ cwd, entryfilePath, markerFiles: ['composer.json'] });
@@ -27,6 +25,7 @@ export const buildUsingStacktapePhpLambdaBuildpack = async ({
   const { digest, outcome, distFolderPath, ...otherOutputProps } = await buildPhpArtifact({
     ...otherProps,
     distFolderPath: otherProps.distFolderPath,
+    lambdaZip: true,
     sourcePath: absoluteSourcePath,
     phpVersion: languageSpecificConfig?.phpVersion ?? DEFAULT_PHP_VERSION,
     entryfilePath: absoluteEntryfilePath,
@@ -46,7 +45,6 @@ export const buildUsingStacktapePhpLambdaBuildpack = async ({
     distFolderPath,
     digest,
     sizeLimit,
-    zippedSizeLimit,
     archiveItem: otherProps.archiveItem,
     createPackagingError: otherProps.createPackagingError,
     progressLogger

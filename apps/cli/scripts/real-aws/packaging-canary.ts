@@ -387,7 +387,7 @@ const verifyIdentity = async (clients: AwsClients, options: CanaryOptions) => {
   );
 };
 
-const functionName = (options: CanaryOptions, workload: (typeof workloads)[number]) =>
+const functionName = (options: CanaryOptions, workload: (typeof workloads)[number] | 'catalogNote') =>
   `${options.projectName}-${stage}-${workload}`;
 
 const requiredString = (value: string | undefined, label: string) => {
@@ -471,6 +471,45 @@ const fetchJsonWithRetry = async (
     }
   }
   throw new Error(`Function URL did not become healthy: ${url}`, { cause: lastError });
+};
+
+/**
+ * The third function, which the split path cannot serve and so is packaged on its own.
+ *
+ * Two things make the mixed deployment meaningful, and neither is visible from the other two functions: this
+ * one must carry no shared-chunk layer, and it must have received the file that only `includeFiles` copies. A
+ * layer here would mean the split group swallowed a function it cannot build correctly; a missing notice would
+ * mean the per-Lambda path ran without its extra files.
+ */
+const assertIndividuallyPackagedFunction = async (
+  clients: AwsClients,
+  options: CanaryOptions,
+  expectedRevision: string
+) => {
+  const name = functionName(options, 'catalogNote');
+  const [configuration, urlConfig] = await Promise.all([
+    clients.lambda.send(new GetFunctionConfigurationCommand({ FunctionName: name })),
+    clients.lambda.send(new GetFunctionUrlConfigCommand({ FunctionName: name }))
+  ]);
+  assert(
+    (configuration.Layers?.length ?? 0) === 0,
+    `${name} is packaged on its own, so it must carry no Lambda layer; it has ${configuration.Layers?.length}.`
+  );
+
+  const payload = await fetchJsonWithRetry(
+    requiredString(urlConfig.FunctionUrl, `${name} function URL`),
+    options.region,
+    expectedRevision
+  );
+  assert(payload.handler === 'catalogNote', 'catalogNote URL returned the wrong handler payload.');
+  assert(
+    JSON.stringify(payload.catalog) === JSON.stringify(catalogIdentity()),
+    'catalogNote catalog identity drifted.'
+  );
+  assert(
+    payload.notice === 'packaged-by-the-per-function-path',
+    `catalogNote did not receive its includeFiles content; it read ${JSON.stringify(payload.notice)}.`
+  );
 };
 
 const assertDataPlane = async (snapshot: AwsSnapshot, options: CanaryOptions, expectedRevision: string) => {
@@ -718,6 +757,7 @@ export const runPackagingCanary = async ({
       stackId: initialSnapshot.stackId
     });
     await assertDataPlane(initialSnapshot, options, initialRevision);
+    await assertIndividuallyPackagedFunction(clients, options, initialRevision);
 
     const noOpDeploy = await runCliProcess({ options, args: ['deploy', ...commonCliArgs(options)], env: initialEnv });
     assertCliReportedNoUpdate(noOpDeploy.events);

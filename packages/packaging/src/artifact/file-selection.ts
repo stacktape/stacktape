@@ -43,10 +43,13 @@ export const copyExplicitlyIncludedFiles = ({
 /** Resolves include globs once so the cache digest and the copied artifact refer to the same file set. */
 export const resolveArtifactFileSelection = async ({
   cwd,
-  includeFiles = []
+  includeFiles = [],
+  lambdaZip = false
 }: {
   cwd: string;
   includeFiles?: string[] | undefined;
+  /** See `StpBuildpackInput.lambdaZip`: the digest then also covers each included file's executable bit. */
+  lambdaZip?: boolean | undefined;
 }) => {
   const explicitlyIncludedFiles = includeFiles.length
     ? (await getMatchingFilesByGlob({ globPattern: includeFiles, cwd, followSymbolicLinks: false })).toSorted()
@@ -55,7 +58,8 @@ export const resolveArtifactFileSelection = async ({
     files: explicitlyIncludedFiles.map((filePath) => ({
       path: isAbsolute(filePath) ? filePath : join(cwd, filePath),
       identity: filePath.replace(/\\/g, '/')
-    }))
+    })),
+    recordExecutableBits: lambdaZip
   });
   return { explicitlyIncludedFiles, digest: hash.digest('hex') };
 };

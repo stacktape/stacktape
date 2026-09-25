@@ -1,5 +1,5 @@
 import { basename, dirname, isAbsolute, join } from 'node:path';
-import { exists } from 'fs-extra';
+import { exists, readFile } from 'fs-extra';
 
 import type { PyLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
 import type { CreatePackagingError } from '../../runtime-contracts';
@@ -23,13 +23,15 @@ export const getBundleDigest = ({
   externalDependencies,
   additionalDigestInput,
   rawEntryfilePath,
-  languageSpecificConfig
+  languageSpecificConfig,
+  lambdaZip
 }: {
   rootPath: string;
   externalDependencies: { name: string; version: string }[];
   additionalDigestInput?: string | undefined;
   rawEntryfilePath: string;
   languageSpecificConfig?: PyLanguageSpecificConfig | undefined;
+  lambdaZip?: boolean | undefined;
 }) =>
   getBundleDigestFromGlobs({
     rootPath,
@@ -38,7 +40,8 @@ export const getBundleDigest = ({
     externalDependencies,
     additionalDigestInput,
     rawEntryfilePath,
-    languageSpecificConfig
+    languageSpecificConfig,
+    lambdaZip
   });
 
 export const getSourceFiles = ({ rootPath }: { rootPath: string }) =>
@@ -98,6 +101,36 @@ export const getPythonDependencyFileType = (dependencyFilePath?: string | null) 
 
 export const getPythonDependencyRootPath = (dependencyFilePath: string | null, sourcePath: string) =>
   dependencyFilePath ? dirname(dependencyFilePath) : sourcePath;
+
+/** A pinned requirement: `name[extras]==version`, optionally with an environment marker and hashes. */
+const PINNED_REQUIREMENT =
+  /^[A-Za-z0-9][A-Za-z0-9._-]*(\[[A-Za-z0-9._,\s-]*\])?\s*==\s*[A-Za-z0-9.!+_-]+\s*(;[^#\\]*)?(\s+--hash=[A-Za-z0-9]+:[A-Fa-f0-9]+)*\s*(#.*)?$/;
+/** Files at the dependency root that uv reads, or that select another project or interpreter. */
+const REQUIREMENTS_SOURCE_INPUTS = [
+  'uv.toml',
+  'pyproject.toml',
+  'uv.lock',
+  'Pipfile',
+  'Pipfile.lock',
+  'setup.py',
+  'setup.cfg',
+  '.python-version'
+];
+
+/**
+ * Whether the dependency file is a root `requirements.txt` whose install reads nothing from the source: every line is
+ * blank, a comment or a pinned requirement (no nested, constraint, editable, local, URL or option lines), and no uv
+ * configuration or other project file sits beside it.
+ */
+export const canInstallRequirementsWithoutSource = async (dependencyFilePath: string | null) => {
+  if (!dependencyFilePath || basename(dependencyFilePath) !== 'requirements.txt') return false;
+  const root = dirname(dependencyFilePath);
+  if ((await Promise.all(REQUIREMENTS_SOURCE_INPUTS.map((file) => exists(join(root, file))))).some(Boolean)) {
+    return false;
+  }
+  const lines = (await readFile(dependencyFilePath, 'utf8')).split(/\r?\n/).map((line) => line.trim());
+  return lines.every((line) => line === '' || line.startsWith('#') || PINNED_REQUIREMENT.test(line));
+};
 
 const UV_SELECTOR_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 

@@ -25,7 +25,7 @@ import { deploymentArtifactManager } from '@domain-services/deployment-artifact-
 import { ec2Manager } from '@domain-services/ec2-manager';
 import { fsPaths } from 'src/config/runtime-paths';
 import { LAMBDA_TRACING_RUNTIME_DIST_PATH, SOURCE_MAP_INSTALL_DIST_PATH } from 'src/config/project-paths';
-import { buildLayerS3Key } from '@domain-services/deployment-artifact-manager/artifact-names';
+import { buildLayerS3Key, getEcrCacheImageTag } from '@domain-services/deployment-artifact-manager/artifact-names';
 import { getJobName } from '@stacktape/naming/workload-names';
 import { buildNativeBinaryLayer } from '@stacktape/packaging/es/native-dependencies';
 import { buildSplitBundle } from '@stacktape/packaging/split-bundler/bundler';
@@ -74,9 +74,10 @@ import { exec } from '@utils/exec';
 import { getFileExtension } from '@utils/fs-utils';
 import { execNixpacks } from '@domain-services/packaging-manager/nixpacks-command';
 import { execPack } from '@domain-services/packaging-manager/pack-command';
-import { archiveItem } from '@utils/zip';
+import { archiveItem } from './timed-archive';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
+import { markTiming, startTiming, timeAsync } from '@utils/timings';
 import { rename } from 'fs-extra';
 import objectHash from 'object-hash';
 import { resolveEnvironmentDirectives } from 'src/commands/dev/utils';
@@ -98,14 +99,16 @@ import type { LambdaRuntime } from '@stacktape/config/primitives';
 import type { EnvironmentVar } from '@stacktape/config/shared';
 import { resolveNodeVersion } from '@stacktape/packaging/bundlers/node-version';
 import { getFileSizeBytes, getFolderSizeBytes } from '@stacktape/packaging/fs/files';
-import { getDirectoryChecksum, mergeHashes } from '@stacktape/packaging/artifact/hashing';
+import { getSplitFunctionDigest } from '@stacktape/packaging/split-bundler/function-digest';
 import {
   formatBytesAsMb,
   getLambdaCombinedUnzippedSizeBytes,
-  LAMBDA_MAX_COMBINED_UNZIPPED_SIZE_BYTES
+  LAMBDA_MAX_COMBINED_UNZIPPED_SIZE_BYTES,
+  LAMBDA_MAX_LAYERS
 } from '@stacktape/packaging/artifact/lambda-limits';
 import { loadFromJavascript, loadFromTypescript } from '@utils/file-loaders';
-import { canBuildSplitNativeDependencies, canUseSplitBundling } from './split-bundling-policy';
+import { getStableBuildpackDigestProps } from './artifact-digest-inputs';
+import { canBuildSplitNativeDependencies, selectSplitBundlingGroup } from './split-bundling-policy';
 import { groupCompatibleNativeDependencies } from './native-layer-groups';
 import {
   areBuildAndRuntimeVersionsAligned,
@@ -176,8 +179,7 @@ const loadPackagingModuleExport = async <T>({
 const getCacheRef = (jobName: string) => {
   const repositoryUrl = deploymentArtifactManager.repositoryUrl;
   if (!repositoryUrl) return undefined;
-  const cacheTag = `${jobName}-cache`;
-  return `${repositoryUrl}:${cacheTag}`;
+  return `${repositoryUrl}:${getEcrCacheImageTag(jobName)}`;
 };
 
 const doesTargetStackExist = () => {
@@ -211,6 +213,96 @@ export class PackagingManager {
 
   /** Maps each Lambda to its compatible native dependency layer. */
   #nativeBinaryLayerByLambda: Map<string, number> = new Map();
+
+  /**
+   * Docker setup for this process, started by the first job that needs each part. Jobs that ask while a part is being
+   * prepared wait for the same attempt. A failed attempt is forgotten, so a later build (a `dev` rebuild, say) tries
+   * again.
+   */
+  #dockerPreparations = new Map<string, Promise<unknown>>();
+
+  #prepareDockerOnce = <Value>(part: string, prepare: () => Promise<Value>): Promise<Value> => {
+    const started = this.#dockerPreparations.get(part) as Promise<Value> | undefined;
+    if (started) {
+      return started;
+    }
+    const preparation = prepare().catch((error: unknown) => {
+      this.#dockerPreparations.delete(part);
+      throw error;
+    });
+    this.#dockerPreparations.set(part, preparation);
+    return preparation;
+  };
+
+  /** Installs emulation for `platform` only when the current builder does not support it yet. */
+  #prepareDockerPlatform = (platform: string) =>
+    this.#prepareDockerOnce(`platform ${platform}`, () =>
+      timeAsync(
+        'docker:build-platforms',
+        async () => {
+          const supportedPlatforms = await this.#prepareDockerOnce(
+            'supported platforms',
+            getDockerBuildxSupportedPlatforms
+          );
+          const isMissing = !supportedPlatforms.includes(platform);
+          markTiming('docker:missing-build-platforms', { platform, count: isMissing ? 1 : 0 });
+          if (isMissing) {
+            await installDockerPlatforms([platform]);
+          }
+        },
+        { platform }
+      )
+    );
+
+  /** Prepares the platform a Docker, pack or Nixpacks command names with `--platform`, when it names one. */
+  #prepareRequestedDockerPlatform = async (args: string[]) => {
+    const platformIndex = args.indexOf('--platform');
+    const platform = platformIndex === -1 ? undefined : args[platformIndex + 1];
+    if (platform) {
+      await this.#prepareDockerPlatform(platform);
+    }
+  };
+
+  #prepareRemoteDockerCache = () =>
+    this.#prepareDockerOnce('remote cache', () =>
+      timeAsync('docker:remote-cache', async () => {
+        await ensureBuildxBuilderForCache();
+        // Registry cache pulls and exports authenticate at build time, but the CLI's only other ECR
+        // login runs later, at artifact upload. Builds otherwise coast on the credential a previous
+        // deploy persisted, and ECR tokens expire after 12 hours — the first redeploy after an idle
+        // half-day then fails every cache export with 403 until the login is refreshed here.
+        await deploymentArtifactManager.loginToEcr();
+      })
+    );
+
+  /**
+   * The Docker, pack and Nixpacks runners jobs receive. Each prepares what its own command needs just before running
+   * it: the platform the command names, and the registry cache builder and login when an image build uses the cache.
+   * A job that never runs such a command prepares nothing.
+   */
+  #dockerRunners = {
+    buildDockerImage: async (options: Parameters<typeof buildDockerImage>[0]) => {
+      if (options.dockerBuildOutputArchitecture) {
+        await this.#prepareDockerPlatform(options.dockerBuildOutputArchitecture);
+      }
+      if (options.cacheFromRef || options.cacheToRef) {
+        await this.#prepareRemoteDockerCache();
+      }
+      return buildDockerImage(options);
+    },
+    runDocker: async (...[commands, options]: Parameters<typeof execDocker>) => {
+      await this.#prepareRequestedDockerPlatform(commands);
+      return execDocker(commands, options);
+    },
+    runPack: async (input: Parameters<typeof execPack>[0]) => {
+      await this.#prepareRequestedDockerPlatform(input.args);
+      return execPack(input);
+    },
+    runNixpacks: async (input: Parameters<typeof execNixpacks>[0]) => {
+      await this.#prepareRequestedDockerPlatform(input.args);
+      return execNixpacks(input);
+    }
+  };
 
   init = async () => {};
 
@@ -284,25 +376,26 @@ export class PackagingManager {
   }
 
   /**
-   * Split bundling is more efficient when there are multiple lambdas that share code.
+   * Which Node Lambdas are built together, and which keep the ordinary per-Lambda path.
+   *
+   * Building them together is what lets code several of them share be packaged once, as a layer
+   * they all use, instead of copied into every artifact.
+   *
+   * The ordinary Lambda buildpack remains the fallback for what the split path cannot serve. Docker
+   * is not asked here: pure JavaScript never needs it, and a native dependency found by the shared
+   * analysis makes the split build require Docker before any artifact is written.
    */
-  #shouldUseSplitBundling({
-    nodeLambdas,
-    dockerIsRunning
-  }: {
-    nodeLambdas: Array<{
+  #partitionNodeLambdas<
+    Candidate extends {
       packaging: LambdaPackaging;
       architecture?: 'x86_64' | 'arm64' | undefined;
       runtime?: LambdaRuntime | undefined;
-    }>;
-    dockerIsRunning: boolean;
-  }): boolean {
-    if (globalStateManager.args.disableLayerOptimization) {
-      return false;
     }
-    // The ordinary Lambda buildpack remains the safe fallback. Split bundling currently needs Docker available so a
-    // dependency discovered during its shared analysis can never be silently omitted from every artifact.
-    return dockerIsRunning && canUseSplitBundling(nodeLambdas);
+  >(nodeLambdas: Candidate[]): { split: Candidate[]; perFunction: Candidate[] } {
+    if (globalStateManager.args.disableLayerOptimization) {
+      return { split: [], perFunction: nodeLambdas };
+    }
+    return selectSplitBundlingGroup(nodeLambdas);
   }
 
   /**
@@ -371,24 +464,12 @@ export class PackagingManager {
   }
 
   /**
-   * Zip shared layer artifacts for upload.
-   * Creates zip files for each layer (chunk layers + native binary layer) that can be uploaded to S3.
+   * Zip shared layers for upload, each beside its directory as `<layerPath>.zip`. A deployment passes exactly the chunk
+   * and native-dependency layers its bucket does not hold yet.
    */
-  publishSharedLayer = async (): Promise<void> => {
-    const layersToZip: string[] = [];
-
-    // Add chunk layers
-    for (const layer of this.#layerArtifacts) {
-      layersToZip.push(layer.layerPath);
-    }
-
-    layersToZip.push(...this.#nativeBinaryLayers.map(({ layerPath }) => layerPath));
-
-    if (layersToZip.length === 0) return;
-
-    // Zip all layer artifacts in parallel
+  publishSharedLayer = async (layers: { layerPath: string }[]): Promise<void> => {
     await Promise.all(
-      layersToZip.map((layerPath) =>
+      layers.map(({ layerPath }) =>
         archiveItem({
           absoluteSourcePath: layerPath,
           format: 'zip',
@@ -435,9 +516,20 @@ export class PackagingManager {
       };
     });
 
-    // Get node version from first lambda (they should all be compatible)
+    /*
+     * Every Lambda in the group shares one compatibility key, so the build inputs the single
+     * `Bun.build` call needs are the same for all of them and the first one's are the group's.
+     * `selectSplitBundlingGroup` admits only the Stacktape buildpack, so the narrow always holds.
+     */
     const firstLambda = nodeLambdas[0];
-    const languageSpecificConfig = (firstLambda.packaging.properties as any)?.languageSpecificConfig as
+    if (firstLambda.packaging.type !== 'stacktape-lambda-buildpack') {
+      throw createCliPackagingError({
+        type: 'PACKAGING',
+        message: `Function ${firstLambda.name} cannot be built together with other functions: its packaging is ${firstLambda.packaging.type}.`
+      });
+    }
+    const sharedPackagingProperties = firstLambda.packaging.properties;
+    const languageSpecificConfig = sharedPackagingProperties.languageSpecificConfig as
       | EsLanguageSpecificConfig
       | undefined;
     const nodeVersion = resolveNodeVersion({
@@ -489,16 +581,21 @@ export class PackagingManager {
     const defaultTsConfigPath = join(globalStateManager.workingDir, 'tsconfig.json');
     const tsConfigPath = explicitTsConfigPath ?? (existsSync(defaultTsConfigPath) ? defaultTsConfigPath : undefined);
 
+    const endSplitBuild = startTiming('split:build', { functions: entrypoints.length });
     const splitResult = await buildSplitBundle({
       entrypoints,
       sharedOutdir: fsPaths.absoluteSplitBundleOutdir({ invocationId: globalStateManager.invocationId }),
       cwd: globalStateManager.workingDir,
       ...(tsConfigPath ? { tsConfigPath } : {}),
-      minify: false, // Match existing behavior
+      minify: languageSpecificConfig?.minify ?? true,
+      minifyIdentifiers: languageSpecificConfig?.minifyIdentifiers ?? false,
+      bundleAwsSdk: languageSpecificConfig?.bundleAwsSdk ?? false,
       sourceMaps: languageSpecificConfig?.disableSourceMaps ? 'disabled' : 'external',
       sourceMapBannerType: 'pre-compiled',
-      excludeDependencies: languageSpecificConfig?.dependenciesToExcludeFromBundle || [],
+      excludeDependencies: sharedPackagingProperties.excludeDependencies || [],
       dependenciesToExcludeFromBundle: languageSpecificConfig?.dependenciesToExcludeFromBundle || [],
+      isLambda: true,
+      nodeTarget: nodeVersion,
       installDependencies: async () => {
         await dependencyInstaller.install({
           rootProjectDirPath: globalStateManager.workingDir,
@@ -513,6 +610,7 @@ export class PackagingManager {
       createPackagingError: ({ message, hint, cause }) =>
         createCliPackagingError({ type: 'PACKAGING', message, hint, cause })
     });
+    endSplitBuild({ ...splitResult.timings, sharedChunks: splitResult.sharedChunkCount });
 
     // Build native binaries (bcrypt, sharp, prisma, etc.) into a shared layer
     // This is more efficient than copying to each lambda - upload once, use everywhere
@@ -527,10 +625,14 @@ export class PackagingManager {
         dockerIsRunning: dockerStillRunning
       })
     ) {
+      const needs = lambdasWithNativeDeps.map(
+        ([lambdaName, output]) =>
+          `${lambdaName} (${output.dependenciesToInstallInDocker.map(({ name }) => name).join(', ')})`
+      );
       throw createCliPackagingError({
         type: 'PACKAGING',
-        message: 'Docker became unavailable while packaging native Lambda dependencies.',
-        hint: 'Start Docker and retry the deployment.'
+        message: `Docker is not running or not installed, and native dependencies need it: ${needs.join('; ')}.`,
+        hint: 'Start Docker, or install it from https://www.docker.com/products/docker-desktop/, and retry.'
       });
     }
 
@@ -552,6 +654,7 @@ export class PackagingManager {
           dependencies: output.dependenciesToInstallInDocker
         }))
       );
+      const endNativeLayers = startTiming('split:native-layers', { groups: dependencyGroups.length });
       const nativeLayers = await Promise.all(
         dependencyGroups.map(async ({ dependencies, lambdaNames }, groupIndex) => {
           // Preserve layer 0 for the ordinary single-group case. Additional version-isolated layers use a disjoint
@@ -569,7 +672,7 @@ export class PackagingManager {
             dockerBuildOutputArchitecture: dockerArch,
             usedByLambdas: lambdaNames,
             layerName: groupIndex === 0 ? 'layer-native' : `layer-native-${layerNumber}`,
-            runDocker: execDocker
+            runDocker: this.#dockerRunners.runDocker
           });
           if (!nativeLayer) {
             throw createCliPackagingError({
@@ -585,6 +688,7 @@ export class PackagingManager {
           };
         })
       );
+      endNativeLayers();
       this.#nativeBinaryLayers = nativeLayers;
       for (const layer of nativeLayers) {
         for (const lambdaName of layer.usedByLambdas) {
@@ -594,9 +698,34 @@ export class PackagingManager {
     }
 
     const skipLayers = globalStateManager.args.disableLayerOptimization;
+    /*
+     * AWS attaches at most 5 layers to a function, and shared chunks are not the only claimants: the
+     * user's own layers and this build's native-dependency layer are counted too. Taking the default
+     * three chunk layers regardless means a function with two layers of its own and a native dependency
+     * asks for six, and synthesis rejects the whole deployment after packaging has already run — telling
+     * the user to remove layers Stacktape chose for them. Packing into fewer layers instead leaves more
+     * code in each package, which is the lesser cost.
+     */
+    const mostUserLayersOnOneLambda = Math.max(
+      0,
+      ...nodeLambdas.map(({ name }) => {
+        const resource = configManager.allUserCodeLambdas.find((lambda) => lambda.name === name);
+        // Edge functions carry no layers and never reach a split build, but the union type admits them.
+        return (resource as { layers?: unknown[] } | undefined)?.layers?.length ?? 0;
+      })
+    );
+    const chunkLayerBudget = Math.max(
+      1,
+      Math.min(
+        DEFAULT_LAYER_CONFIG.maxLayers,
+        LAMBDA_MAX_LAYERS - mostUserLayersOnOneLambda - (this.#nativeBinaryLayers.length > 0 ? 1 : 0)
+      )
+    );
+    const endAssignLayers = startTiming('split:assign-layers');
     const layerAssignment = skipLayers
       ? { layeredChunks: [], unLayeredChunks: [], layers: [], totalBytesSaved: 0 }
-      : assignChunksToLayers(splitResult.chunkAnalysis, DEFAULT_LAYER_CONFIG);
+      : assignChunksToLayers(splitResult.chunkAnalysis, { ...DEFAULT_LAYER_CONFIG, maxLayers: chunkLayerBudget });
+    endAssignLayers({ layeredChunks: layerAssignment.layeredChunks.length });
     let layerArtifactsWithS3Keys: Array<{
       layerNumber: number;
       layerPath: string;
@@ -606,11 +735,13 @@ export class PackagingManager {
       s3Key: string;
     }> = [];
     if (layerAssignment.layeredChunks.length > 0) {
-      const layerResult = await createLayerArtifacts({
-        lambdaOutputs: splitResult.lambdaOutputs,
-        layerAssignment,
-        layerBasePath: `${fsPaths.absoluteBuildFolderPath({ invocationId: globalStateManager.invocationId })}/layers`
-      });
+      const layerResult = await timeAsync('split:create-layer-artifacts', () =>
+        createLayerArtifacts({
+          lambdaOutputs: splitResult.lambdaOutputs,
+          layerAssignment,
+          layerBasePath: `${fsPaths.absoluteBuildFolderPath({ invocationId: globalStateManager.invocationId })}/layers`
+        })
+      );
 
       // Compute S3 keys for each layer (needed for both template and upload)
       // Use contentHash for caching instead of version (ensures re-upload only when content changes)
@@ -688,17 +819,7 @@ export class PackagingManager {
       const shouldUseCache = this.#shouldWorkloadUseCache({ workloadName: name, commandCanUseCache });
       const existingDigests = shouldUseCache ? deploymentArtifactManager.getExistingDigestsForJob(jobName) : [];
 
-      // Include layer assignment in digest - layer assignment affects import paths
       const layerNumbers = this.#lambdaLayerMap.get(name);
-      const layerDigestParts = layerNumbers
-        ? Array.from(layerNumbers)
-            .sort()
-            .map((layerNum) => {
-              const layerArtifact = this.#layerArtifacts.find((l) => l.layerNumber === layerNum);
-              return `${layerNum}:${layerArtifact?.contentHash || 'unknown'}`;
-            })
-            .join(',')
-        : 'none';
       const nativeLayerNumber = this.#nativeBinaryLayerByLambda.get(name);
       const nativeLayer =
         nativeLayerNumber === undefined
@@ -711,15 +832,21 @@ export class PackagingManager {
           message: `A native dependency layer was assigned to function ${name}, but its artifact is missing.`
         });
       }
-      const nativeLayerDigestPart = nativeLayer
-        ? `native:${nativeLayer.layerNumber}:${nativeLayer.contentHash}`
-        : 'native:none';
-      // Hash every final package file, including local chunks and source maps, rather than only index.js.
-      const bundleDirectoryHash = await getDirectoryChecksum({ absoluteDirectoryPath: distFolderPath });
-      const digest = mergeHashes(bundleDirectoryHash, layerDigestParts, nativeLayerDigestPart);
+      // Every final package file (local chunks and source maps included), the layers its imports point into, and the
+      // archive layout it is zipped with.
+      const endDigest = startTiming('split:function-digest', { job: jobName });
+      const digest = await getSplitFunctionDigest({
+        distFolderPath,
+        chunkLayers: Array.from(layerNumbers ?? []).map((layerNumber) => ({
+          layerNumber,
+          contentHash: this.#layerArtifacts.find((artifact) => artifact.layerNumber === layerNumber)?.contentHash
+        })),
+        nativeLayer: nativeLayer ? { layerNumber: nativeLayer.layerNumber, contentHash: nativeLayer.contentHash } : null
+      });
+      endDigest();
 
       const functionSizeBytes = await getFolderSizeBytes(distFolderPath);
-      const attachedLayerSizes = Array.from(layerNumbers ?? []).map((layerNumber) => {
+      const attachedLayers = Array.from(layerNumbers ?? []).map((layerNumber) => {
         const layer = this.#layerArtifacts.find((artifact) => artifact.layerNumber === layerNumber);
         if (!layer) {
           throw createCliPackagingError({
@@ -727,19 +854,22 @@ export class PackagingManager {
             message: `Shared layer ${layerNumber} was assigned to function ${name}, but its artifact is missing.`
           });
         }
-        return layer.sizeBytes;
+        return { label: `shared layer ${layerNumber}`, sizeBytes: layer.sizeBytes };
       });
       if (nativeLayer) {
-        attachedLayerSizes.push(nativeLayer.sizeBytes);
+        attachedLayers.push({ label: 'native dependency layer', sizeBytes: nativeLayer.sizeBytes });
       }
+      // Lambda counts the unzipped function and every attached layer together; the ZIP size does not matter for code
+      // deployed from S3. Layers the user attaches are outside this build, so they are left out, and the message says so.
       const combinedUnzippedSizeBytes = getLambdaCombinedUnzippedSizeBytes({
         functionSizeBytes,
-        layerSizeBytes: attachedLayerSizes
+        layerSizeBytes: attachedLayers.map(({ sizeBytes }) => sizeBytes)
       });
       if (combinedUnzippedSizeBytes > LAMBDA_MAX_COMBINED_UNZIPPED_SIZE_BYTES) {
+        const layerSizes = attachedLayers.map(({ label, sizeBytes }) => `${label}: ${formatBytesAsMb(sizeBytes)}MB`);
         throw createCliPackagingError({
           type: 'PACKAGING',
-          message: `Function ${name} and its Stacktape layers have a combined unzipped size of ${formatBytesAsMb(combinedUnzippedSizeBytes)}MB. AWS Lambda allows at most 250MB.`,
+          message: `Function ${name} is ${formatBytesAsMb(functionSizeBytes)}MB unzipped and its Stacktape layers add ${formatBytesAsMb(combinedUnzippedSizeBytes - functionSizeBytes)}MB (${layerSizes.join(', ')}), ${formatBytesAsMb(combinedUnzippedSizeBytes)}MB in total. AWS Lambda allows 250MB for a function and all its layers together. Layers attached outside Stacktape are not counted here.`,
           hint: 'Exclude unnecessary files or dependencies, reduce source maps, or disable shared-layer optimization for this deployment.'
         });
       }
@@ -765,14 +895,6 @@ export class PackagingManager {
       const unzippedSizeMB = Number((functionSizeBytes / 1024 / 1024).toFixed(2));
       const unzippedSizeKB = Number((functionSizeBytes / 1024).toFixed(1));
 
-      // Check size limits
-      const sizeLimit = 250; // MB
-      const zippedSizeLimit = 50; // MB
-
-      if (functionSizeBytes > sizeLimit * 1024 * 1024) {
-        throw new Error(`Function ${name} has size ${unzippedSizeMB}MB. Should be less than ${sizeLimit}MB.`);
-      }
-
       await archiveItem({
         absoluteSourcePath: distFolderPath,
         format: 'zip',
@@ -783,10 +905,6 @@ export class PackagingManager {
       const zippedSizeBytes = await getFileSizeBytes(originalZipPath);
       const zippedSizeMB = Number((zippedSizeBytes / 1024 / 1024).toFixed(2));
       const zippedSizeKB = Number((zippedSizeBytes / 1024).toFixed(1));
-
-      if (zippedSizeBytes > zippedSizeLimit * 1024 * 1024) {
-        throw new Error(`Function ${name} zipped size ${zippedSizeMB}MB exceeds limit of ${zippedSizeLimit}MB.`);
-      }
 
       const adjustedZipPath = `${distFolderPath}-${digest}.zip`;
       await rename(originalZipPath, adjustedZipPath);
@@ -834,27 +952,17 @@ export class PackagingManager {
       return onlyWorkloads.includes(workloadName);
     };
 
-    // Setup Docker if running
-    const dockerIsRunning = await isDockerRunning();
-    if (dockerIsRunning) {
-      await this.#installMissingDockerBuildPlatforms();
-      if (shouldUseRemoteDockerCache()) {
-        await ensureBuildxBuilderForCache();
-        // Registry cache pulls and exports authenticate at build time, but the CLI's only other ECR
-        // login runs later, at artifact upload. Builds otherwise coast on the credential a previous
-        // deploy persisted, and ECR tokens expire after 12 hours — the first redeploy after an idle
-        // half-day then fails every cache export with 403 until the login is refreshed here.
-        await deploymentArtifactManager.loginToEcr();
-      }
-    }
-
     // Identify Node.js Lambda functions (excluding edge functions which need separate handling)
-    const nodeLambdas = configManager.allUserCodeLambdas.filter(({ name, packaging, type }) => {
-      if (!shouldPackageWorkload(name)) return false;
-      const ext = getFileExtension((packaging?.properties as { entryfilePath?: string })?.entryfilePath || '');
-      // Exclude edge functions from split bundling - they don't support ESM with top-level await
-      return ['js', 'ts', 'jsx', 'mjs', 'tsx'].includes(ext) && type !== 'edge-lambda-function';
-    });
+    const tracedLambdaNames = new Set(configManager.instrumentedLambdaFunctions.map(({ name }) => name));
+    const nodeLambdas = configManager.allUserCodeLambdas
+      .filter(({ name, packaging, type }) => {
+        if (!shouldPackageWorkload(name)) return false;
+        const ext = getFileExtension((packaging?.properties as { entryfilePath?: string })?.entryfilePath || '');
+        // Exclude edge functions from split bundling - they don't support ESM with top-level await
+        return ['js', 'ts', 'jsx', 'mjs', 'tsx'].includes(ext) && type !== 'edge-lambda-function';
+      })
+      // Tracing is applied by the per-Lambda buildpack, which wraps the handler at the bundle entry.
+      .map((lambda) => Object.assign({}, lambda, { tracingEnabled: tracedLambdaNames.has(lambda.name) }));
 
     // Edge Lambda functions - need to be packaged separately with CJS
     const edgeLambdas = configManager.allUserCodeLambdas.filter(({ name, packaging, type }) => {
@@ -995,14 +1103,26 @@ export class PackagingManager {
     // - Other workloads (containers, non-Node lambdas, nextjs) run in parallel
     const packagingPromises: Promise<void>[] = [];
 
-    // Node.js lambdas with split bundling
-    if (this.#shouldUseSplitBundling({ nodeLambdas, dockerIsRunning })) {
-      packagingPromises.push(this.#packageNodeLambdasWithSplitBundling({ nodeLambdas, commandCanUseCache }));
-    } else if (nodeLambdas.length > 0) {
-      // Fallback: package Node.js lambdas individually (for single lambda or when split bundling disabled)
+    // Node.js lambdas: the largest compatible set shares one split build, the rest are packaged on
+    // their own. One function the split path cannot serve no longer costs the others their layer.
+    const { split: splitBundledLambdas, perFunction: individuallyBundledLambdas } =
+      this.#partitionNodeLambdas(nodeLambdas);
+    markTiming('packaging:paths', {
+      split: splitBundledLambdas.length,
+      perFunction: individuallyBundledLambdas.length,
+      edge: edgeLambdas.length,
+      other: otherPackagingJobs.length
+    });
+
+    if (splitBundledLambdas.length > 0) {
+      packagingPromises.push(
+        this.#packageNodeLambdasWithSplitBundling({ nodeLambdas: splitBundledLambdas, commandCanUseCache })
+      );
+    }
+    if (individuallyBundledLambdas.length > 0) {
       packagingPromises.push(
         Promise.all(
-          nodeLambdas.map(({ name, type, packaging, architecture, runtime }) =>
+          individuallyBundledLambdas.map(({ name, type, packaging, architecture, runtime }) =>
             this.packageWorkload({
               commandCanUseCache,
               jobName: getJobName({ workloadName: name, workloadType: type }),
@@ -1056,16 +1176,6 @@ export class PackagingManager {
     });
 
     return this.#packagedJobs;
-  };
-
-  #installMissingDockerBuildPlatforms = async () => {
-    const supportedDockerPlatforms = await getDockerBuildxSupportedPlatforms();
-    const platformsToInstall = ['linux/amd64', 'linux/arm64'].filter(
-      (platform) => !supportedDockerPlatforms.includes(platform)
-    );
-    if (platformsToInstall.length) {
-      await installDockerPlatforms(platformsToInstall);
-    }
   };
 
   repackageSkippedPackagingJobsCurrentlyUsingHotSwapDeploy = async ({
@@ -1347,7 +1457,7 @@ export class PackagingManager {
       archiveItem,
       createPackagingError: createCliPackagingError,
       executeProcess: exec,
-      runDocker: execDocker,
+      runDocker: this.#dockerRunners.runDocker,
       nativeDependencyInstallationRootPath: join(
         fsPaths.absoluteBuildFolderPath({ invocationId: globalStateManager.invocationId }),
         '_bin-install'
@@ -1404,7 +1514,7 @@ export class PackagingManager {
       cacheFromRef: cacheRef,
       cacheToRef: cacheRef,
       archiveItem,
-      buildDockerImage,
+      buildDockerImage: this.#dockerRunners.buildDockerImage,
       checkDockerImageExists,
       createPackagingError: createCliPackagingError,
       getDockerImageDetails,
@@ -1413,7 +1523,7 @@ export class PackagingManager {
         fsPaths.absoluteBuildFolderPath({ invocationId: globalStateManager.invocationId }),
         '_bin-install'
       ),
-      runDocker: execDocker,
+      runDocker: this.#dockerRunners.runDocker,
       sourceMapInstallPath: SOURCE_MAP_INSTALL_DIST_PATH
     };
 
@@ -1423,12 +1533,20 @@ export class PackagingManager {
       return result;
     }
     if (packagingType === 'external-buildpack') {
-      const result = await buildUsingExternalBuildpack({ ...sharedProps, ...packaging.properties, runPack: execPack });
+      const result = await buildUsingExternalBuildpack({
+        ...sharedProps,
+        ...packaging.properties,
+        runPack: this.#dockerRunners.runPack
+      });
       this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
       return result;
     }
     if (packagingType === 'nixpacks') {
-      const result = await buildUsingNixpacks({ ...sharedProps, ...packaging.properties, runNixpacks: execNixpacks });
+      const result = await buildUsingNixpacks({
+        ...sharedProps,
+        ...packaging.properties,
+        runNixpacks: this.#dockerRunners.runNixpacks
+      });
       this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
       return result;
     }
@@ -1471,8 +1589,7 @@ export class PackagingManager {
               : undefined;
           const sharedStpBuildpackProps = {
             ...packaging.properties,
-            minify: false,
-            keepNames: true,
+            minify: languageSpecificConfig?.minify ?? true,
             nodeTarget: String(nodeVersion),
             entryfilePath: join(globalStateManager.workingDir, packaging.properties.entryfilePath),
             ...(tracingRuntimeFilePath && { tracingRuntimeFilePath }),
@@ -1480,7 +1597,7 @@ export class PackagingManager {
           };
           const additionalDigestInput = objectHash({
             buildpackImplementationVersion: STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION,
-            props: sharedStpBuildpackProps
+            props: getStableBuildpackDigestProps({ props: sharedStpBuildpackProps, configured: packaging.properties })
           });
 
           if (packagingType === 'stacktape-lambda-buildpack') {
@@ -1488,7 +1605,6 @@ export class PackagingManager {
               ...sharedProps,
               ...sharedStpBuildpackProps,
               sizeLimit: 250,
-              zippedSizeLimit: 50,
               debug: globalStateManager.isDebugMode,
               distFolderPath: fsPaths.absoluteLambdaArtifactFolderPath({
                 jobName,
@@ -1549,14 +1665,13 @@ export class PackagingManager {
           };
           const additionalDigestInput = objectHash({
             buildpackImplementationVersion: STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION,
-            props: sharedStpBuildpackProps
+            props: getStableBuildpackDigestProps({ props: sharedStpBuildpackProps, configured: packaging.properties })
           });
           if (packagingType === 'stacktape-lambda-buildpack') {
             const result = await buildUsingStacktapePyLambdaBuildpack({
               ...sharedProps,
               ...sharedStpBuildpackProps,
               sizeLimit: 250,
-              zippedSizeLimit: 50,
               distFolderPath: fsPaths.absoluteLambdaArtifactFolderPath({
                 jobName,
                 invocationId: globalStateManager.invocationId
@@ -1608,14 +1723,13 @@ export class PackagingManager {
           };
           const additionalDigestInput = objectHash({
             buildpackImplementationVersion: STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION,
-            props: sharedStpBuildpackProps
+            props: getStableBuildpackDigestProps({ props: sharedStpBuildpackProps, configured: packaging.properties })
           });
           if (packagingType === 'stacktape-lambda-buildpack') {
             const result = await buildUsingStacktapeJavaLambdaBuildpack({
               ...sharedProps,
               ...sharedStpBuildpackProps,
               sizeLimit: 250,
-              zippedSizeLimit: 50,
               distFolderPath: fsPaths.absoluteLambdaArtifactFolderPath({
                 jobName,
                 invocationId: globalStateManager.invocationId
@@ -1660,14 +1774,13 @@ export class PackagingManager {
           };
           const additionalDigestInput = objectHash({
             buildpackImplementationVersion: STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION,
-            props: sharedStpBuildpackProps
+            props: getStableBuildpackDigestProps({ props: sharedStpBuildpackProps, configured: packaging.properties })
           });
           if (packagingType === 'stacktape-lambda-buildpack') {
             const result = await buildUsingStacktapeGoLambdaBuildpack({
               ...sharedProps,
               ...sharedStpBuildpackProps,
               sizeLimit: 250,
-              zippedSizeLimit: 50,
               distFolderPath: fsPaths.absoluteLambdaArtifactFolderPath({
                 jobName,
                 invocationId: globalStateManager.invocationId
@@ -1719,14 +1832,13 @@ export class PackagingManager {
           };
           const additionalDigestInput = objectHash({
             buildpackImplementationVersion: STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION,
-            props: sharedStpBuildpackProps
+            props: getStableBuildpackDigestProps({ props: sharedStpBuildpackProps, configured: packaging.properties })
           });
           if (packagingType === 'stacktape-lambda-buildpack') {
             const result = await buildUsingStacktapeRbLambdaBuildpack({
               ...sharedProps,
               ...sharedStpBuildpackProps,
               sizeLimit: 250,
-              zippedSizeLimit: 50,
               distFolderPath: fsPaths.absoluteLambdaArtifactFolderPath({
                 jobName,
                 invocationId: globalStateManager.invocationId
@@ -1767,7 +1879,7 @@ export class PackagingManager {
           };
           const additionalDigestInput = objectHash({
             buildpackImplementationVersion: STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION,
-            props: sharedStpBuildpackProps
+            props: getStableBuildpackDigestProps({ props: sharedStpBuildpackProps, configured: packaging.properties })
           });
           if (packagingType === 'stacktape-image-buildpack') {
             const result = await buildUsingStacktapePhpImageBuildpack({
@@ -1811,14 +1923,13 @@ export class PackagingManager {
           };
           const additionalDigestInput = objectHash({
             buildpackImplementationVersion: STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION,
-            props: sharedStpBuildpackProps
+            props: getStableBuildpackDigestProps({ props: sharedStpBuildpackProps, configured: packaging.properties })
           });
           if (packagingType === 'stacktape-lambda-buildpack') {
             const result = await buildUsingStacktapeDotnetLambdaBuildpack({
               ...sharedProps,
               ...sharedStpBuildpackProps,
               sizeLimit: 250,
-              zippedSizeLimit: 50,
               distFolderPath: fsPaths.absoluteLambdaArtifactFolderPath({
                 jobName,
                 invocationId: globalStateManager.invocationId

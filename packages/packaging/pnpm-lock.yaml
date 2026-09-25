@@ -20,6 +20,9 @@ importers:
       '@balena/dockerignore':
         specifier: 1.0.2
         version: 1.0.2
+      '@jridgewell/sourcemap-codec':
+        specifier: 1.5.5
+        version: 1.5.5
       '@stacktape/config':
         specifier: workspace:*
         version: link:../config

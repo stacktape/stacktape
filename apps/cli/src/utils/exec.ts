@@ -1,6 +1,7 @@
 import type { StdTransformer } from '@utils/streams';
 import type { Options } from 'execa';
 import { EventEmitter } from 'node:events';
+import { basename } from 'node:path';
 import { execa, execaNode } from 'execa';
 import { jsonlEmitter } from '../app/tui-manager/output/jsonl';
 import { logCollectorStream } from '../../src/utils/log-collector';
@@ -8,6 +9,7 @@ import { isDirAccessible } from './fs-utils';
 import { serialize } from './misc';
 import { CliError } from './errors';
 import { StreamTransformer } from './streams';
+import { nextSubprocessOrdinal, startTiming } from './timings';
 
 EventEmitter.defaultMaxListeners = 0;
 
@@ -35,7 +37,7 @@ type ExecProps = {
   disableStdout?: boolean;
   env?: { [key: string]: any };
   cwd?: string;
-  rawOptions?: Pick<Options, 'shell'>;
+  rawOptions?: Pick<Options, 'shell' | 'timeout'>;
   logDetails?: boolean;
   stdioMode?: ChildStdioMode;
   prefixStdioOutput?: string;
@@ -233,6 +235,12 @@ export const exec = async (command: string, args: string[], params: ExecProps) =
   }
 
   const start = Date.now();
+  // The executable's name and the caller's safe description only: arguments can carry secrets.
+  const endTiming = startTiming('subprocess', {
+    executable: basename(command),
+    description: params.safeCommandDescription,
+    ordinal: nextSubprocessOrdinal()
+  });
 
   const childProcess = getChildProcess(command, args, params);
 
@@ -245,10 +253,12 @@ export const exec = async (command: string, args: string[], params: ExecProps) =
   return childProcess
     .then((res) => {
       logDetailsFn();
+      endTiming({ exitCode: res.exitCode ?? 0 });
       return { ...res, exitCode: res.exitCode ?? 0 };
     })
     .catch((err) => {
       logDetailsFn();
+      endTiming({ exitCode: typeof err?.exitCode === 'number' ? err.exitCode : null, outcome: 'error' });
       if (params.safeCommandDescription) {
         redactCommandEcho(err, params.safeCommandDescription);
       }

@@ -1480,6 +1480,52 @@
                             ]
                           },
                           {
+                            "name": "minify",
+                            "required": false,
+                            "shortDescription": "<p> Minify the bundled code. Local names are kept, so stack traces stay readable.</p>",
+                            "longDescription": "<p>Whitespace is removed and syntax is shortened. Local variable and function names are kept, so stack traces and\nerror messages read as your source does. Shortening the names as well is a separate opt-in, <code>minifyIdentifiers</code>.\nSet <code>minify: false</code> to deploy the bundle as written.</p>",
+                            "defaultValue": "true",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            },
+                            "examples": [
+                              {
+                                "lang": "yaml",
+                                "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            minify: false\n            # [!code focus-end]\n      memory: 512"
+                              },
+                              {
+                                "lang": "typescript",
+                                "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          minify: false\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
+                              }
+                            ]
+                          },
+                          {
+                            "name": "minifyIdentifiers",
+                            "required": false,
+                            "shortDescription": "<p> Also shorten local variable and function names when minifying.</p>",
+                            "longDescription": "<p>Produces a slightly smaller bundle, but local names disappear from stack traces and from error messages\n(<code>TypeError: Ln is not a function</code>), and the short names change with every build. Stacktape Console groups\nruntime errors by message and function name, so the same error would open a new issue after each deployment.\nHas no effect when <code>minify</code> is <code>false</code>.</p>",
+                            "defaultValue": "false",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            },
+                            "examples": [
+                              {
+                                "lang": "yaml",
+                                "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            minifyIdentifiers: true\n            # [!code focus-end]\n      memory: 512"
+                              },
+                              {
+                                "lang": "typescript",
+                                "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          minifyIdentifiers: true\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
+                              }
+                            ]
+                          },
+                          {
                             "name": "dependenciesToExcludeFromDeploymentPackage",
                             "required": false,
                             "shortDescription": "<p> A list of dependencies to exclude from the deployment package.</p>",
@@ -1501,6 +1547,29 @@
                               {
                                 "lang": "typescript",
                                 "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'stacktape-lambda-buildpack',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       languageSpecificConfig: {\n         dependenciesToExcludeFromBundle: ['sharp'],\n         // [!code focus-start]\n         dependenciesToExcludeFromDeploymentPackage: ['@types/node']\n         // [!code focus-end]\n       }\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
+                              }
+                            ]
+                          },
+                          {
+                            "name": "bundleAwsSdk",
+                            "required": false,
+                            "shortDescription": "<p> Bundle the AWS SDK from your <code>node_modules</code> instead of using the copy the Lambda runtime provides.</p>",
+                            "longDescription": "<p>The Node.js 18+ Lambda runtimes ship the AWS SDK v3. By default, imports of <code>@aws-sdk/client-*</code> and\n<code>@aws-sdk/lib-*</code> packages are left out of the deployment package and resolved from the runtime, which keeps the\npackage smaller. The runtime&#39;s copy can be older than the version in your <code>package.json</code>. Enable this when your\ncode needs a newer SDK than the runtime ships. Container workloads have no runtime-provided SDK and always\nbundle it.</p>",
+                            "defaultValue": "false",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            },
+                            "examples": [
+                              {
+                                "lang": "yaml",
+                                "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            bundleAwsSdk: true\n            # [!code focus-end]\n      memory: 512"
+                              },
+                              {
+                                "lang": "typescript",
+                                "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          bundleAwsSdk: true\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
                               }
                             ]
                           }
@@ -9602,6 +9671,52 @@
                             ]
                           },
                           {
+                            "name": "minify",
+                            "required": false,
+                            "shortDescription": "<p> Minify the bundled code. Local names are kept, so stack traces stay readable.</p>",
+                            "longDescription": "<p>Whitespace is removed and syntax is shortened. Local variable and function names are kept, so stack traces and\nerror messages read as your source does. Shortening the names as well is a separate opt-in, <code>minifyIdentifiers</code>.\nSet <code>minify: false</code> to deploy the bundle as written.</p>",
+                            "defaultValue": "true",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            },
+                            "examples": [
+                              {
+                                "lang": "yaml",
+                                "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            minify: false\n            # [!code focus-end]\n      memory: 512"
+                              },
+                              {
+                                "lang": "typescript",
+                                "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          minify: false\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
+                              }
+                            ]
+                          },
+                          {
+                            "name": "minifyIdentifiers",
+                            "required": false,
+                            "shortDescription": "<p> Also shorten local variable and function names when minifying.</p>",
+                            "longDescription": "<p>Produces a slightly smaller bundle, but local names disappear from stack traces and from error messages\n(<code>TypeError: Ln is not a function</code>), and the short names change with every build. Stacktape Console groups\nruntime errors by message and function name, so the same error would open a new issue after each deployment.\nHas no effect when <code>minify</code> is <code>false</code>.</p>",
+                            "defaultValue": "false",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            },
+                            "examples": [
+                              {
+                                "lang": "yaml",
+                                "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            minifyIdentifiers: true\n            # [!code focus-end]\n      memory: 512"
+                              },
+                              {
+                                "lang": "typescript",
+                                "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          minifyIdentifiers: true\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
+                              }
+                            ]
+                          },
+                          {
                             "name": "dependenciesToExcludeFromDeploymentPackage",
                             "required": false,
                             "shortDescription": "<p> A list of dependencies to exclude from the deployment package.</p>",
@@ -9623,6 +9738,29 @@
                               {
                                 "lang": "typescript",
                                 "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'stacktape-lambda-buildpack',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       languageSpecificConfig: {\n         dependenciesToExcludeFromBundle: ['sharp'],\n         // [!code focus-start]\n         dependenciesToExcludeFromDeploymentPackage: ['@types/node']\n         // [!code focus-end]\n       }\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
+                              }
+                            ]
+                          },
+                          {
+                            "name": "bundleAwsSdk",
+                            "required": false,
+                            "shortDescription": "<p> Bundle the AWS SDK from your <code>node_modules</code> instead of using the copy the Lambda runtime provides.</p>",
+                            "longDescription": "<p>The Node.js 18+ Lambda runtimes ship the AWS SDK v3. By default, imports of <code>@aws-sdk/client-*</code> and\n<code>@aws-sdk/lib-*</code> packages are left out of the deployment package and resolved from the runtime, which keeps the\npackage smaller. The runtime&#39;s copy can be older than the version in your <code>package.json</code>. Enable this when your\ncode needs a newer SDK than the runtime ships. Container workloads have no runtime-provided SDK and always\nbundle it.</p>",
+                            "defaultValue": "false",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            },
+                            "examples": [
+                              {
+                                "lang": "yaml",
+                                "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            bundleAwsSdk: true\n            # [!code focus-end]\n      memory: 512"
+                              },
+                              {
+                                "lang": "typescript",
+                                "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          bundleAwsSdk: true\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
                               }
                             ]
                           }
@@ -16780,6 +16918,52 @@
                             ]
                           },
                           {
+                            "name": "minify",
+                            "required": false,
+                            "shortDescription": "<p> Minify the bundled code. Local names are kept, so stack traces stay readable.</p>",
+                            "longDescription": "<p>Whitespace is removed and syntax is shortened. Local variable and function names are kept, so stack traces and\nerror messages read as your source does. Shortening the names as well is a separate opt-in, <code>minifyIdentifiers</code>.\nSet <code>minify: false</code> to deploy the bundle as written.</p>",
+                            "defaultValue": "true",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            },
+                            "examples": [
+                              {
+                                "lang": "yaml",
+                                "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            minify: false\n            # [!code focus-end]\n      memory: 512"
+                              },
+                              {
+                                "lang": "typescript",
+                                "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          minify: false\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
+                              }
+                            ]
+                          },
+                          {
+                            "name": "minifyIdentifiers",
+                            "required": false,
+                            "shortDescription": "<p> Also shorten local variable and function names when minifying.</p>",
+                            "longDescription": "<p>Produces a slightly smaller bundle, but local names disappear from stack traces and from error messages\n(<code>TypeError: Ln is not a function</code>), and the short names change with every build. Stacktape Console groups\nruntime errors by message and function name, so the same error would open a new issue after each deployment.\nHas no effect when <code>minify</code> is <code>false</code>.</p>",
+                            "defaultValue": "false",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            },
+                            "examples": [
+                              {
+                                "lang": "yaml",
+                                "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            minifyIdentifiers: true\n            # [!code focus-end]\n      memory: 512"
+                              },
+                              {
+                                "lang": "typescript",
+                                "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          minifyIdentifiers: true\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
+                              }
+                            ]
+                          },
+                          {
                             "name": "dependenciesToExcludeFromDeploymentPackage",
                             "required": false,
                             "shortDescription": "<p> A list of dependencies to exclude from the deployment package.</p>",
@@ -16801,6 +16985,29 @@
                               {
                                 "lang": "typescript",
                                 "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'stacktape-lambda-buildpack',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       languageSpecificConfig: {\n         dependenciesToExcludeFromBundle: ['sharp'],\n         // [!code focus-start]\n         dependenciesToExcludeFromDeploymentPackage: ['@types/node']\n         // [!code focus-end]\n       }\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
+                              }
+                            ]
+                          },
+                          {
+                            "name": "bundleAwsSdk",
+                            "required": false,
+                            "shortDescription": "<p> Bundle the AWS SDK from your <code>node_modules</code> instead of using the copy the Lambda runtime provides.</p>",
+                            "longDescription": "<p>The Node.js 18+ Lambda runtimes ship the AWS SDK v3. By default, imports of <code>@aws-sdk/client-*</code> and\n<code>@aws-sdk/lib-*</code> packages are left out of the deployment package and resolved from the runtime, which keeps the\npackage smaller. The runtime&#39;s copy can be older than the version in your <code>package.json</code>. Enable this when your\ncode needs a newer SDK than the runtime ships. Container workloads have no runtime-provided SDK and always\nbundle it.</p>",
+                            "defaultValue": "false",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            },
+                            "examples": [
+                              {
+                                "lang": "yaml",
+                                "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            bundleAwsSdk: true\n            # [!code focus-end]\n      memory: 512"
+                              },
+                              {
+                                "lang": "typescript",
+                                "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          bundleAwsSdk: true\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
                               }
                             ]
                           }
@@ -24169,6 +24376,52 @@
                             ]
                           },
                           {
+                            "name": "minify",
+                            "required": false,
+                            "shortDescription": "<p> Minify the bundled code. Local names are kept, so stack traces stay readable.</p>",
+                            "longDescription": "<p>Whitespace is removed and syntax is shortened. Local variable and function names are kept, so stack traces and\nerror messages read as your source does. Shortening the names as well is a separate opt-in, <code>minifyIdentifiers</code>.\nSet <code>minify: false</code> to deploy the bundle as written.</p>",
+                            "defaultValue": "true",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            },
+                            "examples": [
+                              {
+                                "lang": "yaml",
+                                "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            minify: false\n            # [!code focus-end]\n      memory: 512"
+                              },
+                              {
+                                "lang": "typescript",
+                                "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          minify: false\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
+                              }
+                            ]
+                          },
+                          {
+                            "name": "minifyIdentifiers",
+                            "required": false,
+                            "shortDescription": "<p> Also shorten local variable and function names when minifying.</p>",
+                            "longDescription": "<p>Produces a slightly smaller bundle, but local names disappear from stack traces and from error messages\n(<code>TypeError: Ln is not a function</code>), and the short names change with every build. Stacktape Console groups\nruntime errors by message and function name, so the same error would open a new issue after each deployment.\nHas no effect when <code>minify</code> is <code>false</code>.</p>",
+                            "defaultValue": "false",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            },
+                            "examples": [
+                              {
+                                "lang": "yaml",
+                                "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            minifyIdentifiers: true\n            # [!code focus-end]\n      memory: 512"
+                              },
+                              {
+                                "lang": "typescript",
+                                "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          minifyIdentifiers: true\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
+                              }
+                            ]
+                          },
+                          {
                             "name": "dependenciesToExcludeFromDeploymentPackage",
                             "required": false,
                             "shortDescription": "<p> A list of dependencies to exclude from the deployment package.</p>",
@@ -24190,6 +24443,29 @@
                               {
                                 "lang": "typescript",
                                 "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'stacktape-lambda-buildpack',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       languageSpecificConfig: {\n         dependenciesToExcludeFromBundle: ['sharp'],\n         // [!code focus-start]\n         dependenciesToExcludeFromDeploymentPackage: ['@types/node']\n         // [!code focus-end]\n       }\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
+                              }
+                            ]
+                          },
+                          {
+                            "name": "bundleAwsSdk",
+                            "required": false,
+                            "shortDescription": "<p> Bundle the AWS SDK from your <code>node_modules</code> instead of using the copy the Lambda runtime provides.</p>",
+                            "longDescription": "<p>The Node.js 18+ Lambda runtimes ship the AWS SDK v3. By default, imports of <code>@aws-sdk/client-*</code> and\n<code>@aws-sdk/lib-*</code> packages are left out of the deployment package and resolved from the runtime, which keeps the\npackage smaller. The runtime&#39;s copy can be older than the version in your <code>package.json</code>. Enable this when your\ncode needs a newer SDK than the runtime ships. Container workloads have no runtime-provided SDK and always\nbundle it.</p>",
+                            "defaultValue": "false",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            },
+                            "examples": [
+                              {
+                                "lang": "yaml",
+                                "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            bundleAwsSdk: true\n            # [!code focus-end]\n      memory: 512"
+                              },
+                              {
+                                "lang": "typescript",
+                                "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          bundleAwsSdk: true\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
                               }
                             ]
                           }
@@ -25888,6 +26164,52 @@
                             ]
                           },
                           {
+                            "name": "minify",
+                            "required": false,
+                            "shortDescription": "<p> Minify the bundled code. Local names are kept, so stack traces stay readable.</p>",
+                            "longDescription": "<p>Whitespace is removed and syntax is shortened. Local variable and function names are kept, so stack traces and\nerror messages read as your source does. Shortening the names as well is a separate opt-in, <code>minifyIdentifiers</code>.\nSet <code>minify: false</code> to deploy the bundle as written.</p>",
+                            "defaultValue": "true",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            },
+                            "examples": [
+                              {
+                                "lang": "yaml",
+                                "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            minify: false\n            # [!code focus-end]\n      memory: 512"
+                              },
+                              {
+                                "lang": "typescript",
+                                "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          minify: false\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
+                              }
+                            ]
+                          },
+                          {
+                            "name": "minifyIdentifiers",
+                            "required": false,
+                            "shortDescription": "<p> Also shorten local variable and function names when minifying.</p>",
+                            "longDescription": "<p>Produces a slightly smaller bundle, but local names disappear from stack traces and from error messages\n(<code>TypeError: Ln is not a function</code>), and the short names change with every build. Stacktape Console groups\nruntime errors by message and function name, so the same error would open a new issue after each deployment.\nHas no effect when <code>minify</code> is <code>false</code>.</p>",
+                            "defaultValue": "false",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            },
+                            "examples": [
+                              {
+                                "lang": "yaml",
+                                "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            minifyIdentifiers: true\n            # [!code focus-end]\n      memory: 512"
+                              },
+                              {
+                                "lang": "typescript",
+                                "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          minifyIdentifiers: true\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
+                              }
+                            ]
+                          },
+                          {
                             "name": "dependenciesToExcludeFromDeploymentPackage",
                             "required": false,
                             "shortDescription": "<p> A list of dependencies to exclude from the deployment package.</p>",
@@ -25909,6 +26231,29 @@
                               {
                                 "lang": "typescript",
                                 "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'stacktape-lambda-buildpack',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       languageSpecificConfig: {\n         dependenciesToExcludeFromBundle: ['sharp'],\n         // [!code focus-start]\n         dependenciesToExcludeFromDeploymentPackage: ['@types/node']\n         // [!code focus-end]\n       }\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
+                              }
+                            ]
+                          },
+                          {
+                            "name": "bundleAwsSdk",
+                            "required": false,
+                            "shortDescription": "<p> Bundle the AWS SDK from your <code>node_modules</code> instead of using the copy the Lambda runtime provides.</p>",
+                            "longDescription": "<p>The Node.js 18+ Lambda runtimes ship the AWS SDK v3. By default, imports of <code>@aws-sdk/client-*</code> and\n<code>@aws-sdk/lib-*</code> packages are left out of the deployment package and resolved from the runtime, which keeps the\npackage smaller. The runtime&#39;s copy can be older than the version in your <code>package.json</code>. Enable this when your\ncode needs a newer SDK than the runtime ships. Container workloads have no runtime-provided SDK and always\nbundle it.</p>",
+                            "defaultValue": "false",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            },
+                            "examples": [
+                              {
+                                "lang": "yaml",
+                                "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            bundleAwsSdk: true\n            # [!code focus-end]\n      memory: 512"
+                              },
+                              {
+                                "lang": "typescript",
+                                "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          bundleAwsSdk: true\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
                               }
                             ]
                           }
@@ -28588,6 +28933,52 @@
                             ]
                           },
                           {
+                            "name": "minify",
+                            "required": false,
+                            "shortDescription": "<p> Minify the bundled code. Local names are kept, so stack traces stay readable.</p>",
+                            "longDescription": "<p>Whitespace is removed and syntax is shortened. Local variable and function names are kept, so stack traces and\nerror messages read as your source does. Shortening the names as well is a separate opt-in, <code>minifyIdentifiers</code>.\nSet <code>minify: false</code> to deploy the bundle as written.</p>",
+                            "defaultValue": "true",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            },
+                            "examples": [
+                              {
+                                "lang": "yaml",
+                                "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            minify: false\n            # [!code focus-end]\n      memory: 512"
+                              },
+                              {
+                                "lang": "typescript",
+                                "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          minify: false\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
+                              }
+                            ]
+                          },
+                          {
+                            "name": "minifyIdentifiers",
+                            "required": false,
+                            "shortDescription": "<p> Also shorten local variable and function names when minifying.</p>",
+                            "longDescription": "<p>Produces a slightly smaller bundle, but local names disappear from stack traces and from error messages\n(<code>TypeError: Ln is not a function</code>), and the short names change with every build. Stacktape Console groups\nruntime errors by message and function name, so the same error would open a new issue after each deployment.\nHas no effect when <code>minify</code> is <code>false</code>.</p>",
+                            "defaultValue": "false",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            },
+                            "examples": [
+                              {
+                                "lang": "yaml",
+                                "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            minifyIdentifiers: true\n            # [!code focus-end]\n      memory: 512"
+                              },
+                              {
+                                "lang": "typescript",
+                                "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          minifyIdentifiers: true\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
+                              }
+                            ]
+                          },
+                          {
                             "name": "dependenciesToExcludeFromDeploymentPackage",
                             "required": false,
                             "shortDescription": "<p> A list of dependencies to exclude from the deployment package.</p>",
@@ -28609,6 +29000,29 @@
                               {
                                 "lang": "typescript",
                                 "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'stacktape-lambda-buildpack',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       languageSpecificConfig: {\n         dependenciesToExcludeFromBundle: ['sharp'],\n         // [!code focus-start]\n         dependenciesToExcludeFromDeploymentPackage: ['@types/node']\n         // [!code focus-end]\n       }\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
+                              }
+                            ]
+                          },
+                          {
+                            "name": "bundleAwsSdk",
+                            "required": false,
+                            "shortDescription": "<p> Bundle the AWS SDK from your <code>node_modules</code> instead of using the copy the Lambda runtime provides.</p>",
+                            "longDescription": "<p>The Node.js 18+ Lambda runtimes ship the AWS SDK v3. By default, imports of <code>@aws-sdk/client-*</code> and\n<code>@aws-sdk/lib-*</code> packages are left out of the deployment package and resolved from the runtime, which keeps the\npackage smaller. The runtime&#39;s copy can be older than the version in your <code>package.json</code>. Enable this when your\ncode needs a newer SDK than the runtime ships. Container workloads have no runtime-provided SDK and always\nbundle it.</p>",
+                            "defaultValue": "false",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            },
+                            "examples": [
+                              {
+                                "lang": "yaml",
+                                "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            bundleAwsSdk: true\n            # [!code focus-end]\n      memory: 512"
+                              },
+                              {
+                                "lang": "typescript",
+                                "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          bundleAwsSdk: true\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
                               }
                             ]
                           }
@@ -29671,6 +30085,29 @@
     "definitionName": "EsLanguageSpecificConfig",
     "properties": [
       {
+        "name": "bundleAwsSdk",
+        "required": false,
+        "shortDescription": "<p> Bundle the AWS SDK from your <code>node_modules</code> instead of using the copy the Lambda runtime provides.</p>",
+        "longDescription": "<p>The Node.js 18+ Lambda runtimes ship the AWS SDK v3. By default, imports of <code>@aws-sdk/client-*</code> and\n<code>@aws-sdk/lib-*</code> packages are left out of the deployment package and resolved from the runtime, which keeps the\npackage smaller. The runtime&#39;s copy can be older than the version in your <code>package.json</code>. Enable this when your\ncode needs a newer SDK than the runtime ships. Container workloads have no runtime-provided SDK and always\nbundle it.</p>",
+        "defaultValue": "false",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "boolean"
+          ]
+        },
+        "examples": [
+          {
+            "lang": "yaml",
+            "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            bundleAwsSdk: true\n            # [!code focus-end]\n      memory: 512"
+          },
+          {
+            "lang": "typescript",
+            "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          bundleAwsSdk: true\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
+          }
+        ]
+      },
+      {
         "name": "dependenciesToExcludeFromBundle",
         "required": false,
         "shortDescription": "<p> A list of dependencies to exclude from the main bundle.</p>",
@@ -29761,6 +30198,52 @@
           {
             "lang": "typescript",
             "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'stacktape-lambda-buildpack',\n     properties: {\n       entryfilePath: 'src/main.ts',\n       languageSpecificConfig: {\n         // [!code focus-start]\n         emitTsDecoratorMetadata: true\n         // [!code focus-end]\n       }\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
+          }
+        ]
+      },
+      {
+        "name": "minify",
+        "required": false,
+        "shortDescription": "<p> Minify the bundled code. Local names are kept, so stack traces stay readable.</p>",
+        "longDescription": "<p>Whitespace is removed and syntax is shortened. Local variable and function names are kept, so stack traces and\nerror messages read as your source does. Shortening the names as well is a separate opt-in, <code>minifyIdentifiers</code>.\nSet <code>minify: false</code> to deploy the bundle as written.</p>",
+        "defaultValue": "true",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "boolean"
+          ]
+        },
+        "examples": [
+          {
+            "lang": "yaml",
+            "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            minify: false\n            # [!code focus-end]\n      memory: 512"
+          },
+          {
+            "lang": "typescript",
+            "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          minify: false\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
+          }
+        ]
+      },
+      {
+        "name": "minifyIdentifiers",
+        "required": false,
+        "shortDescription": "<p> Also shorten local variable and function names when minifying.</p>",
+        "longDescription": "<p>Produces a slightly smaller bundle, but local names disappear from stack traces and from error messages\n(<code>TypeError: Ln is not a function</code>), and the short names change with every build. Stacktape Console groups\nruntime errors by message and function name, so the same error would open a new issue after each deployment.\nHas no effect when <code>minify</code> is <code>false</code>.</p>",
+        "defaultValue": "false",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "boolean"
+          ]
+        },
+        "examples": [
+          {
+            "lang": "yaml",
+            "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            minifyIdentifiers: true\n            # [!code focus-end]\n      memory: 512"
+          },
+          {
+            "lang": "typescript",
+            "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          minifyIdentifiers: true\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
           }
         ]
       },
@@ -29870,9 +30353,9 @@
     ],
     "stats": {
       "requiredCount": 0,
-      "optionalCount": 8
+      "optionalCount": 11
     },
-    "typeDeclaration": "// [!code focus-start]\ntype EsLanguageSpecificConfig = {\n  /** A list of dependencies to exclude from the main bundle. */\n  dependenciesToExcludeFromBundle?: Array<string>;\n  /** A list of dependencies to exclude from the deployment package. */\n  dependenciesToExcludeFromDeploymentPackage?: Array<string>;\n  /** Skip generating source maps. Reduces package size but makes production errors harder to debug. */\n  disableSourceMaps?: boolean;\n  /** Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.\n\nSource maps are disabled for this artifact because the decorator transform and bundler cannot yet compose their\nmappings accurately. Emitting a map would give production stack traces incorrect line numbers. */\n  emitTsDecoratorMetadata?: boolean;\n  /** The major version of Node.js the buildpack uses to create the artifact. For Lambda packaging, keep the function's `runtime` aligned with this value. */\n  nodeVersion?: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24;\n  /** Output module format: `cjs` (CommonJS) or `esm` (ES Modules, enables top-level `await`). */\n  outputModuleFormat?: \"cjs\" | \"esm\";\n  /** Save source maps to a local directory instead of uploading them to AWS. */\n  outputSourceMapsTo?: string;\n  /** The path to the `tsconfig.json` file. */\n  tsConfigPath?: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype EsLanguageSpecificConfig = {\n  /** Bundle the AWS SDK from your `node_modules` instead of using the copy the Lambda runtime provides. */\n  bundleAwsSdk?: boolean;\n  /** A list of dependencies to exclude from the main bundle. */\n  dependenciesToExcludeFromBundle?: Array<string>;\n  /** A list of dependencies to exclude from the deployment package. */\n  dependenciesToExcludeFromDeploymentPackage?: Array<string>;\n  /** Skip generating source maps. Reduces package size but makes production errors harder to debug. */\n  disableSourceMaps?: boolean;\n  /** Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.\n\nSource maps are disabled for this artifact because the decorator transform and bundler cannot yet compose their\nmappings accurately. Emitting a map would give production stack traces incorrect line numbers. */\n  emitTsDecoratorMetadata?: boolean;\n  /** Minify the bundled code. Local names are kept, so stack traces stay readable. */\n  minify?: boolean;\n  /** Also shorten local variable and function names when minifying. */\n  minifyIdentifiers?: boolean;\n  /** The major version of Node.js the buildpack uses to create the artifact. For Lambda packaging, keep the function's `runtime` aligned with this value. */\n  nodeVersion?: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24;\n  /** Output module format: `cjs` (CommonJS) or `esm` (ES Modules, enables top-level `await`). */\n  outputModuleFormat?: \"cjs\" | \"esm\";\n  /** Save source maps to a local directory instead of uploading them to AWS. */\n  outputSourceMapsTo?: string;\n  /** The path to the `tsconfig.json` file. */\n  tsConfigPath?: string;\n};\n// [!code focus-end]"
   },
   "EventBus": {
     "definitionName": "EventBus",
@@ -36747,6 +37230,52 @@
                             ]
                           },
                           {
+                            "name": "minify",
+                            "required": false,
+                            "shortDescription": "<p> Minify the bundled code. Local names are kept, so stack traces stay readable.</p>",
+                            "longDescription": "<p>Whitespace is removed and syntax is shortened. Local variable and function names are kept, so stack traces and\nerror messages read as your source does. Shortening the names as well is a separate opt-in, <code>minifyIdentifiers</code>.\nSet <code>minify: false</code> to deploy the bundle as written.</p>",
+                            "defaultValue": "true",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            },
+                            "examples": [
+                              {
+                                "lang": "yaml",
+                                "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            minify: false\n            # [!code focus-end]\n      memory: 512"
+                              },
+                              {
+                                "lang": "typescript",
+                                "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          minify: false\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
+                              }
+                            ]
+                          },
+                          {
+                            "name": "minifyIdentifiers",
+                            "required": false,
+                            "shortDescription": "<p> Also shorten local variable and function names when minifying.</p>",
+                            "longDescription": "<p>Produces a slightly smaller bundle, but local names disappear from stack traces and from error messages\n(<code>TypeError: Ln is not a function</code>), and the short names change with every build. Stacktape Console groups\nruntime errors by message and function name, so the same error would open a new issue after each deployment.\nHas no effect when <code>minify</code> is <code>false</code>.</p>",
+                            "defaultValue": "false",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            },
+                            "examples": [
+                              {
+                                "lang": "yaml",
+                                "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            minifyIdentifiers: true\n            # [!code focus-end]\n      memory: 512"
+                              },
+                              {
+                                "lang": "typescript",
+                                "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          minifyIdentifiers: true\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
+                              }
+                            ]
+                          },
+                          {
                             "name": "dependenciesToExcludeFromDeploymentPackage",
                             "required": false,
                             "shortDescription": "<p> A list of dependencies to exclude from the deployment package.</p>",
@@ -36768,6 +37297,29 @@
                               {
                                 "lang": "typescript",
                                 "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'stacktape-lambda-buildpack',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       languageSpecificConfig: {\n         dependenciesToExcludeFromBundle: ['sharp'],\n         // [!code focus-start]\n         dependenciesToExcludeFromDeploymentPackage: ['@types/node']\n         // [!code focus-end]\n       }\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
+                              }
+                            ]
+                          },
+                          {
+                            "name": "bundleAwsSdk",
+                            "required": false,
+                            "shortDescription": "<p> Bundle the AWS SDK from your <code>node_modules</code> instead of using the copy the Lambda runtime provides.</p>",
+                            "longDescription": "<p>The Node.js 18+ Lambda runtimes ship the AWS SDK v3. By default, imports of <code>@aws-sdk/client-*</code> and\n<code>@aws-sdk/lib-*</code> packages are left out of the deployment package and resolved from the runtime, which keeps the\npackage smaller. The runtime&#39;s copy can be older than the version in your <code>package.json</code>. Enable this when your\ncode needs a newer SDK than the runtime ships. Container workloads have no runtime-provided SDK and always\nbundle it.</p>",
+                            "defaultValue": "false",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            },
+                            "examples": [
+                              {
+                                "lang": "yaml",
+                                "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            bundleAwsSdk: true\n            # [!code focus-end]\n      memory: 512"
+                              },
+                              {
+                                "lang": "typescript",
+                                "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          bundleAwsSdk: true\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
                               }
                             ]
                           }
@@ -46708,6 +47260,52 @@
                             ]
                           },
                           {
+                            "name": "minify",
+                            "required": false,
+                            "shortDescription": "<p> Minify the bundled code. Local names are kept, so stack traces stay readable.</p>",
+                            "longDescription": "<p>Whitespace is removed and syntax is shortened. Local variable and function names are kept, so stack traces and\nerror messages read as your source does. Shortening the names as well is a separate opt-in, <code>minifyIdentifiers</code>.\nSet <code>minify: false</code> to deploy the bundle as written.</p>",
+                            "defaultValue": "true",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            },
+                            "examples": [
+                              {
+                                "lang": "yaml",
+                                "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            minify: false\n            # [!code focus-end]\n      memory: 512"
+                              },
+                              {
+                                "lang": "typescript",
+                                "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          minify: false\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
+                              }
+                            ]
+                          },
+                          {
+                            "name": "minifyIdentifiers",
+                            "required": false,
+                            "shortDescription": "<p> Also shorten local variable and function names when minifying.</p>",
+                            "longDescription": "<p>Produces a slightly smaller bundle, but local names disappear from stack traces and from error messages\n(<code>TypeError: Ln is not a function</code>), and the short names change with every build. Stacktape Console groups\nruntime errors by message and function name, so the same error would open a new issue after each deployment.\nHas no effect when <code>minify</code> is <code>false</code>.</p>",
+                            "defaultValue": "false",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            },
+                            "examples": [
+                              {
+                                "lang": "yaml",
+                                "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            minifyIdentifiers: true\n            # [!code focus-end]\n      memory: 512"
+                              },
+                              {
+                                "lang": "typescript",
+                                "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          minifyIdentifiers: true\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
+                              }
+                            ]
+                          },
+                          {
                             "name": "dependenciesToExcludeFromDeploymentPackage",
                             "required": false,
                             "shortDescription": "<p> A list of dependencies to exclude from the deployment package.</p>",
@@ -46729,6 +47327,29 @@
                               {
                                 "lang": "typescript",
                                 "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'stacktape-lambda-buildpack',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       languageSpecificConfig: {\n         dependenciesToExcludeFromBundle: ['sharp'],\n         // [!code focus-start]\n         dependenciesToExcludeFromDeploymentPackage: ['@types/node']\n         // [!code focus-end]\n       }\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
+                              }
+                            ]
+                          },
+                          {
+                            "name": "bundleAwsSdk",
+                            "required": false,
+                            "shortDescription": "<p> Bundle the AWS SDK from your <code>node_modules</code> instead of using the copy the Lambda runtime provides.</p>",
+                            "longDescription": "<p>The Node.js 18+ Lambda runtimes ship the AWS SDK v3. By default, imports of <code>@aws-sdk/client-*</code> and\n<code>@aws-sdk/lib-*</code> packages are left out of the deployment package and resolved from the runtime, which keeps the\npackage smaller. The runtime&#39;s copy can be older than the version in your <code>package.json</code>. Enable this when your\ncode needs a newer SDK than the runtime ships. Container workloads have no runtime-provided SDK and always\nbundle it.</p>",
+                            "defaultValue": "false",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            },
+                            "examples": [
+                              {
+                                "lang": "yaml",
+                                "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            bundleAwsSdk: true\n            # [!code focus-end]\n      memory: 512"
+                              },
+                              {
+                                "lang": "typescript",
+                                "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          bundleAwsSdk: true\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
                               }
                             ]
                           }
@@ -53920,6 +54541,52 @@
                             ]
                           },
                           {
+                            "name": "minify",
+                            "required": false,
+                            "shortDescription": "<p> Minify the bundled code. Local names are kept, so stack traces stay readable.</p>",
+                            "longDescription": "<p>Whitespace is removed and syntax is shortened. Local variable and function names are kept, so stack traces and\nerror messages read as your source does. Shortening the names as well is a separate opt-in, <code>minifyIdentifiers</code>.\nSet <code>minify: false</code> to deploy the bundle as written.</p>",
+                            "defaultValue": "true",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            },
+                            "examples": [
+                              {
+                                "lang": "yaml",
+                                "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            minify: false\n            # [!code focus-end]\n      memory: 512"
+                              },
+                              {
+                                "lang": "typescript",
+                                "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          minify: false\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
+                              }
+                            ]
+                          },
+                          {
+                            "name": "minifyIdentifiers",
+                            "required": false,
+                            "shortDescription": "<p> Also shorten local variable and function names when minifying.</p>",
+                            "longDescription": "<p>Produces a slightly smaller bundle, but local names disappear from stack traces and from error messages\n(<code>TypeError: Ln is not a function</code>), and the short names change with every build. Stacktape Console groups\nruntime errors by message and function name, so the same error would open a new issue after each deployment.\nHas no effect when <code>minify</code> is <code>false</code>.</p>",
+                            "defaultValue": "false",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            },
+                            "examples": [
+                              {
+                                "lang": "yaml",
+                                "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            minifyIdentifiers: true\n            # [!code focus-end]\n      memory: 512"
+                              },
+                              {
+                                "lang": "typescript",
+                                "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          minifyIdentifiers: true\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
+                              }
+                            ]
+                          },
+                          {
                             "name": "dependenciesToExcludeFromDeploymentPackage",
                             "required": false,
                             "shortDescription": "<p> A list of dependencies to exclude from the deployment package.</p>",
@@ -53941,6 +54608,29 @@
                               {
                                 "lang": "typescript",
                                 "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'stacktape-lambda-buildpack',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       languageSpecificConfig: {\n         dependenciesToExcludeFromBundle: ['sharp'],\n         // [!code focus-start]\n         dependenciesToExcludeFromDeploymentPackage: ['@types/node']\n         // [!code focus-end]\n       }\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
+                              }
+                            ]
+                          },
+                          {
+                            "name": "bundleAwsSdk",
+                            "required": false,
+                            "shortDescription": "<p> Bundle the AWS SDK from your <code>node_modules</code> instead of using the copy the Lambda runtime provides.</p>",
+                            "longDescription": "<p>The Node.js 18+ Lambda runtimes ship the AWS SDK v3. By default, imports of <code>@aws-sdk/client-*</code> and\n<code>@aws-sdk/lib-*</code> packages are left out of the deployment package and resolved from the runtime, which keeps the\npackage smaller. The runtime&#39;s copy can be older than the version in your <code>package.json</code>. Enable this when your\ncode needs a newer SDK than the runtime ships. Container workloads have no runtime-provided SDK and always\nbundle it.</p>",
+                            "defaultValue": "false",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            },
+                            "examples": [
+                              {
+                                "lang": "yaml",
+                                "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            bundleAwsSdk: true\n            # [!code focus-end]\n      memory: 512"
+                              },
+                              {
+                                "lang": "typescript",
+                                "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          bundleAwsSdk: true\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
                               }
                             ]
                           }
@@ -57942,6 +58632,52 @@
                   ]
                 },
                 {
+                  "name": "minify",
+                  "required": false,
+                  "shortDescription": "<p> Minify the bundled code. Local names are kept, so stack traces stay readable.</p>",
+                  "longDescription": "<p>Whitespace is removed and syntax is shortened. Local variable and function names are kept, so stack traces and\nerror messages read as your source does. Shortening the names as well is a separate opt-in, <code>minifyIdentifiers</code>.\nSet <code>minify: false</code> to deploy the bundle as written.</p>",
+                  "defaultValue": "true",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "boolean"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            minify: false\n            # [!code focus-end]\n      memory: 512"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          minify: false\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
+                    }
+                  ]
+                },
+                {
+                  "name": "minifyIdentifiers",
+                  "required": false,
+                  "shortDescription": "<p> Also shorten local variable and function names when minifying.</p>",
+                  "longDescription": "<p>Produces a slightly smaller bundle, but local names disappear from stack traces and from error messages\n(<code>TypeError: Ln is not a function</code>), and the short names change with every build. Stacktape Console groups\nruntime errors by message and function name, so the same error would open a new issue after each deployment.\nHas no effect when <code>minify</code> is <code>false</code>.</p>",
+                  "defaultValue": "false",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "boolean"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            minifyIdentifiers: true\n            # [!code focus-end]\n      memory: 512"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          minifyIdentifiers: true\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
+                    }
+                  ]
+                },
+                {
                   "name": "dependenciesToExcludeFromDeploymentPackage",
                   "required": false,
                   "shortDescription": "<p> A list of dependencies to exclude from the deployment package.</p>",
@@ -57963,6 +58699,29 @@
                     {
                       "lang": "typescript",
                       "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'stacktape-lambda-buildpack',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       languageSpecificConfig: {\n         dependenciesToExcludeFromBundle: ['sharp'],\n         // [!code focus-start]\n         dependenciesToExcludeFromDeploymentPackage: ['@types/node']\n         // [!code focus-end]\n       }\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
+                    }
+                  ]
+                },
+                {
+                  "name": "bundleAwsSdk",
+                  "required": false,
+                  "shortDescription": "<p> Bundle the AWS SDK from your <code>node_modules</code> instead of using the copy the Lambda runtime provides.</p>",
+                  "longDescription": "<p>The Node.js 18+ Lambda runtimes ship the AWS SDK v3. By default, imports of <code>@aws-sdk/client-*</code> and\n<code>@aws-sdk/lib-*</code> packages are left out of the deployment package and resolved from the runtime, which keeps the\npackage smaller. The runtime&#39;s copy can be older than the version in your <code>package.json</code>. Enable this when your\ncode needs a newer SDK than the runtime ships. Container workloads have no runtime-provided SDK and always\nbundle it.</p>",
+                  "defaultValue": "false",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "boolean"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            bundleAwsSdk: true\n            # [!code focus-end]\n      memory: 512"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          bundleAwsSdk: true\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
                     }
                   ]
                 }
@@ -58775,6 +59534,52 @@
                   ]
                 },
                 {
+                  "name": "minify",
+                  "required": false,
+                  "shortDescription": "<p> Minify the bundled code. Local names are kept, so stack traces stay readable.</p>",
+                  "longDescription": "<p>Whitespace is removed and syntax is shortened. Local variable and function names are kept, so stack traces and\nerror messages read as your source does. Shortening the names as well is a separate opt-in, <code>minifyIdentifiers</code>.\nSet <code>minify: false</code> to deploy the bundle as written.</p>",
+                  "defaultValue": "true",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "boolean"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            minify: false\n            # [!code focus-end]\n      memory: 512"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          minify: false\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
+                    }
+                  ]
+                },
+                {
+                  "name": "minifyIdentifiers",
+                  "required": false,
+                  "shortDescription": "<p> Also shorten local variable and function names when minifying.</p>",
+                  "longDescription": "<p>Produces a slightly smaller bundle, but local names disappear from stack traces and from error messages\n(<code>TypeError: Ln is not a function</code>), and the short names change with every build. Stacktape Console groups\nruntime errors by message and function name, so the same error would open a new issue after each deployment.\nHas no effect when <code>minify</code> is <code>false</code>.</p>",
+                  "defaultValue": "false",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "boolean"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            minifyIdentifiers: true\n            # [!code focus-end]\n      memory: 512"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          minifyIdentifiers: true\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
+                    }
+                  ]
+                },
+                {
                   "name": "dependenciesToExcludeFromDeploymentPackage",
                   "required": false,
                   "shortDescription": "<p> A list of dependencies to exclude from the deployment package.</p>",
@@ -58796,6 +59601,29 @@
                     {
                       "lang": "typescript",
                       "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'stacktape-lambda-buildpack',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       languageSpecificConfig: {\n         dependenciesToExcludeFromBundle: ['sharp'],\n         // [!code focus-start]\n         dependenciesToExcludeFromDeploymentPackage: ['@types/node']\n         // [!code focus-end]\n       }\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
+                    }
+                  ]
+                },
+                {
+                  "name": "bundleAwsSdk",
+                  "required": false,
+                  "shortDescription": "<p> Bundle the AWS SDK from your <code>node_modules</code> instead of using the copy the Lambda runtime provides.</p>",
+                  "longDescription": "<p>The Node.js 18+ Lambda runtimes ship the AWS SDK v3. By default, imports of <code>@aws-sdk/client-*</code> and\n<code>@aws-sdk/lib-*</code> packages are left out of the deployment package and resolved from the runtime, which keeps the\npackage smaller. The runtime&#39;s copy can be older than the version in your <code>package.json</code>. Enable this when your\ncode needs a newer SDK than the runtime ships. Container workloads have no runtime-provided SDK and always\nbundle it.</p>",
+                  "defaultValue": "false",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "boolean"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            bundleAwsSdk: true\n            # [!code focus-end]\n      memory: 512"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          bundleAwsSdk: true\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
                     }
                   ]
                 }
@@ -59604,6 +60432,52 @@
                   ]
                 },
                 {
+                  "name": "minify",
+                  "required": false,
+                  "shortDescription": "<p> Minify the bundled code. Local names are kept, so stack traces stay readable.</p>",
+                  "longDescription": "<p>Whitespace is removed and syntax is shortened. Local variable and function names are kept, so stack traces and\nerror messages read as your source does. Shortening the names as well is a separate opt-in, <code>minifyIdentifiers</code>.\nSet <code>minify: false</code> to deploy the bundle as written.</p>",
+                  "defaultValue": "true",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "boolean"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            minify: false\n            # [!code focus-end]\n      memory: 512"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          minify: false\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
+                    }
+                  ]
+                },
+                {
+                  "name": "minifyIdentifiers",
+                  "required": false,
+                  "shortDescription": "<p> Also shorten local variable and function names when minifying.</p>",
+                  "longDescription": "<p>Produces a slightly smaller bundle, but local names disappear from stack traces and from error messages\n(<code>TypeError: Ln is not a function</code>), and the short names change with every build. Stacktape Console groups\nruntime errors by message and function name, so the same error would open a new issue after each deployment.\nHas no effect when <code>minify</code> is <code>false</code>.</p>",
+                  "defaultValue": "false",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "boolean"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            minifyIdentifiers: true\n            # [!code focus-end]\n      memory: 512"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          minifyIdentifiers: true\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
+                    }
+                  ]
+                },
+                {
                   "name": "dependenciesToExcludeFromDeploymentPackage",
                   "required": false,
                   "shortDescription": "<p> A list of dependencies to exclude from the deployment package.</p>",
@@ -59625,6 +60499,29 @@
                     {
                       "lang": "typescript",
                       "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'stacktape-lambda-buildpack',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       languageSpecificConfig: {\n         dependenciesToExcludeFromBundle: ['sharp'],\n         // [!code focus-start]\n         dependenciesToExcludeFromDeploymentPackage: ['@types/node']\n         // [!code focus-end]\n       }\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
+                    }
+                  ]
+                },
+                {
+                  "name": "bundleAwsSdk",
+                  "required": false,
+                  "shortDescription": "<p> Bundle the AWS SDK from your <code>node_modules</code> instead of using the copy the Lambda runtime provides.</p>",
+                  "longDescription": "<p>The Node.js 18+ Lambda runtimes ship the AWS SDK v3. By default, imports of <code>@aws-sdk/client-*</code> and\n<code>@aws-sdk/lib-*</code> packages are left out of the deployment package and resolved from the runtime, which keeps the\npackage smaller. The runtime&#39;s copy can be older than the version in your <code>package.json</code>. Enable this when your\ncode needs a newer SDK than the runtime ships. Container workloads have no runtime-provided SDK and always\nbundle it.</p>",
+                  "defaultValue": "false",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "boolean"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            bundleAwsSdk: true\n            # [!code focus-end]\n      memory: 512"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          bundleAwsSdk: true\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
                     }
                   ]
                 }
@@ -66508,6 +67405,52 @@
                             ]
                           },
                           {
+                            "name": "minify",
+                            "required": false,
+                            "shortDescription": "<p> Minify the bundled code. Local names are kept, so stack traces stay readable.</p>",
+                            "longDescription": "<p>Whitespace is removed and syntax is shortened. Local variable and function names are kept, so stack traces and\nerror messages read as your source does. Shortening the names as well is a separate opt-in, <code>minifyIdentifiers</code>.\nSet <code>minify: false</code> to deploy the bundle as written.</p>",
+                            "defaultValue": "true",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            },
+                            "examples": [
+                              {
+                                "lang": "yaml",
+                                "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            minify: false\n            # [!code focus-end]\n      memory: 512"
+                              },
+                              {
+                                "lang": "typescript",
+                                "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          minify: false\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
+                              }
+                            ]
+                          },
+                          {
+                            "name": "minifyIdentifiers",
+                            "required": false,
+                            "shortDescription": "<p> Also shorten local variable and function names when minifying.</p>",
+                            "longDescription": "<p>Produces a slightly smaller bundle, but local names disappear from stack traces and from error messages\n(<code>TypeError: Ln is not a function</code>), and the short names change with every build. Stacktape Console groups\nruntime errors by message and function name, so the same error would open a new issue after each deployment.\nHas no effect when <code>minify</code> is <code>false</code>.</p>",
+                            "defaultValue": "false",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            },
+                            "examples": [
+                              {
+                                "lang": "yaml",
+                                "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            minifyIdentifiers: true\n            # [!code focus-end]\n      memory: 512"
+                              },
+                              {
+                                "lang": "typescript",
+                                "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          minifyIdentifiers: true\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
+                              }
+                            ]
+                          },
+                          {
                             "name": "dependenciesToExcludeFromDeploymentPackage",
                             "required": false,
                             "shortDescription": "<p> A list of dependencies to exclude from the deployment package.</p>",
@@ -66529,6 +67472,29 @@
                               {
                                 "lang": "typescript",
                                 "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'stacktape-lambda-buildpack',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       languageSpecificConfig: {\n         dependenciesToExcludeFromBundle: ['sharp'],\n         // [!code focus-start]\n         dependenciesToExcludeFromDeploymentPackage: ['@types/node']\n         // [!code focus-end]\n       }\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
+                              }
+                            ]
+                          },
+                          {
+                            "name": "bundleAwsSdk",
+                            "required": false,
+                            "shortDescription": "<p> Bundle the AWS SDK from your <code>node_modules</code> instead of using the copy the Lambda runtime provides.</p>",
+                            "longDescription": "<p>The Node.js 18+ Lambda runtimes ship the AWS SDK v3. By default, imports of <code>@aws-sdk/client-*</code> and\n<code>@aws-sdk/lib-*</code> packages are left out of the deployment package and resolved from the runtime, which keeps the\npackage smaller. The runtime&#39;s copy can be older than the version in your <code>package.json</code>. Enable this when your\ncode needs a newer SDK than the runtime ships. Container workloads have no runtime-provided SDK and always\nbundle it.</p>",
+                            "defaultValue": "false",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            },
+                            "examples": [
+                              {
+                                "lang": "yaml",
+                                "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            bundleAwsSdk: true\n            # [!code focus-end]\n      memory: 512"
+                              },
+                              {
+                                "lang": "typescript",
+                                "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          bundleAwsSdk: true\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
                               }
                             ]
                           }
@@ -70485,6 +71451,52 @@
                             ]
                           },
                           {
+                            "name": "minify",
+                            "required": false,
+                            "shortDescription": "<p> Minify the bundled code. Local names are kept, so stack traces stay readable.</p>",
+                            "longDescription": "<p>Whitespace is removed and syntax is shortened. Local variable and function names are kept, so stack traces and\nerror messages read as your source does. Shortening the names as well is a separate opt-in, <code>minifyIdentifiers</code>.\nSet <code>minify: false</code> to deploy the bundle as written.</p>",
+                            "defaultValue": "true",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            },
+                            "examples": [
+                              {
+                                "lang": "yaml",
+                                "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            minify: false\n            # [!code focus-end]\n      memory: 512"
+                              },
+                              {
+                                "lang": "typescript",
+                                "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          minify: false\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
+                              }
+                            ]
+                          },
+                          {
+                            "name": "minifyIdentifiers",
+                            "required": false,
+                            "shortDescription": "<p> Also shorten local variable and function names when minifying.</p>",
+                            "longDescription": "<p>Produces a slightly smaller bundle, but local names disappear from stack traces and from error messages\n(<code>TypeError: Ln is not a function</code>), and the short names change with every build. Stacktape Console groups\nruntime errors by message and function name, so the same error would open a new issue after each deployment.\nHas no effect when <code>minify</code> is <code>false</code>.</p>",
+                            "defaultValue": "false",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            },
+                            "examples": [
+                              {
+                                "lang": "yaml",
+                                "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            minifyIdentifiers: true\n            # [!code focus-end]\n      memory: 512"
+                              },
+                              {
+                                "lang": "typescript",
+                                "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          minifyIdentifiers: true\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
+                              }
+                            ]
+                          },
+                          {
                             "name": "dependenciesToExcludeFromDeploymentPackage",
                             "required": false,
                             "shortDescription": "<p> A list of dependencies to exclude from the deployment package.</p>",
@@ -70506,6 +71518,29 @@
                               {
                                 "lang": "typescript",
                                 "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const apiFunction = new LambdaFunction({\n   packaging: {\n     type: 'stacktape-lambda-buildpack',\n     properties: {\n       entryfilePath: 'src/handlers/api.ts',\n       languageSpecificConfig: {\n         dependenciesToExcludeFromBundle: ['sharp'],\n         // [!code focus-start]\n         dependenciesToExcludeFromDeploymentPackage: ['@types/node']\n         // [!code focus-end]\n       }\n     }\n   },\n   memory: 1024\n });\n return { resources: { apiFunction } };\n});"
+                              }
+                            ]
+                          },
+                          {
+                            "name": "bundleAwsSdk",
+                            "required": false,
+                            "shortDescription": "<p> Bundle the AWS SDK from your <code>node_modules</code> instead of using the copy the Lambda runtime provides.</p>",
+                            "longDescription": "<p>The Node.js 18+ Lambda runtimes ship the AWS SDK v3. By default, imports of <code>@aws-sdk/client-*</code> and\n<code>@aws-sdk/lib-*</code> packages are left out of the deployment package and resolved from the runtime, which keeps the\npackage smaller. The runtime&#39;s copy can be older than the version in your <code>package.json</code>. Enable this when your\ncode needs a newer SDK than the runtime ships. Container workloads have no runtime-provided SDK and always\nbundle it.</p>",
+                            "defaultValue": "false",
+                            "typeInfo": {
+                              "kind": "primitive",
+                              "types": [
+                                "boolean"
+                              ]
+                            },
+                            "examples": [
+                              {
+                                "lang": "yaml",
+                                "code": "resources:\n  apiFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handlers/api.ts\n          languageSpecificConfig:\n            # [!code focus-start]\n            bundleAwsSdk: true\n            # [!code focus-end]\n      memory: 512"
+                              },
+                              {
+                                "lang": "typescript",
+                                "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiFunction = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: {\n        entryfilePath: 'src/handlers/api.ts',\n        languageSpecificConfig: {\n          // [!code focus-start]\n          bundleAwsSdk: true\n          // [!code focus-end]\n        }\n      }\n    },\n    memory: 512\n  });\n  return { resources: { apiFunction } };\n});"
                               }
                             ]
                           }

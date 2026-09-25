@@ -39,6 +39,7 @@ import type {
   PrebuiltCwImagePackaging
 } from '@stacktape/config/deployment-artifacts';
 import { DEFAULT_CONTAINER_NODE_VERSION } from '@stacktape/packaging/bundlers/constants';
+import { shipsSourceMapsInPackage } from '@utils/environment';
 
 const printDevContainerReady = ({ ports, isWatchMode }: { ports: number[]; isWatchMode: boolean }) => {
   const contentLines: string[] = [];
@@ -180,6 +181,7 @@ export const runDevContainer = async () => {
     packagingType,
     entryfilePath,
     nodeVersion,
+    sourceMapsInPackage: shipsSourceMapsInPackage(languageSpecificConfig),
     localResourceEnvVars,
     skipAwsCredentials,
     port: primaryPort

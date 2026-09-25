@@ -35,6 +35,7 @@ export const buildJavaArtifact = async ({
   rawEntryfilePath,
   cwd: _cwd,
   additionalDigestInput,
+  lambdaZip,
   distIndexFilePath,
   progressLogger,
   existingDigests,
@@ -62,9 +63,10 @@ export const buildJavaArtifact = async ({
     eventType: 'CALCULATE_CHECKSUM',
     description: 'Calculating checksum for caching'
   });
-  const artifactFileSelection = await resolveArtifactFileSelection({ cwd: _cwd, includeFiles });
+  const artifactFileSelection = await resolveArtifactFileSelection({ cwd: _cwd, includeFiles, lambdaZip });
 
   const digest = await getBundleDigest({
+    lambdaZip,
     externalDependencies: [],
     rootPath: sourcePath,
     additionalDigestInput: objectHash({

@@ -60,7 +60,7 @@ import {
   getCloudFormationLogRetentionDays,
   transformIntoCloudformationSubstitutedString
 } from '@utils/cloudformation';
-import { getAugmentedEnvironment } from '@utils/environment';
+import { getAugmentedEnvironment, shipsSourceMapsInPackage } from '@utils/environment';
 import uniqWith from 'lodash/uniqWith';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';
 import { getImageUrlForMultiTask } from '../_utils/image-urls';
@@ -373,7 +373,8 @@ const getContainerWorkloadContainerDefinitions = (workload: StpContainerWorkload
       workloadType: workload.configParentResourceType,
       packagingType,
       entryfilePath,
-      nodeVersion
+      nodeVersion,
+      sourceMapsInPackage: shipsSourceMapsInPackage(languageSpecificConfig)
     });
     if (workloadTracing) {
       const { environmentDefaults, environmentOverrides, warnings } = getContainerTracingEnvironment({

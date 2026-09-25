@@ -8,8 +8,10 @@ import { getHomeDir } from '@utils/misc';
  *
  * - User-persistent: CLI defaults, machine identity and authentication state in `persistedStateFile`; native-install
  *   binaries in `nativeInstallBinDirectory`; local development proxy routes, CA and private keys in
- *   `devProxyDirectory`; and downloaded, checksum-verified scanner binaries with their caches in `toolsDirectory`
- *   (one directory per tool and version, so an upgrade never overwrites a binary in use; old versions may be deleted).
+ *   `devProxyDirectory`; downloaded, checksum-verified scanner binaries with their caches in `toolsDirectory`
+ *   (one directory per tool and version, so an upgrade never overwrites a binary in use; old versions may be deleted);
+ *   and the last fetched update notice and announcements in `noticesCacheFile`, replaced by a newer fetch and safe to
+ *   delete at any time.
  * - Project-persistent: local development database contents in `devResourceDataDirectory` (until `dev --freshDb`).
  * - Runtime coordination: dev-agent logs and lock files, plus dependency-install hashes and locks.
  * - Invocation-temporary: `invocationDirectory`; normal commands remove it unless temporary files are preserved,
@@ -28,6 +30,9 @@ export const localStatePaths = {
   },
   persistedStateFile() {
     return join(localStatePaths.userDataDirectory(), 'persisted-state.json');
+  },
+  noticesCacheFile() {
+    return join(localStatePaths.userDataDirectory(), 'notices.json');
   },
   nativeInstallBinDirectory() {
     return join(localStatePaths.userDataDirectory(), 'bin');

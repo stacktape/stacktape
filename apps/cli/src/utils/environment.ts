@@ -1,5 +1,6 @@
 import type { SupportedPackagingType } from '@domain-services/packaging-manager/types';
 import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
+import type { EsLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
 export type Language = 'javascript' | 'typescript' | 'python' | 'go' | 'java' | 'dotnet' | 'ruby' | 'php' | 'unknown';
 
 const JS_TS_EXTENSIONS = ['js', 'ts', 'mjs', 'mts', 'cjs', 'cts', 'jsx', 'tsx'];
@@ -18,9 +19,27 @@ export const getLanguageFromExtension = (entryfilePath?: string): Language => {
 };
 
 /**
+ * Whether a JS/TS build leaves its source maps next to the code, where Node can read them.
+ *
+ * `--enable-source-maps` is only worth setting then: with the flag on, Node reads and parses every map it finds at
+ * module load, on the cold-start path, and without a map it has nothing to read. The flag also tells whoever reads
+ * a CloudWatch trace that its frames are mapped, which they are not when the build kept the maps out of the package.
+ */
+export const shipsSourceMapsInPackage = (
+  languageSpecificConfig?: Pick<
+    EsLanguageSpecificConfig,
+    'disableSourceMaps' | 'outputSourceMapsTo' | 'emitTsDecoratorMetadata'
+  >
+): boolean =>
+  !languageSpecificConfig?.disableSourceMaps &&
+  !languageSpecificConfig?.outputSourceMapsTo &&
+  // TypeScript expands decorators before the bundler sees the module, so that build emits no map (see `createEsBundle`).
+  !languageSpecificConfig?.emitTsDecoratorMetadata;
+
+/**
  * Universal function to augment environment variables for any workload.
  * Adds NODE_OPTIONS flags for JS/TS workloads with Stacktape-managed packaging:
- * - --enable-source-maps (always)
+ * - --enable-source-maps (when the build ships source maps in the package)
  * - --experimental-require-module --experimental-detect-module (Node 22+)
  *
  * @param environment - Existing environment variables
@@ -29,6 +48,7 @@ export const getLanguageFromExtension = (entryfilePath?: string): Language => {
  * @param language - Language of the workload (or infer from entryfilePath)
  * @param entryfilePath - Optional path to entryfile (used to infer language if not provided)
  * @param nodeVersion - Node.js version (used to add experimental flags for Node 22+)
+ * @param sourceMapsInPackage - Whether the build leaves source maps in the package; see `shipsSourceMapsInPackage`
  */
 export const getAugmentedEnvironment = <T extends { name: string; value: string | number | boolean }>({
   environment = [] as T[],
@@ -36,7 +56,8 @@ export const getAugmentedEnvironment = <T extends { name: string; value: string 
   packagingType,
   language,
   entryfilePath,
-  nodeVersion
+  nodeVersion,
+  sourceMapsInPackage = true
 }: {
   environment?: T[];
   workloadType: StpWorkloadType;
@@ -44,6 +65,7 @@ export const getAugmentedEnvironment = <T extends { name: string; value: string 
   language?: Language;
   entryfilePath?: string;
   nodeVersion?: number;
+  sourceMapsInPackage?: boolean;
 }): T[] => {
   // @note edge lambdas don't support environment variables
   if (workloadType === 'edge-lambda-function') {
@@ -67,21 +89,25 @@ export const getAugmentedEnvironment = <T extends { name: string; value: string 
     return environment;
   }
 
-  return addNodeFlags(environment, nodeVersion);
+  return addNodeFlags({ environment, nodeVersion, sourceMapsInPackage });
 };
 
-/** Adds NODE_OPTIONS flags: --enable-source-maps and experimental CJS/ESM interop flags for Node 22+ */
-const addNodeFlags = <T extends { name: string; value: string | number | boolean }>(
-  environment: T[] = [],
-  nodeVersion?: number
-): T[] => {
+/** Adds NODE_OPTIONS flags: --enable-source-maps when there is a map to read, and CJS/ESM interop flags for Node 22+ */
+const addNodeFlags = <T extends { name: string; value: string | number | boolean }>({
+  environment,
+  nodeVersion,
+  sourceMapsInPackage
+}: {
+  environment: T[];
+  nodeVersion?: number | undefined;
+  sourceMapsInPackage: boolean;
+}): T[] => {
   const existingNodeOptions = environment.find((e) => e.name === 'NODE_OPTIONS');
   const existingValue = existingNodeOptions ? String(existingNodeOptions.value) : '';
 
   const flagsToAdd: string[] = [];
 
-  // Always add source maps
-  if (!existingValue.includes('--enable-source-maps')) {
+  if (sourceMapsInPackage && !existingValue.includes('--enable-source-maps')) {
     flagsToAdd.push('--enable-source-maps');
   }
 

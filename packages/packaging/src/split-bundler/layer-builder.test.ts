@@ -4,6 +4,7 @@ import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { outputFile, pathExists } from 'fs-extra';
+import { getDirectoryChecksum } from '../artifact/hashing';
 import { createLayerArtifacts } from './layer-builder';
 
 const LAYER_MOUNT = '/opt/nodejs/chunks/';
@@ -168,5 +169,13 @@ describe('createLayerArtifacts', () => {
     );
 
     expect(changed.layerArtifacts[0]!.contentHash).not.toBe(first.layerArtifacts[0]!.contentHash);
+  });
+
+  test('names a layer by a hash its pre-format ZIP never had, so that ZIP is not reused', async () => {
+    const [layer] = (await createLayerArtifacts(await buildWorkspace())).layerArtifacts;
+    // The hash, and so the S3 key, a layer had before Lambda archives had a format: its directory checksum alone.
+    const previousFormula = (await getDirectoryChecksum({ absoluteDirectoryPath: layer!.layerPath })).slice(0, 12);
+
+    expect(layer!.contentHash).not.toBe(previousFormula);
   });
 });

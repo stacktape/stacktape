@@ -96,6 +96,8 @@ type ExecDockerOptions = {
   env?: Record<string, string>;
   /** Redacted from the rejection this call throws. See the `exec` option of the same name. */
   redactedValues?: string[];
+  /** Ends the command, and rejects, when it has not finished within this many milliseconds. */
+  timeoutMs?: number;
 };
 
 type DockerImageReference = {
@@ -351,7 +353,7 @@ const describeDockerCommand = (commands: string[]) => {
 };
 
 export const execDocker = (commands: string[], args?: ExecDockerOptions) => {
-  const { cwd, skipHandleError, stdinInput, env, redactedValues } = args || {};
+  const { cwd, skipHandleError, stdinInput, env, redactedValues, timeoutMs } = args || {};
   assertDockerIsInstalled();
   const promise = exec('docker', commands, {
     disableStdout: true,
@@ -362,7 +364,8 @@ export const execDocker = (commands: string[], args?: ExecDockerOptions) => {
     cwd: cwd || process.cwd(),
     stdinInput,
     redactedValues,
-    safeCommandDescription: describeDockerCommand(commands)
+    safeCommandDescription: describeDockerCommand(commands),
+    ...(timeoutMs !== undefined && { rawOptions: { timeout: timeoutMs } })
   });
   return skipHandleError ? promise : promise.catch(handleDockerError);
 };
@@ -815,9 +818,15 @@ export const getDockerBuildxSupportedPlatforms = async (): Promise<string[]> => 
   return platforms;
 };
 
+/**
+ * How long `isDockerRunning` waits for `docker info`. A stuck daemon, or Docker Desktop that never finishes starting,
+ * would otherwise hold packaging forever; past this bound Docker counts as not running.
+ */
+const DOCKER_PROBE_TIMEOUT_MS = 10_000;
+
 export const isDockerRunning = async (): Promise<boolean> => {
   try {
-    await execDocker(['info']);
+    await execDocker(['info'], { timeoutMs: DOCKER_PROBE_TIMEOUT_MS });
     return true;
   } catch {
     return false;
@@ -844,6 +853,14 @@ export const ensureBuildxBuilderForCache = async (): Promise<void> => {
   }
 };
 
+/**
+ * The emulator installer runs as a privileged container, so it is pinned rather than taken from a mutable tag. This is
+ * the multi-platform image index of `tonistiigi/binfmt:latest` built on 2026-06-05, with images for linux/amd64,
+ * linux/arm64 and six other platforms.
+ */
+const BINFMT_INSTALLER_IMAGE =
+  'tonistiigi/binfmt@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0';
+
 export const installDockerPlatforms = async (platforms: string[]): Promise<void> => {
   if (!platforms.length) {
     return;
@@ -854,7 +871,7 @@ export const installDockerPlatforms = async (platforms: string[]): Promise<void>
     'run',
     '--rm',
     '--privileged',
-    'tonistiigi/binfmt',
+    BINFMT_INSTALLER_IMAGE,
     '--install',
     platformsArg
   ]);

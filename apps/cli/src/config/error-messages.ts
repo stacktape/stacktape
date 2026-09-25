@@ -20,7 +20,7 @@ import {
   prettyResourceType,
   prettyStackName
 } from '@application-services/tui-manager/format/text';
-import { StackStatus } from '@aws-sdk/client-cloudformation';
+import type { StackStatus } from '@aws-sdk/client-cloudformation';
 import {
   STACK_IS_READY_FOR_MODIFYING_OPERATION_STATUS,
   STACK_IS_READY_FOR_ROLLBACK_OPERATION_STATUS
@@ -476,7 +476,7 @@ If you want to disable local emulation, use the ${prettyOption('disableEmulation
           .join(', ')}`
       ]
         .concat(
-          stackStatus === StackStatus.DELETE_FAILED
+          stackStatus === 'DELETE_FAILED'
             ? [`Delete the stack fully using ${prettyCommand('delete')} command, then recreate it.`]
             : []
         )

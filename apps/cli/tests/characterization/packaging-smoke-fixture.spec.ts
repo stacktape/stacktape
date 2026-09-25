@@ -8,8 +8,11 @@
  */
 
 import { describe, expect, test } from 'bun:test';
+import type { LambdaPackaging } from '@stacktape/config/deployment-artifacts';
 import { validateConfigWithZod } from '@domain-services/config-manager/utils/zod-validator';
+import { selectSplitBundlingGroup } from '@domain-services/packaging-manager/split-bundling-policy';
 import { DEFAULT_LAYER_CONFIG } from '@stacktape/packaging/split-bundler/layer-assignment';
+import { handler as catalogNoteHandler } from '../../_test-stacks/packaging-smoke/src/catalog-note';
 import { handler as catalogReportHandler } from '../../_test-stacks/packaging-smoke/src/catalog-report';
 import { handler as retryAdvisorHandler } from '../../_test-stacks/packaging-smoke/src/retry-advisor';
 import {
@@ -43,9 +46,9 @@ const callCatalogReport = async () => {
 
 describe('real-AWS packaging smoke fixture', () => {
   test('the shared module is big enough for the split bundler to lift it into a layer', () => {
-    // Layering needs a chunk of at least `minChunkSize`. Lambda split bundling runs unminified, so the
-    // serialized table is a lower bound on the chunk it ends up in; the doubled threshold keeps the fixture
-    // meaningful even if minification is turned on later.
+    // Layering needs a chunk of at least `minChunkSize`. Whitespace and syntax minification cannot shrink a
+    // serialized table by much, so its byte size is close to the chunk it ends up in; the doubled threshold
+    // keeps the fixture meaningful with margin.
     const serializedCatalogBytes = Buffer.byteLength(JSON.stringify(HTTP_STATUS_CATALOG), 'utf8');
 
     expect(serializedCatalogBytes).toBeGreaterThan(DEFAULT_LAYER_CONFIG.minChunkSize * 2);
@@ -64,10 +67,10 @@ describe('real-AWS packaging smoke fixture', () => {
     }
   });
 
-  test('the stack declares the two Node Lambdas split bundling needs, each with a public function URL', () => {
-    // Two is exactly the minimum number of Node Lambdas that turns split bundling on, and the fixture stays at
-    // that minimum to keep the deployment cheap.
-    expect(Object.keys(smokeConfig.resources).sort()).toEqual(['catalogReport', 'retryAdvisor']);
+  test('the stack declares the Node Lambdas both packaging paths need, each with a public function URL', () => {
+    // Two compatible Lambdas is the minimum that turns split bundling on; the third is deliberately
+    // incompatible so one deployment exercises the split path and the per-Lambda path together.
+    expect(Object.keys(smokeConfig.resources).sort()).toEqual(['catalogNote', 'catalogReport', 'retryAdvisor']);
 
     for (const resource of Object.values(smokeConfig.resources)) {
       expect(resource).toEqual(
@@ -88,24 +91,51 @@ describe('real-AWS packaging smoke fixture', () => {
     expect(validateConfigWithZod({ config: smokeConfig, configPath: 'stacktape.ts' })).toEqual({ valid: true });
   });
 
+  test('the fixture really does split into one shared build and one individually packaged function', () => {
+    // Asking the CLI's own policy, rather than restating it, so the fixture cannot drift away from the
+    // behaviour it is meant to prove on AWS.
+    const candidates = Object.entries(smokeConfig.resources).map(([name, resource]) => ({
+      name,
+      packaging: (resource as { properties: { packaging: LambdaPackaging } }).properties.packaging
+    }));
+
+    const { split, perFunction } = selectSplitBundlingGroup(candidates);
+
+    expect(split.map(({ name }) => name).toSorted()).toEqual(['catalogReport', 'retryAdvisor']);
+    expect(perFunction.map(({ name }) => name)).toEqual(['catalogNote']);
+  });
+
   test('both function URLs are exposed as stack outputs, so the operator can find them after a deploy', () => {
     expect(smokeConfig.stackConfig?.tags).toEqual([{ name: 'stacktape-canary-owner', value: 'local' }]);
     expect(smokeConfig.stackConfig?.outputs).toEqual([
       expect.objectContaining({ name: 'retryAdvisorUrl', value: "$ResourceParam('retryAdvisor','url')" }),
-      expect.objectContaining({ name: 'catalogReportUrl', value: "$ResourceParam('catalogReport','url')" })
+      expect.objectContaining({ name: 'catalogReportUrl', value: "$ResourceParam('catalogReport','url')" }),
+      expect.objectContaining({ name: 'catalogNoteUrl', value: "$ResourceParam('catalogNote','url')" })
     ]);
   });
 
   test('each handler reports its own name and the identity of the shared module it ran', async () => {
     const advisor = await callRetryAdvisor('503');
     const report = await callCatalogReport();
+    const note = JSON.parse((await catalogNoteHandler()).body);
 
     expect(advisor.payload.handler).toBe('retryAdvisor');
     expect(report.payload.handler).toBe('catalogReport');
+    expect(note.handler).toBe('catalogNote');
     expect(advisor.payload.revision).toBe('base');
     expect(report.payload.revision).toBe('base');
+    expect(note.revision).toBe('base');
     expect(advisor.payload.catalog).toEqual(catalogIdentity());
     expect(report.payload.catalog).toEqual(catalogIdentity());
+    expect(note.catalog).toEqual(catalogIdentity());
+  });
+
+  test('the individually packaged handler reads a file no import pulls in, so includeFiles is observable', async () => {
+    // On AWS this distinguishes a working per-Lambda package from one that deployed without its extra file:
+    // a `MISSING` notice means `includeFiles` did not run, which is the whole reason this function exists.
+    const note = JSON.parse((await catalogNoteHandler()).body);
+
+    expect(note.notice).toBe('packaged-by-the-per-function-path');
   });
 
   test('the two handlers answer with distinguishable work, not the same payload', async () => {

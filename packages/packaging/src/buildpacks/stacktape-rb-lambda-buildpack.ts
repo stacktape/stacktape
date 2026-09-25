@@ -12,13 +12,11 @@ export const buildUsingStacktapeRbLambdaBuildpack = async ({
   name,
   entryfilePath,
   sizeLimit,
-  zippedSizeLimit,
   languageSpecificConfig,
   cwd,
   ...otherProps
 }: StpBuildpackInput &
   LambdaArtifactActions & {
-    zippedSizeLimit: number;
     languageSpecificConfig?: RubyLanguageSpecificConfig | undefined;
   }): Promise<PackagingOutput> => {
   const absoluteSourcePath = findNearestProjectRoot({ cwd, entryfilePath, markerFiles: ['Gemfile', 'gems.rb'] });
@@ -27,6 +25,7 @@ export const buildUsingStacktapeRbLambdaBuildpack = async ({
   const { digest, outcome, distFolderPath, ...otherOutputProps } = await buildRubyArtifact({
     ...otherProps,
     distFolderPath: otherProps.distFolderPath,
+    lambdaZip: true,
     sourcePath: absoluteSourcePath,
     rubyVersion: languageSpecificConfig?.rubyVersion ?? DEFAULT_RUBY_VERSION,
     entryfilePath: absoluteEntryfilePath,
@@ -49,7 +48,6 @@ export const buildUsingStacktapeRbLambdaBuildpack = async ({
     distFolderPath,
     digest,
     sizeLimit,
-    zippedSizeLimit,
     archiveItem: otherProps.archiveItem,
     createPackagingError: otherProps.createPackagingError,
     progressLogger

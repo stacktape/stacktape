@@ -483,6 +483,115 @@ export interface EsLanguageSpecificConfig {
    */
   outputSourceMapsTo?: string;
   /**
+   * #### Minify the bundled code. Local names are kept, so stack traces stay readable.
+   *
+   * ---
+   *
+   * Whitespace is removed and syntax is shortened. Local variable and function names are kept, so stack traces and
+   * error messages read as your source does. Shortening the names as well is a separate opt-in, `minifyIdentifiers`.
+   * Set `minify: false` to deploy the bundle as written.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   apiFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/handlers/api.ts
+   *           languageSpecificConfig:
+   *             # stp-focus
+   *             minify: false
+   *             # stp-end-focus
+   *       memory: 512
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const apiFunction = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: {
+   *         entryfilePath: 'src/handlers/api.ts',
+   *         languageSpecificConfig: {
+   *           // stp-focus
+   *           minify: false
+   *           // stp-end-focus
+   *         }
+   *       }
+   *     },
+   *     memory: 512
+   *   });
+   *   return { resources: { apiFunction } };
+   * });
+   * ```
+   *
+   * @default true
+   */
+  minify?: boolean;
+  /**
+   * #### Also shorten local variable and function names when minifying.
+   *
+   * ---
+   *
+   * Produces a slightly smaller bundle, but local names disappear from stack traces and from error messages
+   * (`TypeError: Ln is not a function`), and the short names change with every build. Stacktape Console groups
+   * runtime errors by message and function name, so the same error would open a new issue after each deployment.
+   * Has no effect when `minify` is `false`.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   apiFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/handlers/api.ts
+   *           languageSpecificConfig:
+   *             # stp-focus
+   *             minifyIdentifiers: true
+   *             # stp-end-focus
+   *       memory: 512
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const apiFunction = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: {
+   *         entryfilePath: 'src/handlers/api.ts',
+   *         languageSpecificConfig: {
+   *           // stp-focus
+   *           minifyIdentifiers: true
+   *           // stp-end-focus
+   *         }
+   *       }
+   *     },
+   *     memory: 512
+   *   });
+   *   return { resources: { apiFunction } };
+   * });
+   * ```
+   *
+   * @default false
+   */
+  minifyIdentifiers?: boolean;
+  /**
    * #### A list of dependencies to exclude from the deployment package.
    *
    * ---
@@ -538,6 +647,62 @@ export interface EsLanguageSpecificConfig {
   * ```
    */
   dependenciesToExcludeFromDeploymentPackage?: string[];
+  /**
+   * #### Bundle the AWS SDK from your `node_modules` instead of using the copy the Lambda runtime provides.
+   *
+   * ---
+   *
+   * The Node.js 18+ Lambda runtimes ship the AWS SDK v3. By default, imports of `@aws-sdk/client-*` and
+   * `@aws-sdk/lib-*` packages are left out of the deployment package and resolved from the runtime, which keeps the
+   * package smaller. The runtime's copy can be older than the version in your `package.json`. Enable this when your
+   * code needs a newer SDK than the runtime ships. Container workloads have no runtime-provided SDK and always
+   * bundle it.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   apiFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/handlers/api.ts
+   *           languageSpecificConfig:
+   *             # stp-focus
+   *             bundleAwsSdk: true
+   *             # stp-end-focus
+   *       memory: 512
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const apiFunction = new LambdaFunction({
+   *     packaging: {
+   *       type: 'stacktape-lambda-buildpack',
+   *       properties: {
+   *         entryfilePath: 'src/handlers/api.ts',
+   *         languageSpecificConfig: {
+   *           // stp-focus
+   *           bundleAwsSdk: true
+   *           // stp-end-focus
+   *         }
+   *       }
+   *     },
+   *     memory: 512
+   *   });
+   *   return { resources: { apiFunction } };
+   * });
+   * ```
+   *
+   * @default false
+   */
+  bundleAwsSdk?: boolean;
 }
 
 

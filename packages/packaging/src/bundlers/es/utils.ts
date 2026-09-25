@@ -479,11 +479,12 @@ const filterJunkFiles = (filePath: string) => {
 };
 
 export const copyToDeploymentPackage = async ({ from, to }: { from: string; to: string }) => {
-  // Ensure file is executable if it is locally executable or
-  // it's forced (via normalizedFilesToChmodPlusX) to be executable
+  // The copy keeps the source's executable intent: any execute bit, as the Lambda archive reads it
+  // (`hasHostExecutableBit`). On Windows, where files carry no execute bit, the archive recognizes an ELF engine by its
+  // header instead (see `listArchiveEntries`).
   const { mode } = await stat(from);
 
-  const newMode = mode & 0o100 || process.platform === 'win32' ? 0o755 : 0o644;
+  const newMode = mode & 0o111 ? 0o755 : 0o644;
   return copy(from, to, {
     filter: filterJunkFiles
   })

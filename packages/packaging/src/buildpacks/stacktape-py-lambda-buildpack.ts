@@ -12,14 +12,12 @@ export const buildUsingStacktapePyLambdaBuildpack = async ({
   progressLogger,
   name,
   sizeLimit,
-  zippedSizeLimit,
   languageSpecificConfig,
   entryfilePath,
   cwd,
   ...otherProps
 }: StpBuildpackInput &
   LambdaArtifactActions & {
-    zippedSizeLimit: number;
     languageSpecificConfig: PyLanguageSpecificConfig;
   }): Promise<PackagingOutput> => {
   const packageManagerFilePath = languageSpecificConfig?.packageManagerFile
@@ -40,6 +38,7 @@ export const buildUsingStacktapePyLambdaBuildpack = async ({
   const { digest, outcome, distFolderPath, ...otherOutputProps } = await buildPythonArtifact({
     ...otherProps,
     distFolderPath: otherProps.distFolderPath,
+    lambdaZip: true,
     pythonVersion: languageSpecificConfig?.pythonVersion ?? DEFAULT_PYTHON_VERSION,
     sourcePath,
     entryfilePath: absoluteEntryfilePath,
@@ -62,7 +61,6 @@ export const buildUsingStacktapePyLambdaBuildpack = async ({
     distFolderPath,
     digest,
     sizeLimit,
-    zippedSizeLimit,
     archiveItem: otherProps.archiveItem,
     createPackagingError: otherProps.createPackagingError,
     progressLogger

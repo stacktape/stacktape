@@ -24,7 +24,7 @@ import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getJobName } from '@stacktape/naming/workload-names';
 import { getCfEnvironment } from '@utils/cloudformation';
 import { getIsDirective } from '@utils/directives';
-import { getAugmentedEnvironment } from '@utils/environment';
+import { getAugmentedEnvironment, shipsSourceMapsInPackage } from '@utils/environment';
 import {
   getResolvedConnectToEnvironmentVariables,
   mergeConnectToEnvironmentVariables
@@ -114,7 +114,8 @@ const resolveAgentCoreRuntimes = () => {
           workloadType: 'agentcore-runtime',
           packagingType,
           entryfilePath,
-          nodeVersion: languageSpecificConfig?.nodeVersion
+          nodeVersion: languageSpecificConfig?.nodeVersion,
+          sourceMapsInPackage: shipsSourceMapsInPackage(languageSpecificConfig)
         })
       ).map(({ Name, Value }) => [Name, Value])
     );

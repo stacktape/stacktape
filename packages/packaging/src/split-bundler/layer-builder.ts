@@ -1,10 +1,12 @@
 import type { LambdaSplitOutput, LayerArtifact, LayerAssignmentResult } from './types';
 import { existsSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
-import { copy, emptyDir, ensureDir, outputJSON, readdir, readFile, remove, writeFile } from 'fs-extra';
-import { rewriteChunkImportsSelective } from './chunk-rewriter';
-import { getDirectoryChecksum } from '../artifact/hashing';
+import { emptyDir, ensureDir, outputJSON, readdir, remove } from 'fs-extra';
+import { assertOnlyLayerChunkImportsAbsolute, getChunkImportEdits, getChunkPrefixFor } from './chunk-rewriter';
+import { getArchiveLayoutDigest, listArchiveEntries } from '../artifact/archive-entries';
+import { getArchiveInventoryChecksum, mergeHashes } from '../artifact/hashing';
 import { getFolderSizeBytes } from '../fs/files';
+import { writeEditedJavaScript } from '../es/source-map-edits';
 
 /** Where a published layer's chunks are mounted inside a Lambda execution environment. */
 const LAYER_CHUNKS_PATH = '/opt/nodejs/chunks/';
@@ -34,15 +36,6 @@ export const createLayerArtifacts = async ({
 }> => {
   const layeredChunkNames = new Set(layerAssignment.layeredChunks.map((c) => c.chunkName));
 
-  // Pre-read all chunk files that will be layered (for parallel processing)
-  const chunkContentCache = new Map<string, string>();
-  await Promise.all(
-    layerAssignment.layeredChunks.map(async (chunk) => {
-      const content = await readFile(chunk.chunkPath, 'utf-8');
-      chunkContentCache.set(chunk.chunkPath, content);
-    })
-  );
-
   // Create all layers in parallel
   const layerArtifacts = await Promise.all(
     layerAssignment.layers.map(async (layer) => {
@@ -59,20 +52,15 @@ export const createLayerArtifacts = async ({
           const chunkAssignment = layerAssignment.layeredChunks.find((c) => c.chunkName === chunkName);
           if (!chunkAssignment) return;
 
-          const destPath = join(layerChunksDir, chunkName);
-          const content = rewriteChunkImportsSelective(
-            chunkContentCache.get(chunkAssignment.chunkPath)!,
-            layeredChunkNames,
-            LAYER_CHUNKS_PATH,
-            './'
-          );
-          await writeFile(destPath, content);
-
-          // Copy source map if exists
-          const sourceMapPath = `${chunkAssignment.chunkPath}.map`;
-          if (existsSync(sourceMapPath)) {
-            await copy(sourceMapPath, `${destPath}.map`);
-          }
+          // The layer's copy of the chunk's map moves with the edits and omits `sourcesContent`; the shared outdir
+          // keeps the full map.
+          const content = await writeEditedJavaScript({
+            from: chunkAssignment.chunkPath,
+            to: join(layerChunksDir, chunkName),
+            edits: (code) => getChunkImportEdits(code, getChunkPrefixFor(layeredChunkNames, LAYER_CHUNKS_PATH, './')),
+            packaged: true
+          });
+          assertOnlyLayerChunkImportsAbsolute(content);
         })
       );
 
@@ -80,17 +68,20 @@ export const createLayerArtifacts = async ({
       await outputJSON(join(layerDir, 'nodejs', 'package.json'), { type: 'module' });
 
       // Hash and measure the final publishable tree, including rewritten code, source maps, and package metadata.
-      const [contentHash, sizeBytes] = await Promise.all([
-        getDirectoryChecksum({ absoluteDirectoryPath: layerDir }).then((hash) => hash.slice(0, 12)),
+      const [{ entries }, sizeBytes] = await Promise.all([
+        listArchiveEntries({ sourcePath: layerDir }),
         getFolderSizeBytes(layerDir)
       ]);
+      const directoryChecksum = await getArchiveInventoryChecksum(entries);
 
       return {
         layerNumber: layer.layerNumber,
         layerPath: layerDir,
         chunks: layer.chunks,
         sizeBytes,
-        contentHash
+        // The layer's S3 key is built from this hash, so it carries the archive layout too: a layer zipped under
+        // older rules gets a new key instead of being reused.
+        contentHash: mergeHashes(directoryChecksum, getArchiveLayoutDigest(entries)).slice(0, 12)
       };
     })
   );
@@ -128,10 +119,15 @@ const updateLambdaPackages = async (
         })
       );
 
-      // Rewrite imports in entry file
-      let entryContent = await readFile(output.entryFile, 'utf-8');
-      entryContent = rewriteChunkImportsSelective(entryContent, layeredChunkNames, LAYER_CHUNKS_PATH, './chunks/');
-      await writeFile(output.entryFile, entryContent);
+      // Rewrite imports in entry file, and in its map
+      const entryContent = await writeEditedJavaScript({
+        from: output.entryFile,
+        to: output.entryFile,
+        edits: (code) =>
+          getChunkImportEdits(code, getChunkPrefixFor(layeredChunkNames, LAYER_CHUNKS_PATH, './chunks/')),
+        packaged: true
+      });
+      assertOnlyLayerChunkImportsAbsolute(entryContent);
 
       // Rewrite imports in remaining (non-layered) chunks in parallel
       if (existsSync(lambdaChunksDir)) {
@@ -142,9 +138,14 @@ const updateLambdaPackages = async (
           remainingChunks.map(async (chunkFile) => {
             const chunkPath = join(lambdaChunksDir, chunkFile);
             if (existsSync(chunkPath)) {
-              let content = await readFile(chunkPath, 'utf-8');
-              content = rewriteChunkImportsSelective(content, layeredChunkNames, LAYER_CHUNKS_PATH, './');
-              await writeFile(chunkPath, content);
+              const content = await writeEditedJavaScript({
+                from: chunkPath,
+                to: chunkPath,
+                edits: (code) =>
+                  getChunkImportEdits(code, getChunkPrefixFor(layeredChunkNames, LAYER_CHUNKS_PATH, './')),
+                packaged: true
+              });
+              assertOnlyLayerChunkImportsAbsolute(content);
             }
           })
         );

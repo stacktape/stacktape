@@ -10,16 +10,16 @@ export const buildUsingStacktapeGoLambdaBuildpack = async ({
   name,
   entryfilePath,
   sizeLimit,
-  zippedSizeLimit,
   cwd,
   ...otherProps
-}: StpBuildpackInput & LambdaArtifactActions & { zippedSizeLimit: number }): Promise<PackagingOutput> => {
+}: StpBuildpackInput & LambdaArtifactActions): Promise<PackagingOutput> => {
   const { buildRoot: absoluteSourcePath, moduleRoot } = findGoProjectRoots({ cwd, entryfilePath });
   const absoluteEntryfilePath = isAbsolute(entryfilePath) ? entryfilePath : join(cwd, entryfilePath);
 
   const { digest, outcome, distFolderPath, ...otherOutputProps } = await buildGoArtifact({
     ...otherProps,
     distFolderPath: otherProps.distFolderPath,
+    lambdaZip: true,
     sourcePath: absoluteSourcePath,
     progressLogger,
     name,
@@ -38,7 +38,6 @@ export const buildUsingStacktapeGoLambdaBuildpack = async ({
     distFolderPath,
     digest,
     sizeLimit,
-    zippedSizeLimit,
     archiveItem: otherProps.archiveItem,
     createPackagingError: otherProps.createPackagingError,
     progressLogger

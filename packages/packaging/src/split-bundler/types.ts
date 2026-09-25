@@ -71,14 +71,29 @@ export type SplitBundleDependency = {
   optionalPeerDependencies?: SplitBundleDependency[] | undefined;
 };
 
+/**
+ * Wall-clock milliseconds spent in each phase of one split build. The phases run one after another, so they add up
+ * to `totalMs`.
+ */
+export type SplitBundleTimings = {
+  /** The caller's `installDependencies` action. */
+  installMs: number;
+  /** tsconfig aliases, project-root discovery, plugin creation and clearing the shared output directory. */
+  setupMs: number;
+  /** `Bun.build` itself. */
+  bunBuildMs: number;
+  /** Asset reference rewriting, per-Lambda copies and import rewrites, Prisma engines and chunk analysis. */
+  postprocessMs: number;
+  totalMs: number;
+};
+
 /** Result of the split bundling process */
 export type SplitBundleResult = {
   /** Map of lambda name -> output info */
   lambdaOutputs: Map<string, LambdaSplitOutput>;
   /** Total number of shared chunks created */
   sharedChunkCount: number;
-  /** Time taken to bundle (ms) */
-  bundleTimeMs: number;
+  timings: SplitBundleTimings;
   /** Chunk usage analysis for layer optimization */
   chunkAnalysis: ChunkUsageAnalysis[];
 };
@@ -161,10 +176,22 @@ export type BuildSplitBundleOptions = {
   cwd: string;
   tsConfigPath?: string | undefined;
   minify?: boolean | undefined;
+  /** Shorten local identifiers too; `es/minify` explains why this is off unless asked. */
+  minifyIdentifiers?: boolean | undefined;
   sourceMaps?: 'inline' | 'external' | 'disabled' | undefined;
   sourceMapBannerType?: 'node_modules' | 'pre-compiled' | 'disabled' | undefined;
   excludeDependencies?: string[] | undefined;
   dependenciesToExcludeFromBundle?: string[] | undefined;
+  /** Bundle `@aws-sdk/*` from `node_modules` instead of leaving it to the Lambda runtime. */
+  bundleAwsSdk?: boolean | undefined;
+  /**
+   * Whether the entrypoints are Lambda functions. Only a Lambda runtime provides modules the build
+   * may then leave out of the artifact, so this defaults to `true` for a split bundle, which serves
+   * Lambdas today.
+   */
+  isLambda?: boolean | undefined;
+  /** Node major version the artifacts run on: `24`, `'24'` or `'nodejs24.x'`. */
+  nodeTarget?: number | string | undefined;
   /** Application action run before Bun resolves the entrypoints. */
   installDependencies: () => Promise<void>;
   /** Preserves the application's typed PACKAGING error contract without importing application code. */

@@ -54,7 +54,6 @@ export const buildUsingStacktapeEsLambdaBuildpack = async ({
   progressLogger,
   name,
   sizeLimit,
-  zippedSizeLimit,
   languageSpecificConfig,
   dockerBuildOutputArchitecture,
   sharedLayerExternals = [],
@@ -67,7 +66,6 @@ export const buildUsingStacktapeEsLambdaBuildpack = async ({
 }: StpBuildpackInput &
   LambdaArtifactActions &
   EsBuildActions & {
-    zippedSizeLimit: number;
     nodeTarget: string;
     minify: boolean;
     sharedLayerExternals?: string[] | undefined;
@@ -106,6 +104,7 @@ export const buildUsingStacktapeEsLambdaBuildpack = async ({
     ...languageSpecificConfig,
     installNonStaticallyBuiltDepsInDocker: true,
     ...((languageSpecificConfig as EsLanguageSpecificConfig)?.disableSourceMaps && { sourceMaps: 'disabled' }),
+    lambdaZip: true,
     name,
     progressLogger,
     createPackagingError,
@@ -135,7 +134,7 @@ export const buildUsingStacktapeEsLambdaBuildpack = async ({
   if (sizeLimit && unzippedSizeBytes > sizeLimit * BYTES_PER_MB) {
     throw createPackagingError({
       type: 'PACKAGING',
-      message: `Function ${name} has size ${unzippedSize}${FILE_SIZE_UNIT}. Should be less than ${sizeLimit}${FILE_SIZE_UNIT}.`
+      message: `Function ${name} is ${unzippedSize}${FILE_SIZE_UNIT} unzipped. AWS Lambda allows ${sizeLimit}${FILE_SIZE_UNIT} for a function and all its layers together; layers attached outside Stacktape are not counted here.`
     });
   }
 
@@ -154,12 +153,6 @@ export const buildUsingStacktapeEsLambdaBuildpack = async ({
 
   const zippedSizeBytes = await getFileSizeBytes(originalZipPath);
   zippedSize = formatSizeMb(zippedSizeBytes);
-  if (zippedSizeLimit && zippedSizeBytes > zippedSizeLimit * BYTES_PER_MB) {
-    throw createPackagingError({
-      type: 'PACKAGING',
-      message: `${name} has size ${zippedSize}. Should be less than ${zippedSizeLimit}.`
-    });
-  }
 
   const adjustedZipPath = `${bundledDistFolderPath}-${digest}.zip`;
   await rename(originalZipPath, adjustedZipPath);

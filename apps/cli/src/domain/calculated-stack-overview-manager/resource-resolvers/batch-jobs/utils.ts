@@ -11,7 +11,7 @@ import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import type { SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regions';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getCfEnvironment, getCloudFormationLogRetentionDays } from '@utils/cloudformation';
-import { getAugmentedEnvironment } from '@utils/environment';
+import { getAugmentedEnvironment, shipsSourceMapsInPackage } from '@utils/environment';
 import { getImageUrlForSingleTask } from '../_utils/image-urls';
 import { getPoliciesForRoles } from '../_utils/role-helpers';
 import type { CloudWatchLogGroupOptions } from '@stacktape/config/log-forwarding';
@@ -265,7 +265,8 @@ export const getBatchJobDefinitionContainerProperties = ({
     workloadType: 'batch-job',
     packagingType,
     entryfilePath,
-    nodeVersion
+    nodeVersion,
+    sourceMapsInPackage: shipsSourceMapsInPackage(languageSpecificConfig)
   });
   const secrets = (workload.container.secrets || []).map(({ name: secretName, valueFrom }) => ({
     Name: secretName,

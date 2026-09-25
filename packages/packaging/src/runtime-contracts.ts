@@ -185,13 +185,19 @@ export type StpBuildpackInput = {
   additionalDigestInput?: string | undefined;
   progressLogger: PackagingProgressLogger;
   invocationId: string;
-  keepNames?: boolean | undefined;
   includeFiles?: string[] | undefined;
   distFolderPath: string;
   externals?: string[] | undefined;
   rebuildBinaries?: boolean | undefined;
   debug?: boolean | undefined;
   dockerBuildOutputArchitecture?: DockerBuildOutputArchitecture | undefined;
+  /**
+   * Set by the Lambda buildpacks, whose output becomes a ZIP. The build digest then also covers the Lambda archive
+   * format, each input file's executable bit and the host's executable rule, so an artifact zipped under older rules,
+   * before a chmod-only change or on a host that decides executability differently (Windows reads file headers, POSIX
+   * reads execute bits) is rebuilt rather than reused. Image builds leave it unset and keep their digests.
+   */
+  lambdaZip?: boolean | undefined;
 };
 
 /**

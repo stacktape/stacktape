@@ -1,5 +1,6 @@
 import { isAbsolute, join, relative } from 'node:path';
 import objectHash from 'object-hash';
+import { LAMBDA_ARCHIVE_FORMAT } from '../artifact/archive-entries';
 import { getHashFromMultipleFiles, getMatchingFilesByGlob } from '../fs/files';
 import { STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION } from './constants';
 
@@ -7,7 +8,7 @@ import { STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION } from './constants';
  * The source-set digest every language bundler caches on.
  *
  * The digest covers the selected source files plus anything else that changes the produced artifact:
- * external dependency versions, language-specific configuration, and the entry file path. Two builds
+ * external dependency versions, language-specific configuration, and the entry file's root-relative path. Two builds
  * with the same digest are expected to produce the same artifact, so any change here invalidates
  * every cached build.
  */
@@ -18,7 +19,8 @@ export const getBundleDigestFromGlobs = async ({
   externalDependencies = [],
   additionalDigestInput,
   rawEntryfilePath,
-  languageSpecificConfig
+  languageSpecificConfig,
+  lambdaZip = false
 }: {
   rootPath: string;
   fileGlobs: string[];
@@ -28,6 +30,8 @@ export const getBundleDigestFromGlobs = async ({
   rawEntryfilePath?: string | undefined;
   /** Language config object; hashed structurally, never indexed, so the concrete shape is free. */
   languageSpecificConfig?: object | undefined;
+  /** See `StpBuildpackInput.lambdaZip`. */
+  lambdaZip?: boolean | undefined;
 }): Promise<string> => {
   const matchingFiles = await getMatchingFilesByGlob({ globPattern: fileGlobs, cwd: rootPath });
   const filesByIdentity = new Map(
@@ -44,8 +48,11 @@ export const getBundleDigestFromGlobs = async ({
       firstIdentity < secondIdentity ? -1 : firstIdentity > secondIdentity ? 1 : 0
   );
 
-  const hash = await getHashFromMultipleFiles({ files: filesToInclude });
+  const hash = await getHashFromMultipleFiles({ files: filesToInclude, recordExecutableBits: lambdaZip });
   hash.update(`stacktape-buildpack:${STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION}`);
+  if (lambdaZip) {
+    hash.update(`lambda-archive:${LAMBDA_ARCHIVE_FORMAT}`);
+  }
   if (externalDependencies.length) {
     hash.update(objectHash(externalDependencies));
   }
@@ -53,7 +60,11 @@ export const getBundleDigestFromGlobs = async ({
     hash.update(objectHash(languageSpecificConfig));
   }
   if (rawEntryfilePath) {
-    hash.update(rawEntryfilePath);
+    // An absolute entry is identified relative to the root, as the source files are, so the same project checked out
+    // elsewhere keeps its digest. A path outside the root keeps its `..` steps and stays distinct.
+    hash.update(
+      isAbsolute(rawEntryfilePath) ? relative(rootPath, rawEntryfilePath).replace(/\\/g, '/') : rawEntryfilePath
+    );
   }
   if (additionalDigestInput) {
     hash.update(additionalDigestInput);

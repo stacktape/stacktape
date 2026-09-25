@@ -12,12 +12,18 @@ import { copy } from 'fs-extra';
 import objectHash from 'object-hash';
 
 import type { CustomArtifactLambdaPackagingProps } from '@stacktape/config/deployment-artifacts';
-import { getDirectoryChecksum, mergeHashes } from './hashing';
+import {
+  type ArchiveEntry,
+  getArchiveLayoutDigest,
+  listArchiveEntries,
+  UnsupportedArchiveEntryError
+} from './archive-entries';
+import { getArchiveInventoryChecksum, mergeHashes } from './hashing';
 import { getAllFilesInDir, getFileHash, getFileSizeBytes, getFolderSizeBytes } from '../fs/files';
 import { getZipUncompressedSizeBytes } from './zip-metadata';
 
+/** Lambda's limit for the unzipped function and its layers, in MB. Code deployed from S3 has no zipped limit. */
 const SIZE_LIMIT = 250;
-const ZIPPED_SIZE_LIMIT = 50;
 const FILE_SIZE_UNIT = 'MB';
 
 export const buildUsingCustomArtifact = async ({
@@ -58,14 +64,46 @@ export const buildUsingCustomArtifact = async ({
     eventType: 'CALCULATE_CHECKSUM',
     description: 'Calculating checksum for caching'
   });
+  /*
+   * Stacktape zips a directory or a non-ZIP file itself, so the archive's entries, normalized modes and format are part
+   * of what it uploads; a chmod-only change must produce a new artifact. A prebuilt ZIP is uploaded byte for byte and
+   * keeps the identity of its bytes. Listing first also rejects an unsupported link before anything reads through it.
+   */
+  let archiveEntries: ArchiveEntry[] | null = null;
+  if (!isZipped) {
+    try {
+      archiveEntries = (await listArchiveEntries({ sourcePath: absolutePackagePath })).entries;
+    } catch (cause) {
+      if (cause instanceof UnsupportedArchiveEntryError) {
+        throw createPackagingError({ type: 'PACKAGING', message: cause.message, cause });
+      }
+      throw cause;
+    }
+  }
+  const archiveLayoutDigest = archiveEntries ? getArchiveLayoutDigest(archiveEntries) : null;
   let packageCheckSum: string;
   if (isDir) {
-    // A custom artifact directory is copied exactly, so every file must participate in cache identity.
-    packageCheckSum = await getDirectoryChecksum({ absoluteDirectoryPath: absolutePackagePath });
+    // Every entry the archive holds participates in cache identity, whatever the directory is called or where it is.
+    packageCheckSum = await getArchiveInventoryChecksum(archiveEntries!);
   } else {
     packageCheckSum = await getFileHash(absolutePackagePath);
   }
-  const digest = mergeHashes(packageCheckSum, objectHash({ handler, packagePath }), additionalDigestInput);
+  /*
+   * Identity is the bytes plus the handler, never where the build put them.
+   *
+   * `packagePath` used to be hashed here. Web builders pass a path under
+   * `.stacktape/build/<invocationId>/…`, and the invocation id is new for every CLI process, so the digest
+   * changed on every run and the largest Lambda zips Stacktape produces were rebuilt and re-uploaded on
+   * every deploy. An ordinary custom artifact lost its cache whenever the checkout moved, which a cache
+   * shared between a laptop and CI cannot afford. The path carries no identity the checksum lacks: each
+   * workload looks up its own digests by job name, so two artifacts never compete for one entry.
+   */
+  const digest = mergeHashes(
+    packageCheckSum,
+    objectHash({ handler }),
+    additionalDigestInput,
+    ...(archiveLayoutDigest ? [archiveLayoutDigest] : [])
+  );
   if (existingDigests.includes(digest)) {
     await progressLogger.finishEvent({
       eventType: 'CALCULATE_CHECKSUM',
@@ -99,7 +137,7 @@ export const buildUsingCustomArtifact = async ({
   if (sizeBytes > SIZE_LIMIT * 1024 * 1024) {
     throw createPackagingError({
       type: 'PACKAGING',
-      message: `Lambda function ${name} has size ${size}${FILE_SIZE_UNIT}. Should be less than ${SIZE_LIMIT}${FILE_SIZE_UNIT}.`
+      message: `Function ${name} is ${size}${FILE_SIZE_UNIT} unzipped. AWS Lambda allows ${SIZE_LIMIT}${FILE_SIZE_UNIT} for a function and all its layers together; layers attached outside Stacktape are not counted here.`
     });
   }
 
@@ -128,13 +166,6 @@ export const buildUsingCustomArtifact = async ({
   const zippedSizeBytes = await getFileSizeBytes(artifactPath);
   const zippedSize = Number((zippedSizeBytes / 1024 / 1024).toFixed(2));
   await progressLogger.finishEvent({ eventType: 'CALCULATE_SIZE' });
-
-  if (zippedSizeBytes > ZIPPED_SIZE_LIMIT * 1024 * 1024) {
-    throw createPackagingError({
-      type: 'PACKAGING',
-      message: `${name} has size ${zippedSize}${FILE_SIZE_UNIT}. Should be less than ${ZIPPED_SIZE_LIMIT}${FILE_SIZE_UNIT}.`
-    });
-  }
 
   const sourceFiles =
     isZipped || !isDir

@@ -33,8 +33,6 @@ export const possiblySupportedLangExtensions = [
   'tsx'
 ] as const;
 
-export const NODE_RUNTIME_VERSIONS_WITH_SKIPPED_SDK_V3_PACKAGING = [24, 22, 20, 18];
-
 export const lambdaRuntimesForFileExtension: {
   [_ext in (typeof possiblySupportedLangExtensions)[number]]: string[];
 } = {

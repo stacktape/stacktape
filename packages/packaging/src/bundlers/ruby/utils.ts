@@ -18,13 +18,15 @@ export const getBundleDigest = ({
   externalDependencies,
   additionalDigestInput,
   rawEntryfilePath,
-  languageSpecificConfig
+  languageSpecificConfig,
+  lambdaZip
 }: {
   rootPath: string;
   externalDependencies: { name: string; version: string }[];
   additionalDigestInput?: string | undefined;
   rawEntryfilePath: string;
   languageSpecificConfig?: RubyLanguageSpecificConfig | undefined;
+  lambdaZip?: boolean | undefined;
 }) =>
   getBundleDigestFromGlobs({
     rootPath,
@@ -33,7 +35,8 @@ export const getBundleDigest = ({
     externalDependencies,
     additionalDigestInput,
     rawEntryfilePath,
-    languageSpecificConfig
+    languageSpecificConfig,
+    lambdaZip
   });
 
 export const getSourceFiles = ({ rootPath }: { rootPath: string }) =>

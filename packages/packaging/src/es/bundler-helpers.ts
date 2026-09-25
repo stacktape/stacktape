@@ -4,6 +4,8 @@ import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { readFile, readJSON } from 'fs-extra';
 import json5 from 'json5';
 import type { ResolvedPackageDependency } from '../runtime-contracts';
+import type { TextEdit } from './source-map-edits';
+import { applyTextEdits } from './source-map-edits';
 import { DEPENDENCIES_WITH_BINARIES } from './config';
 
 export type PackageJsonDepsInfo = {
@@ -313,8 +315,12 @@ export const createModuleResolver = ({ cwd, monorepoRoot }: { cwd: string; monor
   };
 };
 
-export const ensureDefaultExport = (content: string): string => {
-  if (/export\s*\{[^}]*\bas\s+default\b[^}]*\}/.test(content)) return content;
+/**
+ * Where a module that exports `handler` but no default gets `handler as default`, as an insertion into its export
+ * clause; null when it already has a default export or exports no `handler`.
+ */
+export const getDefaultExportEdit = (content: string): TextEdit | null => {
+  if (/export\s*\{[^}]*\bas\s+default\b[^}]*\}/.test(content)) return null;
   for (const match of content.matchAll(/export\s*\{([^}]*)\}/g)) {
     const specifiers = match[1]?.split(',') ?? [];
     for (const specifier of specifiers) {
@@ -328,10 +334,15 @@ export const ensureDefaultExport = (content: string): string => {
       const whitespaceBeforeBrace = content.slice(0, closeBraceIndex).match(/\s*$/)?.[0] ?? '';
       const insertionIndex = closeBraceIndex - whitespaceBeforeBrace.length;
       const separator = match[1]?.trim().length ? ', ' : '';
-      return `${content.slice(0, insertionIndex)}${separator}${localName} as default${whitespaceBeforeBrace}${content.slice(closeBraceIndex)}`;
+      return { start: insertionIndex, end: insertionIndex, text: `${separator}${localName} as default` };
     }
   }
-  return content;
+  return null;
+};
+
+export const ensureDefaultExport = (content: string): string => {
+  const edit = getDefaultExportEdit(content);
+  return edit ? applyTextEdits(content, [edit]) : content;
 };
 
 export const ESM_SOURCE_MAP_BANNER = `import { createRequire as __stp_createRequire } from "node:module";

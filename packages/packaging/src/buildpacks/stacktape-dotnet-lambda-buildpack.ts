@@ -12,13 +12,11 @@ export const buildUsingStacktapeDotnetLambdaBuildpack = async ({
   name,
   entryfilePath,
   sizeLimit,
-  zippedSizeLimit,
   languageSpecificConfig,
   cwd,
   ...otherProps
 }: StpBuildpackInput &
   LambdaArtifactActions & {
-    zippedSizeLimit: number;
     languageSpecificConfig?: DotnetLanguageSpecificConfig | undefined;
   }): Promise<PackagingOutput> => {
   const absoluteSourcePath = languageSpecificConfig?.projectFile
@@ -34,6 +32,7 @@ export const buildUsingStacktapeDotnetLambdaBuildpack = async ({
   const { digest, outcome, distFolderPath, ...otherOutputProps } = await buildDotnetArtifact({
     ...otherProps,
     distFolderPath: otherProps.distFolderPath,
+    lambdaZip: true,
     sourcePath: absoluteSourcePath,
     dotnetVersion: languageSpecificConfig?.dotnetVersion ?? DEFAULT_DOTNET_VERSION,
     entryfilePath: absoluteEntryfilePath,
@@ -54,7 +53,6 @@ export const buildUsingStacktapeDotnetLambdaBuildpack = async ({
     distFolderPath,
     digest,
     sizeLimit,
-    zippedSizeLimit,
     archiveItem: otherProps.archiveItem,
     createPackagingError: otherProps.createPackagingError,
     progressLogger

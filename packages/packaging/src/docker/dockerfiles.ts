@@ -82,19 +82,37 @@ export const buildEsDockerfile = ({
   packageManager,
   requiresGlibcBinaries,
   customDockerBuildCommands,
-  nodeVersion
+  nodeVersion,
+  installBeforeSource
 }: {
   dependencies: { name: string; version: string }[];
   requiresGlibcBinaries: boolean;
   packageManager: SupportedEsPackageManager;
   customDockerBuildCommands?: string[] | undefined;
   nodeVersion: number;
+  /**
+   * npm, pnpm and Bun only: install the dependencies without the bundle's source, so a source-only change reuses the
+   * install. When the bundle has its generated `package.json` (`manifest`), the install starts from it as it would
+   * beside the whole bundle, and the image keeps the manifest the package manager wrote. Set it only when the bundle
+   * holds nothing else the install reads.
+   */
+  installBeforeSource?: { manifest: boolean } | undefined;
 }) => {
   const installDepsCommand = getInstallDependenciesCommand({
     dependencies,
     packageManager
   });
   const installPackageManagerCommand = getInstallPackageManagerCommand(packageManager);
+  const independentInstall =
+    packageManager === 'npm' || packageManager === 'pnpm' || packageManager === 'bun' ? installBeforeSource : undefined;
+  const copyInstallInputs = !independentInstall
+    ? 'COPY . /install-dir\n'
+    : independentInstall.manifest
+      ? 'COPY package.json /install-dir/\n'
+      : '';
+  const copySourceAfterInstall = independentInstall
+    ? '\nCOPY . /app\nCOPY --from=deps /install-dir/package.json /app/package.json'
+    : '';
 
   if (!dependencies.length) {
     const baseImage = requiresGlibcBinaries
@@ -125,8 +143,7 @@ CMD ["node", "--max-old-space-size=16384", "index.js"]`;
     return `FROM public.ecr.aws/docker/library/node:${nodeVersion}-bookworm AS deps
 
 WORKDIR /install-dir
-COPY . /install-dir
-
+${copyInstallInputs}
 ${installPackageManagerCommand}${installDepsCommand}
 
 FROM public.ecr.aws/docker/library/node:${nodeVersion}-bookworm-slim
@@ -138,7 +155,7 @@ ENTRYPOINT ["tini", "--"]
 
 ${(customDockerBuildCommands || []).map((command) => `RUN ${command}`).join('\n')}
 
-COPY --from=deps /install-dir/ /app
+COPY --from=deps /install-dir/ /app${copySourceAfterInstall}
 WORKDIR /app
 
 ENV NODE_ENV production
@@ -170,8 +187,7 @@ RUN if [[ $(uname -m) == "aarch64" ]] ; \\
     : ''
 }
 WORKDIR /install-dir
-COPY . /install-dir
-
+${copyInstallInputs}
 ${installPackageManagerCommand}${installDepsCommand}
 
 # use minimal node package for security and size (slim version doesn't have npm or yarn)
@@ -183,7 +199,7 @@ ENTRYPOINT ["/sbin/tini", "--"]
 
 ${(customDockerBuildCommands || []).map((command) => `RUN ${command}`).join('\n')}
 
-COPY --from=deps /install-dir/ /app
+COPY --from=deps /install-dir/ /app${copySourceAfterInstall}
 WORKDIR /app
 
 ENV NODE_ENV production
@@ -197,12 +213,20 @@ export const buildPythonArtifactDockerfile = ({
   pythonVersion,
   minify,
   alpine,
-  target = 'container'
+  target = 'container',
+  requirementsWithoutSource
 }: {
   pythonVersion: number | string;
   minify?: boolean | undefined;
   alpine?: boolean | undefined;
   target?: 'container' | 'lambda' | undefined;
+  /**
+   * The dependency file is a root `requirements.txt` whose install reads nothing else from the source. The tools and
+   * the requirements install then run before the source is copied, so a source-only change reuses them. The install
+   * keeps the conservative command and its `/dist` target, since a package may record its target path; the installed
+   * `/dist` is then copied over the minified source, as the install into it would have left it.
+   */
+  requirementsWithoutSource?: boolean | undefined;
 }) => {
   let baseImage =
     target === 'lambda'
@@ -241,15 +265,45 @@ if [ -n "$STP_PY_DEP_FILE" ]; then \
 fi`;
   const minifyCommand = `RUN uv pip install --system python-minifier
 RUN pyminify . --in-place`;
-
-  const dockerfile = `FROM ${baseImage} AS build
-
-ARG STP_PY_DEP_FILE
+  const buildArgs = `ARG STP_PY_DEP_FILE
 ARG STP_PY_DEP_TYPE
 ARG STP_PY_UV_OPTIONAL_DEPENDENCIES
 ARG STP_PY_UV_WITH_GROUPS
 ARG STP_PY_UV_WITHOUT_GROUPS
-ARG STP_PY_UV_ONLY_GROUPS
+ARG STP_PY_UV_ONLY_GROUPS`;
+
+  if (requirementsWithoutSource) {
+    return `FROM ${baseImage} AS tools
+
+${installUvCommand}
+${systemDepsCommand}
+${minify ? 'RUN uv pip install --system python-minifier' : ''}
+
+FROM tools AS deps
+
+WORKDIR /dist
+COPY requirements.txt /dist/requirements.txt
+RUN uv pip install --system --target . -r requirements.txt
+
+FROM tools AS build
+
+${buildArgs}
+
+RUN mkdir /dist
+COPY ./ /dist
+WORKDIR /dist
+
+${minify ? 'RUN pyminify . --in-place' : ''}
+COPY --from=deps /dist/ /dist/
+
+FROM scratch AS artifact
+COPY --from=build /dist .
+`;
+  }
+
+  const dockerfile = `FROM ${baseImage} AS build
+
+${buildArgs}
 
 RUN mkdir /dist
 COPY ./ /dist

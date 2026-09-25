@@ -195,6 +195,43 @@ describe('split bundler end-to-end regressions', () => {
     expect(execution.stdout.trim()).toBe('derived');
   });
 
+  test('reports installation, setup, Bun and post-processing time as separate phases', async () => {
+    const root = await createRoot();
+    const sourceRoot = join(root, 'src');
+    await mkdir(sourceRoot, { recursive: true });
+    await writeFile(join(sourceRoot, 'shared.ts'), 'export const shout = (value: string) => value.toUpperCase();');
+    for (const name of ['a', 'b']) {
+      await writeFile(
+        join(sourceRoot, `${name}.ts`),
+        `import { shout } from './shared'; export const handler = () => shout('${name}');`
+      );
+    }
+    const installDelayMs = 50;
+
+    const { timings } = await buildSplitBundle({
+      entrypoints: ['a', 'b'].map((name) => ({
+        name,
+        jobName: name,
+        entryfilePath: join(sourceRoot, `${name}.ts`),
+        distFolderPath: join(root, 'dist', name)
+      })),
+      sharedOutdir: join(root, 'shared'),
+      cwd: root,
+      installDependencies: () => new Promise((resolve) => setTimeout(resolve, installDelayMs)),
+      createPackagingError
+    });
+
+    // The caller's installation used to be hidden inside the single reported duration.
+    expect(timings.installMs).toBeGreaterThanOrEqual(installDelayMs - 1);
+    expect(timings.setupMs).toBeGreaterThanOrEqual(0);
+    expect(timings.bunBuildMs).toBeGreaterThan(0);
+    expect(timings.postprocessMs).toBeGreaterThan(0);
+    expect(timings.installMs + timings.setupMs + timings.bunBuildMs + timings.postprocessMs).toBeCloseTo(
+      timings.totalMs,
+      6
+    );
+  });
+
   test('does not bake the packaging process NODE_ENV into split Lambda output', async () => {
     const root = await createRoot();
     const entryfilePath = join(root, 'handler.ts');

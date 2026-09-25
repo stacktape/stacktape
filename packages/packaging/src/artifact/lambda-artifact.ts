@@ -14,7 +14,6 @@ export const createLambdaZipArtifact = async ({
   distFolderPath,
   digest,
   sizeLimit,
-  zippedSizeLimit,
   progressLogger,
   finalMessageSuffix,
   archiveItem,
@@ -23,8 +22,8 @@ export const createLambdaZipArtifact = async ({
   name: string;
   distFolderPath: string;
   digest: string;
+  /** Lambda's limit for the unzipped function and its layers, in MB. Code deployed from S3 has no zipped limit. */
   sizeLimit?: number | undefined;
-  zippedSizeLimit?: number | undefined;
   progressLogger: ProgressLogger;
   finalMessageSuffix?: string | undefined;
   archiveItem: ArchiveItem;
@@ -36,7 +35,7 @@ export const createLambdaZipArtifact = async ({
   if (sizeLimit && unzippedSizeBytes > sizeLimit * 1024 * 1024) {
     throw createPackagingError({
       type: 'PACKAGING',
-      message: `Function ${name} has size ${unzippedSize}${FILE_SIZE_UNIT}. Should be less than ${sizeLimit}${FILE_SIZE_UNIT}.`
+      message: `Function ${name} is ${unzippedSize}${FILE_SIZE_UNIT} unzipped. AWS Lambda allows ${sizeLimit}${FILE_SIZE_UNIT} for a function and all its layers together; layers attached outside Stacktape are not counted here.`
     });
   }
 
@@ -54,12 +53,6 @@ export const createLambdaZipArtifact = async ({
   const originalZipPath = `${distFolderPath}.zip`;
   const zippedSizeBytes = await getFileSizeBytes(originalZipPath);
   const zippedSize = Number((zippedSizeBytes / 1024 / 1024).toFixed(2));
-  if (zippedSizeLimit && zippedSizeBytes > zippedSizeLimit * 1024 * 1024) {
-    throw createPackagingError({
-      type: 'PACKAGING',
-      message: `${name} has size ${zippedSize}. Should be less than ${zippedSizeLimit}.`
-    });
-  }
 
   const adjustedZipPath = `${distFolderPath}-${digest}.zip`;
   await rename(originalZipPath, adjustedZipPath);

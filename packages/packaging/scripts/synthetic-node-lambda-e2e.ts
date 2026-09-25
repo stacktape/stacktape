@@ -26,6 +26,9 @@ const buildRoot = join(root, 'build');
 const nativeInstallationRoot = join(buildRoot, 'native-installations');
 const containers = new Set<string>();
 
+/** The Lambda Node runtimes the CLI's split-bundling policy admits. Add one there only after adding it here. */
+const SUPPORTED_LAMBDA_NODE_VERSIONS = [18, 20, 22, 24];
+
 const assertZipWithinLambdaLimit = async (zipPath: string) => {
   const size = (await stat(zipPath)).size;
   if (size <= 0 || size > 50 * 1024 * 1024) {
@@ -38,13 +41,16 @@ const invokeLambdaRuntime = async ({
   handler = 'index.handler',
   layerMounts = [],
   event = {},
-  environment = {}
+  environment = {},
+  nodeVersion = 24
 }: {
   functionPath: string;
   handler?: string;
   layerMounts?: Array<{ source: string; target: string }>;
   event?: Record<string, unknown>;
   environment?: Record<string, string>;
+  /** Lambda Node runtime to invoke in. Split output is version-independent; the matrix proves it. */
+  nodeVersion?: number;
 }) => {
   const name = `stp-node-e2e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   containers.add(name);
@@ -66,7 +72,7 @@ const invokeLambdaRuntime = async ({
         `type=bind,source=${source},target=${target},readonly`
       ]),
       ...Object.entries(environment).flatMap(([key, value]) => ['--env', `${key}=${value}`]),
-      'public.ecr.aws/lambda/nodejs:24',
+      `public.ecr.aws/lambda/nodejs:${nodeVersion}`,
       handler
     ]);
 
@@ -322,18 +328,13 @@ try {
     ],
     environment: { NODE_ENV: 'production' }
   });
+  const sharedChunkLayerMounts = [
+    { source: join(sharedLayer.layerPath, 'nodejs', 'chunks'), target: '/opt/nodejs/chunks' },
+    { source: join(sharedLayer.layerPath, 'nodejs', 'package.json'), target: '/opt/nodejs/package.json' }
+  ];
   const plainResponse = await invokeLambdaRuntime({
     functionPath: join(buildRoot, 'functions', 'plain'),
-    layerMounts: [
-      {
-        source: join(sharedLayer.layerPath, 'nodejs', 'chunks'),
-        target: '/opt/nodejs/chunks'
-      },
-      {
-        source: join(sharedLayer.layerPath, 'nodejs', 'package.json'),
-        target: '/opt/nodejs/package.json'
-      }
-    ],
+    layerMounts: sharedChunkLayerMounts,
     environment: { NODE_ENV: 'production' }
   });
   for (const [name, response] of [
@@ -348,6 +349,73 @@ try {
       (name === 'native' && parsed.native !== true)
     ) {
       throw new Error(`Unexpected ${name} Lambda response: ${response}`);
+    }
+  }
+
+  /*
+   * Every Lambda runtime the split path admits, not just the default one.
+   *
+   * A split artifact differs from a per-Lambda one in exactly one way that the runtime can reject:
+   * its entry imports shared chunks by the absolute specifier `/opt/nodejs/chunks/...`, which an ES
+   * module resolver has to accept as a file URL. Bun is given `target: 'node'` with no version, so
+   * the emitted syntax is the same for every runtime and only that resolution is in question.
+   *
+   * Running the same bytes on each runtime is what licenses `SUPPORTED_NODE_VERSIONS` in the CLI's
+   * split-bundling policy. Add a version there only after adding it here.
+   */
+  console.log('Invoking the same split artifact on every supported Lambda Node runtime...');
+  for (const runtimeVersion of SUPPORTED_LAMBDA_NODE_VERSIONS) {
+    const response = JSON.parse(
+      await invokeLambdaRuntime({
+        functionPath: join(buildRoot, 'functions', 'plain'),
+        nodeVersion: runtimeVersion,
+        layerMounts: sharedChunkLayerMounts,
+        environment: { NODE_ENV: 'production' }
+      })
+    ) as Record<string, unknown>;
+    if (response.function !== 'plain' || response.sharedLength !== sharedMarker.length) {
+      throw new Error(
+        `The split artifact did not resolve its shared layer on Node ${runtimeVersion}: ${JSON.stringify(response)}`
+      );
+    }
+  }
+
+  /*
+   * The assumption the AWS SDK rule rests on.
+   *
+   * `es/import-classification` leaves `@aws-sdk/client-*` and `@aws-sdk/lib-*` out of a Lambda
+   * artifact because the runtime provides them. Those packages live at `/var/runtime/node_modules`,
+   * which is not on Node's own resolution path — Lambda puts it there through `NODE_PATH`, and
+   * `NODE_PATH` is a CommonJS mechanism. Since split artifacts are ES modules, "the runtime provides
+   * it" has to be true for an `import`, not only for a `require`, or every such Lambda fails at load
+   * with ERR_MODULE_NOT_FOUND. One import per family is checked; the families are the rule's claim.
+   *
+   * This runs an unbundled artifact of exactly the shape the split bundler emits — `type: module`
+   * plus a bare import — on each runtime. If a future runtime stops shipping the SDK, this fails
+   * here instead of in a customer's production Lambda.
+   */
+  console.log('Checking that an ES module Lambda can still import the runtime-provided AWS SDK...');
+  const runtimeSdkDist = join(buildRoot, 'functions', 'runtime-sdk');
+  await write(join(runtimeSdkDist, 'package.json'), `${JSON.stringify({ type: 'module' })}\n`);
+  await write(
+    join(runtimeSdkDist, 'index.js'),
+    [
+      "import { S3Client } from '@aws-sdk/client-s3';",
+      "import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';",
+      'export const handler = async () => ({',
+      '  client: typeof S3Client === "function",',
+      '  lib: typeof DynamoDBDocumentClient === "function"',
+      '});'
+    ].join('\n')
+  );
+  for (const runtimeVersion of SUPPORTED_LAMBDA_NODE_VERSIONS) {
+    const response = JSON.parse(
+      await invokeLambdaRuntime({ functionPath: runtimeSdkDist, nodeVersion: runtimeVersion })
+    ) as Record<string, unknown>;
+    if (response.client !== true || response.lib !== true) {
+      throw new Error(
+        `Lambda Node ${runtimeVersion} did not resolve @aws-sdk/client-s3 and @aws-sdk/lib-dynamodb from an ES module, so leaving them out of the artifact is no longer safe: ${JSON.stringify(response)}`
+      );
     }
   }
 
@@ -373,11 +441,12 @@ try {
     progressLogger,
     invocationId: 'synthetic-node-lambda-e2e',
     sizeLimit: 250,
-    zippedSizeLimit: 50,
     languageSpecificConfig: {
       nodeVersion: 24,
       outputModuleFormat: 'esm',
-      disableSourceMaps: true
+      disableSourceMaps: true,
+      // The opt-in, exercised on the real runtime; the split build above runs with the default.
+      minifyIdentifiers: true
     },
     requiresGlibcBinaries: true,
     dockerBuildOutputArchitecture: 'linux/amd64',

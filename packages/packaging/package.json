@@ -5,6 +5,7 @@
   "description": "Deployment-package build engine for Stacktape artifacts, images, web applications and Lambda layers.",
   "type": "module",
   "exports": {
+    "./artifact/archive-entries": "./src/artifact/archive-entries.ts",
     "./artifact/custom-artifact": "./src/artifact/custom-artifact.ts",
     "./artifact/hashing": "./src/artifact/hashing.ts",
     "./artifact/lambda-limits": "./src/artifact/lambda-limits.ts",
@@ -35,6 +36,7 @@
     "./image/nixpacks": "./src/image/nixpacks.ts",
     "./runtime-contracts": "./src/runtime-contracts.ts",
     "./split-bundler/bundler": "./src/split-bundler/bundler.ts",
+    "./split-bundler/function-digest": "./src/split-bundler/function-digest.ts",
     "./split-bundler/layer-assignment": "./src/split-bundler/layer-assignment.ts",
     "./split-bundler/layer-builder": "./src/split-bundler/layer-builder.ts",
     "./split-bundler/types": "./src/split-bundler/types.ts",
@@ -47,11 +49,16 @@
     "test:docker-smoke": "bun run scripts/synthetic-docker-smoke.ts",
     "test:node-lambda-e2e": "bun run scripts/synthetic-node-lambda-e2e.ts",
     "test:web-framework-e2e": "bun run scripts/synthetic-web-framework-e2e.ts",
+    "test:es-image-deps-e2e": "bun run scripts/synthetic-es-image-deps-e2e.ts",
+    "test:directory-inventory-e2e": "bun run scripts/synthetic-directory-inventory-e2e.ts",
+    "test:lambda-source-map-e2e": "bun run scripts/synthetic-lambda-source-map-e2e.ts",
+    "test:split-assets-e2e": "bun run scripts/synthetic-split-assets-e2e.ts",
     "test": "bun test src",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
     "@balena/dockerignore": "1.0.2",
+    "@jridgewell/sourcemap-codec": "1.5.5",
     "@stacktape/config": "workspace:*",
     "@vercel/nft": "1.10.2",
     "cup-readdir": "^1.1.0",

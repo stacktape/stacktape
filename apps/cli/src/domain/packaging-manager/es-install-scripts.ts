@@ -1,9 +1,16 @@
 import type { SupportedEsPackageManager } from '@stacktape/packaging/runtime-contracts';
 
+/**
+ * npm waits for its audit report and its own update check before it exits, and both reach the registry. They change
+ * nothing installed, and Stacktape discards npm's output, so they only delay packaging on a slow network
+ * (https://docs.npmjs.com/using-npm/config/: `audit`, `update-notifier`).
+ */
+const NPM_INFORMATIONAL_OPT_OUTS = ['--no-audit', '--no-update-notifier'];
+
 const installScripts: { [_pm in SupportedEsPackageManager]: { ciInstall: string[]; normalInstall: string[] } } = {
   npm: {
-    ciInstall: ['npm', 'ci'],
-    normalInstall: ['npm', 'install']
+    ciInstall: ['npm', 'ci', ...NPM_INFORMATIONAL_OPT_OUTS],
+    normalInstall: ['npm', 'install', ...NPM_INFORMATIONAL_OPT_OUTS]
   },
   yarn: {
     ciInstall: ['yarn', 'install', '--frozen-lockfile', '--ignore-platform', '--ignore-engines'],
@@ -34,7 +41,7 @@ const pnpmVersionForLockfile = (lockfile: string | undefined) => {
   return undefined;
 };
 
-const declaredPnpmVersion = (packageManagerDeclaration: string | undefined) => {
+export const declaredPnpmVersion = (packageManagerDeclaration: string | undefined) => {
   const match = packageManagerDeclaration?.match(/^pnpm@(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)(?:\+.*)?$/);
   return match?.[1];
 };

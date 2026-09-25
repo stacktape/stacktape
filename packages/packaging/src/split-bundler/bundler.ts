@@ -16,23 +16,27 @@ import type {
 import type { PackageJsonDepsInfo } from '../es/bundler-helpers';
 import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, posix, resolve } from 'node:path';
-import { rewriteChunkImports } from './chunk-rewriter';
-import { copy, emptyDir, ensureDir, outputJSON, readFile, writeFile } from 'fs-extra';
-import { DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE, IGNORED_MODULES, NODE_BUILTIN_MODULES } from '../es/config';
+import type { TextEdit } from '../es/source-map-edits';
+import { assertNoRootChunkImports, getChunkImportEdits } from './chunk-rewriter';
+import { copy, emptyDir, ensureDir, outputJSON, readFile } from 'fs-extra';
+import { IGNORED_MODULES, NODE_BUILTIN_MODULES } from '../es/config';
 import { findProjectRoot } from '../es/project-root';
 import { formatBuildError } from './error-format';
 import {
   createModuleResolver,
-  determineIfAlias,
-  ensureDefaultExport,
   ESM_SOURCE_MAP_BANNER,
-  getInfoFromPackageJson,
+  getDefaultExportEdit,
   getTsconfigAliases,
   isRequireImportKind,
   packageEntryConditions,
   resolveWithRequireCondition
 } from '../es/bundler-helpers';
-import { rewriteLambdaAssetReferences } from '../artifact/lambda-assets';
+import { createBunFfiShimPlugin, createNativeNodeModulesPlugin, isBareImportSpecifier } from '../es/bun-plugins';
+import { classifyBeforeResolution, classifyResolvedModule, getModuleName } from '../es/import-classification';
+import { getBunMinifyConfig } from '../es/minify';
+import { writeEditedJavaScript } from '../es/source-map-edits';
+import { resolvePrisma } from '../bundlers/es/utils';
+import { getLambdaAssetReferenceEdits } from '../artifact/lambda-assets';
 
 const transformToUnixPath = (path: string): string => path.replace(/\\/g, '/');
 
@@ -54,17 +58,22 @@ export const buildSplitBundle = async ({
   cwd,
   tsConfigPath,
   minify = true,
+  minifyIdentifiers = false,
   sourceMaps = 'external',
   sourceMapBannerType = 'pre-compiled',
   excludeDependencies = [],
   dependenciesToExcludeFromBundle = [],
+  bundleAwsSdk = false,
+  isLambda = true,
+  nodeTarget,
   installDependencies,
   createPackagingError
 }: BuildSplitBundleOptions): Promise<SplitBundleResult> => {
-  const startTime = Date.now();
+  const startedAt = performance.now();
 
   // Install dependencies first
   await installDependencies();
+  const installedAt = performance.now();
 
   // Setup tsconfig aliases and path resolution
   const aliases = tsConfigPath ? await getTsconfigAliases(tsConfigPath) : {};
@@ -77,17 +86,21 @@ export const buildSplitBundle = async ({
   const shouldIgnoreAllDeps = dependenciesToExcludeFromBundle.includes('*');
 
   // Build all entrypoints together with code splitting (with metafile enabled)
-  const { buildResult, metafile } = await executeBunBuild({
+  const { buildResult, metafile, bunBuildStartedAt, bunBuildFinishedAt } = await executeBunBuild({
     entrypoints,
     sharedOutdir,
     cwd,
     monorepoRoot,
     ...(tsConfigPath ? { tsConfigPath } : {}),
     minify,
+    minifyIdentifiers,
     sourceMaps,
     sourceMapBannerType,
     excludeDependencies,
     dependenciesToExcludeFromBundle,
+    bundleAwsSdk,
+    isLambda,
+    nodeTarget,
     shouldIgnoreAllDeps,
     aliases,
     tracker,
@@ -95,7 +108,7 @@ export const buildSplitBundle = async ({
   });
 
   // Separate entry files from chunk files
-  const { chunkFiles, assetFiles } = categorizeOutputFiles(buildResult.outputs);
+  const { entryFiles, chunkFiles, assetFiles } = categorizeOutputFiles(buildResult.outputs);
 
   // Build mapping from metafile relative paths to absolute paths on disk
   const metafileToAbsolutePath = buildMetafilePathMapping(buildResult.outputs, sharedOutdir);
@@ -103,20 +116,34 @@ export const buildSplitBundle = async ({
   // Process lambdas using metafile for chunk dependency analysis
   const { lambdaOutputs, chunkUsageMap } = await processLambdaOutputsWithMetafile({
     entrypoints,
+    cwd,
     metafile,
     tracker,
     assetFiles,
+    javascriptFiles: [...entryFiles, ...chunkFiles].filter((path) => path.endsWith('.js')),
     metafileToAbsolutePath,
     createPackagingError
   });
 
-  // Build chunk usage analysis from the metafile plus emitted source-map sizes.
-  const chunkAnalysis = buildChunkAnalysisFromMetafile(metafile, chunkUsageMap, metafileToAbsolutePath);
+  // Build chunk usage analysis from the metafile plus the sizes of the source maps as Bun emitted them.
+  const chunkAnalysis = buildChunkAnalysisFromMetafile(
+    metafile,
+    chunkUsageMap,
+    metafileToAbsolutePath,
+    new Map(buildResult.outputs.filter(({ kind }) => kind === 'sourcemap').map(({ path, size }) => [path, size]))
+  );
+  const finishedAt = performance.now();
 
   return {
     lambdaOutputs,
     sharedChunkCount: chunkFiles.length,
-    bundleTimeMs: Date.now() - startTime,
+    timings: {
+      installMs: installedAt - startedAt,
+      setupMs: bunBuildStartedAt - installedAt,
+      bunBuildMs: bunBuildFinishedAt - bunBuildStartedAt,
+      postprocessMs: finishedAt - bunBuildFinishedAt,
+      totalMs: finishedAt - startedAt
+    },
     chunkAnalysis
   };
 };
@@ -157,10 +184,14 @@ const executeBunBuild = async ({
   monorepoRoot,
   tsConfigPath,
   minify,
+  minifyIdentifiers,
   sourceMaps,
   sourceMapBannerType,
   excludeDependencies,
   dependenciesToExcludeFromBundle,
+  bundleAwsSdk,
+  isLambda,
+  nodeTarget,
   shouldIgnoreAllDeps,
   aliases,
   tracker,
@@ -172,55 +203,47 @@ const executeBunBuild = async ({
   monorepoRoot: string | null;
   tsConfigPath?: string | undefined;
   minify: boolean;
+  minifyIdentifiers: boolean;
   sourceMaps: 'inline' | 'external' | 'disabled';
   sourceMapBannerType: 'node_modules' | 'pre-compiled' | 'disabled';
   excludeDependencies: string[];
   dependenciesToExcludeFromBundle: string[];
+  bundleAwsSdk: boolean;
+  isLambda: boolean | undefined;
+  nodeTarget: number | string | undefined;
   shouldIgnoreAllDeps: boolean;
   aliases: Record<string, string>;
   tracker: DependencyTracker;
   createPackagingError: BuildSplitBundleOptions['createPackagingError'];
-}): Promise<{ buildResult: Awaited<ReturnType<typeof Bun.build>>; metafile: BuildMetafile }> => {
+}): Promise<{
+  buildResult: Awaited<ReturnType<typeof Bun.build>>;
+  metafile: BuildMetafile;
+  /** `performance.now()` around the `Bun.build` call, so the caller can time it apart from setup and rewriting. */
+  bunBuildStartedAt: number;
+  bunBuildFinishedAt: number;
+}> => {
   const analyzePlugin = createAnalyzePlugin({
     cwd,
     monorepoRoot,
     excludeDependencies,
     dependenciesToExcludeFromBundle,
+    bundleAwsSdk,
+    isLambda,
+    nodeTarget,
     shouldIgnoreAllDeps,
     aliases,
     tracker
   });
 
-  const nativeModulesPlugin = createNativeModulesPlugin();
-  const bunFfiShimPlugin: BunPlugin = {
-    name: 'stacktape-bun-ffi-shim',
-    setup(build) {
-      build.onResolve({ filter: /^bun:ffi$/ }, () => {
-        return { path: 'bun:ffi', namespace: 'stacktape-bun-ffi-shim' };
-      });
-
-      build.onLoad({ filter: /^bun:ffi$/, namespace: 'stacktape-bun-ffi-shim' }, () => {
-        return {
-          loader: 'js',
-          contents: [
-            'const fail = (name) => () => {',
-            '  throw new Error("Unsupported Bun module bun:ffi in Node runtime (attempted export: " + name + ").");',
-            '};',
-            "export const dlopen = fail('dlopen');",
-            "export const toArrayBuffer = fail('toArrayBuffer');",
-            "export const JSCallback = class { constructor() { fail('JSCallback')(); } };",
-            "export const ptr = fail('ptr');"
-          ].join('\n')
-        };
-      });
-    }
-  };
+  const nativeModulesPlugin = createNativeNodeModulesPlugin();
+  const bunFfiShimPlugin = createBunFfiShimPlugin();
   const banner = await getSourceMapBanner(sourceMapBannerType);
 
   // A packaging manager can rebuild the same invocation paths in dev mode. Bun does not remove outputs that are no
   // longer emitted, so retaining this directory would leak stale chunks and source maps into later artifacts.
   await emptyDir(sharedOutdir);
   let result: Awaited<ReturnType<typeof Bun.build>>;
+  const bunBuildStartedAt = performance.now();
 
   try {
     // Use monorepo root for module resolution if available, otherwise cwd
@@ -232,7 +255,7 @@ const executeBunBuild = async ({
       target: 'node',
       format: 'esm',
       splitting: true,
-      minify,
+      minify: getBunMinifyConfig({ minify, minifyIdentifiers }),
       sourcemap: sourceMaps === 'disabled' ? 'none' : sourceMaps === 'external' ? 'linked' : 'inline',
       external: ['fsevents', ...tracker.externalModules.map((m) => m.name)],
       define: {
@@ -266,6 +289,7 @@ const executeBunBuild = async ({
       cause: error
     });
   }
+  const bunBuildFinishedAt = performance.now();
 
   if (!result.success) {
     const errors = result.logs
@@ -277,32 +301,51 @@ const executeBunBuild = async ({
     });
   }
 
+  /*
+   * Point asset references at `/var/task`, and make each output's map match its file: moved with those edits, and with
+   * `sources` relative to the map's own folder, which every later copy rebases from. Bun 1.4.1 writes a split map's
+   * `sources` relative to the outdir instead. `synthetic-lambda-source-map-e2e` checks both.
+   */
   const assetFiles = result.outputs.filter((output) => output.kind === 'asset').map(({ path }) => path);
-  if (assetFiles.length > 0) {
-    await Promise.all(
-      result.outputs
-        .filter(({ path }) => path.endsWith('.js'))
-        .map(async ({ path }) => {
-          const contents = await readFile(path, 'utf8');
-          await writeFile(path, rewriteLambdaAssetReferences(contents, assetFiles));
+  await Promise.all(
+    result.outputs
+      .filter(({ path }) => path.endsWith('.js'))
+      .map(({ path }) =>
+        writeEditedJavaScript({
+          from: path,
+          to: path,
+          edits: (code) => getLambdaAssetReferenceEdits(code, assetFiles),
+          sourcesDirectory: sharedOutdir,
+          packaged: false
         })
-    );
-  }
+      )
+  );
 
   return {
     buildResult: result,
-    metafile: result.metafile as BuildMetafile
+    metafile: result.metafile as BuildMetafile,
+    bunBuildStartedAt,
+    bunBuildFinishedAt
   };
 };
 
 // Module resolver is created per-build in createAnalyzePlugin
 
-/** Create plugin for analyzing and tracking dependencies */
+/**
+ * Create plugin for analyzing and tracking dependencies.
+ *
+ * The decisions come from `es/import-classification`, which the per-Lambda bundler uses too. Only
+ * the recording is local: one split build serves many Lambdas, so every answer is attributed to the
+ * importer that asked.
+ */
 const createAnalyzePlugin = ({
   cwd,
   monorepoRoot,
   excludeDependencies,
   dependenciesToExcludeFromBundle,
+  bundleAwsSdk,
+  isLambda,
+  nodeTarget,
   shouldIgnoreAllDeps,
   aliases,
   tracker
@@ -311,12 +354,21 @@ const createAnalyzePlugin = ({
   monorepoRoot: string | null;
   excludeDependencies: string[];
   dependenciesToExcludeFromBundle: string[];
+  bundleAwsSdk: boolean;
+  isLambda: boolean | undefined;
+  nodeTarget: number | string | undefined;
   shouldIgnoreAllDeps: boolean;
   aliases: Record<string, string>;
   tracker: DependencyTracker;
 }): BunPlugin => {
   // Create module resolver with loose resolution (mimics esbuild behavior)
   const moduleResolver = createModuleResolver({ cwd, monorepoRoot });
+
+  const markExternal = (name: string, note: string) => {
+    if (!tracker.externalModules.some((module) => module.name === name)) {
+      tracker.externalModules.push({ name, note });
+    }
+  };
 
   return {
     name: 'stp-analyze-deps',
@@ -325,80 +377,57 @@ const createAnalyzePlugin = ({
 
       // Analyze and handle external dependencies
       build.onResolve({ filter: /^[^.]/ }, async (args): Promise<{ path: string; external?: boolean } | undefined> => {
-        if (args.path.startsWith('.') || args.path.startsWith('/') || isAbsolute(args.path)) {
-          return undefined;
-        }
+        if (!isBareImportSpecifier(args.path)) return undefined;
 
         const moduleName = getModuleName(args.path);
         trackResolvedModule(tracker, args.importer, moduleName);
 
-        // Skip built-in modules
-        if (NODE_BUILTIN_MODULES.includes(moduleName) || args.path.startsWith('node:')) {
-          return undefined;
+        const preResolution = classifyBeforeResolution({
+          aliases,
+          bundleAwsSdk,
+          isLambda,
+          moduleName,
+          nodeTarget,
+          specifier: args.path
+        });
+        if (preResolution.outcome === 'runtime-provided') {
+          return { path: args.path, external: true };
         }
-
-        // Check if it's a tsconfig alias
-        if (await determineIfAlias({ moduleName, aliases })) {
+        if (preResolution.outcome !== 'continue') {
           return undefined;
         }
 
         // Find module using loose resolution (handles nested node_modules)
         const modulePath = moduleResolver.findModulePath(moduleName, args.importer);
 
-        // Handle wildcard externalization
-        if (shouldIgnoreAllDeps && modulePath) {
-          const pkgInfo = await getInfoFromPackageJson({
-            directoryPath: modulePath,
-            parentModule: null,
-            dependencyType: 'root'
-          }).catch(() => null);
-          if (pkgInfo) {
-            trackDependencies(tracker, args.importer, [{ ...pkgInfo, note: 'WILDCARD_EXTERNALIZED' }]);
-          }
-          if (!tracker.externalModules.some(({ name }) => name === moduleName)) {
-            tracker.externalModules.push({ name: moduleName, note: 'WILDCARD_EXTERNALIZED' });
-          }
+        const verdict = await classifyResolvedModule({
+          dependenciesToExcludeFromBundle,
+          excludeDependencies,
+          ignoredModules: IGNORED_MODULES,
+          modulePath,
+          moduleName,
+          shouldIgnoreAllDeps
+        });
+        trackDependencies(tracker, args.importer, verdict.dependenciesToInstallInDocker);
+
+        if (verdict.outcome === 'external') {
+          markExternal(moduleName, verdict.note);
+          /*
+           * `verdict.alsoExternal` — the externalized package's own dependency tree — is
+           * deliberately not applied here, and this is the one place the two bundlers decide
+           * differently on purpose.
+           *
+           * The per-Lambda bundler externalizes those names too: its artifact has a single
+           * installed tree, so whichever module reaches one finds it there. A split build serves
+           * many Lambdas from one pass, and a native package is installed only into the layer of
+           * the Lambdas that import it. Externalizing its dependency tree globally would leave a
+           * Lambda that imports only the pure-JS dependency, and never the native package,
+           * resolving it at runtime from a layer it does not have.
+           *
+           * The cost is a second copy of those modules inside the bundle. Removing it needs
+           * per-importer externalization, which this build does not do yet.
+           */
           return { path: args.path, external: true };
-        }
-
-        // Handle ignored modules
-        if (IGNORED_MODULES.concat(excludeDependencies).includes(moduleName)) {
-          if (modulePath) {
-            const pkgInfo = await getInfoFromPackageJson({
-              directoryPath: modulePath,
-              parentModule: null,
-              dependencyType: 'root'
-            }).catch(() => null);
-            if (pkgInfo) {
-              trackDependencies(tracker, args.importer, [{ ...pkgInfo, note: 'IGNORED' }]);
-            }
-          }
-          if (!tracker.externalModules.some(({ name }) => name === moduleName)) {
-            tracker.externalModules.push({ name: moduleName, note: 'IGNORED' });
-          }
-          return { path: args.path, external: true };
-        }
-
-        // Analyze dependency for native binaries
-        if (modulePath) {
-          const { dependenciesToInstallInDocker, allExternalDeps } = await analyzeDependency({
-            dependency: { name: moduleName, path: modulePath },
-            dependenciesToExcludeFromBundle
-          });
-
-          trackDependencies(tracker, args.importer, dependenciesToInstallInDocker);
-
-          if (dependenciesToInstallInDocker.find((dep) => dep.name === moduleName)) {
-            if (!tracker.externalModules.some(({ name }) => name === moduleName)) {
-              tracker.externalModules.push({ name: moduleName, note: 'INSTALLED_IN_DOCKER' });
-            }
-            for (const dep of allExternalDeps) {
-              if (!tracker.externalModules.find((m) => m.name === dep)) {
-                tracker.externalModules.push({ name: dep, note: `ADDED_BY_${moduleName}` });
-              }
-            }
-            return { path: args.path, external: true };
-          }
         }
 
         return undefined;
@@ -532,71 +561,6 @@ const createWindowsPathNormalizationPlugin = ({
     });
   }
 });
-
-/** Create plugin for handling native .node modules */
-const createNativeModulesPlugin = (): BunPlugin => ({
-  name: 'native-node-modules',
-  setup(build) {
-    build.onResolve({ filter: /\.node$/ }, (args) => {
-      return { path: args.path, external: true };
-    });
-  }
-});
-
-/** Extract module name from import path (handles scoped packages) */
-const getModuleName = (importPath: string): string => {
-  const normalized = importPath.endsWith('/') ? importPath.slice(0, -1) : importPath;
-  const [firstPart, secondPart] = normalized.split('/');
-  if (!firstPart) return normalized;
-  return firstPart.startsWith('@') && secondPart ? `${firstPart}/${secondPart}` : firstPart;
-};
-
-/** Analyze a dependency for native binaries and special handling */
-const analyzeDependency = async ({
-  dependency,
-  dependenciesToExcludeFromBundle
-}: {
-  dependency: { path: string; name: string };
-  dependenciesToExcludeFromBundle: string[];
-}): Promise<{
-  dependenciesToInstallInDocker: PackageJsonDepsInfo[];
-  allExternalDeps: string[];
-}> => {
-  const packageInfo = await getInfoFromPackageJson({
-    directoryPath: dependency.path,
-    parentModule: null,
-    dependencyType: 'root'
-  });
-  if (!packageInfo) {
-    throw new Error(`Could not read package metadata for dependency "${dependency.name}" at ${dependency.path}.`);
-  }
-
-  const dependenciesToInstallInDocker: PackageJsonDepsInfo[] = [];
-  const allExternalDeps: string[] = [];
-
-  if (packageInfo.hasBinary) {
-    dependenciesToInstallInDocker.push({ ...packageInfo, note: 'HAS_BINARY' });
-  } else if (dependenciesToExcludeFromBundle.includes(dependency.name)) {
-    dependenciesToInstallInDocker.push({ ...packageInfo, note: 'EXCLUDED_FROM_BUNDLE_BY_USER' });
-  } else if (DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE.includes(dependency.name)) {
-    dependenciesToInstallInDocker.push({ ...packageInfo, note: 'EXCLUDED_FROM_BUNDLE_BY_STACKTAPE' });
-  }
-
-  // Handle peer dependencies with native binaries
-  packageInfo.optionalPeerDependencies
-    ?.filter((dep) => dep.hasBinary)
-    .forEach((dep) => {
-      dependenciesToInstallInDocker.push({ ...dep, note: 'OPTIONAL_PEER_DEPENDENCY' });
-    });
-
-  packageInfo.peerDependencies
-    ?.filter((dep) => dep.hasBinary)
-    .forEach((dep) => {
-      dependenciesToInstallInDocker.push({ ...dep, note: 'PEER_DEPENDENCY' });
-    });
-
-  return { dependenciesToInstallInDocker, allExternalDeps };
-};
 
 /** Get the ESM compatibility banner for source maps */
 const getSourceMapBanner = (bannerType: 'node_modules' | 'pre-compiled' | 'disabled'): string | undefined => {
@@ -741,19 +705,48 @@ const getTrackedModulesForInputs = (tracker: DependencyTracker, inputPaths: Set<
     )
   );
 
+/**
+ * Chooses the emitted file assets each function needs. Every reference to an asset reads `/var/task/<asset>`, even from
+ * a chunk that later moves into a layer, so a function needs the assets named in its entry or in any chunk it loads.
+ * An asset that no emitted JavaScript names has no known user, so it goes to every function, as it always has.
+ */
+const createAssetAttribution = async (assetFiles: string[], javascriptFiles: string[]) => {
+  const referencedBy = new Map(assetFiles.map((asset) => [asset, new Set<string>()]));
+  if (assetFiles.length > 0) {
+    await Promise.all(
+      javascriptFiles.map(async (javascriptFile) => {
+        const contents = await readFile(javascriptFile, 'utf-8');
+        for (const asset of assetFiles) {
+          if (contents.includes(basename(asset))) referencedBy.get(asset)!.add(javascriptFile);
+        }
+      })
+    );
+  }
+  return (closure: string[]) =>
+    assetFiles.filter((asset) => {
+      const users = referencedBy.get(asset)!;
+      return users.size === 0 || closure.some((file) => users.has(file));
+    });
+};
+
 /** Process lambda outputs using metafile for chunk dependency analysis */
 const processLambdaOutputsWithMetafile = async ({
   entrypoints,
+  cwd,
   metafile,
   tracker,
   assetFiles,
+  javascriptFiles,
   metafileToAbsolutePath,
   createPackagingError
 }: {
   entrypoints: BuildSplitBundleOptions['entrypoints'];
+  cwd: string;
   metafile: BuildMetafile;
   tracker: DependencyTracker;
   assetFiles: string[];
+  /** Every emitted entry and chunk file, already rewritten to read assets from `/var/task`. */
+  javascriptFiles: string[];
   metafileToAbsolutePath: Map<string, string>;
   createPackagingError: BuildSplitBundleOptions['createPackagingError'];
 }): Promise<{
@@ -762,6 +755,7 @@ const processLambdaOutputsWithMetafile = async ({
 }> => {
   const lambdaOutputs = new Map<string, LambdaSplitOutput>();
   const chunkUsageMap = new Map<string, Set<string>>();
+  const assetsFor = await createAssetAttribution(assetFiles, javascriptFiles);
 
   // Build a map from entryPoint path to output path using metafile
   const entryPointToOutput = new Map<string, string>();
@@ -821,13 +815,34 @@ const processLambdaOutputsWithMetafile = async ({
         }
       }
 
+      const lambdaAssetFiles = assetsFor([absoluteOutputPath, ...absoluteChunkPaths]);
       // Process the entry file (still need to read for rewriting imports)
       await processLambdaEntrypointWithMetafile({
         entrypoint,
         outputPath: absoluteOutputPath,
         allRequiredChunks: absoluteChunkPaths,
-        assetFiles
+        assetFiles: lambdaAssetFiles
       });
+
+      const resolvedModules = getTrackedModulesForInputs(tracker, inputPaths);
+
+      /*
+       * Prisma's query engine is a binary no import reaches: the client loads it by path at run time, so
+       * the bundler never sees it and it is not in this Lambda's package. The per-Lambda buildpack copies
+       * it in after bundling; a split build has to do the same, or the function deploys and then fails its
+       * first invocation with "Query engine not found".
+       */
+      if (resolvedModules.some((module) => module.startsWith('@prisma/'))) {
+        await resolvePrisma({
+          distFolderPath: entrypoint.distFolderPath,
+          workingDir: cwd,
+          workloadName: entrypoint.name,
+          // Split output is a Lambda package, and Lambda runs on Amazon Linux with glibc.
+          isAlpine: false,
+          isLambda: true,
+          createPackagingError: (details) => createPackagingError(details)
+        });
+      }
 
       lambdaOutputs.set(entrypoint.name, {
         name: entrypoint.name,
@@ -835,7 +850,7 @@ const processLambdaOutputsWithMetafile = async ({
         files: [
           join(entrypoint.distFolderPath, 'index.js'),
           ...Array.from(absoluteChunkPaths, (path) => join(entrypoint.distFolderPath, 'chunks', basename(path))),
-          ...assetFiles.map((path) => join(entrypoint.distFolderPath, basename(path)))
+          ...lambdaAssetFiles.map((path) => join(entrypoint.distFolderPath, basename(path)))
         ],
         sourceFiles: Array.from(inputPaths)
           .filter((inputPath) => !transformToUnixPath(inputPath).includes('/node_modules/'))
@@ -847,6 +862,12 @@ const processLambdaOutputsWithMetafile = async ({
   );
 
   return { lambdaOutputs, chunkUsageMap };
+};
+
+/** The edit that renames the map a file's `sourceMappingURL` comment names. */
+const getSourceMappingUrlEdit = (code: string, mapName: string): TextEdit | null => {
+  const match = /\/\/# sourceMappingURL=.+\.js\.map/.exec(code);
+  return match && { start: match.index, end: match.index + match[0].length, text: `//# sourceMappingURL=${mapName}` };
 };
 
 /** Process a single lambda entrypoint (simplified - chunk deps already known from metafile) */
@@ -861,21 +882,21 @@ const processLambdaEntrypointWithMetafile = async ({
   allRequiredChunks: Set<string>;
   assetFiles: string[];
 }): Promise<void> => {
-  // Read and process entry file
-  let entryContent = await readFile(outputPath, 'utf-8');
-
-  // Rewrite chunk imports to local path
-  entryContent = rewriteChunkImports(entryContent, './chunks/');
-
-  // Ensure default export exists
-  entryContent = ensureDefaultExport(entryContent);
-
-  // Fix sourceMappingURL
-  entryContent = entryContent.replace(/\/\/# sourceMappingURL=.+\.js\.map/, '//# sourceMappingURL=index.js.map');
-
-  // Write entry file
-  const destIndexPath = join(entrypoint.distFolderPath, 'index.js');
-  await writeFile(destIndexPath, entryContent);
+  /*
+   * The entry imports its chunks from the function's own `chunks/`, exports its handler as default too, and names its
+   * map after its new name. Its map, and each chunk's, moves with those edits; the packaged copies omit
+   * `sourcesContent`, while the shared outdir keeps the full maps.
+   */
+  const entryContent = await writeEditedJavaScript({
+    from: outputPath,
+    to: join(entrypoint.distFolderPath, 'index.js'),
+    edits: (code) => [
+      ...getChunkImportEdits(code, () => './chunks/'),
+      ...[getDefaultExportEdit(code), getSourceMappingUrlEdit(code, 'index.js.map')].filter((edit) => edit !== null)
+    ],
+    packaged: true
+  });
+  assertNoRootChunkImports(entryContent);
 
   const chunksDestDir = join(entrypoint.distFolderPath, 'chunks');
 
@@ -883,37 +904,32 @@ const processLambdaEntrypointWithMetafile = async ({
     assetFiles.map((assetPath) => copy(assetPath, join(entrypoint.distFolderPath, basename(assetPath))))
   );
 
-  // Copy and rewrite chunks in parallel
   await Promise.all(
     Array.from(allRequiredChunks).map(async (chunkPath) => {
-      const chunkDest = join(chunksDestDir, basename(chunkPath));
-      let chunkContent = await readFile(chunkPath, 'utf-8');
-      chunkContent = rewriteChunkImports(chunkContent, './');
-      await writeFile(chunkDest, chunkContent);
-
-      // Copy source map if exists
-      const chunkMapPath = `${chunkPath}.map`;
-      if (existsSync(chunkMapPath)) {
-        await copy(chunkMapPath, `${chunkDest}.map`);
-      }
+      const chunkContent = await writeEditedJavaScript({
+        from: chunkPath,
+        to: join(chunksDestDir, basename(chunkPath)),
+        edits: (code) => getChunkImportEdits(code, () => './'),
+        packaged: true
+      });
+      assertNoRootChunkImports(chunkContent);
     })
   );
-
-  // Copy entry source map
-  const sourceMapPath = `${outputPath}.map`;
-  if (existsSync(sourceMapPath)) {
-    await copy(sourceMapPath, join(entrypoint.distFolderPath, 'index.js.map'));
-  }
 
   // Create package.json for ESM
   await outputJSON(join(entrypoint.distFolderPath, 'package.json'), { type: 'module' });
 };
 
-/** Build chunk usage analysis from metafile metadata and emitted sidecar source maps. */
+/**
+ * Build chunk usage analysis from metafile metadata and emitted sidecar source maps. A map's size is the size Bun
+ * emitted it with (`sourceMapBytes`, by path), not its size on disk after the asset and `sources` edits, so layer
+ * assignment does not depend on those edits.
+ */
 const buildChunkAnalysisFromMetafile = (
   metafile: BuildMetafile,
   chunkUsageMap: Map<string, Set<string>>,
-  metafileToAbsolutePath: Map<string, string>
+  metafileToAbsolutePath: Map<string, string>,
+  sourceMapBytes: Map<string, number>
 ): ChunkUsageAnalysis[] => {
   const analysis: ChunkUsageAnalysis[] = [];
 
@@ -925,8 +941,7 @@ const buildChunkAnalysisFromMetafile = (
     const absoluteChunkPath = resolveMetafileOutputPath(metafileToAbsolutePath, relativeChunkPath) ?? relativeChunkPath;
 
     const chunkName = basename(relativeChunkPath);
-    const sourceMapPath = `${absoluteChunkPath}.map`;
-    const sizeBytes = chunkMeta.bytes + (existsSync(sourceMapPath) ? statSync(sourceMapPath).size : 0);
+    const sizeBytes = chunkMeta.bytes + (sourceMapBytes.get(`${absoluteChunkPath}.map`) ?? 0);
     const usedByLambdas = Array.from(lambdaNames);
     const usageCount = usedByLambdas.length;
     const deduplicationValue = sizeBytes * (usageCount - 1);

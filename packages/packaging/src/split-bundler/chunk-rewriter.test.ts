@@ -37,6 +37,38 @@ describe('rewriteChunkImports', () => {
   });
 });
 
+describe('strings that only look like chunk references', () => {
+  /*
+   * The rewriter runs over whole bundled files, and a Lambda's own code is in there. Any quoted string
+   * ending in a chunk-shaped name used to be rewritten, so a URL a customer sends a request to, or a key
+   * they read from storage, was silently replaced with a path into the Lambda layer. The artifact still
+   * deploys; it just does the wrong thing at run time.
+   */
+  test('a URL in application code is left alone', () => {
+    const source = 'const asset = "https://cdn.example.com/build/chunk-deadbeef.js";';
+
+    expect(rewriteChunkImports(source, './chunks/')).toBe(source);
+    expect(rewriteChunkImportsSelective(source, new Set(['chunk-deadbeef.js']), '/opt/nodejs/chunks/', './')).toBe(
+      source
+    );
+  });
+
+  test('a storage key in application code is left alone', () => {
+    const source = "await s3.send(new GetObjectCommand({ Key: 'releases/chunk-a1b2c3.js' }));";
+
+    expect(rewriteChunkImports(source, './chunks/')).toBe(source);
+  });
+
+  test('the import that really points at a chunk is still rewritten', () => {
+    expect(
+      rewriteChunkImports(
+        'const asset = "https://cdn.example.com/chunk-deadbeef.js";\nimport { x } from "./chunks/chunk-a1b2c3.js";',
+        './chunks/'
+      )
+    ).toBe('const asset = "https://cdn.example.com/chunk-deadbeef.js";\nimport { x } from "./chunks/chunk-a1b2c3.js";');
+  });
+});
+
 describe('rewriteChunkImportsSelective', () => {
   const layerPrefix = '/opt/nodejs/chunks/';
 
