@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { copyFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
+import { brotliDecompressSync } from 'node:zlib';
 import { DIST_PACKAGE_FOLDER_PATH, NPM_RELEASE_FOLDER_PATH } from 'src/config/project-paths';
 import { getPlatform } from '@utils/bin-executable';
 import AdmZip from 'adm-zip';
@@ -108,8 +109,11 @@ const verifyNativeInstallation = async ({
     throw new Error('Native release archive contains an init wizard interface with no bundle to load.');
   }
 
-  const docsChunkPath = join(binDirectory, 'llm-docs', 'chunks', 'chunks.jsonl');
-  const firstDocsChunk = (await readFile(docsChunkPath, 'utf8')).split('\n').find(Boolean);
+  const docsChunkPath = join(binDirectory, 'llm-docs', 'chunks', 'chunks.jsonl.br');
+  const firstDocsChunk = brotliDecompressSync(await readFile(docsChunkPath))
+    .toString('utf8')
+    .split('\n')
+    .find(Boolean);
   if (!firstDocsChunk) {
     throw new Error('Native release archive contains an empty MCP documentation corpus.');
   }
@@ -120,6 +124,7 @@ const verifyNativeInstallation = async ({
   for (const excludedPath of [
     'compiled-cli.js.map',
     'package.json',
+    'llm-docs/chunks/chunks.jsonl',
     'llm-docs/lexical-index.json',
     'llm-docs/llms-full.txt',
     'llm-docs/llms-api-reference.txt'

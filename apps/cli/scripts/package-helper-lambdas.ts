@@ -80,7 +80,6 @@ export const packageHelperLambdas = async ({ distFolderPath }: { distFolderPath:
       nativeDependencyInstallationRootPath: join(lambdasDistFolderPath, '_bin-install'),
       runDocker: execDocker,
       sourceMapInstallPath: SOURCE_MAP_INSTALL_DIST_PATH,
-      zippedSizeLimit: Infinity,
       invocationId: `${packagingRunId}-${name}`
     });
     await remove(join(lambdasDistFolderPath, name));
