@@ -61,6 +61,7 @@
     "test:asset-replacer": "bun scripts/packaging-archives/asset-replacer-acceptance.ts",
     "test:docker-preparation": "bun scripts/packaging-archives/docker-preparation-acceptance.ts",
     "test:fresh-install": "bun scripts/packaging-archives/fresh-install-acceptance.ts",
+    "test:external-tools": "bun scripts/external-tools-e2e.ts",
     "test:lambda-archives": "bun scripts/packaging-archives/lambda-archive-acceptance.ts",
     "test:layer-upload": "bun scripts/packaging-archives/layer-upload-acceptance.ts",
     "test:packaging-archives": "bun test scripts/packaging-archives",

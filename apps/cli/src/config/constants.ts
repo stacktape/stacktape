@@ -1,4 +1,3 @@
-import type { SupportedPlatform } from '@utils/platform';
 export const PARENT_IDENTIFIER_SHARED_GLOBAL = 'SHARED_GLOBAL';
 export const PARENT_IDENTIFIER_CUSTOM_CF = 'CUSTOM_CLOUDFORMATION';
 export const NOT_YET_KNOWN_IDENTIFIER = '<<not-yet-known>>';
@@ -19,33 +18,6 @@ export const REGIONS_WITH_REGIONAL_CDN_EDGE_LOCATION = [
   'eu-central-1',
   'sa-east-1'
 ];
-
-export const NIXPACKS_BINARY_FILE_NAMES: { [_platform in SupportedPlatform]: string } = {
-  win: 'nixpacks-win.exe',
-  macos: 'nixpacks-macos',
-  linux: 'nixpacks-linux',
-  'macos-arm': 'nixpacks-macos-arm',
-  alpine: 'nixpacks-linux-alpine',
-  'linux-arm': 'nixpacks-linux-arm'
-};
-
-export const PACK_BINARY_FILE_NAMES: { [_platform in SupportedPlatform]: string } = {
-  win: 'pack-win.exe',
-  macos: 'pack-macos',
-  linux: 'pack-linux',
-  'macos-arm': 'pack-macos-arm',
-  alpine: 'pack-linux',
-  'linux-arm': 'pack-linux-arm'
-};
-
-export const SESSION_MANAGER_PLUGIN_BINARY_FILE_NAMES: { [_platform in SupportedPlatform]: string } = {
-  win: 'smp-win.exe',
-  macos: 'smp-macos',
-  linux: 'smp-linux',
-  'macos-arm': 'smp-macos-arm',
-  alpine: 'smp-linux',
-  'linux-arm': 'smp-linux-arm'
-};
 
 export const COMMENT_FOR_STACKTAPE_ZONE = 'STACKTAPE';
 

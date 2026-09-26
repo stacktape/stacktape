@@ -178,6 +178,10 @@ export default defineConfig(() => {
 
 ## How it works
 
+
+> **Info:** Stacktape runs the build with the Cloud Native Buildpacks `pack` CLI, which is not part of the Stacktape installer. The first build that needs it downloads the version Stacktape pins from the `pack` GitHub release, checks its SHA-256 against the checksum that Stacktape release pins, and keeps it under `~/.stacktape/tools` for later builds. On a machine without internet access, place the executable there beforehand: when the download fails, the error names the URL, the expected checksum and the exact path.
+
+
 Cloud Native Buildpacks store dependencies in a separate image layer from application code. When dependencies haven't changed between deploys, the builder can reuse the cached dependency layer and only rebuild the application layer — reducing build time on subsequent deploys. The `ExternalBuildpackPackaging` configuration surface does not expose explicit cache controls; whether a given build reuses prior layers depends on the builder and the build environment.
 
 ## Complete example

@@ -239,13 +239,7 @@ function setExecutablePermissions(binDir) {
     return;
   }
 
-  const executables = [
-    join(binDir, 'stacktape'),
-    join(binDir, 'esbuild', 'exec'),
-    join(binDir, 'session-manager-plugin', 'smp'),
-    join(binDir, 'pack', 'pack'),
-    join(binDir, 'nixpacks', 'nixpacks')
-  ];
+  const executables = [join(binDir, 'stacktape'), join(binDir, 'esbuild', 'exec')];
 
   for (const exe of executables) {
     if (existsSync(exe)) {

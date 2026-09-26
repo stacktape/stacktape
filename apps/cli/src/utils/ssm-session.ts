@@ -9,27 +9,21 @@ import { tuiManager } from '@application-services/tui-manager';
 import { CommandInvocationStatus } from '@aws-sdk/client-ssm';
 import { stpErrors } from '@errors';
 import { CliError } from '@utils/errors';
+import { describeToolDownload } from '@utils/external-tools';
 import { fsPaths } from 'src/config/runtime-paths';
 import { injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
 import { wait } from '@utils/misc';
 import { isPortInUse } from '@utils/ports';
 import { execa } from 'execa';
 import findFreePorts from 'find-free-ports';
-import { chmod } from 'fs-extra';
 import pRetry from 'p-retry';
 import { awsSdkManager } from './aws-sdk-manager';
 import { SsmExecuteScriptCloudwatchLogPrinter } from './cloudwatch-logs';
 import type { EnvironmentVar } from '@stacktape/config/shared';
 
-let sessionManagerPluginPrepared = false;
-
-const ensureSessionManagerPluginExecutable = async () => {
-  if (sessionManagerPluginPrepared || process.platform === 'win32') {
-    return;
-  }
-  await chmod(fsPaths.sessionManagerPath(), 0o755);
-  sessionManagerPluginPrepared = true;
-};
+/** Resolved before a session starts, so a first-use download that fails never leaves a server session open. */
+const sessionManagerPluginPath = () =>
+  fsPaths.sessionManagerPath({ onDownloadStart: (details) => tuiManager.info(describeToolDownload(details)) });
 
 export class SsmPortForwardingTunnel {
   #instanceId: string;
@@ -79,6 +73,7 @@ export class SsmPortForwardingTunnel {
       },
       Reason: `tunneling session to ${this.#remoteHost}:${this.#remotePort} (user ${globalStateManager.userData.id})`
     };
+    const pluginPath = await sessionManagerPluginPath();
     const startSessionResponse = await pRetry(
       () => awsSdkManager.systemsManager.startSession(startSessionCommandInput),
       {
@@ -90,8 +85,7 @@ export class SsmPortForwardingTunnel {
       }
     );
     this.#ssmSessionId = startSessionResponse.SessionId;
-    await ensureSessionManagerPluginExecutable();
-    this.#tunnelProcess = execa(fsPaths.sessionManagerPath(), [
+    this.#tunnelProcess = execa(pluginPath, [
       JSON.stringify(startSessionResponse),
       this.#region,
       'StartSession',
@@ -170,12 +164,12 @@ export const runBastionSsmShellSession = async ({ instanceId, region }: { instan
     Reason: `user ${globalStateManager.userData.id} session`
   };
 
+  const pluginPath = await sessionManagerPluginPath();
   const startSessionResponse = await awsSdkManager.systemsManager.startSession(startSessionCommandInput);
 
   try {
-    await ensureSessionManagerPluginExecutable();
     await execa(
-      fsPaths.sessionManagerPath(),
+      pluginPath,
       [JSON.stringify(startSessionResponse), region, 'StartSession', '', JSON.stringify(startSessionCommandInput)],
       { stdio: 'inherit' }
     );
@@ -204,6 +198,7 @@ export const runEcsExecSsmShellSession = async ({
     container: containerName
   };
 
+  const pluginPath = await sessionManagerPluginPath();
   const startSessionResponse = await awsSdkManager.ecs.startExecSession(executeCommandCommandInput);
 
   const clusterName = task.clusterArn.split('/').pop();
@@ -212,9 +207,8 @@ export const runEcsExecSsmShellSession = async ({
   const startSessionTargetParams = { Target: `ecs:${clusterName}_${taskId}_${targetContainerRuntimeId}` };
 
   try {
-    await ensureSessionManagerPluginExecutable();
     await execa(
-      fsPaths.sessionManagerPath(),
+      pluginPath,
       [JSON.stringify(startSessionResponse), region, 'StartSession', '', JSON.stringify(startSessionTargetParams)],
       { stdio: 'inherit' }
     );
@@ -246,6 +240,7 @@ export const runEcsExecCommand = async ({
     container: containerName
   };
 
+  const pluginPath = await sessionManagerPluginPath();
   const startSessionResponse = await awsSdkManager.ecs.startExecSession(executeCommandCommandInput);
 
   const clusterName = clusterArn.split('/').pop();
@@ -262,9 +257,8 @@ export const runEcsExecCommand = async ({
   const startSessionTargetParams = { Target: `ecs:${clusterName}_${taskId}_${targetContainerRuntimeId}` };
 
   try {
-    await ensureSessionManagerPluginExecutable();
     const result = await execa(
-      fsPaths.sessionManagerPath(),
+      pluginPath,
       [
         JSON.stringify(startSessionResponse),
         globalStateManager.region,

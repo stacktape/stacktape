@@ -101,7 +101,7 @@ customer projects as described in [`project-qualification.md`](project-qualifica
 blocks unreviewed project code on the host. Packaging proves that artifacts can be produced; only the runtime and AWS
 lanes prove that they run.
 
-`pnpm test:packaging-e2e` ends with five CLI-owned acceptances. The first is
+`pnpm test:packaging-e2e` ends with six CLI-owned acceptances. The first is
 `pnpm --filter @stacktape/cli run test:lambda-archives`, the acceptance for ZIPs made by the CLI's own archiver. It
 extracts each archive with `unzip` into a new directory and invokes it in the official Lambda Node.js image as an
 unprivileged user that owns none of the files: executables, a single file, hidden entries, links, removed files and
@@ -163,6 +163,17 @@ anywhere above it. The first run must install and build; its ZIP, extracted with
 value in the Lambda runtime. The repeat must skip the install and produce the same files. `report.json` records the
 executable, each run's install decision, ZIP checksums and file list, and every registry request. It needs Linux, Docker
 and `unzip`, not AWS. `--install` tests an already built release install instead.
+
+The sixth, `pnpm --filter @stacktape/cli run test:external-tools`, resolves pack, nixpacks and the Session Manager
+plugin as a customer's first command does: each resolution runs in its own process through the CLI's resolver. A
+loopback stand-in serves a tar.gz, a zip bundle and a `.deb` around synthetic executables under a test manifest, and a
+proxy on a closed port refuses every other request. Cold first use must download, verify, extract and run the
+executable. Warm use, and a preseeded file used by the nixpacks planner and by `pack`, must make no request. A checksum
+mismatch must leave no executable, and a refused download must name the URL, the checksum and the path to place the file
+offline. A process killed mid-download must leave nothing usable before the retry succeeds, and two concurrent first
+uses must download once. It needs Linux or macOS, not Docker, AWS or the internet. The real upstream assets are checked
+by `scripts/pin-external-tools.ts` whenever a version changes, and by the release artifact check, which downloads each
+one on first use.
 
 For packaging performance, `pnpm --filter @stacktape/cli run perf:packaging` measures the Node Lambda packaging
 entrypoints offline on deterministic 1–50 function fixtures: cold, unchanged, handler, shared-module, manifest and asset

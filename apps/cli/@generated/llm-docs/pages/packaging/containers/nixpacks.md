@@ -2,6 +2,10 @@
 
 Nixpacks packaging (`NixpacksPackaging`) auto-detects your application's language and framework, then builds an optimized container image — no Dockerfile needed. Stacktape provides two Nixpacks packaging variants — `NixpacksCwImagePackaging` for container workloads and `NixpacksBjImagePackaging` for batch jobs — usable with [web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), [multi-container workloads](/resources/compute/multi-container-workload), and [batch jobs](/resources/compute/batch-job).
 
+
+> **Info:** The Nixpacks CLI is not part of the Stacktape installer. The first command that needs it downloads the version Stacktape pins from the Nixpacks GitHub release, checks its SHA-256 against the checksum that Stacktape release pins, and keeps it under `~/.stacktape/tools` for later builds. On a machine without internet access, place the executable there beforehand: when the download fails, the error names the URL, the expected checksum and the exact path.
+
+
 ## When to use
 
 Choose Nixpacks when your language or framework is not covered by the [Stacktape container buildpack](/packaging/containers/stacktape-buildpack) (which supports JS/TS, Python, Java, and Go), or when you need more control over the build process than the Stacktape buildpack provides — custom start commands, build phases, or base image overrides.

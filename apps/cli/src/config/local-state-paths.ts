@@ -8,8 +8,9 @@ import { getHomeDir } from '@utils/misc';
  *
  * - User-persistent: CLI defaults, machine identity and authentication state in `persistedStateFile`; native-install
  *   binaries in `nativeInstallBinDirectory`; local development proxy routes, CA and private keys in
- *   `devProxyDirectory`; downloaded, checksum-verified scanner binaries with their caches in `toolsDirectory`
- *   (one directory per tool and version, so an upgrade never overwrites a binary in use; old versions may be deleted);
+ *   `devProxyDirectory`; downloaded, checksum-verified tool binaries (the scanner with its caches, pack, nixpacks and
+ *   the Session Manager plugin) in `toolsDirectory` (one directory per tool and version, so an upgrade never
+ *   overwrites a binary in use; old versions may be deleted);
  *   and the last fetched update notice and announcements in `noticesCacheFile`, replaced by a newer fetch and safe to
  *   delete at any time.
  * - Project-persistent: local development database contents in `devResourceDataDirectory` (until `dev --freshDb`).

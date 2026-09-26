@@ -31,8 +31,6 @@ $BinDirPath = "$Home\.stacktape\bin"
 $CompletionsFilePath = "$BinDirPath\completions\powershell.ps1"
 $ExecutableFilePath = "$BinDirPath\stacktape.exe"
 $AltExecutableFilePath = "$BinDirPath\stp.exe"
-$PackExecutableFilePath = "$BinDirPath\pack\pack.exe"
-$NixpacksExecutableFilePath = "$BinDirPath\nixpacks\nixpacks.exe"
 $EsbuildExecutableFilePath = "$BinDirPath\esbuild\exec.exe"
 $BridgeFilesFolderPath = "$BinDirPath\bridge-files"
 $ZipFilePath = "$BinDirPath\stacktape.zip"
@@ -90,11 +88,14 @@ if ($ChecksumRequired) {
 }
 
 # A release archive is a complete installation snapshot. Remove payloads omitted by the new version so an upgrade
-# cannot keep stale MCP documentation or an obsolete production source map.
+# cannot keep stale MCP documentation, an obsolete production source map, or the pack and nixpacks binaries that the
+# CLI now downloads on first use.
 foreach ($StalePath in @(
     "$BinDirPath\llm-docs",
     "$BinDirPath\ai-docs",
-    "$BinDirPath\compiled-cli.js.map"
+    "$BinDirPath\compiled-cli.js.map",
+    "$BinDirPath\pack",
+    "$BinDirPath\nixpacks"
 )) {
     if (Test-Path $StalePath) {
         Remove-Item $StalePath -Recurse -Force

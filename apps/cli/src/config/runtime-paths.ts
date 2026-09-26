@@ -1,11 +1,8 @@
 import { dirname, join } from 'node:path';
 import { CF_TEMPLATE_FILE_NAME, INITIAL_CF_TEMPLATE_FILE_NAME, IS_DEV, STP_TEMPLATE_FILE_NAME } from '@config';
+import type { ExternalToolDownloadOptions } from '@utils/external-tools';
 import { getPlatform } from '@utils/bin-executable';
-import {
-  NIXPACKS_BINARY_FILE_NAMES,
-  PACK_BINARY_FILE_NAMES,
-  SESSION_MANAGER_PLUGIN_BINARY_FILE_NAMES
-} from 'src/config/constants';
+import { resolveExternalTool } from '@utils/external-tools';
 import {
   BRIDGE_FILES_FOLDER_NAME,
   DEV_ARTIFACTS_FOLDER_PATH,
@@ -113,24 +110,24 @@ export const fsPaths = {
       ? join(process.cwd(), STARTER_PROJECTS_METADATA_FOLDER_NAME)
       : join(fsPaths.absoluteExecutableDirname(), STARTER_PROJECTS_METADATA_FOLDER_NAME);
   },
-  sessionManagerPath() {
-    return IS_DEV
-      ? join(SCRIPTS_ASSETS_PATH, 'session-manager-plugin', SESSION_MANAGER_PLUGIN_BINARY_FILE_NAMES[getPlatform()])
-      : join(
-          fsPaths.absoluteExecutableDirname(),
-          'session-manager-plugin',
-          getPlatform() === 'win' ? 'smp.exe' : 'smp'
-        );
+  /**
+   * The Session Manager plugin. On Windows it ships beside the executable, because AWS publishes only an installer
+   * there; elsewhere it is downloaded from AWS the first time a command needs it (`@utils/external-tools`).
+   */
+  async sessionManagerPath(options?: ExternalToolDownloadOptions) {
+    if (getPlatform() === 'win') {
+      return IS_DEV
+        ? join(SCRIPTS_ASSETS_PATH, 'session-manager-plugin', 'smp-win.exe')
+        : join(fsPaths.absoluteExecutableDirname(), 'session-manager-plugin', 'smp.exe');
+    }
+    return resolveExternalTool({ tool: 'session-manager-plugin', ...options });
   },
-  packPath() {
-    return IS_DEV
-      ? join(SCRIPTS_ASSETS_PATH, 'pack', PACK_BINARY_FILE_NAMES[getPlatform()])
-      : join(fsPaths.absoluteExecutableDirname(), 'pack', getPlatform() === 'win' ? 'pack.exe' : 'pack');
+  /** pack, downloaded from its GitHub release the first time a command needs it (`@utils/external-tools`). */
+  packPath(options?: ExternalToolDownloadOptions) {
+    return resolveExternalTool({ tool: 'pack', ...options });
   },
-
-  nixpacksPath() {
-    return IS_DEV
-      ? join(SCRIPTS_ASSETS_PATH, 'nixpacks', NIXPACKS_BINARY_FILE_NAMES[getPlatform()])
-      : join(fsPaths.absoluteExecutableDirname(), 'nixpacks', getPlatform() === 'win' ? 'nixpacks.exe' : 'nixpacks');
+  /** nixpacks, downloaded from its GitHub release the first time a command needs it (`@utils/external-tools`). */
+  nixpacksPath(options?: ExternalToolDownloadOptions) {
+    return resolveExternalTool({ tool: 'nixpacks', ...options });
   }
 };

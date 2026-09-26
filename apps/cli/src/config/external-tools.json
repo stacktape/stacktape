@@ -1,0 +1,136 @@
+{
+  "pack": {
+    "version": "0.40.0",
+    "assets": {
+      "linux": {
+        "url": "https://github.com/buildpacks/pack/releases/download/v0.40.0/pack-v0.40.0-linux.tgz",
+        "archive": "tar.gz",
+        "executable": "pack",
+        "sha256": "1f57cd0bd52e5c80cba52e30440b41fc183a13a9c1f2ed8b13cc35c12fa10126",
+        "bytes": 10789043
+      },
+      "alpine": {
+        "url": "https://github.com/buildpacks/pack/releases/download/v0.40.0/pack-v0.40.0-linux.tgz",
+        "archive": "tar.gz",
+        "executable": "pack",
+        "sha256": "1f57cd0bd52e5c80cba52e30440b41fc183a13a9c1f2ed8b13cc35c12fa10126",
+        "bytes": 10789043
+      },
+      "linux-arm": {
+        "url": "https://github.com/buildpacks/pack/releases/download/v0.40.0/pack-v0.40.0-linux-arm64.tgz",
+        "archive": "tar.gz",
+        "executable": "pack",
+        "sha256": "2e9f46e422495d8ac7e5078b7f76cdca1c5f53d37783e18e69b7ff737ec440dc",
+        "bytes": 9702107
+      },
+      "macos": {
+        "url": "https://github.com/buildpacks/pack/releases/download/v0.40.0/pack-v0.40.0-macos.tgz",
+        "archive": "tar.gz",
+        "executable": "pack",
+        "sha256": "625a9c45d4fd16c3470496230b8401aa3ae1bba3edf3198212be55bdf3019418",
+        "bytes": 10964061
+      },
+      "macos-arm": {
+        "url": "https://github.com/buildpacks/pack/releases/download/v0.40.0/pack-v0.40.0-macos-arm64.tgz",
+        "archive": "tar.gz",
+        "executable": "pack",
+        "sha256": "d34121b9a97297000bc5f726bdb8e37806b41bd95d1071f78d286887012bebb8",
+        "bytes": 10104329
+      },
+      "win": {
+        "url": "https://github.com/buildpacks/pack/releases/download/v0.40.0/pack-v0.40.0-windows.zip",
+        "archive": "zip",
+        "executable": "pack.exe",
+        "sha256": "e732d4ebba88a6160c2c2729e507ec36652920ff41072d3d9c43c077621760f3",
+        "bytes": 11008687
+      }
+    }
+  },
+  "nixpacks": {
+    "version": "1.39.0",
+    "assets": {
+      "linux": {
+        "url": "https://github.com/railwayapp/nixpacks/releases/download/v1.39.0/nixpacks-v1.39.0-x86_64-unknown-linux-gnu.tar.gz",
+        "archive": "tar.gz",
+        "executable": "nixpacks",
+        "sha256": "0322bbcc9e1545ef3d54725db44ee5aef2026420501766bc3093430f4be2dff7",
+        "bytes": 3738175
+      },
+      "alpine": {
+        "url": "https://github.com/railwayapp/nixpacks/releases/download/v1.39.0/nixpacks-v1.39.0-x86_64-unknown-linux-musl.tar.gz",
+        "archive": "tar.gz",
+        "executable": "nixpacks",
+        "sha256": "055828d808645ee63bff61fda87b1022e12ce3902d0748c8751505883ad7353a",
+        "bytes": 3728530
+      },
+      "linux-arm": {
+        "url": "https://github.com/railwayapp/nixpacks/releases/download/v1.39.0/nixpacks-v1.39.0-aarch64-unknown-linux-musl.tar.gz",
+        "archive": "tar.gz",
+        "executable": "nixpacks",
+        "sha256": "6a10c16b39e7fd773e4ec744b08e56fbf142a635c414ab84f5714cb736cb4892",
+        "bytes": 4073921
+      },
+      "macos": {
+        "url": "https://github.com/railwayapp/nixpacks/releases/download/v1.39.0/nixpacks-v1.39.0-x86_64-apple-darwin.tar.gz",
+        "archive": "tar.gz",
+        "executable": "nixpacks",
+        "sha256": "0d60b1dca74a1d0642bff3b48fbeaff04322693f81fcb97e4fdb8f1f5b30c80c",
+        "bytes": 3436601
+      },
+      "macos-arm": {
+        "url": "https://github.com/railwayapp/nixpacks/releases/download/v1.39.0/nixpacks-v1.39.0-aarch64-apple-darwin.tar.gz",
+        "archive": "tar.gz",
+        "executable": "nixpacks",
+        "sha256": "8f5be9c8aba91985539bc2942f4f719d965ce7a6217355816797880cb43f1929",
+        "bytes": 3208875
+      },
+      "win": {
+        "url": "https://github.com/railwayapp/nixpacks/releases/download/v1.39.0/nixpacks-v1.39.0-x86_64-pc-windows-msvc.zip",
+        "archive": "zip",
+        "executable": "nixpacks.exe",
+        "sha256": "a857a34fc945f8936927bc36a0f5183b9fa3138205258692017033c8a71d8c63",
+        "bytes": 3596698
+      }
+    }
+  },
+  "session-manager-plugin": {
+    "version": "1.2.707.0",
+    "assets": {
+      "linux": {
+        "url": "https://s3.amazonaws.com/session-manager-downloads/plugin/1.2.707.0/ubuntu_64bit/session-manager-plugin.deb",
+        "archive": "deb",
+        "executable": "usr/local/sessionmanagerplugin/bin/session-manager-plugin",
+        "sha256": "91cc9a1a8df6f730622d5e11a8610be6e06d5858408e8029b56d0d63aedd0a68",
+        "bytes": 3908056
+      },
+      "alpine": {
+        "url": "https://s3.amazonaws.com/session-manager-downloads/plugin/1.2.707.0/ubuntu_64bit/session-manager-plugin.deb",
+        "archive": "deb",
+        "executable": "usr/local/sessionmanagerplugin/bin/session-manager-plugin",
+        "sha256": "91cc9a1a8df6f730622d5e11a8610be6e06d5858408e8029b56d0d63aedd0a68",
+        "bytes": 3908056
+      },
+      "linux-arm": {
+        "url": "https://s3.amazonaws.com/session-manager-downloads/plugin/1.2.707.0/ubuntu_arm64/session-manager-plugin.deb",
+        "archive": "deb",
+        "executable": "usr/local/sessionmanagerplugin/bin/session-manager-plugin",
+        "sha256": "0f243794403cfae90d5cdb13982e0b60045488cbd29767d47ad2b22e064f83c1",
+        "bytes": 3546882
+      },
+      "macos": {
+        "url": "https://s3.amazonaws.com/session-manager-downloads/plugin/1.2.707.0/mac/sessionmanager-bundle.zip",
+        "archive": "zip",
+        "executable": "sessionmanager-bundle/bin/session-manager-plugin",
+        "sha256": "c285834745f100702e9369c5b17766382a91595133ec8f4198e1e5a4b5fce977",
+        "bytes": 4011837
+      },
+      "macos-arm": {
+        "url": "https://s3.amazonaws.com/session-manager-downloads/plugin/1.2.707.0/mac_arm64/sessionmanager-bundle.zip",
+        "archive": "zip",
+        "executable": "sessionmanager-bundle/bin/session-manager-plugin",
+        "sha256": "ed8fddd305df8122ed462adc38458fc4e1d75c224c4a65a57fafc4638255b71f",
+        "bytes": 3759030
+      }
+    }
+  }
+}

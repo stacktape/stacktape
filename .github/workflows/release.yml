@@ -141,16 +141,19 @@ jobs:
       - name: Smoke-test Alpine runtime
         if: matrix.platform == 'alpine'
         run: |
+          # pack, nixpacks and the Session Manager plugin are downloaded on first use. The candidate's own Bun
+          # (BUN_BE_BUN) runs the release check that resolves each through the CLI's resolver and runs it on musl.
+          (cd apps/cli && bun build scripts/release/verify-external-tools.ts --target bun \
+            --outfile "$RUNNER_TEMP/external-tools-check/verify-external-tools.js")
           docker run --rm --tty \
             --mount "type=bind,source=$PWD/apps/cli/__dist,target=/candidate,readonly" \
+            --mount "type=bind,source=$RUNNER_TEMP/external-tools-check,target=/check,readonly" \
             alpine:3.22 sh -eu -c '
               apk add --no-cache libstdc++ libgcc gcompat >/dev/null
               mkdir /tmp/stacktape-candidate
               tar -xzf /candidate/alpine.tar.gz -C /tmp/stacktape-candidate
               /tmp/stacktape-candidate/stacktape --version
-              /tmp/stacktape-candidate/nixpacks/nixpacks --version
-              /tmp/stacktape-candidate/pack/pack version
-              /tmp/stacktape-candidate/session-manager-plugin/smp --version
+              BUN_BE_BUN=1 /tmp/stacktape-candidate/stacktape /check/verify-external-tools.js
 
               tui_status=0
               tui_output=$(

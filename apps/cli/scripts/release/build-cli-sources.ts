@@ -16,11 +16,6 @@ import {
 } from 'src/config/project-paths';
 import { buildEsCode } from '@stacktape/packaging/bundlers/es';
 import { getPlatform } from '@utils/bin-executable';
-import {
-  NIXPACKS_BINARY_FILE_NAMES,
-  PACK_BINARY_FILE_NAMES,
-  SESSION_MANAGER_PLUGIN_BINARY_FILE_NAMES
-} from 'src/config/constants';
 import { downloadFile } from '@utils/download-file';
 import { logInfo, logSuccess } from '@scripts/support/logging';
 import { createCliPackagingError } from '@domain-services/packaging-manager/errors';
@@ -109,11 +104,7 @@ const ESBUILD_BINARY_FILE_LOCATIONS: { [_platform in SupportedPlatform]: string[
 export const EXECUTABLE_FILE_PATTERNS = [
   'stacktape',
   'stacktape.exe',
-  '*/pack',
-  '*/pack.exe',
-  '*/nixpacks',
-  '*/nixpacks.exe',
-  '*/smp',
+  // The Session Manager plugin that only the Windows archive ships.
   '*/smp.exe',
   '*/exec',
   '*/exec.exe'
@@ -382,42 +373,10 @@ export const buildBinaryFile = async ({
   return outputFolderPath;
 };
 
-export const copyPackBinary = async ({
-  distFolderPath,
-  platform
-}: {
-  distFolderPath?: string;
-  platform: SupportedPlatform;
-}) => {
-  const binFileName = PACK_BINARY_FILE_NAMES[platform];
-  const sourcePath = join(SCRIPTS_ASSETS_PATH, 'pack', binFileName);
-  const distPath = join(
-    distFolderPath,
-    BINARY_FOLDER_NAMES[platform],
-    'pack',
-    platform !== 'win' ? 'pack' : 'pack.exe'
-  );
-  return await copy(sourcePath, distPath);
-};
-
-export const copyNixpacksBinary = async ({
-  distFolderPath,
-  platform
-}: {
-  distFolderPath?: string;
-  platform: SupportedPlatform;
-}) => {
-  const binFileName = NIXPACKS_BINARY_FILE_NAMES[platform];
-  const sourcePath = join(SCRIPTS_ASSETS_PATH, 'nixpacks', binFileName);
-  const distPath = join(
-    distFolderPath,
-    BINARY_FOLDER_NAMES[platform],
-    'nixpacks',
-    platform !== 'win' ? 'nixpacks' : 'nixpacks.exe'
-  );
-  return await copy(sourcePath, distPath);
-};
-
+/**
+ * pack, nixpacks and the Session Manager plugin are downloaded on first use (`src/utils/external-tools.ts`). The one
+ * exception is the plugin on Windows, where AWS publishes only an installer: that archive keeps shipping it.
+ */
 export const copySessionsManagerPluginBinary = async ({
   distFolderPath,
   platform
@@ -425,14 +384,9 @@ export const copySessionsManagerPluginBinary = async ({
   distFolderPath?: string;
   platform: SupportedPlatform;
 }) => {
-  const binFileName = SESSION_MANAGER_PLUGIN_BINARY_FILE_NAMES[platform];
-  const sourcePath = join(SCRIPTS_ASSETS_PATH, 'session-manager-plugin', binFileName);
-  const distPath = join(
-    distFolderPath,
-    BINARY_FOLDER_NAMES[platform],
-    'session-manager-plugin',
-    platform === 'win' ? 'smp.exe' : 'smp'
-  );
+  if (platform !== 'win') return;
+  const sourcePath = join(SCRIPTS_ASSETS_PATH, 'session-manager-plugin', 'smp-win.exe');
+  const distPath = join(distFolderPath, BINARY_FOLDER_NAMES[platform], 'session-manager-plugin', 'smp.exe');
   return await copy(sourcePath, distPath);
 };
 

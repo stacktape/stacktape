@@ -7,6 +7,8 @@ mock.module('@application-services/global-state-manager', () => ({
   globalStateManager: { region: 'eu-west-1', userData: { id: 'fixture' } }
 }));
 mock.module('@application-services/tui-manager', () => ({ tuiManager: { debug() {} } }));
+// Resolved before every session; never started here, because each startSession fails.
+mock.module('src/config/runtime-paths', () => ({ fsPaths: { sessionManagerPath: () => 'session-manager-plugin' } }));
 mock.module('./aws-sdk-manager', () => ({
   awsSdkManager: {
     systemsManager: {

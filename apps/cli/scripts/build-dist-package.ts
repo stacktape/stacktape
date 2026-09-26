@@ -15,8 +15,6 @@ import {
   copyConfigSchema,
   copyInitWizardBundle,
   copyMcpDocs,
-  copyNixpacksBinary,
-  copyPackBinary,
   copySessionsManagerPluginBinary,
   createReleaseDataFile,
   EXECUTABLE_FILE_PATTERNS,
@@ -74,8 +72,6 @@ export const buildDistPackage = async ({
   });
 
   await Promise.all([
-    copyPackBinary({ distFolderPath, platform }),
-    copyNixpacksBinary({ distFolderPath, platform }),
     copySessionsManagerPluginBinary({ distFolderPath, platform }),
     copyConfigSchema({ distFolderPath: platformDistFolderPath }),
     copyInitWizardBundle({ distFolderPath: platformDistFolderPath }),

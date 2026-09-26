@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { mkdtemp, readFile, rm, truncate, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { NIXPACKS_BINARY_FILE_NAMES } from 'src/config/constants';
+import { EXTERNAL_TOOL_MANIFEST } from 'src/utils/external-tools';
 import { BUN_COMPILE_TARGETS, OPENTUI_PLATFORM_IDENTIFIERS } from './release/build-cli-sources';
 import {
   EXPECTED_RELEASE_ARCHIVES,
@@ -51,7 +51,7 @@ describe('release candidate workflow', () => {
     expect(OPENTUI_PLATFORM_IDENTIFIERS.alpine).toEqual(['linux-x64', 'linux-x64-musl']);
     expect(OPENTUI_PLATFORM_IDENTIFIERS['linux-arm']).toEqual(['linux-arm64', 'linux-arm64-musl']);
     expect(BUN_COMPILE_TARGETS.alpine).toBe('bun-linux-x64-baseline-musl');
-    expect(NIXPACKS_BINARY_FILE_NAMES.alpine).toBe('nixpacks-linux-alpine');
+    expect(EXTERNAL_TOOL_MANIFEST.nixpacks.assets.alpine?.url).toEndWith('-x86_64-unknown-linux-musl.tar.gz');
   });
 
   test('installs every supported OpenTUI native package as a direct optional dependency', async () => {
@@ -126,9 +126,8 @@ describe('release candidate workflow', () => {
     expect(workflow).toContain("if: matrix.platform == 'alpine'");
     expect(workflow).toContain('apk add --no-cache libstdc++ libgcc gcompat');
     expect(workflow).toContain('/tmp/stacktape-candidate/stacktape --version');
-    expect(workflow).toContain('/tmp/stacktape-candidate/nixpacks/nixpacks --version');
-    expect(workflow).toContain('/tmp/stacktape-candidate/pack/pack version');
-    expect(workflow).toContain('/tmp/stacktape-candidate/session-manager-plugin/smp --version');
+    expect(workflow).toContain('bun build scripts/release/verify-external-tools.ts --target bun');
+    expect(workflow).toContain('BUN_BE_BUN=1 /tmp/stacktape-candidate/stacktape /check/verify-external-tools.js');
     expect(workflow).toContain('FORCE_TTY=1 STP_DISABLE_TELEMETRY=1 STP_PRINT_UNHANDLED_ERROR=1');
     expect(workflow).toContain('timeout 3 /tmp/stacktape-candidate/stacktape');
   });

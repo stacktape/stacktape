@@ -1,6 +1,8 @@
-import { fsPaths } from 'src/config/runtime-paths';
-import { exec } from '@utils/exec';
+import { tuiManager } from '@application-services/tui-manager';
 import { CliError } from '@utils/errors';
+import { exec } from '@utils/exec';
+import { describeToolDownload } from '@utils/external-tools';
+import { fsPaths } from 'src/config/runtime-paths';
 
 export const execPack = async ({
   args,
@@ -11,7 +13,11 @@ export const execPack = async ({
   cwd: string;
   onOutputLine?: (line: string) => void;
 }) => {
-  return exec(fsPaths.packPath(), args, {
+  // Resolved first: a failed first-use download explains itself instead of reading as a failed pack command.
+  const packPath = await fsPaths.packPath({
+    onDownloadStart: (details) => tuiManager.info(describeToolDownload(details))
+  });
+  return exec(packPath, args, {
     cwd,
     disableStdout: !onOutputLine,
     disableStderr: !onOutputLine,

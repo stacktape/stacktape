@@ -11,6 +11,7 @@ import stripAnsi from 'strip-ansi';
 import * as tar from 'tar';
 import { generateReleaseChecksums, verifyReleaseChecksum } from './release/checksums';
 import { pnpmPack } from './release/pnpm-pack';
+import { verifyExternalTools } from './release/verify-external-tools';
 import { verifyHelperLambdaArtifacts } from './verify-helper-lambda-artifacts';
 import { verifyNpmPackage } from './verify-npm-package';
 
@@ -76,7 +77,7 @@ const extractArchive = async ({ archivePath, destination }: { archivePath: strin
 
 const parseJsonArtifact = async (filePath: string) => JSON.parse(await readFile(filePath, 'utf8')) as unknown;
 
-const verifyNativeInstallation = async ({
+export const verifyNativeInstallation = async ({
   archivePath,
   installedPackagePath,
   fixtureDirectory
@@ -146,14 +147,20 @@ const verifyNativeInstallation = async ({
   }
   await verifyHelperLambdaArtifacts({ helperLambdasDir: join(binDirectory, 'helper-lambdas') });
 
-  const executableExtension = platform === 'win' ? '.exe' : '';
-  for (const nativeTool of [
-    { path: `nixpacks/nixpacks${executableExtension}`, args: ['--version'] },
-    { path: `pack/pack${executableExtension}`, args: ['version'] },
-    { path: `session-manager-plugin/smp${executableExtension}`, args: ['--version'] }
-  ]) {
-    run({ command: join(binDirectory, nativeTool.path), args: nativeTool.args });
+  // pack, nixpacks and the Session Manager plugin are downloaded on first use (`src/utils/external-tools.ts`); only
+  // Windows still ships the plugin, whose AWS download is an installer. Resolving them into an empty tools directory is
+  // a customer's first use: each pinned upstream asset downloads, matches its checksum and runs on this platform.
+  for (const toolDirectory of ['pack', 'nixpacks', ...(platform === 'win' ? [] : ['session-manager-plugin'])]) {
+    if (existsSync(join(binDirectory, toolDirectory))) {
+      throw new Error(`Native release archive still bundles ${toolDirectory}, which is downloaded on first use.`);
+    }
   }
+  await verifyExternalTools({
+    platform,
+    toolsDirectory: join(fixtureDirectory, 'tools'),
+    bundledSessionManagerPlugin:
+      platform === 'win' ? join(binDirectory, 'session-manager-plugin', 'smp.exe') : undefined
+  });
 
   // The launcher normally writes this marker after downloading and extracting the same archive. Pre-populating its
   // local cache keeps the smoke offline while still exercising host selection, cache validation and binary execution.
@@ -279,7 +286,7 @@ const verifyReleaseArtifact = async () => {
     await verifyNativeInstallation({ archivePath, installedPackagePath, fixtureDirectory });
 
     console.info(
-      `Verified ${platform} release artifact stacktape@${packageResult.version}: ${packageResult.fileCount} packed npm files, native archive checksum and contents, launcher version/help, tampering rejected.`
+      `Verified ${platform} release artifact stacktape@${packageResult.version}: ${packageResult.fileCount} packed npm files, native archive checksum and contents, first-use tool downloads, launcher version/help, tampering rejected.`
     );
   } finally {
     if (generatedLlmDocsIndexExisted) {

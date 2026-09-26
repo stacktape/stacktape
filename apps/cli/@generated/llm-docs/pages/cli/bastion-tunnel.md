@@ -116,14 +116,14 @@ When you run `bastion:tunnel`, Stacktape performs the following steps:
 8. Keeps the process alive until you press `Ctrl+C`.
 
 
-> **Info:** The tunnel uses AWS SSM Session Manager under the hood. Because the tunnel uses SSM port forwarding, AWS may require the local [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html) depending on your AWS CLI setup.
+> **Info:** The tunnel uses AWS SSM Session Manager under the hood, through AWS's [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html). You do not install it yourself. The Windows installer includes it; on Linux and macOS, the first command that needs it downloads the version Stacktape pins from AWS, checks its SHA-256 against the checksum that Stacktape release pins, and keeps it under `~/.stacktape/tools` for later commands. On a machine without internet access, place the plugin there beforehand: when the download fails, the error names the URL, the expected checksum and the exact path.
 
 
 ## FAQ
 
 ### Do I need SSH keys to use bastion:tunnel?
 
-No. The `bastion:tunnel` command uses AWS SSM Session Manager for port forwarding, not SSH, so there are no SSH keys to manage. Depending on your AWS CLI setup, AWS may require the local [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html), and your stack must include a [bastion](/resources/security/bastion-host) resource.
+No. The `bastion:tunnel` command uses AWS SSM Session Manager for port forwarding, not SSH, so there are no SSH keys to manage. Stacktape supplies the Session Manager plugin the tunnel needs (see [How tunneling works](#how-tunneling-works)), and your stack must include a [bastion](/resources/security/bastion-host) resource.
 
 ### How do I connect a database GUI through the tunnel?
 
