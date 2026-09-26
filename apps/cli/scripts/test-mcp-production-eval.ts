@@ -1290,7 +1290,8 @@ const main = async () => {
     client.setRequestHandler('elicitation/create', async () => ({ action: 'decline' }));
     const transport = new StdioClientTransport({
       command: 'bun',
-      args: ['scripts/dev.ts', 'mcp', '--logLevel', 'error'],
+      // Never read the developer's apps/cli/.env.local: the loopback Console accepts only the persisted login's key.
+      args: ['--no-env-file', 'scripts/dev.ts', 'mcp', '--logLevel', 'error'],
       cwd: process.cwd(),
       stderr: 'pipe',
       ...(env ? { env } : {})
@@ -1336,6 +1337,10 @@ const main = async () => {
       STP_CUSTOM_TRPC_API_ENDPOINT: consoleApi.endpoint,
       STP_DISABLE_TELEMETRY: '1',
       SKIP_LOADING_ENV: '1',
+      // The MCP server runs CLI commands as `bun scripts/dev.ts …` children, and Bun loads apps/cli/.env.local into a
+      // child unless the variable already exists. An empty key keeps the developer's own key out, so the child uses
+      // the persisted loopback login above.
+      STACKTAPE_API_KEY: '',
       AWS_EC2_METADATA_DISABLED: 'true'
     });
   } finally {
