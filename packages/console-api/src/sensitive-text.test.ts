@@ -9,6 +9,8 @@ const fake = {
   stripeKey: `${'sk_live_'}${'b'.repeat(24)}`,
   slackToken: `${'xoxb-'}${'1234567890-abcdefghijk'}`,
   stacktapeKey: 'stp_live_fakeid_fakesecret',
+  anthropicKey: ['sk', 'ant', 'api03', `${'Fake0key_'.repeat(10)}AA`].join('-'),
+  anthropicOAuthToken: ['sk', 'ant', 'oat01', `${'fake-token_'.repeat(8)}AA`].join('-'),
   jwt: ['eyJhbGciOiJIUzI1NiJ9', 'eyJzdWIiOiIxMjM0In0', 'dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U'].join('.'),
   connectionString: `postgres:/${'/app:not-a-real-password@db.example.com:5432/orders'}`,
   pem: (body: string) => {
@@ -24,6 +26,8 @@ test('masks credential formats that are recognizable on their own', () => {
     [`Stripe ${fake.stripeKey} failed`, 'Stripe [redacted:secret] failed'],
     [`slack ${fake.slackToken}`, 'slack [redacted:secret]'],
     [`key ${fake.stacktapeKey}`, 'key [redacted:secret]'],
+    [`Anthropic rejected ${fake.anthropicKey}: 401`, 'Anthropic rejected [redacted:secret]: 401'],
+    [`oauth ${fake.anthropicOAuthToken}`, 'oauth [redacted:secret]'],
     [`jwt ${fake.jwt}`, 'jwt [redacted:secret]'],
     ['Authorization: Bearer abcdef.ghijkl.mnopqr', 'Authorization: Bearer [redacted:secret]'],
     [fake.connectionString, 'postgres://[redacted:credentials]@db.example.com:5432/orders']
@@ -107,7 +111,9 @@ test('leaves error names, code and prose that merely contain a sensitive word al
     'Error: token validation failed',
     'Bearer token is missing from the request',
     'Basic authentication required. Token expired.',
-    'TOKEN_ERROR=5'
+    'TOKEN_ERROR=5',
+    'Anthropic keys start with sk-ant- followed by their type',
+    'mask-ant-colony-simulation-worker-3 crashed'
   ];
   for (const text of untouched) assert.equal(scrubSensitiveText(text), text, text);
 });

@@ -48,6 +48,24 @@ describe('MCP tool output', () => {
     });
   });
 
+  test('masks a standalone Anthropic API key in messages and data', () => {
+    // Assembled at runtime so no committed line has the shape of a real key.
+    const anthropicKey = ['sk', 'ant', 'api03', `${'Fake0key_'.repeat(10)}AA`].join('-');
+    const payload = readPayload(
+      toToolText({
+        ok: false,
+        code: 'FAILED',
+        message: `The model call failed: invalid x-api-key ${anthropicKey}`,
+        data: { excerpt: `ERROR ANTHROPIC ${anthropicKey} 401` }
+      })
+    );
+
+    const serialized = JSON.stringify(payload);
+    expect(serialized).not.toContain(anthropicKey);
+    expect(serialized).not.toContain('Fake0key_');
+    expect(payload.data).toMatchObject({ excerpt: expect.stringContaining('ERROR ANTHROPIC') });
+  });
+
   test('compacts info:stack data into Stacktape and CloudFormation summaries', () => {
     const output = buildCliRunOutput({
       command: 'info:stack',

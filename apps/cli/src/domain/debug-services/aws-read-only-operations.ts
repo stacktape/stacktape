@@ -1,19 +1,29 @@
 /**
- * The AWS SDK v3 service/operation pairs `aws:call` is allowed to send.
+ * The AWS SDK v3 service/operation pairs `aws:call` and the dev agent's `/aws/sdk` endpoint are allowed to send. The
+ * shared executor enforces it for every caller.
  *
- * This is a name allowlist, not a permission check. `aws:call` prefers the deployed stack's debug role but falls back
- * to the caller's own AWS credentials whenever that role is missing or cannot be assumed, so an operation that gets
+ * This is a name allowlist, not a permission check. Callers prefer a deployed stack's debug or dev agent role but fall
+ * back to the user's own AWS credentials whenever that role is missing or cannot be assumed, so an operation that gets
  * past this list runs with whatever those credentials happen to allow. The list is the only guard, so it is
  * default-deny: an operation is sent only when it appears under the exact service it was reviewed for, and an
  * unknown service or an unlisted operation is rejected.
  *
+ * The explicit secret-value reads are left out as well, because the caller is often a coding agent whose context and
+ * transcript would keep them: Secrets Manager `GetSecretValue` and the SSM Parameter Store value reads (`GetParameter`,
+ * `GetParameters`, `GetParametersByPath`, `GetParameterHistory`). Their metadata operations stay. The executor also
+ * redacts environment variable values in Lambda function configurations and ECS container environments. Other accepted
+ * reads, such as log events, S3 objects and DynamoDB items, return application data as it is.
+ *
  * Reviewed means "returns information and changes nothing an observer would notice". A verb prefix does not decide
  * that, which is why there is no `Get*` rule here: Step Functions `GetActivityTask` claims a task, records
  * `ActivityStarted`, starts the task's timeout and can take work away from the worker that should have had it. The
- * same reasoning keeps out SQS `ReceiveMessage` (hides messages behind a visibility timeout), CloudWatch Logs
- * `StartQuery` and CloudFormation `DetectStackDrift` (start billable server-side jobs), STS `GetSessionToken` and ECR
- * `GetAuthorizationToken` (mint credentials), X-Ray `GetSamplingTargets` (reports sampling usage), and DynamoDB
- * `ExecuteStatement` (PartiQL, which writes).
+ * same reasoning keeps out SQS `ReceiveMessage` (hides messages behind a visibility timeout), CloudFormation
+ * `DetectStackDrift` (starts a billable server-side job), CloudWatch Logs `StopQuery` (stops a query job, which need
+ * not be the caller's), STS `GetSessionToken` and ECR `GetAuthorizationToken` (mint credentials), X-Ray
+ * `GetSamplingTargets` (reports sampling usage), and DynamoDB `ExecuteStatement` (PartiQL, which writes).
+ *
+ * CloudWatch Logs `StartQuery` is the one accepted job rather than a pure read: it starts a Logs Insights query, which
+ * AWS charges for by the data it scans, and changes nothing else. It is here as an explicit diagnostic job.
  *
  * Coverage is deliberately partial. A genuinely read-only operation that is missing is rejected until someone reviews
  * it and adds it here, which is the failure this file prefers.
@@ -195,9 +205,8 @@ export const AWS_READ_ONLY_OPERATIONS = {
     'FilterLogEvents',
     'GetLogEvents',
     'GetQueryResults',
-    // Logs Insights reads: starting/stopping a query mutates nothing but the query job itself.
-    'StartQuery',
-    'StopQuery'
+    // A diagnostic job, charged by data scanned (see the header). No `StopQuery`: it stops a query job.
+    'StartQuery'
   ],
   opensearch: ['DescribeDomain', 'DescribeDomainConfig', 'DescribeDomains', 'ListDomainNames'],
   rds: [
@@ -226,7 +235,8 @@ export const AWS_READ_ONLY_OPERATIONS = {
     'ListObjectVersions',
     'ListObjectsV2'
   ],
-  secretsmanager: ['DescribeSecret', 'GetResourcePolicy', 'GetSecretValue', 'ListSecretVersionIds', 'ListSecrets'],
+  // Metadata only: no `GetSecretValue`.
+  secretsmanager: ['DescribeSecret', 'GetResourcePolicy', 'ListSecretVersionIds', 'ListSecrets'],
   ses: [
     'GetIdentityDkimAttributes',
     'GetIdentityVerificationAttributes',
@@ -268,14 +278,8 @@ export const AWS_READ_ONLY_OPERATIONS = {
   ],
   // Deliberately without `ReceiveMessage`: it hides the messages it returns from the real consumer.
   sqs: ['GetQueueAttributes', 'GetQueueUrl', 'ListDeadLetterSourceQueues', 'ListQueueTags', 'ListQueues'],
-  ssm: [
-    'DescribeParameters',
-    'GetParameter',
-    'GetParameterHistory',
-    'GetParameters',
-    'GetParametersByPath',
-    'ListTagsForResource'
-  ],
+  // Metadata only: the `GetParameter*` reads return values, decrypted on request.
+  ssm: ['DescribeParameters', 'ListTagsForResource'],
   sts: ['GetCallerIdentity'],
   wafv2: ['GetIPSet', 'GetWebACL', 'ListIPSets', 'ListRuleGroups', 'ListWebACLs'],
   synthetics: ['DescribeCanaries', 'DescribeCanariesLastRun', 'GetCanary', 'GetCanaryRuns'],

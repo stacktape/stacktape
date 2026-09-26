@@ -208,7 +208,8 @@ describe('MCP CLI command tools', () => {
 
   test('classifies high-risk diagnostic commands conservatively', () => {
     expect(getCliCommandPolicy('container:exec').safety).toBe('mutating');
-    expect(getCliCommandPolicy('aws:call').requiresConfirmation).toBe(true);
+    // A read, because the shared AWS SDK executor sends only reviewed read-only operations whoever calls it.
+    expect(getCliCommandPolicy('aws:call')).toMatchObject({ safety: 'diagnostic', requiresConfirmation: false });
     expect(getCliCommandPolicy('secret:get').sensitiveOutput).toBe(true);
   });
 

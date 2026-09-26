@@ -1,7 +1,7 @@
 import { Client } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 
-const EXPECTED_TOOLS = ['stacktape_cli', 'stacktape_dev', 'stacktape_docs', 'stacktape_project'];
+const EXPECTED_TOOLS = ['stacktape_cli', 'stacktape_dev', 'stacktape_docs', 'stacktape_incident', 'stacktape_project'];
 
 type ToolEnvelope = {
   schemaVersion?: string;

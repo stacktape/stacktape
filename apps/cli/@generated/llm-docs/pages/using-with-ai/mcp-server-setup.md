@@ -13,7 +13,7 @@ The Stacktape MCP server gives AI coding assistants structured access to Stackta
 3. Restart the client or reload the workspace so it reads the new MCP configuration.
 4. Ask: “Use Stacktape tools to inspect this project and explain how it is deployed.”
 
-A working integration exposes `stacktape_docs`, `stacktape_project`, `stacktape_cli`, and `stacktape_dev`. The assistant should start with `stacktape_project` for an unfamiliar repository and use `stacktape_cli` with `action: "plan"` before any execution.
+A working integration exposes `stacktape_incident`, `stacktape_docs`, `stacktape_project`, `stacktape_cli`, and `stacktape_dev`. For an incident, the assistant starts with `stacktape_incident` and reads logs, metrics and other diagnostics through `stacktape_cli` directly. Mutating commands are planned with `action: "plan"` and run only after you approve them.
 
 ## When to use
 
@@ -185,10 +185,11 @@ Add to `opencode.jsonc` or `.opencode/config.json` in your project root, or the 
 
 ## Available tools
 
-The MCP server exposes four tools. Each tool uses an `action` parameter to group related operations, keeping the tool surface small while giving assistants access to docs, project inspection, CLI commands, and dev mode control.
+The MCP server exposes five tools. Each tool uses an `action` parameter to group related operations, keeping the tool surface small while giving assistants access to incidents, docs, project inspection, CLI commands, and dev mode control.
 
 | Tool | Actions | Purpose |
 |------|---------|---------|
+| `stacktape_incident` | `show`, `list` | Fetch an incident's full context in one call, or find incidents by project, stage and status |
 | `stacktape_docs` | `search`, `get` | Search or fetch Stacktape documentation by query, route, resource type, definition name, property name, or heading path |
 | `stacktape_project` | `scan`, `orient` | Inspect the local workspace for Stacktape config files, package scripts, dependencies, and suggested CLI defaults |
 | `stacktape_cli` | `list`, `describe`, `plan`, `run` | Discover CLI commands, validate arguments, build execution plans, and execute non-interactive commands through safety-classified gates |
@@ -197,6 +198,19 @@ The MCP server exposes four tools. Each tool uses an `action` parameter to group
 Every completed tool call returns a `stacktape.mcp.tool-result.v1` JSON envelope as structured content and as an identical text block. The envelope includes `ok`, `code`, and `message`, with operation-specific fields under `data`. This lets clients consume typed results while keeping the response readable in clients that primarily render text content.
 
 Tool arguments accept common snake_case and kebab-case forms (`project_name`, `config_path`, `start_time`, `end_time`, `secret_name`, etc.) and normalize them to camelCase automatically. Your AI assistant does not need to know the exact casing convention.
+
+### Incident tool
+
+`stacktape_incident` is where an assistant starts an [incident](/observability/incidents) investigation. `action: "show"`
+with an `incidentId` returns the incident handoff as markdown, the same document
+[`incidents:show`](/cli/incidents-show) prints. It contains the incident's signals with their evidence, release and
+configuration changes, the timeline, earlier related incidents, the AI assessment, the reports of any hosted AI runs
+and read-only next steps.
+`action: "list"` finds incidents by `projectName`, `stage` and `status` (`ACTIVE` by default, `ALL` for resolved history
+as well) and returns at most `limit` of them (default 25).
+
+The tool runs those CLI commands with your local Stacktape login, so the Console applies your organization and project
+access. It is read-only. The assistant then reads logs, metrics, alarms and stack state with `stacktape_cli`.
 
 ### Docs tool
 
@@ -237,14 +251,14 @@ The `orient` action returns the same scan data with stronger next-action guidanc
 
 ### CLI tool
 
-`stacktape_cli` covers the non-interactive CLI surface: [deployments](/cli/deploy), [deletions](/cli/delete), [previewing changes](/cli/diff), [rollbacks](/cli/rollback), diagnostics ([`logs`](/cli/logs), [`metrics`](/cli/metrics), [`alarms`](/cli/alarms), [`query:sql`](/cli/query-sql), [`query:dynamodb`](/cli/query-dynamodb), [`query:redis`](/cli/query-redis), [`query:opensearch`](/cli/query-opensearch)), [secrets](/configuration/secrets) (`secret:set`, `secret:get`, `secret:delete`), parameters (`param:get`), stack info (`info:stack`, `info:stacks`), and deployment scripts (`script:run`).
+`stacktape_cli` covers the non-interactive CLI surface: [deployments](/cli/deploy), [deletions](/cli/delete), [previewing changes](/cli/diff), [rollbacks](/cli/rollback), diagnostics ([`logs`](/cli/logs), [`metrics`](/cli/metrics), [`alarms`](/cli/alarms), [`query:sql`](/cli/query-sql), [`query:dynamodb`](/cli/query-dynamodb), [`query:redis`](/cli/query-redis), [`query:opensearch`](/cli/query-opensearch), [`aws:call`](/cli/aws-call)), incidents (`incidents`, `incidents:show`, `incidents:watch`), [secrets](/configuration/secrets) (`secret:set`, `secret:get`, `secret:delete`), parameters (`param:get`), stack info (`info:stack`, `info:stacks`), and deployment scripts (`script:run`).
 
-The typical workflow:
+The actions:
 
 1. **`action: "list"`** — discover available commands, optionally filtered by `category` or `safety` level.
-2. **`action: "describe"`** — get full metadata for a specific command (allowed arguments, safety class, confirmation policy).
-3. **`action: "plan"`** — build a read-only execution plan. Pass `cwd` with the absolute path to the Stacktape project root when the assistant has it — `plan` uses it to scan config files and `package.json` scripts. The action infers defaults, validates arguments against CLI metadata, and returns a suggested `action: "run"` payload with a shell command preview. No credentials are required for planning.
-4. **`action: "run"`** — execute the planned command as a CLI subprocess. Mutating commands require `confirm: true`. Destructive commands require direct user confirmation through the client's confirmation form (see [Safety model](#safety-model)).
+2. **`action: "describe"`** — get full metadata for a specific command (allowed arguments, safety class, confirmation policy). For `aws:call`, it also lists the accepted AWS SDK operations per service.
+3. **`action: "plan"`** — build a read-only execution plan for a mutating command. Pass `cwd` with the absolute path to the Stacktape project root when the assistant has it — `plan` uses it to scan config files and `package.json` scripts. The action infers defaults, validates arguments against CLI metadata, and returns a suggested `action: "run"` payload with a shell command preview. No credentials are required for planning.
+4. **`action: "run"`** — execute a command as a CLI subprocess. Read-only, diagnostic and local commands run directly with validated arguments. Mutating commands require `confirm: true`. Destructive commands require direct user confirmation through the client's confirmation form (see [Safety model](#safety-model)).
 
 Common parameters accepted by `plan` and `run`:
 
@@ -271,7 +285,7 @@ Common parameters accepted by `plan` and `run`:
 The `list` action also accepts `category` (e.g. `deployment`, `diagnostics`, `secrets`) and `safety` (e.g. `readOnly`, `mutating`, `destructive`) to filter results.
 
 
-> **Warning:** Always use `action: "plan"` before `action: "run"`. Commands marked as `sensitiveOutput` in CLI metadata have their output masked before being returned. The MCP planning guidance specifically warns assistants not to display `secret:get` or private `param:get` values in chat — run those in your own terminal to avoid exposing values in the conversation transcript.
+> **Warning:** Plan mutating commands with `action: "plan"` before `action: "run"`. Commands marked as `sensitiveOutput` in CLI metadata have their output masked before being returned. The MCP planning guidance specifically warns assistants not to display `secret:get` or private `param:get` values in chat — run those in your own terminal to avoid exposing values in the conversation transcript.
 
 
 ### Dev tool
@@ -293,8 +307,8 @@ The MCP server classifies every CLI command into a safety level and enforces per
 
 | Safety level | Behavior | Examples |
 |-------------|----------|---------|
-| `readOnly` | Executes without confirmation | `diff`, `info:stack`, `info:stacks`, `logs`, `metrics`, `alarms` |
-| `diagnostic` | Executes without confirmation | `query:sql`, `query:dynamodb`, `query:redis`, `query:opensearch` |
+| `readOnly` | Executes without confirmation | `diff`, `info:stack`, `info:stacks`, `logs`, `metrics`, `alarms`, `incidents:show` |
+| `diagnostic` | Executes without confirmation | `query:sql`, `query:dynamodb`, `query:redis`, `query:opensearch`, `aws:call` |
 | `local` | Executes without confirmation | `synth`, `validate`, `package` |
 | `mutating` | Requires `confirm: true` in the `run` call | [`deploy`](/cli/deploy), [`secret:set`](/cli/secret-set), [`rollback`](/cli/rollback) |
 | `destructive` | Requires direct user confirmation for the exact command and target; agent-supplied `confirm: true` alone is not sufficient | [`delete`](/cli/delete), [`secret:delete`](/cli/secret-delete) |
@@ -303,7 +317,7 @@ The MCP server classifies every CLI command into a safety level and enforces per
 For destructive commands, the MCP server uses the modern protocol's multi-round input-required flow to prompt the user directly through their AI client's UI. The confirmation is short-lived, bound to the exact command, arguments, and project directory, and can be used only once. A declined, expired, replayed, or target-mismatched confirmation does not execute the command. If the client does not support confirmation forms, the command fails closed and the assistant is told to ask the user to run the command in their own terminal.
 
 
-> **Warning:** `diagnostic` describes the command category, not a guarantee that an individual query is read-only. SQL, Redis, DynamoDB, and OpenSearch query commands run without an MCP confirmation prompt and can change data when given mutating input. Review the planned command and query before it runs, especially against production stages.
+> **Warning:** `diagnostic` describes the command category, not a guarantee that an individual query is read-only. SQL, Redis, DynamoDB, and OpenSearch query commands run without an MCP confirmation prompt and can change data when given mutating input. Review the planned command and query before it runs, especially against production stages. `aws:call` is the exception: it sends only [reviewed read-only AWS SDK operations](/cli/aws-call#safety-model), whatever the input.
 
 
 Commands marked as `sensitiveOutput` in CLI metadata have their output masked before being returned. The MCP planning guidance specifically warns assistants not to display `secret:get` or private `param:get` values in chat. The MCP server also redacts known credential patterns (Stacktape API keys, GitHub tokens, Slack tokens, database connection strings with passwords) from all tool responses.
@@ -402,7 +416,7 @@ CLI commands run as subprocesses. The caller can specify a `timeoutMs` value; if
 
 ### What is the difference between plan and run in stacktape_cli?
 
-`action: "plan"` creates a read-only execution plan: it scans the project, reads `package.json` scripts for defaults, validates arguments, and returns the recommended `action: "run"` payload — without executing anything or requiring credentials. `action: "run"` executes the command. The typical flow is plan first, then run with the planned payload after the user approves.
+`action: "plan"` creates a read-only execution plan: it scans the project, reads `package.json` scripts for defaults, validates arguments, and returns the recommended `action: "run"` payload — without executing anything or requiring credentials. `action: "run"` executes the command. Read-only and diagnostic commands can run directly. Mutating commands are planned first, then run with the planned payload after the user approves.
 
 ### Why was my tool response truncated or rejected as too large?
 

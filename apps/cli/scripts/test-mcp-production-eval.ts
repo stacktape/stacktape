@@ -1,8 +1,12 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Client } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
+import { withPersistedApiKey } from '../src/app/global-state-manager/api-key-storage';
+import type { PersistedState } from '../src/app/global-state-manager/types';
 
 type ToolEnvelope = {
   schemaVersion?: string;
@@ -20,10 +24,17 @@ type EvalCase = {
   id: string;
   tool: string;
   args: Record<string, unknown>;
+  before?: () => void;
   assert: (result: ToolEnvelope) => void | Promise<void>;
 };
 
-const EXPECTED_TOOLS = ['stacktape_cli', 'stacktape_dev', 'stacktape_docs', 'stacktape_project'].sort();
+const EXPECTED_TOOLS = [
+  'stacktape_cli',
+  'stacktape_dev',
+  'stacktape_docs',
+  'stacktape_incident',
+  'stacktape_project'
+].sort();
 
 const assert = (condition: unknown, message: string) => {
   if (!condition) {
@@ -165,7 +176,92 @@ export default defineConfig(() => ({
   return cwd;
 };
 
+const LOOPBACK_API_KEY = 'mcp-production-eval-loopback-key';
+const ACCESSIBLE_INCIDENT_ID = 'inc_eval_accessible';
+const HANDOFF_MARKDOWN = [
+  '# Incident: Uptime check "home" is down',
+  '',
+  '## Signals',
+  '✗ ACTIVE · UPTIME_DOWN · Uptime check "home" is down',
+  '',
+  '## For the investigating agent',
+  'This handoff asks for a diagnosis, not a change.'
+].join('\n');
+const INCIDENT_SUMMARY = {
+  id: ACCESSIBLE_INCIDENT_ID,
+  status: 'OPEN',
+  severity: 'ERROR',
+  title: 'Uptime check "home" is down',
+  project: 'shop',
+  stage: 'production',
+  region: 'eu-west-1',
+  isProduction: true,
+  openedAt: '2026-09-24T10:00:00.000Z',
+  acknowledgedAt: null,
+  resolvedAt: null,
+  resolveReason: null,
+  deploymentVersion: 'v000042',
+  gitCommit: 'abc123',
+  signals: [{ kind: 'UPTIME_DOWN', state: 'ACTIVE', title: 'Uptime check "home" is down' }]
+};
+const TRPC_ERROR_CODES: Record<string, number> = { UNAUTHORIZED: -32001, NOT_FOUND: -32004 };
+
+type ConsoleRequest = { procedure: string; apiKey?: string; input?: Record<string, unknown> };
+
+/**
+ * The two Console procedures the incident tool reaches through the CLI, answered the way the Console's tRPC batch
+ * endpoint answers them. Only the caller's own persisted API key is accepted, and an incident outside the key's access
+ * is not found, as in the Console.
+ */
+const startLoopbackConsole = async () => {
+  const requests: ConsoleRequest[] = [];
+  const server = createServer((request, response) => {
+    const url = new URL(request.url ?? '/', 'http://127.0.0.1');
+    const procedure = url.pathname.replace(/^\/stacktape-api\//, '');
+    const batchInput = JSON.parse(url.searchParams.get('input') ?? '{}') as Record<string, Record<string, unknown>>;
+    const apiKey = request.headers.stp_api_key;
+    requests.push({ procedure, apiKey: typeof apiKey === 'string' ? apiKey : undefined, input: batchInput['0'] });
+    const reply = (status: number, item: unknown) => {
+      response.writeHead(status, { 'content-type': 'application/json' });
+      response.end(JSON.stringify([item]));
+    };
+    const fail = (status: number, code: string, message: string) =>
+      reply(status, { error: { message, code: TRPC_ERROR_CODES[code], data: { code, httpStatus: status } } });
+
+    if (apiKey !== LOOPBACK_API_KEY) return fail(401, 'UNAUTHORIZED', 'Invalid API key.');
+    if (procedure === 'incidentHandoffFromCli') {
+      return batchInput['0']?.incidentId === ACCESSIBLE_INCIDENT_ID
+        ? reply(200, { result: { data: { markdown: HANDOFF_MARKDOWN } } })
+        : fail(404, 'NOT_FOUND', 'Incident not found.');
+    }
+    if (procedure === 'incidentsFromCli') return reply(200, { result: { data: [INCIDENT_SUMMARY] } });
+    return fail(404, 'NOT_FOUND', `No procedure ${procedure}.`);
+  });
+  await new Promise<void>((resolveListen) => server.listen(0, '127.0.0.1', resolveListen));
+  const { port } = server.address() as AddressInfo;
+  return {
+    endpoint: `http://127.0.0.1:${port}/stacktape-api`,
+    requests,
+    close: () => new Promise<void>((resolveClose) => server.close(() => resolveClose()))
+  };
+};
+
+/** A home directory whose only Stacktape login is an API key for the loopback Console, as `stacktape login` saves it. */
+const createLoggedInHome = async (endpoint: string) => {
+  const home = await mkdtemp(join(tmpdir(), 'stacktape-mcp-prod-eval-home-'));
+  const persistedState = withPersistedApiKey({
+    persistedState: { systemId: 'mcp-production-eval', cliArgsDefaults: {}, otherDefaults: {} } as PersistedState,
+    apiKey: LOOPBACK_API_KEY,
+    endpoint
+  });
+  await mkdir(join(home, '.stacktape'), { recursive: true });
+  await writeFile(join(home, '.stacktape', 'persisted-state.json'), JSON.stringify(persistedState));
+  return home;
+};
+
 const main = async () => {
+  const consoleApi = await startLoopbackConsole();
+  const loggedInHome = await createLoggedInHome(consoleApi.endpoint);
   const tempProjectCwd = await createTempStacktapeProject();
   const tempNoDeployProjectCwd = await createTempStacktapeProjectWithoutDeployScript();
   const tempDeployScriptChoiceCwd = await createTempDeployScriptChoiceProject();
@@ -752,6 +848,30 @@ const main = async () => {
       }
     },
     {
+      id: 'cli-describe-aws-call-diagnostic',
+      tool: 'stacktape_cli',
+      args: { action: 'describe', command: 'aws:call' },
+      assert: (result) => {
+        assert(result.ok === true, 'Expected aws:call describe OK.');
+        assert(result.data?.safety === 'diagnostic', 'Expected aws:call to be a diagnostic read.');
+        assert(result.data?.requiresConfirmation === false, 'Expected no confirmation for reviewed reads.');
+      }
+    },
+    {
+      id: 'cli-run-aws-call-secret-value-rejected',
+      tool: 'stacktape_cli',
+      args: {
+        action: 'run',
+        command: 'aws:call',
+        args: { stage: 'dev', region: 'us-east-1', service: 'secretsmanager', command: 'GetSecretValue' }
+      },
+      assert: (result) => {
+        assert(result.ok === false, 'Expected a secret-value read to be rejected.');
+        assert(result.code === 'VALIDATION_ERROR', 'Expected validation error before execution.');
+        assert(includes(result.data?.acceptedOperations, 'DescribeSecret'), 'Expected accepted operations.');
+      }
+    },
+    {
       id: 'cli-run-unknown-command',
       tool: 'stacktape_cli',
       args: { action: 'run', command: 'not-a-command' },
@@ -1083,10 +1203,81 @@ const main = async () => {
     }
   ];
 
+  // These run the real CLI as the MCP server's child against the loopback Console, signed in only through the
+  // persisted login in `loggedInHome`.
+  let requestMark = 0;
+  const markRequests = () => {
+    requestMark = consoleApi.requests.length;
+  };
+  const requestsOfCase = () => consoleApi.requests.slice(requestMark);
+  const incidentCases: EvalCase[] = [
+    {
+      id: 'incident-show-returns-handoff-through-cli-login',
+      tool: 'stacktape_incident',
+      before: markRequests,
+      args: { action: 'show', incidentId: ACCESSIBLE_INCIDENT_ID },
+      assert: (result) => {
+        assert(result.ok === true, `Expected the handoff, got ${result.code}: ${result.message}`);
+        assert(result.data?.content === HANDOFF_MARKDOWN, 'Expected the Console handoff markdown unchanged.');
+        const requests = requestsOfCase();
+        assert(
+          requests.length === 1 &&
+            requests[0].procedure === 'incidentHandoffFromCli' &&
+            requests[0].apiKey === LOOPBACK_API_KEY &&
+            requests[0].input?.incidentId === ACCESSIBLE_INCIDENT_ID,
+          `Expected one handoff request with the persisted login, got ${JSON.stringify(requests)}.`
+        );
+      }
+    },
+    {
+      id: 'incident-show-inaccessible-is-not-found',
+      tool: 'stacktape_incident',
+      before: markRequests,
+      args: { action: 'show', incidentId: 'inc_eval_other_project' },
+      assert: (result) => {
+        assert(result.ok === false, 'Expected an incident outside the key access to fail.');
+        assert(includes(result.message, 'Incident not found'), `Expected the Console denial, got ${result.message}`);
+        assert(result.data?.content === undefined, 'Expected no incident content.');
+      }
+    },
+    {
+      id: 'incident-list-maps-filters-to-console',
+      tool: 'stacktape_incident',
+      before: markRequests,
+      args: { action: 'list', projectName: 'shop', stage: 'production', status: 'ALL', limit: 5 },
+      assert: (result) => {
+        assert(result.ok === true, `Expected the incident list, got ${result.code}: ${result.message}`);
+        const incidents = result.data?.incidents as Array<Record<string, unknown>> | undefined;
+        assert(incidents?.[0]?.id === ACCESSIBLE_INCIDENT_ID, 'Expected the listed incident.');
+        const requests = requestsOfCase();
+        assert(
+          JSON.stringify(requests.map(({ procedure, input }) => ({ procedure, input }))) ===
+            JSON.stringify([
+              {
+                procedure: 'incidentsFromCli',
+                input: { project: 'shop', stage: 'production', status: 'ALL', limit: 5 }
+              }
+            ]),
+          `Expected the filters in the Console request, got ${JSON.stringify(requests)}.`
+        );
+      }
+    },
+    {
+      id: 'incident-show-requires-id',
+      tool: 'stacktape_incident',
+      before: markRequests,
+      args: { action: 'show' },
+      assert: (result) => {
+        assert(result.ok === false && result.code === 'VALIDATION_ERROR', 'Expected a missing ID to fail validation.');
+        assert(requestsOfCase().length === 0, 'Expected no Console request without an incident ID.');
+      }
+    }
+  ];
+
   const results: Array<{ id: string; ok: boolean; durationMs: number; error?: string }> = [];
   const stderrChunks: string[] = [];
 
-  const runBatch = async (batch: EvalCase[]) => {
+  const runBatch = async (batch: EvalCase[], env?: Record<string, string>) => {
     const client = new Client(
       { name: 'stacktape-mcp-production-eval', version: '0.0.0' },
       {
@@ -1101,7 +1292,8 @@ const main = async () => {
       command: 'bun',
       args: ['scripts/dev.ts', 'mcp', '--logLevel', 'error'],
       cwd: process.cwd(),
-      stderr: 'pipe'
+      stderr: 'pipe',
+      ...(env ? { env } : {})
     });
 
     transport.stderr?.on('data', (chunk) => stderrChunks.push(String(chunk)));
@@ -1116,6 +1308,7 @@ const main = async () => {
       for (const testCase of batch) {
         const startedAt = performance.now();
         try {
+          testCase.before?.();
           const result = await callJsonTool(client, testCase.tool, testCase.args);
           await testCase.assert(result);
           results.push({ id: testCase.id, ok: true, durationMs: Math.round(performance.now() - startedAt) });
@@ -1137,7 +1330,17 @@ const main = async () => {
     for (let index = 0; index < cases.length; index += 16) {
       await runBatch(cases.slice(index, index + 16));
     }
+    await runBatch(incidentCases, {
+      HOME: loggedInHome,
+      USERPROFILE: loggedInHome,
+      STP_CUSTOM_TRPC_API_ENDPOINT: consoleApi.endpoint,
+      STP_DISABLE_TELEMETRY: '1',
+      SKIP_LOADING_ENV: '1',
+      AWS_EC2_METADATA_DISABLED: 'true'
+    });
   } finally {
+    await consoleApi.close().catch(() => {});
+    await rm(loggedInHome, { recursive: true, force: true }).catch(() => {});
     await rm(tempProjectCwd, { recursive: true, force: true }).catch(() => {});
     await rm(tempNoDeployProjectCwd, { recursive: true, force: true }).catch(() => {});
     await rm(tempDeployScriptChoiceCwd, { recursive: true, force: true }).catch(() => {});

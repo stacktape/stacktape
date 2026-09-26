@@ -62,7 +62,7 @@ export const commandAwsCall = async () => {
     });
   }
 
-  // The call may run with your own AWS credentials, so this allowlist is the only thing keeping it read-only.
+  // The executor enforces this allowlist for every caller; checking first explains the refusal before credentials load.
   if (!isReadOnlyAwsCommand(service, command)) {
     throw new CliError({
       category: 'CLI',

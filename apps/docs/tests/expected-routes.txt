@@ -5,6 +5,8 @@
 /ci-cd-and-gitops/overview
 /ci-cd-and-gitops/self-hosted-github-actions-runners
 /ci-cd-and-gitops/stacks-per-git-branch-pattern
+/cli/ai-connect
+/cli/ai-disconnect
 /cli/alarms
 /cli/aws-call
 /cli/aws-profile-create
@@ -111,6 +113,7 @@
 /observability/alarms
 /observability/alert-channels
 /observability/alert-history
+/observability/incident-ai
 /observability/incidents
 /observability/issues
 /observability/log-forwarding

@@ -357,7 +357,7 @@ curl -X POST http://localhost:9900/opensearch/searchDomain/search \
 
 ## AWS SDK access
 
-Agent mode provides direct access to AWS SDK commands through the `/aws/sdk` endpoint. The endpoint uses credentials returned by `getDevAgentCredentials()` — dev agent role credentials scoped to the stack, with a fallback to user credentials. If no usable access key and secret key are returned, the request fails with an error. The startup message describes this access as scoped to stack resources via IAM role.
+Agent mode provides access to read-only AWS SDK commands through the `/aws/sdk` endpoint. It sends only the reviewed read-only operations that [`aws:call`](/cli/aws-call#safety-model) accepts; any other operation, including the Secrets Manager and SSM value reads, is rejected before a request is sent. Lambda and ECS environment variable values come back redacted, while other reads, such as log events and S3 objects, return application data as it is. The endpoint uses credentials returned by `getDevAgentCredentials()` — dev agent role credentials scoped to the stack, with a fallback to user credentials. If no usable access key and secret key are returned, the request fails with an error. The startup message describes this access as scoped to stack resources via IAM role.
 
 ```bash
 curl -X POST http://localhost:9900/aws/sdk \
@@ -373,7 +373,7 @@ To list all supported services and example commands:
 curl http://localhost:9900/aws/sdk/services
 ```
 
-`GET /aws/sdk/services` returns a successful envelope whose payload includes the supported services from `getSupportedServices()`. In the current implementation, the services payload is nested under `data.data` in the response. Use the running endpoint response as the authoritative shape and list of valid `service` values before constructing `/aws/sdk` calls. The service list in the startup message and on this page is a summary; the endpoint response is always up to date.
+`GET /aws/sdk/services` returns a successful envelope whose payload lists the accepted operations for each supported service, nested under `data.data` in the response. Use the running endpoint response as the authoritative list of valid `service` and `command` values before constructing `/aws/sdk` calls. The service list in the startup message and on this page is a summary; the endpoint response is always up to date.
 
 Common AWS SDK calls for AI agents:
 
@@ -382,7 +382,7 @@ Common AWS SDK calls for AI agents:
 | Read Lambda logs          | `logs`             | `FilterLogEvents`    | `{"logGroupName": "/aws/lambda/fn", "filterPattern": "ERROR"}` |
 | Scan a DynamoDB table     | `dynamodb`         | `Scan`               | `{"TableName": "tbl", "Limit": 10}`                           |
 | List S3 objects           | `s3`               | `ListObjectsV2`      | `{"Bucket": "bkt", "Prefix": "uploads/"}`                     |
-| Invoke a Lambda           | `lambda`           | `Invoke`             | `{"FunctionName": "fn", "Payload": "{}"}`                     |
+| Check a queue's backlog   | `sqs`              | `GetQueueAttributes` | `{"QueueUrl": "https://…/q", "AttributeNames": ["All"]}`       |
 | Describe a stack          | `cloudformation`   | `DescribeStacks`     | `{"StackName": "my-stack"}`                                    |
 
 <Info>
@@ -487,7 +487,7 @@ Stacktape advertises the agent URL as `http://localhost:{port}`. The server sets
 
 These CORS controls are not authentication. The HTTP server listens on the configured port without an explicit loopback-only host binding, so use host firewall and network settings to keep the port local and trusted.
 
-The `/aws/sdk` endpoint uses credentials returned by `getDevAgentCredentials()`. If no access key and secret key are available, the endpoint returns an error (`AWS credentials not available`). The startup message describes this access as scoped to stack resources via IAM role. Treat the endpoint as having whatever permissions those credentials grant — avoid exposing the agent port to untrusted networks.
+The `/aws/sdk` endpoint uses credentials returned by `getDevAgentCredentials()`. If no access key and secret key are available, the endpoint returns an error (`AWS credentials not available`). The startup message describes this access as scoped to stack resources via IAM role. The endpoint sends only reviewed read-only operations, but those reads run with whatever permissions the credentials grant — avoid exposing the agent port to untrusted networks.
 
 ## FAQ
 
@@ -513,4 +513,4 @@ The agent server keeps running even if individual workloads fail. The `/status` 
 
 ### Why does an `/aws/sdk` call fail or return access-denied?
 
-The `/aws/sdk` endpoint runs against dev agent credentials, which the source describes as scoped to the stack's IAM role (falling back to user credentials). Those credentials determine what resources are reachable — a call can fail with `AWS credentials not available` if no usable key pair is returned, or with an access-denied error if the role lacks permission for that resource. The endpoint supports a broad set of services (`lambda`, `dynamodb`, `s3`, `logs`, `cloudformation`, `sqs`, `sns`, `sfn`, and more); call `GET /aws/sdk/services` for the authoritative, up-to-date list of valid `service` values before constructing a call.
+The `/aws/sdk` endpoint runs against dev agent credentials, which the source describes as scoped to the stack's IAM role (falling back to user credentials). Those credentials determine what resources are reachable — a call can fail with `AWS credentials not available` if no usable key pair is returned, or with an access-denied error if the role lacks permission for that resource. A call is also rejected, without reaching AWS, when the operation is not a reviewed read-only one; the error lists the operations accepted for that service. The endpoint supports a broad set of services (`lambda`, `dynamodb`, `s3`, `logs`, `cloudformation`, `sqs`, `sns`, `sfn`, and more); call `GET /aws/sdk/services` for the authoritative, up-to-date list of valid `service` and `command` values before constructing a call.

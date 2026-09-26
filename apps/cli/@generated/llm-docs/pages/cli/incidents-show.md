@@ -1,6 +1,6 @@
 # incidents:show
 
-The `incidents:show` command prints an incident's handoff bundle: a self-contained markdown document with the incident's current state, its signals and their evidence, the release that was live when it opened and what changed since the previous release, nearby operations and events, the timeline with page delivery status, scoped links into the Console, and a fix/verify/resolve protocol. It is the same document that **Copy details for agent** produces on the incident page in the Console.
+The `incidents:show` command prints an incident's handoff bundle: a self-contained markdown document with the incident's current state, its signals and their evidence, the release that was live when it opened and what changed since the previous release, nearby operations and events, the timeline with page delivery status, scoped links into the Console, earlier related incidents, the AI assessment, the reports of any hosted AI runs on the incident, and guidance for diagnosing the incident and watching its recovery read-only. It asks for a diagnosis and a recommended next action; it never tells the reader to deploy or resolve. It is the same document that **Copy details for agent** produces on the incident page in the Console.
 
 ## Usage
 
@@ -9,6 +9,9 @@ stacktape incidents:show --incidentId <incident-id>
 ```
 
 You need the incident ID. Use [`incidents`](/cli/incidents) to list incidents before showing one.
+
+A coding agent connected through the [Stacktape MCP server](/using-with-ai/mcp-server-setup#incident-tool) gets the
+same document with the `stacktape_incident` tool, using your local Stacktape login.
 
 ## Flags reference
 

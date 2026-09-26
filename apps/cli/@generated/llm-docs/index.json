@@ -15412,6 +15412,43 @@
       ]
     },
     {
+      "id": "page:/cli/ai-connect",
+      "title": "ai:connect",
+      "route": "/cli/ai-connect",
+      "sourcePath": "apps/docs/content/cli/ai-connect.mdx",
+      "outputPath": "pages/cli/ai-connect.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "ai-connect"
+      ],
+      "chunks": [
+        "page:/cli/ai-connect#ai-connect",
+        "page:/cli/ai-connect#usage",
+        "page:/cli/ai-connect#what-it-connects",
+        "page:/cli/ai-connect#flags-reference"
+      ]
+    },
+    {
+      "id": "page:/cli/ai-disconnect",
+      "title": "ai:disconnect",
+      "route": "/cli/ai-disconnect",
+      "sourcePath": "apps/docs/content/cli/ai-disconnect.mdx",
+      "outputPath": "pages/cli/ai-disconnect.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "ai-disconnect"
+      ],
+      "chunks": [
+        "page:/cli/ai-disconnect#ai-disconnect",
+        "page:/cli/ai-disconnect#usage",
+        "page:/cli/ai-disconnect#flags-reference"
+      ]
+    },
+    {
       "id": "page:/cli/alarms",
       "title": "alarms",
       "route": "/cli/alarms",
@@ -18806,6 +18843,37 @@
         "page:/observability/alert-history#what-does-no-rules-matched-mean-in-the-delivery-column",
         "page:/observability/alert-history#what-delivery-statuses-can-an-alert-have",
         "page:/observability/alert-history#can-i-view-alert-history-from-the-cli"
+      ]
+    },
+    {
+      "id": "page:/observability/incident-ai",
+      "title": "AI Assessment, Investigation and Fixes",
+      "route": "/observability/incident-ai",
+      "sourcePath": "apps/docs/content/observability/incident-ai.mdx",
+      "outputPath": "pages/observability/incident-ai.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "observability",
+        "incident-ai"
+      ],
+      "chunks": [
+        "page:/observability/incident-ai#ai-assessment-investigation-and-fixes",
+        "page:/observability/incident-ai#automatic-briefing",
+        "page:/observability/incident-ai#investigate-with-ai",
+        "page:/observability/incident-ai#fix-with-ai",
+        "page:/observability/incident-ai#who-pays-and-which-credential",
+        "page:/observability/incident-ai#what-leaves-your-aws-account",
+        "page:/observability/incident-ai#roles",
+        "page:/observability/incident-ai#using-your-own-coding-agent-instead",
+        "page:/observability/incident-ai#faq",
+        "page:/observability/incident-ai#does-investigate-or-fix-deploy-anything",
+        "page:/observability/incident-ai#can-i-use-it-without-connecting-a-git-repository",
+        "page:/observability/incident-ai#what-happens-when-a-run-fails",
+        "page:/observability/incident-ai#is-my-source-code-sent-to-anthropic",
+        "page:/observability/incident-ai#can-a-viewer-start-a-run",
+        "page:/observability/incident-ai#does-the-briefing-change-the-incident-s-severity-or-alerts",
+        "page:/observability/incident-ai#can-stacktape-change-my-main-branch"
       ]
     },
     {
@@ -22636,6 +22704,7 @@
         "page:/using-with-ai/mcp-server-setup#tab-openai-codex",
         "page:/using-with-ai/mcp-server-setup#tab-opencode",
         "page:/using-with-ai/mcp-server-setup#available-tools",
+        "page:/using-with-ai/mcp-server-setup#incident-tool",
         "page:/using-with-ai/mcp-server-setup#docs-tool",
         "page:/using-with-ai/mcp-server-setup#project-tool",
         "page:/using-with-ai/mcp-server-setup#cli-tool",

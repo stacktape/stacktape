@@ -1234,8 +1234,9 @@ const buildEndpointDocumentation = () => {
 
   // AWS SDK
   docs['aws'] = {
-    'POST /sdk': '{service: "lambda", command: "ListFunctions", input?: {...}, region?}',
-    'GET  /sdk/services': 'List supported services and example commands'
+    'POST /sdk':
+      '{service: "lambda", command: "ListFunctions", input?: {...}, region?} (reviewed read-only operations only)',
+    'GET  /sdk/services': 'List the accepted read-only operations per service'
   };
 
   return docs;
@@ -1318,14 +1319,15 @@ export const buildStartupMessage = (params: {
   }
 
   // AWS SDK
-  lines.push('AWS SDK (direct SDK access):');
+  lines.push('AWS SDK (reviewed read-only operations only):');
   lines.push('  POST /aws/sdk                {"service": "...", "command": "...", "input": {...}}');
   lines.push('  GET  /aws/sdk/services       List services and the read-only operations aws:call accepts');
   lines.push('');
   lines.push('  Services: lambda, dynamodb, s3, logs, cloudformation, cloudwatch, sqs, sns, sfn,');
   lines.push('            eventbridge, secretsmanager, ssm, sts, iam, ec2, ecs, ecr, rds, ses,');
   lines.push('            cognito, apigatewayv2, xray, kinesis, firehose, ...');
-  lines.push('  Scoped to stack resources via IAM role.');
+  lines.push('  Scoped to stack resources via IAM role. Writes and Secrets Manager/SSM value reads are rejected;');
+  lines.push('  Lambda/ECS environment values are redacted. Logs, objects and items return application data as is.');
   lines.push('');
   lines.push('  Examples:');
   lines.push(
@@ -1336,7 +1338,7 @@ export const buildStartupMessage = (params: {
     '    {"service": "s3", "command": "ListObjectsV2", "input": {"Bucket": "my-bucket", "Prefix": "prefix/"}}'
   );
   lines.push(
-    '    {"service": "lambda", "command": "Invoke", "input": {"FunctionName": "my-func", "Payload": "{\\"key\\":\\"value\\"}"}}'
+    '    {"service": "sqs", "command": "GetQueueAttributes", "input": {"QueueUrl": "https://...", "AttributeNames": ["All"]}}'
   );
   lines.push('');
 

@@ -8,7 +8,8 @@
     "./contracts": "./src/contracts.ts",
     "./normalize": "./src/normalize.ts",
     "./selectors": "./src/selectors.ts",
-    "./metric-targets": "./src/metric-targets.ts"
+    "./metric-targets": "./src/metric-targets.ts",
+    "./metric-queries": "./src/metric-queries.ts"
   },
   "scripts": {
     "test": "bun test src",

@@ -19,8 +19,23 @@ Unknown services and unlisted operations are rejected. The error includes the op
 the selected service. Coverage is deliberately incomplete: a genuinely read-only operation remains unavailable until
 it has been reviewed and added to the service's allowlist.
 
-The allowlist is the command's read-only guard, not an IAM permission boundary. Stacktape prefers the deployed stack's
-debug role when it is available. If that role is unavailable or cannot be assumed, the command falls back to the
+The explicit secret-value reads are not on the list either, because the caller is often a coding agent whose context
+and transcript would keep the value: Secrets Manager `GetSecretValue` and the SSM Parameter Store reads `GetParameter`,
+`GetParameters`, `GetParametersByPath` and `GetParameterHistory`. Their metadata operations, such as `DescribeSecret`,
+`ListSecrets` and `DescribeParameters`, remain. To see a secret's value, run [`secret:get`](/cli/secret-get) in your own
+terminal.
+
+Lambda function configurations and ECS task definitions come back with environment variable values replaced by
+`[redacted]`; variable names and the other settings stay. Other accepted reads return application data as it is: log
+events, S3 objects and DynamoDB items contain whatever the application wrote. Read them when a diagnosis needs that
+data.
+
+One accepted operation starts a job rather than only reading: CloudWatch Logs `StartQuery` runs a Logs Insights query,
+which AWS charges for by the data it scans. `StopQuery` is not accepted.
+
+Stacktape enforces the allowlist where the AWS request is sent, so the dev mode agent's
+[`/aws/sdk` endpoint](/using-with-ai/agent-mode-in-dev#aws-sdk-access) applies the same list. It is a read-only guard,
+not an IAM permission boundary. Stacktape prefers the deployed stack's debug role when it is available. If that role is unavailable or cannot be assumed, the command falls back to the
 caller's selected AWS credentials. An accepted operation therefore runs with the permissions of the credentials that
 are ultimately used.
 

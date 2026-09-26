@@ -46,6 +46,8 @@ const TOKENS: RegExp[] = [
   /\bxox[abprs]-[A-Za-z0-9-]{10,}\b/g,
   /\bAIza[0-9A-Za-z_-]{35}\b/g,
   /\bstp_live_[A-Za-z0-9]+_[A-Za-z0-9]+\b/g,
+  // Anthropic API keys and OAuth tokens: `sk-ant-` followed by a type such as `api03` and the key itself.
+  /\bsk-ant-[A-Za-z0-9_-]{16,}/g,
   /\bstp_job\.[A-Za-z0-9_.-]+/g,
   /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g
 ];
@@ -123,3 +125,22 @@ export const scrubSensitiveText = (text: string): string => {
 
 /** True when scrubbing would change the text; lets a caller record that it masked something. */
 export const containsSensitiveText = (text: string): boolean => scrubSensitiveText(text) !== text;
+
+/**
+ * The patterns above as JavaScript source, for a program that has to run without this package: the hosted incident
+ * runner masks source code with them before a model reads it. A new token format reaches it with this list; a new kind
+ * of rule reaches it only once the runner applies it too.
+ */
+export const SENSITIVE_TEXT_PATTERNS_SOURCE = `{
+  privateKeyBlock: ${String(PRIVATE_KEY_BLOCK)},
+  tokens: [${TOKENS.map(String).join(', ')}],
+  authorizationScheme: ${String(AUTHORIZATION_SCHEME)},
+  urlCredentials: ${String(URL_CREDENTIALS)},
+  keyValue: ${String(KEY_VALUE)},
+  email: ${String(EMAIL)},
+  ipv4: ${String(IPV4)},
+  ipv6: ${String(IPV6)},
+  cardNumber: ${String(CARD_NUMBER)},
+  cardPrefix: ${String(CARD_PREFIX)},
+  homeDirectory: ${String(HOME_DIRECTORY)}
+}`;

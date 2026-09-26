@@ -1,6 +1,7 @@
 import {
   apiKey,
   agent,
+  aiProvider,
   agentChild,
   agentPort,
   awsAccount,
@@ -618,7 +619,7 @@ Examples:
   'aws:call': {
     description: `Execute read-only AWS SDK commands against deployed resources.
 
-Provides direct access to AWS SDK v3 for inspecting deployed resources. Each supported service has an explicit list of operations reviewed as read-only for that service, and everything outside it is rejected — including operations that only look like reads, such as Step Functions \`GetActivityTask\` (it claims a task and starts its timeout) and SQS \`ReceiveMessage\` (it hides messages from the real consumer). A rejection names the operations the service does accept. Coverage is deliberately partial: a genuinely read-only operation that is missing has not been reviewed yet.
+Provides direct access to AWS SDK v3 for inspecting deployed resources. Each supported service has an explicit list of operations reviewed as read-only for that service, and everything outside it is rejected — including operations that only look like reads, such as Step Functions \`GetActivityTask\` (it claims a task and starts its timeout) and SQS \`ReceiveMessage\` (it hides messages from the real consumer). The Secrets Manager and SSM value reads (\`GetSecretValue\`, \`GetParameter*\`) are rejected too; their metadata operations are accepted. Lambda and ECS environment variable values come back redacted, while other reads, such as log events and S3 objects, return application data as it is. Logs Insights \`StartQuery\` starts a query that AWS charges for. A rejection names the operations the service does accept. Coverage is deliberately partial: a genuinely read-only operation that is missing has not been reviewed yet.
 
 This name check is the only guard: the call uses the deployed stack's debug role when one is available and falls back to your own AWS credentials when it is not, so an accepted operation runs with whatever those credentials allow.
 
@@ -887,6 +888,28 @@ which projects and stages it currently applies to.`,
     requiredArgs: [] as const
   },
 
+  'ai:connect': {
+    description: `Connects your own Claude subscription to Stacktape for the hosted AI incident runs (Investigate with AI, Fix with AI) you request.
+
+Runs \`claude setup-token\` for you (the Claude Code CLI must be installed), signs you in through your browser, and stores the long-lived token it prints with Stacktape. Only runs you request use it; remove it with \`stacktape ai:disconnect\`. Alternatively, an Admin or Owner can connect the organization's Anthropic API key in the Console.`,
+    args: {
+      logLevel: logLevel.optional(),
+      agent: agent.optional(),
+      outputFormat: outputFormat.optional(),
+      aiProvider: aiProvider.optional()
+    },
+    requiredArgs: [] as const
+  },
+  'ai:disconnect': {
+    description: `Removes your own Claude subscription token from Stacktape. Hosted AI incident runs you request can no longer be funded by your subscription until you connect it again with \`stacktape ai:connect\`.`,
+    args: {
+      logLevel: logLevel.optional(),
+      agent: agent.optional(),
+      outputFormat: outputFormat.optional(),
+      aiProvider: aiProvider.optional()
+    },
+    requiredArgs: [] as const
+  },
   'info:whoami': {
     description: `Displays information about the current user, organization, connected AWS accounts, and accessible projects.
 
@@ -974,9 +997,9 @@ Shows status, severity, title, stack, and each incident's signals. Filter by sta
     requiredArgs: [] as const
   },
   'incidents:show': {
-    description: `Prints an incident's agent handoff bundle: a self-contained markdown document with the incident's state, signals, evidence, release context, timeline, and the fix/verify/resolve protocol.
+    description: `Prints an incident's handoff: a self-contained markdown document with the incident's state, signals, evidence, release context, timeline, related earlier incidents and AI assessment, and guidance for diagnosing it and watching its recovery read-only.
 
-Pipe it to a coding agent (or read it yourself) to fix the incident.`,
+Pipe it to a coding agent (or read it yourself) to find the likely cause and a recommended next action. The handoff asks for a diagnosis; it never instructs anyone to deploy or resolve.`,
     args: {
       logLevel: logLevel.optional(),
       agent: agent.optional(),

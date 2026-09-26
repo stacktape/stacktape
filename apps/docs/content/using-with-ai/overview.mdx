@@ -41,10 +41,11 @@ The assistant writes or edits the config in step 1 using Stacktape docs for refe
 
 The Stacktape MCP server gives AI coding assistants direct access to Stacktape operations through the [Model Context Protocol](https://modelcontextprotocol.io). Instead of asking the assistant to run raw shell commands itself, the MCP server plans and runs Stacktape CLI operations through structured tools with validation, safety gates, and credential handling. The server runs locally via stdio transport and reuses your existing Stacktape CLI authentication.
 
-The server exposes four tools:
+The server exposes five tools:
 
 | Tool | Purpose | Typical use |
 |---|---|---|
+| `stacktape_incident` | Fetch an incident's context or find incidents | Start an incident investigation with signals, evidence, release changes, history and the AI assessment |
 | `stacktape_docs` | Search and fetch Stacktape documentation | Config syntax, resource types, deployment patterns, troubleshooting |
 | `stacktape_project` | Inspect a local Stacktape project | Discover config files, parse package.json scripts, infer CLI defaults |
 | `stacktape_cli` | List, describe, plan, and run CLI commands | Deploy, preview changes, read logs, query databases, manage secrets |
@@ -52,7 +53,11 @@ The server exposes four tools:
 
 ### How assistants use the MCP server
 
-An AI assistant interacting with the MCP server follows a plan-then-execute pattern. Before executing a Stacktape CLI command, the assistant calls `stacktape_cli` with `action=plan`, which scans your project, resolves config files, validates arguments, and returns validated command arguments with a run payload. The tool also supports `action=list` and `action=describe` for command discovery — the assistant uses these to find available commands and inspect their arguments before planning. The assistant then calls `action=run` with the planned payload, adding `confirm: true` for mutating commands only after receiving explicit user approval in the same conversation. Non-mutating commands (read-only, diagnostic, and local) run without user confirmation. Destructive commands go further — the assistant cannot supply confirmation on its own; the MCP server requires direct user confirmation through the client's confirmation form before execution. This flow prevents the assistant from running commands with wrong arguments or against the wrong stage.
+An assistant investigating an incident starts with `stacktape_incident`, which returns the incident's context in one call. It then reads what it needs through `stacktape_cli`: read-only, diagnostic and local commands such as `logs`, `metrics`, `info:stack` and `aws:call` run directly with `action=run` and validated arguments, without a plan or your confirmation. `action=list` and `action=describe` help it find commands and their arguments.
+
+This is the local path: your assistant on your machine. For a hosted run instead, the Console can start Claude Code on the project's runner to investigate an incident or propose a fix as a draft pull request, funded by your organization's Anthropic API key or your own Claude subscription. See [AI assessment, investigation and fixes](/observability/incident-ai).
+
+Changes follow a plan-then-execute pattern. Before a mutating command, the assistant calls `stacktape_cli` with `action=plan`, which scans your project, resolves config files, validates arguments, and returns a run payload. It then calls `action=run` with that payload, adding `confirm: true` only after receiving explicit user approval in the same conversation. Destructive commands go further — the assistant cannot supply confirmation on its own; the MCP server requires direct user confirmation through the client's confirmation form before execution. This flow prevents the assistant from running changes with wrong arguments or against the wrong stage.
 
 The `stacktape_docs` tool gives the assistant access to the full Stacktape documentation index. When you ask "how do I add a DynamoDB table?" or "what's the syntax for connecting resources?", the assistant searches the docs and returns grounded answers with code examples — rather than guessing from training data.
 
@@ -145,7 +150,7 @@ Stacktape works with any MCP-compatible coding assistant. Run [`stacktape mcp:ad
 
 ### Can an AI assistant deploy to production through the MCP server?
 
-Yes, with safety gates — though the MCP server is still in preview and under active development. Mutating commands that change AWS resources require explicit user approval (`confirm: true`) and run through `stacktape_cli` only after planning. Destructive operations like [`stacktape delete`](/cli/delete) go further: they require direct user confirmation for the exact command and target that the AI assistant cannot supply on its own, and if the client doesn't support confirmation forms they are refused entirely. Sensitive outputs like secret values and connection strings are automatically masked in MCP responses.
+Yes, with safety gates — though the MCP server is still in preview and under active development. Mutating commands that change AWS resources require explicit user approval (`confirm: true`) and run through `stacktape_cli` only after planning. Destructive operations like [`stacktape delete`](/cli/delete) go further: they require direct user confirmation for the exact command and target that the AI assistant cannot supply on its own, and if the client doesn't support confirmation forms they are refused entirely. The output of secret commands such as `secret:get` and known credential patterns, such as API keys and connection strings with passwords, are masked in MCP responses; other data an assistant reads, such as log lines, comes back as it is.
 
 ### How does agent mode differ from standard dev mode?
 

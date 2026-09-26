@@ -26,6 +26,7 @@ const maskSensitiveText = (value: string): string =>
   value
     .replace(/\bstp_(?:live|test)_[A-Za-z0-9]+_[A-Za-z0-9._-]{12,}\b/g, (match) => `${match.slice(0, 16)}...REDACTED`)
     .replace(/\bsk_(?:live|test)_[A-Za-z0-9._-]{8,}/g, (match) => `${match.slice(0, 8)}...REDACTED`)
+    .replace(/\bsk-ant-[A-Za-z0-9_-]{16,}/g, 'sk-ant-...REDACTED')
     .replace(/\bxox[baprs]-[A-Za-z0-9-]{16,}/g, (match) => `${match.slice(0, 8)}...REDACTED`)
     .replace(/\bgh[pousr]_[A-Za-z0-9_]{20,}/g, (match) => `${match.slice(0, 8)}...REDACTED`)
     .replace(/\bpostgres(?:ql)?:\/\/[^:\s/@]+:[^\s/@]+@/gi, 'postgresql://<REDACTED>@')
