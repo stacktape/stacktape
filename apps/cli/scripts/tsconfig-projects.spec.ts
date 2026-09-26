@@ -78,6 +78,7 @@ describe('TypeScript project ownership', () => {
       'tests/tsconfig.json',
       '_test-stacks/config-loading-smoke/tsconfig.json',
       '_test-stacks/packaging-smoke/tsconfig.json',
+      '_test-stacks/alias-publication/tsconfig.json',
       '@generated/tsconfig.json'
     ]);
     expect(packageJson.scripts['test:generated-types']).toContain('-p @generated/tsconfig.json');
