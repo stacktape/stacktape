@@ -121,7 +121,19 @@ const prepareGitCheckout = async ({
 
   if (!cacheHit) {
     const temporaryCheckout = `${expectedCheckout}.partial-${process.pid}-${Date.now()}`;
-    await runGit(['clone', '--no-checkout', '--filter=blob:none', repository, temporaryCheckout], cacheRoot);
+    // Byte-exact checkouts: the runner's core.autocrlf would rewrite line endings and break fingerprints and comparisons.
+    await runGit(
+      [
+        'clone',
+        '--no-checkout',
+        '--filter=blob:none',
+        '--config',
+        'core.autocrlf=false',
+        repository,
+        temporaryCheckout
+      ],
+      cacheRoot
+    );
     await runGit(['fetch', '--depth=1', 'origin', commit], temporaryCheckout);
     await runGit(['checkout', '--detach', '--force', commit], temporaryCheckout);
     await rename(temporaryCheckout, expectedCheckout);
