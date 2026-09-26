@@ -1,7 +1,7 @@
 ---
 /**
  * The README itself, in reading order: the title with its badges, the v4 note, the tagline and
- * the description, the cover, Install, the seven things with their screenshots, the teams, Start
+ * the description, the cover, Install, the eight things with their screenshots, the teams, Start
  * and License. Every element is a markdown construct a README renderer would draw.
  */
 import Cover from '../../components/Cover.astro';
@@ -28,6 +28,7 @@ import Costs from './screens/Costs.astro';
 import Deploys from './screens/Deploys.astro';
 import Diagram from './screens/Diagram.astro';
 import Editor from './screens/Editor.astro';
+import Expert from './screens/Expert.astro';
 import Incidents from './screens/Incidents.astro';
 import Monitors from './screens/Monitors.astro';
 import Packages from './screens/Packages.astro';
@@ -49,7 +50,8 @@ const FIGURES: Record<SectionData['id'], readonly { screen: typeof Editor; capti
   monitors: [{ screen: Monitors, caption: CAPTIONS.monitoring }],
   secures: [{ screen: Secures, caption: CAPTIONS.security }],
   incidents: [{ screen: Incidents, caption: CAPTIONS.incident }],
-  costs: [{ screen: Costs, caption: CAPTIONS.costs }]
+  costs: [{ screen: Costs, caption: CAPTIONS.costs }],
+  'talk-to-us': [{ screen: Expert, caption: CAPTIONS.expert }]
 };
 ---
 

@@ -61,8 +61,22 @@ const firstSentence = `${SUBHEADLINE.split('. ')[0]}.`;
     <h2 class="rm-side__h">Contact</h2>
     <ul class="rm-side__links">
       {
-        CONTACT.map((link) => (
+        CONTACT.direct.map((link) => (
           <li>
+            <a href={link.href}>{link.label}</a>
+          </li>
+        ))
+      }
+    </ul>
+    <ul class="rm-side__profiles" aria-label="Stacktape elsewhere">
+      {
+        CONTACT.profiles.map((link, index) => (
+          <li>
+            {index > 0 && (
+              <span class="rm-side__profiles-sep" aria-hidden="true">
+                ·
+              </span>
+            )}
             <a href={link.href}>{link.label}</a>
           </li>
         ))

@@ -55,10 +55,13 @@
   }
 
   /* ── Tooltip ─────────────────────────────────────────────────────────────────────────────────
-   * Positioned from the pointer by the renderer; everything else is fixed here. */
+   * A child of the document, not of the diagram, so a small or scrollable frame cannot clip it. The
+   * renderer places it in viewport coordinates from the pointer; everything else is fixed here. */
   .stp-diagram__tooltip {
-    position: absolute;
-    z-index: 10;
+    position: fixed;
+    /* Above the 1000 tier the fullscreen editor and the dialog overlay share, so a diagram shown
+     * inside either still puts its tooltip on top rather than relying on document order. */
+    z-index: 1100;
     max-width: 360px;
     padding: 14px 18px;
     border: 1px solid rgba(255, 255, 255, 0.06);

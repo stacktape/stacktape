@@ -37,11 +37,13 @@ const CheckIcon = () => (
  * install method on the left and Copy on the right, the commands below it behind `$` prompts,
  * and (in the Install section only) a shell comment saying what the last command does.
  *
- * The npx tab is one command. The install tabs are two: the installer, then `stacktape init`,
- * the next command after installing; Copy copies both lines. Server-rendered so it reads before
- * hydration. The button keeps one width across "Copy", "Copied" and "Select and copy": the three
- * labels share a grid cell. The block never changes height when a tab switches: the pre has room
- * for the tallest tab, and a long command scrolls inside its row.
+ * The npx tab is one command. The install tabs are two: the installer, then `stacktape init`, the
+ * next command after installing. Copy takes the first line only — the second is what to run once
+ * the installer has finished, and pasting both would run it against a CLI that is not there yet.
+ *
+ * Server-rendered so it reads before hydration. The button keeps one width across "Copy", "Copied"
+ * and "Select and copy": the three labels share a grid cell. The block never changes height when a
+ * tab switches: the pre has room for the tallest tab, and a long command scrolls inside its row.
  */
 export function CodeBlock({ label = 'Install', hint = true, id }: { label?: string; hint?: boolean; id?: string }) {
   const [current, setCurrent] = useState<CommandId>('npx');
@@ -52,7 +54,9 @@ export function CodeBlock({ label = 'Install', hint = true, id }: { label?: stri
   const preRef = useRef<HTMLPreElement>(null);
   const uid = useId();
   const entry = COMMANDS.find((candidate) => candidate.id === current) ?? COMMANDS[0];
+  /** What the tab shows, and what Copy puts on the clipboard. */
   const text = entry.lines.join('\n');
+  const command = entry.lines[0];
 
   useEffect(() => {
     const node = preRef.current;
@@ -78,8 +82,9 @@ export function CodeBlock({ label = 'Install', hint = true, id }: { label?: stri
     }, ms);
   };
 
-  const selectCommands = () => {
-    const node = preRef.current;
+  /** The fallback when the clipboard is unavailable: select what Copy would have taken. */
+  const selectCommand = () => {
+    const node = preRef.current?.querySelector('[data-cmd]');
     const selection = window.getSelection();
     if (!node || !selection) return;
     const range = document.createRange();
@@ -90,11 +95,11 @@ export function CodeBlock({ label = 'Install', hint = true, id }: { label?: stri
 
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(command);
       settle('copied', 'Copied to clipboard', 1600);
     } catch {
-      selectCommands();
-      settle('failed', 'Clipboard unavailable. The commands are selected: press Ctrl+C or Cmd+C.', 5000);
+      selectCommand();
+      settle('failed', 'Clipboard unavailable. The command is selected: press Ctrl+C or Cmd+C.', 5000);
     }
   };
 
@@ -120,7 +125,7 @@ export function CodeBlock({ label = 'Install', hint = true, id }: { label?: stri
           value={current}
           width="fit"
         />
-        <Button aria-label={`Copy: ${text}`} className="rm-code__copy" onClick={copy} variant="primary">
+        <Button aria-label={`Copy: ${command}`} className="rm-code__copy" onClick={copy} variant="primary">
           <span className="rm-code__labels" aria-hidden="true">
             <span className="rm-code__label rm-code__label--copy">
               <CopyIcon />

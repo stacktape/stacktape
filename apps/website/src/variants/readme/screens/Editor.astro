@@ -1,22 +1,20 @@
 ---
 /**
- * 01 — the config editor in the Console, with the wizard's reasons beside it. Six callouts on the
- * document surface point at the resource lines in the open file; the editor shows the same stack
- * as YAML (open) and TypeScript, with the IntelliSense card under the property the pointer rests
- * on. The hovered line is written on one line on purpose: the code area keeps whitespace. Under
- * 640px the callouts give way to lens lines inside the editor.
+ * 01 — the config editor in the Console, with the wizard's reasons beside it. Six callouts point at
+ * the resource lines in the open file; where the page margin can hold them they stand outside the
+ * document, so the editor keeps the document's full width. The editor shows the same stack as YAML
+ * (open) and TypeScript, and a property the pointer rests on answers with what the real editor says
+ * about it. Under 640px the callouts give way to lens lines inside the editor.
  */
-import { EDITOR, type EditorFileId, highlightTs, highlightYaml, URLS } from '../data';
+import { EDITOR, EDITOR_DOCS, type EditorFileId, highlightTs, highlightYaml, URLS } from '../data';
 import Window from '../Window.astro';
 
 const highlight = { yml: highlightYaml, ts: highlightTs } as const;
-const files = EDITOR.files.map((file) =>
-  Object.assign({}, file, {
-    rows: highlight[file.id](file.source, EDITOR.hover.word, EDITOR.lenses),
-    signature: EDITOR.hover.signature[file.id]
-  })
-);
+const files = EDITOR.files.map((file) => Object.assign({}, file, { rows: highlight[file.id](file.source, EDITOR.lenses) }));
 const open: EditorFileId = 'yml';
+
+/** The cards' text, handed to the page as data rather than markup: one card serves every property. */
+const docsPayload = JSON.stringify(EDITOR_DOCS).replace(/</g, '\\u003c');
 ---
 
 <div class="rm-edf" data-editor>
@@ -83,11 +81,6 @@ const open: EditorFileId = 'yml';
                         </span>
                       </span>
                     </li>
-                  ) : row.kind === 'hover' ? (
-                    <li class="rm-ed__line rm-ed__line--hover">
-                      <span class="rm-ed__num">{row.number}</span>
-                      <code class="rm-ed__code">{row.before}<span class="rm-ed-prop rm-ed__hover"><span class="rm-ed__word">{row.word}</span><svg class="rm-ed__cursor" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5.5 3v16.4l4.3-4 2.9 6.4 3-1.4-2.9-6.2 6-.3z" fill="#fff" stroke="#0a1214" stroke-width="1.6" stroke-linejoin="round" /></svg><span class="rm-ed__tip" role="tooltip"><span class="rm-ed__tip-sig">{file.signature}</span><span class="rm-ed__tip-text">{EDITOR.hover.text}</span><span class="rm-ed__tip-link">{EDITOR.hover.link}</span></span></span><Fragment set:html={row.after} /></code>
-                    </li>
                   ) : (
                     <li class="rm-ed__line" data-resource={row.resource}>
                       <span class="rm-ed__num">{row.number}</span>
@@ -99,6 +92,13 @@ const open: EditorFileId = 'yml';
             ))
           }
         </div>
+
+        <div class="rm-ed__tip" role="tooltip" hidden>
+          <span class="rm-ed__tip-sig"></span>
+          <span class="rm-ed__tip-text"></span>
+          <a class="rm-ed__tip-link" href="https://docs.stacktape.com">{EDITOR.docsLink}</a>
+        </div>
+        <script is:inline type="application/json" data-editor-docs set:html={docsPayload}></script>
 
         <div class="rm-ed__status">
           {files.map((file) => <span class="rm-ed__status-lang" data-file={file.id}>{file.language}</span>)}
@@ -122,24 +122,51 @@ const open: EditorFileId = 'yml';
 
 <script>
   /*
-   * The callouts beside the editor and the tabs inside it. Each callout sits level with its
-   * resource's line in the open file (neighbouring lines push the callouts apart), and a thin
-   * curve joins the callout's dot to the line's left edge. Everything is measured at runtime and
-   * measured again on resize, on a tab switch and once the fonts have loaded. Under 640px the
-   * overlay is hidden by CSS and nothing is placed.
+   * Where the callouts stand, and then where each one sits.
+   *
+   * The document's own content edge says how much page margin is left of it. When that margin can
+   * hold a callout column at least MIN_ASIDE wide, the figure is pulled out by the column's width:
+   * the callouts land on the floor outside the document and the editor keeps the document's full
+   * width. The column is given the width the margin allows, up to IDEAL_ASIDE. When the margin is
+   * too narrow the callouts stay hidden and the lenses inside the editor say the same things, so
+   * the editor is never the part that gives up room.
+   *
+   * The measurement is of the document, which the pull does not move, so the decision cannot
+   * oscillate with the layout it causes.
+   *
+   * Each callout then sits level with its resource's line in the open file (neighbouring lines push
+   * the callouts apart), and a thin curve joins the callout's dot to the line's left edge. All of it
+   * is measured again on resize, on a tab switch and once the fonts have loaded.
    */
   const GAP = 6;
+  const EDGE = 24;
+  const IDEAL_ASIDE = 208;
+  const MIN_ASIDE = 150;
 
   const setUp = (figure: HTMLElement) => {
     const editor = figure.querySelector<HTMLElement>('.rm-ed');
     const overlay = figure.querySelector<SVGSVGElement>('.rm-edf__overlay');
     const scroller = figure.querySelector<HTMLElement>('.rm-ed__scroll');
-    if (!editor || !overlay || !scroller) return;
+    const page = figure.closest<HTMLElement>('.rm-doc');
+    if (!editor || !overlay || !scroller || !page) return;
     const tabs = Array.from(figure.querySelectorAll<HTMLButtonElement>('.rm-ed__tab'));
     const labels = Array.from(figure.querySelectorAll<HTMLElement>('.rm-edf__label'));
 
+    /** Decide whether the margin can hold the callouts, and how wide they may be. */
+    const measureMargin = () => {
+      const gap = parseFloat(getComputedStyle(figure).getPropertyValue('--rm-edf-gap')) || 14;
+      const pageStyle = getComputedStyle(page);
+      const edge =
+        page.getBoundingClientRect().left + parseFloat(pageStyle.borderLeftWidth) + parseFloat(pageStyle.paddingLeft);
+      const room = edge - EDGE - gap;
+      const outside = room >= MIN_ASIDE;
+      if (outside) figure.style.setProperty('--rm-edf-aside', `${Math.min(IDEAL_ASIDE, Math.floor(room))}px`);
+      figure.classList.toggle('is-outside', outside);
+      return outside;
+    };
+
     const place = () => {
-      if (getComputedStyle(overlay).display === 'none') {
+      if (!measureMargin()) {
         figure.classList.remove('is-placed');
         overlay.replaceChildren();
         return;
@@ -196,5 +223,110 @@ const open: EditorFileId = 'yml';
     new ResizeObserver(place).observe(figure);
   };
 
-  for (const figure of document.querySelectorAll<HTMLElement>('[data-editor]')) setUp(figure);
+  /*
+   * The hover cards. A documented property carries the id of what the editor knows about it; the
+   * card is one element the whole file shares, filled and placed under whichever property the
+   * pointer reaches, and flipped above it when there is no room below.
+   *
+   * It stays while the pointer travels into it, so the link at its foot can be followed, and closes
+   * on Escape, when the pointer leaves both, or when the code is scrolled out from under it.
+   */
+  type Doc = { signature: Partial<Record<string, string>>; text: string; href: string };
+
+  const CLOSE_DELAY = 140;
+  const TIP_GAP = 8;
+  const TIP_EDGE = 10;
+
+  const setUpDocs = (figure: HTMLElement) => {
+    const editor = figure.querySelector<HTMLElement>('.rm-ed');
+    const tip = figure.querySelector<HTMLElement>('.rm-ed__tip');
+    const scroller = figure.querySelector<HTMLElement>('.rm-ed__scroll');
+    const payload = figure.querySelector<HTMLScriptElement>('[data-editor-docs]');
+    if (!editor || !tip || !scroller || !payload) return;
+
+    const docs: Record<string, Doc> = JSON.parse(payload.textContent || '{}');
+
+    /*
+     * Waking the editor: the pointer arriving anywhere inside it lights every hover target once.
+     * Each target carries its place in its own file, so the light travels down the file instead of
+     * flashing all at once, and the two files count separately — the hidden one starts from the top
+     * when its tab is opened.
+     */
+    for (const list of figure.querySelectorAll<HTMLElement>('.rm-ed__lines')) {
+      Array.from(list.querySelectorAll<HTMLElement>('[data-doc]')).forEach((target, index) => {
+        target.style.setProperty('--rm-doc-i', String(index));
+      });
+    }
+    editor.addEventListener('pointerenter', () => editor.classList.add('is-awake'));
+    editor.addEventListener('pointerleave', () => editor.classList.remove('is-awake'));
+    const signature = tip.querySelector<HTMLElement>('.rm-ed__tip-sig');
+    const text = tip.querySelector<HTMLElement>('.rm-ed__tip-text');
+    const link = tip.querySelector<HTMLAnchorElement>('.rm-ed__tip-link');
+    if (!signature || !text || !link) return;
+
+    let closing: number | undefined;
+    let open: HTMLElement | undefined;
+
+    const hide = () => {
+      window.clearTimeout(closing);
+      open?.classList.remove('is-open');
+      open = undefined;
+      tip.hidden = true;
+    };
+
+    const show = (target: HTMLElement) => {
+      const doc = docs[target.dataset.doc ?? ''];
+      if (!doc) return;
+      window.clearTimeout(closing);
+      open?.classList.remove('is-open');
+      open = target;
+      target.classList.add('is-open');
+
+      signature.textContent = doc.signature[editor.dataset.file ?? 'yml'] ?? doc.signature.yml ?? '';
+      signature.hidden = signature.textContent === '';
+      text.textContent = doc.text;
+      link.href = doc.href;
+
+      // Placed against the editor, which does not scroll, so the card cannot leave the window.
+      tip.hidden = false;
+      tip.style.left = '0px';
+      tip.style.top = '0px';
+      const frame = editor.getBoundingClientRect();
+      const word = target.getBoundingClientRect();
+      const card = tip.getBoundingClientRect();
+      const left = Math.min(Math.max(word.left - frame.left, TIP_EDGE), frame.width - card.width - TIP_EDGE);
+      const below = word.bottom - frame.top + TIP_GAP;
+      const fits = below + card.height + TIP_EDGE <= frame.height;
+      tip.style.left = `${Math.max(TIP_EDGE, left)}px`;
+      tip.style.top = `${fits ? below : Math.max(TIP_EDGE, word.top - frame.top - TIP_GAP - card.height)}px`;
+    };
+
+    const closeSoon = () => {
+      window.clearTimeout(closing);
+      closing = window.setTimeout(hide, CLOSE_DELAY);
+    };
+
+    editor.addEventListener('pointerover', (event) => {
+      const target = (event.target as HTMLElement | null)?.closest<HTMLElement>('[data-doc]');
+      if (target) show(target);
+    });
+
+    editor.addEventListener('pointerout', (event) => {
+      const target = (event.target as HTMLElement | null)?.closest<HTMLElement>('[data-doc]');
+      const next = event.relatedTarget as Node | null;
+      if (target && !(next && (target.contains(next) || tip.contains(next)))) closeSoon();
+    });
+
+    tip.addEventListener('pointerenter', () => window.clearTimeout(closing));
+    tip.addEventListener('pointerleave', closeSoon);
+    scroller.addEventListener('scroll', hide, { passive: true });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') hide();
+    });
+  };
+
+  for (const figure of document.querySelectorAll<HTMLElement>('[data-editor]')) {
+    setUp(figure);
+    setUpDocs(figure);
+  }
 </script>

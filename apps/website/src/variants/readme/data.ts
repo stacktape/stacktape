@@ -1,7 +1,7 @@
 /*
  * Everything the "readme" page says and shows.
  *
- * The page copy, the seven sections, the example project, the screens, the README's own furniture
+ * The page copy, the eight sections, the example project, the screens, the README's own furniture
  * (badges, repo header, sidebar facts, captions) and the testimonials live here so the Astro
  * components and the islands read one source. Nothing runs at import time; the helpers at the
  * bottom are pure functions the screens call from frontmatter.
@@ -28,10 +28,18 @@ export const CLOSING = {
 export const TESTIMONIALS_TITLE = 'What teams say about Stacktape';
 export const COMMAND_HINT = 'opens the wizard in your browser';
 
-/** Each tab's lines, in order. The install tabs end with `stacktape init`: the next command after installing. */
+/**
+ * Each tab's lines, in order. The install tabs end with `stacktape init`: the next command after
+ * installing, shown rather than copied. macOS installs the Apple Silicon build; the Intel script is
+ * `macos.sh` at the same address for anyone still on one.
+ */
 export const COMMANDS = [
   { id: 'npx', label: 'npx', lines: ['npx stacktape init'] },
-  { id: 'macos', label: 'macOS', lines: ['curl -L https://installs.stacktape.com/macos.sh | sh', 'stacktape init'] },
+  {
+    id: 'macos',
+    label: 'macOS',
+    lines: ['curl -L https://installs.stacktape.com/macos-arm.sh | sh', 'stacktape init']
+  },
   { id: 'linux', label: 'Linux', lines: ['curl -L https://installs.stacktape.com/linux.sh | sh', 'stacktape init'] },
   {
     id: 'windows',
@@ -120,14 +128,14 @@ export const ACME_CONFIG = {
       }
     },
     cache: { type: 'redis-cluster', properties: { engine: { type: 'redis7' }, instanceSize: 'cache.t3.micro' } },
-    firewall: { type: 'web-app-firewall', properties: { scope: 'cloudfront' } }
+    firewall: { type: 'web-app-firewall', properties: { scope: 'cdn' } }
   }
 };
 
-/* ── The seven sections ────────────────────────────────────────────────────────────────────── */
+/* ── The eight sections ────────────────────────────────────────────────────────────────────── */
 
 export type Section = {
-  index: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+  index: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
   number: string;
   id: string;
   name: string;
@@ -219,6 +227,18 @@ export const SECTIONS: readonly Section[] = [
       'Budget and forecast alerts for a single stack or your organization.',
       'Estimates in the init wizard, before you create any resources.'
     ]
+  },
+  {
+    index: 8,
+    number: '08',
+    id: 'talk-to-us',
+    name: 'Talk to us when you get stuck',
+    text: 'Not every infrastructure question has a documented answer, and the ones that matter tend to arrive at a bad moment. When you hit one, you can talk to us. Support here is the engineers who build Stacktape, in a shared channel with your team: people who work on AWS every day, on the same kinds of stacks you deploy.',
+    gets: [
+      'A shared channel with the people who build Stacktape, and a call whenever that is faster than typing.',
+      'Ask before you commit: have a configuration, a migration or a bill looked at by someone who has seen it before.',
+      'Hands-on support from the Flexible plan onwards, and up to 24×7 premium support on Enterprise with response times agreed in advance.'
+    ]
   }
 ];
 
@@ -276,6 +296,7 @@ const YAML_SOURCE = `resources:
   mainDatabase:
     type: relational-database
     properties:
+      credentials: { masterUserPassword: $Secret('db-password') }
       engine:
         type: aurora-postgresql
         properties: { version: '16' }
@@ -283,6 +304,7 @@ const YAML_SOURCE = `resources:
     type: redis-cluster
     properties:
       instanceSize: cache.t3.micro
+      defaultUserPassword: $Secret('redis-password')
   worker:
     type: function
     properties:
@@ -307,30 +329,178 @@ const YAML_SOURCE = `resources:
   firewall:
     type: web-app-firewall
     properties:
-      scope: cloudfront`;
+      scope: cdn`;
 
+/**
+ * The same stack in TypeScript. A resource class takes that resource's own properties, so the shape
+ * matches the YAML one for one; it is not a flattened convenience API.
+ */
 const TS_SOURCE = `import {
-  defineConfig, NextjsWeb, WebService, LambdaFunction,
+  defineConfig, $Secret, NextjsWeb, WebService, LambdaFunction,
   RelationalDatabase, RedisCluster, WebAppFirewall
 } from 'stacktape';
 
 export default defineConfig(() => {
-  const mainDatabase = new RelationalDatabase({ engine: 'aurora-postgresql', version: '16' });
-  const cache = new RedisCluster({ instanceSize: 'cache.t3.micro' });
+  const mainDatabase = new RelationalDatabase({
+    credentials: { masterUserPassword: $Secret('db-password') },
+    engine: { type: 'aurora-postgresql', properties: { version: '16' } }
+  });
+  const cache = new RedisCluster({
+    instanceSize: 'cache.t3.micro', defaultUserPassword: $Secret('redis-password')
+  });
   const worker = new LambdaFunction({
-    entryfilePath: 'api/src/worker.ts', connectTo: [mainDatabase]
+    packaging: {
+      type: 'stacktape-lambda-buildpack',
+      properties: { entryfilePath: 'api/src/worker.ts' }
+    },
+    connectTo: [mainDatabase]
   });
   const apiService = new WebService({
-    dockerfile: './api/Dockerfile', cpu: 0.5, memory: 1024,
+    packaging: {
+      type: 'custom-dockerfile',
+      properties: { dockerfilePath: './api/Dockerfile' }
+    },
+    resources: { cpu: 0.5, memory: 1024 },
     scaling: { minInstances: 2, maxInstances: 6 },
     connectTo: [mainDatabase, cache, worker]
   });
   const web = new NextjsWeb({ appDirectory: './web', connectTo: [apiService] });
-  const firewall = new WebAppFirewall({ scope: 'cloudfront' });
+  const firewall = new WebAppFirewall({ scope: 'cdn' });
   return { resources: { web, apiService, worker, mainDatabase, cache, firewall } };
 });`;
 
 export type EditorFileId = 'yml' | 'ts';
+
+export type EditorDoc = {
+  /** The line the editor prints above the description. YAML shows the schema, TypeScript the type. */
+  signature: Partial<Record<EditorFileId, string>>;
+  text: string;
+  href: string;
+};
+
+const DOCS = 'https://docs.stacktape.com';
+
+/**
+ * What the editor says about a property when the pointer rests on it. Every signature, type and
+ * enumerated value here comes from the config schema in `@stacktape/config`, and every sentence is
+ * the schema's or the documentation's own description, shortened.
+ *
+ * Keyed by the token as it is written in the file, with one exception: `resources` at the root of
+ * the file is every resource in the stack, while `resources` inside a service is that container's
+ * size, so the second one is keyed apart.
+ */
+export const EDITOR_DOCS = {
+  resources: {
+    signature: { yml: 'resources: Record<string, Resource>', ts: '(property) resources: Record<string, Resource>' },
+    text: 'Every resource in the stack, by name. The name is how other resources refer to this one, and Stacktape uses it when it names what it creates in AWS.',
+    href: `${DOCS}/configuration/resources`
+  },
+  type: {
+    signature: { yml: 'type: "relational-database" | "redis-cluster" | "function" | "web-service" | …' },
+    text: 'Which kind of resource this is. The type decides which properties it takes and what Stacktape creates in AWS for it.',
+    href: `${DOCS}/configuration/resources`
+  },
+  credentials: {
+    signature: {
+      yml: 'credentials: { masterUserPassword: string; masterUserName?: string }',
+      ts: '(property) credentials: RelationalDatabaseCredentials'
+    },
+    text: 'The database admin login. Pass the password as a secret reference rather than a literal, so it never sits in the configuration file.',
+    href: `${DOCS}/configuration/secrets`
+  },
+  engine: {
+    signature: {
+      yml: 'engine: { type: "aurora-postgresql" | "postgres" | "mysql" | … , properties: {…} }',
+      ts: '(property) engine: RdsEngine | AuroraEngine | AuroraServerlessV2Engine'
+    },
+    text: 'What type of database runs and how. The RDS engines are single-node and fixed-size; the Aurora ones are clustered with automatic failover.',
+    href: `${DOCS}/resources/databases/relational-database`
+  },
+  version: {
+    signature: { yml: 'version: string', ts: '(property) version?: string' },
+    text: 'The engine version to run.',
+    href: `${DOCS}/resources/databases/relational-database`
+  },
+  instanceSize: {
+    signature: { yml: 'instanceSize: string', ts: '(property) instanceSize: string' },
+    text: 'The size of every node in the cluster, primary and replicas. It sets the memory, the performance and the cost, and it can be changed after the cluster exists.',
+    href: `${DOCS}/resources/databases/redis`
+  },
+  defaultUserPassword: {
+    signature: { yml: 'defaultUserPassword: string', ts: '(property) defaultUserPassword: string' },
+    text: 'The cluster password: 16 to 128 printable ASCII characters, without a slash, a quote or an at sign. Store it as a secret.',
+    href: `${DOCS}/configuration/secrets`
+  },
+  packaging: {
+    signature: {
+      yml: 'packaging: { type: "stacktape-lambda-buildpack" | "custom-dockerfile" | … , properties: {…} }',
+      ts: '(property) packaging: LambdaPackaging | ContainerWorkloadContainerPackaging'
+    },
+    text: 'How the code becomes an artifact. A buildpack takes an entry file and builds it for you; the other modes take your own Dockerfile or a prebuilt image.',
+    href: `${DOCS}/packaging/overview`
+  },
+  entryfilePath: {
+    signature: { yml: 'entryfilePath: string', ts: '(property) entryfilePath: string' },
+    text: "Your application's entry point. Stacktape bundles the code and its dependencies, writes source maps for JavaScript and TypeScript, and uploads the result. Everything else about the buildpack is optional.",
+    href: `${DOCS}/packaging/function/stacktape-buildpack`
+  },
+  dockerfilePath: {
+    signature: { yml: 'dockerfilePath: string', ts: '(property) dockerfilePath: string' },
+    text: 'The Dockerfile Stacktape builds for this workload, instead of using a buildpack.',
+    href: `${DOCS}/packaging/containers/custom-dockerfile`
+  },
+  computeResources: {
+    signature: {
+      yml: 'resources: { cpu: number; memory: number; instanceTypes?: string[] }',
+      ts: '(property) resources: ContainerWorkloadResourcesConfig'
+    },
+    text: 'The CPU, the memory and the compute engine for the container. Fargate is the default: set cpu and memory and run no instances of your own. EC2 is available through instanceTypes.',
+    href: `${DOCS}/resources/compute/web-service`
+  },
+  cpu: {
+    signature: { yml: 'cpu: 0.25 | 0.5 | 1 | 2 | 4 | 8 | 16', ts: '(property) cpu?: 0.25 | 0.5 | 1 | 2 | 4 | 8 | 16' },
+    text: 'vCPU for each container instance. Fargate accepts these sizes only, and the memory has to match the one you pick.',
+    href: `${DOCS}/resources/compute/web-service`
+  },
+  memory: {
+    signature: { yml: 'memory: number', ts: '(property) memory?: number' },
+    text: 'Memory in megabytes for each container instance.',
+    href: `${DOCS}/resources/compute/web-service`
+  },
+  scaling: {
+    signature: {
+      yml: 'scaling: { minInstances?: number; maxInstances?: number; … }',
+      ts: '(property) scaling?: ContainerWorkloadScaling'
+    },
+    text: 'Adds and removes container instances as demand changes. Traffic is distributed across every instance that is running.',
+    href: `${DOCS}/resources/compute/web-service`
+  },
+  minInstances: {
+    signature: { yml: 'minInstances: number', ts: '(property) minInstances?: number' },
+    text: 'The fewest instances that keep running. One is the minimum; zero is not supported.',
+    href: `${DOCS}/resources/compute/web-service`
+  },
+  maxInstances: {
+    signature: { yml: 'maxInstances: number', ts: '(property) maxInstances?: number' },
+    text: 'The most instances it will run.',
+    href: `${DOCS}/resources/compute/web-service`
+  },
+  connectTo: {
+    signature: { yml: 'connectTo: string[]', ts: '(property) connectTo?: (Resource | string)[]' },
+    text: 'Gives this resource access to others in the stack. Stacktape grants the IAM permissions, opens network access where the resource needs it, and injects the connection details as STP_[RESOURCE_NAME]_[PARAM] environment variables.',
+    href: `${DOCS}/configuration/connecting-resources`
+  },
+  appDirectory: {
+    signature: { yml: 'appDirectory: string', ts: '(property) appDirectory: string' },
+    text: 'The directory holding next.config.js. In a monorepo, point it at the Next.js workspace rather than the repository root.',
+    href: `${DOCS}/resources/frontend/nextjs`
+  },
+  scope: {
+    signature: { yml: 'scope: "cdn" | "regional"', ts: '(property) scope: "cdn" | "regional"' },
+    text: 'cdn for resources behind CloudFront, regional for load balancers, user pools and API gateways.',
+    href: `${DOCS}/resources/security/web-application-firewall`
+  }
+} as const satisfies Record<string, EditorDoc>;
 
 /** The same stack twice; YAML is the tab that is open. */
 export const EDITOR = {
@@ -338,16 +508,8 @@ export const EDITOR = {
     { id: 'yml', name: 'stacktape.yml', language: 'YAML', source: YAML_SOURCE },
     { id: 'ts', name: 'stacktape.ts', language: 'TypeScript', source: TS_SOURCE }
   ],
-  /** The IntelliSense card under the property the pointer rests on, in either file. */
-  hover: {
-    word: 'scaling',
-    signature: {
-      yml: 'scaling: { minInstances?: number; maxInstances?: number; … }',
-      ts: '(property) scaling?: { minInstances?: number; maxInstances?: number; … }'
-    },
-    text: 'How many container instances run. Stacktape adds instances while CPU or memory stays above the target and removes them when it drops.',
-    link: 'View docs'
-  },
+  /** The label on the link at the foot of every hover card. */
+  docsLink: 'View docs',
   /** The callouts beside the window, in the order the resources appear in both files. */
   callouts: [
     { resource: 'mainDatabase', text: 'Prisma schema targets PostgreSQL' },
@@ -369,7 +531,7 @@ export const EDITOR = {
   status: ['Saved', '0 problems']
 } as const satisfies {
   files: readonly { id: EditorFileId; name: string; language: string; source: string }[];
-  hover: { word: string; signature: Record<EditorFileId, string>; text: string; link: string };
+  docsLink: string;
   callouts: readonly { resource: string; text: string }[];
   lenses: Record<string, string>;
   status: readonly string[];
@@ -546,6 +708,59 @@ export const COSTS = {
   budget: { limit: 150, alertAt: 80, used: 75 }
 } as const;
 
+/* ── 08 · talking to us ────────────────────────────────────────────────────────────────────── */
+
+/** A message is written as its plain parts and the identifiers inside it, so code reads as code. */
+export type ChatSpan = string | { code: string };
+
+/**
+ * A customer asking us something, the morning after the incident in section 06, where a migration
+ * landed after the code that needed its column. The answer is the documented one: hooks run a
+ * script before or after a deployment, and a script that connects to a resource is handed its
+ * connection details. Illustrative, like every other screen on the page.
+ */
+export const EXPERT = {
+  title: `${PROJECT.name} · shared channel`,
+  messages: [
+    {
+      who: 'Jamie',
+      initials: 'JD',
+      team: false,
+      time: '09:14',
+      spans: [
+        "Yesterday's outage was our migration landing after the code that reads the column. Where should the migration run so that cannot happen again?"
+      ]
+    },
+    {
+      who: 'Marek',
+      initials: 'MK',
+      team: true,
+      time: '09:21',
+      spans: [
+        'Split it. The column goes in a ',
+        { code: 'beforeDeploy' },
+        ' hook so it exists before the new version takes traffic, and the backfill stays in ',
+        { code: 'afterDeploy' },
+        ' where a slow one cannot hold up the rollout. Your migration script already has ',
+        { code: 'connectTo: [mainDatabase]' },
+        ', so it is handed the connection string either way.'
+      ]
+    },
+    {
+      who: 'Jamie',
+      initials: 'JD',
+      team: false,
+      time: '09:26',
+      spans: ['That is the piece we had backwards. Splitting it for v43.']
+    }
+  ],
+  footer: 'A shared channel with your team · or book a call'
+} as const satisfies {
+  title: string;
+  messages: readonly { who: string; initials: string; team: boolean; time: string; spans: readonly ChatSpan[] }[];
+  footer: string;
+};
+
 /* ── Testimonials ──────────────────────────────────────────────────────────────────────────── */
 
 export const TESTIMONIALS = [
@@ -591,14 +806,11 @@ export const money = (amount: number) => `$${amount.toFixed(2)}`;
 
 export type EditorRow =
   | { kind: 'lens'; indent: number; text: string }
-  | { kind: 'code'; number: number; html: string; resource?: string }
-  | { kind: 'hover'; number: number; before: string; word: string; after: string };
+  | { kind: 'code'; number: number; html: string; resource?: string };
 
 type Language = {
   /** One source line as HTML. */
   line: (text: string) => string;
-  /** The rest of the hovered line after the hovered word. */
-  tail: (text: string) => string;
   /** The resource a line declares, if it declares one. */
   resourceOf: (text: string) => string | undefined;
 };
@@ -617,6 +829,22 @@ const TS_CLASSES = new Set([
 const escapeHtml = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const span = (cls: string, text: string) => `<span class="rm-ed-${cls}">${escapeHtml(text)}</span>`;
 
+/**
+ * Which entry a property key documents. `resources` is the one key that means two things, and the
+ * value it is given tells them apart: a container's size opens with `cpu`, the stack's resources
+ * with a name or nothing at all.
+ */
+const docIdFor = (key: string, value: string): string | undefined => {
+  const id = key === 'resources' && /^\s*\{\s*cpu\b/.test(value) ? 'computeResources' : key;
+  return id in EDITOR_DOCS ? id : undefined;
+};
+
+/** A property key, marked as a hover target when the editor has something to say about it. */
+const keySpan = (cls: string, text: string, value: string) => {
+  const id = docIdFor(text, value);
+  return id ? `<span class="rm-ed-${cls} rm-ed__doc" data-doc="${id}">${escapeHtml(text)}</span>` : span(cls, text);
+};
+
 const highlightTsLine = (line: string): string => {
   const token = /('[^']*')|(\d+(?:\.\d+)?)|([A-Za-z_$][\w$]*)|(\s+)|(.)/g;
   let html = '';
@@ -628,7 +856,7 @@ const highlightTsLine = (line: string): string => {
       const rest = line.slice(token.lastIndex);
       if (TS_KEYWORDS.has(text)) html += span('kw', text);
       else if (TS_CLASSES.has(text)) html += span('cls', text);
-      else if (/^\s*\??:/.test(rest)) html += span('prop', text);
+      else if (/^\s*\??:/.test(rest)) html += keySpan('prop', text, rest.replace(/^\s*\??:/, ''));
       else if (rest.startsWith('(')) html += span('fn', text);
       else html += span('id', text);
     } else if (space) html += text;
@@ -639,7 +867,6 @@ const highlightTsLine = (line: string): string => {
 
 const TS: Language = {
   line: highlightTsLine,
-  tail: highlightTsLine,
   resourceOf: (line) => line.match(/^\s*const (\w+) =/)?.[1]
 };
 
@@ -668,7 +895,8 @@ const highlightYamlValue = (raw: string, key?: string): string => {
       .map((pair) => {
         const at = pair.indexOf(':');
         const pairKey = pair.slice(0, at).trim();
-        return span('prop', pairKey) + span('punc', ':') + ' ' + highlightYamlValue(pair.slice(at + 1), pairKey);
+        const pairValue = pair.slice(at + 1);
+        return keySpan('prop', pairKey, pairValue) + span('punc', ':') + ' ' + highlightYamlValue(pairValue, pairKey);
       })
       .join(span('punc', ', '));
     return span('punc', '{') + ' ' + inner + ' ' + span('punc', '}');
@@ -686,8 +914,12 @@ const highlightYamlLine = (line: string): string => {
   const pair = rest.match(/^([\w.-]+):(\s*)(.*)$/);
   if (pair) {
     const [, key, gap, value] = pair;
-    const cls = indent.length === 2 && RESOURCE_NAMES.has(key!) ? 'res' : 'prop';
-    html += span(cls, key!) + span('punc', ':') + gap + highlightYamlValue(value!, key);
+    const isResource = indent.length === 2 && RESOURCE_NAMES.has(key!);
+    html +=
+      (isResource ? span('res', key!) : keySpan('prop', key!, value!)) +
+      span('punc', ':') +
+      gap +
+      highlightYamlValue(value!, key);
   } else {
     html += highlightYamlValue(rest);
   }
@@ -696,10 +928,6 @@ const highlightYamlLine = (line: string): string => {
 
 const YAML: Language = {
   line: highlightYamlLine,
-  tail: (text) => {
-    const pair = text.match(/^:(\s*)(.*)$/);
-    return pair ? span('punc', ':') + pair[1] + highlightYamlValue(pair[2]!) : highlightYamlValue(text);
-  },
   resourceOf: (line) => {
     const name = line.match(/^ {2}(\w+):\s*$/)?.[1];
     return name && RESOURCE_NAMES.has(name) ? name : undefined;
@@ -707,38 +935,26 @@ const YAML: Language = {
 };
 
 /**
- * The editor's rows: every source line numbered and highlighted, the resource a line declares
- * noted on it, a lens row above it when one exists, and the hovered property split out so the
- * screen can hang the IntelliSense card on it.
+ * The editor's rows: every source line numbered and highlighted, the resource a line declares noted
+ * on it, and a lens row above it when one exists. Documented properties are marked inside the
+ * highlighted HTML, so the page can hang a hover card on whichever one the pointer reaches.
  */
-const buildRows = (
-  source: string,
-  language: Language,
-  hoverWord: string,
-  lenses: Record<string, string>
-): EditorRow[] => {
+const buildRows = (source: string, language: Language, lenses: Record<string, string>): EditorRow[] => {
   const rows: EditorRow[] = [];
-  const hoverPattern = new RegExp(`^(\\s*)(${hoverWord})(\\??:.*)$`);
   source.split('\n').forEach((line, index) => {
-    const number = index + 1;
     const resource = language.resourceOf(line);
     const lens = resource ? lenses[resource] : undefined;
     if (lens) rows.push({ kind: 'lens', indent: line.length - line.trimStart().length, text: lens });
-    const hover = line.match(hoverPattern);
-    if (hover) {
-      rows.push({ kind: 'hover', number, before: hover[1]!, word: hover[2]!, after: language.tail(hover[3]!) });
-    } else {
-      rows.push({ kind: 'code', number, html: language.line(line), resource });
-    }
+    rows.push({ kind: 'code', number: index + 1, html: language.line(line), resource });
   });
   return rows;
 };
 
-export const highlightTs = (source: string, hoverWord: string, lenses: Record<string, string>): EditorRow[] =>
-  buildRows(source, TS, hoverWord, lenses);
+export const highlightTs = (source: string, lenses: Record<string, string>): EditorRow[] =>
+  buildRows(source, TS, lenses);
 
-export const highlightYaml = (source: string, hoverWord: string, lenses: Record<string, string>): EditorRow[] =>
-  buildRows(source, YAML, hoverWord, lenses);
+export const highlightYaml = (source: string, lenses: Record<string, string>): EditorRow[] =>
+  buildRows(source, YAML, lenses);
 
 /* ── The README's own furniture ────────────────────────────────────────────────────────────── */
 
@@ -757,16 +973,12 @@ export const BADGES = [
   { label: 'checks', value: 'passing', tone: 'ok', href: 'https://github.com/stacktape/stacktape/actions' }
 ] as const;
 
-/** What the repository is about after v4: the config is TypeScript, deploys are GitOps, the rest is what the Console does. */
-export const TOPICS = [
-  'aws',
-  'infrastructure-as-code',
-  'typescript',
-  'gitops',
-  'observability',
-  'guardrails',
-  'coding-agents'
-] as const;
+/**
+ * Four topics, read as one sentence: automated DevOps, for AWS, as infrastructure as code, giving
+ * you a platform. Anything narrower (typescript, gitops, guardrails) describes a feature rather than
+ * what the repository is, and a reader skimming the sidebar has to work out the product from them.
+ */
+export const TOPICS = ['devops-automation', 'aws', 'infrastructure-as-code', 'paas'] as const;
 
 export const TRUST_CHIPS = TRUST_LINE.split(' · ');
 
@@ -775,19 +987,26 @@ export const PRICING = {
   plans: [
     { plan: 'Free', detail: '$0 · up to $100/mo of managed AWS spend' },
     { plan: 'Flexible', detail: 'a % of managed AWS spend' },
-    { plan: 'Enterprise', detail: 'SSO · SOC 2 · 24×7 support' }
+    { plan: 'Enterprise', detail: 'Single-tenant Console in your AWS account · SSO · SOC 2 · 24×7 support' }
   ],
   more: 'See pricing'
 } as const;
 
-/** Every way to reach the team, in the sidebar. No community links. */
-export const CONTACT = [
-  { label: 'Book a demo', href: LINKS.demo },
-  { label: 'info@stacktape.com', href: 'mailto:info@stacktape.com' },
-  { label: 'GitHub', href: LINKS.github },
-  { label: 'LinkedIn', href: 'https://www.linkedin.com/company/stacktape' },
-  { label: 'X', href: 'https://x.com/stacktape' }
-] as const;
+/**
+ * How to reach the team, in the sidebar. No community links. The ways to talk to a person are read
+ * one under another; the profiles are a row, since a reader scans them rather than reads them.
+ */
+export const CONTACT = {
+  direct: [
+    { label: 'Book a demo', href: LINKS.demo },
+    { label: 'info@stacktape.com', href: 'mailto:info@stacktape.com' }
+  ],
+  profiles: [
+    { label: 'GitHub', href: LINKS.github },
+    { label: 'LinkedIn', href: 'https://www.linkedin.com/company/stacktape' },
+    { label: 'X', href: 'https://x.com/stacktape' }
+  ]
+} as const;
 
 export const SIGN_IN = { before: 'Already using Stacktape?', link: 'Open the Console', href: LINKS.console } as const;
 
@@ -806,7 +1025,8 @@ export const CAPTIONS = {
   monitoring: 'Monitoring in the Console',
   security: 'Security in the Console: what is scanned, what needs a fix, what a guardrail stopped',
   incident: 'An incident, from the first failed check to the fix',
-  costs: "This month's costs, per resource"
+  costs: "This month's costs, per resource",
+  expert: 'A question the morning after the incident, and the answer from the team'
 } as const;
 
 export const COVER_CAPTION = 'The Console and the CLI during a production deploy.';

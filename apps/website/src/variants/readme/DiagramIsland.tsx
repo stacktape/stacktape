@@ -58,6 +58,8 @@ export default function DiagramIsland({ config, ariaLabel }: Props) {
         animateConnectors={animate}
         config={config as unknown as StacktapeConfig}
         ariaLabel={ariaLabel}
+        /* Takes up the margin a full fit leaves around the scene, without cropping the edge nodes. */
+        initialZoom={1.12}
         style={{ width: '100%', height: '100%' }}
       />
       <span className="rm-diagram__gate" aria-hidden="true">

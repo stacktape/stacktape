@@ -45,7 +45,8 @@ export function IsometricDiagram({
   animateConnectors,
   ariaLabel,
   className,
-  style
+  style,
+  initialZoom
 }: IsometricDiagramProps) {
   const scene: IsoScene | null = useMemo(() => buildIsometricScene({ parsedConfig: config }), [config]);
 
@@ -64,6 +65,7 @@ export function IsometricDiagram({
       animateConnectors={animateConnectors}
       ariaLabel={ariaLabel}
       className={className}
+      initialZoom={initialZoom}
       scene={scene}
       style={style}
     />

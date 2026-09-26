@@ -2,12 +2,14 @@
 /**
  * A product window, as the README's screenshot shows it. A browser window carries three dots and
  * the URL pill (a lock when the address is on the public internet, none for the wizard on the
- * visitor's own machine); a terminal window carries three dots and its title. Nothing else
+ * visitor's own machine); a terminal or a panel carries three dots and its title. Nothing else
  * identifies a screen. The window has no edge of its own: the figure around it is the image's rim.
+ *
+ * A panel is the kind for a screen that is neither a page nor a shell — a conversation, say.
  */
 type Props =
   | { kind: 'browser'; host: string; path: string; lock?: boolean; class?: string }
-  | { kind: 'terminal'; title: string; class?: string };
+  | { kind: 'terminal' | 'panel'; title: string; class?: string };
 
 const props = Astro.props;
 const className = ['rm-win', `rm-win--${props.kind}`, props.class].filter(Boolean).join(' ');

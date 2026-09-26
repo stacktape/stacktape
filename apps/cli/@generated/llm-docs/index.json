@@ -15272,6 +15272,7 @@
         "page:/ci-cd-and-gitops/gitops-with-console#when-to-use",
         "page:/ci-cd-and-gitops/gitops-with-console#when-not-to-use",
         "page:/ci-cd-and-gitops/gitops-with-console#prerequisites",
+        "page:/ci-cd-and-gitops/gitops-with-console#provider-permissions-for-security-fix-pull-requests",
         "page:/ci-cd-and-gitops/gitops-with-console#push-to-deploy",
         "page:/ci-cd-and-gitops/gitops-with-console#setting-up-push-to-deploy",
         "page:/ci-cd-and-gitops/gitops-with-console#multiple-configurations-per-branch",

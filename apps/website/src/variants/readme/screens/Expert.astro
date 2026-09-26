@@ -1,0 +1,39 @@
+---
+/**
+ * 08 — a customer asking us about the incident in section 06. Three messages in a shared channel:
+ * what went wrong, where the migration should run instead, and what the team took from it. The
+ * identifiers in the answer are set as code, because that is what they are.
+ */
+import { EXPERT } from '../data';
+import Window from '../Window.astro';
+---
+
+<Window kind="panel" title={EXPERT.title}>
+  <ol class="rm-chat">
+    {
+      EXPERT.messages.map((message) => (
+        <li class="rm-chat__msg">
+          <span class={message.team ? 'rm-chat__avatar rm-chat__avatar--team' : 'rm-chat__avatar'} aria-hidden="true">
+            {message.initials}
+          </span>
+          <div class="rm-chat__body">
+            <p class="rm-chat__head">
+              <span class="rm-chat__who">{message.who}</span>
+              {message.team && <span class="rm-chat__badge">Stacktape</span>}
+              <span class="rm-chat__time">{message.time}</span>
+            </p>
+            <p class="rm-chat__text">
+              {
+                message.spans.map((span) =>
+                  typeof span === 'string' ? span : <code class="rm-chat__code">{span.code}</code>
+                )
+              }
+            </p>
+          </div>
+        </li>
+      ))
+    }
+  </ol>
+
+  <p class="rm-chat__foot">{EXPERT.footer}</p>
+</Window>

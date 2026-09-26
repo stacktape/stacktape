@@ -55,9 +55,32 @@
   --rm-gutter: 24px;
   --rm-header: 64px;
 
+  /* One 64×32 isometric cell in the brand teal, with a dot at every intersection. */
+  --rm-floor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='32'%3E%3Cpath d='M0 0L64 32M0 32L64 0' fill='none' stroke='rgba(54,190,190,0.10)' stroke-width='1'/%3E%3Cg fill='rgba(54,190,190,0.22)'%3E%3Ccircle cx='0' cy='0' r='1.2'/%3E%3Ccircle cx='64' cy='0' r='1.2'/%3E%3Ccircle cx='0' cy='32' r='1.2'/%3E%3Ccircle cx='64' cy='32' r='1.2'/%3E%3Ccircle cx='32' cy='16' r='1.2'/%3E%3C/g%3E%3C/svg%3E");
+
+  /* The margin either side of the document, and 0 once the layout has filled the window. */
+  --rm-band: max(0px, (100vw - var(--rm-container)) / 2);
+
+  /*
+   * Where the floor is lit. Full strength in the margins, quiet everywhere the column stands: the
+   * fall happens in the outer half of the margin and is finished just inside the container's edge,
+   * so the document and the sidebar both sit on an even, faint floor while the margins frame them.
+   */
+  --rm-floor-light: linear-gradient(
+    90deg,
+    rgb(0 0 0 / 1) 0,
+    rgb(0 0 0 / 1) calc(var(--rm-band) * 0.4),
+    rgb(0 0 0 / 0.32) calc(var(--rm-band) + 40px),
+    rgb(0 0 0 / 0.24) 50%,
+    rgb(0 0 0 / 0.32) calc(100% - var(--rm-band) - 40px),
+    rgb(0 0 0 / 1) calc(100% - var(--rm-band) * 0.4),
+    rgb(0 0 0 / 1) 100%
+  );
+
   position: relative;
   min-height: 100vh;
   overflow-x: clip;
+  isolation: isolate;
   background: var(--rm-page);
   color: var(--rm-text);
   font-family: var(--rm-sans);
@@ -99,6 +122,37 @@
   clip: rect(0 0 0 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* ── The isometric floor ─────────────────────────────────────────────────────────────────────── */
+
+/*
+ * The ground the whole page stands on: the isometric lattice from the other studies, running the
+ * full height behind everything, including the space below the document and the footer.
+ *
+ * Two things shape it. Across the page, `--rm-floor-light` lights the margins and quiets the middle,
+ * so the lattice softens as it reaches the document and the sidebar instead of stopping at their
+ * edges. Down the page, the first background layer is the page's own colour, opaque behind the
+ * header and gone by the time the title arrives: the header is a solid bar, and a pattern beginning
+ * at its lower edge reads as a seam.
+ */
+.rm-root::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background-image:
+    linear-gradient(180deg, var(--rm-page) 0, var(--rm-page) var(--rm-header), rgb(22 28 28 / 0) 280px), var(--rm-floor);
+  -webkit-mask-image: var(--rm-floor-light);
+  mask-image: var(--rm-floor-light);
+  pointer-events: none;
+}
+
+/* Once the layout fills the window there are no margins left to light, so the floor goes even. */
+@media (max-width: 1119px) {
+  .rm-root {
+    --rm-floor-light: linear-gradient(90deg, rgb(0 0 0 / 0.34), rgb(0 0 0 / 0.34));
+  }
 }
 
 /* ── The repository header ───────────────────────────────────────────────────────────────────── */
@@ -286,9 +340,13 @@
   border: 1px solid var(--rm-rule);
   border-radius: 6px;
   background: var(--rm-doc);
+  /* The first shadow is the halo: it holds the floor off the card's edge. The last is the light
+   * catching the card's top edge. */
   box-shadow:
+    0 0 70px 24px rgba(16, 21, 21, 0.45),
     0 16px 48px rgba(0, 0, 0, 0.35),
-    0 1px 0 rgba(255, 255, 255, 0.03);
+    0 1px 0 rgba(255, 255, 255, 0.03),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
   color: var(--rm-body);
   overflow-wrap: break-word;
 }
@@ -302,7 +360,9 @@
   text-decoration: underline;
 }
 
-.rm-doc :where(.rm-h2, .rm-h3, .rm-section) {
+/* The header is sticky, so anything an in-page link lands on has to clear its height. The code
+ * block is one of those targets: "Get started" points straight at it. */
+.rm-doc :where(.rm-h2, .rm-h3, .rm-section, .rm-code) {
   scroll-margin-top: calc(var(--rm-header) + 24px);
 }
 
@@ -564,11 +624,6 @@ a:hover .rm-arrow {
   border-radius: 6px;
   background: var(--rm-code-bg);
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3);
-  transition: border-color 200ms ease;
-}
-
-.rm-code:focus-within {
-  border-color: rgba(var(--rm-brand-rgb) / 0.5);
 }
 
 .rm-code__head {
@@ -594,6 +649,12 @@ a:hover .rm-arrow {
   height: 40px;
   padding: 0 12px;
   font-family: var(--rm-mono);
+}
+
+/* These read as file names in a code block's header, not as buttons, so they do not shrink under
+ * the press the shared component gives a tab. */
+.rm-code__tabs .stp-ui-tab:active:not(:disabled) {
+  transform: none;
 }
 
 .rm-code__copy {
@@ -757,14 +818,18 @@ a:hover .rm-arrow {
   box-shadow: inset 0 -1px 0 var(--rm-line);
 }
 
-.rm-win--terminal .rm-win__bar {
+.rm-win--terminal .rm-win__bar,
+.rm-win--panel .rm-win__bar {
   height: 36px;
 }
 
+/* The chrome names the screen and then gets out of the way: the dots and the address are the frame
+ * around the picture, not part of it, so they sit well below the content in contrast. */
 .rm-win__dots {
   display: inline-flex;
   flex: none;
   gap: 6px;
+  opacity: 0.5;
 }
 
 .rm-win__dots i {
@@ -799,16 +864,15 @@ a:hover .rm-arrow {
   margin: 0 auto;
   padding: 0 12px;
   border-radius: 999px;
-  background: var(--rm-win);
-  box-shadow: inset 0 0 0 1px var(--rm-line);
+  background: rgba(255, 255, 255, 0.025);
   font-size: 12px;
-  color: var(--rm-win-muted);
+  color: var(--rm-win-faint);
   white-space: nowrap;
 }
 
 .rm-win__lock {
   flex: none;
-  color: var(--rm-brand);
+  color: var(--rm-win-faint);
 }
 
 .rm-win__addr {
@@ -818,8 +882,8 @@ a:hover .rm-arrow {
 }
 
 .rm-win__addr b {
-  font-weight: 500;
-  color: var(--rm-win-text);
+  font-weight: 400;
+  color: var(--rm-win-muted);
 }
 
 .rm-win__title {
@@ -844,7 +908,7 @@ a:hover .rm-arrow {
   padding: 18px 22px 20px;
 }
 
-/* ── The pieces the screens share, and the seven screens ────────────────────────────────────── */
+/* ── The pieces the screens share, and the screens themselves ────────────────────────────────────── */
 
 /* The pieces the screens share. */
 .rm-scr__head {
@@ -893,22 +957,42 @@ a:hover .rm-arrow {
 
 /* ── 01 · the config editor ──────────────────────────────────────────────────────────────────── */
 
-/* The figure: six callouts on the document surface, then the window. A script lays each callout
- * level with its resource's line and draws the connector. Under 640px the lenses inside the
- * editor carry the same words instead. */
+/*
+ * The figure: the editor at the document's full width, with the wizard's reasons pointing into it
+ * from the page margin. A script measures the margin beside the document; when it can hold the
+ * callout column the figure is pulled out by that column's width, so the callouts stand on the
+ * floor outside the document and the editor loses nothing. The script sets the column's own width
+ * to what the margin allows, and lays each callout level with its resource's line.
+ *
+ * Where the margin is too narrow — a laptop, a phone — the callouts do not appear at all and the
+ * lenses inside the editor carry the same words. The editor is full width either way; it never
+ * gives up room to a column beside it.
+ */
 .rm-edf {
+  --rm-edf-aside: 208px;
+  --rm-edf-gap: 14px;
+
   position: relative;
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
-  column-gap: 14px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.rm-edf.is-outside {
+  grid-template-columns: var(--rm-edf-aside) minmax(0, 1fr);
+  column-gap: var(--rm-edf-gap);
+  margin-left: calc(-1 * (var(--rm-edf-aside) + var(--rm-edf-gap)));
 }
 
 .rm-edf__labels {
   position: relative;
-  display: grid;
+  display: none;
   align-content: start;
   gap: 12px;
   padding-top: 52px;
+}
+
+.rm-edf.is-outside .rm-edf__labels {
+  display: grid;
 }
 
 .rm-edf__label {
@@ -928,6 +1012,12 @@ a:hover .rm-arrow {
   left: 0;
 }
 
+/* Standing on the floor rather than on the document's paper, where the card's halo darkens the
+ * ground under them. */
+.rm-edf.is-outside .rm-edf__label {
+  color: var(--rm-body);
+}
+
 .rm-edf__dot {
   flex: none;
   width: 5px;
@@ -940,10 +1030,15 @@ a:hover .rm-arrow {
   position: absolute;
   inset: 0;
   z-index: 2;
+  display: none;
   width: 100%;
   height: 100%;
   overflow: visible;
   pointer-events: none;
+}
+
+.rm-edf.is-outside .rm-edf__overlay {
+  display: block;
 }
 
 .rm-edf__overlay path {
@@ -966,6 +1061,7 @@ a:hover .rm-arrow {
 }
 
 .rm-ed {
+  position: relative;
   display: grid;
   font-family: var(--rm-mono);
 }
@@ -995,7 +1091,26 @@ a:hover .rm-arrow {
 }
 
 .rm-ed__tab:hover {
+  background: rgba(255, 255, 255, 0.05);
   color: var(--rm-win-text);
+}
+
+/* The other file is one click away, which a flat strip does not say. It says so on the way in. */
+.rm-ed.is-awake .rm-ed__tab[aria-selected='false'] {
+  animation: rm-ed-tab-wake 640ms ease-out both;
+}
+
+@keyframes rm-ed-tab-wake {
+  0%,
+  100% {
+    background-color: rgb(255 255 255 / 0);
+    color: var(--rm-win-muted);
+  }
+
+  45% {
+    background-color: rgba(var(--rm-brand-rgb) / 0.12);
+    color: var(--rm-win-text);
+  }
 }
 
 .rm-ed__tab[aria-selected='true'] {
@@ -1013,7 +1128,7 @@ a:hover .rm-arrow {
 }
 
 .rm-ed__tab[aria-selected='false'] .rm-ed__tab-icon {
-  opacity: 0.55;
+  opacity: 0.8;
 }
 
 /* One file at a time: the root's data-file picks the list and the status word. */
@@ -1059,12 +1174,16 @@ a:hover .rm-arrow {
   white-space: pre;
 }
 
-/* A lens above its line at the line's own indent. The callouts say the same, so it only shows on phones. */
+/* A lens above its line at the line's own indent. It carries the callouts' words wherever the page
+ * margin is too narrow to stand them outside the document, so it gives way when they are shown. */
 .rm-ed__lens {
-  display: none;
   align-items: center;
   height: 18px;
   line-height: 18px;
+}
+
+.rm-edf.is-outside .rm-ed__lens {
+  display: none;
 }
 
 .rm-ed__lens-text {
@@ -1121,40 +1240,61 @@ a:hover .rm-arrow {
   color: rgba(255, 255, 255, 0.42);
 }
 
-/* The property under the pointer: word highlight, faint underline, the card hung beneath it. */
-.rm-ed__hover {
-  position: relative;
-  z-index: 2;
+/*
+ * A property the editor can talk about. At rest its dotted underline is a quiet hint. When the
+ * pointer arrives anywhere in the editor they all light up once, left to right, and then settle a
+ * little brighter than they were: enough to say the file answers questions, and over before the
+ * reader has finished crossing it.
+ */
+.rm-ed__doc {
   border-radius: 2px;
+  text-decoration: underline dotted rgba(255, 255, 255, 0.26);
+  text-underline-offset: 4px;
+  transition:
+    text-decoration-color 220ms ease,
+    background-color 220ms ease;
+  cursor: help;
+}
+
+.rm-ed.is-awake .rm-ed__doc {
+  animation: rm-ed-wake 640ms ease-out both;
+  animation-delay: calc(var(--rm-doc-i, 0) * 15ms);
+  text-decoration-color: rgba(255, 255, 255, 0.5);
+}
+
+@keyframes rm-ed-wake {
+  0% {
+    background-color: rgb(255 255 255 / 0);
+    text-decoration-color: rgba(255, 255, 255, 0.26);
+  }
+
+  42% {
+    background-color: rgba(var(--rm-brand-rgb) / 0.09);
+    text-decoration-color: rgba(var(--rm-brand-rgb) / 0.7);
+  }
+
+  100% {
+    background-color: rgb(255 255 255 / 0);
+    text-decoration-color: rgba(255, 255, 255, 0.5);
+  }
+}
+
+.rm-ed__doc:hover,
+.rm-ed__doc.is-open {
   background: rgba(255, 255, 255, 0.08);
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08);
+  text-decoration-color: rgba(255, 255, 255, 0.62);
 }
 
-.rm-ed__word {
-  text-decoration: underline;
-  text-decoration-color: rgba(255, 255, 255, 0.4);
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
-}
-
-.rm-ed__cursor {
-  position: absolute;
-  top: 40%;
-  left: 55%;
-  z-index: 2;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
-  pointer-events: none;
-}
-
+/* One card for the whole file; the script fills it and places it against the editor's own box, so
+ * it can never leave the window the way an absolutely placed card hung off a word would. */
 .rm-ed__tip {
   position: absolute;
-  top: calc(100% + 9px);
-  left: -10px;
-  z-index: 1;
+  z-index: 3;
   display: grid;
   gap: 6px;
   width: max-content;
-  max-width: 480px;
+  max-width: min(460px, calc(100% - 20px));
   padding: 10px 12px 9px;
   border-radius: 8px;
   background: rgb(29, 36, 36);
@@ -1169,6 +1309,14 @@ a:hover .rm-arrow {
   color: var(--rm-body);
   text-align: left;
   white-space: normal;
+}
+
+.rm-ed__tip[hidden] {
+  display: none;
+}
+
+.rm-ed__tip-sig[hidden] {
+  display: none;
 }
 
 .rm-ed__tip-sig {
@@ -1209,7 +1357,7 @@ a:hover .rm-arrow {
 .rm-dg {
   position: relative;
   min-width: 0;
-  height: 380px;
+  height: 480px;
   overflow: hidden;
   background:
     radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1.3px) 0 0 / 18px 18px,
@@ -1256,7 +1404,7 @@ a:hover .rm-arrow {
 
 @container (max-width: 640px) {
   .rm-dg {
-    height: 280px;
+    height: 340px;
   }
 }
 
@@ -2221,10 +2369,97 @@ a:hover .rm-arrow {
   }
 }
 
+/* ── 08 · the experts ────────────────────────────────────────────────────────────────────────── */
+
+/* A conversation, not a product page: initials, who said it, when, and what they said. The team's
+ * messages carry a mark so it is never a guess which side an answer came from. */
+.rm-chat {
+  display: grid;
+  gap: 18px;
+}
+
+.rm-chat__msg {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.rm-chat__avatar {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  font-family: var(--rm-mono);
+  font-size: 10.5px;
+  color: var(--rm-win-muted);
+}
+
+.rm-chat__avatar--team {
+  background: rgba(var(--rm-brand-rgb) / 0.16);
+  box-shadow: inset 0 0 0 1px rgba(var(--rm-brand-rgb) / 0.3);
+  color: var(--rm-brand);
+}
+
+.rm-chat__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.rm-chat__who {
+  font-weight: 500;
+  color: var(--rm-win-text);
+}
+
+.rm-chat__badge {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(var(--rm-brand-rgb) / 0.14);
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  color: var(--rm-brand);
+}
+
+.rm-chat__time {
+  font-family: var(--rm-mono);
+  font-size: 11px;
+  color: var(--rm-win-faint);
+}
+
+.rm-chat__text {
+  color: var(--rm-win-muted);
+}
+
+.rm-chat__code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  font-family: var(--rm-mono);
+  font-size: 11.5px;
+  color: var(--rm-win-text);
+}
+
+.rm-chat__foot {
+  padding-top: 14px;
+  box-shadow: inset 0 1px 0 var(--rm-line);
+  font-size: 12px;
+  color: var(--rm-win-faint);
+}
+
 /* ── The About sidebar ───────────────────────────────────────────────────────────────────────── */
 
 /* Sticky, but never taller than the viewport: with six blocks it can be, and a sticky column taller
- * than the screen hides its tail until the page ends. So it scrolls inside itself instead. */
+ * than the screen hides its tail until the page ends. So it scrolls inside itself instead.
+ *
+ * It has no surface of its own, by design: it stands directly on the floor, which the lighting has
+ * already quieted everywhere the container reaches. */
 .rm-side {
   position: sticky;
   top: calc(var(--rm-header) + 16px);
@@ -2371,6 +2606,30 @@ a:hover .rm-arrow {
   text-decoration: underline;
 }
 
+/* The profiles run along one line, each after the last behind a dot, and wrap together when the
+ * column is too narrow to hold them. */
+.rm-side__profiles {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.rm-side__profiles a {
+  display: inline-block;
+  padding: 2px 0;
+  color: var(--rm-body);
+}
+
+.rm-side__profiles a:hover {
+  color: var(--rm-brand);
+  text-decoration: underline;
+}
+
+.rm-side__profiles-sep {
+  padding: 0 8px;
+  color: var(--rm-faint);
+}
+
 .rm-license {
   display: grid;
   gap: 8px;
@@ -2412,6 +2671,7 @@ a:hover .rm-arrow {
 
 /* ── Footer ──────────────────────────────────────────────────────────────────────────────────── */
 
+/* The footer has no surface of its own: the floor runs straight through it, under its rule. */
 .rm-footer {
   padding: 32px 0 40px;
   box-shadow: inset 0 1px 0 var(--rm-rule);
@@ -2592,20 +2852,6 @@ a:hover .rm-arrow {
     justify-content: flex-start;
   }
 
-  /* No room beside the editor: the lenses inside it carry the callouts' words. */
-  .rm-edf {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .rm-edf__labels,
-  .rm-edf__overlay {
-    display: none;
-  }
-
-  .rm-ed__lens {
-    display: grid;
-  }
-
   .rm-footer__links {
     margin-left: 0;
   }
@@ -2635,30 +2881,12 @@ a:hover .rm-arrow {
   .rm-root *,
   .rm-root *::before,
   .rm-root *::after {
+    animation: none !important;
     transition: none !important;
   }
-}
 
-/* ── Below 640px: the IntelliSense card docks to the bottom of the code area ─────────────────── */
-
-@media (max-width: 639px) {
-  /* Anchored to the word, the card would run past the window's edge; anchored to the code area it
-   * sits in reserved space under the last line, the way a phone editor shows a hover. */
-  .rm-ed__scroll {
-    position: relative;
-    padding-bottom: 132px;
-  }
-
-  .rm-ed__hover {
-    position: static;
-  }
-
-  .rm-ed__tip {
-    top: auto;
-    right: 10px;
-    bottom: 10px;
-    left: 10px;
-    width: auto;
-    max-width: none;
+  /* The wake is what makes the editor's hover targets stand out, so keep the state it settles on. */
+  .rm-ed.is-awake .rm-ed__doc {
+    text-decoration-color: rgba(255, 255, 255, 0.5);
   }
 }

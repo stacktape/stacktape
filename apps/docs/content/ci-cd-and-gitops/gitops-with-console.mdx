@@ -31,6 +31,28 @@ Before creating a GitOps configuration, you need:
 2. **A connected AWS account.** Each GitOps configuration deploys to a specific [AWS account and region](/stacktape-console/connecting-your-aws-account). You must have at least one AWS account connected before creating deployment rules.
 3. **A deployable Stacktape project.** The repository must be deployable by Stacktape — the GitHub App handler starts a deployment using the project's configuration.
 
+## Provider permissions for security fix pull requests
+
+When you ask Stacktape to prepare a security fix, it creates a `stacktape/*` branch, commits the selected file changes,
+opens a pull request, and reports the security result on that commit. It never force-pushes or writes directly to the
+repository's default branch. The Console requires `security:manage` access to that project before it can start these
+writes.
+
+The connected provider grants must allow the same bounded workflow:
+
+- **GitHub:** repository Contents, Pull requests, and Commit statuses need read and write access. GitHub asks an account
+  owner to approve new App permissions on existing installations. Until that approval is complete, the Console marks
+  the connection as needing attention and offers the normal reconnect action.
+- **GitLab:** the group OAuth connection uses the `api` scope for branch, commit, merge-request, and status writes. The
+  read-only deploy token used by build runners is never used for these API operations. Reconnect the group if its OAuth
+  grant has expired or been revoked.
+- **Bitbucket:** the Forge app needs repository read/write and pull-request read/write scopes. Changing Forge scopes
+  requires a workspace admin to approve an installation upgrade. Commit statuses use the repository scope supplied by
+  that installation.
+
+Existing deployments continue to work when a provider has not approved these write permissions, but Stacktape cannot
+open a security fix pull request until the connection is reapproved.
+
 ## Push-to-deploy
 
 Push-to-deploy is the most common GitOps pattern. Every push to a specified branch triggers a deployment to a fixed stage name. This is how most teams set up continuous deployment for staging and production environments.

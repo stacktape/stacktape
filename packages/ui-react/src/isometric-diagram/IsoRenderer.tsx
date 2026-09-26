@@ -21,7 +21,8 @@ import type {
   IsoTilePoint,
   PedestalType
 } from './scene.js';
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { EDGE_SEMANTIC_LABELS } from './resource-explanations.js';
 
 // Chrome colours come from `@stacktape/design-tokens`; the host loads the token CSS together with
@@ -715,7 +716,12 @@ type TooltipContent = {
   note?: string | undefined;
 };
 
+/** Pointer position in viewport coordinates: the tooltip is rendered outside the diagram's box. */
 type TooltipState = TooltipContent & { x: number; y: number };
+
+/** Clear of the pointer, and clear of the window's edges. */
+const TOOLTIP_OFFSET = 16;
+const TOOLTIP_MARGIN = 12;
 
 /**
  * Presentation and interaction options every view of a diagram accepts, whether the caller hands in a
@@ -727,6 +733,12 @@ export type DiagramViewProps = {
   ariaLabel?: string | undefined;
   className?: string | undefined;
   style?: CSSProperties | undefined;
+  /**
+   * The zoom the view opens at, and returns to when it is reset. 1 fits the whole scene inside the
+   * frame with a margin around it; raise it to fill a short frame, where that margin is most of
+   * what the reader sees. Clamped to the same range as the zoom controls.
+   */
+  initialZoom?: number | undefined;
 };
 
 export type IsoRendererProps = DiagramViewProps & {
@@ -742,23 +754,45 @@ export function IsoRenderer({
   animateConnectors = true,
   ariaLabel = 'Architecture diagram',
   className,
-  style
+  style,
+  initialZoom
 }: IsoRendererProps) {
   const idPrefix = useId().replaceAll(':', '');
   const containerRef = useRef<HTMLDivElement>(null);
-  const [view, setView] = useState<ViewTransform>(DEFAULT_VIEW);
+  /** Where the view starts, and where resetting takes it back to. */
+  const home = useMemo<ViewTransform>(
+    () => (initialZoom === undefined ? DEFAULT_VIEW : { ...DEFAULT_VIEW, zoom: clampZoom(initialZoom) }),
+    [initialZoom]
+  );
+  const [view, setView] = useState<ViewTransform>(home);
   const [isDragging, setIsDragging] = useState(false);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [hoveredZoneId, setHoveredZoneId] = useState<string | null>(null);
   const [hoveredConnectorId, setHoveredConnectorId] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
   const dragStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
 
   const moveTooltip = useCallback((e: ReactPointerEvent, content: TooltipContent) => {
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    setTooltip({ x: e.clientX - rect.left + 14, y: e.clientY - rect.top + 14, ...content });
+    setTooltip({ x: e.clientX, y: e.clientY, ...content });
   }, []);
+
+  /*
+   * The tooltip is a child of the document, not of the diagram: the diagram clips its own overflow
+   * so the view can be panned, and inside a small frame a tooltip near an edge would be cut off.
+   * Being outside means it is placed in viewport coordinates, and that its own measured size keeps
+   * it on screen — it flips above the pointer near the bottom and slides along the right edge.
+   */
+  useLayoutEffect(() => {
+    const node = tooltipRef.current;
+    if (!node || !tooltip) return;
+    const box = node.getBoundingClientRect();
+    const maxLeft = window.innerWidth - box.width - TOOLTIP_MARGIN;
+    const below = tooltip.y + TOOLTIP_OFFSET;
+    const fitsBelow = below + box.height + TOOLTIP_MARGIN <= window.innerHeight;
+    node.style.left = `${Math.max(TOOLTIP_MARGIN, Math.min(tooltip.x + TOOLTIP_OFFSET, maxLeft))}px`;
+    node.style.top = `${Math.max(TOOLTIP_MARGIN, fitsBelow ? below : tooltip.y - TOOLTIP_OFFSET - box.height)}px`;
+  }, [tooltip]);
 
   const { minX, minY, svgW, svgH } = useMemo(() => {
     const nodeBounds = scene.nodes.map((node) => getNodeScreenBounds(node));
@@ -855,8 +889,8 @@ export function IsoRenderer({
     [scene.nodes]
   );
   useEffect(() => {
-    setView(DEFAULT_VIEW);
-  }, [nodesKey]);
+    setView(home);
+  }, [nodesKey, home]);
 
   // Hover details are snapshots of the current scene. Clear them when the host supplies a newly
   // compiled scene so removed resources cannot leave the remainder permanently dimmed or display
@@ -931,7 +965,7 @@ export function IsoRenderer({
       return { zoom, panX: current.panX * scaleRatio, panY: current.panY * scaleRatio };
     });
   }, []);
-  const resetView = useCallback(() => setView(DEFAULT_VIEW), []);
+  const resetView = useCallback(() => setView(home), [home]);
 
   const onKeyDown = useCallback(
     (e: ReactKeyboardEvent) => {
@@ -1029,6 +1063,9 @@ export function IsoRenderer({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
+      // The tooltip lives outside this element now, so leaving the diagram has to dismiss it here
+      // as well: a shape's own leave event can be missed when the pointer exits quickly.
+      onPointerLeave={() => setTooltip(null)}
       onKeyDown={onKeyDown}
     >
       <svg
@@ -1175,17 +1212,24 @@ export function IsoRenderer({
           <ZoneTag key={l.id} label={l} />
         ))}
       </svg>
-      {tooltip && (
-        <div className="stp-diagram__tooltip" style={{ left: tooltip.x, top: tooltip.y }}>
-          <div className="stp-diagram__tooltip-heading">
-            <p className="stp-diagram__tooltip-title">{tooltip.title}</p>
-            {tooltip.subtitle && <p className="stp-diagram__tooltip-subtitle">{tooltip.subtitle}</p>}
-          </div>
-          {tooltip.summary && <p className="stp-diagram__tooltip-summary">{tooltip.summary}</p>}
-          {tooltip.details && <p className="stp-diagram__tooltip-details">{tooltip.details}</p>}
-          {tooltip.note && <p className="stp-diagram__tooltip-note">{tooltip.note}</p>}
-        </div>
-      )}
+      {tooltip &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            className="stp-diagram__tooltip"
+            ref={tooltipRef}
+            style={{ left: tooltip.x + TOOLTIP_OFFSET, top: tooltip.y + TOOLTIP_OFFSET }}
+          >
+            <div className="stp-diagram__tooltip-heading">
+              <p className="stp-diagram__tooltip-title">{tooltip.title}</p>
+              {tooltip.subtitle && <p className="stp-diagram__tooltip-subtitle">{tooltip.subtitle}</p>}
+            </div>
+            {tooltip.summary && <p className="stp-diagram__tooltip-summary">{tooltip.summary}</p>}
+            {tooltip.details && <p className="stp-diagram__tooltip-details">{tooltip.details}</p>}
+            {tooltip.note && <p className="stp-diagram__tooltip-note">{tooltip.note}</p>}
+          </div>,
+          document.body
+        )}
       {!tooltip && <p className="stp-diagram__hint">Hover a resource, pipe, or boundary to learn what it does</p>}
       <div className="stp-diagram__controls" onPointerDown={(e) => e.stopPropagation()}>
         <button
