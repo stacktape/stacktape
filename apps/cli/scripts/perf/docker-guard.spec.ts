@@ -42,7 +42,9 @@ const runDocker = (guard: Awaited<ReturnType<typeof newGuard>>, args: string[]) 
 
 const laterDockerWasCalled = async () => (await readFile(laterDockerCalls, 'utf8').catch(() => '')).trim();
 
-describe('Docker guard', () => {
+// The guard is a shell script found by a PATH lookup, which Windows cannot run. The CLI harness that installs it runs
+// only in its Linux sandbox, so on Windows it refuses before any guard is needed.
+describe.skipIf(process.platform !== 'linux')('Docker guard', () => {
   test('is what a PATH lookup of docker finds', async () => {
     const guard = await newGuard('resolution', 'platform-ready');
     expect(Bun.which('docker', { PATH: `${guard.binDirectory}:${laterDockerDirectory}:/usr/bin:/bin` })).toBe(

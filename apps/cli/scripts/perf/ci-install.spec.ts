@@ -74,7 +74,11 @@ describe('the fixture', () => {
   });
 });
 
-describe('the prepared state', () => {
+// The CI-install suite is Linux: it restores seeds with `/usr/bin/cp` and extracts with `unzip` (these fixtures zip with
+// `python3`), inside the harness's Linux sandbox.
+const linux = process.platform === 'linux';
+
+describe.skipIf(!linux)('the prepared state', () => {
   const lock = 'lockfileVersion: 3\n';
   const lockSha256 = sha256Bytes(lock);
 
@@ -144,7 +148,7 @@ describe('the prepared state', () => {
   });
 });
 
-describe('invokeExtractedHandler', () => {
+describe.skipIf(!linux)('invokeExtractedHandler', () => {
   const zipDirectory = async (name: string, handler: string) => {
     const source = join(root, name);
     await writeFiles(source, { 'index.js': handler, 'package.json': '{"type":"module"}' });

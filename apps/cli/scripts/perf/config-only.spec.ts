@@ -201,7 +201,8 @@ describe('the project state', () => {
   });
 });
 
-describe('runExtractedFunctions', () => {
+// Extraction uses `unzip` and these fixtures zip with `python3`, as the config-only suite does in the Linux harness sandbox.
+describe.skipIf(process.platform !== 'linux')('runExtractedFunctions', () => {
   const INVOCATION = '2026-09-24T12-00-00-000_abcdefghijkmnopqrstuvw';
   const node = Bun.which('node')!;
   const env = { PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: tmpdir(), LANG: 'C.UTF-8' };

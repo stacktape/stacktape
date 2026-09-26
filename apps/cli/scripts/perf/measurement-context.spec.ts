@@ -57,7 +57,7 @@ const createRepository = async () => {
 };
 
 describe('measured source identity', () => {
-  test('stays equal for unchanged source and changes with an untracked file’s bytes or executable intent', async () => {
+  test('stays equal for unchanged source and changes with an untracked file’s bytes', async () => {
     const repoRoot = await createRepository();
     const tracker = createSourceTracker({ repoRoot, scopes: ['src'] });
     expect(tracker.before.available).toBe(true);
@@ -66,11 +66,18 @@ describe('measured source identity', () => {
     await writeFile(join(repoRoot, 'src', 'helper.ts'), 'export const helper = 1;\n');
     const withHelper = getSourceIdentity({ repoRoot, scopes: ['src'] });
     expect(compareSourceIdentities(tracker.before, withHelper)).toBe('changed');
+    expect(tracker.check()).toBe('changed');
+  });
+
+  // Windows has no execute bit, and Git there ignores file modes, so executable intent exists only on POSIX.
+  test.skipIf(process.platform === 'win32')('changes with an untracked file’s executable intent', async () => {
+    const repoRoot = await createRepository();
+    await writeFile(join(repoRoot, 'src', 'helper.ts'), 'export const helper = 1;\n');
+    const withHelper = getSourceIdentity({ repoRoot, scopes: ['src'] });
 
     await chmod(join(repoRoot, 'src', 'helper.ts'), 0o755);
     const withExecutableHelper = getSourceIdentity({ repoRoot, scopes: ['src'] });
     expect(compareSourceIdentities(withHelper, withExecutableHelper)).toBe('changed');
-    expect(tracker.check()).toBe('changed');
   });
 
   test('records an untracked symlink by its target, even when the target does not exist', async () => {

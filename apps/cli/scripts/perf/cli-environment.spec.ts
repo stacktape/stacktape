@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { delimiter, join } from 'node:path';
 import { EXTRA_ENVIRONMENT_KEYS, getCliEnvironment, INERT_AWS_CREDENTIALS } from './cli-environment';
 import { NETWORK_SANDBOX_ENV, SANDBOX_MASKS_ENV } from './network-sandbox';
 
@@ -13,11 +14,12 @@ describe('getCliEnvironment', () => {
   test('gives an existing caller exactly the environment it had before the allowlist', () => {
     expect(getCliEnvironment({ ...base, extra: { DOCKER_CONFIG: '/owned/docker-config' } })).toEqual({
       HOME: '/owned/home',
-      PATH: '/owned/tools:/owned/path-without-docker',
+      // The bytecode qualification runs this environment on Windows too, where PATH is `;`-separated.
+      PATH: base.path.join(delimiter),
       LANG: 'C.UTF-8',
       ...INERT_AWS_CREDENTIALS,
-      AWS_CONFIG_FILE: '/owned/home/no-aws-config',
-      AWS_SHARED_CREDENTIALS_FILE: '/owned/home/no-aws-credentials',
+      AWS_CONFIG_FILE: join('/owned/home', 'no-aws-config'),
+      AWS_SHARED_CREDENTIALS_FILE: join('/owned/home', 'no-aws-credentials'),
       AWS_EC2_METADATA_DISABLED: 'true',
       AWS_ENDPOINT_URL: 'http://127.0.0.1:4000',
       POSTHOG_HOST: 'http://127.0.0.1:4000',

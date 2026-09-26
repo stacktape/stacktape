@@ -2,7 +2,7 @@ import type { PayloadEntry } from './artifact-inspection';
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { crc32, deflateRawSync } from 'node:zlib';
@@ -173,10 +173,14 @@ describe('inspectArtifacts', () => {
       entryListTruncated: false
     });
     expect(zip.canonicalSha256).toBe(canonicalPayloadDigest(expectedPayload));
-    // The unzipped folder of the same file gives its own digest from the tree listing.
+    // The unzipped folder of the same file gives its own digest from the tree listing, with the mode the filesystem
+    // reports: 0o644 under a POSIX umask, other bits on Windows.
+    const { mode } = await stat(
+      join(root, 'success', '.stacktape', INVOCATION, 'build', 'lambdas', 'handler01', 'index.mjs')
+    );
     expect(digestSubtree(manifest.entries, `${lambdas}/handler01`)).toBe(
       canonicalPayloadDigest([
-        { path: 'index.mjs', kind: 'file', mode: 0o644, bytes: HANDLER.length, sha256: sha256(HANDLER) }
+        { path: 'index.mjs', kind: 'file', mode: mode & 0o7777, bytes: HANDLER.length, sha256: sha256(HANDLER) }
       ])
     );
   });

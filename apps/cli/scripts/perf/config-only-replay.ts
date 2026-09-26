@@ -18,7 +18,7 @@ import type { ConfigOnlySetup } from './config-only';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
-import { basename, isAbsolute, join, relative, resolve } from 'node:path';
+import { basename, isAbsolute, join, posix, relative, resolve } from 'node:path';
 import yargsParser from 'yargs-parser';
 import { CONFIG_CONTROL, configOnlyChecks, evaluateConfigOnly, refusedEnvironmentEntries } from './config-only';
 
@@ -45,7 +45,8 @@ const controlLogsToRead = (samples: SampleRecord[]) =>
     )
     .map(({ id }) => {
       if (!/^config-only-[\w-]+$/.test(id)) refuse(`the sample id ${id} is not a config-only sample id.`);
-      return { id, logs: CONTROL_LOGS.map((name) => join('samples', id, name)) };
+      // Run-relative names are recorded as input keys, so they use forward slashes on every platform.
+      return { id, logs: CONTROL_LOGS.map((name) => posix.join('samples', id, name)) };
     });
 
 type SavedConfig = {

@@ -24,7 +24,8 @@ const fakeCli = (exitCode: number, documentExitCode = exitCode) => [
   `printf '{"schema":1,"kind":"stacktape-cli-timings","timeOrigin":1,"pid":1,"exitCode":${documentExitCode},"exitAt":1,"instrumentedSubprocesses":0,"droppedSpans":0,"spans":[]}\\n' > "$STP_TIMINGS_FILE"; exit ${exitCode}`
 ];
 
-describe('runCliSample', () => {
+// Samples run `sh` in a process group the harness accounts for through `/proc`: Linux, like the harness sandbox.
+describe.skipIf(process.platform !== 'linux')('runCliSample', () => {
   test('accepts a complete sample', async () => {
     const sample = await runCliSample({
       cmd: fakeCli(0),

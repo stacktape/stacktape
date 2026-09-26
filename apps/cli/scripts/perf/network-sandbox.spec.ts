@@ -18,8 +18,10 @@ import {
   withDeadline
 } from './network-sandbox';
 
-// Some hosts, such as CI runners that restrict unprivileged user namespaces, cannot create the sandbox at all.
+// Some hosts cannot create the sandbox at all: Windows and macOS have no `unshare`, and some CI runners restrict
+// unprivileged user namespaces.
 const sandboxAvailable =
+  Bun.which('unshare') !== null &&
   Bun.spawnSync({
     cmd: ['unshare', '--user', '--map-root-user', '--net', '--pid', '--fork', 'true'],
     stdout: 'ignore',
@@ -221,20 +223,25 @@ await Bun.sleep(60_000);
     60_000
   );
 
-  test('refuses to run a command that was not started through the sandbox', async () => {
-    const result = await runBoundedProcess({
-      cmd: [
-        process.execPath,
-        '-e',
-        `const { assertNetworkSandbox } = await import(${sandboxModule}); assertNetworkSandbox();`
-      ],
-      cwd: root,
-      env: { PATH: process.env.PATH ?? '', HOME: root },
-      timeoutMs: 30_000
-    });
-    expect(result.exitCode).not.toBe(0);
-    expect(result.stderr).toContain('Not started through the network sandbox');
-  }, 60_000);
+  // `runBoundedProcess` accounts for the command's process group through `/proc`, which is Linux.
+  test.skipIf(process.platform !== 'linux')(
+    'refuses to run a command that was not started through the sandbox',
+    async () => {
+      const result = await runBoundedProcess({
+        cmd: [
+          process.execPath,
+          '-e',
+          `const { assertNetworkSandbox } = await import(${sandboxModule}); assertNetworkSandbox();`
+        ],
+        cwd: root,
+        env: { PATH: process.env.PATH ?? '', HOME: root },
+        timeoutMs: 30_000
+      });
+      expect(result.exitCode).not.toBe(0);
+      expect(result.stderr).toContain('Not started through the network sandbox');
+    },
+    60_000
+  );
 });
 
 describe('probe deadlines', () => {

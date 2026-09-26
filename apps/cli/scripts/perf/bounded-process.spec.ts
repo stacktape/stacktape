@@ -37,7 +37,8 @@ const timeHarnessProcess = async (name: string, body: string) => {
 
 const env = { PATH: '/usr/bin:/bin' };
 
-describe('runBoundedProcess', () => {
+// Process groups, `/proc` accounting and the `sh` commands below are Linux; the harness runs only in its Linux sandbox.
+describe.skipIf(process.platform !== 'linux')('runBoundedProcess', () => {
   test('reports exit code, output and resource use', async () => {
     const result = await runBoundedProcess({
       cmd: ['sh', '-c', 'echo out; echo err >&2; exit 7'],

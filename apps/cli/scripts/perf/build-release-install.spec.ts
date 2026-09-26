@@ -82,4 +82,13 @@ describe('describeBuildCall', () => {
       bytecode: true
     });
   });
+
+  test('makes Windows paths relative too, with forward slashes', () => {
+    expect(
+      describeBuildCall(
+        { compile: { target: 'bun-windows-x64', outfile: 'C:\\Users\\dev\\out\\win\\stacktape.exe' } },
+        'C:\\Users\\dev\\out'
+      )
+    ).toEqual({ compile: { target: 'bun-windows-x64', outfile: '<out>/win/stacktape.exe' } });
+  });
 });

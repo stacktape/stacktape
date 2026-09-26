@@ -168,15 +168,22 @@ export const withBuildOptions = async <T>(extra: Record<string, unknown>, build:
 const describeBytecode = (call: Record<string, unknown>) =>
   call.bytecode !== true ? 'off' : call.bytecodeDepth === undefined ? 'all' : `depth-${call.bytecodeDepth}`;
 
+/** A path below `base`, relative and with forward slashes whatever the platform wrote; otherwise undefined. */
+const pathBelow = (path: string, base: string) => {
+  const [child, parent] = [path.replaceAll('\\', '/'), `${base.replaceAll('\\', '/')}/`];
+  return child.startsWith(parent) ? child.slice(parent.length) : undefined;
+};
+
 /** `Bun.build` options in a form JSON can hold: plugins by name, functions marked, paths relative to `root`. */
 export const describeBuildCall = (options: Record<string, unknown>, root: string) =>
   JSON.parse(
     JSON.stringify(options, (key, value) => {
       if (key === 'plugins' && Array.isArray(value)) return value.map((plugin) => plugin?.name ?? '[unnamed]');
       if (typeof value === 'function') return '[function]';
-      if (typeof value === 'string' && value.startsWith(`${root}/`)) return `<out>/${relative(root, value)}`;
-      if (typeof value === 'string' && value.startsWith(`${CLI_ROOT}/`)) return relative(CLI_ROOT, value);
-      return value;
+      if (typeof value !== 'string') return value;
+      const belowRoot = pathBelow(value, root);
+      if (belowRoot !== undefined) return `<out>/${belowRoot}`;
+      return pathBelow(value, CLI_ROOT) ?? value;
     })
   ) as Record<string, unknown>;
 

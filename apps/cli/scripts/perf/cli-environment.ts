@@ -17,7 +17,7 @@
  * credentials, the fixture endpoints, the proxies, PATH, HOME, the timing destination or the sandbox settings.
  */
 import { lstat, mkdir, readdir, symlink } from 'node:fs/promises';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 
 /** AWS's documented example credentials: they authenticate nothing. */
 export const INERT_AWS_CREDENTIALS = {
@@ -113,7 +113,8 @@ export const getCliEnvironment = ({
   extra?: Record<string, string>;
 }): Record<string, string> => ({
   HOME: home,
-  PATH: path.join(':'),
+  // The bytecode qualification also runs this environment on Windows, whose PATH is `;`-separated.
+  PATH: path.join(delimiter),
   LANG: 'C.UTF-8',
   ...INERT_AWS_CREDENTIALS,
   AWS_CONFIG_FILE: join(home, 'no-aws-config'),
