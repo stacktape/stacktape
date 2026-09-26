@@ -19,7 +19,10 @@ test('captures stdout, stderr, exit status, cwd, and environment at the process 
     });
 
     assert.equal(result.code, 7);
-    assert.equal(result.stdout.trim(), `${await realpath(cwd)}|visible`);
+    // The child reports the directory as it was given; on Windows that can be an 8.3 spelling of the same path.
+    const [reportedCwd, fixture] = result.stdout.trim().split('|');
+    assert.equal(fixture, 'visible');
+    assert.equal(await realpath(reportedCwd ?? ''), await realpath(cwd));
     assert.equal(result.stderr.trim(), 'expected stderr');
   } finally {
     await rm(cwd, { force: true, recursive: true });
