@@ -15,7 +15,7 @@ import type {
 } from './types';
 import type { PackageJsonDepsInfo } from '../es/bundler-helpers';
 import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
-import { basename, dirname, isAbsolute, join, posix, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, posix, win32 } from 'node:path';
 import type { TextEdit } from '../es/source-map-edits';
 import { assertNoRootChunkImports, getChunkImportEdits } from './chunk-rewriter';
 import { copy, emptyDir, ensureDir, outputJSON, readFile } from 'fs-extra';
@@ -654,12 +654,44 @@ export const findAllChunksFromMetafile = (outputPath: string, metafile: BuildMet
   return allChunks;
 };
 
+/** Where metafile paths are resolved from: Bun's working directory, under that platform's path rules. */
+type MetafilePathContext = { platform: NodeJS.Platform; workingDirectory: string };
+
+const hostMetafilePathContext = (): MetafilePathContext => ({
+  platform: process.platform,
+  workingDirectory: process.cwd()
+});
+
+/**
+ * On Windows, Bun records a file on another drive than its working directory as `..` segments up to the root followed by
+ * the file's own absolute path, such as `../../C:/app/src/handler.ts`. Resolving that against the working directory
+ * would put it under the working directory's drive (`D:/C:/app/…`), so the climb is dropped instead.
+ */
+const OTHER_DRIVE_CLIMB = /^(?:\.\.\/)+(?=[a-z]:\/)/i;
+
 /** Bun records metafile entrypoints relative to the process working directory, even when its build root differs. */
-const canonicalizeEntrypointPath = (path: string): string => {
-  const absolutePath = isAbsolute(path) ? resolve(path) : resolve(process.cwd(), path);
+export const canonicalizeEntrypointPath = (
+  path: string,
+  { platform, workingDirectory }: MetafilePathContext = hostMetafilePathContext()
+): string => {
+  const paths = platform === 'win32' ? win32 : posix;
+  const target = platform === 'win32' ? transformToUnixPath(path).replace(OTHER_DRIVE_CLIMB, '') : path;
+  const absolutePath = paths.isAbsolute(target) ? paths.resolve(target) : paths.resolve(workingDirectory, target);
   const canonicalPath = existsSync(absolutePath) ? realpathSync(absolutePath) : absolutePath;
   const normalizedPath = transformToUnixPath(canonicalPath);
-  return process.platform === 'win32' ? normalizedPath.toLowerCase() : normalizedPath;
+  return platform === 'win32' ? normalizedPath.toLowerCase() : normalizedPath;
+};
+
+/** The emitted entry file of each source entry, keyed by `canonicalizeEntrypointPath` of the entry Bun recorded. */
+export const mapEntryPointsToOutputs = (
+  metafile: BuildMetafile,
+  context: MetafilePathContext = hostMetafilePathContext()
+): Map<string, string> => {
+  const entryPointToOutput = new Map<string, string>();
+  for (const [outputPath, { entryPoint }] of Object.entries(metafile.outputs)) {
+    if (entryPoint) entryPointToOutput.set(canonicalizeEntrypointPath(entryPoint, context), outputPath);
+  }
+  return entryPointToOutput;
 };
 
 const collectOutputInputPaths = ({
@@ -757,13 +789,7 @@ const processLambdaOutputsWithMetafile = async ({
   const chunkUsageMap = new Map<string, Set<string>>();
   const assetsFor = await createAssetAttribution(assetFiles, javascriptFiles);
 
-  // Build a map from entryPoint path to output path using metafile
-  const entryPointToOutput = new Map<string, string>();
-  for (const [outputPath, outputMeta] of Object.entries(metafile.outputs)) {
-    if (outputMeta.entryPoint) {
-      entryPointToOutput.set(canonicalizeEntrypointPath(outputMeta.entryPoint), outputPath);
-    }
-  }
+  const entryPointToOutput = mapEntryPointsToOutputs(metafile);
 
   // Pre-create all lambda directories
   await Promise.all(
