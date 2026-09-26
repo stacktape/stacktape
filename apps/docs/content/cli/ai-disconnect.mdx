@@ -7,7 +7,7 @@ seoDescription: 'Remove your Claude subscription token from Stacktape with stack
 
 # ai:disconnect
 
-The `stacktape ai:disconnect` command removes your own Claude subscription token from Stacktape, in the organization of your API key. Hosted AI incident runs you request can no longer be funded by your subscription until you connect it again with [`stacktape ai:connect`](/cli/ai-connect). Runs already in progress are not affected.
+The `stacktape ai:disconnect` command removes your own AI subscription token from Stacktape, in the organization of your API key. It asks which provider to disconnect unless you pass `--aiProvider`. Hosted AI incident runs you request can no longer be funded by your subscription until you connect it again with [`stacktape ai:connect`](/cli/ai-connect). Runs already in progress are not affected.
 
 ## Usage
 
@@ -21,6 +21,6 @@ This command needs a valid API key for your own user. Removing a token that is n
 
 | Flag | Description |
 |---|---|
-| `--aiProvider` | The provider whose subscription to disconnect. Currently `claude` (the default). |
+| `--aiProvider` | The provider whose subscription to disconnect. Currently `claude`. When omitted in a terminal, the command asks; a non-interactive run must pass it. |
 | `--outputFormat` | `jsonl`, `plain` or `tty`. Auto-detected when omitted. |
 | `--logLevel` | Log verbosity. |

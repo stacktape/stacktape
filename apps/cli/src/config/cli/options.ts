@@ -65,7 +65,7 @@ Filter incidents by status. ACTIVE (the default) means OPEN + ACKNOWLEDGED.`);
 
 export const aiProvider = z.enum(['claude']).describe(`#### AI Provider
 ---
-The AI provider whose subscription to connect for hosted incident runs. Currently \`claude\` (a Claude subscription, through \`claude setup-token\`). Defaults to \`claude\`.`);
+The AI provider whose subscription to connect for hosted incident runs. Currently \`claude\` (a Claude subscription, through \`claude setup-token\`). When omitted in a terminal, the command asks which provider to use; a non-interactive run must pass it.`);
 
 export const incidentWatchTimeoutSeconds = z.number().int().min(1).max(86_400).describe(`#### Incident Watch Timeout
 ---

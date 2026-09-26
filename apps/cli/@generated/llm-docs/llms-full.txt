@@ -1387,7 +1387,7 @@ GitOps with Console stores deployment configurations in the Stacktape Console, a
 Source: `apps/docs/content/cli/ai-connect.mdx`
 Route: `/cli/ai-connect`
 
-The `stacktape ai:connect` command connects your own Claude subscription to Stacktape for the hosted AI incident runs you request ([Investigate with AI and Fix with AI](/observability/incident-ai)). It runs `claude setup-token` for you, which signs you in to Claude in your browser and prints a long-lived token, and stores that token with Stacktape under your user and the organization of your API key. The token is never printed by Stacktape. Only runs you request use it.
+The `stacktape ai:connect` command connects your own AI subscription to Stacktape for the hosted AI incident runs you request ([Investigate with AI and Fix with AI](/observability/incident-ai)). It first asks which provider to connect (unless you pass `--aiProvider`) and explains what will happen, then waits for your confirmation. For Claude, it runs `claude setup-token` for you, which signs you in to Claude in your browser and prints a long-lived token, and stores that token with Stacktape under your user and the organization of your API key. The token is never printed by Stacktape. Only runs you request use it.
 
 ## Usage
 
@@ -1413,7 +1413,7 @@ You can also connect the token on an incident page in the Stacktape Console, in 
 
 | Flag | Description |
 |---|---|
-| `--aiProvider` | The provider whose subscription to connect. Currently `claude` (the default). |
+| `--aiProvider` | The provider whose subscription to connect. Currently `claude`. When omitted in a terminal, the command asks; a non-interactive run must pass it. |
 | `--outputFormat` | `jsonl`, `plain` or `tty`. Auto-detected when omitted. |
 | `--logLevel` | Log verbosity. |
 
@@ -1424,7 +1424,7 @@ You can also connect the token on an incident page in the Stacktape Console, in 
 Source: `apps/docs/content/cli/ai-disconnect.mdx`
 Route: `/cli/ai-disconnect`
 
-The `stacktape ai:disconnect` command removes your own Claude subscription token from Stacktape, in the organization of your API key. Hosted AI incident runs you request can no longer be funded by your subscription until you connect it again with [`stacktape ai:connect`](/cli/ai-connect). Runs already in progress are not affected.
+The `stacktape ai:disconnect` command removes your own AI subscription token from Stacktape, in the organization of your API key. It asks which provider to disconnect unless you pass `--aiProvider`. Hosted AI incident runs you request can no longer be funded by your subscription until you connect it again with [`stacktape ai:connect`](/cli/ai-connect). Runs already in progress are not affected.
 
 ## Usage
 
@@ -1438,7 +1438,7 @@ This command needs a valid API key for your own user. Removing a token that is n
 
 | Flag | Description |
 |---|---|
-| `--aiProvider` | The provider whose subscription to disconnect. Currently `claude` (the default). |
+| `--aiProvider` | The provider whose subscription to disconnect. Currently `claude`. When omitted in a terminal, the command asks; a non-interactive run must pass it. |
 | `--outputFormat` | `jsonl`, `plain` or `tty`. Auto-detected when omitted. |
 | `--logLevel` | Log verbosity. |
 

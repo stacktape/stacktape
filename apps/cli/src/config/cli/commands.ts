@@ -889,9 +889,9 @@ which projects and stages it currently applies to.`,
   },
 
   'ai:connect': {
-    description: `Connects your own Claude subscription to Stacktape for the hosted AI incident runs (Investigate with AI, Fix with AI) you request.
+    description: `Connects your own AI subscription to Stacktape for the hosted AI incident runs (Investigate with AI, Fix with AI) you request.
 
-Runs \`claude setup-token\` for you (the Claude Code CLI must be installed), signs you in through your browser, and stores the long-lived token it prints with Stacktape. Only runs you request use it; remove it with \`stacktape ai:disconnect\`. Alternatively, an Admin or Owner can connect the organization's Anthropic API key in the Console.`,
+Asks which provider to connect (or takes \`--aiProvider\`) and explains what will happen before anything runs. For Claude, it runs \`claude setup-token\` for you (the Claude Code CLI must be installed), signs you in through your browser, and stores the long-lived token it prints with Stacktape. Only runs you request use it; remove it with \`stacktape ai:disconnect\`. Alternatively, an Admin or Owner can connect the organization's Anthropic API key in the Console.`,
     args: {
       logLevel: logLevel.optional(),
       agent: agent.optional(),
@@ -901,7 +901,7 @@ Runs \`claude setup-token\` for you (the Claude Code CLI must be installed), sig
     requiredArgs: [] as const
   },
   'ai:disconnect': {
-    description: `Removes your own Claude subscription token from Stacktape. Hosted AI incident runs you request can no longer be funded by your subscription until you connect it again with \`stacktape ai:connect\`.`,
+    description: `Removes your own AI subscription token from Stacktape. Asks which provider to disconnect (or takes \`--aiProvider\`). Hosted AI incident runs you request can no longer be funded by that subscription until you connect it again with \`stacktape ai:connect\`.`,
     args: {
       logLevel: logLevel.optional(),
       agent: agent.optional(),
