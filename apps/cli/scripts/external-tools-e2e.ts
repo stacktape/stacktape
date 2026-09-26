@@ -9,6 +9,8 @@
  *   path to place the file offline;
  * - a process killed mid-download leaves nothing usable, and the retry cleans up and succeeds;
  * - two concurrent first uses download once;
+ * - a download that stalls fails within its bound (shortened here; commands allow 30 s without data and 10 minutes in
+ *   all), leaves nothing behind, and the retry succeeds;
  * - the CLI's call sites (the nixpacks planner, `pack`) use a preseeded executable without any request.
  *
  * The synthetic executables are shell scripts, so this runs on Linux and macOS. The report goes to
@@ -27,7 +29,7 @@ type Tool = 'pack' | 'nixpacks' | 'session-manager-plugin';
 type Platform = 'linux' | 'alpine' | 'linux-arm' | 'macos' | 'macos-arm' | 'win';
 type Asset = { url: string; sha256: string; bytes: number; archive: 'tar.gz' | 'zip' | 'deb'; executable: string };
 type Manifest = Record<Tool, { version: string; assets: Partial<Record<Platform, Asset>> }>;
-type DriverResult = { ok: boolean; path?: string; output?: string; message?: string };
+type DriverResult = { ok: boolean; path?: string; output?: string; message?: string; code?: string };
 
 const CLI_ROOT = resolve(import.meta.dir, '..');
 const VERSIONS: Record<Tool, string> = { pack: '0.40.0', nixpacks: '1.39.0', 'session-manager-plugin': '1.2.707.0' };
@@ -55,11 +57,22 @@ const runDriver = async () => {
     } else {
       const { resolveExternalTool } = await import('src/utils/external-tools');
       const manifest = JSON.parse(await readFile(argument('manifest')!, 'utf8')) as Manifest;
-      const path = await resolveExternalTool({ tool, platform: argument('platform') as Platform, manifest });
+      const idleMs = argument('idle-timeout-ms');
+      const totalMs = argument('total-timeout-ms');
+      const path = await resolveExternalTool({
+        tool,
+        platform: argument('platform') as Platform,
+        manifest,
+        ...(idleMs && totalMs ? { downloadBounds: { idleMs: Number(idleMs), totalMs: Number(totalMs) } } : {})
+      });
       result = { ok: true, path };
     }
   } catch (error) {
-    result = { ok: false, message: error instanceof Error ? error.message : String(error) };
+    result = {
+      ok: false,
+      message: error instanceof Error ? error.message : String(error),
+      code: (error as { code?: string }).code
+    };
   }
   console.info(JSON.stringify(result));
 };
@@ -97,7 +110,7 @@ const debPackage = (members: [name: string, data: Uint8Array][]) => {
   return new Uint8Array(Buffer.concat(parts));
 };
 
-type Route = { body: Uint8Array; mode: 'ok' | 'refuse' | 'stall' | 'slow' };
+type Route = { body: Uint8Array; mode: 'ok' | 'refuse' | 'stall' | 'slow' | 'hang' };
 
 const main = async () => {
   if (process.platform === 'win32') {
@@ -182,6 +195,15 @@ const main = async () => {
           { headers: { 'content-length': String(route.body.length) } }
         );
       }
+      if (route.mode === 'hang') {
+        // Headers and a few bytes, then nothing until the stand-in stops.
+        return new Response(
+          new ReadableStream({
+            start: (controller) => controller.enqueue(route.body.slice(0, 64))
+          }),
+          { headers: { 'content-length': String(route.body.length) } }
+        );
+      }
       return new Response(route.body, { headers: { 'content-length': String(route.body.length) } });
     }
   });
@@ -208,7 +230,8 @@ const main = async () => {
       assets: {
         // A pinned checksum that the served file does not have.
         linux: asset('nixpacks', 'linux', 'nixpacks.tar.gz', sha256(new TextEncoder().encode('not the served file'))),
-        alpine: asset('nixpacks', 'alpine', 'nixpacks.tar.gz')
+        alpine: asset('nixpacks', 'alpine', 'nixpacks.tar.gz'),
+        macos: asset('nixpacks', 'macos', 'nixpacks.tar.gz')
       }
     },
     'session-manager-plugin': {
@@ -389,6 +412,65 @@ const main = async () => {
         versionOf(first.path) === 'pack synthetic 0.40.0' &&
         leftovers('pack').length === 0,
       JSON.stringify({ first, second, requests: requests.get(concurrentRoute) ?? 0, left: leftovers('pack') })
+    );
+
+    // A stalled download: headers and 64 bytes, then nothing. Commands allow 30 s without data and 10 minutes in all;
+    // the test passes shorter bounds, one run reaching the idle bound and one the overall cap.
+    const hangRoute = serve('nixpacks', 'macos', 'nixpacks.tar.gz', 'hang');
+    const stalledAsset = manifest.nixpacks.assets.macos!;
+    const boundedRun = async (bounds: { idleMs: number; totalMs: number }) => {
+      // Monotonic: the wall clock can jump while a run waits.
+      const started = performance.now();
+      const child = startDriver([
+        '--manifest',
+        manifestPath,
+        '--tool',
+        'nixpacks',
+        '--platform',
+        'macos',
+        '--idle-timeout-ms',
+        String(bounds.idleMs),
+        '--total-timeout-ms',
+        String(bounds.totalMs)
+      ]);
+      // Well past the bound the driver is still waiting: stop it and report that.
+      let stillWaiting = false;
+      const deadline = setTimeout(
+        () => {
+          stillWaiting = true;
+          child.kill('SIGKILL');
+        },
+        Math.min(bounds.idleMs, bounds.totalMs) + 10_000
+      );
+      const result = await finish(child);
+      clearTimeout(deadline);
+      return { result, stillWaiting, elapsedMs: Math.round(performance.now() - started) };
+    };
+    const failedWithinBound = (run: Awaited<ReturnType<typeof boundedRun>>, boundMs: number, reason: RegExp) =>
+      !run.stillWaiting &&
+      run.elapsedMs < boundMs + 5_000 &&
+      !run.result.ok &&
+      run.result.code === 'EXTERNAL_TOOL_DOWNLOAD_FAILED' &&
+      reason.test(run.result.message ?? '') &&
+      [stalledAsset.url, stalledAsset.sha256, finalPath('nixpacks', 'macos')].every((part) =>
+        (run.result.message ?? '').includes(part)
+      );
+    const idle = await boundedRun({ idleMs: 1_000, totalMs: 60_000 });
+    const overall = await boundedRun({ idleMs: 60_000, totalMs: 1_500 });
+    const afterStalls = { executable: existsSync(finalPath('nixpacks', 'macos')), left: leftovers('nixpacks') };
+    serve('nixpacks', 'macos', 'nixpacks.tar.gz');
+    const healthy = await resolveIn('nixpacks', 'macos');
+    check(
+      'a stalled download fails within its bound and leaves nothing behind, and the retry succeeds',
+      failedWithinBound(idle, 1_000, /no data/) &&
+        failedWithinBound(overall, 1_500, /did not finish/) &&
+        !afterStalls.executable &&
+        afterStalls.left.length === 0 &&
+        healthy.ok &&
+        versionOf(healthy.path!) === 'nixpacks synthetic 1.39.0' &&
+        requests.get(hangRoute) === 3 &&
+        leftovers('nixpacks').length === 0,
+      JSON.stringify({ idle, overall, afterStalls, healthy, requests: requests.get(hangRoute) ?? 0 })
     );
 
     // Preseeded: the CLI's call sites use a file already at the resolver's path, without any request.

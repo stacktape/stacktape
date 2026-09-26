@@ -23,7 +23,8 @@ import * as tar from 'tar';
  * Concurrent first uses (parallel packaging workers, several terminals or jobs sharing a home directory) download once:
  * a lock directory records its owner, is broken only when that owner is gone or stale, and is removed only by it.
  * Nothing appears at the final path until the executable is verified and extracted, and it appears by one rename. An
- * interrupted download leaves only a staging directory, which the next owner removes.
+ * interrupted download leaves only a staging directory, which the next owner removes. A download fails when no data
+ * arrives for 30 s or when it is still running after 9 minutes, and its staging directory goes as for any failure.
  */
 
 export type ExternalTool = 'pack' | 'nixpacks' | 'session-manager-plugin';
@@ -87,6 +88,15 @@ const STALE_LOCK_MS = 10 * 60_000;
 const OWNERLESS_LOCK_MS = 30_000;
 const LOCK_POLL_MS = 200;
 
+type DownloadBounds = { idleMs: number; totalMs: number };
+
+/**
+ * No data for `idleMs`, counted from the request and from each chunk, is a stalled connection. `totalMs` stops a
+ * trickling one (the largest asset is 11 MB). It stays below `STALE_LOCK_MS`, so a download always ends before
+ * waiters may take its lock as abandoned.
+ */
+const DOWNLOAD_BOUNDS: DownloadBounds = { idleMs: 30_000, totalMs: STALE_LOCK_MS - 60_000 };
+
 type ToolLocation = {
   tool: ExternalTool;
   platform?: SupportedPlatform;
@@ -115,8 +125,13 @@ export const resolveExternalTool = async ({
   platform = getPlatform(),
   manifest = EXTERNAL_TOOL_MANIFEST,
   toolsDirectory = localStatePaths.toolsDirectory(),
-  onDownloadStart
-}: ToolLocation & ExternalToolDownloadOptions): Promise<string> => {
+  onDownloadStart,
+  downloadBounds = DOWNLOAD_BOUNDS
+}: ToolLocation &
+  ExternalToolDownloadOptions & {
+    /** Shortened only by `scripts/external-tools-e2e.ts`; commands always use the defaults. */
+    downloadBounds?: DownloadBounds;
+  }): Promise<string> => {
   const finalPath = externalToolPath({ tool, platform, manifest, toolsDirectory });
   if (existsSync(finalPath)) return finalPath;
 
@@ -144,7 +159,15 @@ export const resolveExternalTool = async ({
     try {
       onDownloadStart?.({ tool, version, bytes: asset.bytes });
       const archivePath = join(staging, 'archive');
-      await download({ tool, version, platformKey, asset, finalPath, destination: archivePath });
+      await download({
+        tool,
+        version,
+        platformKey,
+        asset,
+        finalPath,
+        destination: archivePath,
+        bounds: downloadBounds
+      });
       const digest = createHash('sha256')
         .update(await readFile(archivePath))
         .digest('hex');
@@ -171,13 +194,17 @@ export const resolveExternalTool = async ({
 const offlineInstructions = ({ asset, finalPath }: { asset: ExternalToolAsset; finalPath: string }) =>
   `To work without this download, fetch ${asset.url}, check that its SHA-256 is ${asset.sha256}, and place its ${asset.executable} executable at ${finalPath}.`;
 
+/** `30 s`, `9 min`. */
+const describeDuration = (ms: number) => (ms % 60_000 === 0 ? `${ms / 60_000} min` : `${ms / 1000} s`);
+
 const download = async ({
   tool,
   version,
   platformKey,
   asset,
   finalPath,
-  destination
+  destination,
+  bounds
 }: {
   tool: ExternalTool;
   version: string;
@@ -185,7 +212,25 @@ const download = async ({
   asset: ExternalToolAsset;
   finalPath: string;
   destination: string;
+  bounds: DownloadBounds;
 }) => {
+  // Either bound aborts the request; the message then names the bound instead of the bare abort.
+  const controller = new AbortController();
+  let boundReached: string | undefined;
+  const stop = (reason: string) => {
+    boundReached = reason;
+    controller.abort();
+  };
+  const stalled = `no data arrived for ${describeDuration(bounds.idleMs)}`;
+  let idleTimer = setTimeout(() => stop(stalled), bounds.idleMs);
+  const receivedData = () => {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => stop(stalled), bounds.idleMs);
+  };
+  const totalTimer = setTimeout(
+    () => stop(`it did not finish within ${describeDuration(bounds.totalMs)}`),
+    bounds.totalMs
+  );
   const fail = (reason: string, cause?: unknown) =>
     new CliError({
       category: ERROR_CATEGORIES[tool],
@@ -193,18 +238,35 @@ const download = async ({
       message: `Could not download ${tool} ${version} for ${platformKey} from ${asset.url}: ${reason}. ${offlineInstructions({ asset, finalPath })}`,
       cause
     });
-  let response: Response;
+  const failFrom = (error: unknown) =>
+    fail(boundReached ?? (error instanceof Error ? error.message : String(error)), error);
   try {
-    // The CLI's fetch, so HTTP_PROXY, HTTPS_PROXY and NO_PROXY apply as they do to every other request.
-    response = await fetch(asset.url);
-  } catch (error) {
-    throw fail(error instanceof Error ? error.message : String(error), error);
-  }
-  if (!response.ok) throw fail(`the server answered HTTP ${response.status}`);
-  try {
-    await Bun.write(destination, response);
-  } catch (error) {
-    throw fail(error instanceof Error ? error.message : String(error), error);
+    let response: Response;
+    try {
+      // The CLI's fetch, so HTTP_PROXY, HTTPS_PROXY and NO_PROXY apply as they do to every other request.
+      response = await fetch(asset.url, { signal: controller.signal });
+    } catch (error) {
+      throw failFrom(error);
+    }
+    if (!response.ok) throw fail(`the server answered HTTP ${response.status}`);
+    receivedData();
+    const file = Bun.file(destination).writer();
+    try {
+      const reader = response.body!.getReader();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        receivedData();
+        file.write(value);
+      }
+      await file.end();
+    } catch (error) {
+      await Promise.resolve(file.end()).catch(() => {});
+      throw failFrom(error);
+    }
+  } finally {
+    clearTimeout(idleTimer);
+    clearTimeout(totalTimer);
   }
 };
 
