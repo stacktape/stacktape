@@ -1,19 +1,20 @@
-import { afterAll, expect, mock, test } from 'bun:test';
+import { afterAll, beforeAll, expect, mock, test } from 'bun:test';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { inspect } from 'node:util';
 
 const directory = mkdtempSync(join(tmpdir(), 'stacktape-ssm-process-'));
-const plugin = join(directory, 'session-manager-plugin');
+// A native executable, like the real plugin: Windows cannot start a script through a `#!` line.
+const plugin = join(directory, process.platform === 'win32' ? 'session-manager-plugin.exe' : 'session-manager-plugin');
+const pluginSource = join(directory, 'session-manager-plugin.ts');
 const pidFile = join(directory, 'pid');
 const syntheticToken = 'synthetic-ssm-token-must-not-appear-in-errors';
 let mode = 'ready-exit-zero';
 const terminated = new Set<string>();
 writeFileSync(
-  plugin,
-  `#!${process.execPath}
-import { writeFileSync } from 'node:fs';
+  pluginSource,
+  `import { writeFileSync } from 'node:fs';
 const session = JSON.parse(process.argv[2]);
 writeFileSync(${JSON.stringify(pidFile)}, String(process.pid));
 if (session.SessionId === 'before-ready') {
@@ -27,9 +28,12 @@ if (session.SessionId === 'ignore-term') {
   setTimeout(() => process.exit(session.SessionId === 'ready-exit-zero' ? 0 : 7), 200);
 }
 console.log('Waiting for connections...');
-`,
-  { mode: 0o755 }
+`
 );
+beforeAll(() => {
+  const build = Bun.spawnSync([process.execPath, 'build', '--compile', pluginSource, '--outfile', plugin]);
+  if (build.exitCode !== 0) throw new Error(`The plugin fixture did not compile: ${build.stderr.toString()}`);
+}, 60_000);
 mock.module('@application-services/global-state-manager', () => ({
   globalStateManager: { region: 'eu-west-1', userData: { id: 'fixture' } }
 }));

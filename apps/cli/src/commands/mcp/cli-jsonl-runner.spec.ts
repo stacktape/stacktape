@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { mkdtemp, mkdir, readFile, realpath, rm } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { runStacktapeCommandJsonl } from './cli-jsonl-runner';
 
@@ -39,7 +39,6 @@ describe('MCP Stacktape agent subprocess runner', () => {
     const cwd = await mkdtemp(join(tmpdir(), 'stacktape-mcp-runner-cwd-'));
     try {
       await mkdir(join(cwd, 'app'));
-      const canonicalCwd = await realpath(cwd);
       const result = await runStacktapeCommandJsonl({
         command: fixturePath,
         cwd,
@@ -47,14 +46,13 @@ describe('MCP Stacktape agent subprocess runner', () => {
       });
 
       expect(result.ok).toBe(true);
-      expect(result.data).toMatchObject({
-        cwd: canonicalCwd,
-        currentWorkingDirectory: join(canonicalCwd, 'app')
-      });
-      expect(result.resolvedContext).toEqual({
-        cwd: canonicalCwd,
-        currentWorkingDirectory: join(canonicalCwd, 'app')
-      });
+      // The child runs in, and is told about, exactly the context the runner reports.
+      expect(result.data).toMatchObject(result.resolvedContext);
+      // That context is the requested directory. Windows keeps the caller's 8.3 spelling (RUNNER~1) there, while
+      // `realpath` expands it, so the directory is compared, not the string.
+      expect(isAbsolute(result.resolvedContext.cwd)).toBe(true);
+      expect(await realpath(result.resolvedContext.cwd)).toBe(await realpath(cwd));
+      expect(result.resolvedContext.currentWorkingDirectory).toBe(join(result.resolvedContext.cwd, 'app'));
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }

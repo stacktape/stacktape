@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { getGitVariable, sanitizeGitRemoteUrl } from './git';
@@ -31,7 +31,9 @@ it('reads the selected repository outside the launching directory and detects st
     expect(b.commit).toBe(git(second, 'rev-parse', 'HEAD'));
     expect(a.commit).not.toBe(b.commit);
     expect(a.gitUrl).toBe('https://github.com/fixture/first');
-    expect(await getGitVariable('repositoryRoot', second)).toBe(second);
+    // Git reports the root in its canonical form (forward slashes, long physical names such as runneradmin for
+    // RUNNER~1, /private/var for /var), so the directory is compared, not the spelling of the temporary path.
+    expect(await realpath(await getGitVariable('repositoryRoot', second))).toBe(await realpath(second));
     expect((await getGitVariable('message', second)).trim()).toBe('feature/second');
     expect(await getGitVariable('changes', second)).toBe('');
     await writeFile(join(second, 'README.md'), 'staged change');
