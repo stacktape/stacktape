@@ -204,7 +204,8 @@ Tool arguments accept common snake_case and kebab-case forms (`project_name`, `c
 `stacktape_incident` is where an assistant starts an [incident](/observability/incidents) investigation. `action: "show"`
 with an `incidentId` returns the incident handoff as markdown, the same document
 [`incidents:show`](/cli/incidents-show) prints. It contains the incident's signals with their evidence, release and
-configuration changes, the timeline, earlier related incidents, the AI assessment and read-only next steps.
+configuration changes, the timeline, earlier related incidents, the AI assessment, the reports of any hosted AI runs
+and read-only next steps.
 `action: "list"` finds incidents by `projectName`, `stage` and `status` (`ACTIVE` by default, `ALL` for resolved history
 as well) and returns at most `limit` of them (default 25).
 

@@ -111,6 +111,7 @@
 /observability/alarms
 /observability/alert-channels
 /observability/alert-history
+/observability/incident-ai
 /observability/incidents
 /observability/issues
 /observability/log-forwarding
