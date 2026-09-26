@@ -1,0 +1,64 @@
+{
+  "name": "@stacktape/aws-read-only",
+  "version": "4.0.0-dev.0",
+  "private": true,
+  "description": "The reviewed read-only AWS operation catalog and the executor that enforces it, shared by the CLI's aws:call and the Console's hosted incident runs.",
+  "type": "module",
+  "exports": {
+    "./executor": "./src/executor.ts",
+    "./fixtures/loopback-aws-endpoint": "./src/__fixtures__/loopback-aws-endpoint.ts",
+    "./operations": "./src/operations.ts"
+  },
+  "scripts": {
+    "test": "bun test src",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@aws-sdk/client-acm": "3.1121.0",
+    "@aws-sdk/client-apigatewayv2": "3.1121.0",
+    "@aws-sdk/client-auto-scaling": "3.1121.0",
+    "@aws-sdk/client-budgets": "3.1121.0",
+    "@aws-sdk/client-cloudformation": "3.1121.0",
+    "@aws-sdk/client-cloudfront": "3.1121.0",
+    "@aws-sdk/client-cloudwatch": "3.1121.0",
+    "@aws-sdk/client-cloudwatch-logs": "3.1121.0",
+    "@aws-sdk/client-codedeploy": "3.1121.0",
+    "@aws-sdk/client-cognito-identity-provider": "3.1121.0",
+    "@aws-sdk/client-cost-explorer": "3.1121.0",
+    "@aws-sdk/client-dynamodb": "3.1121.0",
+    "@aws-sdk/client-ec2": "3.1121.0",
+    "@aws-sdk/client-ecr": "3.1121.0",
+    "@aws-sdk/client-ecs": "3.1121.0",
+    "@aws-sdk/client-elastic-load-balancing-v2": "3.1121.0",
+    "@aws-sdk/client-eventbridge": "3.1121.0",
+    "@aws-sdk/client-firehose": "3.1121.0",
+    "@aws-sdk/client-iam": "3.1121.0",
+    "@aws-sdk/client-kinesis": "3.1121.0",
+    "@aws-sdk/client-lambda": "3.1121.0",
+    "@aws-sdk/client-opensearch": "3.1121.0",
+    "@aws-sdk/client-rds": "3.1121.0",
+    "@aws-sdk/client-route-53": "3.1121.0",
+    "@aws-sdk/client-s3": "3.1121.0",
+    "@aws-sdk/client-secrets-manager": "3.1121.0",
+    "@aws-sdk/client-servicediscovery": "3.1121.0",
+    "@aws-sdk/client-ses": "3.1121.0",
+    "@aws-sdk/client-sesv2": "3.1121.0",
+    "@aws-sdk/client-sfn": "3.1121.0",
+    "@aws-sdk/client-sns": "3.1121.0",
+    "@aws-sdk/client-sqs": "3.1121.0",
+    "@aws-sdk/client-ssm": "3.1121.0",
+    "@aws-sdk/client-sts": "3.1121.0",
+    "@aws-sdk/client-synthetics": "3.1121.0",
+    "@aws-sdk/client-wafv2": "3.1121.0",
+    "@aws-sdk/client-xray": "3.1121.0",
+    "@aws-sdk/types": "3.974.5"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

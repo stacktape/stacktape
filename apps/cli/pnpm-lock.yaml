@@ -230,6 +230,9 @@ importers:
       '@stacktape/analytics':
         specifier: workspace:*
         version: link:../../packages/analytics
+      '@stacktape/aws-read-only':
+        specifier: workspace:*
+        version: link:../../packages/aws-read-only
       '@stacktape/cloudformation':
         specifier: workspace:*
         version: link:../../packages/cloudformation

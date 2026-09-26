@@ -18868,6 +18868,7 @@
         "page:/observability/incident-ai#using-your-own-coding-agent-instead",
         "page:/observability/incident-ai#faq",
         "page:/observability/incident-ai#does-investigate-or-fix-deploy-anything",
+        "page:/observability/incident-ai#can-the-agent-change-my-aws-resources",
         "page:/observability/incident-ai#can-i-use-it-without-connecting-a-git-repository",
         "page:/observability/incident-ai#what-happens-when-a-run-fails",
         "page:/observability/incident-ai#is-my-source-code-sent-to-anthropic",

@@ -19872,8 +19872,8 @@ Route: `/observability/incident-ai`
 Stacktape uses AI on [incidents](/observability/incidents) in three ways:
 
 - **Automatic briefing.** Every incident gets a short AI assessment of what is happening and what to check next. It needs no setup, and Stacktape pays for it.
-- **Investigate with AI.** When you ask, Claude Code investigates the incident on your project's runner in your AWS account. It reads the stack's logs, metrics, alarms and runtime configuration, and your source code when the repository is connected, then reports what it found. It changes nothing.
-- **Fix with AI.** When you ask, the same kind of run may also edit your code, and Stacktape opens a draft pull request with the change for you to review. Nothing is deployed.
+- **Investigate with AI.** When you ask, Claude Code investigates the incident on your project's runner in your AWS account, in a checkout of your code. It works like your own coding agent: it reads and runs the code, installs packages, runs tests and reads documentation. It reads AWS only through Stacktape's reviewed read-only operations, which Stacktape executes for it. Then it reports what it found. It publishes and deploys nothing.
+- **Fix with AI.** When you ask, the same kind of run also changes the code and runs the relevant tests. The runner pushes the change as a branch, and Stacktape opens a draft pull request for you to review. Nothing is deployed.
 
 You start Investigate and Fix from the incident page in the Console, and fund them with your organization's Anthropic API key or your own Claude subscription.
 
@@ -19882,9 +19882,9 @@ You start Investigate and Fix from the incident page in the Console, and fund th
 | Starts | For every incident | When someone asks | When someone asks |
 | Paid by | Stacktape | Your Anthropic API key or your Claude subscription | Your Anthropic API key or your Claude subscription |
 | Runs on | Stacktape, with a Stacktape-managed model | Your project's runner, in your AWS account | Your project's runner, in your AWS account |
-| Reads | What Stacktape already stores about the incident | Also the stack's logs, metrics, alarms and runtime configuration, and the source of the recorded commit | The same as Investigate |
-| Result | A briefing on the incident page and its Slack card | A report on the incident page | A report and a pull request |
-| Changes | Nothing | Nothing | Opens one pull request and deploys nothing |
+| Reads | What Stacktape already stores about the incident | Also your code at the recorded commit, AWS through Stacktape's read-only operations, and the web | The same as Investigate |
+| Result | A briefing on the incident page and its Slack card | A report and what the agent did, on the incident page | A report, what the agent did, and a pull request |
+| Changes | Nothing | Nothing outside the runner | Pushes one branch, opens one pull request, deploys nothing |
 
 ## Automatic briefing
 
@@ -19914,35 +19914,33 @@ A Stacktape-managed model writes the briefing from a scrubbed, bounded snapshot 
 
 ## Investigate with AI
 
-**Investigate with AI** on the incident page runs Claude Code on your project's [runner](/ci-cd-and-gitops/build-runners): the EC2 instance in the incident's AWS account and region that also runs the project's Console deployments. If the runner is stopped or does not exist yet, Stacktape starts or creates it first. Claude Code runs without its built-in tools. It has no shell and no file access of its own, only the tools Stacktape gives it.
+**Investigate with AI** on the incident page runs Claude Code on your project's [runner](/ci-cd-and-gitops/build-runners): the EC2 instance in the incident's AWS account and region that also runs the project's Console deployments. If the runner is stopped or does not exist yet, Stacktape starts or creates it first.
 
-The agent can read:
+When the project's repository is connected, the runner checks out the commit Stacktape recorded for the release live on the stack, never a branch head. This works for repositories on github.com, gitlab.com and bitbucket.org connected to the project, and for public repositories on those hosts. Claude Code works in that checkout with its built-in tools, as your own coding agent would: it reads, searches, edits and deletes files, runs commands, installs packages, runs the project's tests and reproductions, searches the web and fetches documentation, with the internet access the runner has. It also reads the repository's `CLAUDE.md`. Without a connected repository or a recorded full commit, the agent works without source and the report says so.
+
+For Stacktape and AWS, the agent has Stacktape's tools:
 
 - the incident and the project's other incidents, with their signals, evidence, releases, timelines and briefings;
-- the stack's resources and status, including any CloudFormation resource in a failed state;
-- CloudWatch Logs of the stack's resources, through Logs Insights queries;
-- the metrics Stacktape charts for each resource;
-- the stack's CloudWatch alarms with their state and reason, and the recent history of the ones that are firing;
-- the runtime configuration of the stack's functions and container services: runtime, memory, timeouts, environment variable names (never their values), deployments and recent service events;
-- the source of the commit Stacktape recorded for the release live on the stack, when the project's repository is connected. The runner checks out that exact commit, never a branch head. This works for repositories on github.com, gitlab.com and bitbucket.org connected to the project, and for public repositories on those hosts. Without a connected repository or a recorded full commit, the agent works without source and the report says so.
+- `aws_call`: any operation from Stacktape's reviewed read-only catalog, the same list [`stacktape aws:call`](/cli/aws-call) accepts, anywhere in the incident's AWS account. An operation outside the catalog is refused. Secret values are not in the catalog: Secrets Manager secret values, SSM parameter values and the values of function and container environment variables are never returned;
+- the resources of the incident's stack, CloudWatch Logs Insights queries over their logs, their metrics, alarms and runtime configuration, by the resource names in your Stacktape config;
+- a search of Stacktape's documentation.
 
-Stacktape performs the log, metric, alarm and configuration reads for the agent. It uses your connected AWS account's role, narrowed to read-only access, and limits every read to the incident's stack, whatever the agent asks for. The AWS session is named after the run, so your CloudTrail shows which run read what. Before the agent sees any output, Stacktape masks known sensitive shapes: secrets and tokens, values under sensitive key names, email and IP addresses, card numbers and user home paths. The runner masks the source the same way and never reads environment, key or credential files such as `.env` files and private keys.
-
-Every read gets a reference, such as `T3`, that the report can cite. Stacktape records which reads happened (the tool and its target), not what they returned.
+Stacktape executes every AWS read for the agent, with your connected AWS account's role, in a session named after the run, so your CloudTrail shows which run read what. Before the agent sees an answer, Stacktape masks known sensitive shapes in it: secrets and tokens, values under sensitive key names, email and IP addresses, card numbers and user home paths. The agent itself has no AWS credentials: nothing on the runner that it can reach holds an AWS credential, a Stacktape API key, a deployment credential or a Git write token. The Anthropic credential stays in Claude Code's own process. Claude Code runs the agent's commands in its sandbox, without that credential and without a view of Claude Code's own process; the sandbox needs bubblewrap and socat, which the run installs when the runner image lacks them.
 
 When the run ends, the incident page shows its report:
 
 - a summary;
-- **What the agent reports reading**: each observation with its source and, when it came from a Stacktape read, that read's reference. A reference shows that the read happened, not that the sentence is right;
+- **What the agent reports seeing**: each observation with where the agent says it saw it;
 - **Agent conclusions**, each with a confidence. They are model output, to be checked;
-- **Not known**: what the agent could not establish.
+- **Not known**: what the agent could not establish;
+- **What the agent did**: every command it ran, file it read, wrote or edited, page it fetched and Stacktape tool it called, in order, recorded from Claude Code's own output and masked. Stacktape keeps up to 300 steps and counts the rest.
 
-An investigation never changes, deploys, rolls back or resolves anything.
+An investigation deploys, rolls back and resolves nothing, and changes nothing in your AWS account. What it changes in the checkout on the runner is discarded with the run.
 
 A few limits apply:
 
 - One run per incident can be queued or running at a time.
-- Each run is limited in turns, model spend and diagnostic reads, and stops after about 30 minutes.
+- A run stops after 60 minutes. A run funded by the organization's API key also stops at 20 USD of model spend; a run funded by a member's subscription counts against that plan's limits.
 - A run waits for free capacity on the runner and fails without starting if none is free within 30 minutes.
 - The incident must belong to a stack in an AWS account connected to your organization.
 
@@ -19950,7 +19948,7 @@ The incident's card in Slack also has **Investigate with AI** and **Fix with AI*
 
 ## Fix with AI
 
-**Fix with AI** starts the same kind of run, but the agent may also edit the checked-out commit. After the agent ends, Stacktape opens a pull request with the change for a person to review, test and merge.
+**Fix with AI** starts the same kind of run, and the agent also changes the checked-out code, runs the relevant tests and reports what it ran. After the agent ends, the runner pushes the change as a branch, and Stacktape opens a pull request for a person to review, test and merge.
 
 A fix needs:
 
@@ -19962,19 +19960,19 @@ The incident page shows **Fix with AI** as unavailable, with the reason, when th
 
 A fix then works like this:
 
-1. The runner checks out the recorded commit. The agent reads it as in an investigation, and can create new text files and edit existing ones. It cannot delete or rename files, write binary files, change Git data, or write environment, key or credential files. A change is limited to 20 files and 384 KB, and a new file to 256 KB.
-2. After the agent ends, the runner sends Stacktape only the lines the agent wrote. Stacktape checks the change with `git diff --check` for whitespace errors and nothing else. It does not run the project's tests or any code from your repository.
-3. Stacktape rebuilds the changed files from the recorded commit and commits them on a new branch, `stacktape/fix-<run>`, whose parent is the recorded commit. It opens a pull request from that branch into the branch the release was deployed from, or into the default branch when that branch no longer exists.
-4. The pull request is a draft. Where your GitHub plan offers no draft pull requests for the repository, it is a regular pull request, and its description says so. In a private repository, the description is the agent's, followed by a link to the incident with its title, who requested the fix, the recorded commit, the checks Stacktape ran, and a note that nothing was deployed or merged. In a public repository, anyone can read the pull request, so its description holds nothing about the incident: the change's title, a link to the incident that only your organization's members can open, the recorded commit, the checks and the same note. The incident page shows the agent's description either way.
-5. The incident page shows the agent's report, the changed files and the pull request link, together with **Checks Stacktape ran**, **Project tests: not run** and **Deployed: nothing**.
+1. The runner checks out the recorded commit, and the agent works in it as in an investigation: it finds the cause, changes the code and runs the project's tests.
+2. After the agent ends and its processes are stopped, the runner takes everything the agent changed in the checkout, as Git sees it with the repository's own ignore rules: added, edited, deleted and renamed files, binary files included. It refuses only a change that touches Git's own data, such as a nested repository, and one larger than 20 MB.
+3. Stacktape mints a GitHub token that can write this one repository's contents and nothing else, and hands it to the runner through an SSM parameter in your AWS account that only the runner's own role can read. The runner reads and deletes it; the agent never sees it. The runner commits the change on the recorded commit and pushes it as a new branch, `stacktape/fix-<run>`.
+4. Stacktape opens a pull request from that branch into the branch the release was deployed from, or into the default branch when that branch no longer exists. The pull request is a draft. Where your GitHub plan offers no draft pull requests for the repository, it is a regular pull request, and its description says so. In a private repository, the description is the agent's, followed by a link to the incident with its title, who requested the fix, the recorded commit, what the agent says it ran, and a note that nothing was deployed or merged. In a public repository, anyone can read the pull request, so its description holds nothing about the incident: the change's title, a link to the incident that only your organization's members can open, the recorded commit and the same note. The incident page shows the agent's description either way.
+5. The incident page shows the agent's report, the changed files and the pull request link, together with **What the agent says it ran**, next to **What the agent did**, and **Deployed: nothing**.
 
-Stacktape writes the branch and the pull request with a GitHub token it mints for that one repository. The token never reaches the runner or the agent. Stacktape writes only the new `stacktape/fix-<run>` branch and never merges it.
+Stacktape opens the pull request with a GitHub token it mints for that one repository, and that token never leaves Stacktape. Neither Stacktape nor the runner writes anything but the new `stacktape/fix-<run>` branch, and neither merges it.
 
 Stacktape deploys nothing for a fix and starts no preview deployment for its pull request, even when your project deploys previews of pull requests. Workflows in your repository that run on pull requests or pushes, such as your CI, still run as you configured them. Merging and deploying the change is up to you and your usual deployment. Whether the incident then recovers comes from monitoring, as for any incident; a run never marks an incident fixed.
 
 The pull request is based on the commit Stacktape recorded for the release. If you deployed from a local checkout that had uncommitted changes, those changes are not in that commit, so they are not in the pull request either.
 
-If Stacktape cannot open the pull request, for example because GitHub refused the write, the run fails with GitHub's reason and lists the files the change touched. Start a new fix once the cause is resolved.
+If GitHub refuses the push, or Stacktape cannot open the pull request, the run fails with GitHub's reason. The incident page then lists the files the change touched and shows the change as a patch, so that it is not lost. Start a new fix once the cause is resolved.
 
 ## Who pays and which credential
 
@@ -19992,14 +19990,11 @@ The runner's compute is billed to your AWS account, as for your deployments. The
 ## What leaves your AWS account
 
 - **For the automatic briefing:** the Stacktape-managed model, through OpenRouter, receives a scrubbed, bounded snapshot of what Stacktape already stores about the incident. The snapshot holds incident and signal metadata, excerpts of signal evidence, error messages and stack frames, uptime, deploy and alert-event facts, and earlier incidents of the same project. It holds no raw log lines, source code or live AWS state.
-- **For Investigate and Fix:** Claude Code sends Anthropic, under the terms of the credential that funds the run:
-  - the incident handoff;
-  - the diagnostic excerpts the agent asks for: log lines, metric values, alarm states and runtime configuration of the incident's stack. Stacktape reads them for the agent with a read-only role limited to that stack, masks them before they reach the agent, and records which reads happened, not their content;
-  - source files of the recorded commit when the repository is connected, masked the same way. Environment, key and credential files are never read.
-- **For a fix:** the runner sends Stacktape the lines the agent wrote, not the rest of your source: at most 20 files and 384 KB, unmasked, because they are the change itself. Stacktape keeps them only until the pull request exists; when the pull request cannot be opened, they stay with the failed run. The pull request goes to your GitHub repository. In a private repository, it carries the agent's description, the incident's title and who requested the fix. In a public repository, anyone can read the pull request and the change, so it carries only the change's title, a link to the incident that needs a Stacktape login, the recorded commit and Stacktape's checks.
-- **For every run:** Stacktape keeps the outcome with the incident, with what the agent reports reading, its conclusions, the checks Stacktape ran and the pull request kept apart. Whether a change was deployed and the incident recovered comes from Stacktape's own records, never from the run.
+- **For Investigate and Fix:** Claude Code sends Anthropic, under the terms of the credential that funds the run, whatever the agent reads while it works: the incident handoff, the answers of Stacktape's tools (AWS data, masked by Stacktape), your source code, the output of the commands it runs, and the web pages it fetches. Your source code and command output are not masked.
+- **For a fix:** the runner pushes the change to your GitHub repository. Stacktape keeps the list of changed files and, when the push or the pull request fails, the change as a patch of up to 256 KB. In a private repository, the pull request carries the agent's description, the incident's title, who requested the fix and what the agent says it ran. In a public repository, anyone can read the pull request and the change, so it carries only the change's title, a link to the incident that needs a Stacktape login and the recorded commit.
+- **For every run:** Stacktape keeps the outcome with the incident: what the agent did (the commands, files, pages and Stacktape tools it used, masked), what it reports seeing and concluded, what it says it ran and the pull request, kept apart. Whether a change was deployed and the incident recovered comes from Stacktape's own records, never from the run.
 
-Stacktape masks known sensitive shapes before data leaves: secrets and tokens, values under sensitive key names such as `password` or `authorization`, email addresses, IP addresses, card numbers and user home paths. Free text can carry anything your application logged, so Stacktape does not promise that no personal data leaves.
+Stacktape masks known sensitive shapes in the answers of its tools and in what it keeps: secrets and tokens, values under sensitive key names such as `password` or `authorization`, email addresses, IP addresses, card numbers and user home paths. Free text can carry anything your application logged, so Stacktape does not promise that no personal data leaves.
 
 ## Roles
 
@@ -20022,19 +20017,23 @@ See [Team and access control](/stacktape-console/team-and-access-control#roles-a
 
 ### Does Investigate or Fix deploy anything?
 
-No. An investigation only reads. A fix ends in a pull request on a new branch. Stacktape deploys nothing, merges nothing and starts no preview deployment for it. You review, test, merge and deploy the change yourself.
+No. An investigation publishes nothing: what it changes in the checkout on the runner is discarded. A fix ends in a pull request on a new branch. Stacktape deploys nothing, merges nothing and starts no preview deployment for it. You review, test, merge and deploy the change yourself.
+
+### Can the agent change my AWS resources?
+
+No. The agent has no AWS credentials. It reads AWS only through Stacktape's reviewed read-only operations, which Stacktape executes for it, and an operation outside that catalog is refused. A change to production goes through the pull request you merge and deploy.
 
 ### Can I use it without connecting a Git repository?
 
-The automatic briefing and Investigate with AI work without one. The investigation then diagnoses from the incident and the stack's diagnostics, and its report says the source was not available. Fix with AI needs a GitHub repository, private or public, connected through the Stacktape GitHub App.
+The automatic briefing and Investigate with AI work without one. The investigation then diagnoses from the incident and your AWS account, and its report says the source was not available. Fix with AI needs a GitHub repository, private or public, connected through the Stacktape GitHub App.
 
 ### What happens when a run fails?
 
-The incident page shows why. For example, Anthropic rejected the credential, a usage limit was reached, the runner had no free capacity, or the run took too long. Nothing is retried with another credential. A fix whose pull request could not be opened lists the files it changed. You can start a new run once the cause is resolved.
+The incident page shows why. For example, Anthropic rejected the credential, a usage or spend limit was reached, the runner had no free capacity, or the run took too long. Nothing is retried with another credential. A fix whose change could not be pushed or published keeps it with the run: the page lists the changed files and shows the change as a patch. You can start a new run once the cause is resolved.
 
 ### Is my source code sent to Anthropic?
 
-Only in Investigate and Fix runs, and only when your repository is connected and Stacktape recorded the full commit of the live release. The agent reads files of that commit on your runner, masked, and Claude Code sends what it reads to Anthropic under the terms of the credential you chose. Environment, key and credential files are never read. The automatic briefing never reads source code.
+Only in Investigate and Fix runs, and only when your repository is connected and Stacktape recorded the full commit of the live release. The agent reads and runs your code on your runner, and Claude Code sends what it reads to Anthropic under the terms of the credential you chose. Unlike the answers of Stacktape's tools, source code and command output are not masked. The automatic briefing never reads source code.
 
 ### Can a Viewer start a run?
 
@@ -20046,7 +20045,7 @@ No. Severity, status, signals and pages come from monitoring, and alerts never w
 
 ### Can Stacktape change my main branch?
 
-No. For a fix, Stacktape creates one new branch, `stacktape/fix-<run>`, and opens a pull request from it. It does not push to any other branch and never merges.
+No. For a fix, the runner pushes one new branch, `stacktape/fix-<run>`, and Stacktape opens a pull request from it. Neither pushes to any other branch or merges.
 
 ---
 

@@ -8,7 +8,7 @@ import {
   answerWithEnvironments,
   environmentValue,
   startLoopbackAwsEndpoint
-} from '@domain-services/debug-services/__fixtures__/loopback-aws-endpoint';
+} from '@stacktape/aws-read-only/fixtures/loopback-aws-endpoint';
 import type { ValidatedAwsCredentials } from 'src/aws/credentials';
 import { startAgentServer, stopAgentServer } from './agent-server';
 
