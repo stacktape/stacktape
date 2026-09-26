@@ -339,7 +339,7 @@ describe('loading two generations', () => {
     expect(independenceProblems(oracle, foreign, zodVersion)).toEqual([
       'the current schema was not built by the Zod module this script loads'
     ]);
-  });
+  }, 60_000); // four isolated loads of the 1.4 MB validator plus a Zod copy exceed Bun's 5 s default on the Windows runner
 });
 
 describe('corpus', () => {
