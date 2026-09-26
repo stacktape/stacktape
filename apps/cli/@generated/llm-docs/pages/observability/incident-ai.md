@@ -85,18 +85,18 @@ The incident's card in Slack also has **Investigate with AI** and **Fix with AI*
 
 A fix needs:
 
-- a private GitHub repository connected to the project through the Stacktape GitHub App;
+- a GitHub repository, private or public, connected to the project through the Stacktape GitHub App;
 - **Contents** and **Pull requests** write permission for the App on that repository. If the installation lacks them, an owner of the GitHub account can accept the App's updated permissions in GitHub;
 - a release whose full commit Stacktape recorded, which happens when you deploy from a Git checkout, and that commit in the repository.
 
-The incident page shows **Fix with AI** as unavailable, with the reason, when the repository is on GitLab or Bitbucket, when no repository is connected through the Stacktape GitHub App, or when Stacktape recorded no full commit for the live release. When you request a fix, Stacktape asks GitHub whether the App has the permissions, whether the repository is private and not archived, and whether it has the recorded commit. If any answer is no, the request is refused with the reason, and nothing starts or is charged.
+The incident page shows **Fix with AI** as unavailable, with the reason, when the repository is on GitLab or Bitbucket, when no repository is connected through the Stacktape GitHub App, or when Stacktape recorded no full commit for the live release. When you request a fix, Stacktape asks GitHub whether the App has the permissions, whether the repository is not archived, and whether it has the recorded commit. If any answer is no, the request is refused with the reason, and nothing starts or is charged.
 
 A fix then works like this:
 
 1. The runner checks out the recorded commit. The agent reads it as in an investigation, and can create new text files and edit existing ones. It cannot delete or rename files, write binary files, change Git data, or write environment, key or credential files. A change is limited to 20 files and 384 KB, and a new file to 256 KB.
 2. After the agent ends, the runner sends Stacktape only the lines the agent wrote. Stacktape checks the change with `git diff --check` for whitespace errors and nothing else. It does not run the project's tests or any code from your repository.
 3. Stacktape rebuilds the changed files from the recorded commit and commits them on a new branch, `stacktape/fix-<run>`, whose parent is the recorded commit. It opens a pull request from that branch into the branch the release was deployed from, or into the default branch when that branch no longer exists.
-4. The pull request is a draft. Where your GitHub plan offers no draft pull requests for the repository, it is a regular pull request, and its description says so. The description is the agent's, followed by a link to the incident, who requested the fix, the recorded commit, the checks Stacktape ran, and a note that nothing was deployed or merged.
+4. The pull request is a draft. Where your GitHub plan offers no draft pull requests for the repository, it is a regular pull request, and its description says so. In a private repository, the description is the agent's, followed by a link to the incident with its title, who requested the fix, the recorded commit, the checks Stacktape ran, and a note that nothing was deployed or merged. In a public repository, anyone can read the pull request, so its description holds nothing about the incident: the change's title, a link to the incident that only your organization's members can open, the recorded commit, the checks and the same note. The incident page shows the agent's description either way.
 5. The incident page shows the agent's report, the changed files and the pull request link, together with **Checks Stacktape ran**, **Project tests: not run** and **Deployed: nothing**.
 
 Stacktape writes the branch and the pull request with a GitHub token it mints for that one repository. The token never reaches the runner or the agent. Stacktape writes only the new `stacktape/fix-<run>` branch and never merges it.
@@ -127,7 +127,7 @@ The runner's compute is billed to your AWS account, as for your deployments. The
   - the incident handoff;
   - the diagnostic excerpts the agent asks for: log lines, metric values, alarm states and runtime configuration of the incident's stack. Stacktape reads them for the agent with a read-only role limited to that stack, masks them before they reach the agent, and records which reads happened, not their content;
   - source files of the recorded commit when the repository is connected, masked the same way. Environment, key and credential files are never read.
-- **For a fix:** the runner sends Stacktape the lines the agent wrote, not the rest of your source: at most 20 files and 384 KB, unmasked, because they are the change itself. Stacktape keeps them only until the pull request exists; when the pull request cannot be opened, they stay with the failed run. The pull request, with the agent's description, goes to your GitHub repository.
+- **For a fix:** the runner sends Stacktape the lines the agent wrote, not the rest of your source: at most 20 files and 384 KB, unmasked, because they are the change itself. Stacktape keeps them only until the pull request exists; when the pull request cannot be opened, they stay with the failed run. The pull request goes to your GitHub repository. In a private repository, it carries the agent's description, the incident's title and who requested the fix. In a public repository, anyone can read the pull request and the change, so it carries only the change's title, a link to the incident that needs a Stacktape login, the recorded commit and Stacktape's checks.
 - **For every run:** Stacktape keeps the outcome with the incident, with what the agent reports reading, its conclusions, the checks Stacktape ran and the pull request kept apart. Whether a change was deployed and the incident recovered comes from Stacktape's own records, never from the run.
 
 Stacktape masks known sensitive shapes before data leaves: secrets and tokens, values under sensitive key names such as `password` or `authorization`, email addresses, IP addresses, card numbers and user home paths. Free text can carry anything your application logged, so Stacktape does not promise that no personal data leaves.
@@ -145,7 +145,7 @@ See [Team and access control](/stacktape-console/team-and-access-control#roles-a
 
 **Copy details for agent** on the incident page, [`stacktape incidents:show`](/cli/incidents-show) and the MCP server's [`stacktape_incident`](/using-with-ai/mcp-server-setup#incident-tool) tool return the same [handoff](/observability/incidents#agent-handoff-bundle). It holds the incident's signals, evidence, releases, timeline and related incidents, the automatic briefing, and the reports of hosted runs on the incident. Give it to a coding agent on your own machine when:
 
-- the repository is on GitLab or Bitbucket, or is public, so Fix with AI is not available;
+- the repository is on GitLab or Bitbucket, so Fix with AI is not available;
 - no Anthropic credential is connected;
 - you prefer to diagnose and change the code with your own agent and tools.
 
@@ -157,7 +157,7 @@ No. An investigation only reads. A fix ends in a pull request on a new branch. S
 
 ### Can I use it without connecting a Git repository?
 
-The automatic briefing and Investigate with AI work without one. The investigation then diagnoses from the incident and the stack's diagnostics, and its report says the source was not available. Fix with AI needs a private GitHub repository connected through the Stacktape GitHub App.
+The automatic briefing and Investigate with AI work without one. The investigation then diagnoses from the incident and the stack's diagnostics, and its report says the source was not available. Fix with AI needs a GitHub repository, private or public, connected through the Stacktape GitHub App.
 
 ### What happens when a run fails?
 
