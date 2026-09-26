@@ -23,6 +23,8 @@ Use the concise index below to locate the canonical documentation page for a tas
 - [CI/CD and GitOps Overview](/ci-cd-and-gitops/overview) - source: apps/docs/content/ci-cd-and-gitops/overview.mdx
 - [Self-Hosted GitHub Actions Runners](/ci-cd-and-gitops/self-hosted-github-actions-runners) - source: apps/docs/content/ci-cd-and-gitops/self-hosted-github-actions-runners.mdx
 - [Stacks per Git Branch Pattern](/ci-cd-and-gitops/stacks-per-git-branch-pattern) - source: apps/docs/content/ci-cd-and-gitops/stacks-per-git-branch-pattern.mdx
+- [ai:connect](/cli/ai-connect) - source: apps/docs/content/cli/ai-connect.mdx
+- [ai:disconnect](/cli/ai-disconnect) - source: apps/docs/content/cli/ai-disconnect.mdx
 - [alarms](/cli/alarms) - source: apps/docs/content/cli/alarms.mdx
 - [aws:call](/cli/aws-call) - source: apps/docs/content/cli/aws-call.mdx
 - [aws-profile:create](/cli/aws-profile-create) - source: apps/docs/content/cli/aws-profile-create.mdx

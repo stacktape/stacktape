@@ -37,6 +37,8 @@ import type {
   IncidentActionResponse,
   IncidentHandoffResponse,
   IncidentStatusResponse,
+  ConnectClaudeSubscriptionParams,
+  ClaudeSubscriptionConnectionResponse,
   IssueActionParams,
   IssueActionResponse,
   ListIncidentsParams,
@@ -100,6 +102,8 @@ export type {
   IncidentActionResponse,
   IncidentHandoffResponse,
   IncidentStatusResponse,
+  ConnectClaudeSubscriptionParams,
+  ClaudeSubscriptionConnectionResponse,
   IssueActionParams,
   IssueActionResponse,
   ListIncidentsParams,
@@ -333,6 +337,20 @@ export class ApiKeyProtectedClient {
 
   incidentHandoff = async (args: IncidentActionParams): Promise<IncidentHandoffResponse> => {
     return this.#request('incidentHandoffFromCli', () => this.#ensureInitialized().incidentHandoffFromCli.query(args));
+  };
+
+  connectClaudeSubscription = async (
+    args: ConnectClaudeSubscriptionParams
+  ): Promise<ClaudeSubscriptionConnectionResponse> => {
+    return this.#request('connectClaudeSubscriptionFromCli', () =>
+      this.#ensureInitialized().connectClaudeSubscriptionFromCli.mutate(args)
+    );
+  };
+
+  disconnectClaudeSubscription = async (): Promise<ClaudeSubscriptionConnectionResponse> => {
+    return this.#request('disconnectClaudeSubscriptionFromCli', () =>
+      this.#ensureInitialized().disconnectClaudeSubscriptionFromCli.mutate()
+    );
   };
 
   incidentStatus = async (args: IncidentActionParams): Promise<IncidentStatusResponse> => {

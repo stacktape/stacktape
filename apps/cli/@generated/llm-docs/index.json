@@ -15399,6 +15399,43 @@
       ]
     },
     {
+      "id": "page:/cli/ai-connect",
+      "title": "ai:connect",
+      "route": "/cli/ai-connect",
+      "sourcePath": "apps/docs/content/cli/ai-connect.mdx",
+      "outputPath": "pages/cli/ai-connect.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "ai-connect"
+      ],
+      "chunks": [
+        "page:/cli/ai-connect#ai-connect",
+        "page:/cli/ai-connect#usage",
+        "page:/cli/ai-connect#what-it-connects",
+        "page:/cli/ai-connect#flags-reference"
+      ]
+    },
+    {
+      "id": "page:/cli/ai-disconnect",
+      "title": "ai:disconnect",
+      "route": "/cli/ai-disconnect",
+      "sourcePath": "apps/docs/content/cli/ai-disconnect.mdx",
+      "outputPath": "pages/cli/ai-disconnect.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "ai-disconnect"
+      ],
+      "chunks": [
+        "page:/cli/ai-disconnect#ai-disconnect",
+        "page:/cli/ai-disconnect#usage",
+        "page:/cli/ai-disconnect#flags-reference"
+      ]
+    },
+    {
       "id": "page:/cli/alarms",
       "title": "alarms",
       "route": "/cli/alarms",

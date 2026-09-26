@@ -1,6 +1,7 @@
 import {
   apiKey,
   agent,
+  aiProvider,
   agentChild,
   agentPort,
   awsAccount,
@@ -887,6 +888,28 @@ which projects and stages it currently applies to.`,
     requiredArgs: [] as const
   },
 
+  'ai:connect': {
+    description: `Connects your own Claude subscription to Stacktape for the hosted AI incident runs (Investigate with AI, Fix with AI) you request.
+
+Runs \`claude setup-token\` for you (the Claude Code CLI must be installed), signs you in through your browser, and stores the long-lived token it prints with Stacktape. Only runs you request use it; remove it with \`stacktape ai:disconnect\`. Alternatively, an Admin or Owner can connect the organization's Anthropic API key in the Console.`,
+    args: {
+      logLevel: logLevel.optional(),
+      agent: agent.optional(),
+      outputFormat: outputFormat.optional(),
+      aiProvider: aiProvider.optional()
+    },
+    requiredArgs: [] as const
+  },
+  'ai:disconnect': {
+    description: `Removes your own Claude subscription token from Stacktape. Hosted AI incident runs you request can no longer be funded by your subscription until you connect it again with \`stacktape ai:connect\`.`,
+    args: {
+      logLevel: logLevel.optional(),
+      agent: agent.optional(),
+      outputFormat: outputFormat.optional(),
+      aiProvider: aiProvider.optional()
+    },
+    requiredArgs: [] as const
+  },
   'info:whoami': {
     description: `Displays information about the current user, organization, connected AWS accounts, and accessible projects.
 

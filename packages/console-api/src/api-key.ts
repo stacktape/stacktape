@@ -222,6 +222,9 @@ export const listIncidentsInputSchema = z.object({
 
 export const incidentActionInputSchema = z.object({ incidentId: z.string() });
 
+/** `stacktape ai:connect`: the member's own subscription token, as `claude setup-token` prints it. */
+export const connectClaudeSubscriptionInputSchema = z.object({ token: z.string().min(1).max(512) }).strict();
+
 /**
  * Deploy-time resolution of `slack-app` channels in the config: a channel name (with or without `#`) or ID in the
  * organization's connected Slack workspace becomes the stable ID delivery uses. Public channels are joined so
@@ -394,6 +397,22 @@ export type IncidentStatusResponse = ListIncidentsResponse[number];
  */
 export type IncidentHandoffResponse = {
   markdown: string;
+};
+
+/**
+ * A member's own Claude subscription token, as `claude setup-token` prints it, connected for the hosted incident
+ * runs the member requests. `stacktape ai:connect` sends it; the API key's user is the member.
+ */
+export type ConnectClaudeSubscriptionParams = {
+  token: string;
+};
+
+/** What a member learns of their own connection: whether a token is configured, since when, and for whom. */
+export type ClaudeSubscriptionConnectionResponse = {
+  configured: boolean;
+  configuredAt: string | null;
+  organization: { id: string; name: string };
+  member: { email: string | null };
 };
 
 /**
@@ -770,5 +789,11 @@ export type ApiKeyTrpcClient = {
   };
   reopenIssueFromCli: {
     mutate: (args: IssueActionParams) => Promise<IssueActionResponse>;
+  };
+  connectClaudeSubscriptionFromCli: {
+    mutate: (args: ConnectClaudeSubscriptionParams) => Promise<ClaudeSubscriptionConnectionResponse>;
+  };
+  disconnectClaudeSubscriptionFromCli: {
+    mutate: (args?: void) => Promise<ClaudeSubscriptionConnectionResponse>;
   };
 };

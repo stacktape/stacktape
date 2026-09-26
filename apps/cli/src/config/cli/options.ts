@@ -63,6 +63,10 @@ export const incidentStatus = z.enum(['ACTIVE', 'OPEN', 'ACKNOWLEDGED', 'RESOLVE
 ---
 Filter incidents by status. ACTIVE (the default) means OPEN + ACKNOWLEDGED.`);
 
+export const aiProvider = z.enum(['claude']).describe(`#### AI Provider
+---
+The AI provider whose subscription to connect for hosted incident runs. Currently \`claude\` (a Claude subscription, through \`claude setup-token\`). Defaults to \`claude\`.`);
+
 export const incidentWatchTimeoutSeconds = z.number().int().min(1).max(86_400).describe(`#### Incident Watch Timeout
 ---
 Maximum number of seconds to wait for the incident to recover. Defaults to 900 seconds.`);
@@ -638,6 +642,7 @@ export const allCliArgsSchema = z.object({
   issueStatus: issueStatus.optional(),
   incidentId: incidentId.optional(),
   incidentStatus: incidentStatus.optional(),
+  aiProvider: aiProvider.optional(),
   incidentWatchTimeoutSeconds: incidentWatchTimeoutSeconds.optional(),
   incidentWatchStabilitySeconds: incidentWatchStabilitySeconds.optional(),
   assumeRoleOfResource: assumeRoleOfResource.optional(),
