@@ -1,6 +1,7 @@
 import type { Credentials } from '@aws-sdk/types';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
+import type { GetCallerIdentityResponse } from '@aws-sdk/client-sts';
 import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { hintMessages } from '@errors';
 import { createFetchHandler } from 'src/aws/fetch-handler';
@@ -8,7 +9,8 @@ import { retryPlugin } from 'src/aws/client-middleware';
 import { redactAwsRequestInput } from 'src/aws/redact-request-input';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { CliError } from '@utils/errors';
-import { timeAsync } from '@utils/timings';
+import { startTiming, timeAsync } from '@utils/timings';
+import { cacheAwsIdentity, readCachedAwsIdentity } from './identity-cache';
 
 export const getErrorHandler = (message: string) => (err: Error) => {
   if (err instanceof CliError) {
@@ -101,7 +103,19 @@ export const loggingPlugin = {
 // so we decided to separate this method from awsSdkManager (though theoretically it could be part of it).
 // Also methods in awsSdkManager are methods that should be called on/used with the globalStateManager.targetAwsAccount,
 // but this method is for more general purpose
-export const getAwsCredentialsIdentity = async ({ credentials }: { credentials: Credentials }) => {
+// The identity for an access key is cached for a day (`identity-cache.ts`), so most runs skip the STS round trip. A
+// cached identity is exactly what STS returned for that key, so the account check of a named connection is unchanged.
+export const getAwsCredentialsIdentity = async ({
+  credentials
+}: {
+  credentials: Credentials;
+}): Promise<GetCallerIdentityResponse> => {
+  const endTiming = startTiming('aws:identity');
+  const cached = credentials.accessKeyId ? await readCachedAwsIdentity(credentials.accessKeyId) : null;
+  if (cached) {
+    endTiming({ source: 'cache', account: cached.account });
+    return { Account: cached.account, Arn: cached.arn, UserId: cached.userId };
+  }
   const errHandler = getErrorHandler(
     `Unable to get identity for credentials (access key id: ${credentials.accessKeyId}).`
   );
@@ -112,5 +126,17 @@ export const getAwsCredentialsIdentity = async ({ credentials }: { credentials: 
   });
   tempStsCli.middlewareStack.use(loggingPlugin);
   tempStsCli.middlewareStack.use(retryPlugin);
-  return tempStsCli.send(new GetCallerIdentityCommand({})).catch(errHandler);
+  const identity = await tempStsCli.send(new GetCallerIdentityCommand({})).catch((error: Error) => {
+    endTiming({ source: 'sts', outcome: 'error' });
+    return errHandler(error);
+  });
+  endTiming({ source: 'sts', account: identity.Account });
+  if (credentials.accessKeyId && identity.Account && identity.Arn && identity.UserId) {
+    await cacheAwsIdentity(credentials.accessKeyId, {
+      account: identity.Account,
+      arn: identity.Arn,
+      userId: identity.UserId
+    });
+  }
+  return identity;
 };

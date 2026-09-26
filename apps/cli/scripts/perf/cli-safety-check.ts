@@ -24,13 +24,18 @@
  *    arrives, with a required timing file, and followed by a check that no process it started is left in the
  *    namespace:
  *    - `missing-platform`: the guard reports no arm64. The fixture is pure JavaScript and builds for no platform, so the
- *      CLI must succeed without asking Docker anything: no `docker info`, buildx or privileged binfmt installer.
+ *      CLI must succeed without asking Docker anything: no `docker info`, buildx or privileged binfmt installer. Its
+ *      only AWS request is STS `GetCallerIdentity` to the local fixture, and the CLI caches that caller identity in
+ *      the HOME the scenarios share.
  *    - `platform-ready`: the guard reports amd64 and arm64, simulated. The CLI must package through the split path,
- *      again without any Docker request, and send exactly one AWS request, STS `GetCallerIdentity`, to the local
- *      fixture.
- *    - `no-endpoints`: without the fixture's endpoint and proxy the CLI must fail, reach nothing, and leave its
- *      attempted AWS host name in the DNS recorder.
- *    - `docker-absent`: PATH without Docker. The CLI must still package through the split path and again need only STS.
+ *      again without any Docker request, and send no AWS request: the identity comes from the cache, with the same
+ *      account.
+ *    - `no-endpoints`: in a HOME of its own, so it cannot use the cached identity. Without the fixture's endpoint and
+ *      proxy the CLI must fail, reach nothing, and leave its attempted AWS host name in the DNS recorder.
+ *    - `docker-absent`: PATH without Docker. The CLI must still package through the split path, again with no AWS
+ *      request.
+ *    - The identity cache, PATH without Docker: another access key ID, the entry aged past 24 hours, and a corrupted
+ *      cache file each make exactly one STS request; the corrupted file is rewritten without the key ID or secret.
  *
  * Back outside, the script reads the daemon state and the container events for the whole window, requires both reads
  * to succeed and nothing to have changed, requires no process of the sandbox's PID namespace and none running the
@@ -50,10 +55,15 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import yargsParser from 'yargs-parser';
 import { runBoundedProcess } from './bounded-process';
-import { createPathWithoutDocker, createToolDirectory, getCliEnvironment } from './cli-environment';
+import {
+  createPathWithoutDocker,
+  createToolDirectory,
+  getCliEnvironment,
+  INERT_AWS_CREDENTIALS
+} from './cli-environment';
 import { findSpans, runCliSample } from './cli-sample';
 import { createDockerGuard } from './docker-guard';
-import { startExternalServiceFixture } from './external-service-fixture';
+import { FIXTURE_ACCOUNT_ID, startExternalServiceFixture } from './external-service-fixture';
 import { claimOutputDirectory } from './measurement-context';
 import {
   assertNetworkSandbox,
@@ -242,6 +252,25 @@ const operationsOf = (sample: CliSample) =>
 
 const awsTargetsOf = (sample: CliSample) =>
   sample.fixtureRequests.filter(({ kind }) => kind === 'aws').map(({ target }) => target);
+
+/** Where each caller identity a run used came from, and its account: the CLI's `aws:identity` spans. */
+const identitiesOf = (sample: CliSample) =>
+  findSpans(sample, 'aws:identity').map(({ detail }) => `${detail?.source} ${detail?.account}`);
+
+/** AWS's second documented example key pair: a different access key ID, as inert as the default one. */
+const OTHER_INERT_AWS_CREDENTIALS = {
+  AWS_ACCESS_KEY_ID: 'ASIAIOSFODNN7EXAMPLE',
+  AWS_SECRET_ACCESS_KEY: 'je7MtGbClwBF/2Zp9Utk/h3yCo8nvbEXAMPLEKEY'
+};
+
+/** The CLI's caller-identity cache in a HOME, and the entry key of the default inert credentials in it. */
+const identityCachePath = (home: string) => join(home, '.stacktape', 'aws-identity-cache.json');
+const INERT_KEY_ENTRY = createHash('sha256').update(INERT_AWS_CREDENTIALS.AWS_ACCESS_KEY_ID).digest('hex');
+/** The parsed cache, or null when it is missing or does not parse. */
+const readIdentityCache = (home: string): Promise<{ entries?: Record<string, Record<string, unknown>> } | null> =>
+  readFile(identityCachePath(home), 'utf8')
+    .then((text) => JSON.parse(text))
+    .catch(() => null);
 
 type InnerReport = {
   schema: 3;
@@ -442,8 +471,19 @@ const runChecks = async ({
       guardMode,
       withEndpoints,
       dockerOnPath,
-      sampleTimeoutMs = timeoutMs
-    }: { guardMode?: DockerGuardMode; withEndpoints: boolean; dockerOnPath: boolean; sampleTimeoutMs?: number }
+      sampleTimeoutMs = timeoutMs,
+      scenarioHome = home,
+      credentials
+    }: {
+      guardMode?: DockerGuardMode;
+      withEndpoints: boolean;
+      dockerOnPath: boolean;
+      sampleTimeoutMs?: number;
+      /** A HOME of its own, so no caller identity an earlier scenario cached applies. */
+      scenarioHome?: string;
+      /** Other documented example credentials, as inert as the default ones. */
+      credentials?: typeof INERT_AWS_CREDENTIALS;
+    }
   ) => {
     const sampleDirectory = join(out, 'samples', name);
     await mkdir(sampleDirectory, { recursive: true });
@@ -476,13 +516,16 @@ const runChecks = async ({
     const sample = await runCliSample({
       cmd: command,
       cwd: project,
-      env: getCliEnvironment({
-        home,
-        path,
-        serviceUrl: withEndpoints ? fixture.serviceUrl : undefined,
-        proxyUrl: withEndpoints ? fixture.proxyUrl : undefined,
-        extra: guard ? guard.env : { DOCKER_CONFIG: join(work, `docker-config-${name}`) }
-      }),
+      env: {
+        ...getCliEnvironment({
+          home: scenarioHome,
+          path,
+          serviceUrl: withEndpoints ? fixture.serviceUrl : undefined,
+          proxyUrl: withEndpoints ? fixture.proxyUrl : undefined,
+          extra: guard ? guard.env : { DOCKER_CONFIG: join(work, `docker-config-${name}`) }
+        }),
+        ...credentials
+      },
       timeoutMs: sampleTimeoutMs,
       timingsFile: join(sampleDirectory, 'timings.json'),
       fixture,
@@ -520,6 +563,12 @@ const runChecks = async ({
     operationsOf(missing.sample).length === 0,
     missing.sample.dockerOperations
   );
+  expect(
+    'missing-platform: the first run asked STS for the caller identity, its only AWS request',
+    awsTargetsOf(missing.sample).join(',') === 'sts:GetCallerIdentity' &&
+      identitiesOf(missing.sample).join(',') === `sts ${FIXTURE_ACCOUNT_ID}`,
+    { fixture: awsTargetsOf(missing.sample), identities: identitiesOf(missing.sample) }
+  );
 
   const ready = await runScenario('platform-ready', {
     guardMode: 'platform-ready',
@@ -543,18 +592,35 @@ const runChecks = async ({
     findSpans(ready.sample, 'packaging:paths')
   );
   expect(
-    'platform-ready: the only AWS request was local STS GetCallerIdentity',
-    awsTargetsOf(ready.sample).join(',') === 'sts:GetCallerIdentity' &&
-      findSpans(ready.sample, 'aws:request').length === 1,
-    { fixture: awsTargetsOf(ready.sample), spans: findSpans(ready.sample, 'aws:request').map(({ detail }) => detail) }
+    'platform-ready: no AWS request, because the caller identity came from the cache',
+    awsTargetsOf(ready.sample).length === 0 &&
+      findSpans(ready.sample, 'aws:request').length === 0 &&
+      identitiesOf(ready.sample).join(',') === `cache ${FIXTURE_ACCOUNT_ID}`,
+    {
+      fixture: awsTargetsOf(ready.sample),
+      spans: findSpans(ready.sample, 'aws:request').map(({ detail }) => detail),
+      identities: identitiesOf(ready.sample)
+    }
+  );
+  expect(
+    'identity: two consecutive runs with the same credentials made one STS request in total and reported one account',
+    [...awsTargetsOf(missing.sample), ...awsTargetsOf(ready.sample)].join(',') === 'sts:GetCallerIdentity' &&
+      [...identitiesOf(missing.sample), ...identitiesOf(ready.sample)]
+        .map((identity) => identity.split(' ')[1])
+        .join(',') === `${FIXTURE_ACCOUNT_ID},${FIXTURE_ACCOUNT_ID}`,
+    { missing: identitiesOf(missing.sample), ready: identitiesOf(ready.sample) }
   );
   expect('platform-ready: no name lookups', (ready.sample.dnsQueries ?? []).length === 0, ready.sample.dnsQueries);
 
+  // A HOME of its own: with the identity cached above, the CLI would not try to reach AWS at all.
+  const negativeHome = join(work, 'home-no-endpoints');
+  await mkdir(negativeHome);
   const negative = await runScenario('no-endpoints', {
     guardMode: 'platform-ready',
     withEndpoints: false,
     dockerOnPath: true,
-    sampleTimeoutMs: Math.max(timeoutMs, NEGATIVE_TIMEOUT_MS)
+    sampleTimeoutMs: Math.max(timeoutMs, NEGATIVE_TIMEOUT_MS),
+    scenarioHome: negativeHome
   });
   expect(
     'no-endpoints: the sample is complete',
@@ -595,12 +661,61 @@ const runChecks = async ({
     findSpans(absent.sample, 'packaging:paths')
   );
   expect(
-    'docker-absent: the only AWS request was local STS GetCallerIdentity',
-    awsTargetsOf(absent.sample).join(',') === 'sts:GetCallerIdentity' &&
-      findSpans(absent.sample, 'aws:request').length === 1,
-    awsTargetsOf(absent.sample)
+    'docker-absent: no AWS request, because the caller identity came from the cache',
+    awsTargetsOf(absent.sample).length === 0 &&
+      findSpans(absent.sample, 'aws:request').length === 0 &&
+      identitiesOf(absent.sample).join(',') === `cache ${FIXTURE_ACCOUNT_ID}`,
+    { fixture: awsTargetsOf(absent.sample), identities: identitiesOf(absent.sample) }
   );
   expect('docker-absent: no name lookups', (absent.sample.dnsQueries ?? []).length === 0, absent.sample.dnsQueries);
+
+  // The caller-identity cache: each of these runs must ask STS exactly once, like a first run.
+  const expectOneLookup = (scenario: string, sample: CliSample) => {
+    expect(`${scenario}: the CLI succeeds`, sample.process.exitCode === 0, sample.process.exitCode);
+    expect(
+      `${scenario}: one STS request, and the identity came from it`,
+      awsTargetsOf(sample).join(',') === 'sts:GetCallerIdentity' &&
+        identitiesOf(sample).join(',') === `sts ${FIXTURE_ACCOUNT_ID}`,
+      { fixture: awsTargetsOf(sample), identities: identitiesOf(sample) }
+    );
+  };
+  const otherKey = await runScenario('identity-other-key', {
+    withEndpoints: true,
+    dockerOnPath: false,
+    credentials: OTHER_INERT_AWS_CREDENTIALS
+  });
+  expectOneLookup('identity-other-key: a different access key ID', otherKey.sample);
+
+  const beforeAging = await readIdentityCache(home);
+  const entry = beforeAging?.entries?.[INERT_KEY_ENTRY];
+  expect('identity-expired: the cache holds an entry for the inert key', typeof entry?.fetchedAt === 'string', {
+    entries: Object.keys(beforeAging?.entries ?? {})
+  });
+  if (entry) {
+    entry.fetchedAt = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString();
+    await writeFile(identityCachePath(home), JSON.stringify(beforeAging));
+  }
+  const expired = await runScenario('identity-expired', { withEndpoints: true, dockerOnPath: false });
+  expectOneLookup('identity-expired: an entry past 24 hours', expired.sample);
+  const refreshed = (await readIdentityCache(home))?.entries?.[INERT_KEY_ENTRY];
+  expect(
+    'identity-expired: the entry was refreshed',
+    Date.now() - Date.parse(String(refreshed?.fetchedAt)) < 24 * 60 * 60 * 1000,
+    refreshed
+  );
+
+  await writeFile(identityCachePath(home), '{"version":1,"entries":{"');
+  const corrupted = await runScenario('identity-corrupted', { withEndpoints: true, dockerOnPath: false });
+  expectOneLookup('identity-corrupted: a corrupted cache file', corrupted.sample);
+  const repairedText = await readFile(identityCachePath(home), 'utf8').catch(() => '');
+  const repaired = await readIdentityCache(home);
+  expect(
+    'identity-corrupted: the file was rewritten with the entry, and holds no key ID or secret',
+    repaired?.entries?.[INERT_KEY_ENTRY]?.account === FIXTURE_ACCOUNT_ID &&
+      !repairedText.includes(INERT_AWS_CREDENTIALS.AWS_ACCESS_KEY_ID) &&
+      !repairedText.includes(INERT_AWS_CREDENTIALS.AWS_SECRET_ACCESS_KEY),
+    repaired
+  );
 
   await step('final checks');
   expect('executable unchanged after the check', (await sha256File(executable)) === executableSha256, executableSha256);
