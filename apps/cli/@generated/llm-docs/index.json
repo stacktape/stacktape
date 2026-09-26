@@ -15426,7 +15426,9 @@
       "chunks": [
         "page:/cli/ai-connect#ai-connect",
         "page:/cli/ai-connect#usage",
+        "page:/cli/ai-connect#providers",
         "page:/cli/ai-connect#what-it-connects",
+        "page:/cli/ai-connect#sign-ins-that-refresh",
         "page:/cli/ai-connect#flags-reference"
       ]
     },
@@ -18861,6 +18863,7 @@
         "page:/observability/incident-ai#ai-assessment-investigation-and-fixes",
         "page:/observability/incident-ai#automatic-briefing",
         "page:/observability/incident-ai#investigate-with-ai",
+        "page:/observability/incident-ai#coding-agents",
         "page:/observability/incident-ai#fix-with-ai",
         "page:/observability/incident-ai#who-pays-and-which-credential",
         "page:/observability/incident-ai#what-leaves-your-aws-account",
@@ -18871,7 +18874,8 @@
         "page:/observability/incident-ai#can-the-agent-change-my-aws-resources",
         "page:/observability/incident-ai#can-i-use-it-without-connecting-a-git-repository",
         "page:/observability/incident-ai#what-happens-when-a-run-fails",
-        "page:/observability/incident-ai#is-my-source-code-sent-to-anthropic",
+        "page:/observability/incident-ai#is-my-source-code-sent-to-the-ai-provider",
+        "page:/observability/incident-ai#which-agent-should-i-choose",
         "page:/observability/incident-ai#can-a-viewer-start-a-run",
         "page:/observability/incident-ai#does-the-briefing-change-the-incident-s-severity-or-alerts",
         "page:/observability/incident-ai#can-stacktape-change-my-main-branch"

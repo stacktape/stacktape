@@ -1,9 +1,9 @@
-import { spawn } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { checkExecutableInPath } from '@utils/bin-executable';
 import { CliError } from '@utils/errors';
+import { runOnTerminal } from './agent-sign-ins';
 
 /**
  * Runs `claude setup-token` for the person and captures the long-lived token it prints.
@@ -62,13 +62,6 @@ export const pseudoTerminalRecorder = ({
       : // util-linux script: `-q` quiet, `-e` return the command's exit code, `-c` the command.
         { command: scriptBinary, args: ['-q', '-e', '-c', `${shellQuote(claudeBinary)} setup-token`, transcriptPath] };
 };
-
-const runOnTerminal = (command: string, args: string[]) =>
-  new Promise<number>((resolve, reject) => {
-    const child = spawn(command, args, { stdio: 'inherit', env: process.env });
-    child.on('error', reject);
-    child.on('exit', (code, signal) => resolve(code ?? (signal ? 1 : 0)));
-  });
 
 const notCompleted = () =>
   new CliError({

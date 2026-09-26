@@ -3,15 +3,15 @@
 Stacktape uses AI on [incidents](/observability/incidents) in three ways:
 
 - **Automatic briefing.** Every incident gets a short AI assessment of what is happening and what to check next. It needs no setup, and Stacktape pays for it.
-- **Investigate with AI.** When you ask, Claude Code investigates the incident on your project's runner in your AWS account, in a checkout of your code. It works like your own coding agent: it reads and runs the code, installs packages, runs tests and reads documentation. It reads AWS only through Stacktape's reviewed read-only operations, which Stacktape executes for it. Then it reports what it found. It publishes and deploys nothing.
+- **Investigate with AI.** When you ask, the coding agent you choose (Claude Code, Codex, Grok or OpenCode) investigates the incident on your project's runner in your AWS account, in a checkout of your code. It works like your own coding agent: it reads and runs the code, installs packages, runs tests and reads documentation. It reads AWS only through Stacktape's reviewed read-only operations, which Stacktape executes for it. Then it reports what it found. It publishes and deploys nothing.
 - **Fix with AI.** When you ask, the same kind of run also changes the code and runs the relevant tests. The runner pushes the change as a branch, and Stacktape opens a draft pull request for you to review. Nothing is deployed.
 
-You start Investigate and Fix from the incident page in the Console, and fund them with your organization's Anthropic API key or your own Claude subscription.
+You start Investigate and Fix from the incident page in the Console. For each run you choose the agent and who pays: your organization's API key with the agent's provider, or your own subscription with it.
 
 | | Automatic briefing | Investigate with AI | Fix with AI |
 |---|---|---|---|
 | Starts | For every incident | When someone asks | When someone asks |
-| Paid by | Stacktape | Your Anthropic API key or your Claude subscription | Your Anthropic API key or your Claude subscription |
+| Paid by | Stacktape | Your organization's API key or your own subscription | Your organization's API key or your own subscription |
 | Runs on | Stacktape, with a Stacktape-managed model | Your project's runner, in your AWS account | Your project's runner, in your AWS account |
 | Reads | What Stacktape already stores about the incident | Also your code at the recorded commit, AWS through Stacktape's read-only operations, and the web | The same as Investigate |
 | Result | A briefing on the incident page and its Slack card | A report and what the agent did, on the incident page | A report, what the agent did, and a pull request |
@@ -45,9 +45,9 @@ A Stacktape-managed model writes the briefing from a scrubbed, bounded snapshot 
 
 ## Investigate with AI
 
-**Investigate with AI** on the incident page runs Claude Code on your project's [runner](/ci-cd-and-gitops/build-runners): the EC2 instance in the incident's AWS account and region that also runs the project's Console deployments. If the runner is stopped or does not exist yet, Stacktape starts or creates it first.
+**Investigate with AI** on the incident page runs the [coding agent you choose](#coding-agents) on your project's [runner](/ci-cd-and-gitops/build-runners): the EC2 instance in the incident's AWS account and region that also runs the project's Console deployments. If the runner is stopped or does not exist yet, Stacktape starts or creates it first.
 
-When the project's repository is connected, the runner checks out the commit Stacktape recorded for the release live on the stack, never a branch head. This works for repositories on github.com, gitlab.com and bitbucket.org connected to the project, and for public repositories on those hosts. Claude Code works in that checkout with its built-in tools, as your own coding agent would: it reads, searches, edits and deletes files, runs commands, installs packages, runs the project's tests and reproductions, searches the web and fetches documentation, with the internet access the runner has. It also reads the repository's `CLAUDE.md`. Without a connected repository or a recorded full commit, the agent works without source and the report says so.
+When the project's repository is connected, the runner checks out the commit Stacktape recorded for the release live on the stack, never a branch head. This works for repositories on github.com, gitlab.com and bitbucket.org connected to the project, and for public repositories on those hosts. The agent works in that checkout with its built-in tools, as your own coding agent would: it reads, searches, edits and deletes files, runs commands, installs packages, runs the project's tests and reproductions, searches the web and fetches documentation, with the internet access the runner has, and without asking for approval. Claude Code also reads the repository's `CLAUDE.md`. Without a connected repository or a recorded full commit, the agent works without source and the report says so.
 
 For Stacktape and AWS, the agent has Stacktape's tools:
 
@@ -56,7 +56,7 @@ For Stacktape and AWS, the agent has Stacktape's tools:
 - the resources of the incident's stack, CloudWatch Logs Insights queries over their logs, their metrics, alarms and runtime configuration, by the resource names in your Stacktape config;
 - a search of Stacktape's documentation.
 
-Stacktape executes every AWS read for the agent, with your connected AWS account's role, in a session named after the run, so your CloudTrail shows which run read what. Before the agent sees an answer, Stacktape masks known sensitive shapes in it: secrets and tokens, values under sensitive key names, email and IP addresses, card numbers and user home paths. The agent itself has no AWS credentials: nothing on the runner that it can reach holds an AWS credential, a Stacktape API key, a deployment credential or a Git write token. The Anthropic credential stays in Claude Code's own process. Claude Code runs the agent's commands in its sandbox, without that credential and without a view of Claude Code's own process; the sandbox needs bubblewrap and socat, which the run installs when the runner image lacks them.
+Stacktape executes every AWS read for the agent, with your connected AWS account's role, in a session named after the run, so your CloudTrail shows which run read what. Before the agent sees an answer, Stacktape masks known sensitive shapes in it: secrets and tokens, values under sensitive key names, email and IP addresses, card numbers and user home paths. The agent itself has no AWS credentials: nothing on the runner that it can reach holds an AWS credential, a Stacktape API key, a deployment credential or a Git write token. The credential that funds the run goes only to the agent's own process, and to its sign-in file for as long as the agent runs. Whether the commands the agent runs can read it depends on the agent: see [Coding agents](#coding-agents).
 
 When the run ends, the incident page shows its report:
 
@@ -64,18 +64,38 @@ When the run ends, the incident page shows its report:
 - **What the agent reports seeing**: each observation with where the agent says it saw it;
 - **Agent conclusions**, each with a confidence. They are model output, to be checked;
 - **Not known**: what the agent could not establish;
-- **What the agent did**: every command it ran, file it read, wrote or edited, page it fetched and Stacktape tool it called, in order, recorded from Claude Code's own output and masked. Stacktape keeps up to 300 steps and counts the rest.
+- **What the agent did**: every command it ran, file it read, wrote or edited, page it fetched and Stacktape tool it called, in order, recorded from the agent's own output and masked. Stacktape keeps up to 300 steps and counts the rest.
 
 An investigation deploys, rolls back and resolves nothing, and changes nothing in your AWS account. What it changes in the checkout on the runner is discarded with the run.
 
 A few limits apply:
 
 - One run per incident can be queued or running at a time.
-- A run stops after 60 minutes. A run funded by the organization's API key also stops at 20 USD of model spend; a run funded by a member's subscription counts against that plan's limits.
+- A run stops after 60 minutes. A run funded by the organization's API key also stops at 20 USD of model spend where the agent reports its spend while it works: Claude Code stops itself, and Stacktape stops OpenCode. Codex and Grok report none, so only the 60 minutes bound them. A run funded by a member's subscription counts against that plan's limits.
 - A run waits for free capacity on the runner and fails without starting if none is free within 30 minutes.
 - The incident must belong to a stack in an AWS account connected to your organization.
 
-The incident's card in Slack also has **Investigate with AI** and **Fix with AI** buttons. They open the incident in the Console, where you sign in and choose who pays. Nothing starts from Slack itself.
+The incident's card in Slack also has **Investigate with AI** and **Fix with AI** buttons. They open the incident in the Console, where you sign in and choose the agent and who pays. Nothing starts from Slack itself.
+
+## Coding agents
+
+Each run uses one of these agents, at the release Stacktape pinned for it. The runner installs that release and checks its checksum before it reads any credential.
+
+| Agent | Provider | Your own subscription | The organization's API key |
+|---|---|---|---|
+| Claude Code 2.1.281 | Anthropic | Your Claude subscription: the token `claude setup-token` prints | An Anthropic API key |
+| Codex 0.157.0 | OpenAI | Your ChatGPT plan: the sign-in of your Codex CLI | An OpenAI API key |
+| Grok 1.0.41 | xAI | Your Grok sign-in: the sign-in of your Grok CLI | An xAI API key |
+| OpenCode 1.18.32 | The provider it signed in to or whose key it uses | What your OpenCode CLI is signed in to (`opencode auth login`) | None of its own: one of the organization's Anthropic, OpenAI or xAI keys, chosen for the run |
+
+Every agent gets the same prompt, the same Stacktape tools through an MCP server, which is the only one it loads, and the same limits. They differ in how they hold the credential:
+
+- **Claude Code** gets the credential in one environment variable of its own process. It runs the agent's commands in its sandbox, without the credential and without a view of its own process or of the run's files. The sandbox needs bubblewrap and socat, which the run installs when the runner image lacks them.
+- **Codex** gets an API key in its own environment, or a ChatGPT sign-in as its own sign-in file. It runs the agent's commands in its sandbox: without the key in their environment, without a view of its own process, and unable to read the sign-in file or the run's files.
+- **Grok** gets an API key in its own environment, or a sign-in as its own sign-in file. The key is left out of its commands' environment, but Grok has no sandbox Stacktape can use: the commands run as the same user as Grok and can read the sign-in file, Grok's own environment, and the run's files. Those hold the run's job credential, which lets them call Stacktape's tools for the run as the agent can, until the run ends.
+- **OpenCode** gets its sign-in file, or a file naming the organization's key. It has no sandbox: its commands can read that file and the run's files. It does not load the repository's own OpenCode configuration or plugins.
+
+A sign-in file is deleted when the agent exits. When the agent's commands must not be able to read the credential, choose Claude Code or Codex.
 
 ## Fix with AI
 
@@ -107,21 +127,23 @@ If GitHub refuses the push, or Stacktape cannot open the pull request, the run f
 
 ## Who pays and which credential
 
-Each time you start a run, you choose the Anthropic credential that funds it. Nothing is preselected.
+Each time you start a run, you choose the agent and the credential that funds it. Nothing is preselected.
 
-- **The organization's Anthropic API key.** An Owner or Admin connects it once, and Stacktape checks it with Anthropic before saving it. Members can choose it for their runs but never see it. Usage is billed to the organization's Anthropic account.
-- **Your own Claude subscription.** Each member can connect their own token, the one `claude setup-token` prints, either by running [`stacktape ai:connect`](/cli/ai-connect), which runs that sign-in for you and stores the token, or by pasting it in the dialog that starts a run. Only the runs that member requests use it, and they count against the member's plan limits. The subscription is the member's own arrangement with Anthropic, under Anthropic's terms, which Anthropic can change. Stacktape does not check the plan or promise that its limits cover a run. A member's token is deleted when they leave or are removed from the organization.
+- **The organization's API key.** An Owner or Admin connects an Anthropic, OpenAI or xAI key once, and Stacktape checks it with that provider before saving it: it lists Anthropic's or OpenAI's models, or asks xAI to describe the key. Members can choose it for their runs but never see it. Usage is billed to the organization's account with that provider. An OpenCode run on the organization's money uses one of these keys, chosen when the run starts.
+- **Your own subscription.** Each member can connect their own sign-in with each provider by running [`stacktape ai:connect`](/cli/ai-connect): the token `claude setup-token` prints, the ChatGPT sign-in of the Codex CLI, the sign-in of the Grok CLI, or what the OpenCode CLI is signed in to. A Claude token can also be pasted in the dialog that starts a run. Only the runs that member requests use it, and they count against the member's plan limits. The subscription is the member's own arrangement with the provider, under the provider's terms, which the provider can change. Stacktape does not check the plan or promise that its limits cover a run. A member's sign-ins are deleted when they leave or are removed from the organization.
 
-A run uses only the credential chosen for it. If that credential is missing, expired, rejected or out of quota, the run fails and says so. Stacktape never switches to the other credential, and one member's subscription never funds another member's run.
+A run uses only the credential chosen for it. If that credential is missing, expired, rejected or out of quota, the run fails and says so. Stacktape never switches to another credential, and one member's subscription never funds another member's run.
 
-Stacktape keeps both kinds of credential encrypted in its AWS Secrets Manager and never shows them back. To start a run, Stacktape copies the chosen credential into an encrypted, expiring SSM parameter in the incident's AWS account. The runner deletes the parameter as soon as it reads it. Until then, an administrator of that AWS account may be able to read it.
+A Codex, Grok or OpenCode sign-in holds a refresh token. A run may refresh its copy, and nothing is written back to Stacktape. When a provider replaces the refresh token on refresh, the copy Stacktape stores, or the one on the member's machine, stops working: the run fails saying the provider did not accept the sign-in, and the member reconnects it with `stacktape ai:connect`. [`ai:connect`](/cli/ai-connect#sign-ins-that-refresh) shows how to give runs a sign-in of their own.
+
+Stacktape keeps every credential encrypted in its AWS Secrets Manager and never shows it back. To start a run, Stacktape copies the chosen credential into an encrypted, expiring SSM parameter in the incident's AWS account. The runner deletes the parameter as soon as it reads it. Until then, an administrator of that AWS account may be able to read it.
 
 The runner's compute is billed to your AWS account, as for your deployments. The automatic briefing costs you nothing.
 
 ## What leaves your AWS account
 
 - **For the automatic briefing:** the Stacktape-managed model, through OpenRouter, receives a scrubbed, bounded snapshot of what Stacktape already stores about the incident. The snapshot holds incident and signal metadata, excerpts of signal evidence, error messages and stack frames, uptime, deploy and alert-event facts, and earlier incidents of the same project. It holds no raw log lines, source code or live AWS state.
-- **For Investigate and Fix:** Claude Code sends Anthropic, under the terms of the credential that funds the run, whatever the agent reads while it works: the incident handoff, the answers of Stacktape's tools (AWS data, masked by Stacktape), your source code, the output of the commands it runs, and the web pages it fetches. Your source code and command output are not masked.
+- **For Investigate and Fix:** the agent sends its provider, under the terms of the credential that funds the run, whatever it reads while it works: the incident handoff, the answers of Stacktape's tools (AWS data, masked by Stacktape), your source code, the output of the commands it runs, and the web pages it fetches. The provider is Anthropic for Claude Code, OpenAI for Codex, xAI for Grok, and for OpenCode the provider its sign-in or key belongs to. Your source code and command output are not masked.
 - **For a fix:** the runner pushes the change to your GitHub repository. Stacktape keeps the list of changed files and, when the push or the pull request fails, the change as a patch of up to 256 KB. In a private repository, the pull request carries the agent's description, the incident's title, who requested the fix and what the agent says it ran. In a public repository, anyone can read the pull request and the change, so it carries only the change's title, a link to the incident that needs a Stacktape login and the recorded commit.
 - **For every run:** Stacktape keeps the outcome with the incident: what the agent did (the commands, files, pages and Stacktape tools it used, masked), what it reports seeing and concluded, what it says it ran and the pull request, kept apart. Whether a change was deployed and the incident recovered comes from Stacktape's own records, never from the run.
 
@@ -131,8 +153,8 @@ Stacktape masks known sensitive shapes in the answers of its tools and in what i
 
 - **Reading briefings and run results:** every role, including Viewer, on the projects the member can access.
 - **Requesting Investigate or Fix:** Owner, Admin and Developer (the `incidents:manage` permission), with access to the incident's project. The person who requested a run must still have that access when the run starts.
-- **Connecting, replacing or removing the organization's Anthropic API key:** Owner and Admin.
-- **Connecting or removing a Claude subscription token:** each member who can request runs, for their own token, in the dialog that starts a run.
+- **Connecting, replacing or removing the organization's Anthropic, OpenAI or xAI API key:** Owner and Admin.
+- **Connecting or removing their own sign-in with a provider:** each member, for their own, with `stacktape ai:connect` and `stacktape ai:disconnect`, or in the dialog that starts a run.
 
 See [Team and access control](/stacktape-console/team-and-access-control#roles-and-permissions) for how roles are assigned.
 
@@ -141,7 +163,7 @@ See [Team and access control](/stacktape-console/team-and-access-control#roles-a
 **Copy details for agent** on the incident page, [`stacktape incidents:show`](/cli/incidents-show) and the MCP server's [`stacktape_incident`](/using-with-ai/mcp-server-setup#incident-tool) tool return the same [handoff](/observability/incidents#agent-handoff-bundle). It holds the incident's signals, evidence, releases, timeline and related incidents, the automatic briefing, and the reports of hosted runs on the incident. Give it to a coding agent on your own machine when:
 
 - the repository is on GitLab or Bitbucket, so Fix with AI is not available;
-- no Anthropic credential is connected;
+- no credential is connected for the agent you want;
 - you prefer to diagnose and change the code with your own agent and tools.
 
 ## FAQ
@@ -160,11 +182,15 @@ The automatic briefing and Investigate with AI work without one. The investigati
 
 ### What happens when a run fails?
 
-The incident page shows why. For example, Anthropic rejected the credential, a usage or spend limit was reached, the runner had no free capacity, or the run took too long. Nothing is retried with another credential. A fix whose change could not be pushed or published keeps it with the run: the page lists the changed files and shows the change as a patch. You can start a new run once the cause is resolved.
+The incident page shows why. For example, the provider rejected the credential, a usage or spend limit was reached, the runner had no free capacity, or the run took too long. Nothing is retried with another credential. A fix whose change could not be pushed or published keeps it with the run: the page lists the changed files and shows the change as a patch. You can start a new run once the cause is resolved.
 
-### Is my source code sent to Anthropic?
+### Is my source code sent to the AI provider?
 
-Only in Investigate and Fix runs, and only when your repository is connected and Stacktape recorded the full commit of the live release. The agent reads and runs your code on your runner, and Claude Code sends what it reads to Anthropic under the terms of the credential you chose. Unlike the answers of Stacktape's tools, source code and command output are not masked. The automatic briefing never reads source code.
+Only in Investigate and Fix runs, and only when your repository is connected and Stacktape recorded the full commit of the live release. The agent reads and runs your code on your runner and sends what it reads to its provider under the terms of the credential you chose. Unlike the answers of Stacktape's tools, source code and command output are not masked. The automatic briefing never reads source code.
+
+### Which agent should I choose?
+
+The one your team already uses and pays for. When the agent's commands must not be able to read its credential or the run's files, choose Claude Code or Codex (see [Coding agents](#coding-agents)). On the organization's API key, Claude Code and OpenCode also stop at the run's spend limit.
 
 ### Can a Viewer start a run?
 

@@ -222,8 +222,36 @@ export const listIncidentsInputSchema = z.object({
 
 export const incidentActionInputSchema = z.object({ incidentId: z.string() });
 
-/** `stacktape ai:connect`: the member's own subscription token, as `claude setup-token` prints it. */
-export const connectClaudeSubscriptionInputSchema = z.object({ token: z.string().min(1).max(512) }).strict();
+/** The providers whose subscription a member can connect from the CLI, as `--aiProvider` names them. */
+export const aiSubscriptionProviderSchema = z.enum(['claude', 'codex', 'grok', 'opencode']);
+
+/**
+ * `stacktape ai:connect`: a member's own sign-in with one provider, as that provider's agent keeps it. Claude: the
+ * token `claude setup-token` prints. Codex: the ChatGPT tokens `codex login` writes, never an API key. Grok and
+ * OpenCode: the sign-in file `grok login` or `opencode auth login` writes.
+ */
+export const connectAiSubscriptionInputSchema = z.discriminatedUnion('provider', [
+  z.object({ provider: z.literal('claude'), token: z.string().min(1).max(512) }).strict(),
+  z
+    .object({
+      provider: z.literal('codex'),
+      tokens: z
+        .object({
+          id_token: z.string().min(1).max(16_384),
+          access_token: z.string().min(1).max(16_384),
+          refresh_token: z.string().min(1).max(4_096),
+          account_id: z.string().min(1).max(200)
+        })
+        .strict(),
+      lastRefresh: z.string().max(64).nullable()
+    })
+    .strict(),
+  z.object({ provider: z.literal('grok'), authFile: z.record(z.string().max(512), z.unknown()) }).strict(),
+  z.object({ provider: z.literal('opencode'), authFile: z.record(z.string().max(200), z.unknown()) }).strict()
+]);
+
+/** `stacktape ai:disconnect`: the provider whose sign-in to remove. */
+export const disconnectAiSubscriptionInputSchema = z.object({ provider: aiSubscriptionProviderSchema }).strict();
 
 /**
  * Deploy-time resolution of `slack-app` channels in the config: a channel name (with or without `#`) or ID in the
@@ -399,16 +427,13 @@ export type IncidentHandoffResponse = {
   markdown: string;
 };
 
-/**
- * A member's own Claude subscription token, as `claude setup-token` prints it, connected for the hosted incident
- * runs the member requests. `stacktape ai:connect` sends it; the API key's user is the member.
- */
-export type ConnectClaudeSubscriptionParams = {
-  token: string;
-};
+export type AiSubscriptionProvider = z.infer<typeof aiSubscriptionProviderSchema>;
+export type ConnectAiSubscriptionParams = z.input<typeof connectAiSubscriptionInputSchema>;
+export type DisconnectAiSubscriptionParams = z.input<typeof disconnectAiSubscriptionInputSchema>;
 
-/** What a member learns of their own connection: whether a token is configured, since when, and for whom. */
-export type ClaudeSubscriptionConnectionResponse = {
+/** What a member learns of their own connection with one provider: whether it is configured, since when, and for whom. */
+export type AiSubscriptionConnectionResponse = {
+  provider: AiSubscriptionProvider;
   configured: boolean;
   configuredAt: string | null;
   organization: { id: string; name: string };
@@ -790,10 +815,10 @@ export type ApiKeyTrpcClient = {
   reopenIssueFromCli: {
     mutate: (args: IssueActionParams) => Promise<IssueActionResponse>;
   };
-  connectClaudeSubscriptionFromCli: {
-    mutate: (args: ConnectClaudeSubscriptionParams) => Promise<ClaudeSubscriptionConnectionResponse>;
+  connectAiSubscriptionFromCli: {
+    mutate: (args: ConnectAiSubscriptionParams) => Promise<AiSubscriptionConnectionResponse>;
   };
-  disconnectClaudeSubscriptionFromCli: {
-    mutate: (args?: void) => Promise<ClaudeSubscriptionConnectionResponse>;
+  disconnectAiSubscriptionFromCli: {
+    mutate: (args: DisconnectAiSubscriptionParams) => Promise<AiSubscriptionConnectionResponse>;
   };
 };

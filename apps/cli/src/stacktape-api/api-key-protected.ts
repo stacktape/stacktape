@@ -37,8 +37,9 @@ import type {
   IncidentActionResponse,
   IncidentHandoffResponse,
   IncidentStatusResponse,
-  ConnectClaudeSubscriptionParams,
-  ClaudeSubscriptionConnectionResponse,
+  AiSubscriptionConnectionResponse,
+  ConnectAiSubscriptionParams,
+  DisconnectAiSubscriptionParams,
   IssueActionParams,
   IssueActionResponse,
   ListIncidentsParams,
@@ -102,8 +103,9 @@ export type {
   IncidentActionResponse,
   IncidentHandoffResponse,
   IncidentStatusResponse,
-  ConnectClaudeSubscriptionParams,
-  ClaudeSubscriptionConnectionResponse,
+  AiSubscriptionConnectionResponse,
+  ConnectAiSubscriptionParams,
+  DisconnectAiSubscriptionParams,
   IssueActionParams,
   IssueActionResponse,
   ListIncidentsParams,
@@ -339,17 +341,17 @@ export class ApiKeyProtectedClient {
     return this.#request('incidentHandoffFromCli', () => this.#ensureInitialized().incidentHandoffFromCli.query(args));
   };
 
-  connectClaudeSubscription = async (
-    args: ConnectClaudeSubscriptionParams
-  ): Promise<ClaudeSubscriptionConnectionResponse> => {
-    return this.#request('connectClaudeSubscriptionFromCli', () =>
-      this.#ensureInitialized().connectClaudeSubscriptionFromCli.mutate(args)
+  connectAiSubscription = async (args: ConnectAiSubscriptionParams): Promise<AiSubscriptionConnectionResponse> => {
+    return this.#request('connectAiSubscriptionFromCli', () =>
+      this.#ensureInitialized().connectAiSubscriptionFromCli.mutate(args)
     );
   };
 
-  disconnectClaudeSubscription = async (): Promise<ClaudeSubscriptionConnectionResponse> => {
-    return this.#request('disconnectClaudeSubscriptionFromCli', () =>
-      this.#ensureInitialized().disconnectClaudeSubscriptionFromCli.mutate()
+  disconnectAiSubscription = async (
+    args: DisconnectAiSubscriptionParams
+  ): Promise<AiSubscriptionConnectionResponse> => {
+    return this.#request('disconnectAiSubscriptionFromCli', () =>
+      this.#ensureInitialized().disconnectAiSubscriptionFromCli.mutate(args)
     );
   };
 

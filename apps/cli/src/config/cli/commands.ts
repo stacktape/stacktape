@@ -891,7 +891,14 @@ which projects and stages it currently applies to.`,
   'ai:connect': {
     description: `Connects your own AI subscription to Stacktape for the hosted AI incident runs (Investigate with AI, Fix with AI) you request.
 
-Asks which provider to connect (or takes \`--aiProvider\`) and explains what will happen before anything runs. For Claude, it runs \`claude setup-token\` for you (the Claude Code CLI must be installed), signs you in through your browser, and stores the long-lived token it prints with Stacktape. Only runs you request use it; remove it with \`stacktape ai:disconnect\`. Alternatively, an Admin or Owner can connect the organization's Anthropic API key in the Console.`,
+Asks which provider to connect (or takes \`--aiProvider\`) and explains what will happen before anything runs. Each provider comes with its coding agent, whose CLI must be installed:
+
+- **Claude** (Claude Code): runs \`claude setup-token\`, signs you in through your browser and stores the long-lived token it prints.
+- **Codex** (ChatGPT plan): uses the ChatGPT sign-in of your Codex CLI, running \`codex login\` first when needed, and stores the tokens Codex keeps in \`~/.codex/auth.json\`. An OpenAI API key is not a subscription and is never read.
+- **Grok** (Grok sign-in): uses the sign-in of your Grok CLI, running \`grok login\` first when needed (with a device code where no browser can open), and stores the sign-in Grok keeps in \`~/.grok/auth.json\`, without your name, email or picture.
+- **OpenCode**: uses what your OpenCode CLI is signed in to, running \`opencode auth login\` first when it has nothing, and stores \`~/.local/share/opencode/auth.json\`.
+
+Only runs you request use it; remove it with \`stacktape ai:disconnect\`. A run may refresh a sign-in; if the provider then replaces its refresh token, connect it again. Outside a terminal, pass \`--aiProvider\`; only a sign-in that is already there can be connected then. Alternatively, an Admin or Owner can connect the organization's Anthropic, OpenAI or xAI API key in the Console.`,
     args: {
       logLevel: logLevel.optional(),
       agent: agent.optional(),
@@ -901,7 +908,7 @@ Asks which provider to connect (or takes \`--aiProvider\`) and explains what wil
     requiredArgs: [] as const
   },
   'ai:disconnect': {
-    description: `Removes your own AI subscription token from Stacktape. Asks which provider to disconnect (or takes \`--aiProvider\`). Hosted AI incident runs you request can no longer be funded by that subscription until you connect it again with \`stacktape ai:connect\`.`,
+    description: `Removes your own AI subscription with one provider from Stacktape. Asks which provider to disconnect (or takes \`--aiProvider\`). Hosted AI incident runs you request can no longer be funded by that subscription until you connect it again with \`stacktape ai:connect\`. The sign-in on your own machine stays as it is.`,
     args: {
       logLevel: logLevel.optional(),
       agent: agent.optional(),
