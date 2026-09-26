@@ -468,6 +468,7 @@ const runInside = async ({ out }: { out: string }) => {
         staleFixtureRequests: sample.staleFixtureRequests,
         dnsQueries: sample.dnsQueries,
         escapedProcesses: sample.escapedProcesses,
+        telemetrySenderWaitMs: sample.telemetrySenderWaitMs,
         artifacts,
         packageCase: packageCase ?? null,
         ...afterExitEvidence

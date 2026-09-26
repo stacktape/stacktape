@@ -7,14 +7,25 @@
  * whose exit code matches the process's. Requests the fixture saw, Docker commands the guard saw and names the DNS
  * recorder saw between the start and the end are attached; anything they saw before the start is attached separately
  * as stale, never counted for this sample.
+ *
+ * The CLI hands its completion report to a detached child of its own executable, started with
+ * `TELEMETRY_SENDER_ARGUMENT`, which posts it after the CLI has exited. The end of a sample is therefore the end of
+ * that sender: while the only processes left are senders, they are waited for, up to `telemetrySenderWaitMs`, and their
+ * report is part of the sample. A sender still running then, or any other process left, is an escape.
  */
 import type { BoundedProcessResult } from './bounded-process';
 import type { DockerGuard, DockerGuardRecord } from './docker-guard';
 import type { ExternalServiceFixture, FixtureRequest } from './external-service-fixture';
 import type { DnsQuery } from './network-sandbox';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { runBoundedProcess } from './bounded-process';
+import { readMonotonicNs } from './monotonic-clock';
+
+/** The argument of the CLI's telemetry sender process (`src/utils/telemetry-sender.ts` in the CLI). */
+export const TELEMETRY_SENDER_ARGUMENT = '__telemetry-sender';
+/** Twice the sender's own bound on its one request (`SEND_TIMEOUT_MS`), so only a sender that hangs is an escape. */
+const DEFAULT_TELEMETRY_SENDER_WAIT_MS = 10_000;
 
 export type TimingSpan = {
   name: string;
@@ -74,6 +85,43 @@ export type CliSample = {
   staleDnsQueries: DnsQuery[] | null;
   /** Processes the command left running outside its process group, found by `findEscapedProcesses`; they were killed. */
   escapedProcesses: { pid: number; command: string }[];
+  /** How long telemetry senders were waited for after the exit; null when none was left. */
+  telemetrySenderWaitMs: number | null;
+  /** The exit on the fixture's clock, where its requests' `startMs` and `endMs` are; null without a fixture or clock. */
+  exitFixtureMs: number | null;
+};
+
+type ProcessListing = { pid: number; command: string }[];
+
+/** Whether a process is the CLI's telemetry sender, by its arguments. One that has already gone counts as ended. */
+const isTelemetrySender = (pid: number) => {
+  try {
+    return readFileSync(`/proc/${pid}/cmdline`, 'utf8').split('\0').includes(TELEMETRY_SENDER_ARGUMENT);
+  } catch {
+    return !existsSync(`/proc/${pid}`);
+  }
+};
+
+/** What is left once every telemetry sender has ended or `waitMs` has passed; any other process ends the wait at once. */
+const waitForTelemetrySenders = async (find: () => ProcessListing, waitMs: number) => {
+  const startedAt = performance.now();
+  let found = find();
+  let sawSender = false;
+  while (found.length > 0 && found.every(({ pid }) => isTelemetrySender(pid))) {
+    sawSender = true;
+    if (performance.now() - startedAt >= waitMs) break;
+    await Bun.sleep(10);
+    found = find();
+  }
+  return { escaped: found, waitedMs: sawSender ? Math.round(performance.now() - startedAt) : null };
+};
+
+/** The fixture's clock now, less the time since the exit was seen on the shared monotonic clock. */
+const exitOnFixtureClock = (fixture: ExternalServiceFixture, processResult: BoundedProcessResult) => {
+  const nowNs = readMonotonicNs?.();
+  if (nowNs === undefined || processResult.exitMonotonicNs === null) return null;
+  const sinceExitMs = Number(nowNs - BigInt(processResult.exitMonotonicNs)) / 1e6;
+  return Math.round((fixture.elapsedMs() - sinceExitMs) * 1000) / 1000;
 };
 
 export const runCliSample = async ({
@@ -86,7 +134,8 @@ export const runCliSample = async ({
   dockerGuard,
   dnsRecorder,
   outputFiles,
-  findEscapedProcesses
+  findEscapedProcesses,
+  telemetrySenderWaitMs = DEFAULT_TELEMETRY_SENDER_WAIT_MS
 }: {
   cmd: string[];
   cwd: string;
@@ -106,7 +155,9 @@ export const runCliSample = async ({
    * Lists processes that should not exist once the command has ended, such as every other process in the network
    * sandbox's PID namespace. Anything found is killed and makes the sample invalid.
    */
-  findEscapedProcesses?: (() => { pid: number; command: string }[]) | undefined;
+  findEscapedProcesses?: (() => ProcessListing) | undefined;
+  /** How long a telemetry sender may outlive the command; only the tests shorten it. */
+  telemetrySenderWaitMs?: number | undefined;
 }): Promise<CliSample> => {
   if (timingsFile && existsSync(timingsFile)) {
     throw new Error(`The timing file ${timingsFile} already exists; every sample needs a new path.`);
@@ -125,7 +176,10 @@ export const runCliSample = async ({
     timeoutMs,
     outputFiles
   });
-  const escapedProcesses = findEscapedProcesses?.() ?? [];
+  const exitFixtureMs = fixture ? exitOnFixtureClock(fixture, processResult) : null;
+  const { escaped: escapedProcesses, waitedMs } = findEscapedProcesses
+    ? await waitForTelemetrySenders(findEscapedProcesses, telemetrySenderWaitMs)
+    : { escaped: [], waitedMs: null };
   for (const { pid } of escapedProcesses) {
     try {
       process.kill(pid, 'SIGKILL');
@@ -162,7 +216,9 @@ export const runCliSample = async ({
     dockerOperations: dockerGuard ? (await dockerGuard.readLog()).slice(guardRecordsBefore) : null,
     dnsQueries: dnsRecorder?.takeQueries() ?? null,
     staleDnsQueries,
-    escapedProcesses
+    escapedProcesses,
+    telemetrySenderWaitMs: waitedMs,
+    exitFixtureMs
   };
 };
 

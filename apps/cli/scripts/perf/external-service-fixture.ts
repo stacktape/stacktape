@@ -3,14 +3,17 @@
  *
  * - `serviceUrl` receives what the AWS SDK sends through `AWS_ENDPOINT_URL` and what telemetry sends through
  *   `POSTHOG_HOST`. It answers STS `GetCallerIdentity` for an account that does not exist and accepts telemetry
- *   batches. Every other AWS operation is refused with 403 `AccessDenied`, so a command that needs more than an
+ *   batches, after `telemetryResponseDelayMs` when one is set, so a caller can show whether a command waits for its
+ *   report. Every other AWS operation is refused with 403 `AccessDenied`, so a command that needs more than an
  *   identity fails instead of reaching AWS.
  * - `proxyUrl` is the HTTP and HTTPS proxy for everything else. It tunnels only to the `host:port` pairs it was given
  *   and refuses every other destination and every plain-HTTP request.
  *
  * Every request is recorded without its body, headers, query string or path beyond a fixed route: its kind, AWS
  * service and operation or tunnel host and port, status, byte counts, and start and end in milliseconds since the
- * fixture started. Credentials sent with a request never leave the handler.
+ * fixture started (`elapsedMs`). A telemetry batch also keeps, for each event, its name and its `outcome` and
+ * `error_tracking_id` properties, and nothing else from the body. Credentials sent with a request never leave the
+ * handler.
  *
  * Everything is bounded. A request body above `maxRequestBytes` is refused with 413 and recorded; Bun itself refuses a
  * body above 64 MiB before the fixture sees it, far beyond anything an STS or telemetry request sends. Idle service
@@ -27,6 +30,9 @@ import { connect, createServer } from 'node:net';
 
 export const FIXTURE_ACCOUNT_ID = '000000000000';
 
+/** One event of a telemetry batch: its name, and the two properties a report is checked by. */
+export type TelemetryEventRecord = { event: string; outcome?: string; errorTrackingId?: string };
+
 export type FixtureRequest = {
   kind: 'aws' | 'telemetry' | 'tunnel' | 'proxy-http' | 'proxy-incomplete' | 'unknown';
   /** AWS signing service and operation, a telemetry route, or a tunnel's `host:port`. */
@@ -39,6 +45,8 @@ export type FixtureRequest = {
   endMs: number;
   /** Why the fixture ended the exchange itself, such as a timeout or an oversized body. */
   note?: string;
+  /** A telemetry batch's events; empty when the body is not a readable batch. */
+  events?: TelemetryEventRecord[];
 };
 
 export type FixtureLimits = {
@@ -64,6 +72,10 @@ export type ExternalServiceFixture = {
   proxyUrl: string;
   /** Requests recorded since the last call, in the order they started; the next call starts a new list. */
   takeRequests: () => FixtureRequest[];
+  /** The clock `startMs` and `endMs` are on: milliseconds since the fixture started. */
+  elapsedMs: () => number;
+  /** How long later telemetry batches are answered from now on. */
+  setTelemetryResponseDelayMs: (delayMs: number) => void;
   close: () => Promise<void>;
 };
 
@@ -101,6 +113,28 @@ const getOperation = (request: Request, body: Uint8Array) => {
 /** Bun refuses larger bodies before the handler runs; the recorded limit is `FixtureLimits.maxRequestBytes`. */
 const HARD_BODY_LIMIT_BYTES = 64 * 1024 * 1024;
 
+/** The events of a PostHog batch, plain or gzip; nothing but each name, `outcome` and `error_tracking_id` is read. */
+const readTelemetryEvents = (request: Request, body: Uint8Array): TelemetryEventRecord[] => {
+  try {
+    const bytes = request.headers.get('content-encoding') === 'gzip' ? Bun.gunzipSync(Uint8Array.from(body)) : body;
+    const batch: unknown = JSON.parse(new TextDecoder().decode(bytes))?.batch;
+    if (!Array.isArray(batch)) return [];
+    return batch.flatMap((entry) => {
+      if (typeof entry?.event !== 'string') return [];
+      const { outcome, error_tracking_id: errorTrackingId } = entry.properties ?? {};
+      return [
+        {
+          event: entry.event,
+          ...(typeof outcome === 'string' && { outcome }),
+          ...(typeof errorTrackingId === 'string' && { errorTrackingId })
+        }
+      ];
+    });
+  } catch {
+    return [];
+  }
+};
+
 /** The request body, or null once it grows past `maxBytes`; reading stops there. */
 const readBoundedBody = async (request: Request, maxBytes: number): Promise<Uint8Array | null> => {
   if (!request.body) return new Uint8Array();
@@ -133,13 +167,17 @@ const closeNetServer = (server: NetServer) =>
 
 export const startExternalServiceFixture = async ({
   allowedTunnels = [],
-  limits: limitOverrides = {}
+  limits: limitOverrides = {},
+  telemetryResponseDelayMs = 0
 }: {
   /** `host:port` pairs the proxy may tunnel to; everything else is refused. */
   allowedTunnels?: string[];
   limits?: Partial<FixtureLimits>;
+  /** How long a telemetry batch waits for its answer; `setTelemetryResponseDelayMs` changes it later. */
+  telemetryResponseDelayMs?: number;
 } = {}): Promise<ExternalServiceFixture> => {
   const limits = { ...DEFAULT_FIXTURE_LIMITS, ...limitOverrides };
+  let telemetryDelayMs = telemetryResponseDelayMs;
   const startedAt = performance.now();
   const now = () => Math.round((performance.now() - startedAt) * 1000) / 1000;
   let requests: FixtureRequest[] = [];
@@ -186,7 +224,9 @@ export const startExternalServiceFixture = async ({
       const route = TELEMETRY_ROUTES.find((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
       if (route && request.method === 'POST') {
         const accepted = '{"status":1}';
-        record({ kind: 'telemetry', target: route, status: 200, allowed: true, bytesOut: accepted.length });
+        const events = readTelemetryEvents(request, body);
+        if (telemetryDelayMs > 0) await Bun.sleep(telemetryDelayMs);
+        record({ kind: 'telemetry', target: route, status: 200, allowed: true, bytesOut: accepted.length, events });
         return new Response(accepted, { status: 200, headers: { 'content-type': 'application/json' } });
       }
       record({ kind: 'unknown', target: request.method, status: 404, allowed: false, bytesOut: 0 });
@@ -334,6 +374,10 @@ export const startExternalServiceFixture = async ({
       const taken = requests.toSorted((left, right) => left.startMs - right.startMs);
       requests = [];
       return taken;
+    },
+    elapsedMs: now,
+    setTelemetryResponseDelayMs: (delayMs) => {
+      telemetryDelayMs = delayMs;
     },
     close: async () => {
       for (const socket of openSockets) socket.destroy();

@@ -130,7 +130,9 @@ export class ApplicationManager {
       tuiManager.info(`Received ${signal}. Exiting.`);
     }
     if (globalStateManager.isInitialized) {
-      await this.reportTelemetryEvent({ outcome: 'USER_INTERRUPTION' });
+      // This exit ends the CLI's whole process tree below, a detached telemetry sender included, so the report is sent
+      // from this process.
+      await this.reportTelemetryEvent({ outcome: 'USER_INTERRUPTION', waitForDelivery: true });
     }
     if (this.usesStdinWatch) {
       try {
@@ -172,14 +174,15 @@ export class ApplicationManager {
     });
   };
 
-  private reportTelemetryEvent = ({ outcome }: { outcome: string }) => {
+  private reportTelemetryEvent = ({ outcome, waitForDelivery }: { outcome: string; waitForDelivery?: boolean }) => {
     if (!IS_TELEMETRY_DISABLED) {
       return timeAsync('telemetry:report', () =>
         reportTelemetryEvent({
           outcome,
           args: propertyFromObjectOrNull(globalStateManager, 'args'),
           command: propertyFromObjectOrNull(globalStateManager, 'command'),
-          invocationId: propertyFromObjectOrNull(globalStateManager, 'invocationId')
+          invocationId: propertyFromObjectOrNull(globalStateManager, 'invocationId'),
+          waitForDelivery
         })
       );
     }

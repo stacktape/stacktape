@@ -97,6 +97,83 @@ describe.skipIf(process.platform !== 'linux')('runCliSample', () => {
     expect(() => process.kill(pid, 0)).toThrow();
   });
 
+  /**
+   * A stand-in for the CLI's telemetry sender: a detached process whose arguments include `__telemetry-sender`, left
+   * running after the command exits. Its PID goes to `pidFile`.
+   */
+  const commandLeavingSender = ({
+    pidFile,
+    senderMs,
+    argument
+  }: {
+    pidFile: string;
+    senderMs: number;
+    argument: string;
+  }) => [
+    'sh',
+    '-c',
+    `setsid sh -c 'echo $$ > ${pidFile}; exec ${process.execPath} -e "await Bun.sleep(${senderMs})" ${argument}' > /dev/null 2>&1 & sleep 0.2; ${fakeCli(0)[2]}`
+  ];
+  const isRunning = (pid: number) => {
+    try {
+      const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+      return stat.slice(stat.lastIndexOf(')') + 2)[0] !== 'Z';
+    } catch {
+      return false;
+    }
+  };
+  const listFromPidFile = (pidFile: string) => () => {
+    const pid = Number(readFileSync(pidFile, 'utf8').trim());
+    return isRunning(pid) ? [{ pid, command: 'bun' }] : [];
+  };
+
+  test('waits for a telemetry sender that ends by itself and records how long', async () => {
+    const pidFile = join(root, 'sender.pid');
+    const sample = await runCliSample({
+      cmd: commandLeavingSender({ pidFile, senderMs: 600, argument: '__telemetry-sender' }),
+      cwd: root,
+      env,
+      timeoutMs: 10_000,
+      timingsFile: join(root, 'sender.json'),
+      findEscapedProcesses: listFromPidFile(pidFile)
+    });
+    expect(sample.invalidReasons).toEqual([]);
+    expect(sample.escapedProcesses).toEqual([]);
+    expect(sample.telemetrySenderWaitMs).toBeGreaterThan(100);
+    expect(sample.telemetrySenderWaitMs).toBeLessThan(5000);
+  });
+
+  test('kills a telemetry sender that outlives the wait, and does not wait for any other process', async () => {
+    const senderPidFile = join(root, 'slow-sender.pid');
+    const slow = await runCliSample({
+      cmd: commandLeavingSender({ pidFile: senderPidFile, senderMs: 60_000, argument: '__telemetry-sender' }),
+      cwd: root,
+      env,
+      timeoutMs: 10_000,
+      timingsFile: join(root, 'slow-sender.json'),
+      findEscapedProcesses: listFromPidFile(senderPidFile),
+      telemetrySenderWaitMs: 300
+    });
+    expect(slow.invalidReasons).toEqual(['1 process(es) left running outside the process group']);
+    expect(slow.telemetrySenderWaitMs).toBeGreaterThanOrEqual(300);
+    await Bun.sleep(100);
+    expect(isRunning(Number(readFileSync(senderPidFile, 'utf8').trim()))).toBe(false);
+
+    const otherPidFile = join(root, 'other.pid');
+    const startedAt = performance.now();
+    const other = await runCliSample({
+      cmd: commandLeavingSender({ pidFile: otherPidFile, senderMs: 60_000, argument: 'something-else' }),
+      cwd: root,
+      env,
+      timeoutMs: 10_000,
+      timingsFile: join(root, 'other.json'),
+      findEscapedProcesses: listFromPidFile(otherPidFile)
+    });
+    expect(other.invalidReasons).toEqual(['1 process(es) left running outside the process group']);
+    expect(other.telemetrySenderWaitMs).toBeNull();
+    expect(performance.now() - startedAt).toBeLessThan(2000);
+  });
+
   test('refuses a timing path that already exists', async () => {
     const path = join(root, 'existing.json');
     await writeFile(path, '{}');

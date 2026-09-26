@@ -78,6 +78,69 @@ describe('external-service fixture', () => {
     expect(JSON.stringify(requests)).not.toContain('secret');
   });
 
+  test('answers telemetry after the configured delay and keeps only event names, outcomes and tracking IDs', async () => {
+    const fixture = await start({ telemetryResponseDelayMs: 300 });
+    const trackingId = '0357943b-da67-4510-8479-fdcba22b5141';
+    const delayedBatch = {
+      api_key: 'phc_project_token',
+      batch: [
+        {
+          event: 'cli_command_completed',
+          distinct_id: 'user@example.com',
+          properties: { outcome: 'error', error_code: 'UNEXPECTED_ERROR', command: 'package' }
+        },
+        { event: '$exception', properties: { error_tracking_id: trackingId, $exception_list: [{ value: 'hidden' }] } }
+      ]
+    };
+    const delayedStart = performance.now();
+    const delayed = await fetch(`${fixture.serviceUrl}/batch/`, {
+      method: 'POST',
+      headers: { 'content-encoding': 'gzip' },
+      body: Bun.gzipSync(JSON.stringify(delayedBatch))
+    });
+    const delayedMs = performance.now() - delayedStart;
+    fixture.setTelemetryResponseDelayMs(0);
+    const plainStart = performance.now();
+    const plain = await fetch(`${fixture.serviceUrl}/batch/`, {
+      method: 'POST',
+      body: JSON.stringify({ batch: [{ event: 'cli_command_completed', properties: { outcome: 'success' } }] })
+    });
+    const plainMs = performance.now() - plainStart;
+    const unreadable = await fetch(`${fixture.serviceUrl}/batch/`, { method: 'POST', body: 'not json' });
+
+    expect([delayed.status, plain.status, unreadable.status]).toEqual([200, 200, 200]);
+    expect(delayedMs).toBeGreaterThanOrEqual(300);
+    expect(plainMs).toBeLessThan(250);
+    const requests = fixture.takeRequests();
+    expect(requests).toMatchObject([
+      {
+        kind: 'telemetry',
+        target: '/batch',
+        events: [
+          { event: 'cli_command_completed', outcome: 'error' },
+          { event: '$exception', errorTrackingId: trackingId }
+        ]
+      },
+      { kind: 'telemetry', target: '/batch', events: [{ event: 'cli_command_completed', outcome: 'success' }] },
+      { kind: 'telemetry', target: '/batch', events: [] }
+    ]);
+    expect(requests[0]!.endMs - requests[0]!.startMs).toBeGreaterThanOrEqual(300);
+    const recorded = JSON.stringify(requests);
+    for (const hidden of ['phc_project_token', 'user@example.com', 'UNEXPECTED_ERROR', 'package', 'hidden']) {
+      expect(recorded).not.toContain(hidden);
+    }
+  });
+
+  test('places its recorded requests on the clock it exposes', async () => {
+    const fixture = await start();
+    const before = fixture.elapsedMs();
+    await fetch(`${fixture.serviceUrl}/batch/`, { method: 'POST', body: '{"batch":[]}' });
+    const after = fixture.elapsedMs();
+    const [request] = fixture.takeRequests();
+    expect(request!.startMs).toBeGreaterThanOrEqual(before);
+    expect(request!.endMs).toBeLessThanOrEqual(after);
+  });
+
   test('refuses a body above the limit', async () => {
     const fixture = await start({ limits: { maxRequestBytes: 1000 } });
     const response = await fetch(`${fixture.serviceUrl}/batch/`, { method: 'POST', body: 'x'.repeat(5000) });

@@ -1,4 +1,5 @@
-// Imports nothing but Node built-ins, so loading it first adds no application modules to startup.
+// Both import nothing but Node built-ins, so loading them first adds no application modules to startup.
+import { isTelemetrySender, sendHandedOffTelemetryRequest } from '@utils/telemetry-sender';
 import { markTiming, startTiming, timeAsync } from '@utils/timings';
 
 // OpenTUI checks this process-wide flag when its modules initialize. Set it
@@ -7,6 +8,10 @@ process.env.OTUI_USE_CONSOLE = 'false';
 markTiming('cli:entry');
 
 const main = async () => {
+  // The detached child that posts a finished command's telemetry report does nothing else.
+  if (isTelemetrySender()) {
+    return sendHandedOffTelemetryRequest();
+  }
   // Each span covers loading and evaluating a module graph, whatever work the runtime does for that.
   const { configureNativeRuntimeForPlatform } = await timeAsync(
     'startup:load-native-runtime',

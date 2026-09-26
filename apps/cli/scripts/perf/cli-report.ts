@@ -61,6 +61,8 @@ export type SampleRecord = {
   staleFixtureRequests: CliSample['staleFixtureRequests'];
   dnsQueries: CliSample['dnsQueries'];
   escapedProcesses: CliSample['escapedProcesses'];
+  /** How long the CLI's telemetry sender outlived it, outside the wall time; absent in reports that predate it. */
+  telemetrySenderWaitMs?: CliSample['telemetrySenderWaitMs'];
   /**
    * What the command left in the project's `.stacktape`, inspected after it exited and before the harness removed it;
    * only with `--inspect-artifacts`, and absent in reports that predate it.
