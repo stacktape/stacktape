@@ -1,0 +1,272 @@
+---
+/**
+ * The packaging benchmark: how long Stacktape, AWS CDK and Serverless Framework take to package Stacktape's starter
+ * applications. The numbers come from `src/data/packaging-benchmark.json`, which `node bench/run.ts export-website`
+ * writes in https://github.com/stacktape/packaging-benchmark. SST is not in the tables: its numbers measure a
+ * different operation, and the repository publishes them with that caveat.
+ */
+import PlainPage from '../components/PlainPage.astro';
+import data from '../data/packaging-benchmark.json';
+
+const TOOL_NAMES: Record<string, string> = {
+  stacktape: 'Stacktape',
+  cdk: 'AWS CDK',
+  serverless: 'Serverless Framework'
+};
+
+const seconds = (ms: number) => `${(ms / 1000).toFixed(2)} s`;
+const size = (bytes: number) =>
+  bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${(bytes / 1024).toFixed(1)} KB`;
+const measuredOn = new Date(`${data.measuredOn}T00:00:00Z`).toLocaleDateString('en-GB', {
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+  timeZone: 'UTC'
+});
+/** The bar of one tool, as a share of the slowest measured tool for the same application. */
+const share = (value: number, values: (number | null)[]) =>
+  value / Math.max(...values.filter((v): v is number => v !== null));
+---
+
+<PlainPage
+  title="Packaging benchmark"
+  description="How long Stacktape, AWS CDK and Serverless Framework take to package eight real applications for AWS Lambda, and how much a first deployment uploads."
+  lead="How long Stacktape, AWS CDK and Serverless Framework take to package eight of Stacktape's starter applications for AWS Lambda, and how much a first deployment uploads."
+>
+  <p>
+    Each application is written for each tool the way that tool's users write it: its documented defaults and
+    bundler, the plugin its users use where one is needed, nothing tuned. Times are the median of {data.samples} runs
+    on one machine ({data.machine}), measured on {measuredOn} with Stacktape {data.stacktapeVersion} (commit{' '}
+    <code>{data.stacktapeCommit.slice(0, 8)}</code>), AWS CDK {data.toolVersions['aws-cdk']} (aws-cdk-lib {
+      data.toolVersions['aws-cdk-lib']
+    }) and Serverless Framework {data.toolVersions.serverless}. The configurations, every sample and the commands to
+    run it again are in the <a href={data.source}>packaging-benchmark repository</a>, which Stacktape maintains.
+  </p>
+  <ul>
+    <li><strong>Cold package</strong>: the tool's build output and caches in the project are deleted before each run.</li>
+    <li>
+      <strong>After a one-line change</strong>: one line of a handler is changed before each run, with the tool's
+      caches in place.
+    </li>
+    <li>
+      <strong>First-deploy upload</strong>: the packages a first deployment uploads, zipped the same way for every
+      tool.
+    </li>
+  </ul>
+
+  {
+    data.applications.map((app) => {
+      const colds = app.tools.map((tool) => tool.coldMs);
+      return (
+        <section class="bench">
+          <h2>{app.name}</h2>
+          <p>{app.description}</p>
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Tool</th>
+                <th scope="col">Cold package</th>
+                <th scope="col" class="bench__num">
+                  After a one-line change
+                </th>
+                <th scope="col" class="bench__num">
+                  First-deploy upload
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {app.tools.map((tool) =>
+                tool.coldMs === null || tool.oneEditMs === null || tool.firstDeployBytes === null ? (
+                  <tr>
+                    <th scope="row">{TOOL_NAMES[tool.tool]}</th>
+                    <td colspan="3" class="bench__missing">
+                      {tool.notMeasured}
+                    </td>
+                  </tr>
+                ) : (
+                  <tr>
+                    <th scope="row">{TOOL_NAMES[tool.tool]}</th>
+                    <td>
+                      <span class="bench__cold">
+                        <span class="bench__track">
+                          <span
+                            class:list={['bench__bar', { 'bench__bar--stacktape': tool.tool === 'stacktape' }]}
+                            style={`--share: ${share(tool.coldMs, colds)}`}
+                          />
+                        </span>
+                        <span class="bench__num">{seconds(tool.coldMs)}</span>
+                      </span>
+                    </td>
+                    <td class="bench__num">{seconds(tool.oneEditMs)}</td>
+                    <td class="bench__num">{size(tool.firstDeployBytes)}</td>
+                  </tr>
+                )
+              )}
+            </tbody>
+          </table>
+        </section>
+      );
+    })
+  }
+
+  <h2>Containers</h2>
+  <p>
+    The Express API as a long-running service, built four ways. One sample per cell. The dependency change moves{' '}
+    <code>express</code> from 5.2.1 to 5.2.0. A push is what a registry that already holds the previous image receives.
+  </p>
+  <table>
+    <thead>
+      <tr>
+        <th scope="col">Build</th>
+        <th scope="col" class="bench__num">Image, compressed</th>
+        <th scope="col" class="bench__num">Cold build</th>
+        <th scope="col" class="bench__num">Rebuild after a source edit</th>
+        <th scope="col" class="bench__num">Rebuild after a dependency change</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        data.containers.map((container) => (
+          <tr>
+            <th scope="row">
+              {container.build}
+              <span class="bench__base">{container.runtimeBase}</span>
+            </th>
+            <td class="bench__num">{size(container.imageCompressedBytes)}</td>
+            <td class="bench__num">{seconds(container.coldBuildMs)}</td>
+            <td class="bench__num">
+              {seconds(container.sourceEditRebuildMs)}
+              <span class="bench__base">{size(container.pushAfterSourceEditBytes)} pushed</span>
+            </td>
+            <td class="bench__num">
+              {seconds(container.dependencyChangeRebuildMs)}
+              <span class="bench__base">{size(container.pushAfterDependencyChangeBytes)} pushed</span>
+            </td>
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+
+  <h2>Appendix: an API growing one function per route</h2>
+  <p>{data.appendix.description}</p>
+  <table>
+    <thead>
+      <tr>
+        <th scope="col">Functions</th>
+        <th scope="col" class="bench__num">Stacktape</th>
+        <th scope="col" class="bench__num">AWS CDK</th>
+        <th scope="col" class="bench__num">Serverless Framework</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        data.appendix.rows.map((row) => (
+          <tr>
+            <th scope="row">{row.functions}</th>
+            <td class="bench__num">{row.stacktapeMs === null ? '-' : seconds(row.stacktapeMs)}</td>
+            <td class="bench__num">{row.cdkMs === null ? '-' : seconds(row.cdkMs)}</td>
+            <td class="bench__num">{row.serverlessMs === null ? '-' : seconds(row.serverlessMs)}</td>
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+
+  <h2>What is not in these tables</h2>
+  <p>
+    SST is not compared here. {data.sstCaveat.replaceAll('`', '')} The benchmark also does not measure cold starts,
+    run time or deployment time, and it does not deploy the packages, so it says nothing about whether each one works
+    in Lambda.
+  </p>
+</PlainPage>
+
+<style>
+  .bench {
+    margin: 0 0 8px;
+  }
+
+  table {
+    width: 100%;
+    margin: 0 0 24px;
+    border-collapse: collapse;
+    font-size: 15px;
+  }
+
+  th,
+  td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--stp-border-subtle);
+    text-align: left;
+    vertical-align: middle;
+  }
+
+  thead th {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--stp-text-muted);
+  }
+
+  tbody th {
+    font-weight: 500;
+    color: var(--stp-text-primary);
+  }
+
+  td {
+    color: var(--stp-text-primary);
+  }
+
+  thead th.bench__num {
+    white-space: normal;
+  }
+
+  tbody th {
+    min-width: 11em;
+  }
+
+  .bench__num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .bench__cold {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .bench__track {
+    flex: 1;
+    min-width: 80px;
+  }
+
+  .bench__bar {
+    display: block;
+    width: calc(var(--share) * 100%);
+    min-width: 2px;
+    height: 8px;
+    border-radius: var(--stp-radius-small);
+    background: var(--stp-border-strong);
+  }
+
+  .bench__bar--stacktape {
+    background: var(--stp-color-brand);
+  }
+
+  .bench__missing {
+    font-size: 14px;
+    color: var(--stp-text-muted);
+  }
+
+  .bench__base {
+    display: block;
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--stp-text-muted);
+  }
+
+  code {
+    font-size: 0.9em;
+  }
+</style>

@@ -1,0 +1,318 @@
+{
+  "source": "https://github.com/stacktape/packaging-benchmark",
+  "measuredOn": "2026-09-27",
+  "machine": "Intel Core i7-13700K, Ubuntu 24.04.3 LTS on WSL2",
+  "stacktapeCommit": "571e8a063bcb5301bc68b6101ef0116e0481dcd6",
+  "stacktapeVersion": "4.0.0-bench",
+  "toolVersions": {
+    "aws-cdk": "2.1142.0",
+    "aws-cdk-lib": "2.270.0",
+    "serverless": "4.43.0",
+    "sst": "4.17.1"
+  },
+  "samples": 5,
+  "applications": [
+    {
+      "id": "expressjs-api-postgres",
+      "name": "Express API with PostgreSQL",
+      "description": "The REST API most Stacktape users start with: Express 5 with Prisma ORM over PostgreSQL, GET /posts and POST /posts, in one Lambda function behind an HTTP API, with the database next to it. Prisma brings a real dependency tree: a generated client and a native query engine that has to reach Lambda for the right Linux.",
+      "tools": [
+        {
+          "tool": "stacktape",
+          "coldMs": 576,
+          "oneEditMs": 588,
+          "firstDeployBytes": 8345230,
+          "notMeasured": null
+        },
+        {
+          "tool": "cdk",
+          "coldMs": 7064,
+          "oneEditMs": 7193,
+          "firstDeployBytes": 86010991,
+          "notMeasured": null
+        },
+        {
+          "tool": "serverless",
+          "coldMs": null,
+          "oneEditMs": null,
+          "firstDeployBytes": null,
+          "notMeasured": "The framework's build reinstalls the dependencies in .serverless/build and runs the project's postinstall: prisma generate there, where no schema exists (serverless#13149). Removing the hook and generating the client another way is the workaround."
+        }
+      ]
+    },
+    {
+      "id": "hono-api",
+      "name": "Hono API",
+      "description": "A small REST API written with Hono, one Lambda function behind an HTTP API: a greeting at /, a list of posts at GET /posts, and POST /posts. Its only dependency is hono, which makes it the smallest application here and the closest to what a first Lambda API looks like.",
+      "tools": [
+        {
+          "tool": "stacktape",
+          "coldMs": 272,
+          "oneEditMs": 256,
+          "firstDeployBytes": 21952,
+          "notMeasured": null
+        },
+        {
+          "tool": "cdk",
+          "coldMs": 2385,
+          "oneEditMs": 2348,
+          "firstDeployBytes": 17968,
+          "notMeasured": null
+        },
+        {
+          "tool": "serverless",
+          "coldMs": 3617,
+          "oneEditMs": 3713,
+          "firstDeployBytes": 48685,
+          "notMeasured": null
+        }
+      ]
+    },
+    {
+      "id": "lambda-api-dynamo-db",
+      "name": "Lambda API with DynamoDB",
+      "description": "A Hono REST API in one Lambda function that stores posts in a DynamoDB table through the AWS SDK v3 document client. The SDK is imported by the application, so this fixture shows whether each tool leaves the SDK to the Lambda runtime or bundles it.",
+      "tools": [
+        {
+          "tool": "stacktape",
+          "coldMs": 282,
+          "oneEditMs": 275,
+          "firstDeployBytes": 22221,
+          "notMeasured": null
+        },
+        {
+          "tool": "cdk",
+          "coldMs": 2462,
+          "oneEditMs": 2420,
+          "firstDeployBytes": 18170,
+          "notMeasured": null
+        },
+        {
+          "tool": "serverless",
+          "coldMs": 3768,
+          "oneEditMs": 4056,
+          "firstDeployBytes": 49242,
+          "notMeasured": null
+        }
+      ]
+    },
+    {
+      "id": "event-driven-pipeline",
+      "name": "Event-driven pipeline",
+      "description": "An order pipeline of three Lambda functions: POST /orders puts an order on an SQS FIFO queue with a dead-letter queue, a consumer processes it one message at a time and publishes an OrderProcessed event to an EventBridge bus, and a third function is triggered by that event. Each function imports a different AWS SDK client or none.",
+      "tools": [
+        {
+          "tool": "stacktape",
+          "coldMs": 266,
+          "oneEditMs": 283,
+          "firstDeployBytes": 3533,
+          "notMeasured": null
+        },
+        {
+          "tool": "cdk",
+          "coldMs": 2852,
+          "oneEditMs": 2789,
+          "firstDeployBytes": 2643,
+          "notMeasured": null
+        },
+        {
+          "tool": "serverless",
+          "coldMs": 3658,
+          "oneEditMs": 3774,
+          "firstDeployBytes": 5717,
+          "notMeasured": null
+        }
+      ]
+    },
+    {
+      "id": "multi-step-workflow",
+      "name": "Multi-step workflow",
+      "description": "A Step Functions state machine that validates input, processes it with retries and generates a report, each step a Lambda function, plus a Hono API function that starts executions and reports their status. Four functions, one of them with dependencies.",
+      "tools": [
+        {
+          "tool": "stacktape",
+          "coldMs": 271,
+          "oneEditMs": 294,
+          "firstDeployBytes": 25043,
+          "notMeasured": null
+        },
+        {
+          "tool": "cdk",
+          "coldMs": 3131,
+          "oneEditMs": 2979,
+          "firstDeployBytes": 20256,
+          "notMeasured": null
+        },
+        {
+          "tool": "serverless",
+          "coldMs": 3903,
+          "oneEditMs": 3976,
+          "firstDeployBytes": 53033,
+          "notMeasured": null
+        }
+      ]
+    },
+    {
+      "id": "monorepo-typescript-pnpm",
+      "name": "pnpm monorepo",
+      "description": "A pnpm workspace with three packages: a Lambda function, an Express server and a shared utils package both import. The Lambda function sits behind an HTTP API and imports from the sibling workspace package, which every tool has to resolve through pnpm's symlinked node_modules.",
+      "tools": [
+        {
+          "tool": "stacktape",
+          "coldMs": 255,
+          "oneEditMs": 253,
+          "firstDeployBytes": 937,
+          "notMeasured": null
+        },
+        {
+          "tool": "cdk",
+          "coldMs": 3233,
+          "oneEditMs": 3300,
+          "firstDeployBytes": 694,
+          "notMeasured": null
+        },
+        {
+          "tool": "serverless",
+          "coldMs": 4276,
+          "oneEditMs": 3920,
+          "firstDeployBytes": 2656,
+          "notMeasured": null
+        }
+      ]
+    },
+    {
+      "id": "lambda-web-scraper-puppeteer",
+      "name": "Web scraper with Puppeteer",
+      "description": "A Lambda function behind an HTTP API that opens a page in headless Chromium through puppeteer-core and returns every link on it. Chromium comes from @sparticuz/chromium, a brotli-compressed browser build for Lambda, so the deployment package is well over 50 MB and holds native files no bundler can inline.",
+      "tools": [
+        {
+          "tool": "stacktape",
+          "coldMs": 2087,
+          "oneEditMs": 2095,
+          "firstDeployBytes": 68868415,
+          "notMeasured": null
+        },
+        {
+          "tool": "cdk",
+          "coldMs": 3104,
+          "oneEditMs": 3057,
+          "firstDeployBytes": 69133151,
+          "notMeasured": null
+        },
+        {
+          "tool": "serverless",
+          "coldMs": 11596,
+          "oneEditMs": 13717,
+          "firstDeployBytes": 70433519,
+          "notMeasured": null
+        }
+      ]
+    },
+    {
+      "id": "fullstack-nextjs-drizzle",
+      "name": "Next.js with Drizzle and PostgreSQL",
+      "description": "A server-rendered Next.js 15 application (App Router, a server action) that lists and creates posts in PostgreSQL through Drizzle ORM. Every tool builds it with next build and deploys it the OpenNext way: a server function, static assets, an image optimizer and a CDN in front.",
+      "tools": [
+        {
+          "tool": "stacktape",
+          "coldMs": 19805,
+          "oneEditMs": 19995,
+          "firstDeployBytes": 17689157,
+          "notMeasured": null
+        },
+        {
+          "tool": "cdk",
+          "coldMs": null,
+          "oneEditMs": null,
+          "firstDeployBytes": null,
+          "notMeasured": "cdk-nextjs-standalone 4.3.3 passes environment to next build as unresolved CDK tokens; the application parses the database URL when the page module loads, so next build fails with Invalid URL (postgresql://${Token[TOKEN.127]}:...)."
+        },
+        {
+          "tool": "serverless",
+          "coldMs": null,
+          "oneEditMs": null,
+          "firstDeployBytes": null,
+          "notMeasured": "Not part of this comparison."
+        }
+      ]
+    }
+  ],
+  "containers": [
+    {
+      "build": "Stacktape image buildpack",
+      "runtimeBase": "Alpine Linux v3.24",
+      "imageCompressedBytes": 73153476,
+      "coldBuildMs": 3067,
+      "sourceEditRebuildMs": 1719,
+      "dependencyChangeRebuildMs": 3119,
+      "pushAfterSourceEditBytes": 8674628,
+      "pushAfterDependencyChangeBytes": 8674627
+    },
+    {
+      "build": "Typical Dockerfile (Node.js guide)",
+      "runtimeBase": "Debian GNU/Linux 12 (bookworm)",
+      "imageCompressedBytes": 618577385,
+      "coldBuildMs": 21389,
+      "sourceEditRebuildMs": 881,
+      "dependencyChangeRebuildMs": 20827,
+      "pushAfterSourceEditBytes": 20238,
+      "pushAfterDependencyChangeBytes": 208810522
+    },
+    {
+      "build": "nixpacks, through Stacktape",
+      "runtimeBase": "Ubuntu 24.04.2 LTS",
+      "imageCompressedBytes": 642358206,
+      "coldBuildMs": 63306,
+      "sourceEditRebuildMs": 28312,
+      "dependencyChangeRebuildMs": 27932,
+      "pushAfterSourceEditBytes": 370439324,
+      "pushAfterDependencyChangeBytes": 371734128
+    },
+    {
+      "build": "Paketo buildpacks, through Stacktape",
+      "runtimeBase": "Paketo Buildpacks Base Jammy",
+      "imageCompressedBytes": 248137324,
+      "coldBuildMs": 94946,
+      "sourceEditRebuildMs": 83118,
+      "dependencyChangeRebuildMs": 94140,
+      "pushAfterSourceEditBytes": 18804,
+      "pushAfterDependencyChangeBytes": 127437133
+    }
+  ],
+  "appendix": {
+    "description": "One generated API with 1 to 50 functions, the same minification and source-map settings in every tool, cold. Stacktape re-measured on the date above; AWS CDK and Serverless Framework from 26 September 2026.",
+    "rows": [
+      {
+        "functions": 1,
+        "stacktapeMs": 278,
+        "cdkMs": 2056,
+        "serverlessMs": 3483
+      },
+      {
+        "functions": 5,
+        "stacktapeMs": 297,
+        "cdkMs": 2629,
+        "serverlessMs": 3678
+      },
+      {
+        "functions": 10,
+        "stacktapeMs": 317,
+        "cdkMs": 3499,
+        "serverlessMs": 3958
+      },
+      {
+        "functions": 25,
+        "stacktapeMs": 366,
+        "cdkMs": 6132,
+        "serverlessMs": 4117
+      },
+      {
+        "functions": 50,
+        "stacktapeMs": 440,
+        "cdkMs": 9955,
+        "serverlessMs": 4693
+      }
+    ]
+  },
+  "sstCaveat": "SST has no packaging command. It builds function bundles only while previewing or deploying a stage that already exists, so its numbers come from `sst diff` against a deployed stage: a rebuild plus a Pulumi preview against AWS. They are not comparable with the other tools and are published only in the repository."
+}
