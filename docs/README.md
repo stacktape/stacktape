@@ -6,7 +6,14 @@ Use the document that owns the decision or procedure. Keep these guides current 
 | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | Repository boundaries and ownership                                  | [Architecture](architecture.md)                                                                                |
 | Local tools, applications and development commands                   | [Development](development.md)                                                                                  |
-| Choosing tests, live AWS ownership and reporting results             | [Testing](testing.md)                                                                                          |
+| Choosing tests for the current change                                | [Short testing policy](testing.md)                                                                             |
+| Suite design, application/workload coverage and replacing tests      | [Testing strategy](testing/strategy.md)                                                                        |
+| Coordinating the repository-wide test migration and model pilot      | [QA initiative](testing/initiative.md) and [behavior slices](testing/slices.md)                                |
+| Repeatable E2E fixtures, browser tools and execution speed           | [E2E implementation](testing/e2e.md)                                                                           |
+| Packaging, runtime artifacts and the MiniStack S3 pilot              | [Packaging acceptance](../apps/cli/scripts/packaging-archives/README.md)                                       |
+| Console API, database, browser and shared dev reservation            | [Console testing](testing/console.md)                                                                          |
+| Live AWS authorization, ownership, cost and cleanup                  | [Live AWS testing](testing/live-aws.md)                                                                        |
+| Feature examples or diagnosing runtime acceptance failures           | [Feature recipes](testing/feature-scenarios.md) and [runtime diagnosis](testing/runtime-acceptance.md)         |
 | Publishing CLI binaries, npm packages and installers                 | [Releasing](releasing.md)                                                                                      |
 | Generated files and their source of truth                            | [Generated files](generated-files.md)                                                                          |
 | Credential storage and handling                                      | [Secrets](secrets.md)                                                                                          |

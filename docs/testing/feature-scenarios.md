@@ -1,10 +1,45 @@
-# Example: security findings spanning CLI and Console
+# Feature acceptance recipes
+
+Read the [test-selection policy](../testing.md), then the recipe for the feature being changed. These examples guide
+evidence selection; they do not claim existing automated coverage or add mandatory cases to unrelated work. Use the
+private [Console E2E guide](../../apps/console/e2e/README.md) for reusable fixtures and actual lane coverage.
+
+## Observability
+
+Send a uniquely identifiable signal through the real ingestion path. Verify its normalized stored form, Console API
+response, browser rendering, filters/pagination, and organization isolation. Test malformed, duplicated, late, and
+recovery events. Delete the canary stack and any retained signals the scenario owns.
+
+## Security and guardrails
+
+State the threat or unsafe configuration first. Prove a positive detection and a nearby safe case that does not alert.
+Verify tenant and project boundaries, redaction, deduplication, severity, remediation text, acknowledgement/ignore, and
+recovery. Use a synthesized template for deterministic rules; use disposable AWS only for facts that depend on AWS's
+runtime or control plane. Never put a real credential or exploitable public resource in a fixture.
+
+## EC2 runners and AMIs
+
+Build or select the dev AMI, start one owned runner, run a representative CLI workload, verify logs/result/lease
+release, and terminate it. Assert instance selection, IAM, ownership, leasing, timeout or cleanup where those behaviors
+changed. Exercise boot failure or cancellation when that behavior changed. The final check must confirm there is no
+running instance, volume, test AMI/snapshot, or active lease owned by the scenario.
+
+## Git providers
+
+Use the provider-specific flow in
+[`../../.agents/skills/console-development/references/git-provider-e2e.md`](../../.agents/skills/console-development/references/git-provider-e2e.md).
+The reusable fixture inventory records only provider, account/workspace label, repository label, default branch, and
+expected webhook/app installation. It never stores provider tokens. Drive install/connect, push, pull/merge request,
+retry, disconnect/reconnect, and provider-side removal as applicable. Verify the resulting deployment or recorded
+failure, not only the callback page.
+
+## Worked example: security findings spanning CLI and Console
 
 Adapt this recipe to the requested feature. It describes how to choose evidence, not an existing complete security E2E
-suite. Read [the security policy](../../../../docs/testing.md#security-and-guardrails) and the
-[Console fixture guide](../../../../apps/console/e2e/README.md) first. Include only behavior the feature actually has.
+suite. Read [the security policy](#security-and-guardrails) and the
+[Console fixture guide](../../apps/console/e2e/README.md) first. Include only behavior the feature actually has.
 
-## Start with the complete behavior
+### Start with the complete behavior
 
 For example: the current CLI detects a particular unsafe configuration, reports a finding through the API, and an
 authorized user can inspect and acknowledge it in Console. A nearby safe configuration produces no finding. A user
@@ -14,7 +49,10 @@ Identify the actual path before choosing tests. Some rules run entirely during s
 through a scheduled worker. Those require different evidence. Do not invent a CLI ingestion endpoint, worker or AWS
 fixture merely to follow this example.
 
-## Use cheap tests to narrow failures
+### Choose evidence for the actual path
+
+One complete journey can cover several rows below. Add focused tests only for a relevant failure boundary that the
+journey cannot adequately exercise; follow the policy's test-first rule when isolation is needed.
 
 | Changed part                                  | Focused evidence                                                                                                                                                                                             |
 | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -27,7 +65,7 @@ fixture merely to follow this example.
 Use the existing package commands selected by `pnpm test:plan`; do not create parallel test frameworks. If the closest
 existing runner lacks this feature, extend it with a narrowly scoped scenario.
 
-## Then prove one complete journey
+### Example complete journey
 
 For a CLI-to-API-to-Console feature:
 
@@ -53,7 +91,7 @@ owned dev AWS scenario for those facts, following the live-AWS policy. If a depl
 finding, deploy the changed dev worker and send the real event before claiming that path works. Do not create an
 exploitable public resource or use real secrets as detection fixtures.
 
-## What qualifies the feature
+### What qualifies the feature
 
 The relevant gate passes, the specific customer journey works through the changed code, its relevant failure case is
 proved, and stored state and cleanup are verified. Name any remaining provider, worker, AWS, tenant or runner boundary

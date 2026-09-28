@@ -1,9 +1,10 @@
 # Runtime acceptance and diagnosis
 
 Use the sections relevant to the changed boundary. These are lessons from Console, provider and EC2 acceptance, not an
-additional test suite to run for every change. Follow [the testing policy](../../../../docs/testing.md) for permissions,
-reservation and live-resource ownership. Read provider setup details through
-[console-development](../../console-development/SKILL.md) instead of inferring registration settings from source.
+additional test suite to run for every change. Follow [the testing policy](../testing.md) for permissions, reservation
+and live-resource ownership. Read provider setup details through
+[console-development](../../.agents/skills/console-development/SKILL.md) instead of inferring registration settings from
+source.
 
 ## Establish what actually ran
 
@@ -19,8 +20,8 @@ location, verifying its published checksum; do not overwrite another task's glob
   credentials. A localhost string in a bundle does not prove the browser uses localhost: Console's `STP_INJECTED_ENV`
   can override bundled `import.meta.env` values. Check the loaded runtime configuration and network request before
   changing a build or its environment files. Use the documented
-  [agent browser access](../../../../apps/console/e2e/README.md#agent-browser-access) before handing Console clicks to
-  the owner. Match the fixture role to the scenario; a restricted Developer cannot qualify Admin actions. Console and
+  [agent browser access](../../apps/console/e2e/README.md#agent-browser-access) before handing Console clicks to the
+  owner. Match the fixture role to the scenario; a restricted Developer cannot qualify Admin actions. Console and
   external-provider sessions are separate. After changing browser projects, run the real failure privacy qualifier; a
   project selected by array position can silently inherit another project's artifact settings.
 - **Hosted app UI:** serve the built artifact beneath the provider's resource path and verify JavaScript, CSS and an
@@ -111,8 +112,8 @@ user changes, permissions and cleanup traps while substituting external AWS/work
 adapter, use the real SDK against loopback HTTP with realistic error responses. Name the substituted dependencies; these
 tests prove process/error handling, while actual SSM/IAM or provider authorization still need live evidence when
 affected. For Console EC2 work, reuse the
-[runner qualification lanes](../../../../apps/console/e2e/README.md#ec2-runner-qualification) and their documented
-coverage before creating another harness.
+[runner qualification lanes](../../apps/console/e2e/README.md#ec2-runner-qualification) and their documented coverage
+before creating another harness.
 
 For a runner image distributed to customer accounts, qualify a privately shared candidate from the documented
 receiving-account fixture. An available AMI launched by its owner does not prove another account can use it. Check every

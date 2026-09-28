@@ -14,12 +14,22 @@ Do not create a package, abstraction, compatibility layer, or generic `shared`/`
 need. Prefer the simplest complete implementation. Stacktape v4 may make deliberate breaking changes; do not preserve
 obsolete v3 behavior by default.
 
+## Business context for every task
+
+At the start of every session, when the private Console submodule is available, read all documents in
+[`apps/console/documents/business`](apps/console/documents/business), including nested documents, in full once per
+session. This applies to every task, including tests, infrastructure, refactoring and documentation. Understand the
+customers, personas, product philosophy and business constraints before choosing what to build or verify; reading only
+the product principles or a summary is insufficient. Public clones without the submodule continue with the available
+repository context.
+
 ## Before changing code
 
 1. Read the nearest `AGENTS.md` and package manifest.
 2. Check Git status here and, when initialized, in `apps/console`. Preserve unrelated changes.
 3. Identify generated files, package boundaries, and behavior that the change can affect.
-4. Run `pnpm test:plan` (or `pnpm test:plan -- --since=<ref>`) and choose evidence for each affected failure boundary.
+4. Read [`docs/testing.md`](docs/testing.md) once per session. Run `pnpm test:plan` (or
+   `pnpm test:plan -- --since=<ref>`) and choose tests for the affected behavior and integrations.
 5. Run focused checks while working and the relevant repository gate before handoff.
 
 ## Documentation and v4 launch work
@@ -55,19 +65,17 @@ pnpm test
 
 [`docs/development.md`](docs/development.md) covers local apps and the source-built CLI. Real AWS tests are opt-in and
 documented in [`apps/cli/scripts/real-aws/README.md`](apps/cli/scripts/real-aws/README.md).
-[`docs/testing.md`](docs/testing.md) is the canonical test-selection, Console E2E, live-AWS, cost, cleanup, and evidence
-policy. Read it before adding a test or running a live scenario.
-
-For feature and bugfix acceptance, use [the Stacktape testing skill](.agents/skills/stacktape-testing/SKILL.md). It
-turns that policy into a test-selection workflow and links a worked Console/CLI security example.
+[`docs/testing.md`](docs/testing.md) is the short canonical testing policy. Read only the linked procedures relevant to
+the work; packaging, Console, live-AWS and runtime details are loaded when needed.
 
 For Console work, `pnpm dev:console:ui` is only for UI changes that can use the deployed dev API. Use `pnpm dev:console`
 for every API change, API/UI contract change, or behavioral API test. It runs the UI and API locally against the shared
 dev data plane while deployed dev Lambdas continue to handle webhooks and background work.
 
 Shared dev deployments, migrations and full local API sessions require a task-owned `console:dev:reservation`, held
-through testing and cleanup. Follow the reservation procedure in `docs/testing.md`; do not reuse another task's ID or
-bypass the guard with raw CLI/AWS calls. The `stacktape-dev` AWS account also hosts production and is not disposable.
+through testing and cleanup. Follow the [reservation procedure](docs/testing/console.md#shared-dev-reservation); do not
+reuse another task's ID or bypass the guard with raw CLI/AWS calls. The `stacktape-dev` AWS account also hosts
+production and is not disposable.
 
 ## Architecture and code
 
@@ -96,17 +104,6 @@ known-violations file.
 - Do not commit caches, `*.tsbuildinfo`, release directories, or ignored materializations.
 
 ## Tests and external systems
-
-Prefer end-to-end tests as the sole behavioral test for complex features. Each E2E run must leave a verifiable,
-repeatable evidence artifact recording the source revision, inputs, commands, results, and cleanup where applicable.
-Never write unit tests after writing the implementation they cover. If a system must be tested in isolation, first list
-the realistic ways it can fail, then write the unit tests, then write the implementation. Do not add tests for
-theoretical, very unlikely bugs when handling them would needlessly complicate the codebase.
-
-Tests must prove user-visible behavior or a risky contract at the boundary where it can fail. Do not accept mock call
-choreography, source-text inspection, or a unit test as the only evidence for behavior that crosses a process, database,
-browser, provider, artifact-runtime, or AWS boundary. Use semantic assertions instead of large snapshots. Run
-`pnpm test:doctor` before a long lane and report commands with the behavior each one proved.
 
 Normal test commands must fail closed rather than contact AWS. The repository owner has authorized agents to run
 development-only Console deployments, `devlocal` refreshes, test AMI builds, and explicitly named disposable AWS stacks

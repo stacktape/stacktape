@@ -7,11 +7,11 @@
  * decide in a real deployment which functions are rebuilt, which objects are reused and which layers are uploaded.
  * Only what lies outside the CLI is replaced:
  *
- * - the deployment bucket is a local directory holding one file per S3 key, listed and written through the CLI's S3
- *   calls;
+ * - the default lane keeps the deployment bucket in a local directory; the opt-in emulator lane uses the CLI's real
+ *   S3 SDK requests against a local emulator bucket;
  * - CloudFormation reports an existing stack whose last deployment is `lastVersion`;
  * - Docker is the fixture's stand-in on PATH (see `split-project-fixture.ts`);
- * - any other AWS request is refused before it leaves the process.
+ * - every other AWS request is refused before it leaves the process.
  *
  * Start it in the project directory, with the CLI's test preload, which also refuses non-local network access:
  *
@@ -44,8 +44,10 @@ import { prepareArtifactsForStackDeployment } from '../../src/commands/deploy';
 import { SPLIT_FUNCTIONS } from './split-project-fixture';
 
 export type DeployArtifactsRequest = {
-  /** The deployment bucket: one file per S3 key. */
-  bucketDirectory: string;
+  /** The default lane's deployment bucket: one file per S3 key. */
+  bucketDirectory?: string;
+  /** Local AWS emulator endpoint. When set, S3 requests use the CLI's real SDK path. */
+  localAwsEndpoint?: string;
   /** The deployment version the stack reports as its last one, such as `v000001`. */
   lastVersion: string;
   resultPath: string;
@@ -94,6 +96,21 @@ const refuseAwsRequests: Pluggable<object, object> = {
   }
 };
 
+/** In the emulator lane, only the deliberately selected S3 boundary may make requests. */
+const allowOnlyS3Requests: Pluggable<object, object> = {
+  applyToStack: (stack) => {
+    stack.add(
+      (next, context) => async (args) => {
+        if (context.clientName !== 'S3Client') {
+          throw new Error(`Unexpected AWS request (${context.clientName}.${context.commandName}).`);
+        }
+        return next(args);
+      },
+      { step: 'initialize', name: 'allowOnlyS3RequestsInAcceptance' }
+    );
+  }
+};
+
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
 
 /** The S3 key of a template's `Code` or `Content` value, when it names one directly. */
@@ -108,15 +125,23 @@ const listBucketKeys = async (directory: string): Promise<string[]> =>
 
 const main = async () => {
   const request = JSON.parse(await readFile(process.argv[2]!, 'utf8')) as DeployArtifactsRequest;
+  if (request.localAwsEndpoint && !/^http:\/\/127\.0\.0\.1:\d+$/.test(request.localAwsEndpoint)) {
+    throw new Error('The local AWS endpoint must use 127.0.0.1 and an explicit port.');
+  }
+  if (!request.localAwsEndpoint && !request.bucketDirectory) {
+    throw new Error('The filesystem bucket directory is required.');
+  }
   const project = process.cwd();
   const bucketName = awsResourceNames.deploymentBucket(STACK_HASH);
   const uploadedKeys: string[] = [];
 
   awsSdkManager.init({
-    credentials: { accessKeyId: 'acceptance-forbidden', secretAccessKey: 'acceptance-forbidden' },
+    credentials: request.localAwsEndpoint
+      ? { accessKeyId: 'test', secretAccessKey: 'test' }
+      : { accessKeyId: 'acceptance-forbidden', secretAccessKey: 'acceptance-forbidden' },
     region: REGION,
-    endpoint: 'http://127.0.0.1:9',
-    plugins: [refuseAwsRequests]
+    endpoint: request.localAwsEndpoint ?? 'http://127.0.0.1:9',
+    plugins: [request.localAwsEndpoint ? allowOnlyS3Requests : refuseAwsRequests]
   });
   const { cloudFormation, s3, ecr } = awsSdkManager;
   cloudFormation.getDetails = async () =>
@@ -139,18 +164,29 @@ const main = async () => {
   ];
   // The previous template only feeds the change preview, never an artifact decision.
   cloudFormation.getTemplate = async () => ({ Resources: {} });
-  s3.listObjects = async (listedBucket: string) => {
-    if (listedBucket !== bucketName) throw new Error(`Unexpected bucket ${listedBucket}.`);
-    return (await listBucketKeys(request.bucketDirectory)).map((Key) => ({ Key }));
-  };
-  s3.uploadFile = async ({ bucketName: uploadBucket, filePath, s3Key }) => {
-    if (uploadBucket !== bucketName) throw new Error(`Unexpected bucket ${uploadBucket}.`);
-    await mkdir(dirname(join(request.bucketDirectory, s3Key)), { recursive: true });
-    await copyFile(filePath, join(request.bucketDirectory, s3Key));
-    uploadedKeys.push(s3Key);
-    return { $metadata: {}, Bucket: uploadBucket, Key: s3Key };
-  };
-  s3.waitForBucketExists = async () => {};
+  if (request.localAwsEndpoint) {
+    const uploadFile = s3.uploadFile.bind(s3);
+    s3.uploadFile = async (input) => {
+      if (input.bucketName !== bucketName) throw new Error(`Unexpected bucket ${input.bucketName}.`);
+      const result = await uploadFile(input);
+      uploadedKeys.push(input.s3Key);
+      return result;
+    };
+  } else {
+    const bucketDirectory = request.bucketDirectory!;
+    s3.listObjects = async (listedBucket: string) => {
+      if (listedBucket !== bucketName) throw new Error(`Unexpected bucket ${listedBucket}.`);
+      return (await listBucketKeys(bucketDirectory)).map((Key) => ({ Key }));
+    };
+    s3.uploadFile = async ({ bucketName: uploadBucket, filePath, s3Key }) => {
+      if (uploadBucket !== bucketName) throw new Error(`Unexpected bucket ${uploadBucket}.`);
+      await mkdir(dirname(join(bucketDirectory, s3Key)), { recursive: true });
+      await copyFile(filePath, join(bucketDirectory, s3Key));
+      uploadedKeys.push(s3Key);
+      return { $metadata: {}, Bucket: uploadBucket, Key: s3Key };
+    };
+    s3.waitForBucketExists = async () => {};
+  }
   ecr.listImages = async () => [];
 
   operationReporter.setSilentMode(true);
@@ -316,7 +352,12 @@ const main = async () => {
   await writeFile(request.resultPath, `${JSON.stringify(result, null, 2)}\n`);
 };
 
-main().catch((error: unknown) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+main()
+  .then(() => {
+    // This short-lived test worker has written its result. Native fetch keeps idle sockets alive for about 30 seconds.
+    process.exit(0);
+  })
+  .catch((error: unknown) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
