@@ -25,6 +25,7 @@ describe('migrated naming compatibility contracts', () => {
     expect({
       bucket: cfLogicalNames.bucket('uploads'),
       lambda: cfLogicalNames.lambda('api'),
+      ecsService: cfLogicalNames.ecsService('web', false),
       blueGreenService: cfLogicalNames.ecsService('web', true),
       route: cfLogicalNames.httpApiRoute({ method: 'GET', path: '/users/{id}', stpResourceName: 'api' }),
       websocketApi: cfLogicalNames.websocketApi('realtime'),
@@ -41,6 +42,7 @@ describe('migrated naming compatibility contracts', () => {
     }).toEqual({
       bucket: 'UploadsBucket',
       lambda: 'ApiFunction',
+      ecsService: 'WebService',
       blueGreenService: 'WebBlueGreenService',
       route: 'StpApiGetUsersIdRoute',
       websocketApi: 'RealtimeWebsocketApi',
@@ -131,6 +133,12 @@ describe('migrated naming compatibility contracts', () => {
   });
 
   test('preserves helper Lambda physical names and truncation', () => {
+    expect(helperLambdaAwsResourceNames.originRequestEdgeLambda('my-project', 'us-east-1')).toBe(
+      'my-project-stpOReq-us-east-1'
+    );
+    expect(helperLambdaAwsResourceNames.originResponseEdgeLambda('my-project', 'us-east-1')).toBe(
+      'my-project-stpORes-us-east-1'
+    );
     expect(helperLambdaAwsResourceNames.originRequestEdgeLambda('a'.repeat(80), 'us-east-1')).toBe(
       'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-294f10'
     );

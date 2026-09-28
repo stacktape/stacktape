@@ -14,7 +14,8 @@ journey.
 Use focused tests for self-contained rules with meaningful input variations, such as naming, pricing, parsing and
 redaction. For isolated changes, describe realistic failures and write the failing cases before changing the
 implementation. For a bug, reproduce the failure before fixing it when practical. Do not add a test for every function
-or duplicate the same assertion at every layer.
+or duplicate the same assertion at every layer. An artificial input can protect a real compatibility rule; check what a
+test detects before deleting it.
 
 | What changed                                                           | Test at this boundary                                                                                                                                                                                    |
 | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

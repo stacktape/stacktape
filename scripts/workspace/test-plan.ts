@@ -51,6 +51,12 @@ const RULES: Rule[] = [
     matches: (path) => path.startsWith('apps/cli/') && !path.includes('/starter-projects/')
   },
   {
+    id: 'naming',
+    proves: 'Stable resource names, logical IDs, hashes and their consumers preserve compatibility.',
+    commands: ['pnpm --filter @stacktape/naming test', 'pnpm --filter @stacktape/naming typecheck'],
+    matches: (path) => path.startsWith('packages/naming/')
+  },
+  {
     id: 'synthesis',
     proves: 'Config resolution and synthesized infrastructure preserve semantic contracts.',
     commands: ['pnpm --filter @stacktape/cli test:characterization', 'pnpm --filter @stacktape/cli generate:check'],
@@ -97,6 +103,13 @@ const RULES: Rule[] = [
     matches: (path) =>
       path.startsWith('apps/console/api/prisma/') ||
       hasPart(path, /^apps\/console\/api\/src\/(raw-sql-queries|services\/prisma|model-helpers)/)
+  },
+  {
+    id: 'shared-ui-browser',
+    proves:
+      'The shared Dialog and Button preserve keyboard, focus, dismissal and disabled behavior in an isolated synthetic browser app.',
+    commands: ['pnpm --filter @stacktape/ui-react test:e2e'],
+    matches: (path) => path.startsWith('packages/ui-react/')
   },
   {
     id: 'console-ui',
