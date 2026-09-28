@@ -36,6 +36,21 @@ jobs:
           python-version: '3.13'
       - run: pnpm install --frozen-lockfile
       - run: pnpm check:public
+      - name: Install Chromium for shared UI tests
+        if: runner.os == 'Linux'
+        run: pnpm --filter @stacktape/ui-react exec playwright install --with-deps chromium
+      - name: Test shared UI in Chromium
+        if: runner.os == 'Linux'
+        run: pnpm --filter @stacktape/ui-react test:e2e
+      - name: Retain synthetic browser failure artifacts
+        if: failure() && runner.os == 'Linux'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: shared-ui-browser-failures
+          path: .stacktape/test-runs/ui-react/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Validate synthesized CloudFormation
         shell: bash
         run: |

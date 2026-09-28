@@ -105,14 +105,23 @@ covers
 
 For automation, reuse the existing Developer or separately scoped Admin fixture described in
 [agent browser access](../../apps/console/e2e/README.md#agent-browser-access). The current
-[`signInBrowserUser`](../../apps/console/ui/e2e/sign-in.ts) helper loads credentials inside the Playwright worker and
-enters them through the real form, creating a fresh session for each test. Use the fixture matching the intended role;
-do not ask the owner to repeat login or create another identity before checking these fixtures.
+[browser fixtures](../../apps/console/ui/e2e/fixtures.ts) load credentials inside the Playwright worker and authenticate
+through the real form. Feature tests use `async ({ page, signIn })` and `await signIn()` (Developer), or
+`await signIn('admin')`. Each worker reuses a separate in-memory session for each identity and verified UI/API/auth
+target, for up to five minutes. Each test still has a fresh browser context; changed cookies, selected organizations and
+other test state never update the cached seed. Use the fixture matching the intended role; do not ask the owner to
+repeat login or create another identity before checking these fixtures.
 
-There is no shared-dev authentication bypass in this setup. Reusing legitimately authenticated state could avoid
-repeated login steps, but that optimization still needs implementation and privacy qualification. Synthetic identities
-belong to the planned isolated harness, not the live dev API. Console login also does not authenticate
-GitHub/GitLab/Bitbucket provider sessions; follow the private guide for those callbacks and approvals.
+Login, logout, revocation and session-expiry scenarios must use the fresh
+[`signInBrowserUser(page, identity)`](../../apps/console/ui/e2e/sign-in.ts) helper instead of cached sessions. A failed
+application request does not trigger a hidden login retry. Cached state is discarded when the worker ends and is never
+saved to disk. Run `pnpm --filter @stacktape/console-ui test:e2e:sessions` and `test:e2e:privacy` after changing these
+helpers; both qualifiers are offline.
+
+There is no shared-dev authentication bypass. Synthetic identities belong to the planned isolated harness, not the live
+dev API. Shared-dev tests remain serialized under a reservation; session reuse does not isolate server-side data.
+Console login also does not authenticate GitHub/GitLab/Bitbucket provider sessions; follow the private guide for those
+callbacks and approvals.
 
 For a UI-only change, one command starts the current UI, waits for it, runs authenticated Chromium navigation against
 the deployed dev API, and stops the UI afterward. It refuses to reuse an existing server:

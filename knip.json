@@ -58,6 +58,11 @@
     "packages/*": {
       "entry": ["src/**/*.{ts,tsx}", "scripts/**/*.ts"]
     },
+    "packages/ui-react": {
+      "entry": ["src/**/*.{ts,tsx}", "scripts/**/*.ts"],
+      "project": ["**/*.{ts,tsx}", "!e2e/**!"],
+      "vite": false
+    },
     "packages/config": {
       "entry": ["src/**/*.{ts,tsx}", "tests/*.acceptance.ts"]
     },

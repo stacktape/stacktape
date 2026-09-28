@@ -133,7 +133,10 @@
     "dev": "pnpm run --parallel \"/^dev:(base|isometric-diagram)$/\"",
     "dev:base": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
     "dev:isometric-diagram": "tsc -p tsconfig.isometric-diagram.build.json --watch --preserveWatchOutput",
+    "dev:e2e": "vite --config vite.e2e.config.ts",
     "test": "bun test src",
+    "test:e2e": "pnpm run typecheck:e2e && playwright test",
+    "typecheck:e2e": "tsc -p e2e/tsconfig.json",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.isometric-diagram.json"
   },
   "dependencies": {
@@ -149,6 +152,7 @@
     "tippy.js": "^6.3.7"
   },
   "devDependencies": {
+    "@playwright/test": "1.62.1",
     "@types/bun": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
@@ -156,6 +160,7 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "typescript": "catalog:",
+    "vite": "^8.2.2",
     "yaml": "^2.8.0"
   },
   "peerDependencies": {

@@ -103,6 +103,14 @@ providers where needed, and explicit fixture data. This lets agents inspect exac
 galleries out of production artifacts. For complete journeys, run the actual app; avoid replacing its entrypoint or
 intercepting its own API. Existing Console page fixtures are examples of the first category, not the second.
 
+The public shared-control gallery is available now: `pnpm --filter @stacktape/ui-react test:e2e` runs Chromium against
+real components and CSS; `pnpm --filter @stacktape/ui-react dev:e2e` opens the same synthetic gallery for inspection.
+Add scenarios under [`packages/ui-react/e2e`](../../packages/ui-react/e2e), importing its `test` fixture. It owns a
+loopback Vite server and temporary cache per worker, fresh contexts per test and external-traffic rejection. It does not
+need Console or AWS. Use `--repeat-each=3 --workers=1` to check repeatability, then the default two workers to check
+independent execution. Public CI runs this lane on Linux and retains synthetic failure artifacts for seven days. The
+normal public gate does not require an installed browser.
+
 Test behavior that static markup cannot establish: keyboard navigation, focus after opening/closing, disabled controls,
 actual input/change events, portals, editor diagnostics and persistence. Use a small number of screenshot comparisons
 only where appearance is the contract. Stabilize fonts, viewport, time and animation; review visual baselines
@@ -203,12 +211,13 @@ written plan for every scenario. Use standard failure artifacts when they help r
 
 Real Console credentials need the existing private browser procedure: SSM-backed worker-only loading, no secrets in
 shell arguments or Vite, disabled authenticated traces/screenshots/video, and suppression of credential-bearing failure
-snapshots. Auth state files also contain secrets; use memory when practical and otherwise ignored, restricted files with
-explicit deletion. Loading storage state does not make later HTTP traces safe: authenticated requests still carry
-tokens. Before changing these settings or upgrading browser tools, run
-`pnpm --filter @stacktape/console-ui test:e2e:privacy`. A new agent CLI must be qualified separately before giving it
-real credential-bearing flows; the runner's privacy test does not automatically cover another tool.
-[Private browser procedure](../../apps/console/e2e/README.md#agent-browser-access).
+snapshots. The current Console `signIn` fixture caches authenticated state in worker memory, separated by identity and
+verified target, with fresh test contexts and a five-minute maximum seed age. Keep login/logout and revocation tests on
+the fresh-login helper. Auth state files also contain secrets; do not save these Console sessions to disk. Loading
+storage state does not make later HTTP traces safe: authenticated requests still carry tokens. Before changing these
+settings or upgrading browser tools, run `pnpm --filter @stacktape/console-ui test:e2e:privacy`. A new agent CLI must be
+qualified separately before giving it real credential-bearing flows; the runner's privacy test does not automatically
+cover another tool. [Private browser procedure](../../apps/console/e2e/README.md#agent-browser-access).
 
 For ordinary integration failures, keep the scenario name, failing assertion and bounded last process/job state. Log
 only sanitized provider request shape and stable operation IDs. A retry that never reached the consumer is not a
