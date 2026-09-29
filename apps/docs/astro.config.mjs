@@ -33,6 +33,14 @@ const posthogSourceMapPlugin = posthogSourceMapsEnabled
 export default defineConfig({
   site: SITE_URL,
   trailingSlash: 'always',
+  // Packaging pages renamed in v4. The old URLs are linked from older blog posts, issues and search results.
+  redirects: {
+    '/packaging/containers/nixpacks/': '/packaging/containers/buildpack/',
+    '/packaging/containers/external-buildpack/': '/packaging/containers/buildpack/',
+    '/packaging/containers/custom-dockerfile/': '/packaging/containers/dockerfile/',
+    '/packaging/containers/stacktape-buildpack/': '/packaging/containers/js-bundle/',
+    '/packaging/function/stacktape-buildpack/': '/packaging/function/js-bundle/'
+  },
   prefetch: {
     prefetchAll: true,
     defaultStrategy: 'hover'

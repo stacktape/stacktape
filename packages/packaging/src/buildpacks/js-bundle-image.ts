@@ -19,6 +19,7 @@ import { getFolder } from '../fs/files';
 import objectHash from 'object-hash';
 import { createEsBundle } from '../bundlers/es';
 import { DEFAULT_CONTAINER_NODE_VERSION } from '../bundlers/constants';
+import type { JsBundleImageRuntime } from '@stacktape/config/deployment-artifacts';
 import { getFolderSize } from '../fs/files';
 import { buildGeneratedDockerImage } from '../artifact/generated-image-build';
 
@@ -36,6 +37,7 @@ export const buildJsBundleImage = async ({
   cacheFromRef,
   cacheToRef,
   devMode,
+  runtime = 'node',
   ...otherProps
 }: StpBuildpackInput &
   JsBundleOptions &
@@ -48,18 +50,25 @@ export const buildJsBundleImage = async ({
     cacheFromRef?: string | undefined;
     cacheToRef?: string | undefined;
     devMode?: boolean | undefined;
+    /** The image's JavaScript runtime. */
+    runtime?: JsBundleImageRuntime | undefined;
   }): Promise<PackagingOutput> => {
   const nodeVersion = otherProps.nodeVersion || DEFAULT_CONTAINER_NODE_VERSION;
 
   const bundlingOutput = await createEsBundle({
     ...otherProps,
     ...(otherProps.disableSourceMaps && { sourceMaps: 'disabled' }),
+    bundleTarget: runtime === 'bun' ? 'bun' : 'node',
     externals: [],
     installNonStaticallyBuiltDepsInDocker: false,
     dockerBuildOutputArchitecture,
     name,
     progressLogger,
-    additionalDigestInput: objectHash({ bundleOptions: pickJsBundleOptions(otherProps), additionalDigestInput }),
+    additionalDigestInput: objectHash({
+      bundleOptions: pickJsBundleOptions(otherProps),
+      runtime,
+      additionalDigestInput
+    }),
     minify: devMode ? false : minify,
     nodeTarget,
     skipDigestCalculation: devMode
@@ -83,6 +92,7 @@ export const buildJsBundleImage = async ({
       languageSpecificBundleOutput,
       requiresGlibcBinaries,
       nodeVersion,
+      runtime,
       progressLogger,
       buildDockerImage,
       checkDockerImageExists
@@ -133,6 +143,7 @@ export const buildJsBundleImage = async ({
     requiresGlibcBinaries,
     customDockerBuildCommands: otherProps.customDockerBuildCommands,
     nodeVersion,
+    runtime,
     buildContextPath
   });
   await progressLogger.finishEvent({ eventType: 'CREATE_DOCKERFILE' });
@@ -173,6 +184,7 @@ const buildDevBaseImage = async ({
   languageSpecificBundleOutput,
   requiresGlibcBinaries,
   nodeVersion,
+  runtime,
   progressLogger,
   buildDockerImage,
   checkDockerImageExists
@@ -181,6 +193,7 @@ const buildDevBaseImage = async ({
   languageSpecificBundleOutput: LanguageSpecificBundleOutput;
   requiresGlibcBinaries: boolean;
   nodeVersion: number;
+  runtime: JsBundleImageRuntime;
   progressLogger: ProgressLogger;
   buildDockerImage: BuildDockerImage;
   checkDockerImageExists: CheckDockerImageExists;
@@ -196,6 +209,7 @@ const buildDevBaseImage = async ({
     packageManager,
     requiresGlibcBinaries,
     nodeVersion,
+    runtime,
     layout: 2
   }).slice(0, 12);
 
@@ -221,7 +235,8 @@ const buildDevBaseImage = async ({
       dependencies,
       packageManager,
       requiresGlibcBinaries,
-      nodeVersion
+      nodeVersion,
+      runtime
     });
 
     await buildGeneratedDockerImage({
@@ -316,12 +331,14 @@ const createEsDockerFile = async ({
   requiresGlibcBinaries = false,
   customDockerBuildCommands,
   nodeVersion,
+  runtime,
   buildContextPath
 }: {
   languageSpecificBundleOutput: LanguageSpecificBundleOutput;
   requiresGlibcBinaries: boolean;
   customDockerBuildCommands?: string[] | undefined;
   nodeVersion: number;
+  runtime: JsBundleImageRuntime;
   buildContextPath: string;
 }) => {
   const dependencies = languageSpecificBundleOutput.es?.dependenciesToInstallInDocker ?? [];
@@ -332,6 +349,7 @@ const createEsDockerFile = async ({
     requiresGlibcBinaries,
     customDockerBuildCommands,
     nodeVersion,
+    runtime,
     // Only an npm, pnpm or Bun install of external dependencies can run without the source; others ignore the bundle.
     installBeforeSource:
       (packageManager === 'npm' || packageManager === 'pnpm' || packageManager === 'bun') && dependencies.length > 0

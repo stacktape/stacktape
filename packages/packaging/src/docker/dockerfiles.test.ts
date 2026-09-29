@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   buildDotnetArtifactDockerfile,
+  buildEsDevDockerfile,
   buildEsDockerfile,
   buildGoArtifactDockerfile,
   buildJavaArtifactDockerfile,
@@ -109,6 +110,39 @@ describe('Stacktape Dockerfile contracts', () => {
     expect(artifact).toContain("bundle config set --local without 'development test'");
     expect(artifact).toContain('BUNDLE_GEMFILE="$gemfile" bundle install');
     expect(artifact).not.toContain('bundle install --without');
+  });
+
+  test('runs bundles on the official Bun and Deno images with their own package managers', () => {
+    const bun = buildEsDockerfile({
+      dependencies: [{ name: 'sharp', version: '0.34.0' }],
+      packageManager: 'npm',
+      requiresGlibcBinaries: false,
+      nodeVersion: 24,
+      runtime: 'bun'
+    });
+    const deno = buildEsDockerfile({
+      dependencies: [],
+      packageManager: 'npm',
+      requiresGlibcBinaries: false,
+      nodeVersion: 24,
+      runtime: 'deno'
+    });
+    const bunDev = buildEsDevDockerfile({
+      dependencies: [],
+      packageManager: 'npm',
+      requiresGlibcBinaries: false,
+      nodeVersion: 24,
+      runtime: 'bun'
+    });
+
+    expect(bun).toStartWith('FROM docker.io/oven/bun:1 AS deps');
+    expect(bun).toContain('RUN bun add sharp@0.34.0');
+    expect(bun).toContain('FROM docker.io/oven/bun:1-slim');
+    expect(bun).toContain('CMD ["bun", "index.js"]');
+    expect(bun).not.toContain('node:24');
+    expect(deno).toStartWith('FROM docker.io/denoland/deno:debian-2.9.7');
+    expect(deno).toContain('CMD ["deno", "run", "--allow-all", "index.js"]');
+    expect(bunDev).toContain('CMD ["bun", "dist/index.js"]');
   });
 
   test('cross-compiles Rust Lambda bootstraps with cargo-lambda and quotes the binary name', () => {

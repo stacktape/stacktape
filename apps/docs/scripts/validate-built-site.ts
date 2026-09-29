@@ -58,8 +58,13 @@ const actualHtmlFiles = new Set(htmlFiles.map((path) => normalize(relative(OUT_D
 for (const expected of expectedHtmlFiles) {
   if (!actualHtmlFiles.has(expected)) fail(`missing expected page ${expected}`);
 }
+const isRedirectPage = (relativePath: string) =>
+  /<meta http-equiv="refresh" content="0;url=/.test(readFileSync(join(OUT_DIR, relativePath), 'utf8'));
 for (const actual of actualHtmlFiles) {
-  if (!expectedHtmlFiles.has(actual)) fail(`unexpected page ${actual} is not derived from content/`);
+  // Redirect pages come from `redirects` in astro.config.mjs, not from content; they are checked with the pages below.
+  if (!expectedHtmlFiles.has(actual) && !isRedirectPage(actual)) {
+    fail(`unexpected page ${actual} is not derived from content/`);
+  }
 }
 if (contentFiles.length === 0) fail('found no canonical MDX pages in content/');
 
@@ -101,6 +106,16 @@ const descriptions = new Map<string, string[]>();
 for (const [filePath, html] of htmlByFile) {
   const shownPath = normalize(relative(OUT_DIR, filePath));
   const isErrorPage = shownPath === ERROR_PAGE;
+
+  // Astro renders a `redirects` entry as a noindex meta-refresh page. It is not documentation: the only thing
+  // to check is that it points at a page this build produced.
+  const redirectTarget = html.match(/<meta http-equiv="refresh" content="0;url=([^"]+)"/)?.[1];
+  if (redirectTarget !== undefined) {
+    const targetFile = join(OUT_DIR, redirectTarget, 'index.html');
+    if (!existsSync(targetFile)) fail(`${shownPath}: redirects to ${redirectTarget}, which this build did not produce`);
+    if (!/<meta name="robots" content="noindex">/.test(html)) fail(`${shownPath}: redirect page must be noindex`);
+    continue;
+  }
 
   const titles = captureAll(html, /<title>([\s\S]*?)<\/title>/g);
   const metaDescriptions = captureAll(html, /<meta\s+name="description"\s+content="([^"]*)"\s*\/?>(?:<\/meta>)?/g);

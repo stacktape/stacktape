@@ -1,6 +1,6 @@
 import {
   $Secret,
-  BuildpackImagePackaging,
+  DockerfilePackaging,
   RdsEnginePostgres,
   RelationalDatabase,
   WebService,
@@ -20,8 +20,9 @@ export default defineConfig(() => {
     })
   });
   const webService = new WebService({
-    packaging: new BuildpackImagePackaging({
-      sourceDirectoryPath: './'
+    packaging: new DockerfilePackaging({
+      dockerfilePath: './Dockerfile',
+      buildContextPath: './'
     }),
     resources: {
       cpu: 0.25,

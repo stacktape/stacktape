@@ -79,6 +79,7 @@ export const buildEsCode = async ({
   tsConfigPath,
   cwd,
   nodeTarget = process.versions.node,
+  bundleTarget = 'node',
   distDir,
   sourcePaths,
   splitting = false,
@@ -112,6 +113,8 @@ export const buildEsCode = async ({
   /** Bundle `@aws-sdk/*` from `node_modules` instead of leaving it to the Lambda runtime. */
   bundleAwsSdk?: boolean | undefined;
   nodeTarget?: string | undefined;
+  /** Bun.build's target: `bun` when the image runs on Bun, otherwise `node` (Deno consumes the Node output). */
+  bundleTarget?: 'node' | 'bun' | undefined;
   splitting?: boolean | undefined;
   plugins?: BunPlugin[] | undefined;
   excludeDependencies?: string[] | undefined;
@@ -516,7 +519,7 @@ export const buildEsCode = async ({
       buildResult = await Bun.build({
         entrypoints: entryPoints,
         ...(unixOutdir ? { outdir: unixOutdir } : {}),
-        target: 'node',
+        target: bundleTarget,
         format: splitting ? 'esm' : outputModuleFormat,
         splitting: splitting && outputModuleFormat === 'esm',
         minify: minifyConfig,
@@ -738,6 +741,7 @@ export const createEsBundle = async ({
   minifyIdentifiers,
   bundleAwsSdk,
   nodeTarget,
+  bundleTarget,
   debug,
   sourceMaps,
   sourceMapBannerType,
@@ -759,6 +763,7 @@ export const createEsBundle = async ({
   JsBundleOptions & {
     minify: boolean;
     nodeTarget: string;
+    bundleTarget?: 'node' | 'bun' | undefined;
     installNonStaticallyBuiltDepsInDocker: boolean;
     sourceMaps?: 'inline' | 'external' | 'disabled' | undefined;
     sourceMapBannerType?: 'node_modules' | 'pre-compiled' | 'disabled' | undefined;
@@ -797,6 +802,7 @@ export const createEsBundle = async ({
       minifyIdentifiers,
       bundleAwsSdk,
       nodeTarget,
+      bundleTarget,
       isLambda,
       outputModuleFormat,
       createPackagingError,

@@ -116,6 +116,35 @@ export default defineConfig(() => {
 
 `nodeVersion` selects the Node.js major version of the image. Supported values are `16` to `24`. The default is `24`.
 
+### Bun and Deno
+
+`runtime` selects the JavaScript runtime of the image: `node` (default), `bun` or `deno`. With `bun`, the bundle targets Bun and runs on the official `oven/bun:1` image with `bun index.js`. With `deno`, the bundle runs on the pinned `denoland/deno` 2.9 Debian image with `deno run --allow-all index.js`. Dependencies that cannot be bundled are installed with the runtime's own package manager (`bun add`, `deno add npm:`). `nodeVersion` has no effect on these runtimes. Lambda functions have no `runtime` option here; they run on the Node.js runtime.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new JsBundleImagePackaging({
+      entryfilePath: './src/server.ts',
+      runtime: 'bun'
+    }),
+    resources: {
+      cpu: 0.25,
+      memory: 512
+    }
+  });
+
+  return {
+    resources: { api }
+  };
+});
+```
+
+
 ### TypeScript decorator metadata
 
 Set `emitTsDecoratorMetadata: true` if the project uses decorators with runtime metadata. NestJS, TypeORM and other frameworks that rely on `reflect-metadata` need it.
@@ -287,4 +316,5 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `outputModuleFormat` | no | `string: "cjs" \| "esm"` | - |
 | `outputSourceMapsTo` | no | `string` | - |
 | `requiresGlibcBinaries` | no | `boolean` | - |
+| `runtime` | no | `string: "bun" \| "deno" \| "node"` | - |
 | `tsConfigPath` | no | `string` | - |

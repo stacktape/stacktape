@@ -847,6 +847,33 @@
                   ]
                 },
                 {
+                  "name": "runtime",
+                  "required": false,
+                  "shortDescription": "<p> The JavaScript runtime the container runs the bundle with: <code>node</code> (default), <code>bun</code> or <code>deno</code>.</p>",
+                  "longDescription": "<p>With <code>bun</code>, the bundle targets Bun and runs on the official <code>oven/bun:1</code> image; with <code>deno</code>, the bundle runs on\nthe pinned <code>denoland/deno</code> 2.9 image. Dependencies that cannot be bundled are installed with the same runtime&#39;s package manager.\n<code>nodeVersion</code> applies only to <code>node</code>.</p>",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ],
+                    "enumValues": [
+                      "bun",
+                      "deno",
+                      "node"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\n  apiService:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/server.ts\n          # [!code focus-start]\n          runtime: bun\n          # [!code focus-end]\n      resources:\n        cpu: 0.5\n        memory: 1024"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { JsBundleImagePackaging, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiService = new WebService({\n    packaging: new JsBundleImagePackaging({\n      entryfilePath: 'src/server.ts',\n      // [!code focus-start]\n      runtime: 'bun'\n      // [!code focus-end]\n    }),\n    resources: {\n      cpu: 0.5,\n      memory: 1024\n    }\n  });\n  return { resources: { apiService } };\n});"
+                    }
+                  ]
+                },
+                {
                   "name": "entryfilePath",
                   "required": true,
                   "shortDescription": "<p> Path to your app&#39;s entry point, relative to the Stacktape config file.</p>",
@@ -8566,6 +8593,33 @@
                   ]
                 },
                 {
+                  "name": "runtime",
+                  "required": false,
+                  "shortDescription": "<p> The JavaScript runtime the container runs the bundle with: <code>node</code> (default), <code>bun</code> or <code>deno</code>.</p>",
+                  "longDescription": "<p>With <code>bun</code>, the bundle targets Bun and runs on the official <code>oven/bun:1</code> image; with <code>deno</code>, the bundle runs on\nthe pinned <code>denoland/deno</code> 2.9 image. Dependencies that cannot be bundled are installed with the same runtime&#39;s package manager.\n<code>nodeVersion</code> applies only to <code>node</code>.</p>",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ],
+                    "enumValues": [
+                      "bun",
+                      "deno",
+                      "node"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\n  apiService:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/server.ts\n          # [!code focus-start]\n          runtime: bun\n          # [!code focus-end]\n      resources:\n        cpu: 0.5\n        memory: 1024"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { JsBundleImagePackaging, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiService = new WebService({\n    packaging: new JsBundleImagePackaging({\n      entryfilePath: 'src/server.ts',\n      // [!code focus-start]\n      runtime: 'bun'\n      // [!code focus-end]\n    }),\n    resources: {\n      cpu: 0.5,\n      memory: 1024\n    }\n  });\n  return { resources: { apiService } };\n});"
+                    }
+                  ]
+                },
+                {
                   "name": "entryfilePath",
                   "required": true,
                   "shortDescription": "<p> Path to your app&#39;s entry point, relative to the Stacktape config file.</p>",
@@ -15784,6 +15838,33 @@
                     {
                       "lang": "typescript",
                       "code": "import { WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const imageProcessor = new WebService({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/server.ts',\n       // [!code focus-start]\n       customDockerBuildCommands: [\n         'apt-get update && apt-get install -y poppler-utils',\n         'fc-cache -f'\n       ]\n       // [!code focus-end]\n     }\n   },\n   resources: {\n     cpu: 1,\n     memory: 2048\n   }\n });\n return { resources: { imageProcessor } };\n});"
+                    }
+                  ]
+                },
+                {
+                  "name": "runtime",
+                  "required": false,
+                  "shortDescription": "<p> The JavaScript runtime the container runs the bundle with: <code>node</code> (default), <code>bun</code> or <code>deno</code>.</p>",
+                  "longDescription": "<p>With <code>bun</code>, the bundle targets Bun and runs on the official <code>oven/bun:1</code> image; with <code>deno</code>, the bundle runs on\nthe pinned <code>denoland/deno</code> 2.9 image. Dependencies that cannot be bundled are installed with the same runtime&#39;s package manager.\n<code>nodeVersion</code> applies only to <code>node</code>.</p>",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ],
+                    "enumValues": [
+                      "bun",
+                      "deno",
+                      "node"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\n  apiService:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/server.ts\n          # [!code focus-start]\n          runtime: bun\n          # [!code focus-end]\n      resources:\n        cpu: 0.5\n        memory: 1024"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { JsBundleImagePackaging, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiService = new WebService({\n    packaging: new JsBundleImagePackaging({\n      entryfilePath: 'src/server.ts',\n      // [!code focus-start]\n      runtime: 'bun'\n      // [!code focus-end]\n    }),\n    resources: {\n      cpu: 0.5,\n      memory: 1024\n    }\n  });\n  return { resources: { apiService } };\n});"
                     }
                   ]
                 },
@@ -32420,6 +32501,33 @@
         ]
       },
       {
+        "name": "runtime",
+        "required": false,
+        "shortDescription": "<p> The JavaScript runtime the container runs the bundle with: <code>node</code> (default), <code>bun</code> or <code>deno</code>.</p>",
+        "longDescription": "<p>With <code>bun</code>, the bundle targets Bun and runs on the official <code>oven/bun:1</code> image; with <code>deno</code>, the bundle runs on\nthe pinned <code>denoland/deno</code> 2.9 image. Dependencies that cannot be bundled are installed with the same runtime&#39;s package manager.\n<code>nodeVersion</code> applies only to <code>node</code>.</p>",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ],
+          "enumValues": [
+            "bun",
+            "deno",
+            "node"
+          ]
+        },
+        "examples": [
+          {
+            "lang": "yaml",
+            "code": "resources:\n  apiService:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/server.ts\n          # [!code focus-start]\n          runtime: bun\n          # [!code focus-end]\n      resources:\n        cpu: 0.5\n        memory: 1024"
+          },
+          {
+            "lang": "typescript",
+            "code": "import { JsBundleImagePackaging, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiService = new WebService({\n    packaging: new JsBundleImagePackaging({\n      entryfilePath: 'src/server.ts',\n      // [!code focus-start]\n      runtime: 'bun'\n      // [!code focus-end]\n    }),\n    resources: {\n      cpu: 0.5,\n      memory: 1024\n    }\n  });\n  return { resources: { apiService } };\n});"
+          }
+        ]
+      },
+      {
         "name": "tsConfigPath",
         "required": false,
         "shortDescription": "<p> The path to the <code>tsconfig.json</code> file.</p>",
@@ -32444,9 +32552,9 @@
     ],
     "stats": {
       "requiredCount": 1,
-      "optionalCount": 16
+      "optionalCount": 17
     },
-    "typeDeclaration": "// [!code focus-start]\ntype JsBundleBjImagePackagingProps = {\n  /** Path to your app's entry point, relative to the Stacktape config file. */\n  entryfilePath: string;\n  /** Bundle the AWS SDK from your `node_modules` instead of using the copy the Lambda runtime provides. */\n  bundleAwsSdk?: boolean;\n  /** A list of commands to be executed during the `docker build` process. */\n  customDockerBuildCommands?: Array<string>;\n  /** A list of dependencies to exclude from the main bundle. */\n  dependenciesToExcludeFromBundle?: Array<string>;\n  /** A list of dependencies to exclude from the deployment package. */\n  dependenciesToExcludeFromDeploymentPackage?: Array<string>;\n  /** Skip generating source maps. Reduces package size but makes production errors harder to debug. */\n  disableSourceMaps?: boolean;\n  /** Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.\n\nSource maps are disabled for this artifact because the decorator transform and bundler cannot yet compose their\nmappings accurately. Emitting a map would give production stack traces incorrect line numbers. */\n  emitTsDecoratorMetadata?: boolean;\n  /** A list of dependencies to exclude from the deployment package. */\n  excludeDependencies?: Array<string>;\n  /** A glob pattern of files to explicitly exclude from the deployment package. */\n  excludeFiles?: Array<string>;\n  /** A glob pattern of files to explicitly include in the deployment package. */\n  includeFiles?: Array<string>;\n  /** Minify the bundled code. Local names are kept, so stack traces stay readable. */\n  minify?: boolean;\n  /** Also shorten local variable and function names when minifying. */\n  minifyIdentifiers?: boolean;\n  /** The major version of Node.js the buildpack uses to create the artifact. For Lambda packaging, keep the function's `runtime` aligned with this value. */\n  nodeVersion?: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24;\n  /** Output module format: `cjs` (CommonJS) or `esm` (ES Modules, enables top-level `await`). */\n  outputModuleFormat?: \"cjs\" | \"esm\";\n  /** Save source maps to a local directory instead of uploading them to AWS. */\n  outputSourceMapsTo?: string;\n  /** Use glibc instead of musl (Alpine default). Enable if native dependencies require glibc. */\n  requiresGlibcBinaries?: boolean;\n  /** The path to the `tsconfig.json` file. */\n  tsConfigPath?: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype JsBundleBjImagePackagingProps = {\n  /** Path to your app's entry point, relative to the Stacktape config file. */\n  entryfilePath: string;\n  /** Bundle the AWS SDK from your `node_modules` instead of using the copy the Lambda runtime provides. */\n  bundleAwsSdk?: boolean;\n  /** A list of commands to be executed during the `docker build` process. */\n  customDockerBuildCommands?: Array<string>;\n  /** A list of dependencies to exclude from the main bundle. */\n  dependenciesToExcludeFromBundle?: Array<string>;\n  /** A list of dependencies to exclude from the deployment package. */\n  dependenciesToExcludeFromDeploymentPackage?: Array<string>;\n  /** Skip generating source maps. Reduces package size but makes production errors harder to debug. */\n  disableSourceMaps?: boolean;\n  /** Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.\n\nSource maps are disabled for this artifact because the decorator transform and bundler cannot yet compose their\nmappings accurately. Emitting a map would give production stack traces incorrect line numbers. */\n  emitTsDecoratorMetadata?: boolean;\n  /** A list of dependencies to exclude from the deployment package. */\n  excludeDependencies?: Array<string>;\n  /** A glob pattern of files to explicitly exclude from the deployment package. */\n  excludeFiles?: Array<string>;\n  /** A glob pattern of files to explicitly include in the deployment package. */\n  includeFiles?: Array<string>;\n  /** Minify the bundled code. Local names are kept, so stack traces stay readable. */\n  minify?: boolean;\n  /** Also shorten local variable and function names when minifying. */\n  minifyIdentifiers?: boolean;\n  /** The major version of Node.js the buildpack uses to create the artifact. For Lambda packaging, keep the function's `runtime` aligned with this value. */\n  nodeVersion?: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24;\n  /** Output module format: `cjs` (CommonJS) or `esm` (ES Modules, enables top-level `await`). */\n  outputModuleFormat?: \"cjs\" | \"esm\";\n  /** Save source maps to a local directory instead of uploading them to AWS. */\n  outputSourceMapsTo?: string;\n  /** Use glibc instead of musl (Alpine default). Enable if native dependencies require glibc. */\n  requiresGlibcBinaries?: boolean;\n  /** The JavaScript runtime the container runs the bundle with: `node` (default), `bun` or `deno`. */\n  runtime?: \"bun\" | \"deno\" | \"node\";\n  /** The path to the `tsconfig.json` file. */\n  tsConfigPath?: string;\n};\n// [!code focus-end]"
   },
   "JsBundleCwImagePackaging": {
     "definitionName": "JsBundleCwImagePackaging",
@@ -32862,6 +32970,33 @@
         ]
       },
       {
+        "name": "runtime",
+        "required": false,
+        "shortDescription": "<p> The JavaScript runtime the container runs the bundle with: <code>node</code> (default), <code>bun</code> or <code>deno</code>.</p>",
+        "longDescription": "<p>With <code>bun</code>, the bundle targets Bun and runs on the official <code>oven/bun:1</code> image; with <code>deno</code>, the bundle runs on\nthe pinned <code>denoland/deno</code> 2.9 image. Dependencies that cannot be bundled are installed with the same runtime&#39;s package manager.\n<code>nodeVersion</code> applies only to <code>node</code>.</p>",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ],
+          "enumValues": [
+            "bun",
+            "deno",
+            "node"
+          ]
+        },
+        "examples": [
+          {
+            "lang": "yaml",
+            "code": "resources:\n  apiService:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/server.ts\n          # [!code focus-start]\n          runtime: bun\n          # [!code focus-end]\n      resources:\n        cpu: 0.5\n        memory: 1024"
+          },
+          {
+            "lang": "typescript",
+            "code": "import { JsBundleImagePackaging, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiService = new WebService({\n    packaging: new JsBundleImagePackaging({\n      entryfilePath: 'src/server.ts',\n      // [!code focus-start]\n      runtime: 'bun'\n      // [!code focus-end]\n    }),\n    resources: {\n      cpu: 0.5,\n      memory: 1024\n    }\n  });\n  return { resources: { apiService } };\n});"
+          }
+        ]
+      },
+      {
         "name": "tsConfigPath",
         "required": false,
         "shortDescription": "<p> The path to the <code>tsconfig.json</code> file.</p>",
@@ -32886,9 +33021,9 @@
     ],
     "stats": {
       "requiredCount": 1,
-      "optionalCount": 16
+      "optionalCount": 17
     },
-    "typeDeclaration": "// [!code focus-start]\ntype JsBundleCwImagePackagingProps = {\n  /** Path to your app's entry point, relative to the Stacktape config file. */\n  entryfilePath: string;\n  /** Bundle the AWS SDK from your `node_modules` instead of using the copy the Lambda runtime provides. */\n  bundleAwsSdk?: boolean;\n  /** A list of commands to be executed during the `docker build` process. */\n  customDockerBuildCommands?: Array<string>;\n  /** A list of dependencies to exclude from the main bundle. */\n  dependenciesToExcludeFromBundle?: Array<string>;\n  /** A list of dependencies to exclude from the deployment package. */\n  dependenciesToExcludeFromDeploymentPackage?: Array<string>;\n  /** Skip generating source maps. Reduces package size but makes production errors harder to debug. */\n  disableSourceMaps?: boolean;\n  /** Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.\n\nSource maps are disabled for this artifact because the decorator transform and bundler cannot yet compose their\nmappings accurately. Emitting a map would give production stack traces incorrect line numbers. */\n  emitTsDecoratorMetadata?: boolean;\n  /** A list of dependencies to exclude from the deployment package. */\n  excludeDependencies?: Array<string>;\n  /** A glob pattern of files to explicitly exclude from the deployment package. */\n  excludeFiles?: Array<string>;\n  /** A glob pattern of files to explicitly include in the deployment package. */\n  includeFiles?: Array<string>;\n  /** Minify the bundled code. Local names are kept, so stack traces stay readable. */\n  minify?: boolean;\n  /** Also shorten local variable and function names when minifying. */\n  minifyIdentifiers?: boolean;\n  /** The major version of Node.js the buildpack uses to create the artifact. For Lambda packaging, keep the function's `runtime` aligned with this value. */\n  nodeVersion?: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24;\n  /** Output module format: `cjs` (CommonJS) or `esm` (ES Modules, enables top-level `await`). */\n  outputModuleFormat?: \"cjs\" | \"esm\";\n  /** Save source maps to a local directory instead of uploading them to AWS. */\n  outputSourceMapsTo?: string;\n  /** Use glibc instead of musl (Alpine default). Enable if native dependencies require glibc. */\n  requiresGlibcBinaries?: boolean;\n  /** The path to the `tsconfig.json` file. */\n  tsConfigPath?: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype JsBundleCwImagePackagingProps = {\n  /** Path to your app's entry point, relative to the Stacktape config file. */\n  entryfilePath: string;\n  /** Bundle the AWS SDK from your `node_modules` instead of using the copy the Lambda runtime provides. */\n  bundleAwsSdk?: boolean;\n  /** A list of commands to be executed during the `docker build` process. */\n  customDockerBuildCommands?: Array<string>;\n  /** A list of dependencies to exclude from the main bundle. */\n  dependenciesToExcludeFromBundle?: Array<string>;\n  /** A list of dependencies to exclude from the deployment package. */\n  dependenciesToExcludeFromDeploymentPackage?: Array<string>;\n  /** Skip generating source maps. Reduces package size but makes production errors harder to debug. */\n  disableSourceMaps?: boolean;\n  /** Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.\n\nSource maps are disabled for this artifact because the decorator transform and bundler cannot yet compose their\nmappings accurately. Emitting a map would give production stack traces incorrect line numbers. */\n  emitTsDecoratorMetadata?: boolean;\n  /** A list of dependencies to exclude from the deployment package. */\n  excludeDependencies?: Array<string>;\n  /** A glob pattern of files to explicitly exclude from the deployment package. */\n  excludeFiles?: Array<string>;\n  /** A glob pattern of files to explicitly include in the deployment package. */\n  includeFiles?: Array<string>;\n  /** Minify the bundled code. Local names are kept, so stack traces stay readable. */\n  minify?: boolean;\n  /** Also shorten local variable and function names when minifying. */\n  minifyIdentifiers?: boolean;\n  /** The major version of Node.js the buildpack uses to create the artifact. For Lambda packaging, keep the function's `runtime` aligned with this value. */\n  nodeVersion?: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24;\n  /** Output module format: `cjs` (CommonJS) or `esm` (ES Modules, enables top-level `await`). */\n  outputModuleFormat?: \"cjs\" | \"esm\";\n  /** Save source maps to a local directory instead of uploading them to AWS. */\n  outputSourceMapsTo?: string;\n  /** Use glibc instead of musl (Alpine default). Enable if native dependencies require glibc. */\n  requiresGlibcBinaries?: boolean;\n  /** The JavaScript runtime the container runs the bundle with: `node` (default), `bun` or `deno`. */\n  runtime?: \"bun\" | \"deno\" | \"node\";\n  /** The path to the `tsconfig.json` file. */\n  tsConfigPath?: string;\n};\n// [!code focus-end]"
   },
   "JsBundleLambdaPackaging": {
     "definitionName": "JsBundleLambdaPackaging",
@@ -44451,6 +44586,33 @@
                   ]
                 },
                 {
+                  "name": "runtime",
+                  "required": false,
+                  "shortDescription": "<p> The JavaScript runtime the container runs the bundle with: <code>node</code> (default), <code>bun</code> or <code>deno</code>.</p>",
+                  "longDescription": "<p>With <code>bun</code>, the bundle targets Bun and runs on the official <code>oven/bun:1</code> image; with <code>deno</code>, the bundle runs on\nthe pinned <code>denoland/deno</code> 2.9 image. Dependencies that cannot be bundled are installed with the same runtime&#39;s package manager.\n<code>nodeVersion</code> applies only to <code>node</code>.</p>",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ],
+                    "enumValues": [
+                      "bun",
+                      "deno",
+                      "node"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\n  apiService:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/server.ts\n          # [!code focus-start]\n          runtime: bun\n          # [!code focus-end]\n      resources:\n        cpu: 0.5\n        memory: 1024"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { JsBundleImagePackaging, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiService = new WebService({\n    packaging: new JsBundleImagePackaging({\n      entryfilePath: 'src/server.ts',\n      // [!code focus-start]\n      runtime: 'bun'\n      // [!code focus-end]\n    }),\n    resources: {\n      cpu: 0.5,\n      memory: 1024\n    }\n  });\n  return { resources: { apiService } };\n});"
+                    }
+                  ]
+                },
+                {
                   "name": "entryfilePath",
                   "required": true,
                   "shortDescription": "<p> Path to your app&#39;s entry point, relative to the Stacktape config file.</p>",
@@ -45482,7 +45644,7 @@
       {
         "name": "secrets",
         "required": false,
-        "shortDescription": "<p> Sensitive environment variables fetched by the container runtime.</p>\n<p>Values must be exact <code>$SsmParam(...)</code> or <code>$Secret(...)</code> directives. Prefer a SecureString SSM parameter for\nsecrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features\nare useful.</p>\n<p><strong>Example (TypeScript):</strong></p>\n<pre><code class=\"language-ts\">secrets: {\n  DATABASE_PASSWORD: $SsmParam(&#39;/my-app/production/database-password&#39;),\n  ROTATING_API_KEY: $Secret(&#39;rotating-api-key&#39;)\n}\n</code></pre>",
+        "shortDescription": "<p> Sensitive environment variables fetched by the container runtime.</p>\n<p>Values must be exact <code>$SsmParam(...)</code> or <code>$Secret(...)</code> directives. Prefer a SecureString SSM parameter for\nsecrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features\nare useful.</p>\n<p><strong>Example (TypeScript):</strong></p>\n<pre><code class=\"language-ts\">import { JsBundleImagePackaging, WebService, defineConfig } from &#39;stacktape&#39;;\n\nexport default defineConfig(() =&gt; {\n  const api = new WebService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: &#39;src/server.ts&#39; }),\n    resources: { cpu: 0.25, memory: 512 },\n    secrets: {\n      DATABASE_PASSWORD: $SsmParam(&#39;/my-app/production/database-password&#39;),\n      ROTATING_API_KEY: $Secret(&#39;rotating-api-key&#39;)\n    }\n  });\n\n  return { resources: { api } };\n});\n</code></pre>",
         "longDescription": "",
         "typeInfo": {
           "kind": "array",
@@ -45656,7 +45818,7 @@
       "requiredCount": 2,
       "optionalCount": 16
     },
-    "typeDeclaration": "import type { BuildpackCwImagePackaging, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, DockerfileCwImagePackaging, EnvironmentVar, JsBundleCwImagePackaging, PrebuiltCwImagePackaging, PrivateServiceLoadBalancing, SecretEnvironmentVar, ServiceHelperContainer, StpIamRoleStatement, TracingOptions } from 'stacktape';\n\n// [!code focus-start]\ntype PrivateServiceProps = {\n  /** Configures the container image for the service. */\n  packaging: PrivateServicePackaging;\n  /** CPU, memory, and compute engine for the container. */\n  resources: ContainerWorkloadResourcesConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Allow SSH-like access to running containers for debugging. */\n  enableRemoteSessions?: boolean;\n  /** Environment variables injected into the container at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Health check that auto-replaces unhealthy containers. */\n  internalHealthCheck?: ContainerHealthCheck;\n  /** How traffic reaches this service from other resources. */\n  loadBalancing?: PrivateServiceLoadBalancing;\n  /** Logging configuration. */\n  logging?: ContainerWorkloadContainerLogging;\n  /** Port this service listens on. Injected as the `PORT` env var. */\n  port?: number;\n  /** Protocol for metrics collection. Set to enable protocol-specific metrics (e.g., HTTP 5xx tracking). */\n  protocol?: \"grpc\" | \"http\" | \"http2\";\n  /** Auto-scaling: add/remove container instances based on demand. */\n  scaling?: ContainerWorkloadScaling;\n  /** Sensitive environment variables fetched by the container runtime.\n\nValues must be exact `$SsmParam(...)` or `$Secret(...)` directives. Prefer a SecureString SSM parameter for\nsecrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features\nare useful.\n\n**Example (TypeScript):**\nsecrets: {\n  DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),\n  ROTATING_API_KEY: $Secret('rotating-api-key')\n} */\n  secrets?: Array<SecretEnvironmentVar>;\n  /** Helper containers that run alongside the main container. */\n  sideContainers?: Array<ServiceHelperContainer>;\n  /** Seconds to wait for graceful shutdown before force-killing the container. */\n  stopTimeout?: number;\n  /** Distributed tracing for this service. */\n  tracing?: PrivateServiceTracing;\n  /** Deploy in private subnets with a static outbound IP via NAT Gateway. */\n  usePrivateSubnetsWithNAT?: boolean;\n  /** Persistent EFS volumes shared across containers and restarts. */\n  volumeMounts?: Array<ContainerEfsMount>;\n};\n\n/** Union choices used by the properties above. */\ntype PrivateServicePackaging =\n  | JsBundleCwImagePackaging\n  | PrebuiltCwImagePackaging\n  | DockerfileCwImagePackaging\n  | BuildpackCwImagePackaging;\n\ntype PrivateServiceTracing =\n  | TracingOptions\n  | \"option-2\";\n// [!code focus-end]"
+    "typeDeclaration": "import type { BuildpackCwImagePackaging, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, DockerfileCwImagePackaging, EnvironmentVar, JsBundleCwImagePackaging, PrebuiltCwImagePackaging, PrivateServiceLoadBalancing, SecretEnvironmentVar, ServiceHelperContainer, StpIamRoleStatement, TracingOptions } from 'stacktape';\n\n// [!code focus-start]\ntype PrivateServiceProps = {\n  /** Configures the container image for the service. */\n  packaging: PrivateServicePackaging;\n  /** CPU, memory, and compute engine for the container. */\n  resources: ContainerWorkloadResourcesConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Allow SSH-like access to running containers for debugging. */\n  enableRemoteSessions?: boolean;\n  /** Environment variables injected into the container at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Health check that auto-replaces unhealthy containers. */\n  internalHealthCheck?: ContainerHealthCheck;\n  /** How traffic reaches this service from other resources. */\n  loadBalancing?: PrivateServiceLoadBalancing;\n  /** Logging configuration. */\n  logging?: ContainerWorkloadContainerLogging;\n  /** Port this service listens on. Injected as the `PORT` env var. */\n  port?: number;\n  /** Protocol for metrics collection. Set to enable protocol-specific metrics (e.g., HTTP 5xx tracking). */\n  protocol?: \"grpc\" | \"http\" | \"http2\";\n  /** Auto-scaling: add/remove container instances based on demand. */\n  scaling?: ContainerWorkloadScaling;\n  /** Sensitive environment variables fetched by the container runtime.\n\nValues must be exact `$SsmParam(...)` or `$Secret(...)` directives. Prefer a SecureString SSM parameter for\nsecrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features\nare useful.\n\n**Example (TypeScript):**\nimport { JsBundleImagePackaging, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new WebService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),\n    resources: { cpu: 0.25, memory: 512 },\n    secrets: {\n      DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),\n      ROTATING_API_KEY: $Secret('rotating-api-key')\n    }\n  });\n\n  return { resources: { api } };\n}); */\n  secrets?: Array<SecretEnvironmentVar>;\n  /** Helper containers that run alongside the main container. */\n  sideContainers?: Array<ServiceHelperContainer>;\n  /** Seconds to wait for graceful shutdown before force-killing the container. */\n  stopTimeout?: number;\n  /** Distributed tracing for this service. */\n  tracing?: PrivateServiceTracing;\n  /** Deploy in private subnets with a static outbound IP via NAT Gateway. */\n  usePrivateSubnetsWithNAT?: boolean;\n  /** Persistent EFS volumes shared across containers and restarts. */\n  volumeMounts?: Array<ContainerEfsMount>;\n};\n\n/** Union choices used by the properties above. */\ntype PrivateServicePackaging =\n  | JsBundleCwImagePackaging\n  | PrebuiltCwImagePackaging\n  | DockerfileCwImagePackaging\n  | BuildpackCwImagePackaging;\n\ntype PrivateServiceTracing =\n  | TracingOptions\n  | \"option-2\";\n// [!code focus-end]"
   },
   "PropertylessCloudFormationResource<string>": {
     "definitionName": "PropertylessCloudFormationResource<string>",
@@ -51048,6 +51210,33 @@
                     {
                       "lang": "typescript",
                       "code": "import { WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const imageProcessor = new WebService({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/server.ts',\n       // [!code focus-start]\n       customDockerBuildCommands: [\n         'apt-get update && apt-get install -y poppler-utils',\n         'fc-cache -f'\n       ]\n       // [!code focus-end]\n     }\n   },\n   resources: {\n     cpu: 1,\n     memory: 2048\n   }\n });\n return { resources: { imageProcessor } };\n});"
+                    }
+                  ]
+                },
+                {
+                  "name": "runtime",
+                  "required": false,
+                  "shortDescription": "<p> The JavaScript runtime the container runs the bundle with: <code>node</code> (default), <code>bun</code> or <code>deno</code>.</p>",
+                  "longDescription": "<p>With <code>bun</code>, the bundle targets Bun and runs on the official <code>oven/bun:1</code> image; with <code>deno</code>, the bundle runs on\nthe pinned <code>denoland/deno</code> 2.9 image. Dependencies that cannot be bundled are installed with the same runtime&#39;s package manager.\n<code>nodeVersion</code> applies only to <code>node</code>.</p>",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ],
+                    "enumValues": [
+                      "bun",
+                      "deno",
+                      "node"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\n  apiService:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/server.ts\n          # [!code focus-start]\n          runtime: bun\n          # [!code focus-end]\n      resources:\n        cpu: 0.5\n        memory: 1024"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { JsBundleImagePackaging, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiService = new WebService({\n    packaging: new JsBundleImagePackaging({\n      entryfilePath: 'src/server.ts',\n      // [!code focus-start]\n      runtime: 'bun'\n      // [!code focus-end]\n    }),\n    resources: {\n      cpu: 0.5,\n      memory: 1024\n    }\n  });\n  return { resources: { apiService } };\n});"
                     }
                   ]
                 },
@@ -60688,6 +60877,33 @@
                   ]
                 },
                 {
+                  "name": "runtime",
+                  "required": false,
+                  "shortDescription": "<p> The JavaScript runtime the container runs the bundle with: <code>node</code> (default), <code>bun</code> or <code>deno</code>.</p>",
+                  "longDescription": "<p>With <code>bun</code>, the bundle targets Bun and runs on the official <code>oven/bun:1</code> image; with <code>deno</code>, the bundle runs on\nthe pinned <code>denoland/deno</code> 2.9 image. Dependencies that cannot be bundled are installed with the same runtime&#39;s package manager.\n<code>nodeVersion</code> applies only to <code>node</code>.</p>",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ],
+                    "enumValues": [
+                      "bun",
+                      "deno",
+                      "node"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\n  apiService:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/server.ts\n          # [!code focus-start]\n          runtime: bun\n          # [!code focus-end]\n      resources:\n        cpu: 0.5\n        memory: 1024"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { JsBundleImagePackaging, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiService = new WebService({\n    packaging: new JsBundleImagePackaging({\n      entryfilePath: 'src/server.ts',\n      // [!code focus-start]\n      runtime: 'bun'\n      // [!code focus-end]\n    }),\n    resources: {\n      cpu: 0.5,\n      memory: 1024\n    }\n  });\n  return { resources: { apiService } };\n});"
+                    }
+                  ]
+                },
+                {
                   "name": "entryfilePath",
                   "required": true,
                   "shortDescription": "<p> Path to your app&#39;s entry point, relative to the Stacktape config file.</p>",
@@ -63227,7 +63443,7 @@
       {
         "name": "secrets",
         "required": false,
-        "shortDescription": "<p> Sensitive environment variables fetched by the container runtime.</p>\n<p>Values must be exact <code>$SsmParam(...)</code> or <code>$Secret(...)</code> directives. Prefer a SecureString SSM parameter for\nsecrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features\nare useful.</p>\n<p><strong>Example (TypeScript):</strong></p>\n<pre><code class=\"language-ts\">secrets: {\n  DATABASE_PASSWORD: $SsmParam(&#39;/my-app/production/database-password&#39;),\n  ROTATING_API_KEY: $Secret(&#39;rotating-api-key&#39;)\n}\n</code></pre>",
+        "shortDescription": "<p> Sensitive environment variables fetched by the container runtime.</p>\n<p>Values must be exact <code>$SsmParam(...)</code> or <code>$Secret(...)</code> directives. Prefer a SecureString SSM parameter for\nsecrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features\nare useful.</p>\n<p><strong>Example (TypeScript):</strong></p>\n<pre><code class=\"language-ts\">import { JsBundleImagePackaging, WebService, defineConfig } from &#39;stacktape&#39;;\n\nexport default defineConfig(() =&gt; {\n  const api = new WebService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: &#39;src/server.ts&#39; }),\n    resources: { cpu: 0.25, memory: 512 },\n    secrets: {\n      DATABASE_PASSWORD: $SsmParam(&#39;/my-app/production/database-password&#39;),\n      ROTATING_API_KEY: $Secret(&#39;rotating-api-key&#39;)\n    }\n  });\n\n  return { resources: { api } };\n});\n</code></pre>",
         "longDescription": "",
         "typeInfo": {
           "kind": "array",
@@ -63423,7 +63639,7 @@
       "requiredCount": 2,
       "optionalCount": 21
     },
-    "typeDeclaration": "import type { ApplicationLoadBalancerAlarm, BuildpackCwImagePackaging, CdnConfiguration, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadDeploymentConfig, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, DockerfileCwImagePackaging, DomainConfiguration, EnvironmentVar, HttpApiCorsConfig, HttpApiGatewayAlarm, JsBundleCwImagePackaging, PrebuiltCwImagePackaging, SecretEnvironmentVar, ServiceHelperContainer, StpIamRoleStatement, TracingOptions, WebServiceAlbLoadBalancing, WebServiceHttpApiGatewayLoadBalancing, WebServiceNlbLoadBalancing } from 'stacktape';\n\n// [!code focus-start]\ntype WebServiceProps = {\n  /** Configures the container image for the service. */\n  packaging: WebServicePackaging;\n  /** CPU, memory, and compute engine for the container. */\n  resources: ContainerWorkloadResourcesConfig;\n  /** Alarms for this service (merged with global alarms from the Stacktape Console). */\n  alarms?: Array<WebServiceAlarms>;\n  /** Put a CDN (CloudFront) in front of this service for caching and lower latency worldwide. */\n  cdn?: CdnConfiguration;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** CORS settings. Overrides any CORS headers from your application. */\n  cors?: HttpApiCorsConfig;\n  /** Custom domains (e.g., `api.example.com`). Stacktape auto-creates DNS records and TLS certificates. */\n  customDomains?: Array<DomainConfiguration>;\n  /** Gradual traffic shifting for safe deployments (canary, linear, or all-at-once). */\n  deployment?: ContainerWorkloadDeploymentConfig;\n  /** Global alarm names to exclude from this service. */\n  disabledGlobalAlarms?: Array<string>;\n  /** Allow SSH-like access to running containers for debugging. */\n  enableRemoteSessions?: boolean;\n  /** Environment variables injected into the container at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Health check that auto-replaces unhealthy containers. */\n  internalHealthCheck?: ContainerHealthCheck;\n  /** How traffic reaches your containers. Affects pricing, features, and protocol support. */\n  loadBalancing?: WebServiceLoadBalancing;\n  /** Logging configuration. */\n  logging?: ContainerWorkloadContainerLogging;\n  /** Auto-scaling: add/remove container instances based on demand. */\n  scaling?: ContainerWorkloadScaling;\n  /** Sensitive environment variables fetched by the container runtime.\n\nValues must be exact `$SsmParam(...)` or `$Secret(...)` directives. Prefer a SecureString SSM parameter for\nsecrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features\nare useful.\n\n**Example (TypeScript):**\nsecrets: {\n  DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),\n  ROTATING_API_KEY: $Secret('rotating-api-key')\n} */\n  secrets?: Array<SecretEnvironmentVar>;\n  /** Helper containers that run alongside the main container. */\n  sideContainers?: Array<ServiceHelperContainer>;\n  /** Seconds to wait for graceful shutdown before force-killing the container. */\n  stopTimeout?: number;\n  /** Distributed tracing for this service. */\n  tracing?: WebServiceTracing;\n  /** Name of a `web-app-firewall` resource to protect this service from common web exploits. */\n  useFirewall?: string;\n  /** Deploy in private subnets with a static outbound IP via NAT Gateway. */\n  usePrivateSubnetsWithNAT?: boolean;\n  /** Persistent EFS volumes shared across containers and restarts. */\n  volumeMounts?: Array<ContainerEfsMount>;\n};\n\n/** Union choices used by the properties above. */\ntype WebServicePackaging =\n  | JsBundleCwImagePackaging\n  | PrebuiltCwImagePackaging\n  | DockerfileCwImagePackaging\n  | BuildpackCwImagePackaging;\n\ntype WebServiceAlarms =\n  | ApplicationLoadBalancerAlarm\n  | HttpApiGatewayAlarm;\n\ntype WebServiceLoadBalancing =\n  | WebServiceHttpApiGatewayLoadBalancing\n  | WebServiceAlbLoadBalancing\n  | WebServiceNlbLoadBalancing;\n\ntype WebServiceTracing =\n  | TracingOptions\n  | \"option-2\";\n// [!code focus-end]"
+    "typeDeclaration": "import type { ApplicationLoadBalancerAlarm, BuildpackCwImagePackaging, CdnConfiguration, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadDeploymentConfig, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, DockerfileCwImagePackaging, DomainConfiguration, EnvironmentVar, HttpApiCorsConfig, HttpApiGatewayAlarm, JsBundleCwImagePackaging, PrebuiltCwImagePackaging, SecretEnvironmentVar, ServiceHelperContainer, StpIamRoleStatement, TracingOptions, WebServiceAlbLoadBalancing, WebServiceHttpApiGatewayLoadBalancing, WebServiceNlbLoadBalancing } from 'stacktape';\n\n// [!code focus-start]\ntype WebServiceProps = {\n  /** Configures the container image for the service. */\n  packaging: WebServicePackaging;\n  /** CPU, memory, and compute engine for the container. */\n  resources: ContainerWorkloadResourcesConfig;\n  /** Alarms for this service (merged with global alarms from the Stacktape Console). */\n  alarms?: Array<WebServiceAlarms>;\n  /** Put a CDN (CloudFront) in front of this service for caching and lower latency worldwide. */\n  cdn?: CdnConfiguration;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** CORS settings. Overrides any CORS headers from your application. */\n  cors?: HttpApiCorsConfig;\n  /** Custom domains (e.g., `api.example.com`). Stacktape auto-creates DNS records and TLS certificates. */\n  customDomains?: Array<DomainConfiguration>;\n  /** Gradual traffic shifting for safe deployments (canary, linear, or all-at-once). */\n  deployment?: ContainerWorkloadDeploymentConfig;\n  /** Global alarm names to exclude from this service. */\n  disabledGlobalAlarms?: Array<string>;\n  /** Allow SSH-like access to running containers for debugging. */\n  enableRemoteSessions?: boolean;\n  /** Environment variables injected into the container at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Health check that auto-replaces unhealthy containers. */\n  internalHealthCheck?: ContainerHealthCheck;\n  /** How traffic reaches your containers. Affects pricing, features, and protocol support. */\n  loadBalancing?: WebServiceLoadBalancing;\n  /** Logging configuration. */\n  logging?: ContainerWorkloadContainerLogging;\n  /** Auto-scaling: add/remove container instances based on demand. */\n  scaling?: ContainerWorkloadScaling;\n  /** Sensitive environment variables fetched by the container runtime.\n\nValues must be exact `$SsmParam(...)` or `$Secret(...)` directives. Prefer a SecureString SSM parameter for\nsecrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features\nare useful.\n\n**Example (TypeScript):**\nimport { JsBundleImagePackaging, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new WebService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),\n    resources: { cpu: 0.25, memory: 512 },\n    secrets: {\n      DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),\n      ROTATING_API_KEY: $Secret('rotating-api-key')\n    }\n  });\n\n  return { resources: { api } };\n}); */\n  secrets?: Array<SecretEnvironmentVar>;\n  /** Helper containers that run alongside the main container. */\n  sideContainers?: Array<ServiceHelperContainer>;\n  /** Seconds to wait for graceful shutdown before force-killing the container. */\n  stopTimeout?: number;\n  /** Distributed tracing for this service. */\n  tracing?: WebServiceTracing;\n  /** Name of a `web-app-firewall` resource to protect this service from common web exploits. */\n  useFirewall?: string;\n  /** Deploy in private subnets with a static outbound IP via NAT Gateway. */\n  usePrivateSubnetsWithNAT?: boolean;\n  /** Persistent EFS volumes shared across containers and restarts. */\n  volumeMounts?: Array<ContainerEfsMount>;\n};\n\n/** Union choices used by the properties above. */\ntype WebServicePackaging =\n  | JsBundleCwImagePackaging\n  | PrebuiltCwImagePackaging\n  | DockerfileCwImagePackaging\n  | BuildpackCwImagePackaging;\n\ntype WebServiceAlarms =\n  | ApplicationLoadBalancerAlarm\n  | HttpApiGatewayAlarm;\n\ntype WebServiceLoadBalancing =\n  | WebServiceHttpApiGatewayLoadBalancing\n  | WebServiceAlbLoadBalancing\n  | WebServiceNlbLoadBalancing;\n\ntype WebServiceTracing =\n  | TracingOptions\n  | \"option-2\";\n// [!code focus-end]"
   },
   "WebSocketApiAccessLogsConfig": {
     "definitionName": "WebSocketApiAccessLogsConfig",
@@ -64181,6 +64397,33 @@
                     {
                       "lang": "typescript",
                       "code": "import { WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const imageProcessor = new WebService({\n   packaging: {\n     type: 'js-bundle',\n     properties: {\n       entryfilePath: 'src/server.ts',\n       // [!code focus-start]\n       customDockerBuildCommands: [\n         'apt-get update && apt-get install -y poppler-utils',\n         'fc-cache -f'\n       ]\n       // [!code focus-end]\n     }\n   },\n   resources: {\n     cpu: 1,\n     memory: 2048\n   }\n });\n return { resources: { imageProcessor } };\n});"
+                    }
+                  ]
+                },
+                {
+                  "name": "runtime",
+                  "required": false,
+                  "shortDescription": "<p> The JavaScript runtime the container runs the bundle with: <code>node</code> (default), <code>bun</code> or <code>deno</code>.</p>",
+                  "longDescription": "<p>With <code>bun</code>, the bundle targets Bun and runs on the official <code>oven/bun:1</code> image; with <code>deno</code>, the bundle runs on\nthe pinned <code>denoland/deno</code> 2.9 image. Dependencies that cannot be bundled are installed with the same runtime&#39;s package manager.\n<code>nodeVersion</code> applies only to <code>node</code>.</p>",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "string"
+                    ],
+                    "enumValues": [
+                      "bun",
+                      "deno",
+                      "node"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "resources:\n  apiService:\n    type: web-service\n    properties:\n      packaging:\n        type: js-bundle\n        properties:\n          entryfilePath: src/server.ts\n          # [!code focus-start]\n          runtime: bun\n          # [!code focus-end]\n      resources:\n        cpu: 0.5\n        memory: 1024"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { JsBundleImagePackaging, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const apiService = new WebService({\n    packaging: new JsBundleImagePackaging({\n      entryfilePath: 'src/server.ts',\n      // [!code focus-start]\n      runtime: 'bun'\n      // [!code focus-end]\n    }),\n    resources: {\n      cpu: 0.5,\n      memory: 1024\n    }\n  });\n  return { resources: { apiService } };\n});"
                     }
                   ]
                 },
@@ -65145,7 +65388,7 @@
       {
         "name": "secrets",
         "required": false,
-        "shortDescription": "<p> Sensitive environment variables fetched by the container runtime.</p>\n<p>Values must be exact <code>$SsmParam(...)</code> or <code>$Secret(...)</code> directives. Prefer a SecureString SSM parameter for\nsecrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features\nare useful.</p>\n<p><strong>Example (TypeScript):</strong></p>\n<pre><code class=\"language-ts\">secrets: {\n  DATABASE_PASSWORD: $SsmParam(&#39;/my-app/production/database-password&#39;),\n  ROTATING_API_KEY: $Secret(&#39;rotating-api-key&#39;)\n}\n</code></pre>",
+        "shortDescription": "<p> Sensitive environment variables fetched by the container runtime.</p>\n<p>Values must be exact <code>$SsmParam(...)</code> or <code>$Secret(...)</code> directives. Prefer a SecureString SSM parameter for\nsecrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features\nare useful.</p>\n<p><strong>Example (TypeScript):</strong></p>\n<pre><code class=\"language-ts\">import { JsBundleImagePackaging, WebService, defineConfig } from &#39;stacktape&#39;;\n\nexport default defineConfig(() =&gt; {\n  const api = new WebService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: &#39;src/server.ts&#39; }),\n    resources: { cpu: 0.25, memory: 512 },\n    secrets: {\n      DATABASE_PASSWORD: $SsmParam(&#39;/my-app/production/database-password&#39;),\n      ROTATING_API_KEY: $Secret(&#39;rotating-api-key&#39;)\n    }\n  });\n\n  return { resources: { api } };\n});\n</code></pre>",
         "longDescription": "",
         "typeInfo": {
           "kind": "array",
@@ -65319,6 +65562,6 @@
       "requiredCount": 2,
       "optionalCount": 13
     },
-    "typeDeclaration": "import type { BuildpackCwImagePackaging, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, DockerfileCwImagePackaging, EnvironmentVar, JsBundleCwImagePackaging, PrebuiltCwImagePackaging, SecretEnvironmentVar, ServiceHelperContainer, StpIamRoleStatement, TracingOptions } from 'stacktape';\n\n// [!code focus-start]\ntype WorkerServiceProps = {\n  /** Configures the container image for the service. */\n  packaging: WorkerServicePackaging;\n  /** CPU, memory, and compute engine for the container. */\n  resources: ContainerWorkloadResourcesConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Allow SSH-like access to running containers for debugging. */\n  enableRemoteSessions?: boolean;\n  /** Environment variables injected into the container at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Health check that auto-replaces unhealthy containers. */\n  internalHealthCheck?: ContainerHealthCheck;\n  /** Logging configuration. */\n  logging?: ContainerWorkloadContainerLogging;\n  /** Auto-scaling: add/remove container instances based on demand. */\n  scaling?: ContainerWorkloadScaling;\n  /** Sensitive environment variables fetched by the container runtime.\n\nValues must be exact `$SsmParam(...)` or `$Secret(...)` directives. Prefer a SecureString SSM parameter for\nsecrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features\nare useful.\n\n**Example (TypeScript):**\nsecrets: {\n  DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),\n  ROTATING_API_KEY: $Secret('rotating-api-key')\n} */\n  secrets?: Array<SecretEnvironmentVar>;\n  /** Helper containers that run alongside the main container. */\n  sideContainers?: Array<ServiceHelperContainer>;\n  /** Seconds to wait for graceful shutdown before force-killing the container. */\n  stopTimeout?: number;\n  /** Distributed tracing for this service. */\n  tracing?: WorkerServiceTracing;\n  /** Deploy in private subnets with a static outbound IP via NAT Gateway. */\n  usePrivateSubnetsWithNAT?: boolean;\n  /** Persistent EFS volumes shared across containers and restarts. */\n  volumeMounts?: Array<ContainerEfsMount>;\n};\n\n/** Union choices used by the properties above. */\ntype WorkerServicePackaging =\n  | JsBundleCwImagePackaging\n  | PrebuiltCwImagePackaging\n  | DockerfileCwImagePackaging\n  | BuildpackCwImagePackaging;\n\ntype WorkerServiceTracing =\n  | TracingOptions\n  | \"option-2\";\n// [!code focus-end]"
+    "typeDeclaration": "import type { BuildpackCwImagePackaging, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, DockerfileCwImagePackaging, EnvironmentVar, JsBundleCwImagePackaging, PrebuiltCwImagePackaging, SecretEnvironmentVar, ServiceHelperContainer, StpIamRoleStatement, TracingOptions } from 'stacktape';\n\n// [!code focus-start]\ntype WorkerServiceProps = {\n  /** Configures the container image for the service. */\n  packaging: WorkerServicePackaging;\n  /** CPU, memory, and compute engine for the container. */\n  resources: ContainerWorkloadResourcesConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Allow SSH-like access to running containers for debugging. */\n  enableRemoteSessions?: boolean;\n  /** Environment variables injected into the container at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Health check that auto-replaces unhealthy containers. */\n  internalHealthCheck?: ContainerHealthCheck;\n  /** Logging configuration. */\n  logging?: ContainerWorkloadContainerLogging;\n  /** Auto-scaling: add/remove container instances based on demand. */\n  scaling?: ContainerWorkloadScaling;\n  /** Sensitive environment variables fetched by the container runtime.\n\nValues must be exact `$SsmParam(...)` or `$Secret(...)` directives. Prefer a SecureString SSM parameter for\nsecrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features\nare useful.\n\n**Example (TypeScript):**\nimport { JsBundleImagePackaging, WebService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new WebService({\n    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),\n    resources: { cpu: 0.25, memory: 512 },\n    secrets: {\n      DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),\n      ROTATING_API_KEY: $Secret('rotating-api-key')\n    }\n  });\n\n  return { resources: { api } };\n}); */\n  secrets?: Array<SecretEnvironmentVar>;\n  /** Helper containers that run alongside the main container. */\n  sideContainers?: Array<ServiceHelperContainer>;\n  /** Seconds to wait for graceful shutdown before force-killing the container. */\n  stopTimeout?: number;\n  /** Distributed tracing for this service. */\n  tracing?: WorkerServiceTracing;\n  /** Deploy in private subnets with a static outbound IP via NAT Gateway. */\n  usePrivateSubnetsWithNAT?: boolean;\n  /** Persistent EFS volumes shared across containers and restarts. */\n  volumeMounts?: Array<ContainerEfsMount>;\n};\n\n/** Union choices used by the properties above. */\ntype WorkerServicePackaging =\n  | JsBundleCwImagePackaging\n  | PrebuiltCwImagePackaging\n  | DockerfileCwImagePackaging\n  | BuildpackCwImagePackaging;\n\ntype WorkerServiceTracing =\n  | TracingOptions\n  | \"option-2\";\n// [!code focus-end]"
   }
 }

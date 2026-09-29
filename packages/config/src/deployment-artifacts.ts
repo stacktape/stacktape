@@ -1052,7 +1052,60 @@ export interface JsBundleBjImagePackagingProps extends JsBundleSharedProps {
   * ```
    */
   customDockerBuildCommands?: string[];
+  /**
+   * #### The JavaScript runtime the container runs the bundle with: `node` (default), `bun` or `deno`.
+   *
+   * ---
+   *
+   * With `bun`, the bundle targets Bun and runs on the official `oven/bun:1` image; with `deno`, the bundle runs on
+   * the pinned `denoland/deno` 2.9 image. Dependencies that cannot be bundled are installed with the same runtime's package manager.
+   * `nodeVersion` applies only to `node`.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   apiService:
+   *     type: web-service
+   *     properties:
+   *       packaging:
+   *         type: js-bundle
+   *         properties:
+   *           entryfilePath: src/server.ts
+   *           # stp-focus
+   *           runtime: bun
+   *           # stp-end-focus
+   *       resources:
+   *         cpu: 0.5
+   *         memory: 1024
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { JsBundleImagePackaging, WebService, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const apiService = new WebService({
+   *     packaging: new JsBundleImagePackaging({
+   *       entryfilePath: 'src/server.ts',
+   *       // stp-focus
+   *       runtime: 'bun'
+   *       // stp-end-focus
+   *     }),
+   *     resources: {
+   *       cpu: 0.5,
+   *       memory: 1024
+   *     }
+   *   });
+   *   return { resources: { apiService } };
+   * });
+   * ```
+   */
+  runtime?: JsBundleImageRuntime;
 }
+
+export type JsBundleImageRuntime = 'node' | 'bun' | 'deno';
 
 
 /**

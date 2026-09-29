@@ -1,6 +1,101 @@
 import { dirname } from 'node:path';
 import { transformToUnixPath } from '../fs/files';
 import type { SupportedEsPackageManager } from '../runtime-contracts';
+import type { JsBundleImageRuntime } from '@stacktape/config/deployment-artifacts';
+
+/** Deno publishes no major tag; this exact release is bumped deliberately, like the cargo-lambda image. */
+export const DENO_IMAGE_VERSION = '2.9.7';
+
+/**
+ * The official images of the non-Node JavaScript runtimes. Debian based, so native dependencies build against glibc
+ * and the same `tini` install applies. Bun's major tag moves with the runtime's minor version, as Node's does.
+ */
+export const JS_RUNTIME_IMAGES: Record<Exclude<JsBundleImageRuntime, 'node'>, { build: string; run: string }> = {
+  bun: { build: 'docker.io/oven/bun:1', run: 'docker.io/oven/bun:1-slim' },
+  deno: {
+    build: `docker.io/denoland/deno:debian-${DENO_IMAGE_VERSION}`,
+    run: `docker.io/denoland/deno:debian-${DENO_IMAGE_VERSION}`
+  }
+};
+
+const jsRuntimeCommand = (runtime: JsBundleImageRuntime, entry: string) =>
+  runtime === 'bun'
+    ? `CMD ["bun", "${entry}"]`
+    : runtime === 'deno'
+      ? `CMD ["deno", "run", "--allow-all", "${entry}"]`
+      : `CMD ["node", "--max-old-space-size=16384", "${entry}"]`;
+
+/**
+ * A Bun or Deno image. Both are Debian based: dependencies that cannot be bundled are installed with the runtime's
+ * own package manager in a build stage and copied into the slim runtime stage beside the bundle.
+ */
+const buildNonNodeEsDockerfile = ({
+  runtime,
+  dependencies,
+  customDockerBuildCommands,
+  entry,
+  devMode
+}: {
+  runtime: Exclude<JsBundleImageRuntime, 'node'>;
+  dependencies: { name: string; version: string }[];
+  customDockerBuildCommands?: string[] | undefined;
+  entry: string;
+  devMode: boolean;
+}) => {
+  const images = JS_RUNTIME_IMAGES[runtime];
+  const installDepsCommand = getInstallDependenciesCommand({ dependencies, packageManager: runtime });
+  const installTini = `RUN apt-get update && apt-get install -y --no-install-recommends tini curl openssl \\
+    && rm -rf /var/lib/apt/lists/*`;
+  const customCommands = (customDockerBuildCommands || []).map((command) => `RUN ${command}`).join('\n');
+  if (devMode) {
+    // Dev mode bind-mounts the bundle at /app/dist; dependencies live in /app so resolution walks up into them.
+    return `FROM ${images.build}
+
+${installTini}
+ENTRYPOINT ["tini", "--"]
+
+WORKDIR /app
+${installDepsCommand}
+
+${jsRuntimeCommand(runtime, 'dist/index.js')}`;
+  }
+  if (!dependencies.length) {
+    return `FROM ${images.run}
+
+# correct process signal handling
+${installTini}
+ENTRYPOINT ["tini", "--"]
+
+${customCommands}
+
+COPY . /app
+WORKDIR /app
+
+ENV NODE_ENV production
+
+${jsRuntimeCommand(runtime, entry)}`;
+  }
+  return `FROM ${images.build} AS deps
+
+WORKDIR /install-dir
+COPY . /install-dir
+${installDepsCommand}
+
+FROM ${images.run}
+
+# correct process signal handling
+${installTini}
+ENTRYPOINT ["tini", "--"]
+
+${customCommands}
+
+COPY --from=deps /install-dir/ /app
+WORKDIR /app
+
+ENV NODE_ENV production
+
+${jsRuntimeCommand(runtime, entry)}`;
+};
 import { getInstallDependenciesCommand, getInstallPackageManagerCommand } from '../es/package-manager-install';
 
 const quotePosixShellArgument = (value: string): string => `'${value.replaceAll("'", `'"'"'`)}'`;
@@ -15,13 +110,18 @@ export const buildEsDevDockerfile = ({
   dependencies,
   packageManager,
   requiresGlibcBinaries,
-  nodeVersion
+  nodeVersion,
+  runtime = 'node'
 }: {
   dependencies: { name: string; version: string }[];
   requiresGlibcBinaries: boolean;
   packageManager: SupportedEsPackageManager;
   nodeVersion: number;
+  runtime?: JsBundleImageRuntime | undefined;
 }) => {
+  if (runtime !== 'node') {
+    return buildNonNodeEsDockerfile({ runtime, dependencies, entry: 'dist/index.js', devMode: true });
+  }
   const installDepsCommand = getInstallDependenciesCommand({
     dependencies,
     packageManager
@@ -81,13 +181,16 @@ export const buildEsDockerfile = ({
   requiresGlibcBinaries,
   customDockerBuildCommands,
   nodeVersion,
-  installBeforeSource
+  installBeforeSource,
+  runtime = 'node'
 }: {
   dependencies: { name: string; version: string }[];
   requiresGlibcBinaries: boolean;
   packageManager: SupportedEsPackageManager;
   customDockerBuildCommands?: string[] | undefined;
   nodeVersion: number;
+  /** The image's JavaScript runtime; `bun` and `deno` use their official images and package managers. */
+  runtime?: JsBundleImageRuntime | undefined;
   /**
    * npm, pnpm and Bun only: install the dependencies without the bundle's source, so a source-only change reuses the
    * install. When the bundle has its generated `package.json` (`manifest`), the install starts from it as it would
@@ -96,6 +199,15 @@ export const buildEsDockerfile = ({
    */
   installBeforeSource?: { manifest: boolean } | undefined;
 }) => {
+  if (runtime !== 'node') {
+    return buildNonNodeEsDockerfile({
+      runtime,
+      dependencies,
+      customDockerBuildCommands,
+      entry: 'index.js',
+      devMode: false
+    });
+  }
   const installDepsCommand = getInstallDependenciesCommand({
     dependencies,
     packageManager

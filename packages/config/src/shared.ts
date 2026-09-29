@@ -3909,10 +3909,22 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * secrets: {
-   *   DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),
-   *   ROTATING_API_KEY: $Secret('rotating-api-key')
-   * }
+   * import { JsBundleImagePackaging, WebService, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const api = new WebService({
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
+   *     resources: { cpu: 0.25, memory: 512 },
+   *     // stp-focus
+   *     secrets: {
+   *       DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),
+   *       ROTATING_API_KEY: $Secret('rotating-api-key')
+   *     }
+   *     // stp-end-focus
+   *   });
+   *
+   *   return { resources: { api } };
+   * });
    * ```
    */
   secrets?: SecretEnvironmentVar[];

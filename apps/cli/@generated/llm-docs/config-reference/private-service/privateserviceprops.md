@@ -39,10 +39,20 @@ secrets that do not need automatic rotation; use Secrets Manager when rotation o
 are useful.
 
 **Example (TypeScript):**
-secrets: {
-  DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),
-  ROTATING_API_KEY: $Secret('rotating-api-key')
-} */
+import { JsBundleImagePackaging, WebService, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
+    resources: { cpu: 0.25, memory: 512 },
+    secrets: {
+      DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),
+      ROTATING_API_KEY: $Secret('rotating-api-key')
+    }
+  });
+
+  return { resources: { api } };
+}); */
   secrets?: Array<SecretEnvironmentVar>;
   /** Helper containers that run alongside the main container. */
   sideContainers?: Array<ServiceHelperContainer>;
@@ -76,7 +86,7 @@ type PrivateServiceTracing =
 Configures the container image for the service.
 
 Choices:
-- `js-bundle` (`JsBundleCwImagePackaging`) — Builds a container image from a bundled JavaScript or TypeScript entry file.. Properties: `requiresGlibcBinaries?: boolean`, `customDockerBuildCommands?: Array<string>`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `minify?: boolean`, `minifyIdentifiers?: boolean`, `bundleAwsSdk?: boolean`.
+- `js-bundle` (`JsBundleCwImagePackaging`) — Builds a container image from a bundled JavaScript or TypeScript entry file.. Properties: `requiresGlibcBinaries?: boolean`, `customDockerBuildCommands?: Array<string>`, `runtime?: string: "bun" | "deno" | "node"`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `minify?: boolean`, `minifyIdentifiers?: boolean`, `bundleAwsSdk?: boolean`.
 - `prebuilt-image` (`PrebuiltCwImagePackaging`) — Uses a pre-built container image.. Properties: `repositoryCredentialsSecretArn?: string`, `entryPoint?: Array<string>`, `image: string`, `command?: Array<string>`.
 - `dockerfile` (`DockerfileCwImagePackaging`) — Builds a container image from your own Dockerfile.. Properties: `entryPoint?: Array<string>`, `dockerfilePath?: string`, `buildContextPath: string`, `buildArgs?: Array<DockerBuildArg>`, `command?: Array<string>`.
 - `buildpack` (`BuildpackCwImagePackaging`) — Builds a container image from a project directory without a Dockerfile.. Properties: `sourceDirectoryPath?: string`, `startCommand?: string`, `buildCommand?: string`, `installCommand?: string`, `packages?: unknown`, `aptPackages?: Array<string>`, `buildEnvironment?: Array<EnvironmentVar>`, `railpackConfig?: unknown`.
@@ -744,10 +754,20 @@ secrets that do not need automatic rotation; use Secrets Manager when rotation o
 are useful.
 
 **Example (TypeScript):**
-secrets: {
-  DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),
-  ROTATING_API_KEY: $Secret('rotating-api-key')
-}
+import { JsBundleImagePackaging, WebService, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
+    resources: { cpu: 0.25, memory: 512 },
+    secrets: {
+      DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),
+      ROTATING_API_KEY: $Secret('rotating-api-key')
+    }
+  });
+
+  return { resources: { api } };
+});
 
 ## Property: `sideContainers`
 

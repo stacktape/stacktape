@@ -41,6 +41,8 @@ mappings accurately. Emitting a map would give production stack traces incorrect
   outputSourceMapsTo?: string;
   /** Use glibc instead of musl (Alpine default). Enable if native dependencies require glibc. */
   requiresGlibcBinaries?: boolean;
+  /** The JavaScript runtime the container runs the bundle with: `node` (default), `bun` or `deno`. */
+  runtime?: "bun" | "deno" | "node";
   /** The path to the `tsconfig.json` file. */
   tsConfigPath?: string;
 };
@@ -785,6 +787,54 @@ export default defineConfig(() => {
    }
  });
  return { resources: { imageProcessor } };
+});
+```
+
+## Property: `runtime`
+
+- Required: no
+- Type: `string: "bun" | "deno" | "node"`
+
+The JavaScript runtime the container runs the bundle with: `node` (default), `bun` or `deno`.
+
+With `bun`, the bundle targets Bun and runs on the official `oven/bun:1` image; with `deno`, the bundle runs on
+the pinned `denoland/deno` 2.9 image. Dependencies that cannot be bundled are installed with the same runtime's package manager.
+`nodeVersion` applies only to `node`.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  apiService:
+    type: web-service
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/server.ts
+          runtime: bun
+      resources:
+        cpu: 0.5
+        memory: 1024
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { JsBundleImagePackaging, WebService, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const apiService = new WebService({
+    packaging: new JsBundleImagePackaging({
+      entryfilePath: 'src/server.ts',
+      runtime: 'bun'
+    }),
+    resources: {
+      cpu: 0.5,
+      memory: 1024
+    }
+  });
+  return { resources: { apiService } };
 });
 ```
 

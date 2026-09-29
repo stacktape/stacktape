@@ -691,6 +691,44 @@ try {
   });
   record('js-bundle-node24-glibc-image', esImageOutput);
 
+  for (const runtime of ['bun', 'deno'] as const) {
+    console.log(`Building and executing a synthetic js-bundle image on the ${runtime} runtime...`);
+    const runtimeRoot = join(projectsRoot, `es-image-${runtime}`);
+    // oxlint-disable-next-line no-await-in-loop -- one Docker build at a time keeps the daemon load bounded.
+    await write(
+      join(runtimeRoot, 'src', 'index.ts'),
+      [
+        "import { createHash } from 'node:crypto';",
+        "const digest = createHash('sha256').update('stacktape').digest('hex').slice(0, 8);",
+        'console.log(`es-' + runtime + '-runtime-ok:${digest}`);',
+        ''
+      ].join('\n')
+    );
+    const runtimeImageTag = `stacktape-buildpack-smoke-js-bundle-${runtime}:${runId}`;
+    // oxlint-disable-next-line no-await-in-loop -- one Docker build at a time keeps the daemon load bounded.
+    const runtimeOutput = await buildJsBundleImage({
+      ...common,
+      cwd: runtimeRoot,
+      name: runtimeImageTag,
+      entryfilePath: join(runtimeRoot, 'src', 'index.ts'),
+      distFolderPath: join(artifactsRoot, `es-image-${runtime}`),
+      nodeVersion: 24,
+      outputModuleFormat: 'esm',
+      runtime,
+      buildDockerImage,
+      checkDockerImageExists: async () => false,
+      getDockerImageDetails,
+      installDependencies: async () => undefined,
+      nativeDependencyInstallationRootPath: join(artifactsRoot, `es-native-install-${runtime}`),
+      minify: true,
+      nodeTarget: '24',
+      requiresGlibcBinaries: true
+    });
+    // oxlint-disable-next-line no-await-in-loop -- one Docker build at a time keeps the daemon load bounded.
+    await assertRunOutput({ dockerArgs: [runtimeImageTag], expected: `es-${runtime}-runtime-ok:8fd1032d` });
+    record(`js-bundle-${runtime}-image`, runtimeOutput);
+  }
+
   const railpackBinary = findRailpackBinary();
   if (railpackBinary) {
     console.log(`Using railpack at ${railpackBinary}.`);

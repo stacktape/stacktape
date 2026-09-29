@@ -4725,6 +4725,7 @@
         "outputModuleFormat",
         "outputSourceMapsTo",
         "requiresGlibcBinaries",
+        "runtime",
         "tsConfigPath"
       ],
       "chunks": [
@@ -4778,9 +4779,12 @@
         "config-reference:JsBundleBjImagePackagingProps#property-requiresglibcbinaries",
         "config-reference:JsBundleBjImagePackagingProps#example-1-yaml-16",
         "config-reference:JsBundleBjImagePackagingProps#example-2-typescript-16",
-        "config-reference:JsBundleBjImagePackagingProps#property-tsconfigpath",
+        "config-reference:JsBundleBjImagePackagingProps#property-runtime",
         "config-reference:JsBundleBjImagePackagingProps#example-1-yaml-17",
-        "config-reference:JsBundleBjImagePackagingProps#example-2-typescript-17"
+        "config-reference:JsBundleBjImagePackagingProps#example-2-typescript-17",
+        "config-reference:JsBundleBjImagePackagingProps#property-tsconfigpath",
+        "config-reference:JsBundleBjImagePackagingProps#example-1-yaml-18",
+        "config-reference:JsBundleBjImagePackagingProps#example-2-typescript-18"
       ]
     },
     {
@@ -4833,6 +4837,7 @@
         "outputModuleFormat",
         "outputSourceMapsTo",
         "requiresGlibcBinaries",
+        "runtime",
         "tsConfigPath"
       ],
       "chunks": [
@@ -4886,9 +4891,12 @@
         "config-reference:JsBundleCwImagePackagingProps#property-requiresglibcbinaries",
         "config-reference:JsBundleCwImagePackagingProps#example-1-yaml-16",
         "config-reference:JsBundleCwImagePackagingProps#example-2-typescript-16",
-        "config-reference:JsBundleCwImagePackagingProps#property-tsconfigpath",
+        "config-reference:JsBundleCwImagePackagingProps#property-runtime",
         "config-reference:JsBundleCwImagePackagingProps#example-1-yaml-17",
-        "config-reference:JsBundleCwImagePackagingProps#example-2-typescript-17"
+        "config-reference:JsBundleCwImagePackagingProps#example-2-typescript-17",
+        "config-reference:JsBundleCwImagePackagingProps#property-tsconfigpath",
+        "config-reference:JsBundleCwImagePackagingProps#example-1-yaml-18",
+        "config-reference:JsBundleCwImagePackagingProps#example-2-typescript-18"
       ]
     },
     {
@@ -19224,6 +19232,7 @@
         "page:/packaging/containers/js-bundle#bundling-options",
         "page:/packaging/containers/js-bundle#module-format",
         "page:/packaging/containers/js-bundle#node-js-version",
+        "page:/packaging/containers/js-bundle#bun-and-deno",
         "page:/packaging/containers/js-bundle#typescript-decorator-metadata",
         "page:/packaging/containers/js-bundle#typescript-path-aliases",
         "page:/packaging/containers/js-bundle#native-and-excluded-dependencies",
