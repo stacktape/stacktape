@@ -179,10 +179,11 @@ export const applyStacktapePlanPolicy = ({
   return result;
 };
 
-const describeRailpackFailure = (info: RailpackInfo | undefined) =>
+/** The planner's own diagnostics, with build variable values removed in case a provider echoed one. */
+const describeRailpackFailure = (info: RailpackInfo | undefined, secretValues: string[]) =>
   (info?.logs ?? [])
     .filter((log) => log.Level === 'error' || log.Level === 'warn')
-    .map((log) => log.Msg)
+    .map((log) => secretValues.filter(Boolean).reduce((text, value) => text.split(value).join('[redacted]'), log.Msg))
     .join('\n');
 
 export const buildUsingRailpack = async ({
@@ -250,7 +251,7 @@ export const buildUsingRailpack = async ({
   });
   const info = prepared.info as RailpackInfo | undefined;
   if (!info?.success) {
-    const details = describeRailpackFailure(info);
+    const details = describeRailpackFailure(info, Object.values(buildVariables));
     throw createPackagingError({
       type: 'RAILPACK',
       message: `Railpack could not plan a build for ${sourceDirectoryPath}.${details ? `\n${details}` : ''}`,

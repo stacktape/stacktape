@@ -25,6 +25,7 @@ type LanguageBundleOutput = Omit<CreateBundleOutput, 'distIndexFilePath'>;
  */
 export const buildRustArtifact = async ({
   sourcePath,
+  packageName,
   binaryName,
   distFolderPath,
   cwd,
@@ -40,6 +41,7 @@ export const buildRustArtifact = async ({
   runDocker
 }: StpBuildpackInput & {
   sourcePath: string;
+  packageName: string;
   binaryName: string;
   progressLogger: ProgressLogger;
   rawEntryfilePath: string;
@@ -58,6 +60,7 @@ export const buildRustArtifact = async ({
     additionalDigestInput: objectHash({
       additionalDigestInput,
       architecture,
+      packageName,
       binaryName,
       cargoLambdaImage: CARGO_LAMBDA_IMAGE,
       includeFiles,
@@ -79,7 +82,7 @@ export const buildRustArtifact = async ({
 
   await progressLogger.startEvent({ eventType: 'BUILD_CODE', description: 'Building code' });
   await runDockerArtifactBuild({
-    dockerfileContents: buildRustArtifactDockerfile({ binaryName, architecture }),
+    dockerfileContents: buildRustArtifactDockerfile({ packageName, binaryName, architecture }),
     sourcePath,
     distFolderPath,
     runDocker

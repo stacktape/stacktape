@@ -601,21 +601,25 @@ export const CARGO_LAMBDA_IMAGE = 'ghcr.io/cargo-lambda/cargo-lambda:1.9.2';
  * Cargo's registry and the target directory are BuildKit cache mounts, so a source-only change rebuilds incrementally.
  */
 export const buildRustArtifactDockerfile = ({
+  packageName,
   binaryName,
   architecture
 }: {
-  /** The `[[bin]]` or package built; every workspace member with a `main.rs` would otherwise be built. */
+  /** The crate built, named explicitly so a workspace's `default-members` cannot leave it out. */
+  packageName: string;
+  /** The binary target of that crate; workspace members may reuse binary names. */
   binaryName: string;
   architecture: 'x86_64' | 'arm64';
 }) => {
   const quotedBinary = quotePosixShellArgument(binaryName);
+  const quotedPackage = quotePosixShellArgument(packageName);
   return `FROM ${CARGO_LAMBDA_IMAGE} AS build
 
 WORKDIR /src
 COPY . .
 RUN --mount=type=cache,target=/usr/local/cargo/registry \\
     --mount=type=cache,target=/src/target \\
-    cargo lambda build --release ${architecture === 'arm64' ? '--arm64' : '--x86-64'} --bin ${quotedBinary} --lambda-dir /out \\
+    cargo lambda build --release ${architecture === 'arm64' ? '--arm64' : '--x86-64'} --package ${quotedPackage} --bin ${quotedBinary} --lambda-dir /out \\
     && mkdir -p /artifact && cp /out/${quotedBinary}/bootstrap /artifact/bootstrap
 
 FROM scratch AS artifact

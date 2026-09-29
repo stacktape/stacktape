@@ -122,7 +122,7 @@ const runInContainer = async ({
       RAILPACK_PLANNER_IMAGE,
       ...prepareArguments({ sourceDirectory: containerSource, outputDirectory: '/out', variableNames, configFile })
     ],
-    { env: variables, skipHandleError: true }
+    { env: variables, skipHandleError: true, redactedValues: Object.values(variables) }
   );
 };
 
@@ -149,7 +149,13 @@ const runOnHost = async ({
       variableNames: Object.keys(variables),
       configFile
     }),
-    { cwd: sourceDirectoryPath, env: variables, disableStdout: true, disableStderr: true }
+    {
+      cwd: sourceDirectoryPath,
+      env: variables,
+      disableStdout: true,
+      disableStderr: true,
+      redactedValues: Object.values(variables)
+    }
   );
 };
 

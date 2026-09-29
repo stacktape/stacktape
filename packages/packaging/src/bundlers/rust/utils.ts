@@ -53,7 +53,7 @@ export const resolveRustCrate = ({
 }: {
   cwd: string;
   entryfilePath: string;
-}): { buildRoot: string; crateRoot: string; binaryName: string } => {
+}): { buildRoot: string; crateRoot: string; packageName: string; binaryName: string } => {
   const absoluteCwd = resolve(cwd);
   const absoluteEntryfilePath = isAbsolute(entryfilePath) ? resolve(entryfilePath) : resolve(cwd, entryfilePath);
   const filesystemRoot = parse(absoluteEntryfilePath).root;
@@ -86,9 +86,10 @@ export const resolveRustCrate = ({
   const discovered =
     entryRelativeToCrate.match(/^src\/bin\/([^/]+)\.rs$/)?.[1] ??
     entryRelativeToCrate.match(/^src\/bin\/([^/]+)\/main\.rs$/)?.[1];
-  const binaryName = declaredBinary?.name ?? discovered ?? manifest.package?.name;
-  if (!binaryName) {
+  const packageName = manifest.package?.name;
+  const binaryName = declaredBinary?.name ?? discovered ?? packageName;
+  if (!binaryName || !packageName) {
     throw new Error(`Cargo.toml in ${crateRoot} declares no package name and no [[bin]] for ${entryRelativeToCrate}.`);
   }
-  return { buildRoot: buildRoot ?? crateRoot, crateRoot, binaryName };
+  return { buildRoot: buildRoot ?? crateRoot, crateRoot, packageName, binaryName };
 };

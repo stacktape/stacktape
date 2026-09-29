@@ -799,7 +799,7 @@ export const buildDockerImage = async ({
     contextPath
   ];
 
-  let stderr;
+  let stderr: string | undefined;
   try {
     ({ stderr } = await execDocker(command, {
       env: { ...secretsPassthrough.env, ...buildArgsPassthrough.env },
@@ -810,7 +810,18 @@ export const buildDockerImage = async ({
     handleDockerError(err, `Error building docker image ${imageTag}:\n${err.message}`);
   }
   const imageDetails = await getDockerImageDetails(imageTag);
-  return { ...imageDetails, dockerOutput: stderr, duration: Date.now() - start };
+  // A successful build step can echo a secret too; the captured output travels into packaging details and logs.
+  return {
+    ...imageDetails,
+    dockerOutput: redactValues(stderr, Object.values(secretsPassthrough.env)),
+    duration: Date.now() - start
+  };
+};
+
+/** Replaces every occurrence of each value with a placeholder; empty values are ignored. */
+const redactValues = (text: string | undefined, values: string[]): string | undefined => {
+  if (text === undefined) return undefined;
+  return values.filter(Boolean).reduce((result, value) => result.split(value).join('[redacted]'), text);
 };
 
 export const getDockerBuildxSupportedPlatforms = async (): Promise<string[]> => {

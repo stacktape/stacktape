@@ -29,6 +29,7 @@ describe('resolveRustCrate', () => {
     expect(resolveRustCrate({ cwd: root, entryfilePath: 'src/main.rs' })).toEqual({
       buildRoot: root,
       crateRoot: root,
+      packageName: 'rust-lambda-api',
       binaryName: 'rust-lambda-api'
     });
   });
@@ -47,6 +48,7 @@ describe('resolveRustCrate', () => {
     expect(resolveRustCrate({ cwd: root, entryfilePath: 'crates/api/src/bin/handler.rs' })).toEqual({
       buildRoot: root,
       crateRoot: join(root, 'crates', 'api'),
+      packageName: 'api',
       binaryName: 'handler'
     });
     expect(resolveRustCrate({ cwd: root, entryfilePath: 'crates/api/src/main.rs' }).binaryName).toBe('api');

@@ -29,6 +29,7 @@ export const buildRustLambda = async ({
     ...otherProps,
     lambdaZip: true,
     sourcePath: crate.buildRoot,
+    packageName: crate.packageName,
     binaryName: crate.binaryName,
     progressLogger,
     name,
