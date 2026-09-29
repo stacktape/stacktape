@@ -2,7 +2,3 @@
   config:
     provider: deepseek-official
     model: deepseek-flash
-
-- id: llm-deepseek
-  config:
-    reasoningEffort: max

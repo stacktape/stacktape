@@ -139,6 +139,9 @@ describe('railpack variables', () => {
     expect(() =>
       getRailpackVariables({ buildEnvironment: [{ name: 'RAILPACK_START_CMD', value: 'x' }], createPackagingError })
     ).toThrow('RAILPACK_ prefix');
+    expect(() =>
+      getRailpackVariables({ buildEnvironment: [{ name: 'BUILDKIT_SYNTAX', value: 'x' }], createPackagingError })
+    ).toThrow('BUILDKIT_ prefix');
     expect(() => getRailpackVariables({ packages: { node: '22 lts' }, createPackagingError })).toThrow('whitespace');
     expect(() => getRailpackVariables({ aptPackages: ['lib a'], createPackagingError })).toThrow('whitespace');
   });

@@ -72,9 +72,10 @@ unverified concerns in a separate section. If none survive, say so.
 
 ## Local reviewer commands
 
-Use the strongest listed model and highest supported effort unless the user overrides them. Keep the reviewer read-only:
-repository-borne prompt injection is a measured risk, with code comments and agent-rule files among the strongest
-carriers in RepoGuardBench. [Research](https://github.com/DaoyuanLi2816/RepoGuardBench)
+Use the strongest listed model at its default reasoning effort. Do not raise the effort (no `ultra`, `max` or `xhigh`)
+unless the user names an effort for that run. Keep the reviewer read-only: repository-borne prompt injection is a
+measured risk, with code comments and agent-rule files among the strongest carriers in RepoGuardBench.
+[Research](https://github.com/DaoyuanLi2816/RepoGuardBench)
 
 Model references checked on 2026-09-10. Pin the full model identifier when possible; record both the requested
 identifier and any documented provider routing. A missing model, expired login, or an old CLI is a failed attempt, not
@@ -85,27 +86,29 @@ Put the completed request in a shell variable, `reviewRequest`, then run one com
 repository is worked on from WSL/Linux). For long requests, prefer stdin or a prompt file over an argument.
 
 ```bash
-# Codex: GPT-6 Astra / ultra (requires a current CLI)
-printf '%s' "$reviewRequest" | codex exec -m gpt-6-astra -c 'model_reasoning_effort="ultra"' -s read-only --ephemeral -C "$PWD" -
+# Codex: GPT-6.1 Sol or GPT-6 Astra, default effort (requires a current CLI). Add
+# `-c 'model_reasoning_effort="high"'` only when the user asks for that effort.
+printf '%s' "$reviewRequest" | codex exec -m gpt-6.1-sol -s read-only --ephemeral -C "$PWD" -
 
-# Claude: Fable 5.1 / max
-printf '%s' "$reviewRequest" | claude -p --model claude-fable-5-1 --effort max --permission-mode plan --output-format text --no-session-persistence
+# Claude: Fable 5.1, default effort
+printf '%s' "$reviewRequest" | claude -p --model claude-fable-5-1 --permission-mode plan --output-format text --no-session-persistence
 
-# Grok: 4.6 / xhigh (its highest supported effort); on Linux `--sandbox read-only` needs the bubblewrap package
-grok -p "$reviewRequest" --model grok-4.6 --reasoning-effort xhigh --agent explore --permission-mode plan --sandbox read-only --cwd "$PWD" --output-format plain --no-memory --no-subagents
+# Grok: 4.6, default effort; on Linux `--sandbox read-only` needs the bubblewrap package
+grok -p "$reviewRequest" --model grok-4.6 --agent explore --permission-mode plan --sandbox read-only --cwd "$PWD" --output-format plain --no-memory --no-subagents
 
-# DeepSeek Harness: V4.1 Flash / max (the patch pins deepseek-flash)
+# DeepSeek Harness: V4.1 Flash, default effort (the patch pins deepseek-flash)
 DSH_PERMISSION_MODE=read-only dsh --profile headless --patch .agents/prompts/external-review.dsh.yml "$reviewRequest"
 
-# Z.ai GLM: GLM-5.3 / max
+# Z.ai GLM: GLM-5.3, default effort
 printf '%s' "$reviewRequest" | glm
 ```
 
 Provider references: [Fable 5.1](https://platform.claude.com/docs/en/models/fable-5-1/overview),
 [DeepSeek V4.1 Flash release](https://deepseek.com/news/deepseek-v4-1-flash/). The DeepSeek release introduces
 `deepseek-flash` and documents temporary routing of the older `deepseek-v4-flash` identifier to V4.1 Flash. “Flash 4.1”
-here means DeepSeek, not Gemini. GPT-6 Astra and `ultra` were verified against the installed Codex model catalog; Grok
-4.6 and GLM-5.3 remain the listed local choices. Check provider availability again when updating this file.
+here means DeepSeek, not Gemini. GPT-6.1 Sol and GPT-6 Astra are in the installed Codex model catalog (checked
+2026-09-30); Grok 4.6 and GLM-5.3 remain the listed local choices. Check provider availability again when updating this
+file.
 
 If the user requests independent alternatives rather than a code review, preserve the same method: give every writer the
 original task and a neutral evidence packet, keep first passes independent, then run a separate verification pass.
@@ -118,21 +121,22 @@ Claude's `plan` permission mode can return only a plan and wait for an approval 
 session. For an already authorized prose deliverable, supply the complete evidence packet and disable all tools instead:
 
 ```bash
-printf '%s' "$reviewRequest" | claude -p --model claude-fable-5-1 --effort max \
+printf '%s' "$reviewRequest" | claude -p --model claude-fable-5-1 \
   --permission-mode dontAsk --tools "" --safe-mode --strict-mcp-config \
   --output-format stream-json --verbose --no-session-persistence
 ```
 
-This invocation completed a full homepage draft with Fable 5.1 at `max`. It cannot read additional repository files or
-edit them. Include the relevant instructions and source evidence in the packet, and require the writer to disclose that
-scope. Read the final `result` event's `result` field; progress events and exit code 0 alone do not prove that the
-requested artifact was returned. A fresh verification call must receive only that writer's draft, its notes and the
-source packet.
+This invocation completed a full homepage draft with Fable 5.1 (then run at `max`; default effort is the rule now). It
+cannot read additional repository files or edit them. Include the relevant instructions and source evidence in the
+packet, and require the writer to disclose that scope. Read the final `result` event's `result` field; progress events
+and exit code 0 alone do not prove that the requested artifact was returned. A fresh verification call must receive only
+that writer's draft, its notes and the source packet.
 
 The local GLM wrapper also uses Claude's plan mode. For the same prose task, the configured Z.ai coding Chat Completions
-endpoint completed with `model: glm-5.3`, `reasoning_effort: max`, enabled thinking and no tools. That recovery changed
-the transport, not the model or effort. Use the existing provider credentials without placing their values in prompts or
-review artifacts. The resulting verification has packet-only scope unless additional source evidence is supplied.
+endpoint completed with `model: glm-5.3` (then at `reasoning_effort: max`; default effort is the rule now), enabled
+thinking and no tools. That recovery changed the transport, not the model or effort. Use the existing provider
+credentials without placing their values in prompts or review artifacts. The resulting verification has packet-only
+scope unless additional source evidence is supplied.
 
 ### Observed CLI behavior
 

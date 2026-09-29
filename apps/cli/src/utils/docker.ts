@@ -773,6 +773,17 @@ export const buildDockerImage = async ({
   // `toDockerEnvPassthrough`.
   const buildArgsPassthrough = toBuildArgsPassthrough(buildArgs);
   const secretsPassthrough = toBuildSecretsPassthrough(secrets || {});
+  // Both travel through one environment; a secret must never take over a build argument (`BUILDKIT_SYNTAX` selects
+  // the frontend), so a shared name is an error rather than a silent override.
+  const collidingName = Object.keys(secretsPassthrough.env).find((name) => name in buildArgsPassthrough.env);
+  if (collidingName !== undefined) {
+    throw new CliError({
+      category: 'CONFIG',
+      code: 'CONFIG_DOCKER_SECRET_NAME_COLLIDES',
+      message: `Build secret "${collidingName}" has the same name as a build argument of this image build.`,
+      hints: 'Rename the build variable; names Docker itself reads, such as BUILDKIT_SYNTAX, cannot be build secrets.'
+    });
+  }
 
   const command = [
     // Use buildx with docker-container builder when remote cache is enabled (required for cache export)
@@ -790,7 +801,11 @@ export const buildDockerImage = async ({
 
   let stderr;
   try {
-    ({ stderr } = await execDocker(command, { env: { ...buildArgsPassthrough.env, ...secretsPassthrough.env } }));
+    ({ stderr } = await execDocker(command, {
+      env: { ...secretsPassthrough.env, ...buildArgsPassthrough.env },
+      // A failing install or build step can echo a secret; the rejection this call turns into a CliError must not.
+      redactedValues: Object.values(secretsPassthrough.env)
+    }));
   } catch (err) {
     handleDockerError(err, `Error building docker image ${imageTag}:\n${err.message}`);
   }

@@ -1605,6 +1605,17 @@ export class PackagingManager {
       distFolderPath,
       additionalDigestInput: getAdditionalDigestInput({ ...properties, entryfilePath, runtime })
     };
+    /** A managed runtime must belong to the entry file's language; `undefined` means the language's default. */
+    const managedVersion = <Version>(language: string, version: Version | undefined): Version | undefined => {
+      if (runtime !== undefined && version === undefined) {
+        throw createCliPackagingError({
+          type: 'PACKAGING',
+          message: `Lambda runtime ${runtime} is not a ${language} runtime, but ${workloadName} has a ${language} entry file.`,
+          hint: `Choose a ${language} runtime or a matching entry file.`
+        });
+      }
+      return version;
+    };
     const assertProvidedRuntime = (language: string) => {
       if (runtime !== undefined && runtime !== 'provided.al2' && runtime !== 'provided.al2023') {
         throw createCliPackagingError({
@@ -1617,15 +1628,31 @@ export class PackagingManager {
     switch (extension) {
       case 'py':
         return record(
-          await buildPythonLambda({ ...lambdaBuild, pythonVersion: getPythonBuildVersionForRuntime(runtime) })
+          await buildPythonLambda({
+            ...lambdaBuild,
+            pythonVersion: managedVersion('Python', getPythonBuildVersionForRuntime(runtime))
+          })
         );
       case 'java':
-        return record(await buildJavaLambda({ ...lambdaBuild, javaVersion: getJavaBuildVersionForRuntime(runtime) }));
+        return record(
+          await buildJavaLambda({
+            ...lambdaBuild,
+            javaVersion: managedVersion('Java', getJavaBuildVersionForRuntime(runtime))
+          })
+        );
       case 'rb':
-        return record(await buildRubyLambda({ ...lambdaBuild, rubyVersion: getRubyBuildVersionForRuntime(runtime) }));
+        return record(
+          await buildRubyLambda({
+            ...lambdaBuild,
+            rubyVersion: managedVersion('Ruby', getRubyBuildVersionForRuntime(runtime))
+          })
+        );
       case 'cs':
         return record(
-          await buildDotnetLambda({ ...lambdaBuild, dotnetVersion: getDotnetBuildVersionForRuntime(runtime) })
+          await buildDotnetLambda({
+            ...lambdaBuild,
+            dotnetVersion: managedVersion('.NET', getDotnetBuildVersionForRuntime(runtime))
+          })
         );
       case 'go':
         assertProvidedRuntime('Go');

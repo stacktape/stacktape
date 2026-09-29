@@ -52,6 +52,18 @@ describe('resolveRustCrate', () => {
     expect(resolveRustCrate({ cwd: root, entryfilePath: 'crates/api/src/main.rs' }).binaryName).toBe('api');
   });
 
+  test('names cargo auto-discovered binaries after their file or directory, not the package', async () => {
+    const root = await createRoot();
+    await write(root, 'Cargo.toml', '[package]\nname = "multi"\n');
+    await write(root, 'src/main.rs', 'fn main() {}\n');
+    await write(root, 'src/bin/worker.rs', 'fn main() {}\n');
+    await write(root, 'src/bin/scheduler/main.rs', 'fn main() {}\n');
+
+    expect(resolveRustCrate({ cwd: root, entryfilePath: 'src/bin/worker.rs' }).binaryName).toBe('worker');
+    expect(resolveRustCrate({ cwd: root, entryfilePath: 'src/bin/scheduler/main.rs' }).binaryName).toBe('scheduler');
+    expect(resolveRustCrate({ cwd: root, entryfilePath: 'src/main.rs' }).binaryName).toBe('multi');
+  });
+
   test('does not look above the Stacktape config directory and fails without a package manifest', async () => {
     const root = await createRoot();
     await write(root, 'Cargo.toml', '[workspace]\nmembers = ["app"]\n');

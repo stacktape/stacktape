@@ -1,7 +1,8 @@
 import type { RunRailpackPrepare } from '@stacktape/packaging/runtime-contracts';
+import { randomBytes } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join, posix } from 'node:path';
 import { tuiManager } from '@application-services/tui-manager';
 import { CliError } from '@utils/errors';
 import { exec } from '@utils/exec';
@@ -32,16 +33,24 @@ const railpackFailure = ({ exitCode, message, cwd }: { exitCode: number | undefi
         : 'Railpack detects the language from the files in the source directory. Set startCommand, buildCommand or installCommand in the buildpack properties when detection is incomplete, or use dockerfile packaging for full control.'
   });
 
+/**
+ * Railpack resolves `--config-file` beneath the source directory, so an inline configuration is written there under a
+ * unique name for the duration of the plan (in both planner modes; a read-only bind mount cannot receive it later).
+ * The planner runs before the source is hashed or sent to Docker, and the file is removed first, so it never reaches
+ * the digest or the image.
+ */
+const configFileName = () => `.stacktape-railpack-${randomBytes(6).toString('hex')}.json`;
+
 const prepareArguments = ({
   sourceDirectory,
   outputDirectory,
   variableNames,
-  hasConfig
+  configFile
 }: {
   sourceDirectory: string;
   outputDirectory: string;
   variableNames: string[];
-  hasConfig: boolean;
+  configFile: string | undefined;
 }) => [
   'prepare',
   sourceDirectory,
@@ -49,7 +58,7 @@ const prepareArguments = ({
   join(outputDirectory, 'plan.json'),
   '--info-out',
   join(outputDirectory, 'info.json'),
-  ...(hasConfig ? ['--config-file', join(outputDirectory, 'railpack.json')] : []),
+  ...(configFile ? ['--config-file', configFile] : []),
   // A bare `--env NAME` makes railpack read the value from its own environment: values stay off the command line.
   ...variableNames.flatMap((name) => ['--env', name])
 ];
@@ -85,21 +94,24 @@ const runInContainer = async ({
   sourceDirectoryPath,
   outputDirectory,
   variables,
-  hasConfig
+  configFile
 }: {
   sourceDirectoryPath: string;
   outputDirectory: string;
   variables: Record<string, string>;
-  hasConfig: boolean;
+  configFile: string | undefined;
 }) => {
   await ensurePlannerImage();
   const variableNames = Object.keys(variables);
+  // The directory keeps its own name inside the container: a provider may derive a name from it (C/C++ names the
+  // built executable after the source directory).
+  const containerSource = posix.join('/src', basename(sourceDirectoryPath) || 'app');
   return execDocker(
     [
       'run',
       '--rm',
       '--volume',
-      `${sourceDirectoryPath}:/src:ro`,
+      `${sourceDirectoryPath}:${containerSource}:ro`,
       '--volume',
       `${outputDirectory}:/out`,
       // mise and the version lists it fetches, kept between plans; one volume per Railpack release.
@@ -108,7 +120,7 @@ const runInContainer = async ({
       // Bare `-e NAME` makes Docker read the value from this process's environment.
       ...variableNames.flatMap((name) => ['--env', name]),
       RAILPACK_PLANNER_IMAGE,
-      ...prepareArguments({ sourceDirectory: '/src', outputDirectory: '/out', variableNames, hasConfig })
+      ...prepareArguments({ sourceDirectory: containerSource, outputDirectory: '/out', variableNames, configFile })
     ],
     { env: variables, skipHandleError: true }
   );
@@ -118,12 +130,12 @@ const runOnHost = async ({
   sourceDirectoryPath,
   outputDirectory,
   variables,
-  hasConfig
+  configFile
 }: {
   sourceDirectoryPath: string;
   outputDirectory: string;
   variables: Record<string, string>;
-  hasConfig: boolean;
+  configFile: string | undefined;
 }) => {
   // Resolved first: a failed first-use download explains itself instead of reading as a failed railpack command.
   const railpackPath = await fsPaths.railpackPath({
@@ -135,7 +147,7 @@ const runOnHost = async ({
       sourceDirectory: sourceDirectoryPath,
       outputDirectory,
       variableNames: Object.keys(variables),
-      hasConfig
+      configFile
     }),
     { cwd: sourceDirectoryPath, env: variables, disableStdout: true, disableStderr: true }
   );
@@ -148,13 +160,16 @@ const runOnHost = async ({
  */
 export const runRailpackPrepare: RunRailpackPrepare = async ({ sourceDirectoryPath, variables, config }) => {
   const outputDirectory = await mkdtemp(join(tmpdir(), 'stp-railpack-'));
+  const mode = plannerMode();
+  const configFile = config === undefined ? undefined : configFileName();
+  const hostConfigPath = configFile === undefined ? undefined : join(sourceDirectoryPath, configFile);
   try {
-    if (config !== undefined) {
-      await writeFile(join(outputDirectory, 'railpack.json'), JSON.stringify(config, null, 2));
+    if (config !== undefined && hostConfigPath !== undefined) {
+      await writeFile(hostConfigPath, JSON.stringify(config, null, 2));
     }
-    const input = { sourceDirectoryPath, outputDirectory, variables, hasConfig: config !== undefined };
+    const input = { sourceDirectoryPath, outputDirectory, variables, configFile };
     try {
-      await (plannerMode() === 'container' ? runInContainer(input) : runOnHost(input));
+      await (mode === 'container' ? runInContainer(input) : runOnHost(input));
     } catch (error) {
       // A failed detection still writes the info file with `success: false` and its logs; that is the useful error.
       const info = await readFile(join(outputDirectory, 'info.json'), 'utf8')
@@ -170,6 +185,7 @@ export const runRailpackPrepare: RunRailpackPrepare = async ({ sourceDirectoryPa
     }
     return readPreparedFiles(outputDirectory);
   } finally {
+    if (hostConfigPath !== undefined) await rm(hostConfigPath, { force: true }).catch(() => {});
     await rm(outputDirectory, { recursive: true, force: true }).catch(() => {});
   }
 };

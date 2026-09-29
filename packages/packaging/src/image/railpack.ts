@@ -122,6 +122,12 @@ export const getRailpackVariables = ({
         message: `Build environment variable name "${name}" is invalid. Use letters, digits and underscores, not starting with a digit.`
       });
     }
+    if (name.startsWith('BUILDKIT_')) {
+      throw createPackagingError({
+        type: 'PACKAGING',
+        message: `Build environment variable "${name}" uses the BUILDKIT_ prefix, which Docker reads as a build setting (for example BUILDKIT_SYNTAX selects the frontend). Rename it.`
+      });
+    }
     if (name.startsWith('RAILPACK_')) {
       throw createPackagingError({
         type: 'PACKAGING',

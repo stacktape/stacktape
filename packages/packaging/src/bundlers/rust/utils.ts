@@ -44,8 +44,8 @@ const readCargoManifest = (path: string): CargoManifest => parseToml(readFileSyn
  * Where a Rust Lambda is built from and what cargo-lambda must build. The crate is the nearest `Cargo.toml` above
  * the entry file. The build root is the nearest ancestor `Cargo.toml` with a `[workspace]` table, so that workspace
  * members and the shared `Cargo.lock` are in the Docker context; a crate outside a workspace is its own build root.
- * The binary is the `[[bin]]` whose `path` is the entry file, otherwise the package name, which is also cargo's name
- * for `src/main.rs`.
+ * The binary is the `[[bin]]` whose `path` is the entry file; otherwise cargo's auto-discovery names decide:
+ * `src/bin/<name>.rs` and `src/bin/<name>/main.rs` are `<name>`, and `src/main.rs` is the package.
  */
 export const resolveRustCrate = ({
   cwd,
@@ -83,7 +83,10 @@ export const resolveRustCrate = ({
   const declaredBinary = (manifest.bin ?? []).find(
     (bin) => bin.path !== undefined && transformToUnixPath(bin.path).replace(/^\.\//, '') === entryRelativeToCrate
   );
-  const binaryName = declaredBinary?.name ?? manifest.package?.name;
+  const discovered =
+    entryRelativeToCrate.match(/^src\/bin\/([^/]+)\.rs$/)?.[1] ??
+    entryRelativeToCrate.match(/^src\/bin\/([^/]+)\/main\.rs$/)?.[1];
+  const binaryName = declaredBinary?.name ?? discovered ?? manifest.package?.name;
   if (!binaryName) {
     throw new Error(`Cargo.toml in ${crateRoot} declares no package name and no [[bin]] for ${entryRelativeToCrate}.`);
   }
