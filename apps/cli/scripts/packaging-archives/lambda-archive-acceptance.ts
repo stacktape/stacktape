@@ -39,7 +39,7 @@ import { parseBucketObjectS3Key } from '@domain-services/deployment-artifact-man
 import { createCliPackagingError } from '@domain-services/packaging-manager/errors';
 import { LAMBDA_ARCHIVE_FORMAT } from '@stacktape/packaging/artifact/archive-entries';
 import { buildUsingCustomArtifact } from '@stacktape/packaging/artifact/custom-artifact';
-import { buildUsingStacktapeEsLambdaBuildpack } from '@stacktape/packaging/buildpacks/stacktape-es-lambda-buildpack';
+import { buildJsBundleLambda } from '@stacktape/packaging/buildpacks/js-bundle-lambda';
 import { createEsBundle } from '@stacktape/packaging/bundlers/es';
 import { resolveNodeVersion } from '@stacktape/packaging/bundlers/node-version';
 import { archiveItem } from '@utils/zip';
@@ -411,8 +411,8 @@ const refuseDocker: RunDocker = async () => {
   throw new Error('The Lambda archive acceptance does not install dependencies in Docker.');
 };
 
-const managedBuildpackScenario = async (outDirectory: string) => {
-  const root = join(outDirectory, 'cache', 'managed buildpack');
+const jsBundleScenario = async (outDirectory: string) => {
+  const root = join(outDirectory, 'cache', 'js-bundle');
   // `workspaces: []` makes this directory its own project root, as a standalone project is.
   await file(join(root, 'package.json'), '{"name":"managed-fixture","private":true,"type":"module","workspaces":[]}\n');
   // Bun transpiles without type checking, so the plain JavaScript handler serves as TypeScript source.
@@ -441,7 +441,7 @@ const managedBuildpackScenario = async (outDirectory: string) => {
   };
   // The directory checksum includes the directory's own name, so every build uses the job name, as the CLI does.
   const build = (run: string) =>
-    buildUsingStacktapeEsLambdaBuildpack({
+    buildJsBundleLambda({
       ...common,
       distFolderPath: join(root, run, jobName),
       existingDigests: inventory.existingDigestsFor(jobName),
@@ -465,7 +465,7 @@ const managedBuildpackScenario = async (outDirectory: string) => {
   const previousKey = buildLambdaS3Key(jobName, '000001', previous.digest);
   await inventory.put(previousKey, previousZip);
 
-  await check('managed buildpack: the object an older CLI uploaded cannot run its included tool', async () => {
+  await check('js-bundle: the object an older CLI uploaded cannot run its included tool', async () => {
     expectInvocation(await runStoredFunction({ inventory, functionKey: previousKey }), {
       uid: 993,
       tool1: 'failed: EACCES',
@@ -475,13 +475,13 @@ const managedBuildpackScenario = async (outDirectory: string) => {
 
   const corrected = await build('dist-corrected');
   const correctedKey = buildLambdaS3Key(jobName, '000002', corrected.digest);
-  identities.managedBuildpack = {
+  identities.jsBundle = {
     previousDigest: previous.digest,
     previousKey,
     correctedDigest: corrected.digest,
     correctedKey
   };
-  await check('managed buildpack: the current build rejects the old digest and emits a working ZIP', async () => {
+  await check('js-bundle: the current build rejects the old digest and emits a working ZIP', async () => {
     assert.equal(corrected.outcome, 'bundled');
     assert.notEqual(corrected.digest, previous.digest);
     await inventory.put(correctedKey, corrected.artifactPath!);
@@ -493,7 +493,7 @@ const managedBuildpackScenario = async (outDirectory: string) => {
     return `old ${previous.digest.slice(0, 12)} → new ${corrected.digest.slice(0, 12)}`;
   });
 
-  await check('managed buildpack: an unchanged run reuses the corrected object', async () => {
+  await check('js-bundle: an unchanged run reuses the corrected object', async () => {
     const unchanged = await build('dist-unchanged');
     assert.equal(unchanged.outcome, 'skipped');
     assert.equal(unchanged.digest, corrected.digest);
@@ -505,13 +505,13 @@ const managedBuildpackScenario = async (outDirectory: string) => {
     });
   });
 
-  await check('managed buildpack: a chmod-only change to an included file is rebuilt with the new mode', async () => {
+  await check('js-bundle: a chmod-only change to an included file is rebuilt with the new mode', async () => {
     await chmod(join(root, 'bin', 'second.sh'), 0o755);
     const changed = await build('dist-chmod');
     assert.equal(changed.outcome, 'bundled');
     assert.notEqual(changed.digest, corrected.digest);
     const changedKey = buildLambdaS3Key(jobName, '000003', changed.digest);
-    identities.managedBuildpack!.chmodDigest = changed.digest;
+    identities.jsBundle!.chmodDigest = changed.digest;
     await inventory.put(changedKey, changed.artifactPath!);
     expectInvocation(await runStoredFunction({ inventory, functionKey: changedKey }), {
       uid: 993,
@@ -984,7 +984,7 @@ const main = async () => {
   if (args.only !== 'backends') {
     // The single-artifact scenarios archive in this process, with whatever native tool its own PATH offers.
     await customArtifactScenario(outDirectory);
-    await managedBuildpackScenario(outDirectory);
+    await jsBundleScenario(outDirectory);
     await check('split project: every deployment completes', async () => {
       splitProjectDeployments = await splitProjectScenario({ outDirectory, pathDirectories: splitProjectPath });
     });

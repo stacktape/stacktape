@@ -71,7 +71,8 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
       httpServiceCount: 1,
       existingDeployments: ['render'],
       requiredConfig: [
-        'entryfilePath: backend/app/main.py:app',
+        'type: buildpack',
+        'app.main:app --host 0.0.0.0 --port $PORT',
         'uploadDirectoryPath: frontend/dist',
         'executeCommand: alembic upgrade head',
         "$Secret('render-full-stack-fastapi-mainDatabase.password')"
@@ -180,7 +181,7 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
       serviceCount: 1,
       httpServiceCount: 1,
       existingDeployments: [],
-      requiredConfig: ['entryfilePath: flask/server.py:app', '- mainDatabase'],
+      requiredConfig: ['type: buildpack', 'gunicorn --bind 0.0.0.0:$PORT ', 'server:app', '- mainDatabase'],
       requiredGapPatterns: ['does not read a configurable address'],
       forbidCurrentlyHostedDependencies: true
     }
@@ -400,7 +401,7 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
       httpServiceCount: 1,
       existingDeployments: [],
       requiredConfig: [
-        'type: custom-dockerfile',
+        'type: dockerfile',
         'executeCommand: npm run migration:run',
         'afterDeploy:',
         "$Secret('nestjs-procfile-release-mainDatabase.password')"
@@ -445,7 +446,7 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
       resourceTypes: { 'hosting-bucket': 1, 'web-service': 1 },
       serviceCount: 2,
       httpServiceCount: 1,
-      requiredConfig: ['uploadDirectoryPath: frontend/dist', 'entryfilePath: backend/main.go'],
+      requiredConfig: ['uploadDirectoryPath: frontend/dist', 'type: buildpack', 'sourceDirectoryPath: backend'],
       requiredGapPatterns: ['VITE_BACKEND_HOST.*build argument'],
       forbidCurrentlyHostedDependencies: true
     }

@@ -1,9 +1,4 @@
-import {
-  LambdaFunction,
-  LambdaS3FilesMount,
-  StacktapeLambdaBuildpackPackaging,
-  defineConfig
-} from '../../__release-npm';
+import { JsBundleLambdaPackaging, LambdaFunction, LambdaS3FilesMount, defineConfig } from '../../__release-npm';
 
 export default defineConfig(() => {
   // Replace these with the S3 Files access point and backing bucket used by your file system.
@@ -11,7 +6,7 @@ export default defineConfig(() => {
   const s3FilesBucketObjectsArn = 'arn:aws:s3:::your-s3-files-bucket/*';
 
   const inferenceApi = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/index.ts'
     }),
     memory: 1024,

@@ -174,7 +174,7 @@ import {
   defineConfig,
   SqsQueue,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const taskQueue = new SqsQueue({
@@ -182,7 +182,7 @@ export default defineConfig(() => {
   });
 
   const worker = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/worker.ts'
     }),
     memory: 512,
@@ -240,13 +240,13 @@ import {
   defineConfig,
   SqsQueue,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const taskQueue = new SqsQueue({});
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/api.ts'
     }),
     connectTo: [taskQueue],

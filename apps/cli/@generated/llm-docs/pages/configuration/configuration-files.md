@@ -49,8 +49,8 @@ import {
   defineConfig,
   HttpApiGateway,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  HttpApiIntegration
+  HttpApiIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(({ stage }) => {
   const api = new HttpApiGateway({
@@ -58,7 +58,7 @@ export default defineConfig(({ stage }) => {
   });
 
   const handler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     events: [
@@ -100,10 +100,10 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   RelationalDatabase,
   RdsEnginePostgres,
-  $Secret
+  $Secret,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(({ stage }) => {
   const database = new RelationalDatabase({
@@ -119,7 +119,7 @@ export default defineConfig(({ stage }) => {
   });
 
   const usersHandler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handlers/users.ts'
     }),
     connectTo: [database]
@@ -206,10 +206,10 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   RelationalDatabase,
   RdsEnginePostgres,
-  $Secret
+  $Secret,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(({ stage }) => {
   const database = new RelationalDatabase({
@@ -223,7 +223,7 @@ export default defineConfig(({ stage }) => {
   });
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     connectTo: [database]

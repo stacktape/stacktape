@@ -2,11 +2,11 @@ import {
   $ResourceParam,
   $Secret,
   ApplicationLoadBalancer,
+  JsBundleImagePackaging,
   LocalScript,
   MultiContainerWorkload,
   MultiContainerWorkloadLoadBalancerIntegration,
   RedisCluster,
-  StacktapeImageBuildpackPackaging,
   defineConfig
 } from '../../__release-npm';
 
@@ -26,7 +26,7 @@ export default defineConfig(() => {
     containers: [
       {
         name: 'socketio-server',
-        packaging: new StacktapeImageBuildpackPackaging({
+        packaging: new JsBundleImagePackaging({
           entryfilePath: 'src/server/index.ts'
         }),
         environment: { PORT: '3000' },

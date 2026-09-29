@@ -18,7 +18,7 @@ import {
   RelationalDatabase,
   SqsQueueNotEmptyTrigger,
   StateMachine,
-  StacktapeLambdaBuildpackPackaging,
+  JsBundleLambdaPackaging,
   WebSocketApiGateway,
   WebSocketApiIntegration,
   defineConfig
@@ -41,7 +41,7 @@ void kafkaClusterWithUnsupportedOverride;
 const emailSender = new EmailSender({ identity: 'example.com' });
 const filesystem = new EfsFilesystem({});
 const api = new HttpApiGateway({});
-const packaging = new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' });
+const packaging = new JsBundleLambdaPackaging({ entryfilePath: './src/handler.ts' });
 const topicSetup = new DeploymentScript({
   trigger: 'after:deploy',
   packaging,
@@ -132,7 +132,7 @@ const wrongIntegrationTarget = new HttpApiIntegration({
   path: '/wrong-target'
 });
 
-const invalidPackaging = new StacktapeLambdaBuildpackPackaging({
+const invalidPackaging = new JsBundleLambdaPackaging({
   entryfilePath: './src/handler.ts',
   // @ts-expect-error packaging constructors reject unknown properties
   unknownOption: true

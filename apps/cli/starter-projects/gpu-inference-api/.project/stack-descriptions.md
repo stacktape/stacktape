@@ -21,7 +21,7 @@ triggerInference:
   type: function
   properties:
     packaging:
-      type: stacktape-lambda-buildpack
+      type: js-bundle
       properties:
         entryfilePath: ./src/trigger.ts
     memory: 512
@@ -46,7 +46,7 @@ inferenceJob:
   properties:
     container:
       packaging:
-        type: custom-dockerfile
+        type: dockerfile
         properties:
           buildContextPath: ./job
     resources:

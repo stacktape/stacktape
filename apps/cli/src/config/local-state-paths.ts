@@ -8,7 +8,7 @@ import { getHomeDir } from '@utils/misc';
  *
  * - User-persistent: CLI defaults, machine identity and authentication state in `persistedStateFile`; native-install
  *   binaries in `nativeInstallBinDirectory`; local development proxy routes, CA and private keys in
- *   `devProxyDirectory`; downloaded, checksum-verified tool binaries (the scanner with its caches, pack, nixpacks and
+ *   `devProxyDirectory`; downloaded, checksum-verified tool binaries (the scanner with its caches, railpack and
  *   the Session Manager plugin) in `toolsDirectory` (one directory per tool and version, so an upgrade never
  *   overwrites a binary in use; old versions may be deleted);
  *   the last fetched update notice and announcements in `noticesCacheFile`, replaced by a newer fetch and safe to

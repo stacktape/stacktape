@@ -51,7 +51,7 @@ describe('release candidate workflow', () => {
     expect(OPENTUI_PLATFORM_IDENTIFIERS.alpine).toEqual(['linux-x64', 'linux-x64-musl']);
     expect(OPENTUI_PLATFORM_IDENTIFIERS['linux-arm']).toEqual(['linux-arm64', 'linux-arm64-musl']);
     expect(BUN_COMPILE_TARGETS.alpine).toBe('bun-linux-x64-baseline-musl');
-    expect(EXTERNAL_TOOL_MANIFEST.nixpacks.assets.alpine?.url).toEndWith('-x86_64-unknown-linux-musl.tar.gz');
+    expect(EXTERNAL_TOOL_MANIFEST.railpack.assets.alpine?.url).toEndWith('-x86_64-unknown-linux-musl.tar.gz');
   });
 
   test('installs every supported OpenTUI native package as a direct optional dependency', async () => {

@@ -38,7 +38,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/audit.ts
       events:
@@ -60,7 +60,7 @@ export default defineConfig(() => {
 
   const auditLogger = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/audit.ts' }
     },
     events: [{ type: 'sns', properties: { snsTopicName: 'auditTopic' } }]
@@ -94,7 +94,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/process-payment.ts
       events:
@@ -116,7 +116,7 @@ export default defineConfig(() => {
 
   const paymentsProcessor = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/process-payment.ts' }
     },
     events: [{ type: 'sns', properties: { snsTopicName: 'transactionsTopic' } }]
@@ -145,7 +145,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/notify.ts
       events:
@@ -166,7 +166,7 @@ export default defineConfig(() => {
 
   const orderNotifier = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/notify.ts' }
     },
     events: [{ type: 'sns', properties: { snsTopicName: 'orderEventsTopic' } }]

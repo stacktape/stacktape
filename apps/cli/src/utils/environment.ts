@@ -1,7 +1,17 @@
 import type { SupportedPackagingType } from '@domain-services/packaging-manager/types';
 import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
-import type { EsLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
-export type Language = 'javascript' | 'typescript' | 'python' | 'go' | 'java' | 'dotnet' | 'ruby' | 'php' | 'unknown';
+import type { JsBundleSharedProps } from '@stacktape/config/deployment-artifacts';
+export type Language =
+  | 'javascript'
+  | 'typescript'
+  | 'python'
+  | 'go'
+  | 'java'
+  | 'dotnet'
+  | 'ruby'
+  | 'php'
+  | 'rust'
+  | 'unknown';
 
 const JS_TS_EXTENSIONS = ['js', 'ts', 'mjs', 'mts', 'cjs', 'cts', 'jsx', 'tsx'];
 
@@ -15,6 +25,7 @@ export const getLanguageFromExtension = (entryfilePath?: string): Language => {
   if (ext === 'cs' || ext === 'csproj') return 'dotnet';
   if (ext === 'rb') return 'ruby';
   if (ext === 'php') return 'php';
+  if (ext === 'rs') return 'rust';
   return 'unknown';
 };
 
@@ -27,7 +38,7 @@ export const getLanguageFromExtension = (entryfilePath?: string): Language => {
  */
 export const shipsSourceMapsInPackage = (
   languageSpecificConfig?: Pick<
-    EsLanguageSpecificConfig,
+    JsBundleSharedProps,
     'disableSourceMaps' | 'outputSourceMapsTo' | 'emitTsDecoratorMetadata'
   >
 ): boolean =>
@@ -72,13 +83,7 @@ export const getAugmentedEnvironment = <T extends { name: string; value: string 
     return environment;
   }
 
-  const userManagedPackaging: SupportedPackagingType[] = [
-    'prebuilt-image',
-    'custom-dockerfile',
-    'nixpacks',
-    'external-buildpack',
-    'custom-artifact'
-  ];
+  const userManagedPackaging: SupportedPackagingType[] = ['prebuilt-image', 'dockerfile', 'custom-artifact'];
   if (packagingType && userManagedPackaging.includes(packagingType)) {
     return environment;
   }

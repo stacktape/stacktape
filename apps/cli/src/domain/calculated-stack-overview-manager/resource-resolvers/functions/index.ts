@@ -84,7 +84,7 @@ import {
   getLambdaUrl,
   getLambdaVersionPublisherCustomResource
 } from './utils';
-import type { EsLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
+import type { JsBundleSharedProps } from '@stacktape/config/deployment-artifacts';
 import type { LambdaEfsMount, LambdaS3FilesMount } from '@stacktape/config/functions';
 import { DEFAULT_LAMBDA_NODE_VERSION } from '@stacktape/packaging/bundlers/constants';
 import { resolveNodeVersion } from '@stacktape/packaging/bundlers/node-version';
@@ -257,8 +257,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
 
   const packagingType = packaging?.type as Parameters<typeof getAugmentedEnvironment>[0]['packagingType'];
   const entryfilePath = (packaging?.properties as { entryfilePath?: string })?.entryfilePath;
-  const languageSpecificConfig = (packaging?.properties as { languageSpecificConfig?: EsLanguageSpecificConfig })
-    ?.languageSpecificConfig;
+  const languageSpecificConfig = packaging?.properties as JsBundleSharedProps | undefined;
   const nodeVersion = resolveNodeVersion({
     nodeVersion: languageSpecificConfig?.nodeVersion,
     runtime,
@@ -529,13 +528,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     const hasLogForwarding = !!logging?.logForwarding;
     const isNotServiceLambda = name !== ('stacktapeServiceLambda' as HelperLambdaName);
     const isNotEdgeFunction = (type as string) !== 'edge-lambda-function';
-    const isUserManagedPackaging = [
-      'prebuilt-image',
-      'custom-dockerfile',
-      'nixpacks',
-      'external-buildpack',
-      'custom-artifact'
-    ].includes(packagingType || '');
+    const isUserManagedPackaging = ['prebuilt-image', 'dockerfile', 'custom-artifact'].includes(packagingType || '');
     if (
       configManager.isIssueDetectionEnabled &&
       isIssueDetectionSupportedLanguage(detectedLanguage) &&

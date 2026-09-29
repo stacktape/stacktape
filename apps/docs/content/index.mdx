@@ -52,7 +52,7 @@ A complete HTTP API backed by DynamoDB, with CORS, a custom domain per stage, au
   HttpApiGateway,
   HttpApiIntegration,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 export default defineConfig(({ stage }) => {
@@ -66,7 +66,7 @@ export default defineConfig(({ stage }) => {
   });
 
   const myFunction = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/index.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/index.ts' }),
     events: [new HttpApiIntegration({ httpApiGatewayName: api, method: 'GET', path: '/' })],
     connectTo: [database],
     environment: { TABLE_NAME: database.name }
@@ -124,7 +124,7 @@ export default defineConfig(({ stage }) => ({
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./src/index.ts` },
     { label: 'stacktape.json', lang: 'json', code: `{
@@ -246,11 +246,11 @@ Need more control? Override or transform any AWS resource:
   tabs={[{
     label: 'stacktape.ts',
     lang: 'typescript',
-    code: `import { LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+    code: `import { LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 
 const myFunction = new LambdaFunction({
     // ... standard config
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/index.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/index.ts' }),
     overrides: {
       lambda: { Description: 'Overridden description' }
     },
@@ -269,11 +269,11 @@ Or drop in raw CloudFormation and AWS CDK constructs alongside your Stacktape re
   tabs={[{
     label: 'stacktape.ts',
     lang: 'typescript',
-    code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+    code: `import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const myFunction = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/index.ts' })
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/index.ts' })
   });
 
   return {

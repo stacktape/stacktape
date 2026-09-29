@@ -30,10 +30,10 @@ A minimal worker service needs `packaging` (how to build the container image) an
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, WorkerService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, WorkerService, JsBundleImagePackaging } from 'stacktape';
 export default defineConfig(() => {
   const worker = new WorkerService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: './src/worker.ts'
     }),
     resources: {
@@ -49,7 +49,7 @@ export default defineConfig(() => {
 ```
 
 
-`cpu: 0.5` allocates 0.5 vCPU and `memory: 1024` allocates 1024 MB of memory for the Fargate task. Supported `cpu` values are `0.25`, `0.5`, `1`, `2`, `4`, `8`, and `16`, and the `memory` value must be compatible with the chosen CPU tier (for example, 0.5 vCPU supports 1024–4096 MB). The `StacktapeImageBuildpackPackaging` builds a container image from your source code automatically.
+`cpu: 0.5` allocates 0.5 vCPU and `memory: 1024` allocates 1024 MB of memory for the Fargate task. Supported `cpu` values are `0.25`, `0.5`, `1`, `2`, `4`, `8`, and `16`, and the `memory` value must be compatible with the chosen CPU tier (for example, 0.5 vCPU supports 1024–4096 MB). `JsBundleImagePackaging` bundles the entry file and builds a container image from it.
 
 ## Compute resources
 
@@ -63,11 +63,11 @@ Fargate is the default compute engine. Set `cpu` and `memory` to size the task. 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, WorkerService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, WorkerService, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const worker = new WorkerService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/worker.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: './src/worker.ts' }),
     resources: {
       cpu: 1,
       memory: 2048,
@@ -102,11 +102,11 @@ EC2 mode uses `instanceTypes` instead of `cpu`/`memory`. The first instance type
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, WorkerService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, WorkerService, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const worker = new WorkerService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/worker.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: './src/worker.ts' }),
     resources: {
       instanceTypes: ['c6g.large'],
       enableWarmPool: true
@@ -140,11 +140,11 @@ A worker service scales horizontally by running multiple parallel container inst
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, WorkerService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, WorkerService, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const worker = new WorkerService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/worker.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: './src/worker.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
     scaling: {
       minInstances: 2,
@@ -169,17 +169,16 @@ export default defineConfig(() => {
 
 ## Packaging
 
-A worker service uses container packaging to build or reference its image. Stacktape supports five container packaging modes. Most teams should start with the Stacktape image buildpack for zero-config builds; switch to a different mode when you need tighter control over the base image, system packages, or build process.
+A worker service uses container packaging to build or reference its image. Stacktape supports four container packaging types. Start with `js-bundle` for a JavaScript or TypeScript worker and `buildpack` for other languages. Switch to a different type when you need tighter control over the base image, system packages or build process.
 
-| Mode | When to use | Learn more |
-|------|-------------|------------|
-| Stacktape image buildpack | Zero-config builds from JS, TS, Python, Java, or Go source | [Docs](/packaging/containers/stacktape-buildpack) |
-| Custom Dockerfile | Full control over base image, system packages, and startup | [Docs](/packaging/containers/custom-dockerfile) |
-| Prebuilt image | Image already exists in Docker Hub or a private registry | [Docs](/packaging/containers/prebuilt-image) |
-| Nixpacks | Auto-detected builds using Nixpacks conventions | [Docs](/packaging/containers/nixpacks) |
-| External buildpack | Cloud Native Buildpacks with a custom builder | [Docs](/packaging/containers/external-buildpack) |
+| Type | When to use |
+|------|-------------|
+| [`js-bundle`](/packaging/containers/js-bundle) | A JavaScript or TypeScript service with one entry file. Stacktape bundles it into a small image. |
+| [`buildpack`](/packaging/containers/buildpack) | Build from source without a Dockerfile. Detects Node.js frameworks, Python, Go, Rust, Java, PHP, Ruby, .NET and more. |
+| [`dockerfile`](/packaging/containers/dockerfile) | Full control over the base image, system packages, build steps, entrypoint and command |
+| [`prebuilt-image`](/packaging/containers/prebuilt-image) | Deploy an image already built by another pipeline or stored in a registry |
 
-The buildpack mode is the shortest path for teams that own source code and want Stacktape to handle image creation. Custom Dockerfile gives the most control and is the right choice when the worker needs specific system-level dependencies (for example, `ffmpeg`, `puppeteer`, or CUDA libraries). Prebuilt image skips the build step entirely, useful when a platform team publishes hardened images that application teams consume.
+`js-bundle` and `buildpack` are the shortest path for teams that own source code and want Stacktape to handle image creation. `dockerfile` gives the most control and is the right choice when the worker needs specific system-level dependencies (for example, `ffmpeg`, `puppeteer`, or CUDA libraries). Prebuilt image skips the build step entirely, useful when a platform team publishes hardened images that application teams consume.
 
 ## Connecting resources
 
@@ -192,10 +191,10 @@ Example (TypeScript):
 import {
   defineConfig,
   WorkerService,
-  StacktapeImageBuildpackPackaging,
   SqsQueue,
   RelationalDatabase,
-  RdsEnginePostgres
+  RdsEnginePostgres,
+  JsBundleImagePackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
@@ -209,7 +208,7 @@ export default defineConfig(() => {
   });
 
   const worker = new WorkerService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/worker.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: './src/worker.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
     connectTo: [jobsQueue, mainDatabase]
   });
@@ -236,11 +235,11 @@ An internal health check auto-replaces containers that are still running but no 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, WorkerService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, WorkerService, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const worker = new WorkerService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/worker.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: './src/worker.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
     internalHealthCheck: {
       healthCheckCommand: ['CMD-SHELL', 'node ./healthcheck.js'],
@@ -270,11 +269,11 @@ The `stopTimeout` property controls how long ECS waits between sending `SIGTERM`
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, WorkerService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, WorkerService, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const worker = new WorkerService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/worker.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: './src/worker.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
     stopTimeout: 30
   });
@@ -300,26 +299,26 @@ Example (TypeScript):
 import {
   defineConfig,
   WorkerService,
-  StacktapeImageBuildpackPackaging,
-  CustomDockerfilePackaging
+  JsBundleImagePackaging,
+  DockerfilePackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
   const worker = new WorkerService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/worker.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: './src/worker.ts' }),
     resources: { cpu: 1, memory: 2048 },
     sideContainers: [
       {
         name: 'migrate',
         containerType: 'run-on-init',
-        packaging: new CustomDockerfilePackaging({
+        packaging: new DockerfilePackaging({
           buildContextPath: './migrations'
         })
       },
       {
         name: 'log-forwarder',
         containerType: 'always-running',
-        packaging: new CustomDockerfilePackaging({
+        packaging: new DockerfilePackaging({
           buildContextPath: './log-forwarder'
         })
       }
@@ -345,14 +344,14 @@ import {
   defineConfig,
   WorkerService,
   EfsFilesystem,
-  StacktapeImageBuildpackPackaging
+  JsBundleImagePackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
   const sharedData = new EfsFilesystem({});
 
   const worker = new WorkerService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/worker.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: './src/worker.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
     connectTo: [sharedData],
     volumeMounts: [
@@ -382,11 +381,11 @@ Set `usePrivateSubnetsWithNAT: true` to deploy the worker service in private sub
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, WorkerService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, WorkerService, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const worker = new WorkerService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/worker.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: './src/worker.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
     usePrivateSubnetsWithNAT: true
   });
@@ -416,11 +415,11 @@ Set `enableRemoteSessions: true` to allow interactive shell access to running wo
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, WorkerService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, WorkerService, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const worker = new WorkerService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/worker.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: './src/worker.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
     enableRemoteSessions: true
   });
@@ -473,7 +472,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 
 | Property | Required | Type | Default |
 | --- | --- | --- | --- |
-| `packaging` | yes | `prebuilt-image \| custom-dockerfile \| external-buildpack \| nixpacks \| stacktape-image-buildpack` | - |
+| `packaging` | yes | `js-bundle \| prebuilt-image \| dockerfile \| buildpack` | - |
 | `resources` | yes | `ContainerWorkloadResourcesConfig` | - |
 | `connectTo` | no | `Array<string>` | - |
 | `enableRemoteSessions` | no | `boolean` | `false` |

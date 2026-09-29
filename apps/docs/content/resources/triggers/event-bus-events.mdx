@@ -43,9 +43,9 @@ This example creates a custom [event bus](/resources/messaging/event-bus) and a 
       code: `import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   EventBus,
-  EventBusIntegration
+  EventBusIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -53,7 +53,7 @@ export default defineConfig(() => {
   const orderBus = new EventBus({});
 
   const orderProcessor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/order-processor.ts'
     }),
     events: [
@@ -108,14 +108,14 @@ This example triggers a function whenever an EC2 instance enters the `stopped` s
       code: `import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  EventBusIntegration
+  EventBusIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
   const ec2Monitor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/ec2-monitor.ts'
     }),
     events: [
@@ -155,14 +155,14 @@ When the event bus is managed outside your stack — in another Stacktape projec
       code: `import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  EventBusIntegration
+  EventBusIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
   const crossAccountHandler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/cross-account-handler.ts'
     }),
     events: [
@@ -218,9 +218,9 @@ The `detail` field goes beyond simple equality. You can match on nested object p
       code: `import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   EventBus,
-  EventBusIntegration
+  EventBusIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -228,7 +228,7 @@ export default defineConfig(() => {
   const orderBus = new EventBus({});
 
   const highValueHandler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/high-value-handler.ts'
     }),
     events: [
@@ -289,9 +289,9 @@ Use `inputTransformer` when you need to extract multiple values from the event a
       code: `import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   EventBus,
-  EventBusIntegration
+  EventBusIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -299,7 +299,7 @@ export default defineConfig(() => {
   const orderBus = new EventBus({});
 
   const notifier = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/notifier.ts'
     }),
     events: [
@@ -346,10 +346,10 @@ In rare cases, an event might fail to be delivered to the target. Use `onDeliver
       code: `import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   EventBus,
   EventBusIntegration,
-  SqsQueue
+  SqsQueue,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -358,7 +358,7 @@ export default defineConfig(() => {
   const dlq = new SqsQueue({});
 
   const orderProcessor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/order-processor.ts'
     }),
     events: [

@@ -1,9 +1,9 @@
 /**
- * Maintainer script: pins the upstream downloads of pack, nixpacks and the Session Manager plugin, the trust anchor the
+ * Maintainer script: pins the upstream downloads of railpack and the Session Manager plugin, the trust anchor the
  * CLI's resolver (`src/utils/external-tools.ts`) checks every download against.
  *
- * It downloads each platform's asset from its upstream release, compares pack's with the SHA-256 GitHub publishes beside
- * it, extracts the executable with the resolver's own code to prove the recorded path, and writes
+ * It downloads each platform's asset from its upstream release, compares railpack's with the SHA-256 in its release's
+ * `checksums.txt`, extracts the executable with the resolver's own code to prove the recorded path, and writes
  * `src/config/external-tools.json` with each URL, size and SHA-256. Change a version below, run it, and review the diff:
  *
  *   bun scripts/pin-external-tools.ts [--record <file>]
@@ -18,24 +18,21 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { extractExecutable } from 'src/utils/external-tools';
 
-const PACK_VERSION = '0.40.0';
-const NIXPACKS_VERSION = '1.39.0';
+/**
+ * The Railpack release. `RAILPACK_FRONTEND_IMAGE` in `src/config/railpack.ts` must name the same version: a plan the
+ * binary writes is built by the frontend of the same release.
+ */
+const RAILPACK_VERSION = '0.40.1';
 const SESSION_MANAGER_PLUGIN_VERSION = '1.2.707.0';
 
 type Source = Omit<ExternalToolAsset, 'sha256' | 'bytes'>;
 
-const pack = (suffix: string): Source => ({
-  url: `https://github.com/buildpacks/pack/releases/download/v${PACK_VERSION}/pack-v${PACK_VERSION}-${suffix}`,
-  archive: suffix.endsWith('.zip') ? 'zip' : 'tar.gz',
-  executable: suffix.endsWith('.zip') ? 'pack.exe' : 'pack'
-});
-
-const nixpacks = (target: string): Source => {
+const railpack = (target: string): Source => {
   const windows = target.includes('windows');
   return {
-    url: `https://github.com/railwayapp/nixpacks/releases/download/v${NIXPACKS_VERSION}/nixpacks-v${NIXPACKS_VERSION}-${target}.${windows ? 'zip' : 'tar.gz'}`,
+    url: `https://github.com/railwayapp/railpack/releases/download/v${RAILPACK_VERSION}/railpack-v${RAILPACK_VERSION}-${target}.${windows ? 'zip' : 'tar.gz'}`,
     archive: windows ? 'zip' : 'tar.gz',
-    executable: windows ? 'nixpacks.exe' : 'nixpacks'
+    executable: windows ? 'railpack.exe' : 'railpack'
   };
 };
 
@@ -48,28 +45,16 @@ const sessionManagerPlugin = (path: string): Source => ({
 });
 
 const SOURCES: Record<ExternalTool, { version: string; assets: Partial<Record<SupportedPlatform, Source>> }> = {
-  pack: {
-    version: PACK_VERSION,
+  railpack: {
+    version: RAILPACK_VERSION,
     assets: {
-      // pack's Linux build is static, so Alpine uses it too.
-      linux: pack('linux.tgz'),
-      alpine: pack('linux.tgz'),
-      'linux-arm': pack('linux-arm64.tgz'),
-      macos: pack('macos.tgz'),
-      'macos-arm': pack('macos-arm64.tgz'),
-      win: pack('windows.zip')
-    }
-  },
-  nixpacks: {
-    version: NIXPACKS_VERSION,
-    assets: {
-      linux: nixpacks('x86_64-unknown-linux-gnu'),
-      alpine: nixpacks('x86_64-unknown-linux-musl'),
-      // Static musl, so it runs on glibc ARM hosts as well.
-      'linux-arm': nixpacks('aarch64-unknown-linux-musl'),
-      macos: nixpacks('x86_64-apple-darwin'),
-      'macos-arm': nixpacks('aarch64-apple-darwin'),
-      win: nixpacks('x86_64-pc-windows-msvc')
+      // Railpack publishes static musl builds only, which run on glibc hosts as well.
+      linux: railpack('x86_64-unknown-linux-musl'),
+      alpine: railpack('x86_64-unknown-linux-musl'),
+      'linux-arm': railpack('arm64-unknown-linux-musl'),
+      macos: railpack('x86_64-apple-darwin'),
+      'macos-arm': railpack('arm64-apple-darwin'),
+      win: railpack('x86_64-pc-windows-msvc')
     }
   },
   'session-manager-plugin': {
@@ -94,11 +79,13 @@ const fetchBytes = async (url: string) => {
   return new Uint8Array(await response.arrayBuffer());
 };
 
-/** The SHA-256 pack publishes beside each asset (`<asset>.sha256`); null where the release has none. */
+/** The SHA-256 railpack publishes in its release's `checksums.txt`; null where the release has none. */
 const publishedSha256 = async (url: string) => {
-  if (!url.startsWith('https://github.com/buildpacks/pack/')) return null;
-  const text = new TextDecoder().decode(await fetchBytes(`${url}.sha256`));
-  return text.trim().split(/\s+/)[0]!.toLowerCase();
+  if (!url.startsWith('https://github.com/railwayapp/railpack/')) return null;
+  const assetName = url.slice(url.lastIndexOf('/') + 1);
+  const checksums = new TextDecoder().decode(await fetchBytes(`${url.slice(0, url.lastIndexOf('/'))}/checksums.txt`));
+  const line = checksums.split('\n').find((entry) => entry.trim().endsWith(assetName));
+  return line ? line.trim().split(/\s+/)[0]!.toLowerCase() : null;
 };
 
 const main = async () => {

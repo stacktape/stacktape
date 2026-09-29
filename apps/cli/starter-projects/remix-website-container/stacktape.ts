@@ -1,8 +1,8 @@
-import { CustomDockerfilePackaging, WebService, defineConfig } from '../../__release-npm';
+import { DockerfilePackaging, WebService, defineConfig } from '../../__release-npm';
 
 export default defineConfig(() => {
   const webService = new WebService({
-    packaging: new CustomDockerfilePackaging({
+    packaging: new DockerfilePackaging({
       buildContextPath: './'
     }),
     resources: {

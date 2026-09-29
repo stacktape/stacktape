@@ -54,7 +54,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/index.ts
       events:
@@ -128,6 +128,17 @@ credentials:
   password: $Secret('my-db-password')
 \`\`\`
 
+**packaging** - How code becomes a Lambda ZIP or a container image:
+
+| Type | Use for | Key properties |
+|------|---------|----------------|
+| \`js-bundle\` | JavaScript/TypeScript entry file (functions and containers). Stacktape bundles it. | \`entryfilePath\` |
+| \`buildpack\` (function) | Python, Java, Go, Ruby, .NET or Rust Lambda entry file | \`entryfilePath\`; options under \`python\`, \`java\`, \`dotnet\` |
+| \`buildpack\` (container) | Any other language or framework; Railpack detects it from the project files | \`sourceDirectoryPath\`, optional \`startCommand\`, \`buildCommand\` |
+| \`dockerfile\` | The project's own Dockerfile | \`buildContextPath\`, \`dockerfilePath\` |
+| \`prebuilt-image\` | An image that is already in a registry | \`image\` |
+| \`custom-artifact\` | A ZIP or directory the user builds (functions only) | \`packagePath\`, \`handler\` |
+
 ## Reference Documentation
 
 For detailed type definitions and all options:
@@ -165,7 +176,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api/index.ts
       events:
@@ -285,7 +296,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/workers/job-processor.ts
       events:
@@ -344,7 +355,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api/index.ts
       timeout: 29
@@ -432,7 +443,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/workers/jobs.ts
       timeout: 300
@@ -496,7 +507,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts  # Express, Hono, Fastify, etc.
       events:
@@ -530,7 +541,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
       events:
@@ -570,7 +581,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
       events:
@@ -611,7 +622,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/public.ts
       events:
@@ -626,7 +637,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/protected.ts
       events:
@@ -660,7 +671,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/graphql.ts
       events:
@@ -699,7 +710,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/server.ts
       resources:
@@ -712,6 +723,18 @@ resources:
           keepAvgCpuUtilizationUnder: 70
       connectTo:
         - database
+\`\`\`
+
+For a service in another language (Python, Go, Ruby, PHP, Rust, Java, .NET, Elixir), use \`type: buildpack\`:
+Railpack detects the language and framework from the project files. Set \`startCommand\` when it cannot infer one.
+If the project already has a Dockerfile, use \`type: dockerfile\` instead.
+
+\`\`\`yaml
+      packaging:
+        type: buildpack
+        properties:
+          sourceDirectoryPath: ./backend
+          startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
 \`\`\`
 
 ## API Rate Limiting & Protection
@@ -756,7 +779,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/chat.ts
       timeout: 60  # AI calls can be slow
@@ -801,7 +824,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/rag-api.ts
       timeout: 60
@@ -837,7 +860,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/process-document.ts
       timeout: 300
@@ -864,7 +887,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/agent.ts
       timeout: 120
@@ -906,7 +929,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
       events:
@@ -926,10 +949,11 @@ resources:
   mlProcessor:
     type: batch-job
     properties:
-      packaging:
-        type: external-image
-        properties:
-          uri: pytorch/pytorch:2.0.0-cuda11.7-cudnn8-runtime
+      container:
+        packaging:
+          type: prebuilt-image
+          properties:
+            image: pytorch/pytorch:2.0.0-cuda11.7-cudnn8-runtime
       resources:
         cpu: 4
         memory: 16384
@@ -956,7 +980,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/streaming-server.ts
       resources:
@@ -1009,7 +1033,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/chat-with-memory.ts
       events:
@@ -1094,7 +1118,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./backend/src/api.ts
       events:
@@ -1164,7 +1188,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/contact.ts
       events:
@@ -1391,7 +1415,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/heavy-api.ts
       timeout: 60
@@ -1419,7 +1443,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/daily-report.ts
       timeout: 300
@@ -1452,7 +1476,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
       events:
@@ -1481,7 +1505,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/worker.ts
       timeout: 300
@@ -1514,7 +1538,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/webhook.ts
       events:
@@ -1534,7 +1558,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/notifications.ts
       events:
@@ -1563,7 +1587,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/process-file.ts
       timeout: 300
@@ -1591,10 +1615,11 @@ resources:
   heavyJob:
     type: batch-job
     properties:
-      packaging:
-        type: stacktape-image-buildpack
-        properties:
-          entryfilePath: src/heavy-processing.ts
+      container:
+        packaging:
+          type: js-bundle
+          properties:
+            entryfilePath: src/heavy-processing.ts
       resources:
         cpu: 4
         memory: 8192
@@ -1620,7 +1645,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/orders.ts
       events:
@@ -1637,7 +1662,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/send-emails.ts
       events:
@@ -1663,7 +1688,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/analytics.ts
       events:
@@ -1716,7 +1741,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/public.ts
       events:
@@ -1734,7 +1759,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/protected.ts
       events:
@@ -1793,7 +1818,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
       events:
@@ -1814,7 +1839,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/websocket-server.ts
       resources:
@@ -1840,7 +1865,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/sync.ts
       events:
@@ -1895,7 +1920,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/upload-url.ts
       events:
@@ -1956,7 +1981,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/store.ts
       events:
@@ -1982,7 +2007,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/stripe-webhook.ts
       events:
@@ -2006,7 +2031,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/process-order.ts
       events:
@@ -2047,7 +2072,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/products.ts
       events:
@@ -2095,7 +2120,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/cart.ts
       events:
@@ -2150,7 +2175,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/inventory.ts
       events:
@@ -2190,7 +2215,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/vendors.ts
       events:
@@ -2211,7 +2236,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/products.ts
       events:
@@ -2229,7 +2254,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/orders.ts
       events:
@@ -2253,7 +2278,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/payouts.ts
       events:
@@ -2557,7 +2582,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/index.ts
       alarms:

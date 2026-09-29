@@ -35,7 +35,7 @@ resources:
       containers:
         - name: api
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/server.ts
       resources:
@@ -49,12 +49,12 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const app = new MultiContainerWorkload({
     containers: [
-      { name: 'api', packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }) }
+      { name: 'api', packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }) }
     ],
     resources: { cpu: 0.5, memory: 1024 },
     scaling: {
@@ -84,7 +84,7 @@ resources:
       containers:
         - name: api
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/server.ts
       resources:
@@ -98,12 +98,12 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const app = new MultiContainerWorkload({
     containers: [
-      { name: 'api', packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }) }
+      { name: 'api', packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }) }
     ],
     resources: { cpu: 0.5, memory: 1024 },
     scaling: {
@@ -132,7 +132,7 @@ resources:
       containers:
         - name: api
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/server.ts
       resources:
@@ -149,12 +149,12 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const app = new MultiContainerWorkload({
     containers: [
-      { name: 'api', packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }) }
+      { name: 'api', packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }) }
     ],
     resources: { cpu: 0.5, memory: 1024 },
     scaling: {

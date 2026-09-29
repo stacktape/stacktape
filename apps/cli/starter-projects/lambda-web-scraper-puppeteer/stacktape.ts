@@ -1,20 +1,18 @@
 import {
   HttpApiGateway,
   HttpApiIntegration,
+  JsBundleLambdaPackaging,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   defineConfig
 } from '../../__release-npm';
 
 export default defineConfig(() => {
   const mainApiGateway = new HttpApiGateway({});
   const scrapeLinks = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: 'src/scrape-links.ts',
       excludeDependencies: ['puppeteer'],
-      languageSpecificConfig: {
-        disableSourceMaps: true
-      }
+      disableSourceMaps: true
     }),
     events: [
       new HttpApiIntegration({

@@ -77,10 +77,10 @@ This example sets reserved concurrent executions on a Lambda function's underlyi
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     overrides: {
@@ -178,10 +178,10 @@ type CfResourceTransform = (props: Record<string, any>) => Partial<Record<string
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     transforms: {
@@ -208,10 +208,10 @@ This appends a Lambda layer ARN to whatever layers Stacktape already configured.
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: './src/server.ts'
     }),
     resources: { cpu: 0.5, memory: 1024 },
@@ -267,12 +267,12 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  $CfResourceParam
+  $CfResourceParam,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const processor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/processor.ts'
     }),
     environment: { TOPIC_ARN: $CfResourceParam('AlertTopic', 'TopicArn') }
@@ -366,13 +366,13 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   AwsCdkConstruct,
-  $ResourceParam
+  $ResourceParam,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/api.ts'
     })
   });

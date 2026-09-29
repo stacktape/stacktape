@@ -13,12 +13,12 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  HttpApiGateway
+  HttpApiGateway,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     environment: {
@@ -487,12 +487,12 @@ In this example, the Lambda function uses `connectTo` for IAM permissions to acc
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging, Bucket } from 'stacktape';
+import { defineConfig, LambdaFunction, Bucket, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const uploads = new Bucket({});
 
   const processor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/process.ts'
     }),
     environment: {

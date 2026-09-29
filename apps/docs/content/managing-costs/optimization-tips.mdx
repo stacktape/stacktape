@@ -65,13 +65,13 @@ Spot instances are a good fit for jobs that can safely restart — data imports,
     {
       label: 'TypeScript',
       lang: 'typescript',
-      code: `import { defineConfig, BatchJob, CustomDockerfilePackaging } from 'stacktape';
+      code: `import { defineConfig, BatchJob, DockerfilePackaging } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
   const processor = new BatchJob({
     container: {
-      packaging: new CustomDockerfilePackaging({
+      packaging: new DockerfilePackaging({
         buildContextPath: '.',
         dockerfilePath: './Dockerfile'
       })
@@ -135,12 +135,12 @@ For services with variable load, auto-scaling adds instances under pressure rath
     {
       label: 'TypeScript',
       lang: 'typescript',
-      code: `import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+      code: `import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: './src/server.ts'
     }),
     resources: {
@@ -213,13 +213,13 @@ For development and staging stages, 7–14 days of log retention is usually enou
     {
       label: 'TypeScript',
       lang: 'typescript',
-      code: `import { defineConfig, BatchJob, CustomDockerfilePackaging } from 'stacktape';
+      code: `import { defineConfig, BatchJob, DockerfilePackaging } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
   const processor = new BatchJob({
     container: {
-      packaging: new CustomDockerfilePackaging({
+      packaging: new DockerfilePackaging({
         buildContextPath: '.',
         dockerfilePath: './Dockerfile'
       })

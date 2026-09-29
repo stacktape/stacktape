@@ -36,7 +36,7 @@ export interface WebServiceProps extends SimpleServiceContainer {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/main.ts
    *       resources:
@@ -57,11 +57,11 @@ export interface WebServiceProps extends SimpleServiceContainer {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+   * import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const apiService = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({
+   *     packaging: new JsBundleImagePackaging({
    *       entryfilePath: 'src/main.ts'
    *     }),
    *     resources: {
@@ -100,7 +100,7 @@ export interface WebServiceProps extends SimpleServiceContainer {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/main.ts
    *       resources:
@@ -115,11 +115,11 @@ export interface WebServiceProps extends SimpleServiceContainer {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+   * import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const apiService = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({
+   *     packaging: new JsBundleImagePackaging({
    *       entryfilePath: 'src/main.ts'
    *     }),
    *     resources: {
@@ -161,7 +161,7 @@ export interface WebServiceProps extends SimpleServiceContainer {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/main.ts
    *       resources:
@@ -176,11 +176,11 @@ export interface WebServiceProps extends SimpleServiceContainer {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+   * import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const apiService = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({
+   *     packaging: new JsBundleImagePackaging({
    *       entryfilePath: 'src/main.ts'
    *     }),
    *     resources: {
@@ -214,7 +214,7 @@ export interface WebServiceProps extends SimpleServiceContainer {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/main.ts
    *       resources:
@@ -229,11 +229,11 @@ export interface WebServiceProps extends SimpleServiceContainer {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+   * import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const apiService = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({
+   *     packaging: new JsBundleImagePackaging({
    *       entryfilePath: 'src/main.ts'
    *     }),
    *     resources: {
@@ -267,7 +267,7 @@ export interface WebServiceProps extends SimpleServiceContainer {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/main.ts
    *       resources:
@@ -290,11 +290,11 @@ export interface WebServiceProps extends SimpleServiceContainer {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+   * import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const apiService = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({
+   *     packaging: new JsBundleImagePackaging({
    *       entryfilePath: 'src/main.ts'
    *     }),
    *     resources: {
@@ -344,7 +344,7 @@ export interface WebServiceProps extends SimpleServiceContainer {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/main.ts
    *       resources:
@@ -360,11 +360,11 @@ export interface WebServiceProps extends SimpleServiceContainer {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+   * import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const apiService = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({
+   *     packaging: new JsBundleImagePackaging({
    *       entryfilePath: 'src/main.ts'
    *     }),
    *     resources: {
@@ -398,7 +398,7 @@ export interface WebServiceProps extends SimpleServiceContainer {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/main.ts
    *       resources:
@@ -415,11 +415,11 @@ export interface WebServiceProps extends SimpleServiceContainer {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+   * import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const apiService = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({
+   *     packaging: new JsBundleImagePackaging({
    *       entryfilePath: 'src/main.ts'
    *     }),
    *     resources: {
@@ -466,7 +466,7 @@ export interface WebServiceProps extends SimpleServiceContainer {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/main.ts
    *       resources:
@@ -482,7 +482,7 @@ export interface WebServiceProps extends SimpleServiceContainer {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { defineConfig, WebService, WebAppFirewall, StacktapeImageBuildpackPackaging } from 'stacktape';
+   * import { defineConfig, WebService, WebAppFirewall, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const serviceFirewall = new WebAppFirewall({
@@ -490,7 +490,7 @@ export interface WebServiceProps extends SimpleServiceContainer {
    *   });
    *
    *   const apiService = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({
+   *     packaging: new JsBundleImagePackaging({
    *       entryfilePath: 'src/main.ts'
    *     }),
    *     resources: {
@@ -540,7 +540,7 @@ export interface WebServiceAlbLoadBalancingProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/main.ts
    *       resources:
@@ -557,11 +557,11 @@ export interface WebServiceAlbLoadBalancingProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+   * import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const apiService = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({
+   *     packaging: new JsBundleImagePackaging({
    *       entryfilePath: 'src/main.ts'
    *     }),
    *     resources: {
@@ -600,7 +600,7 @@ export interface WebServiceAlbLoadBalancingProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/main.ts
    *       resources:
@@ -618,11 +618,11 @@ export interface WebServiceAlbLoadBalancingProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+   * import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const apiService = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({
+   *     packaging: new JsBundleImagePackaging({
    *       entryfilePath: 'src/main.ts'
    *     }),
    *     resources: {
@@ -662,7 +662,7 @@ export interface WebServiceAlbLoadBalancingProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/main.ts
    *       resources:
@@ -681,11 +681,11 @@ export interface WebServiceAlbLoadBalancingProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+   * import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const apiService = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({
+   *     packaging: new JsBundleImagePackaging({
    *       entryfilePath: 'src/main.ts'
    *     }),
    *     resources: {
@@ -736,7 +736,7 @@ export interface WebServiceNlbLoadBalancingProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/main.ts
    *       resources:
@@ -758,11 +758,11 @@ export interface WebServiceNlbLoadBalancingProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+   * import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const tcpService = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({
+   *     packaging: new JsBundleImagePackaging({
    *       entryfilePath: 'src/main.ts'
    *     }),
    *     resources: {
@@ -803,7 +803,7 @@ export interface WebServiceNlbLoadBalancingProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/main.ts
    *       resources:
@@ -824,11 +824,11 @@ export interface WebServiceNlbLoadBalancingProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+   * import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const tcpService = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({
+   *     packaging: new JsBundleImagePackaging({
    *       entryfilePath: 'src/main.ts'
    *     }),
    *     resources: {
@@ -868,7 +868,7 @@ export interface WebServiceNlbLoadBalancingProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/main.ts
    *       resources:
@@ -890,11 +890,11 @@ export interface WebServiceNlbLoadBalancingProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+   * import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const tcpService = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({
+   *     packaging: new JsBundleImagePackaging({
    *       entryfilePath: 'src/main.ts'
    *     }),
    *     resources: {
@@ -935,7 +935,7 @@ export interface WebServiceNlbLoadBalancingProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/main.ts
    *       resources:
@@ -957,11 +957,11 @@ export interface WebServiceNlbLoadBalancingProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+   * import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const tcpService = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({
+   *     packaging: new JsBundleImagePackaging({
    *       entryfilePath: 'src/main.ts'
    *     }),
    *     resources: {
@@ -1002,7 +1002,7 @@ export interface WebServiceNlbLoadBalancingProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/main.ts
    *       resources:
@@ -1024,11 +1024,11 @@ export interface WebServiceNlbLoadBalancingProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+   * import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const tcpService = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({
+   *     packaging: new JsBundleImagePackaging({
    *       entryfilePath: 'src/main.ts'
    *     }),
    *     resources: {
@@ -1072,7 +1072,7 @@ export interface WebServiceNlbLoadBalancingPort {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/main.ts
    *       resources:
@@ -1092,11 +1092,11 @@ export interface WebServiceNlbLoadBalancingPort {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+   * import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const tcpService = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({
+   *     packaging: new JsBundleImagePackaging({
    *       entryfilePath: 'src/main.ts'
    *     }),
    *     resources: {
@@ -1139,7 +1139,7 @@ export interface WebServiceNlbLoadBalancingPort {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/main.ts
    *       resources:
@@ -1159,11 +1159,11 @@ export interface WebServiceNlbLoadBalancingPort {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+   * import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const tcpService = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({
+   *     packaging: new JsBundleImagePackaging({
    *       entryfilePath: 'src/main.ts'
    *     }),
    *     resources: {
@@ -1208,7 +1208,7 @@ export interface WebServiceNlbLoadBalancingPort {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/main.ts
    *       resources:
@@ -1228,11 +1228,11 @@ export interface WebServiceNlbLoadBalancingPort {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+   * import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const tcpService = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({
+   *     packaging: new JsBundleImagePackaging({
    *       entryfilePath: 'src/main.ts'
    *     }),
    *     resources: {

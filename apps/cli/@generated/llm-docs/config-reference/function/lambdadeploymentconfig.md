@@ -34,7 +34,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/payment.ts
       deployment:
@@ -48,7 +48,7 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const paymentApi = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/payment.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/payment.ts' } },
     deployment: {
       strategy: 'Linear10PercentEvery2Minutes'
     }
@@ -74,7 +74,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/payment.ts
       deployment:
@@ -84,7 +84,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/post-traffic.ts
 ```
@@ -96,14 +96,14 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const paymentApi = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/payment.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/payment.ts' } },
     deployment: {
       strategy: 'Canary10Percent5Minutes',
       afterTrafficShiftFunction: 'postTrafficCheck'
     }
   });
   const postTrafficCheck = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/post-traffic.ts' } }
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/post-traffic.ts' } }
   });
   return { resources: { paymentApi, postTrafficCheck } };
 });
@@ -126,7 +126,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/payment.ts
       deployment:
@@ -136,7 +136,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/pre-traffic.ts
 ```
@@ -148,14 +148,14 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const paymentApi = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/payment.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/payment.ts' } },
     deployment: {
       strategy: 'Canary10Percent5Minutes',
       beforeAllowTrafficFunction: 'preTrafficCheck'
     }
   });
   const preTrafficCheck = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/pre-traffic.ts' } }
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/pre-traffic.ts' } }
   });
   return { resources: { paymentApi, preTrafficCheck } };
 });

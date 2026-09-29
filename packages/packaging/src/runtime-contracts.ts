@@ -1,20 +1,48 @@
 import type {
-  DotnetLanguageSpecificConfig,
-  EsLanguageSpecificConfig,
-  GoLanguageSpecificConfig,
-  JavaLanguageSpecificConfig,
-  PhpLanguageSpecificConfig,
-  PyLanguageSpecificConfig,
-  RubyLanguageSpecificConfig,
+  JsBundleSharedProps,
   SupportedDotnetVersion,
   SupportedJavaVersion,
-  SupportedPhpVersion,
-  SupportedPythonPackageManager,
   SupportedPythonVersion,
   SupportedRubyVersion
 } from '@stacktape/config/deployment-artifacts';
 
 export type SupportedEsPackageManager = 'yarn' | 'npm' | 'pnpm' | 'deno' | 'bun';
+
+/** The bundling options of `js-bundle` packaging, without the file selection the buildpack input carries itself. */
+export type JsBundleOptions = Pick<
+  JsBundleSharedProps,
+  | 'tsConfigPath'
+  | 'emitTsDecoratorMetadata'
+  | 'dependenciesToExcludeFromBundle'
+  | 'dependenciesToExcludeFromDeploymentPackage'
+  | 'outputModuleFormat'
+  | 'nodeVersion'
+  | 'disableSourceMaps'
+  | 'outputSourceMapsTo'
+  | 'minify'
+  | 'minifyIdentifiers'
+  | 'bundleAwsSdk'
+>;
+
+const JS_BUNDLE_OPTION_KEYS = [
+  'tsConfigPath',
+  'emitTsDecoratorMetadata',
+  'dependenciesToExcludeFromBundle',
+  'dependenciesToExcludeFromDeploymentPackage',
+  'outputModuleFormat',
+  'nodeVersion',
+  'disableSourceMaps',
+  'outputSourceMapsTo',
+  'minify',
+  'minifyIdentifiers',
+  'bundleAwsSdk'
+] as const satisfies readonly (keyof JsBundleOptions)[];
+
+/** The bundling options present in an input, for hashing them as one artifact identity input. */
+export const pickJsBundleOptions = (input: JsBundleOptions): JsBundleOptions =>
+  Object.fromEntries(
+    JS_BUNDLE_OPTION_KEYS.filter((key) => input[key] !== undefined).map((key) => [key, input[key]])
+  ) as JsBundleOptions;
 
 export type DockerBuildOutputArchitecture = 'linux/amd64' | 'linux/arm64';
 
@@ -50,7 +78,7 @@ export type PackagingProgressLogger = {
 };
 
 export type PackagingErrorDetails = {
-  type: 'BUILD_CODE' | 'NIXPACKS' | 'PACK' | 'PACKAGING';
+  type: 'BUILD_CODE' | 'PACKAGING' | 'RAILPACK';
   message: string;
   hint?: string | undefined;
   stack?: string | undefined;
@@ -97,6 +125,11 @@ export type BuildDockerImage = (input: {
   dockerBuildOutputArchitecture?: DockerBuildOutputArchitecture | undefined;
   cacheFromRef?: string | undefined;
   cacheToRef?: string | undefined;
+  /**
+   * BuildKit secrets by id. The CLI mounts each one from its own environment (`--secret id=NAME,env=NAME`), so a
+   * value never appears on the Docker command line and is never written into an image layer.
+   */
+  secrets?: Record<string, string> | undefined;
 }) => Promise<{
   size: number;
   id: string;
@@ -129,13 +162,17 @@ export type InstallDependencies = (input: {
   progressLogger: PackagingProgressLogger;
 }) => Promise<unknown>;
 
-export type RunPack = (input: {
-  args: string[];
-  cwd: string;
-  onOutputLine?: (line: string) => void | undefined;
-}) => Promise<ProcessResult>;
-
-export type RunNixpacks = (input: { args: string[]; cwd: string }) => Promise<ProcessResult>;
+/**
+ * Plans a directory with the pinned Railpack release (`railpack prepare`). The CLI owns how the planner runs: the
+ * host binary, or a container on platforms Railpack does not support. `variables` are the planner's `--env`
+ * variables; the runner hands them over through the planner's environment, never on its command line, because build
+ * variable values are secrets. `config` is an inline railpack.json that replaces the directory's own.
+ */
+export type RunRailpackPrepare = (input: {
+  sourceDirectoryPath: string;
+  variables: Record<string, string>;
+  config?: Record<string, unknown> | undefined;
+}) => Promise<{ plan: unknown; info: unknown }>;
 
 export type LoadModuleExport = <T>(input: { filePath: string; exportName: string }) => Promise<T>;
 
@@ -165,15 +202,6 @@ export type EsBuildActions = LanguageBuildActions & {
 
 export type StpBuildpackInput = {
   entryfilePath: string;
-  languageSpecificConfig?:
-    | DotnetLanguageSpecificConfig
-    | EsLanguageSpecificConfig
-    | GoLanguageSpecificConfig
-    | JavaLanguageSpecificConfig
-    | PhpLanguageSpecificConfig
-    | PyLanguageSpecificConfig
-    | RubyLanguageSpecificConfig
-    | undefined;
   requiresGlibcBinaries?: boolean | undefined;
   customDockerBuildCommands?: string[] | undefined;
   excludeDependencies?: string[] | undefined;
@@ -223,7 +251,7 @@ export type LanguageSpecificBundleOutput = {
     dynamicallyImportedModules?: string[] | undefined;
   };
   py?: {
-    packageManager: SupportedPythonPackageManager;
+    packageManager: 'uv';
     pythonVersion: SupportedPythonVersion;
   };
   java?: {
@@ -232,9 +260,6 @@ export type LanguageSpecificBundleOutput = {
   };
   ruby?: {
     rubyVersion: SupportedRubyVersion;
-  };
-  php?: {
-    phpVersion: SupportedPhpVersion;
   };
   dotnet?: {
     dotnetVersion: SupportedDotnetVersion;

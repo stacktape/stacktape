@@ -30,15 +30,15 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   SnsTopic,
-  SnsIntegration
+  SnsIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const notificationTopic = new SnsTopic({});
 
   const logNotification = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/log-notification.ts'
     }),
     memory: 256,
@@ -86,15 +86,15 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   SnsTopic,
-  SnsIntegration
+  SnsIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const orderEvents = new SnsTopic({});
 
   const highValueHandler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/high-value-orders.ts'
     }),
     events: [
@@ -134,12 +134,12 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  SnsIntegration
+  SnsIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const handler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handle-external.ts'
     }),
     events: [
@@ -171,17 +171,17 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   SnsTopic,
   SnsIntegration,
-  SqsQueue
+  SqsQueue,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const alerts = new SnsTopic({});
   const failedDeliveries = new SqsQueue({});
 
   const alertProcessor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/process-alert.ts'
     }),
     events: [

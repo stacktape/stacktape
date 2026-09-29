@@ -56,7 +56,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/server.ts
       resources:
@@ -67,11 +67,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.25, memory: 512 }
   });
 
@@ -108,7 +108,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/server.ts
       resources:
@@ -119,11 +119,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { WebService, StacktapeImageBuildpackPackaging, $ResourceParam, defineConfig } from 'stacktape';
+import { WebService, $ResourceParam, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.25, memory: 512 }
   });
 
@@ -156,7 +156,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/server.ts
       resources:
@@ -167,11 +167,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.25, memory: 512 }
   });
 
@@ -211,7 +211,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
 ```
@@ -223,7 +223,7 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(({ stage }) => {
   const api = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } }
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } }
   });
   return {
     stackConfig: { stageType: stage === 'live-eu' ? 'production' : 'non-production' },
@@ -258,7 +258,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/server.ts
       resources:
@@ -269,11 +269,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.25, memory: 512 }
   });
 
@@ -312,7 +312,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
 ```
@@ -324,7 +324,7 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } }
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } }
   });
   return {
     stackConfig: { tracing: { enabled: true } },

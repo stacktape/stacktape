@@ -50,8 +50,8 @@ import {
   SqsIntegration,
   SqsQueue,
   SqsQueueEventBusIntegration,
-  StacktapeImageBuildpackPackaging,
-  StacktapeLambdaBuildpackPackaging,
+  JsBundleImagePackaging,
+  JsBundleLambdaPackaging,
   SyntheticTest,
   UptimeCheck,
   UserAuthPool,
@@ -182,7 +182,7 @@ const createDenseConfig = ({
     });
     const kafkaCluster = new KafkaCluster(kafkaRemoteInDev ? { dev: { remote: true } } : {});
     const api = new LambdaFunction({
-      packaging: new StacktapeLambdaBuildpackPackaging({
+      packaging: new JsBundleLambdaPackaging({
         entryfilePath: './src/api.ts'
       }),
       memory: 512,
@@ -226,7 +226,7 @@ const createDenseConfig = ({
           })
     });
     const worker = new LambdaFunction({
-      packaging: new StacktapeLambdaBuildpackPackaging({
+      packaging: new JsBundleLambdaPackaging({
         entryfilePath: './src/worker.ts'
       }),
       timeout: 30,
@@ -240,7 +240,7 @@ const createDenseConfig = ({
       ]
     });
     const graphqlHandler = new LambdaFunction({
-      packaging: new StacktapeLambdaBuildpackPackaging({
+      packaging: new JsBundleLambdaPackaging({
         entryfilePath: './src/api.ts'
       }),
       connectTo: [graphql],
@@ -252,7 +252,7 @@ const createDenseConfig = ({
       ]
     });
     const logObserver = new LambdaFunction({
-      packaging: new StacktapeLambdaBuildpackPackaging({
+      packaging: new JsBundleLambdaPackaging({
         entryfilePath: './src/audit.ts'
       }),
       events: [
@@ -262,7 +262,7 @@ const createDenseConfig = ({
       ]
     });
     const audit = new LambdaFunction({
-      packaging: new StacktapeLambdaBuildpackPackaging({
+      packaging: new JsBundleLambdaPackaging({
         entryfilePath: './src/audit.ts'
       }),
       events: [
@@ -277,7 +277,7 @@ const createDenseConfig = ({
     });
     const realtime = new WebSocketApiGateway({});
     const realtimeHandler = new LambdaFunction({
-      packaging: new StacktapeLambdaBuildpackPackaging({
+      packaging: new JsBundleLambdaPackaging({
         entryfilePath: './src/api.ts'
       }),
       timeout: 10,
@@ -295,7 +295,7 @@ const createDenseConfig = ({
       ]
     });
     const web = new WebService({
-      packaging: new StacktapeImageBuildpackPackaging({
+      packaging: new JsBundleImagePackaging({
         entryfilePath: './src/web.ts'
       }),
       resources: {
@@ -1098,7 +1098,7 @@ describe('full synthesis contract', () => {
           containers: [
             {
               name: 'app',
-              packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/web.ts' }),
+              packaging: new JsBundleImagePackaging({ entryfilePath: './src/web.ts' }),
               events: [
                 new MultiContainerWorkloadHttpApiIntegration({
                   httpApiGatewayName: gateway,
@@ -1110,7 +1110,7 @@ describe('full synthesis contract', () => {
             },
             {
               name: 'metrics',
-              packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/worker.ts' }),
+              packaging: new JsBundleImagePackaging({ entryfilePath: './src/worker.ts' }),
               essential: sidecarEssential,
               internalHealthCheck: { healthCheckCommand: ['CMD-SHELL', 'exit 0'] }
             }

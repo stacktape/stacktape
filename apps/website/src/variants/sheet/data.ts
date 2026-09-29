@@ -83,7 +83,7 @@ export const SECTIONS: readonly Section[] = [
     name: 'Packages it',
     text: 'Stacktape builds your code into Lambda packages and container images itself. Point it at an entry file and it bundles TypeScript, Python, Java, Go, Ruby, PHP or .NET with zero configuration, or bring your own Dockerfile. Builds run in parallel and are cached by content, so unchanged code is never built twice.',
     gets: [
-      'Zero-config builds for eight languages, or your own Dockerfile, Nixpacks or any prebuilt image.',
+      'Zero-config builds for eight languages, or your own Dockerfile, a buildpack or any prebuilt image.',
       'Parallel, content-cached builds: a change to one service rebuilds one service.',
       'Images land in a managed registry in your account. No build scripts to maintain.'
     ]
@@ -176,7 +176,7 @@ export const ACME_CONFIG = {
       type: 'web-service',
       properties: {
         packaging: {
-          type: 'custom-dockerfile',
+          type: 'dockerfile',
           properties: { buildContextPath: './api', dockerfilePath: './api/Dockerfile' }
         },
         resources: { cpu: 0.5, memory: 1024 },
@@ -187,7 +187,7 @@ export const ACME_CONFIG = {
     worker: {
       type: 'function',
       properties: {
-        packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'api/src/worker.ts' } },
+        packaging: { type: 'js-bundle', properties: { entryfilePath: 'api/src/worker.ts' } },
         connectTo: ['mainDatabase']
       }
     },

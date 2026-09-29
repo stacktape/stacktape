@@ -37,9 +37,9 @@ import {
   LambdaFunction,
   RelationalDatabase,
   RdsEnginePostgres,
-  StacktapeLambdaBuildpackPackaging,
   $Secret,
-  LocalScript
+  LocalScript,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const database = new RelationalDatabase({
@@ -53,7 +53,7 @@ export default defineConfig(() => {
   });
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     connectTo: [database]
@@ -93,12 +93,12 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  LocalScript
+  LocalScript,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     })
   });
@@ -144,9 +144,9 @@ import {
   LambdaFunction,
   RelationalDatabase,
   RdsEnginePostgres,
-  StacktapeLambdaBuildpackPackaging,
   $Secret,
-  LocalScript
+  LocalScript,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const database = new RelationalDatabase({
@@ -160,7 +160,7 @@ export default defineConfig(() => {
   });
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     connectTo: [database]
@@ -203,9 +203,9 @@ import {
   RdsEnginePostgres,
   Bastion,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   $Secret,
-  BastionScript
+  BastionScript,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const database = new RelationalDatabase({
@@ -221,7 +221,7 @@ export default defineConfig(() => {
   const bastion = new Bastion({});
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     connectTo: [database]
@@ -255,9 +255,9 @@ import {
   RdsEnginePostgres,
   Bastion,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   $Secret,
-  LocalScriptWithBastionTunneling
+  LocalScriptWithBastionTunneling,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const database = new RelationalDatabase({
@@ -273,7 +273,7 @@ export default defineConfig(() => {
   const bastion = new Bastion({});
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     connectTo: [database]
@@ -338,10 +338,10 @@ import {
   RelationalDatabase,
   RdsEnginePostgres,
   DeploymentScript,
-  StacktapeLambdaBuildpackPackaging,
   LambdaFunction,
   $Secret,
-  $ResourceParam
+  $ResourceParam,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const database = new RelationalDatabase({
@@ -356,7 +356,7 @@ export default defineConfig(() => {
 
   const migrate = new DeploymentScript({
     trigger: 'after:deploy',
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './scripts/migrate.ts'
     }),
     environment: [{ name: 'DATABASE_URL', value: $ResourceParam('database', 'connectionString') }],
@@ -366,7 +366,7 @@ export default defineConfig(() => {
   });
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     connectTo: [database]
@@ -422,16 +422,16 @@ Example (TypeScript):
 import {
   defineConfig,
   DeploymentScript,
-  StacktapeLambdaBuildpackPackaging,
   Bucket,
-  $ResourceParam
+  $ResourceParam,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const uploads = new Bucket({});
 
   const cleanup = new DeploymentScript({
     trigger: 'before:delete',
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './scripts/cleanup.ts'
     }),
     connectTo: ['uploads'],
@@ -491,7 +491,7 @@ Deployment scripts run as Lambda functions with the following configurable limit
 
 ### Packaging
 
-Deployment scripts are packaged as Lambda functions and support two packaging modes. The **Stacktape buildpack** (`StacktapeLambdaBuildpackPackaging`) auto-bundles your source from an entry file — this is the recommended default for most scripts. The **custom-artifact** mode (`CustomArtifactLambdaPackaging`) accepts a pre-built zip or directory — use it when you have a custom build process or binary dependencies the buildpack cannot handle. See [Lambda packaging](/packaging/overview) for full configuration details on both modes.
+Deployment scripts are packaged as Lambda functions and support the three Lambda packaging types. **`js-bundle`** (`JsBundleLambdaPackaging`) bundles a JavaScript or TypeScript entry file and is the recommended default for most scripts. **`buildpack`** (`BuildpackLambdaPackaging`) builds Python, Java, Go, Ruby, .NET and Rust scripts from source. **`custom-artifact`** (`CustomArtifactLambdaPackaging`) accepts a pre-built zip or directory; use it when you have a custom build process or binary dependencies that source-based packaging cannot handle. See [Lambda packaging](/packaging/overview) for full configuration details.
 
 ## Common patterns
 
@@ -517,12 +517,12 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  LocalScript
+  LocalScript,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './dist/handler.js'
     })
   });
@@ -553,9 +553,9 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   DynamoDbTable,
-  LocalScript
+  LocalScript,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const table = new DynamoDbTable({
@@ -563,7 +563,7 @@ export default defineConfig(() => {
   });
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     connectTo: [table]
@@ -634,7 +634,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 
 | Property | Required | Type | Default |
 | --- | --- | --- | --- |
-| `packaging` | yes | `stacktape-lambda-buildpack \| custom-artifact` | - |
+| `packaging` | yes | `js-bundle \| buildpack \| custom-artifact` | - |
 | `trigger` | yes | `string: "after:deploy" \| "before:delete"` | - |
 | `connectTo` | no | `Array<string>` | - |
 | `environment` | no | `Array<EnvironmentVar>` | - |

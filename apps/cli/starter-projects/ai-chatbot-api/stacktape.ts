@@ -1,8 +1,8 @@
-import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from '../../__release-npm';
+import { JsBundleLambdaPackaging, LambdaFunction, defineConfig } from '../../__release-npm';
 
 export default defineConfig(() => {
   const chat = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/index.ts'
     }),
     memory: 1024,

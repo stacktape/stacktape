@@ -35,14 +35,14 @@ Scripts can run shell commands or JS/TS/Python files. The examples below use `ex
     {
       label: 'TypeScript',
       lang: 'typescript',
-      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging, Bucket } from 'stacktape';
+      code: `import { defineConfig, LambdaFunction, Bucket, JsBundleLambdaPackaging } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
   const uploads = new Bucket({});
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     connectTo: [uploads]
@@ -183,14 +183,14 @@ Hooks attach scripts to deployment lifecycle events so they run automatically. D
       code: `import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  HostingBucket
+  HostingBucket,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     })
   });

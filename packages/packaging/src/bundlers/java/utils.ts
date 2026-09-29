@@ -1,4 +1,4 @@
-import type { JavaLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
+import type { JavaBuildpackConfig } from '@stacktape/config/deployment-artifacts';
 import { STACKTAPE_LANGUAGE_SOURCE_GLOBS } from '../../artifact/language-build-context';
 import { getBundleDigestFromGlobs, getSourceFilesFromGlobs } from '../digest';
 
@@ -29,7 +29,7 @@ export const getBundleDigest = ({
   externalDependencies: { name: string; version: string }[];
   additionalDigestInput?: string | undefined;
   rawEntryfilePath: string;
-  languageSpecificConfig?: JavaLanguageSpecificConfig | undefined;
+  languageSpecificConfig?: JavaBuildpackConfig | undefined;
   lambdaZip?: boolean | undefined;
 }) =>
   getBundleDigestFromGlobs({

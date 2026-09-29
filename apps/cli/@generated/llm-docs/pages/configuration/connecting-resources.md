@@ -19,10 +19,10 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   RelationalDatabase,
   RdsEnginePostgres,
-  Bucket
+  Bucket,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const myDatabase = new RelationalDatabase({
@@ -38,7 +38,7 @@ export default defineConfig(() => {
   const uploads = new Bucket({});
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     connectTo: [myDatabase, uploads]
@@ -66,7 +66,7 @@ import {
   DynamoDbTable,
   HttpApiGateway,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const usersTable = new DynamoDbTable({
@@ -78,7 +78,7 @@ export default defineConfig(() => {
   const apiGateway = new HttpApiGateway({});
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     connectTo: [usersTable],
@@ -178,7 +178,7 @@ import {
   LambdaFunction,
   RelationalDatabase,
   RdsEnginePostgres,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
@@ -194,7 +194,7 @@ export default defineConfig(() => {
   });
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/api.ts'
     }),
     connectTo: [mainDatabase]
@@ -495,12 +495,12 @@ When you need access to an AWS service not covered by `connectTo`, or need diffe
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging, Bucket } from 'stacktape';
+import { defineConfig, LambdaFunction, Bucket, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const uploads = new Bucket({});
 
   const reader = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/reader.ts'
     }),
     environment: { BUCKET_NAME: "$ResourceParam('uploads', 'name')" },

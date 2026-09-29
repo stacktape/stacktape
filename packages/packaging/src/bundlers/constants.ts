@@ -1,7 +1,6 @@
 import type {
   SupportedDotnetVersion,
   SupportedJavaVersion,
-  SupportedPhpVersion,
   SupportedPythonVersion,
   SupportedRubyVersion
 } from '@stacktape/config/deployment-artifacts';
@@ -12,7 +11,6 @@ import type {
  */
 export const DEFAULT_PYTHON_VERSION: SupportedPythonVersion = 3.12;
 export const DEFAULT_RUBY_VERSION: SupportedRubyVersion = 3.3;
-export const DEFAULT_PHP_VERSION: SupportedPhpVersion = 8.3;
 export const DEFAULT_DOTNET_VERSION: SupportedDotnetVersion = 8;
 export const DEFAULT_JAVA_VERSION: SupportedJavaVersion = 11;
 export const DEFAULT_GRADLE_VERSION = '8.5';
@@ -27,4 +25,4 @@ export const DEFAULT_LAMBDA_NODE_VERSION = 24;
  * Increment this whenever implementation changes can alter the output without changing customer source or config.
  * This prevents an already uploaded artifact from silently bypassing buildpack fixes after a CLI upgrade.
  */
-export const STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION = 4;
+export const STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION = 5;

@@ -202,9 +202,9 @@ import {
   defineConfig,
   RedisCluster,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   $Secret,
-  $ResourceParam
+  $ResourceParam,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const cache = new RedisCluster({
@@ -213,7 +213,7 @@ export default defineConfig(() => {
   });
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     joinDefaultVpc: true,

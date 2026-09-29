@@ -44,7 +44,7 @@ resources:
       containers:
         - name: game-server
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/server.ts
           environment:
@@ -78,7 +78,7 @@ export default defineConfig(() => {
     containers: [
       {
         name: 'game-server',
-        packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: 'src/server.ts' } },
+        packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/server.ts' } },
         environment: { PORT: 7777 },
         events: [
           {
@@ -123,7 +123,7 @@ resources:
       containers:
         - name: broker
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/broker.ts
           environment:
@@ -155,7 +155,7 @@ export default defineConfig(() => {
     containers: [
       {
         name: 'broker',
-        packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: 'src/broker.ts' } },
+        packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/broker.ts' } },
         environment: { PORT: 8883 },
         events: [
           {
@@ -200,7 +200,7 @@ resources:
       containers:
         - name: broker
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/broker.ts
           environment:
@@ -237,7 +237,7 @@ export default defineConfig(() => {
     containers: [
       {
         name: 'broker',
-        packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: 'src/broker.ts' } },
+        packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/broker.ts' } },
         environment: { PORT: 8883 },
         events: [
           {
@@ -283,7 +283,7 @@ resources:
       containers:
         - name: proxy
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/proxy.ts
           environment:
@@ -318,7 +318,7 @@ export default defineConfig(() => {
     containers: [
       {
         name: 'proxy',
-        packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: 'src/proxy.ts' } },
+        packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/proxy.ts' } },
         environment: { PORT: 5432 },
         events: [
           {

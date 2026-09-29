@@ -109,8 +109,8 @@ A common pattern is routing different URL prefixes to different backend services
   defineConfig,
   ApplicationLoadBalancer,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  ApplicationLoadBalancerIntegration
+  ApplicationLoadBalancerIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -118,7 +118,7 @@ export default defineConfig(() => {
   const myAlb = new ApplicationLoadBalancer({});
 
   const usersApi = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/users.ts'
     }),
     events: [
@@ -131,7 +131,7 @@ export default defineConfig(() => {
   });
 
   const ordersApi = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/orders.ts'
     }),
     events: [

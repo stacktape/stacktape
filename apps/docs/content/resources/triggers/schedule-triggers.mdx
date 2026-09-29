@@ -35,14 +35,14 @@ A schedule trigger is added to a Lambda function's `events` array using `Schedul
       code: `import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  ScheduleIntegration
+  ScheduleIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
   const dailyCleanup = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/cleanup.ts'
     }),
     memory: 512,
@@ -122,14 +122,14 @@ Use `?` in either the day-of-month or day-of-week field when you want to leave o
       code: `import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  ScheduleIntegration
+  ScheduleIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
   const weekdayReport = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/report.ts'
     }),
     timeout: 900,
@@ -173,14 +173,14 @@ A single Lambda function can have multiple schedule triggers. Add multiple `Sche
       code: `import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  ScheduleIntegration
+  ScheduleIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
   const syncJob = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/sync.ts'
     }),
     timeout: 300,
@@ -229,14 +229,14 @@ The `input` property passes a fixed JSON object as the event payload. Use this w
       code: `import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  ScheduleIntegration
+  ScheduleIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
   const cleanup = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/cleanup.ts'
     }),
     events: [
@@ -272,14 +272,14 @@ The `inputPath` property uses a JSONPath expression to extract a specific portio
       code: `import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  ScheduleIntegration
+  ScheduleIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
   const timeLogger = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/time-logger.ts'
     }),
     events: [
@@ -315,14 +315,14 @@ The `inputTransformer` property lets you extract values from the event using `in
       code: `import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  ScheduleIntegration
+  ScheduleIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
   const processor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/processor.ts'
     }),
     events: [

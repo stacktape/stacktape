@@ -16,7 +16,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./src/index.ts
       memory: 1024

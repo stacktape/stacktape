@@ -40,8 +40,8 @@ import {
   LambdaFunction,
   DynamoDbTable,
   DynamoDbIntegration,
-  StacktapeLambdaBuildpackPackaging,
-  $ResourceParam
+  $ResourceParam,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const ordersTable = new DynamoDbTable({
@@ -52,7 +52,7 @@ export default defineConfig(() => {
   });
 
   const streamProcessor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/process-stream.ts'
     }),
     events: [
@@ -93,8 +93,8 @@ import {
   LambdaFunction,
   DynamoDbTable,
   DynamoDbIntegration,
-  StacktapeLambdaBuildpackPackaging,
-  $ResourceParam
+  $ResourceParam,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
@@ -106,7 +106,7 @@ export default defineConfig(() => {
   });
 
   const batchProcessor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/batch-handler.ts'
     }),
     events: [
@@ -147,8 +147,8 @@ import {
   DynamoDbTable,
   DynamoDbIntegration,
   SqsQueue,
-  StacktapeLambdaBuildpackPackaging,
-  $ResourceParam
+  $ResourceParam,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
@@ -162,7 +162,7 @@ export default defineConfig(() => {
   const dlq = new SqsQueue({});
 
   const processor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/processor.ts'
     }),
     events: [
@@ -244,12 +244,12 @@ import {
   defineConfig,
   LambdaFunction,
   DynamoDbIntegration,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
   const processor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/external-processor.ts'
     }),
     events: [

@@ -49,10 +49,10 @@ Lambda functions support nine deployment strategies through the `deployment` pro
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     memory: 1024,
@@ -79,17 +79,17 @@ Both properties take the resource name of another Lambda function in your config
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const smokeTest = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/smoke-test.ts'
     }),
     timeout: 60
   });
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     memory: 1024,
@@ -135,10 +135,10 @@ The `smokeTest` function runs before any traffic shifts. Use it for health check
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: './src/server.ts'
     }),
     environment: {
@@ -172,19 +172,19 @@ import {
   defineConfig,
   WebService,
   LambdaFunction,
-  StacktapeImageBuildpackPackaging,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging,
+  JsBundleImagePackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const validateDeploy = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/validate-deploy.ts'
     }),
     timeout: 120
   });
 
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: './src/server.ts'
     }),
     environment: {

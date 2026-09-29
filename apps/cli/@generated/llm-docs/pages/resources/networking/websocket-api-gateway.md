@@ -27,16 +27,16 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   WebSocketApiGateway,
-  WebSocketApiIntegration
+  WebSocketApiIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
   const realtime = new WebSocketApiGateway({});
 
   const connections = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/connections.ts'
     }),
     events: [
@@ -52,7 +52,7 @@ export default defineConfig(() => {
   });
 
   const messages = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/messages.ts'
     }),
     events: [
@@ -83,7 +83,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./src/connections.ts
       events:
@@ -100,7 +100,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./src/messages.ts
       events:
@@ -188,7 +188,7 @@ For application-specific authentication, use a Lambda REQUEST authorizer:
 
 ```ts
 const connect = new LambdaFunction({
-  packaging: new StacktapeLambdaBuildpackPackaging({
+  packaging: new JsBundleLambdaPackaging({
     entryfilePath: './src/connect.ts'
   }),
   events: [

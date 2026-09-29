@@ -52,7 +52,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/index.ts
       connectTo:
@@ -71,7 +71,7 @@ export default defineConfig(() => {
     enableBackups: true
   });
   const api = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
     connectTo: [appDb]
   });
   return { resources: { appDb, api } };
@@ -104,7 +104,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/index.ts
       connectTo:
@@ -127,7 +127,7 @@ export default defineConfig(() => {
     }
   });
   const api = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
     connectTo: [primaryDb]
   });
   return { resources: { primaryDb, api } };
@@ -160,7 +160,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/index.ts
       connectTo:
@@ -183,7 +183,7 @@ export default defineConfig(() => {
     }
   });
   const api = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
     connectTo: [scalingDb]
   });
   return { resources: { scalingDb, api } };
@@ -217,7 +217,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/index.ts
       connectTo:
@@ -244,7 +244,7 @@ export default defineConfig(() => {
     }
   });
   const api = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
     connectTo: [reportingDb]
   });
   return { resources: { reportingDb, api } };
@@ -273,7 +273,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/index.ts
       connectTo:
@@ -293,7 +293,7 @@ export default defineConfig(() => {
     enableBackups: true
   });
   const api = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
     connectTo: [ordersDb]
   });
   return { resources: { ordersDb, api } };
@@ -321,7 +321,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/index.ts
       connectTo:
@@ -340,7 +340,7 @@ export default defineConfig(() => {
     enableBackups: true
   });
   const api = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
     connectTo: [paymentsDb]
   });
   return { resources: { paymentsDb, api } };
@@ -369,7 +369,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/index.ts
       connectTo:
@@ -389,7 +389,7 @@ export default defineConfig(() => {
     enablePointInTimeRecovery: true
   });
   const api = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
     connectTo: [ledgerDb]
   });
   return { resources: { ledgerDb, api } };
@@ -419,7 +419,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/index.ts
       connectTo:
@@ -439,7 +439,7 @@ export default defineConfig(() => {
     enableBackups: true
   });
   const api = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
     connectTo: [shardedDb]
   });
   return { resources: { shardedDb, api } };
@@ -471,7 +471,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/index.ts
       connectTo:
@@ -495,7 +495,7 @@ export default defineConfig(() => {
     enableBackups: true
   });
   const api = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
     connectTo: [analyticsDb]
   });
   return { resources: { analyticsDb, api } };
@@ -524,7 +524,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/index.ts
       connectTo:
@@ -543,7 +543,7 @@ export default defineConfig(() => {
     enableBackups: true
   });
   const api = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
     connectTo: [contentDb]
   });
   return { resources: { contentDb, api } };

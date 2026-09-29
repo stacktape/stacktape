@@ -36,7 +36,7 @@ export interface ApplicationLoadBalancerProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       events:
@@ -62,7 +62,7 @@ export interface ApplicationLoadBalancerProps {
    *
    *   const apiFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     events: [
@@ -111,7 +111,7 @@ export interface ApplicationLoadBalancerProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       events:
@@ -140,7 +140,7 @@ export interface ApplicationLoadBalancerProps {
    *
    *   const apiFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     events: [
@@ -185,7 +185,7 @@ export interface ApplicationLoadBalancerProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       events:
@@ -216,7 +216,7 @@ export interface ApplicationLoadBalancerProps {
    *
    *   const apiFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     events: [
@@ -260,7 +260,7 @@ export interface ApplicationLoadBalancerProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       events:
@@ -290,7 +290,7 @@ export interface ApplicationLoadBalancerProps {
    *
    *   const apiFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     events: [
@@ -344,7 +344,7 @@ export interface ApplicationLoadBalancerProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       events:
@@ -390,7 +390,7 @@ export interface ApplicationLoadBalancerProps {
    *
    *   const apiFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     events: [
@@ -433,7 +433,7 @@ export interface ApplicationLoadBalancerProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       events:
@@ -460,7 +460,7 @@ export interface ApplicationLoadBalancerProps {
    *
    *   const apiFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     events: [
@@ -505,7 +505,7 @@ export interface ApplicationLoadBalancerProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       events:
@@ -534,7 +534,7 @@ export interface ApplicationLoadBalancerProps {
    *
    *   const apiFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     events: [
@@ -581,7 +581,7 @@ export interface ApplicationLoadBalancerListener {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       events:
@@ -611,7 +611,7 @@ export interface ApplicationLoadBalancerListener {
    *
    *   const apiFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     events: [
@@ -655,7 +655,7 @@ export interface ApplicationLoadBalancerListener {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       events:
@@ -688,7 +688,7 @@ export interface ApplicationLoadBalancerListener {
    *
    *   const apiFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     events: [
@@ -732,7 +732,7 @@ export interface ApplicationLoadBalancerListener {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       events:
@@ -767,7 +767,7 @@ export interface ApplicationLoadBalancerListener {
    *
    *   const apiFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     events: [
@@ -813,7 +813,7 @@ export interface ApplicationLoadBalancerListener {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       events:
@@ -847,7 +847,7 @@ export interface ApplicationLoadBalancerListener {
    *
    *   const apiFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     events: [
@@ -899,7 +899,7 @@ export interface ApplicationLoadBalancerListener {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       events:
@@ -941,7 +941,7 @@ export interface ApplicationLoadBalancerListener {
    *
    *   const apiFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     events: [
@@ -997,7 +997,7 @@ export interface LbRedirect {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       events:
@@ -1039,7 +1039,7 @@ export interface LbRedirect {
    *
    *   const apiFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     events: [
@@ -1099,7 +1099,7 @@ export interface LbRedirect {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       events:
@@ -1143,7 +1143,7 @@ export interface LbRedirect {
    *
    *   const apiFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     events: [
@@ -1197,7 +1197,7 @@ export interface LbRedirectProperties {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       events:
@@ -1237,7 +1237,7 @@ export interface LbRedirectProperties {
    *
    *   const apiFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     events: [
@@ -1286,7 +1286,7 @@ export interface LbRedirectProperties {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       events:
@@ -1326,7 +1326,7 @@ export interface LbRedirectProperties {
    *
    *   const apiFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     events: [
@@ -1378,7 +1378,7 @@ export interface LbRedirectProperties {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       events:
@@ -1420,7 +1420,7 @@ export interface LbRedirectProperties {
    *
    *   const apiFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     events: [
@@ -1470,7 +1470,7 @@ export interface LbRedirectProperties {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       events:
@@ -1512,7 +1512,7 @@ export interface LbRedirectProperties {
    *
    *   const apiFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     events: [
@@ -1565,7 +1565,7 @@ export interface LbRedirectProperties {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       events:
@@ -1607,7 +1607,7 @@ export interface LbRedirectProperties {
    *
    *   const apiFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     events: [
@@ -1659,7 +1659,7 @@ export interface LbRedirectProperties {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       events:
@@ -1701,7 +1701,7 @@ export interface LbRedirectProperties {
    *
    *   const apiFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     events: [
@@ -1751,7 +1751,7 @@ export interface ApplicationLoadBalancerCdnConfiguration extends CdnConfiguratio
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       events:
@@ -1783,7 +1783,7 @@ export interface ApplicationLoadBalancerCdnConfiguration extends CdnConfiguratio
    *
    *   const apiFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     events: [
@@ -1830,7 +1830,7 @@ export interface ApplicationLoadBalancerCdnConfiguration extends CdnConfiguratio
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       events:
@@ -1869,7 +1869,7 @@ export interface ApplicationLoadBalancerCdnConfiguration extends CdnConfiguratio
    *
    *   const apiFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     events: [

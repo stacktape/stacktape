@@ -67,7 +67,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/backlog-worker.ts
       events:
@@ -104,7 +104,7 @@ export default defineConfig(() => {
 
   const backlogWorker = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/backlog-worker.ts' }
     },
     events: [{ type: 'sqs', properties: { sqsQueueName: 'backlogQueue' } }]
@@ -139,7 +139,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/order-event-consumer.ts
       events:
@@ -162,7 +162,7 @@ export default defineConfig(() => {
 
   const orderEventConsumer = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/order-event-consumer.ts' }
     },
     events: [{ type: 'sqs', properties: { sqsQueueName: 'orderEventsQueue' } }]
@@ -195,7 +195,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/email-worker.ts
       events:
@@ -217,7 +217,7 @@ export default defineConfig(() => {
 
   const emailWorker = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/email-worker.ts' }
     },
     events: [{ type: 'sqs', properties: { sqsQueueName: 'emailQueue' } }]
@@ -250,7 +250,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/low-priority-worker.ts
       events:
@@ -272,7 +272,7 @@ export default defineConfig(() => {
 
   const lowPriorityWorker = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/low-priority-worker.ts' }
     },
     events: [{ type: 'sqs', properties: { sqsQueueName: 'lowPriorityQueue' } }]
@@ -311,7 +311,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/order-worker.ts
       events:
@@ -342,7 +342,7 @@ export default defineConfig(() => {
 
   const orderWorker = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/order-worker.ts' }
     },
     events: [{ type: 'sqs', properties: { sqsQueueName: 'orderQueue' } }]
@@ -379,7 +379,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/transaction-processor.ts
       events:
@@ -402,7 +402,7 @@ export default defineConfig(() => {
 
   const transactionProcessor = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/transaction-processor.ts' }
     },
     events: [{ type: 'sqs', properties: { sqsQueueName: 'transactionsQueue' } }]
@@ -436,7 +436,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/clickstream-consumer.ts
       events:
@@ -460,7 +460,7 @@ export default defineConfig(() => {
 
   const clickstreamConsumer = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/clickstream-consumer.ts' }
     },
     events: [{ type: 'sqs', properties: { sqsQueueName: 'clickstreamQueue', batchSize: 10 } }]
@@ -496,7 +496,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/image-worker.ts
       events:
@@ -518,7 +518,7 @@ export default defineConfig(() => {
 
   const imageWorker = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/image-worker.ts' }
     },
     events: [{ type: 'sqs', properties: { sqsQueueName: 'imageJobsQueue' } }]
@@ -551,7 +551,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/upload-processor.ts
       events:
@@ -573,7 +573,7 @@ export default defineConfig(() => {
 
   const uploadProcessor = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/upload-processor.ts' }
     },
     events: [{ type: 'sqs', properties: { sqsQueueName: 'uploadEventsQueue' } }]
@@ -606,7 +606,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/report-worker.ts
       timeout: 240
@@ -629,7 +629,7 @@ export default defineConfig(() => {
 
   const reportWorker = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/report-worker.ts' }
     },
     timeout: 240,
@@ -667,7 +667,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/cross-account-worker.ts
       events:
@@ -694,7 +694,7 @@ export default defineConfig(() => {
 
   const crossAccountWorker = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/cross-account-worker.ts' }
     },
     events: [{ type: 'sqs', properties: { sqsQueueName: 'crossAccountQueue' } }]
@@ -733,7 +733,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/payments-worker.ts
       events:
@@ -760,7 +760,7 @@ export default defineConfig(() => {
 
   const paymentsWorker = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/payments-worker.ts' }
     },
     events: [{ type: 'sqs', properties: { sqsQueueName: 'paymentsQueue' } }]
@@ -796,7 +796,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/video-encoder.ts
       timeout: 600
@@ -819,7 +819,7 @@ export default defineConfig(() => {
 
   const videoEncoder = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/video-encoder.ts' }
     },
     timeout: 600,

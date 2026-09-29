@@ -1,85 +1,28 @@
 import type { HelperLambdaData } from '@utils/helper-lambdas';
-import type { ProgressReporter as ProgressLogger } from '@application-services/operation-manager';
 import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
-import type { StacktapeArgs } from 'src/config/cli/types';
 import type { BatchJobContainer, BatchJobResources } from '@stacktape/config/batch-jobs';
 import type {
   BatchJobContainerPackaging,
   ContainerWorkloadContainerPackaging,
-  CustomDockerfileBjImagePackaging,
-  CustomDockerfileCwImagePackaging,
-  DotnetLanguageSpecificConfig,
-  EsLanguageSpecificConfig,
-  ExternalBuildpackBjImagePackaging,
-  ExternalBuildpackCwImagePackaging,
-  JavaLanguageSpecificConfig,
-  LambdaPackaging,
-  NixpacksBjImagePackaging,
-  NixpacksCwImagePackaging,
-  PhpLanguageSpecificConfig,
-  PrebuiltBjImagePackaging,
-  PrebuiltCwImagePackaging,
-  PyLanguageSpecificConfig,
-  StpBuildpackBjImagePackaging,
-  StpBuildpackBjImagePackagingProps,
-  StpBuildpackCwImagePackaging,
-  StpBuildpackCwImagePackagingProps,
-  StpBuildpackLambdaPackaging,
-  StpBuildpackLambdaPackagingProps
+  LambdaPackaging
 } from '@stacktape/config/deployment-artifacts';
 import type {
   ContainerWorkloadContainer,
   ContainerWorkloadResourcesConfig
 } from '@stacktape/config/multi-container-workloads';
-import type { DockerBuildOutputArchitecture } from '@stacktape/packaging/runtime-contracts';
 
-export type StpBuildpackInput = StpBuildpackLambdaPackagingProps &
-  StpBuildpackCwImagePackagingProps &
-  StpBuildpackBjImagePackagingProps & {
-    name: string;
-    sizeLimit?: number;
-    cwd: string;
-    isDev?: boolean;
-    args: StacktapeArgs;
-    existingDigests: string[];
-    additionalDigestInput?: string;
-    progressLogger: ProgressLogger;
-    invocationId: string;
-    includeFiles?: string[];
-    distFolderPath: string;
-    externals?: string[];
-    rebuildBinaries?: boolean;
-    debug?: boolean;
-    dockerBuildOutputArchitecture?: DockerBuildOutputArchitecture;
-  };
-
+/**
+ * Every packaging `type` literal. `buildpack` and `js-bundle` name a Lambda packaging on a function and a container
+ * packaging on a service; the resource decides which, so code branching on the literal alone must also know the
+ * target.
+ */
 export type SupportedPackagingType =
-  | StpBuildpackLambdaPackaging['type']
-  | StpBuildpackBjImagePackaging['type']
-  | StpBuildpackCwImagePackaging['type']
-  | ExternalBuildpackBjImagePackaging['type']
-  | ExternalBuildpackCwImagePackaging['type']
-  | PrebuiltBjImagePackaging['type']
-  | PrebuiltCwImagePackaging['type']
-  | CustomDockerfileBjImagePackaging['type']
-  | CustomDockerfileCwImagePackaging['type']
-  | NixpacksBjImagePackaging['type']
-  | NixpacksCwImagePackaging['type']
+  | ContainerWorkloadContainerPackaging['type']
+  | BatchJobContainerPackaging['type']
   | LambdaPackaging['type'];
 
-export type EsSpecificPackagingProps = EsLanguageSpecificConfig & {
-  languageType: 'es';
-  nodeTarget: string;
-  tsConfigPath: string;
-  minify: boolean;
-};
-export type PythonSpecificPackagingProps = PyLanguageSpecificConfig;
-export type GoSpecificPackagingProps = Record<string, never>;
-export type JavaSpecificPackagingProps = JavaLanguageSpecificConfig;
-export type RubySpecificPackagingProps = Record<string, never>;
-export type CSharpSpecificPackagingProps = Record<string, never>;
-export type PhpSpecificPackagingProps = PhpLanguageSpecificConfig;
-export type DotnetSpecificPackagingProps = DotnetLanguageSpecificConfig;
+/** What a packaging builds: a Lambda archive or a container image. Decided by the resource, not by the config. */
+export type PackagingTarget = 'lambda' | 'container';
 
 export type PackageWorkloadOutput = {
   jobName: string;

@@ -1179,7 +1179,7 @@ export const renderReport = (input: ReportInput): string => {
       ])
     ),
     '',
-    'The measured runtime layout is the executable and the files a measured command reads, as `build-release-install.ts` builds it. It is not the size of a customer install: the downloaded tools (pack, nixpacks, the Session Manager plugin), the MCP documentation, the init wizard and the starter metadata are left out.',
+    'The measured runtime layout is the executable and the files a measured command reads, as `build-release-install.ts` builds it. It is not the size of a customer install: the downloaded tools (railpack, the Session Manager plugin), the MCP documentation, the init wizard and the starter metadata are left out.',
     '',
     ...markdownTable(
       [{ title: 'Install' }, { title: 'Helper ZIP' }, { title: 'Bytes', numeric: true }, { title: 'SHA-256' }],

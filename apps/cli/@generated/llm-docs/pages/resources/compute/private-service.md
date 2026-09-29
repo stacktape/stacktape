@@ -22,16 +22,16 @@ A Stacktape private service is the right choice when your stack has internal com
 
 ## Basic example
 
-This example deploys an internal API using the [Stacktape image buildpack](/packaging/containers/stacktape-buildpack), which builds a container image from your source code automatically. The service listens on port `3000` by default (injected as the `PORT` environment variable). Other resources that need to call this service add it to their `connectTo` array — see [Connecting to other resources](#connecting-to-other-resources) for a complete wiring example.
+This example deploys an internal API with [`js-bundle`](/packaging/containers/js-bundle) packaging, which builds a container image from a TypeScript entry file. The service listens on port `3000` by default (injected as the `PORT` environment variable). Other resources that need to call this service add it to their `connectTo` array — see [Connecting to other resources](#connecting-to-other-resources) for a complete wiring example.
 
 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, PrivateService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, PrivateService, JsBundleImagePackaging } from 'stacktape';
 export default defineConfig(() => {
   const internalApi = new PrivateService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: './src/internal-api.ts'
     }),
     resources: {
@@ -59,11 +59,11 @@ Every private service task runs with a fixed CPU and memory allocation. Stacktap
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, PrivateService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, PrivateService, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const internalApi = new PrivateService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: './src/internal-api.ts'
     }),
     resources: {
@@ -92,11 +92,11 @@ Fargate bills per vCPU-hour and per GB-hour of memory. As a rough reference, com
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, PrivateService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, PrivateService, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const internalApi = new PrivateService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: './src/internal-api.ts'
     }),
     resources: {
@@ -117,11 +117,11 @@ Stacktape private service scaling adds or removes container instances horizontal
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, PrivateService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, PrivateService, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const internalApi = new PrivateService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: './src/internal-api.ts'
     }),
     resources: { cpu: 0.5, memory: 1024 },
@@ -172,11 +172,11 @@ Private service load balancing controls how other resources in your stack reach 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, PrivateService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, PrivateService, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const internalApi = new PrivateService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: './src/internal-api.ts'
     }),
     resources: { cpu: 0.25, memory: 512 },
@@ -198,11 +198,11 @@ With Service Connect, other containers in the stack can reach this service via b
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, PrivateService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, PrivateService, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const internalApi = new PrivateService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: './src/internal-api.ts'
     }),
     resources: { cpu: 0.5, memory: 1024 },
@@ -220,27 +220,26 @@ With an ALB, the private service gets a stable internal DNS hostname reachable f
 
 ## Packaging
 
-Stacktape supports five container packaging modes. Choose the one that fits your workflow. For detailed configuration, see the [packaging overview](/packaging/overview).
+Stacktape supports four container packaging types. Choose the one that fits your workflow. For detailed configuration, see the [packaging overview](/packaging/overview).
 
-| Mode | When to use |
+| Type | When to use |
 |------|-------------|
-| [Stacktape image buildpack](/packaging/containers/stacktape-buildpack) | Zero-config, works with JS/TS, Python, Java, Go, PHP, Ruby, and .NET |
-| [Custom Dockerfile](/packaging/containers/custom-dockerfile) | Full control over the container environment |
-| [Prebuilt image](/packaging/containers/prebuilt-image) | Use an existing image from Docker Hub or a private registry |
-| [Nixpacks](/packaging/containers/nixpacks) | Auto-detects language and builds an optimized image |
-| [External buildpack](/packaging/containers/external-buildpack) | Use Cloud Native Buildpacks (buildpacks.io) |
+| [`js-bundle`](/packaging/containers/js-bundle) | A JavaScript or TypeScript service with one entry file. Stacktape bundles it into a small image. |
+| [`buildpack`](/packaging/containers/buildpack) | Build from source without a Dockerfile. Detects Node.js frameworks, Python, Go, Rust, Java, PHP, Ruby, .NET and more. |
+| [`dockerfile`](/packaging/containers/dockerfile) | Full control over the base image, system packages, build steps, entrypoint and command |
+| [`prebuilt-image`](/packaging/containers/prebuilt-image) | Deploy an image already built by another pipeline or stored in a registry |
 
-### Using a custom Dockerfile
+### Using a Dockerfile
 
 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, PrivateService, CustomDockerfilePackaging } from 'stacktape';
+import { defineConfig, PrivateService, DockerfilePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const internalApi = new PrivateService({
-    packaging: new CustomDockerfilePackaging({
+    packaging: new DockerfilePackaging({
       buildContextPath: '.',
       dockerfilePath: './Dockerfile'
     }),
@@ -268,14 +267,14 @@ import {
   defineConfig,
   PrivateService,
   WebService,
-  StacktapeImageBuildpackPackaging,
-  Bucket
+  Bucket,
+  JsBundleImagePackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const dataBucket = new Bucket({});
 
   const internalApi = new PrivateService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: './src/internal-api.ts'
     }),
     resources: { cpu: 0.25, memory: 512 },
@@ -283,7 +282,7 @@ export default defineConfig(() => {
   });
 
   const publicApi = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: './src/public-api.ts'
     }),
     resources: { cpu: 0.25, memory: 512 },
@@ -305,11 +304,11 @@ A Stacktape private service supports an internal container health check configur
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, PrivateService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, PrivateService, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const internalApi = new PrivateService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: './src/internal-api.ts'
     }),
     resources: { cpu: 0.25, memory: 512 },
@@ -343,11 +342,11 @@ A `run-on-init` sidecar runs to completion before the main container starts. Use
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, PrivateService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, PrivateService, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const internalApi = new PrivateService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: './src/internal-api.ts'
     }),
     resources: { cpu: 0.5, memory: 1024 },
@@ -355,7 +354,7 @@ export default defineConfig(() => {
       {
         name: 'migrate',
         containerType: 'run-on-init',
-        packaging: new StacktapeImageBuildpackPackaging({
+        packaging: new JsBundleImagePackaging({
           entryfilePath: './src/migrate.ts'
         })
       }
@@ -381,13 +380,13 @@ Example (TypeScript):
 import {
   defineConfig,
   PrivateService,
-  StacktapeImageBuildpackPackaging,
-  PrebuiltImagePackaging
+  PrebuiltImagePackaging,
+  JsBundleImagePackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
   const internalApi = new PrivateService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: './src/internal-api.ts'
     }),
     resources: { cpu: 0.5, memory: 1024 },
@@ -443,7 +442,7 @@ The main costs are Fargate compute and networking. Compute runs approximately ~$
 
 ### Can I run a gRPC server as a private service?
 
-Yes. Set `port` to your gRPC server's listening port (e.g., `50051`) and set the top-level `protocol: 'grpc'` to enable protocol-specific CloudWatch metrics. Other containers in the stack connect using `connectTo` to receive the injected `ADDRESS` environment variable. The Stacktape image buildpack supports Node.js, Python, Java, Go, PHP, Ruby, and .NET.
+Yes. Set `port` to your gRPC server's listening port (e.g., `50051`) and set the top-level `protocol: 'grpc'` to enable protocol-specific CloudWatch metrics. Other containers in the stack connect using `connectTo` to receive the injected `ADDRESS` environment variable. To build a gRPC server in any language without a Dockerfile, use [`buildpack`](/packaging/containers/buildpack) packaging.
 
 ### Private service vs worker service — which should I use?
 
@@ -466,7 +465,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 
 | Property | Required | Type | Default |
 | --- | --- | --- | --- |
-| `packaging` | yes | `prebuilt-image \| custom-dockerfile \| external-buildpack \| nixpacks \| stacktape-image-buildpack` | - |
+| `packaging` | yes | `js-bundle \| prebuilt-image \| dockerfile \| buildpack` | - |
 | `resources` | yes | `ContainerWorkloadResourcesConfig` | - |
 | `connectTo` | no | `Array<string>` | - |
 | `enableRemoteSessions` | no | `boolean` | `false` |

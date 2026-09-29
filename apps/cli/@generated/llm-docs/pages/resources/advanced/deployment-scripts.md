@@ -49,7 +49,7 @@ import {
   DeploymentScript,
   RelationalDatabase,
   RdsEnginePostgres,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
@@ -59,7 +59,7 @@ export default defineConfig(() => {
 
   const runMigrations = new DeploymentScript({
     trigger: 'after:deploy',
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './scripts/migrate.ts'
     }),
     connectTo: ['mainDatabase'],
@@ -118,11 +118,11 @@ A script with `before:delete` runs before resources are torn down during [`stack
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, DeploymentScript, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, DeploymentScript, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const cleanup = new DeploymentScript({
     trigger: 'before:delete',
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './scripts/cleanup.ts'
     }),
     timeout: 300
@@ -137,14 +137,15 @@ export default defineConfig(() => {
 
 ## Packaging
 
-Deployment scripts support two Lambda packaging modes. Most teams use the Stacktape buildpack for zero-config bundling. For pre-built artifacts (from a CI pipeline or custom build process), use custom artifact packaging.
+Deployment scripts support the three Lambda packaging types. Most teams use `js-bundle` for JavaScript and TypeScript scripts and `buildpack` for other languages. For pre-built artifacts from a CI pipeline or custom build process, use custom artifact packaging.
 
-| Mode | Class | When to use |
+| Type | Class | When to use |
 |------|-------|-------------|
-| [Stacktape buildpack](/packaging/function/stacktape-buildpack) | `StacktapeLambdaBuildpackPackaging` | Default. Point to a source file — Stacktape bundles code and dependencies into a Lambda deployment package. |
-| [Custom artifact](/packaging/function/custom-artifact) | `CustomArtifactLambdaPackaging` | You have a pre-built zip or directory from a custom build step. |
+| [`js-bundle`](/packaging/function/js-bundle) | `JsBundleLambdaPackaging` | Default for JavaScript and TypeScript. Point to a source file; Stacktape bundles code and dependencies into a Lambda deployment package. |
+| [`buildpack`](/packaging/function/buildpack) | `BuildpackLambdaPackaging` | Python, Java, Go, Ruby, .NET or Rust. Point to a source file; Stacktape installs dependencies and compiles the code. |
+| [`custom-artifact`](/packaging/function/custom-artifact) | `CustomArtifactLambdaPackaging` | You have a pre-built zip or directory from a custom build step. |
 
-`StacktapeLambdaBuildpackPackaging` supports JavaScript, TypeScript, Python, Java, Go, Ruby, PHP, and .NET. Deployment scripts also expose an optional `runtime` property; when omitted, Stacktape auto-detects the Lambda runtime from the file extension.
+Deployment scripts also expose an optional `runtime` property; when omitted, Stacktape auto-detects the Lambda runtime from the file extension.
 
 ### Custom artifact packaging
 
@@ -172,7 +173,7 @@ export default defineConfig(() => {
 ```
 
 
-For language-specific tuning (Node.js version, Python version, module format), configure the buildpack's `languageSpecificConfig` property. See the [Stacktape buildpack packaging reference](/packaging/function/stacktape-buildpack) for supported options.
+For bundling options such as `nodeVersion` and `outputModuleFormat`, see [JS Bundle for Lambda](/packaging/function/js-bundle). For other languages, the script's `runtime` selects the language version; see [Buildpack for Lambda](/packaging/function/buildpack).
 
 ## Connecting to resources
 
@@ -203,11 +204,11 @@ Deployment scripts accept two mechanisms for passing data:
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, DeploymentScript, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, DeploymentScript, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const seedData = new DeploymentScript({
     trigger: 'after:deploy',
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './scripts/seed.ts'
     }),
     environment: [
@@ -281,7 +282,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 
 | Property | Required | Type | Default |
 | --- | --- | --- | --- |
-| `packaging` | yes | `stacktape-lambda-buildpack \| custom-artifact` | - |
+| `packaging` | yes | `js-bundle \| buildpack \| custom-artifact` | - |
 | `trigger` | yes | `string: "after:deploy" \| "before:delete"` | - |
 | `connectTo` | no | `Array<string>` | - |
 | `environment` | no | `Array<EnvironmentVar>` | - |

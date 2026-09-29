@@ -1,11 +1,11 @@
-import { BatchJob, Bucket, CustomDockerfilePackaging, defineConfig } from '../../__release-npm';
+import { BatchJob, Bucket, DockerfilePackaging, defineConfig } from '../../__release-npm';
 
 export default defineConfig(() => {
   const inputBucket = new Bucket({});
   const outputBucket = new Bucket({});
   const classifierJob = new BatchJob({
     container: {
-      packaging: new CustomDockerfilePackaging({
+      packaging: new DockerfilePackaging({
         buildContextPath: './'
       })
     },

@@ -12,7 +12,7 @@ resources:
             method: "*"
             path: /{proxy+}
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: packages/lambda/src/index.ts
 
@@ -20,7 +20,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: packages/server/src/index.ts
       resources:

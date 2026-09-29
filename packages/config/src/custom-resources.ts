@@ -40,7 +40,7 @@ export interface CustomResourceInstanceProps {
    *     type: custom-resource-definition
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: provisioners/slack-channel.ts
    *       runtime: nodejs22.x
@@ -64,7 +64,7 @@ export interface CustomResourceInstanceProps {
    * export default defineConfig(() => {
    *   const slackProvisioner = new CustomResourceDefinition({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'provisioners/slack-channel.ts' }
    *     },
    *     runtime: 'nodejs22.x',
@@ -96,7 +96,7 @@ export interface CustomResourceInstanceProps {
    *     type: custom-resource-definition
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: provisioners/cloudflare-dns.ts
    *       environment:
@@ -124,7 +124,7 @@ export interface CustomResourceInstanceProps {
    * export default defineConfig(() => {
    *   const dnsProvisioner = new CustomResourceDefinition({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'provisioners/cloudflare-dns.ts' }
    *     },
    *     environment: [{ name: 'CLOUDFLARE_API_TOKEN', value: $Secret('cloudflare-token') }],
@@ -165,7 +165,7 @@ export interface CustomResourceDefinitionProps extends ResourceAccessProps {
    *     properties:
    *       # stp-focus
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: provisioners/stripe-webhook.ts
    *       # stp-end-focus
@@ -192,7 +192,7 @@ export interface CustomResourceDefinitionProps extends ResourceAccessProps {
    *   const stripeWebhookProvisioner = new CustomResourceDefinition({
    *     // stp-focus
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'provisioners/stripe-webhook.ts' }
    *     },
    *     // stp-end-focus
@@ -228,7 +228,7 @@ export interface CustomResourceDefinitionProps extends ResourceAccessProps {
    *     type: custom-resource-definition
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: provisioners/fastly-purge.ts
    *       # stp-focus
@@ -264,7 +264,7 @@ export interface CustomResourceDefinitionProps extends ResourceAccessProps {
    *
    *   const cdnProvisioner = new CustomResourceDefinition({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'provisioners/fastly-purge.ts' }
    *     },
    *     // stp-focus
@@ -299,7 +299,7 @@ export interface CustomResourceDefinitionProps extends ResourceAccessProps {
    *     type: custom-resource-definition
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: buildpack
    *         properties:
    *           entryfilePath: provisioners/datadog_monitor.py
    *       # stp-focus
@@ -329,7 +329,7 @@ export interface CustomResourceDefinitionProps extends ResourceAccessProps {
    * export default defineConfig(() => {
    *   const datadogMonitorProvisioner = new CustomResourceDefinition({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'buildpack',
    *       properties: { entryfilePath: 'provisioners/datadog_monitor.py' }
    *     },
    *     // stp-focus
@@ -369,7 +369,7 @@ export interface CustomResourceDefinitionProps extends ResourceAccessProps {
    *     type: custom-resource-definition
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: provisioners/algolia-index.ts
    *       environment:
@@ -399,7 +399,7 @@ export interface CustomResourceDefinitionProps extends ResourceAccessProps {
    * export default defineConfig(() => {
    *   const algoliaIndexProvisioner = new CustomResourceDefinition({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'provisioners/algolia-index.ts' }
    *     },
    *     environment: [
@@ -439,7 +439,7 @@ export interface CustomResourceDefinitionProps extends ResourceAccessProps {
    *     type: custom-resource-definition
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: provisioners/optimize-images.ts
    *       timeout: 600
@@ -464,7 +464,7 @@ export interface CustomResourceDefinitionProps extends ResourceAccessProps {
    * export default defineConfig(() => {
    *   const imageOptimizerProvisioner = new CustomResourceDefinition({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'provisioners/optimize-images.ts' }
    *     },
    *     timeout: 600,

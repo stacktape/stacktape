@@ -22,7 +22,7 @@ export interface WorkerService {
    *     type: worker-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: ./src/worker.ts
    *       resources:
@@ -38,13 +38,13 @@ export interface WorkerService {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { SqsQueue, StacktapeImageBuildpackPackaging, WorkerService, defineConfig } from 'stacktape';
+   * import { SqsQueue, WorkerService, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const jobsQueue = new SqsQueue({});
    *   // stp-focus
    *   const jobProcessor = new WorkerService({
-   *     packaging: new StacktapeImageBuildpackPackaging({
+   *     packaging: new JsBundleImagePackaging({
    *       entryfilePath: './src/worker.ts'
    *     }),
    *     resources: {

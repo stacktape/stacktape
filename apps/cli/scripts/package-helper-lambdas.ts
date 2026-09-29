@@ -7,7 +7,7 @@ import {
   HELPER_LAMBDAS_SOURCE_FOLDER_PATH,
   SOURCE_MAP_INSTALL_DIST_PATH
 } from 'src/config/project-paths';
-import { buildUsingStacktapeEsLambdaBuildpack } from '@stacktape/packaging/buildpacks/stacktape-es-lambda-buildpack';
+import { buildJsBundleLambda } from '@stacktape/packaging/buildpacks/js-bundle-lambda';
 import { dependencyInstaller } from '@domain-services/packaging-manager/dependency-installer';
 import { createCliPackagingError } from '@domain-services/packaging-manager/errors';
 import { execDocker } from '@utils/docker';
@@ -52,16 +52,14 @@ export const packageHelperLambdas = async ({ distFolderPath }: { distFolderPath:
   await fsExtra.ensureDir(lambdasDistFolderPath);
 
   for (const [name, { filePath, bundleSizeLimit }] of Object.entries(helperLambdas)) {
-    await buildUsingStacktapeEsLambdaBuildpack({
+    await buildJsBundleLambda({
       existingDigests: [],
       sizeLimit: bundleSizeLimit,
       includeFiles: [],
       name,
       cwd: process.cwd(),
       entryfilePath: filePath,
-      languageSpecificConfig: {
-        tsConfigPath: localBuildTsConfigPath
-      },
+      tsConfigPath: localBuildTsConfigPath,
       nodeTarget: '22',
       minify: true,
       externals: ['aws-sdk'],

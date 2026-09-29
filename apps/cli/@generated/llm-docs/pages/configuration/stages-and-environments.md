@@ -68,10 +68,10 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   RelationalDatabase,
   RdsEnginePostgres,
-  $Secret
+  $Secret,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(({ stage }) => {
   const isProduction = stage === 'production';
@@ -90,7 +90,7 @@ export default defineConfig(({ stage }) => {
   });
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     memory: isProduction ? 1024 : 256,
@@ -136,10 +136,10 @@ Example (TypeScript):
 import {
   defineConfig,
   WebService,
-  StacktapeImageBuildpackPackaging,
   RelationalDatabase,
   RdsEnginePostgres,
-  $Secret
+  $Secret,
+  JsBundleImagePackaging
 } from 'stacktape';
 export default defineConfig(({ stage }) => {
   const tiers: Record<
@@ -166,7 +166,7 @@ export default defineConfig(({ stage }) => {
   });
 
   const app = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/app.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: './src/app.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
     scaling: { minInstances: tier.minInstances, maxInstances: tier.maxInstances },
     connectTo: [database]
@@ -216,17 +216,17 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   RelationalDatabase,
   RdsEnginePostgres,
   WebAppFirewall,
-  $Secret
+  $Secret,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(({ stage }) => {
   const resources: Record<string, any> = {};
 
   resources.api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/api.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/api.ts' }),
     memory: 512
   });
 
@@ -376,12 +376,12 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  $CfStackOutput
+  $CfStackOutput,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(({ stage }) => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     environment: {

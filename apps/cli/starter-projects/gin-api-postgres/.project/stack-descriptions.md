@@ -2,9 +2,9 @@
 
 Application runs in web-service resource and is configured as follows:
 
-- **Packaging** - determines how the Docker container image is built. In this case, we are using
-  `stacktape-image-buildpack`. We only need to configure `entryfilePath`. Stacktape automatically builds the application
-  code with all of its dependencies, builds the Docker image, and pushes it to a pre-created image repository on AWS.
+- **Packaging** - determines how the Docker container image is built. In this case, we are using `buildpack`. We only
+  need to point `sourceDirectoryPath` at the directory with `go.mod`. Stacktape detects the Go project, builds the
+  application with all of its dependencies into a Docker image, and pushes it to a pre-created image repository on AWS.
   You can also use
   [other types of packaging](https://docs.stacktape.com/configuration/packaging/#packaging-web-services).
 - **ConnectTo list** - we are adding database `mainDatabase` into `connectTo` list. By doing this, Stacktape will
@@ -24,9 +24,9 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: buildpack
         properties:
-          entryfilePath: .\src\main.go
+          sourceDirectoryPath: ./src
       resources:
         cpu: 0.25
         memory: 512

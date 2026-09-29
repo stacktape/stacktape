@@ -13,8 +13,8 @@ import manifestJson from 'src/config/external-tools.json' with { type: 'json' };
 import * as tar from 'tar';
 
 /**
- * pack, nixpacks and the Session Manager plugin are not in the installer. The first command that needs one downloads it
- * from its upstream release (GitHub for pack and nixpacks, AWS for the plugin) and accepts it only when its SHA-256
+ * railpack and the Session Manager plugin are not in the installer. The first command that needs one downloads it
+ * from its upstream release (GitHub for railpack, AWS for the plugin) and accepts it only when its SHA-256
  * matches the committed manifest, `src/config/external-tools.json`, which `scripts/pin-external-tools.ts` writes. The
  * executable is kept under `localStatePaths.toolsDirectory()`, one directory per tool, version, platform, architecture
  * and libc. A file already at that path is used without any request, which is also how an offline machine or a runner
@@ -27,7 +27,7 @@ import * as tar from 'tar';
  * arrives for 30 s or when it is still running after 9 minutes, and its staging directory goes as for any failure.
  */
 
-export type ExternalTool = 'pack' | 'nixpacks' | 'session-manager-plugin';
+export type ExternalTool = 'railpack' | 'session-manager-plugin';
 
 export type ExternalToolAsset = {
   /** The versioned upstream URL. */
@@ -77,8 +77,7 @@ export const EXTERNAL_TOOL_PLATFORM_KEYS: Record<SupportedPlatform, string> = {
 };
 
 const ERROR_CATEGORIES: Record<ExternalTool, ErrorCategory> = {
-  pack: 'PACK',
-  nixpacks: 'NIXPACKS',
+  railpack: 'RAILPACK',
   'session-manager-plugin': 'SESSION_MANAGER'
 };
 

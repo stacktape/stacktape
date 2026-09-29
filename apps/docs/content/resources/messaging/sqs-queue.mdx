@@ -211,7 +211,7 @@ Key settings on the trigger:
   defineConfig,
   SqsQueue,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -221,7 +221,7 @@ export default defineConfig(() => {
   });
 
   const worker = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/worker.ts'
     }),
     memory: 512,
@@ -283,7 +283,7 @@ For more details on `connectTo`, see [Connecting resources](/configuration/conne
   defineConfig,
   SqsQueue,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -291,7 +291,7 @@ export default defineConfig(() => {
   const taskQueue = new SqsQueue({});
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/api.ts'
     }),
     connectTo: [taskQueue],

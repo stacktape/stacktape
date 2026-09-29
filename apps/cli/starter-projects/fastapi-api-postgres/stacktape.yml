@@ -19,12 +19,9 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: buildpack
         properties:
-          entryfilePath: ./app/main.py:app
-          languageSpecificConfig:
-            packageManagerFile: pyproject.toml
-            runAppAs: ASGI
+          startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
       resources:
         cpu: 0.25
         memory: 512

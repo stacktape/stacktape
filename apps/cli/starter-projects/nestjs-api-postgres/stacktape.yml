@@ -21,7 +21,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/main.ts
           excludeDependencies:
@@ -30,8 +30,7 @@ resources:
             - 'class-validator'
             - 'class-transformer'
             - '@nestjs/microservices'
-          languageSpecificConfig:
-            emitTsDecoratorMetadata: true
+          emitTsDecoratorMetadata: true
       resources:
         cpu: 0.25
         memory: 512

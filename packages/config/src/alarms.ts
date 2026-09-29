@@ -19,7 +19,7 @@ export interface AlarmDefinitionBase {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: ./src/api.ts
    *       memory: 512
@@ -41,11 +41,11 @@ export interface AlarmDefinitionBase {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const apiFunction = new LambdaFunction({
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/api.ts' }),
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/api.ts' }),
    *     memory: 512,
    *     timeout: 10,
    *     alarms: [
@@ -354,7 +354,7 @@ export interface AlarmEvaluation {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: ./src/worker.ts
    *       alarms:
@@ -373,11 +373,11 @@ export interface AlarmEvaluation {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const worker = new LambdaFunction({
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/worker.ts' }),
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/worker.ts' }),
    *     alarms: [
    *       {
    *         description: 'Worker running too long',
@@ -419,7 +419,7 @@ export interface AlarmEvaluation {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: ./src/payments.ts
    *       alarms:
@@ -439,11 +439,11 @@ export interface AlarmEvaluation {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const paymentsFn = new LambdaFunction({
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/payments.ts' }),
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/payments.ts' }),
    *     alarms: [
    *       {
    *         description: 'Payments error rate elevated',
@@ -485,7 +485,7 @@ export interface AlarmEvaluation {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: ./src/checkout.ts
    *       alarms:
@@ -505,11 +505,11 @@ export interface AlarmEvaluation {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const checkoutFn = new LambdaFunction({
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/checkout.ts' }),
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/checkout.ts' }),
    *     alarms: [
    *       {
    *         description: 'Checkout errors persisting across multiple periods',
@@ -1062,7 +1062,7 @@ export interface LambdaErrorRateTriggerProps extends TriggerWithCustomComparison
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: ./src/worker.ts
    *       alarms:
@@ -1078,11 +1078,11 @@ export interface LambdaErrorRateTriggerProps extends TriggerWithCustomComparison
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const worker = new LambdaFunction({
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/worker.ts' }),
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/worker.ts' }),
    *     alarms: [
    *       {
    *         description: 'Worker failing too often',
@@ -1128,7 +1128,7 @@ export interface LambdaDurationTriggerProps extends TriggerWithCustomComparison,
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: ./src/process-image.ts
    *       timeout: 30
@@ -1146,11 +1146,11 @@ export interface LambdaDurationTriggerProps extends TriggerWithCustomComparison,
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const imageProcessor = new LambdaFunction({
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/process-image.ts' }),
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/process-image.ts' }),
    *     timeout: 30,
    *     alarms: [
    *       {
@@ -1672,7 +1672,7 @@ export interface TriggerWithCustomStatFunction {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: ./src/worker.ts
    *       alarms:
@@ -1689,11 +1689,11 @@ export interface TriggerWithCustomStatFunction {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const worker = new LambdaFunction({
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/worker.ts' }),
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/worker.ts' }),
    *     alarms: [
    *       {
    *         description: '99th-percentile duration too high',

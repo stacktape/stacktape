@@ -53,8 +53,8 @@ An HTTP API Gateway resource on its own is just the entry point — it does not 
   defineConfig,
   HttpApiGateway,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  HttpApiIntegration
+  HttpApiIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -62,7 +62,7 @@ export default defineConfig(() => {
   const myApi = new HttpApiGateway({});
 
   const getUsers = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handlers/users.ts'
     }),
     events: [
@@ -115,8 +115,8 @@ For frameworks like Hono, Express, or FastAPI that handle routing internally, us
   defineConfig,
   HttpApiGateway,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  HttpApiIntegration
+  HttpApiIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -124,7 +124,7 @@ export default defineConfig(() => {
   const myApi = new HttpApiGateway({});
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/api.ts'
     }),
     events: [

@@ -40,7 +40,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/jobs-worker.ts
       events:
@@ -66,7 +66,7 @@ export default defineConfig(() => {
 
   const jobsWorker = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/jobs-worker.ts' }
     },
     events: [{ type: 'sqs', properties: { sqsQueueName: 'jobsQueue' } }]
@@ -97,7 +97,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/events-worker.ts
       events:
@@ -121,7 +121,7 @@ export default defineConfig(() => {
 
   const eventsWorker = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/events-worker.ts' }
     },
     events: [{ type: 'sqs', properties: { sqsQueueName: 'eventsQueue' } }]
@@ -154,7 +154,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/notifications-worker.ts
       events:
@@ -180,7 +180,7 @@ export default defineConfig(() => {
 
   const notificationsWorker = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/notifications-worker.ts' }
     },
     events: [{ type: 'sqs', properties: { sqsQueueName: 'notificationsQueue' } }]

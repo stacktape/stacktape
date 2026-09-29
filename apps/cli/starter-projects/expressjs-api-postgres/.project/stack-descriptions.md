@@ -3,7 +3,7 @@
 Application runs in web-service resource and is configured as follows:
 
 - **Packaging** - determines how the Docker container image is built. The easiest and most optimized way to build the
-  image for a Typescript application is using `stacktape-image-buildpack`. We only need to configure `entryfilePath`.
+  image for a Typescript application is using `js-bundle`. We only need to configure `entryfilePath`.
   Stacktape automatically transpiles and builds the application code with all of its dependencies, builds the Docker
   image, and pushes it to a pre-created image repository on AWS. You can also use
   [other types of packaging](https://docs.stacktape.com/configuration/packaging/#packaging-web-services).
@@ -24,7 +24,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./src/index.ts
       resources:

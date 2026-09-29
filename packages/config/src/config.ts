@@ -26,7 +26,7 @@ export interface StacktapeConfig {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -42,7 +42,7 @@ export interface StacktapeConfig {
    * export default defineConfig(() => {
    *   const api = new WebService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/server.ts' }
    *     },
    *     resources: { cpu: 0.25, memory: 512 }
@@ -145,7 +145,7 @@ export interface StacktapeConfig {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -169,7 +169,7 @@ export interface StacktapeConfig {
    *
    *   const api = new WebService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/server.ts' }
    *     },
    *     resources: { cpu: 0.25, memory: 512 },
@@ -391,7 +391,7 @@ export interface StacktapeConfig {
    *     type: worker-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/worker.ts
    *       resources:
@@ -410,7 +410,7 @@ export interface StacktapeConfig {
    * export default defineConfig(() => {
    *   const worker = new WorkerService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/worker.ts' }
    *     },
    *     resources: { cpu: 0.25, memory: 512 },
@@ -456,7 +456,7 @@ export interface StacktapeConfig {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -472,7 +472,7 @@ export interface StacktapeConfig {
    * export default defineConfig(() => {
    *   const api = new WebService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/server.ts' }
    *     },
    *     resources: { cpu: 0.5, memory: 1024 }
@@ -525,7 +525,7 @@ export interface StacktapeConfig {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -541,7 +541,7 @@ export interface StacktapeConfig {
    * export default defineConfig(() => {
    *   const api = new WebService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/server.ts' }
    *     },
    *     resources: { cpu: 0.25, memory: 512 }
@@ -585,7 +585,7 @@ export interface StacktapeConfig {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/send-notification.ts
    *       events:
@@ -609,7 +609,7 @@ export interface StacktapeConfig {
    *   const mainGateway = new HttpApiGateway({});
    *   const notificationSender = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/send-notification.ts' }
    *     },
    *     events: [
@@ -648,7 +648,7 @@ export interface StacktapeConfig {
    *     type: worker-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/worker.ts
    *       resources:
@@ -672,7 +672,7 @@ export interface StacktapeConfig {
    * export default defineConfig(() => {
    *   const worker = new WorkerService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/worker.ts' }
    *     },
    *     resources: { cpu: 0.25, memory: 512 }

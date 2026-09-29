@@ -37,15 +37,15 @@ import {
   defineConfig,
   LambdaFunction,
   StateMachine,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const validateOrder = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/validate-order.ts' })
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/validate-order.ts' })
   });
 
   const processOrder = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/process-order.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/process-order.ts' }),
     timeout: 60
   });
 
@@ -156,17 +156,17 @@ import {
   defineConfig,
   LambdaFunction,
   StateMachine,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
   const chargePayment = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/charge.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/charge.ts' }),
     timeout: 60
   });
 
   const notifySupport = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/notify-support.ts' })
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/notify-support.ts' })
   });
   const paymentWorkflow = new StateMachine({
     definition: {
@@ -231,12 +231,12 @@ import {
   defineConfig,
   LambdaFunction,
   StateMachine,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
   const processOrder = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/process-order.ts' })
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/process-order.ts' })
   });
 
   const orderWorkflow = new StateMachine({
@@ -252,7 +252,7 @@ export default defineConfig(() => {
     }
   });
   const startOrder = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/start-order.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/start-order.ts' }),
     connectTo: [orderWorkflow],
     environment: { ORDER_WORKFLOW_ARN: "$ResourceParam('orderWorkflow', 'arn')" }
   });

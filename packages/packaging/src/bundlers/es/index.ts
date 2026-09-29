@@ -38,8 +38,7 @@ import {
   packageEntryConditions,
   resolveWithRequireCondition
 } from '../../es/bundler-helpers';
-import type { EsLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
-import type { ResolvedPackageDependency } from '../../runtime-contracts';
+import type { JsBundleOptions, ResolvedPackageDependency } from '../../runtime-contracts';
 import { getFirstExistingPath, getHashFromMultipleFiles, getMatchingFilesByGlob } from '../../fs/files';
 import { createDockerDependencyPlan } from './docker-dependency-plan';
 import {
@@ -757,7 +756,7 @@ export const createEsBundle = async ({
   lambdaZip
 }: StpBuildpackInput &
   EsBuildActions &
-  EsLanguageSpecificConfig & {
+  JsBundleOptions & {
     minify: boolean;
     nodeTarget: string;
     installNonStaticallyBuiltDepsInDocker: boolean;

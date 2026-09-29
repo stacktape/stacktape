@@ -348,7 +348,7 @@ const targetedCases = ({ resource, script }: Builders): CorpusCase[] => {
     one(
       fn({
         events: [{ type: 'kafka-topic', properties }],
-        packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/worker.ts' } }
+        packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/worker.ts' } }
       })
     );
   const basicAuth = {
@@ -367,16 +367,16 @@ const targetedCases = ({ resource, script }: Builders): CorpusCase[] => {
         resources: {
           nodeFunction: resource('function', {
             packaging: {
-              type: 'stacktape-lambda-buildpack',
-              properties: { entryfilePath: 'src/index.ts', languageSpecificConfig: {} }
+              type: 'js-bundle',
+              properties: { entryfilePath: 'src/index.ts' }
             },
             runtime: 'nodejs22.x',
             logging: {}
           }),
           pythonFunction: resource('function', {
             packaging: {
-              type: 'stacktape-lambda-buildpack',
-              properties: { entryfilePath: 'src/index.py', languageSpecificConfig: { packageManager: 'uv' } }
+              type: 'buildpack',
+              properties: { entryfilePath: 'src/index.py', python: { packageManagerFile: 'pyproject.toml' } }
             }
           }),
           cache: resource('redis-cluster', {

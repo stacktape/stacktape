@@ -44,7 +44,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/index.ts
       events:
@@ -75,7 +75,7 @@ export default defineConfig(() => {
 
   const apiFunction = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/index.ts' }
     },
     events: [
@@ -118,7 +118,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/index.ts
       events:
@@ -146,7 +146,7 @@ export default defineConfig(() => {
 
   const apiFunction = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/index.ts' }
     },
     events: [
@@ -189,7 +189,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/index.ts
       events:
@@ -222,7 +222,7 @@ export default defineConfig(() => {
 
   const apiFunction = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/index.ts' }
     },
     events: [
@@ -273,7 +273,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/index.ts
       events:
@@ -313,7 +313,7 @@ export default defineConfig(() => {
 
   const apiFunction = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/index.ts' }
     },
     events: [
@@ -358,7 +358,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/index.ts
       events:
@@ -390,7 +390,7 @@ export default defineConfig(() => {
 
   const apiFunction = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/index.ts' }
     },
     events: [

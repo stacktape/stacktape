@@ -57,11 +57,11 @@ Spot instances are a good fit for jobs that can safely restart — data imports,
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, BatchJob, CustomDockerfilePackaging } from 'stacktape';
+import { defineConfig, BatchJob, DockerfilePackaging } from 'stacktape';
 export default defineConfig(() => {
   const processor = new BatchJob({
     container: {
-      packaging: new CustomDockerfilePackaging({
+      packaging: new DockerfilePackaging({
         buildContextPath: '.',
         dockerfilePath: './Dockerfile'
       })
@@ -121,10 +121,10 @@ For services with variable load, auto-scaling adds instances under pressure rath
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: './src/server.ts'
     }),
     resources: {
@@ -193,11 +193,11 @@ For development and staging stages, 7–14 days of log retention is usually enou
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, BatchJob, CustomDockerfilePackaging } from 'stacktape';
+import { defineConfig, BatchJob, DockerfilePackaging } from 'stacktape';
 export default defineConfig(() => {
   const processor = new BatchJob({
     container: {
-      packaging: new CustomDockerfilePackaging({
+      packaging: new DockerfilePackaging({
         buildContextPath: '.',
         dockerfilePath: './Dockerfile'
       })

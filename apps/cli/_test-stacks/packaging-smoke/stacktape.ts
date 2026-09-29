@@ -15,18 +15,13 @@
  * Give each run a unique short project name, use stage `dev` and region `eu-west-1`, and delete it afterwards.
  */
 
-import {
-  $ResourceParam,
-  defineConfig,
-  LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
-} from '@stacktape/config-authoring';
+import { $ResourceParam, defineConfig, LambdaFunction, JsBundleLambdaPackaging } from '@stacktape/config-authoring';
 
 export default defineConfig(() => {
   const canaryOwner = process.env.STP_AWS_CANARY_OWNER ?? 'local';
   const canaryRevision = process.env.STP_AWS_CANARY_REVISION ?? 'base';
   const retryAdvisor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/retry-advisor.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/retry-advisor.ts' }),
     url: { enabled: true, authMode: 'NONE' },
     environment: { CANARY_REVISION: canaryRevision },
     memory: 128,
@@ -34,7 +29,7 @@ export default defineConfig(() => {
   });
 
   const catalogReport = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/catalog-report.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/catalog-report.ts' }),
     url: { enabled: true, authMode: 'NONE' },
     environment: { CANARY_REVISION: canaryRevision },
     memory: 128,
@@ -42,7 +37,7 @@ export default defineConfig(() => {
   });
 
   const catalogNote = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/catalog-note.ts',
       // Not implemented by the split path, so this function alone falls back to the per-Lambda buildpack.
       includeFiles: ['./src/notice.txt']

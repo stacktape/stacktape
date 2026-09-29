@@ -76,11 +76,11 @@ is not stored in the CloudFormation template or task/job definition.
 Example (TypeScript):
 
 ```typescript
-import { $Secret, $SsmParam, WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { $Secret, $SsmParam, WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: './src/server.ts' }),
     resources: { cpu: 0.25, memory: 512 },
     environment: { LOG_LEVEL: 'info' },
     secrets: {
@@ -102,7 +102,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./src/server.ts
       resources:
@@ -149,10 +149,10 @@ a [worker service](/resources/compute/worker-service) as an environment variable
 Example (TypeScript):
 
 ```typescript
-import { $Secret, WorkerService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { $Secret, WorkerService, defineConfig, JsBundleImagePackaging } from 'stacktape';
 export default defineConfig(() => {
   const bot = new WorkerService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: './src/index.ts'
     }),
     resources: {
@@ -189,8 +189,8 @@ import {
   RelationalDatabase,
   RdsEnginePostgres,
   WebService,
-  StacktapeImageBuildpackPackaging,
-  defineConfig
+  defineConfig,
+  JsBundleImagePackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
@@ -206,7 +206,7 @@ export default defineConfig(() => {
   });
 
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: './src/index.ts'
     }),
     resources: { cpu: 0.25, memory: 512 },

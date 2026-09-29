@@ -5,14 +5,14 @@ import {
   HttpApiGateway,
   HttpApiIntegration,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from '@stacktape/config-authoring';
 
 export default defineConfig(({ projectName, region, stage }) => {
   const api = new HttpApiGateway({});
   const uploads = new Bucket({});
   const lambda = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     connectTo: [uploads],

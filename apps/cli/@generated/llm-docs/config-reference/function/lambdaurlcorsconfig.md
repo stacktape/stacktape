@@ -38,7 +38,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
       url:
@@ -54,7 +54,7 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const apiFunction = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
     url: {
       enabled: true,
       cors: {
@@ -81,7 +81,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
       url:
@@ -100,7 +100,7 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const apiFunction = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
     url: {
       enabled: true,
       cors: {
@@ -129,7 +129,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
       url:
@@ -150,7 +150,7 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const apiFunction = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
     url: {
       enabled: true,
       cors: {
@@ -179,7 +179,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
       url:
@@ -201,7 +201,7 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const apiFunction = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
     url: {
       enabled: true,
       cors: {
@@ -231,7 +231,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
       url:
@@ -250,7 +250,7 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const apiFunction = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
     url: {
       enabled: true,
       cors: {
@@ -278,7 +278,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
       url:
@@ -298,7 +298,7 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const apiFunction = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
     url: {
       enabled: true,
       cors: {
@@ -327,7 +327,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
       url:
@@ -346,7 +346,7 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const apiFunction = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
     url: {
       enabled: true,
       cors: {

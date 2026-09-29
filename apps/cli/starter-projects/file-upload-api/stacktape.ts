@@ -2,8 +2,8 @@ import {
   Bucket,
   HttpApiGateway,
   HttpApiIntegration,
+  JsBundleLambdaPackaging,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   defineConfig
 } from '../../__release-npm';
 
@@ -19,7 +19,7 @@ export default defineConfig(() => {
     }
   });
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/index.ts'
     }),
     memory: 512,

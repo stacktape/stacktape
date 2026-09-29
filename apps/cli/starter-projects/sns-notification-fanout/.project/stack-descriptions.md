@@ -46,7 +46,7 @@ logNotification:
   type: function
   properties:
     packaging:
-      type: stacktape-lambda-buildpack
+      type: js-bundle
       properties:
         entryfilePath: ./src/log-notification.ts
     memory: 256
@@ -66,7 +66,7 @@ storeNotification:
   type: function
   properties:
     packaging:
-      type: stacktape-lambda-buildpack
+      type: js-bundle
       properties:
         entryfilePath: ./src/store-notification.ts
     memory: 256
@@ -87,7 +87,7 @@ api:
   type: function
   properties:
     packaging:
-      type: stacktape-lambda-buildpack
+      type: js-bundle
       properties:
         entryfilePath: ./src/index.ts
     memory: 512

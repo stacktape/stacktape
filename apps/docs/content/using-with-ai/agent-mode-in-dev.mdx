@@ -431,9 +431,9 @@ Here is a minimal Stacktape configuration that an AI agent might produce for thi
       code: `import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   DynamoDbTable,
-  HttpApiGateway
+  HttpApiGateway,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -443,7 +443,7 @@ export default defineConfig(() => {
   });
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     connectTo: [notesTable],

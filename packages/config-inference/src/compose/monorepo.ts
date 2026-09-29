@@ -2,10 +2,10 @@
  * Packaging a workspace member so its internal imports actually resolve.
  *
  * Monorepos are the most breakage-dense shape this pipeline meets, and the breakage is packaging:
- * Nixpacks pointed at `apps/web` runs the install there, where `@acme/ui` is a `workspace:*`
+ * Railpack pointed at `apps/web` runs the install there, where `@acme/ui` is a `workspace:*`
  * specifier no registry can satisfy — the build fails before the first resource exists. The fix is
  * the one every workspace tool documents: install and build from the repository root, then start
- * the one member. Nixpacks' root detection handles the install (it sees the root lockfile); the
+ * the one member. Railpack's root detection handles the install (it sees the root lockfile); the
  * build and start commands are overridden with the package manager's own filter syntax.
  *
  * Everything here is derived from proven facts — the workspace membership, the package name, the
@@ -57,13 +57,13 @@ const FILTERED_COMMANDS: Partial<Record<PackageManager, (pkg: string) => Filtere
 };
 
 export type MonorepoPackaging = {
-  packaging: { type: 'nixpacks'; properties: Record<string, unknown> };
+  packaging: { type: 'buildpack'; properties: Record<string, unknown> };
   /** A stated limitation of the emitted commands, for the gaps list. */
   caveat?: string;
 };
 
 /**
- * Root-context Nixpacks packaging for a workspace member, when the facts prove one is needed.
+ * Root-context buildpack packaging for a workspace member, when the facts prove one is needed.
  *
  * Returns nothing — leaving the ordinary per-directory packaging in place — unless the service is
  * a workspace member that imports internal packages or declares it builds from the root, and the
@@ -85,18 +85,18 @@ export const monorepoPackaging = (
 
   return {
     packaging: {
-      type: 'nixpacks',
+      type: 'buildpack',
       properties: {
         sourceDirectoryPath: '.',
         // Overrides are emitted only for scripts the facts prove exist. Without a `build` script the
         // root detection's own plan stands; without a `start` script there is nothing to point at.
-        ...(service.buildCommand === undefined ? {} : { phases: [{ name: 'build', cmds: [commands.build] }] }),
-        ...(service.startCommand === undefined ? {} : { startCmd: commands.start })
+        ...(service.buildCommand === undefined ? {} : { buildCommand: commands.build }),
+        ...(service.startCommand === undefined ? {} : { startCommand: commands.start })
       }
     },
     ...(commands.partialBuild && service.buildCommand !== undefined
       ? {
-          caveat: `${service.name} is built from the repository root so its workspace imports resolve, but the build command only builds ${pkg} itself. If packages it imports need their own build step, add them to the packaging phases.`
+          caveat: `${service.name} is built from the repository root so its workspace imports resolve, but the build command only builds ${pkg} itself. If packages it imports need their own build step, extend the packaging buildCommand to build them too.`
         }
       : {})
   };

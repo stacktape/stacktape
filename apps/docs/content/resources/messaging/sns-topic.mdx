@@ -139,7 +139,7 @@ This example shows a single `orderEvents` topic with two independent subscribers
   defineConfig,
   SnsTopic,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -147,7 +147,7 @@ export default defineConfig(() => {
   const orderEvents = new SnsTopic({});
 
   const emailNotifier = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/email-notifier.ts'
     }),
     memory: 256,
@@ -163,7 +163,7 @@ export default defineConfig(() => {
   });
 
   const analyticsProcessor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/analytics-processor.ts'
     }),
     memory: 512,
@@ -209,7 +209,7 @@ Key settings on the trigger:
   defineConfig,
   SnsTopic,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -217,7 +217,7 @@ export default defineConfig(() => {
   const notifications = new SnsTopic({});
 
   const handler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     memory: 512,
@@ -275,7 +275,7 @@ For more details on `connectTo`, see [Connecting resources](/configuration/conne
   defineConfig,
   SnsTopic,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -283,7 +283,7 @@ export default defineConfig(() => {
   const notifications = new SnsTopic({});
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/api.ts'
     }),
     connectTo: [notifications],
@@ -334,7 +334,7 @@ A single SNS topic with two independent Lambda subscribers. Publishing one messa
   defineConfig,
   SnsTopic,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -342,7 +342,7 @@ export default defineConfig(() => {
   const orderEvents = new SnsTopic({});
 
   const emailNotifier = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/email-notifier.ts'
     }),
     memory: 256,
@@ -358,7 +358,7 @@ export default defineConfig(() => {
   });
 
   const analyticsProcessor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/analytics-processor.ts'
     }),
     memory: 512,
@@ -396,7 +396,7 @@ A [Lambda function](/resources/compute/lambda-function) connected to an SNS topi
   defineConfig,
   SnsTopic,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -404,7 +404,7 @@ export default defineConfig(() => {
   const alerts = new SnsTopic({});
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/api.ts'
     }),
     connectTo: [alerts],

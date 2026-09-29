@@ -43,7 +43,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/index.ts
       connectTo:
@@ -68,7 +68,7 @@ export default defineConfig(() => {
     }
   });
   const api = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
     connectTo: [fixedDiskDb]
   });
   return { resources: { fixedDiskDb, api } };
@@ -100,7 +100,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/index.ts
       connectTo:
@@ -124,7 +124,7 @@ export default defineConfig(() => {
     }
   });
   const api = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
     connectTo: [scaleUpOnlyDb]
   });
   return { resources: { scaleUpOnlyDb, api } };
@@ -155,7 +155,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/index.ts
       connectTo:
@@ -178,7 +178,7 @@ export default defineConfig(() => {
     }
   });
   const api = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
     connectTo: [ceilingDb]
   });
   return { resources: { ceilingDb, api } };
@@ -209,7 +209,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/index.ts
       connectTo:
@@ -232,7 +232,7 @@ export default defineConfig(() => {
     }
   });
   const api = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
     connectTo: [floorDb]
   });
   return { resources: { floorDb, api } };

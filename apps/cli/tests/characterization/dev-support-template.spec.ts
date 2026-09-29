@@ -6,7 +6,7 @@ import {
   EmailSender,
   HostingBucket,
   MultiContainerWorkload,
-  StacktapeImageBuildpackPackaging,
+  JsBundleImagePackaging,
   type CompiledStacktapeConfig
 } from '@stacktape/config-authoring';
 import { synthesizeFixture } from './synthesis-fixture';
@@ -21,7 +21,7 @@ test('local API and UI synthesize support infrastructure without a second data p
           containers: [
             {
               name: 'api',
-              packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/api.ts' }),
+              packaging: new JsBundleImagePackaging({ entryfilePath: './src/api.ts' }),
               environment: { PORT: '3000' }
             }
           ],

@@ -1,4 +1,4 @@
-import type { EsLanguageSpecificConfig, LambdaPackaging } from '@stacktape/config/deployment-artifacts';
+import type { LambdaPackaging } from '@stacktape/config/deployment-artifacts';
 import type { LambdaRuntime } from '@stacktape/config/primitives';
 import { resolveNodeVersion } from '@stacktape/packaging/bundlers/node-version';
 
@@ -46,12 +46,12 @@ const getCompatibilityKey = ({
   runtime,
   tracingEnabled
 }: SplitBundlingCandidate): string | null => {
-  if (packaging.type !== 'stacktape-lambda-buildpack' || tracingEnabled) {
+  if (packaging.type !== 'js-bundle' || tracingEnabled) {
     return null;
   }
 
-  const { excludeDependencies, excludeFiles, includeFiles, languageSpecificConfig } = packaging.properties;
-  const esConfig = languageSpecificConfig as EsLanguageSpecificConfig | undefined;
+  const { excludeDependencies, excludeFiles, includeFiles } = packaging.properties;
+  const esConfig = packaging.properties;
   const nodeVersion = resolveNodeVersion({ nodeVersion: esConfig?.nodeVersion, runtime, target: 'lambda' });
 
   // Options the split path does not implement. Such a Lambda keeps the ordinary per-Lambda path

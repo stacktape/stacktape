@@ -45,14 +45,14 @@ import {
   defineConfig,
   HttpApiGateway,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  HttpApiIntegration
+  HttpApiIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const myApi = new HttpApiGateway({});
 
   const getUsers = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handlers/users.ts'
     }),
     events: [
@@ -101,14 +101,14 @@ import {
   defineConfig,
   HttpApiGateway,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  HttpApiIntegration
+  HttpApiIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const myApi = new HttpApiGateway({});
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/api.ts'
     }),
     events: [

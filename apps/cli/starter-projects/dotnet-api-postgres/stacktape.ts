@@ -1,6 +1,6 @@
 import {
   $Secret,
-  NixpacksPackaging,
+  BuildpackImagePackaging,
   RdsEnginePostgres,
   RelationalDatabase,
   WebService,
@@ -20,7 +20,7 @@ export default defineConfig(() => {
     })
   });
   const webService = new WebService({
-    packaging: new NixpacksPackaging({
+    packaging: new BuildpackImagePackaging({
       sourceDirectoryPath: './'
     }),
     resources: {

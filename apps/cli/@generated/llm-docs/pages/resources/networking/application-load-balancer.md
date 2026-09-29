@@ -97,14 +97,14 @@ import {
   defineConfig,
   ApplicationLoadBalancer,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  ApplicationLoadBalancerIntegration
+  ApplicationLoadBalancerIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const myAlb = new ApplicationLoadBalancer({});
 
   const usersApi = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/users.ts'
     }),
     events: [
@@ -117,7 +117,7 @@ export default defineConfig(() => {
   });
 
   const ordersApi = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/orders.ts'
     }),
     events: [

@@ -51,10 +51,10 @@ A single `stacktape.ts` file typically works unchanged across regions. The same 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, WebService, CustomDockerfilePackaging } from 'stacktape';
+import { defineConfig, WebService, DockerfilePackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new CustomDockerfilePackaging({
+    packaging: new DockerfilePackaging({
       buildContextPath: '.',
       dockerfilePath: './Dockerfile'
     }),
@@ -69,7 +69,7 @@ export default defineConfig(() => {
 ```
 
 
-The `resources` property sets the CPU (in vCPUs) and memory (in MB) for the container — see [Web Service](/resources/compute/web-service) for all configuration options including scaling. This example uses `CustomDockerfilePackaging`; Stacktape also supports [zero-config buildpack packaging](/packaging/containers/stacktape-buildpack), [prebuilt images](/packaging/containers/prebuilt-image), [Nixpacks](/packaging/containers/nixpacks), and [external buildpacks](/packaging/containers/external-buildpack).
+The `resources` property sets the CPU (in vCPUs) and memory (in MB) for the container — see [Web Service](/resources/compute/web-service) for all configuration options including scaling. This example uses `DockerfilePackaging`; Stacktape also supports [`js-bundle`](/packaging/containers/js-bundle), [`buildpack`](/packaging/containers/buildpack) and [`prebuilt-image`](/packaging/containers/prebuilt-image) packaging.
 
 The `defineConfig` callback receives a `params` object containing deploy-time context. The available properties — defined in the `GetConfigParams` type — are `region`, `stage`, `projectName`, `command`, `awsProfile`, `cliArgs` (all CLI arguments passed to the command), and `user` (an object with `id`, `name`, and `email`). Destructure what you need (e.g., `defineConfig(({ region, stage }) => { ... })`) to write conditional logic — different scaling targets, instance sizes, or feature flags per region — all from a single `stacktape.ts` file. For simpler cases where only one or two values differ, [deploy-time parameters](/deployment-and-lifecycle/deploy-time-parameters) or [directives](/configuration/directives) may be a cleaner approach than conditional logic.
 
@@ -138,10 +138,10 @@ The `region-restriction` guardrail prevents deployments to unapproved regions �
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/api.ts'
     })
   });

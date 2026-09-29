@@ -16,7 +16,7 @@ import { finalizeTemplate } from '@domain-services/template-manager/finalize';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { getConfigManagerContext } from '../../src/commands/_utils/initialization';
-import { Bucket, LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from '@stacktape/config-authoring';
+import { Bucket, LambdaFunction, JsBundleLambdaPackaging, defineConfig } from '@stacktape/config-authoring';
 
 /**
  * A deploy can finalize the same template twice. `prepareArtifactsForStackDeployment` finalizes once and shows the
@@ -51,7 +51,7 @@ const createFixtureConfig = () =>
       }
     });
     const api = new LambdaFunction({
-      packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/api.ts' })
+      packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/api.ts' })
     });
 
     return {

@@ -1,9 +1,9 @@
 ### 1.1 Web Service
 
-The FastAPI app runs as an ASGI web service using `stacktape-image-buildpack`.
+The FastAPI app runs as an ASGI web service using `buildpack` packaging.
 
-- **Packaging** - `stacktape-image-buildpack` automatically detects the Python project and builds a container. The
-  `runAppAs: ASGI` option configures uvicorn as the ASGI server.
+- **Packaging** - `buildpack` detects the Python project from `pyproject.toml` and `uv.lock` and builds a container.
+  `startCommand` runs the app with uvicorn on the port Stacktape provides in `PORT`.
 - **connectTo** - connects to the Postgres database, injecting `STP_MAIN_DATABASE_CONNECTION_STRING` env var.
 
 ```yml
@@ -12,12 +12,9 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: buildpack
         properties:
-          entryfilePath: ./app/main.py:app
-          languageSpecificConfig:
-            packageManagerFile: pyproject.toml
-            runAppAs: ASGI
+          startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
       resources:
         cpu: 0.25
         memory: 512

@@ -66,7 +66,7 @@ describe('authored-to-runtime normalization', () => {
       worker: {
         type: 'function',
         properties: {
-          packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: './src/handler.ts' } }
+          packaging: { type: 'js-bundle', properties: { entryfilePath: './src/handler.ts' } }
         }
       }
     });
@@ -78,7 +78,7 @@ describe('authored-to-runtime normalization', () => {
     expect(worker.nameChain).toEqual(['worker']);
     expect(worker.configParentResourceType).toBe('function');
     expect(worker.packaging).toEqual({
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: './src/handler.ts' }
     });
   });
@@ -88,7 +88,7 @@ describe('authored-to-runtime normalization', () => {
       worker: {
         type: 'function',
         properties: {
-          packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: './src/handler.ts' } }
+          packaging: { type: 'js-bundle', properties: { entryfilePath: './src/handler.ts' } }
         }
       }
     });
@@ -106,7 +106,7 @@ describe('authored-to-runtime normalization', () => {
         type: 'function',
         properties: {
           memory: 512,
-          packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: './src/handler.ts' } }
+          packaging: { type: 'js-bundle', properties: { entryfilePath: './src/handler.ts' } }
         }
       }
     });
@@ -119,7 +119,7 @@ describe('authored-to-runtime normalization', () => {
       rewrite: {
         type: 'edge-lambda-function',
         properties: {
-          packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: './src/rewrite.ts' } }
+          packaging: { type: 'js-bundle', properties: { entryfilePath: './src/rewrite.ts' } }
         }
       }
     });
@@ -149,7 +149,7 @@ describe('authored-to-runtime normalization', () => {
         containers: [
           {
             name: 'api-container',
-            packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: './src/api.ts' } }
+            packaging: { type: 'js-bundle', properties: { entryfilePath: './src/api.ts' } }
           }
         ]
       }
@@ -201,7 +201,7 @@ describe('authored-to-runtime normalization', () => {
         type: 'worker-service',
         properties: {
           resources: { cpu: 0.25, memory: 512 },
-          packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: './src/jobs.ts' } }
+          packaging: { type: 'js-bundle', properties: { entryfilePath: './src/jobs.ts' } }
         }
       }
     });
@@ -232,7 +232,7 @@ describe('authored-to-runtime normalization', () => {
           containers: [
             {
               name: 'api-container',
-              packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: './src/api.ts' } }
+              packaging: { type: 'js-bundle', properties: { entryfilePath: './src/api.ts' } }
             }
           ]
         }
@@ -274,7 +274,7 @@ describe('authored-to-runtime normalization', () => {
       configParentResourceType: 'batch-job',
       type: 'batch-job',
       container: {
-        packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: './src/report.ts' } }
+        packaging: { type: 'js-bundle', properties: { entryfilePath: './src/report.ts' } }
       },
       resources: authoredResources
     } as unknown as NormalizedResource<'batch-job'>);
@@ -316,12 +316,12 @@ describe('authored-to-runtime normalization', () => {
             containers: [
               {
                 name: 'api',
-                packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: './src/api.ts' } }
+                packaging: { type: 'js-bundle', properties: { entryfilePath: './src/api.ts' } }
               },
               {
                 name: 'worker',
                 essential: false,
-                packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: './src/worker.ts' } }
+                packaging: { type: 'js-bundle', properties: { entryfilePath: './src/worker.ts' } }
               }
             ]
           }
@@ -359,7 +359,7 @@ describe('authored-to-runtime normalization', () => {
       worker: {
         type: 'function',
         properties: {
-          packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: './src/handler.ts' } }
+          packaging: { type: 'js-bundle', properties: { entryfilePath: './src/handler.ts' } }
         }
       }
     });
@@ -377,7 +377,7 @@ describe('authored-to-runtime normalization', () => {
       worker: {
         type: 'function',
         properties: {
-          packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: './src/handler.ts' } }
+          packaging: { type: 'js-bundle', properties: { entryfilePath: './src/handler.ts' } }
         }
       }
     });
@@ -392,7 +392,7 @@ describe('authored-to-runtime normalization', () => {
       worker: {
         type: 'function',
         properties: {
-          packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: './src/handler.ts' } }
+          packaging: { type: 'js-bundle', properties: { entryfilePath: './src/handler.ts' } }
         }
       },
       records: {
@@ -562,7 +562,7 @@ describe('load balancer listener normalization', () => {
             containers: [
               {
                 name: 'api-container',
-                packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: './src/api.ts' } },
+                packaging: { type: 'js-bundle', properties: { entryfilePath: './src/api.ts' } },
                 events: [
                   {
                     type: 'application-load-balancer',
@@ -597,7 +597,7 @@ describe('load balancer listener normalization', () => {
               containers: [
                 {
                   name: 'api-container',
-                  packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: './src/api.ts' } },
+                  packaging: { type: 'js-bundle', properties: { entryfilePath: './src/api.ts' } },
                   events: [
                     {
                       type: 'application-load-balancer',
@@ -682,7 +682,7 @@ describe('normalized resource types', () => {
     type: 'function',
     nameChain: ['worker'],
     configParentResourceType: 'function',
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: './src/handler.ts' } }
+    packaging: { type: 'js-bundle', properties: { entryfilePath: './src/handler.ts' } }
   };
 
   // Every application load balancer property is optional, so identity alone is a complete normalized load balancer.

@@ -82,12 +82,19 @@ export const getDockerContextChecksum = async ({
   absoluteBuildContextPath,
   dockerfilePath = 'Dockerfile',
   includeDockerfile = true,
-  applyDockerIgnore = true
+  applyDockerIgnore = true,
+  ignorePatterns
 }: {
   absoluteBuildContextPath: string;
   dockerfilePath?: string | undefined;
   includeDockerfile?: boolean | undefined;
   applyDockerIgnore?: boolean | undefined;
+  /**
+   * The exclusion list to apply instead of any `.dockerignore` file, in `.dockerignore` syntax and order. A builder
+   * that merges its own exclusions with the file's (Railpack) supplies the merged list, so the checksum covers exactly
+   * the files that builder's context holds.
+   */
+  ignorePatterns?: string[] | undefined;
 }): Promise<{
   checksum: string;
   absoluteDockerfilePath: string;
@@ -96,11 +103,13 @@ export const getDockerContextChecksum = async ({
   const absoluteDockerfilePath = isAbsolute(dockerfilePath)
     ? dockerfilePath
     : join(absoluteBuildContextPath, dockerfilePath);
-  const dockerIgnorePath = applyDockerIgnore
-    ? await getDockerIgnorePath({ absoluteBuildContextPath, absoluteDockerfilePath })
-    : undefined;
+  const dockerIgnorePath =
+    applyDockerIgnore && ignorePatterns === undefined
+      ? await getDockerIgnorePath({ absoluteBuildContextPath, absoluteDockerfilePath })
+      : undefined;
   const matcher = dockerIgnore();
-  if (dockerIgnorePath) matcher.add(await readFile(dockerIgnorePath, 'utf8'));
+  if (ignorePatterns !== undefined) matcher.add(ignorePatterns.join('\n'));
+  else if (dockerIgnorePath) matcher.add(await readFile(dockerIgnorePath, 'utf8'));
 
   const contextEntries = await fastGlob('**/*', {
     cwd: absoluteBuildContextPath,

@@ -17,8 +17,8 @@
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeImageBuildpackPackaging,
-  StacktapeLambdaBuildpackPackaging,
+  JsBundleImagePackaging,
+  JsBundleLambdaPackaging,
   SyntheticTest,
   UptimeCheck,
   WebService,
@@ -28,14 +28,14 @@ import {
 export default defineConfig(() => {
   const canaryOwner = process.env.STP_AWS_CANARY_OWNER ?? 'local';
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/api.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/api.ts' }),
     url: { enabled: true, authMode: 'NONE' },
     memory: 256,
     timeout: 15
   });
 
   const web = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/web.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: './src/web.ts' }),
     resources: { cpu: 0.25, memory: 1024 },
     scaling: { minInstances: 1, maxInstances: 1 }
   });

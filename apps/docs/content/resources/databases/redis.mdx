@@ -235,9 +235,9 @@ The password is not included in the `connectTo` environment variables. To pass a
   defineConfig,
   RedisCluster,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   $Secret,
-  $ResourceParam
+  $ResourceParam,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -248,7 +248,7 @@ export default defineConfig(() => {
   });
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     joinDefaultVpc: true,

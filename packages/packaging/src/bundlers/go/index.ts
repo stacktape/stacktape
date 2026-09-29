@@ -11,7 +11,6 @@ import { buildGoArtifactDockerfile } from '../../docker/dockerfiles';
 import { transformToUnixPath } from '../../fs/files';
 import objectHash from 'object-hash';
 import { getBundleDigest, getSourceFiles } from './utils';
-import type { GoLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
 import {
   applyArtifactFileSelection,
   assertRequiredArtifactFile,
@@ -34,7 +33,6 @@ export const buildGoArtifact = async ({
   progressLogger,
   existingDigests,
   rawEntryfilePath,
-  languageSpecificConfig,
   requiresGlibcBinaries,
   dockerBuildOutputArchitecture,
   includeFiles,
@@ -47,7 +45,6 @@ export const buildGoArtifact = async ({
   distIndexFilePath?: string | undefined;
   progressLogger: ProgressLogger;
   rawEntryfilePath: string;
-  languageSpecificConfig?: GoLanguageSpecificConfig | undefined;
   createPackagingError: CreatePackagingError;
   runDocker: RunDocker;
 }): Promise<LanguageBundleOutput> => {
@@ -67,7 +64,6 @@ export const buildGoArtifact = async ({
       excludeFiles,
       explicitlyIncludedFilesDigest: artifactFileSelection.digest
     }),
-    languageSpecificConfig,
     rawEntryfilePath
   });
   const sourceFiles = mergeExplicitlyIncludedSourceFiles({

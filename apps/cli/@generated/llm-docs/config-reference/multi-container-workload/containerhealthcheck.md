@@ -36,7 +36,7 @@ resources:
       containers:
         - name: api
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/server.ts
           internalHealthCheck:
@@ -51,14 +51,14 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const app = new MultiContainerWorkload({
     containers: [
       {
         name: 'api',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+        packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
         internalHealthCheck: {
           healthCheckCommand: ['CMD-SHELL', 'curl -f http://localhost:3000/ || exit 1']
         }
@@ -88,7 +88,7 @@ resources:
       containers:
         - name: api
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/server.ts
           internalHealthCheck:
@@ -104,14 +104,14 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const app = new MultiContainerWorkload({
     containers: [
       {
         name: 'api',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+        packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
         internalHealthCheck: {
           healthCheckCommand: ['CMD-SHELL', 'curl -f http://localhost:3000/ || exit 1'],
           intervalSeconds: 60
@@ -142,7 +142,7 @@ resources:
       containers:
         - name: api
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/server.ts
           internalHealthCheck:
@@ -158,14 +158,14 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const app = new MultiContainerWorkload({
     containers: [
       {
         name: 'api',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+        packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
         internalHealthCheck: {
           healthCheckCommand: ['CMD-SHELL', 'curl -f http://localhost:3000/ || exit 1'],
           retries: 5
@@ -195,7 +195,7 @@ resources:
       containers:
         - name: api
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/server.ts
           internalHealthCheck:
@@ -211,14 +211,14 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const app = new MultiContainerWorkload({
     containers: [
       {
         name: 'api',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+        packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
         internalHealthCheck: {
           healthCheckCommand: ['CMD-SHELL', 'curl -f http://localhost:3000/ || exit 1'],
           startPeriodSeconds: 60
@@ -249,7 +249,7 @@ resources:
       containers:
         - name: api
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/server.ts
           internalHealthCheck:
@@ -265,14 +265,14 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const app = new MultiContainerWorkload({
     containers: [
       {
         name: 'api',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+        packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
         internalHealthCheck: {
           healthCheckCommand: ['CMD-SHELL', 'curl -f http://localhost:3000/ || exit 1'],
           timeoutSeconds: 10

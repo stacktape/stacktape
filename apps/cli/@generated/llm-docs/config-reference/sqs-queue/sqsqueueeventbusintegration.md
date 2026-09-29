@@ -42,7 +42,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/shipment-worker.ts
       events:
@@ -74,7 +74,7 @@ export default defineConfig(() => {
 
   const shipmentWorker = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/shipment-worker.ts' }
     },
     events: [{ type: 'sqs', properties: { sqsQueueName: 'shipmentQueue' } }]

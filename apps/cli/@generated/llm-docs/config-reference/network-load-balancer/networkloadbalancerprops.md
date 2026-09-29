@@ -51,7 +51,7 @@ resources:
       containers:
         - name: game-server
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/server.ts
           environment:
@@ -90,7 +90,7 @@ export default defineConfig(() => {
     containers: [
       {
         name: 'game-server',
-        packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: 'src/server.ts' } },
+        packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/server.ts' } },
         environment: { GAME_PORT: 9000, ADMIN_PORT: 9001 },
         events: [
           {
@@ -150,7 +150,7 @@ resources:
       containers:
         - name: broker
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/broker.ts
           environment:
@@ -183,7 +183,7 @@ export default defineConfig(() => {
     containers: [
       {
         name: 'broker',
-        packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: 'src/broker.ts' } },
+        packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/broker.ts' } },
         environment: { PORT: 8883 },
         events: [
           {
@@ -228,7 +228,7 @@ resources:
       containers:
         - name: broker
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/broker.ts
           environment:
@@ -258,7 +258,7 @@ export default defineConfig(() => {
     containers: [
       {
         name: 'broker',
-        packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: 'src/broker.ts' } },
+        packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/broker.ts' } },
         environment: { PORT: 1883 },
         events: [
           {

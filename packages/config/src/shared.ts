@@ -124,7 +124,7 @@ export interface DevModeConfig {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       resources:
@@ -148,7 +148,7 @@ export interface DevModeConfig {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, DynamoDbTable, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { WebService, DynamoDbTable, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const sessionsTable = new DynamoDbTable({
@@ -159,7 +159,7 @@ export interface DevModeConfig {
    *   });
    *
    *   const myApi = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/index.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/index.ts' }),
    *     resources: { cpu: 0.25, memory: 512 },
    *     connectTo: [sessionsTable]
    *   });
@@ -193,7 +193,7 @@ export interface DomainConfiguration {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -208,11 +208,11 @@ export interface DomainConfiguration {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const webApi = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.5, memory: 1024 },
    *     customDomains: [
    *       // stp-focus
@@ -243,7 +243,7 @@ export interface DomainConfiguration {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -259,11 +259,11 @@ export interface DomainConfiguration {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const webApi = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.5, memory: 1024 },
    *     customDomains: [
    *       {
@@ -298,7 +298,7 @@ export interface DomainConfiguration {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -314,11 +314,11 @@ export interface DomainConfiguration {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const webApi = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.5, memory: 1024 },
    *     customDomains: [
    *       {
@@ -601,7 +601,7 @@ export interface Hooks {
    *     type: worker-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/worker.ts
    *       resources:
@@ -612,12 +612,12 @@ export interface Hooks {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WorkerService, StacktapeImageBuildpackPackaging, LocalScript, defineConfig } from 'stacktape';
+   * import { WorkerService, LocalScript, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const notifyCleanup = new LocalScript({ executeCommand: 'node ./scripts/notify-slack.js' });
    *   const worker = new WorkerService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/worker.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/worker.ts' }),
    *     resources: { cpu: 0.25, memory: 512 }
    *   });
    *
@@ -1881,7 +1881,7 @@ export interface ScriptEnvProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -1897,12 +1897,12 @@ export interface ScriptEnvProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, Bucket, StacktapeImageBuildpackPackaging, LocalScript, defineConfig } from 'stacktape';
+   * import { WebService, Bucket, LocalScript, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const dataBucket = new Bucket({});
    *   const api = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.25, memory: 512 },
    *     connectTo: [dataBucket]
    *   });
@@ -1942,7 +1942,7 @@ export interface DirectiveDefinition {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -1956,11 +1956,11 @@ export interface DirectiveDefinition {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const api = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.25, memory: 512 },
    *     environment: { COMMIT_SHA: '$GetCommitSha()' }
    *   });
@@ -1999,7 +1999,7 @@ export interface DirectiveDefinition {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -2013,11 +2013,11 @@ export interface DirectiveDefinition {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const api = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.25, memory: 512 },
    *     environment: { COMMIT_SHA: '$GetCommitSha()' }
    *   });
@@ -2076,7 +2076,7 @@ export interface SecurityScanningConfig {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -2128,7 +2128,7 @@ export interface IssuesConfig {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    * ```
@@ -2160,7 +2160,7 @@ export interface DeploymentConfig {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -2171,11 +2171,11 @@ export interface DeploymentConfig {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const api = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.25, memory: 512 }
    *   });
    *
@@ -2210,7 +2210,7 @@ export interface DeploymentConfig {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    * ```
@@ -2218,7 +2218,7 @@ export interface DeploymentConfig {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => ({
    *   // stp-focus
@@ -2226,7 +2226,7 @@ export interface DeploymentConfig {
    *   // stp-end-focus
    *   resources: {
    *     api: new LambdaFunction({
-   *       packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/api.ts' })
+   *       packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/api.ts' })
    *     })
    *   }
    * }));
@@ -2309,7 +2309,7 @@ export interface DeploymentConfig {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -2320,11 +2320,11 @@ export interface DeploymentConfig {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const api = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.25, memory: 512 }
    *   });
    *
@@ -2362,7 +2362,7 @@ export interface DeploymentConfig {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -2373,11 +2373,11 @@ export interface DeploymentConfig {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const api = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.5, memory: 1024 }
    *   });
    *
@@ -2417,7 +2417,7 @@ export interface DeploymentConfig {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -2428,11 +2428,11 @@ export interface DeploymentConfig {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const api = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.5, memory: 1024 }
    *   });
    *
@@ -2473,7 +2473,7 @@ export interface DeploymentConfig {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -2484,11 +2484,11 @@ export interface DeploymentConfig {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const api = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.25, memory: 512 }
    *   });
    *
@@ -2524,7 +2524,7 @@ export interface DeploymentConfig {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -2535,11 +2535,11 @@ export interface DeploymentConfig {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const api = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.25, memory: 512 }
    *   });
    *
@@ -2574,7 +2574,7 @@ export interface DeploymentConfig {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -2585,11 +2585,11 @@ export interface DeploymentConfig {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const api = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.25, memory: 512 }
    *   });
    *
@@ -2627,7 +2627,7 @@ export interface DeploymentConfig {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -2638,11 +2638,11 @@ export interface DeploymentConfig {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const api = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.25, memory: 512 }
    *   });
    *
@@ -2687,7 +2687,7 @@ export interface StackConfig {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -2698,11 +2698,11 @@ export interface StackConfig {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, StacktapeImageBuildpackPackaging, $ResourceParam, defineConfig } from 'stacktape';
+   * import { WebService, $ResourceParam, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const api = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.25, memory: 512 }
    *   });
    *
@@ -2744,7 +2744,7 @@ export interface StackConfig {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -2755,11 +2755,11 @@ export interface StackConfig {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const api = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.25, memory: 512 }
    *   });
    *
@@ -2799,7 +2799,7 @@ export interface StackConfig {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -2810,11 +2810,11 @@ export interface StackConfig {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const api = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.25, memory: 512 }
    *   });
    *
@@ -2850,7 +2850,7 @@ export interface StackConfig {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -2861,11 +2861,11 @@ export interface StackConfig {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const api = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.25, memory: 512 }
    *   });
    *
@@ -2908,7 +2908,7 @@ export interface StackConfig {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    * ```
@@ -2920,7 +2920,7 @@ export interface StackConfig {
    *
    * export default defineConfig(() => {
    *   const api = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } }
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } }
    *   });
    *   return {
    *     // stp-focus
@@ -2959,7 +2959,7 @@ export interface StackConfig {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    * ```
@@ -2971,7 +2971,7 @@ export interface StackConfig {
    *
    * export default defineConfig(({ stage }) => {
    *   const api = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } }
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } }
    *   });
    *   return {
    *     // stp-focus
@@ -3009,7 +3009,7 @@ export interface VpcReuseConfig {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -3020,11 +3020,11 @@ export interface VpcReuseConfig {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const api = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.25, memory: 512 }
    *   });
    *
@@ -3075,7 +3075,7 @@ export interface VpcReuseConfig {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -3086,11 +3086,11 @@ export interface VpcReuseConfig {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const api = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.25, memory: 512 }
    *   });
    *
@@ -3141,7 +3141,7 @@ export interface NatSettings {
    *     type: worker-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/worker.ts
    *       resources:
@@ -3153,11 +3153,11 @@ export interface NatSettings {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WorkerService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { WorkerService, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const worker = new WorkerService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/worker.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/worker.ts' }),
    *     resources: { cpu: 0.25, memory: 512 },
    *     usePrivateSubnetsWithNAT: true
    *   });
@@ -3255,7 +3255,7 @@ export interface StackOutput {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -3266,11 +3266,11 @@ export interface StackOutput {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, StacktapeImageBuildpackPackaging, $ResourceParam, defineConfig } from 'stacktape';
+   * import { WebService, $ResourceParam, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const api = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.25, memory: 512 }
    *   });
    *
@@ -3363,7 +3363,7 @@ export interface StpIamRoleStatement {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -3383,11 +3383,11 @@ export interface StpIamRoleStatement {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const api = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.25, memory: 512 },
    *     iamRoleStatements: [
    *       // stp-focus
@@ -3429,7 +3429,7 @@ export interface StpIamRoleStatement {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -3451,11 +3451,11 @@ export interface StpIamRoleStatement {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const api = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.25, memory: 512 },
    *     iamRoleStatements: [
    *       {
@@ -3487,7 +3487,7 @@ export interface StpIamRoleStatement {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -3506,11 +3506,11 @@ export interface StpIamRoleStatement {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const api = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.25, memory: 512 },
    *     // stp-focus
    *     iamRoleStatements: [
@@ -3544,7 +3544,7 @@ export interface EnvironmentVar {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -3564,11 +3564,11 @@ export interface EnvironmentVar {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, StacktapeImageBuildpackPackaging, $Secret, defineConfig } from 'stacktape';
+   * import { WebService, $Secret, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const api = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.25, memory: 512 },
    *     // stp-focus
    *     environment: {
@@ -3674,7 +3674,7 @@ export interface ResourceAccessProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -3704,7 +3704,7 @@ export interface ResourceAccessProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, RelationalDatabase, Bucket, RdsEnginePostgres, StacktapeImageBuildpackPackaging, $Secret, defineConfig } from 'stacktape';
+   * import { WebService, RelationalDatabase, Bucket, RdsEnginePostgres, $Secret, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const mainDb = new RelationalDatabase({
@@ -3713,7 +3713,7 @@ export interface ResourceAccessProps {
    *   });
    *   const uploads = new Bucket({});
    *   const api = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.5, memory: 1024 },
    *     // stp-focus
    *     connectTo: [mainDb, uploads]
@@ -3742,7 +3742,7 @@ export interface ResourceAccessProps {
    *     properties:
    *       container:
    *         packaging:
-   *           type: stacktape-image-buildpack
+   *           type: js-bundle
    *           properties:
    *             entryfilePath: src/job.ts
    *       resources:
@@ -3761,11 +3761,11 @@ export interface ResourceAccessProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { BatchJob, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { BatchJob, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const processor = new BatchJob({
-   *     container: { packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/job.ts' }) },
+   *     container: { packaging: new JsBundleImagePackaging({ entryfilePath: 'src/job.ts' }) },
    *     resources: { cpu: 1, memory: 2048 },
    *     // stp-focus
    *     iamRoleStatements: [
@@ -3801,7 +3801,7 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    *     properties:
    *       # stp-focus
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       # stp-end-focus
@@ -3813,12 +3813,12 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const api = new WebService({
    *     // stp-focus
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     // stp-end-focus
    *     resources: { cpu: 0.25, memory: 512 }
    *   });
@@ -3844,7 +3844,7 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -3875,7 +3875,7 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, RelationalDatabase, RdsEnginePostgres, StacktapeImageBuildpackPackaging, $ResourceParam, $Secret, defineConfig } from 'stacktape';
+   * import { WebService, RelationalDatabase, RdsEnginePostgres, $ResourceParam, $Secret, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const mainDb = new RelationalDatabase({
@@ -3883,7 +3883,7 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    *     engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
    *   });
    *   const api = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.25, memory: 512 },
    *     // stp-focus
    *     environment: {
@@ -3932,7 +3932,7 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -3947,11 +3947,11 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const api = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.25, memory: 512 },
    *     // stp-focus
    *     logging: { retentionDays: 30 }
@@ -3980,7 +3980,7 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       # stp-focus
@@ -3994,11 +3994,11 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const api = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     // stp-focus
    *     resources: { cpu: 1, memory: 2048, architecture: 'arm64' }
    *     // stp-end-focus
@@ -4024,7 +4024,7 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -4042,11 +4042,11 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const api = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.5, memory: 1024 },
    *     // stp-focus
    *     scaling: {
@@ -4077,7 +4077,7 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -4096,11 +4096,11 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const api = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.25, memory: 512 },
    *     // stp-focus
    *     internalHealthCheck: {
@@ -4132,7 +4132,7 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -4146,11 +4146,11 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const api = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.25, memory: 512 },
    *     // stp-focus
    *     stopTimeout: 30
@@ -4181,7 +4181,7 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -4195,11 +4195,11 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const api = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.25, memory: 512 },
    *     // stp-focus
    *     enableRemoteSessions: true
@@ -4229,7 +4229,7 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -4250,12 +4250,12 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, EfsFilesystem, ContainerEfsMount, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { WebService, EfsFilesystem, ContainerEfsMount, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const sharedData = new EfsFilesystem({});
    *   const api = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.5, memory: 1024 },
    *     // stp-focus
    *     volumeMounts: [
@@ -4300,7 +4300,7 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -4314,11 +4314,11 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const api = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.25, memory: 512 },
    *     // stp-focus
    *     usePrivateSubnetsWithNAT: true
@@ -4359,7 +4359,7 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -4378,7 +4378,7 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    *
    * export default defineConfig(() => {
    *   const api = new WebService({
-   *     packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: 'src/server.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/server.ts' } },
    *     resources: { cpu: 0.5, memory: 1024 },
    *     // stp-focus
    *     tracing: { samplingRate: 0.5 }
@@ -4409,7 +4409,7 @@ export interface ServiceHelperContainer extends ContainerWorkloadContainerBase {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -4420,7 +4420,7 @@ export interface ServiceHelperContainer extends ContainerWorkloadContainerBase {
    *         - name: migrations
    *           containerType: run-on-init
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/migrate.ts
    *       # stp-end-focus
@@ -4429,18 +4429,18 @@ export interface ServiceHelperContainer extends ContainerWorkloadContainerBase {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const api = new WebService({
-   *     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.5, memory: 1024 },
    *     // stp-focus
    *     sideContainers: [
    *       {
    *         name: 'migrations',
    *         containerType: 'run-on-init',
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/migrate.ts' })
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/migrate.ts' })
    *       }
    *     ]
    *     // stp-end-focus

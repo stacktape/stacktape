@@ -8,6 +8,7 @@ dependencies = [
     "sqlalchemy>=2.0",
     "psycopg2-binary>=2.9",
     "pydantic>=2.10",
+    "uvicorn>=0.34",
 ]
 
 [tool.hatch.build.targets.wheel]

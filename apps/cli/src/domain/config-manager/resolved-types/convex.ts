@@ -51,7 +51,7 @@ export type StpConvex = Convex['properties'] & {
  *     type: function
  *     properties:
  *       packaging:
- *         type: stacktape-lambda-buildpack
+ *         type: js-bundle
  *         properties:
  *           entryfilePath: ./src/sync.ts
  *       # stp-focus
@@ -77,7 +77,7 @@ export type StpConvex = Convex['properties'] & {
  *
  *   const syncWorker = new LambdaFunction({
  *     packaging: {
- *       type: 'stacktape-lambda-buildpack',
+ *       type: 'js-bundle',
  *       properties: {
  *         entryfilePath: './src/sync.ts'
  *       }

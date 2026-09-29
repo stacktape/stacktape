@@ -21,7 +21,7 @@ import type { ResourceOverrides } from './shared';
  *     type: function
  *     properties:
  *       packaging:
- *         type: stacktape-lambda-buildpack
+ *         type: js-bundle
  *         properties:
  *           entryfilePath: src/process-order.ts
  *       events:
@@ -45,7 +45,7 @@ import type { ResourceOverrides } from './shared';
  *
  *   const orderProcessor = new LambdaFunction({
  *     packaging: {
- *       type: 'stacktape-lambda-buildpack',
+ *       type: 'js-bundle',
  *       properties: { entryfilePath: 'src/process-order.ts' }
  *     },
  *     events: [
@@ -90,7 +90,7 @@ export interface EventBusProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/handle-partner-event.ts
    *       events:
@@ -116,7 +116,7 @@ export interface EventBusProps {
    *
    *   const partnerHandler = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/handle-partner-event.ts' }
    *     },
    *     events: [
@@ -156,7 +156,7 @@ export interface EventBusProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/audit-logger.ts
    *       events:
@@ -185,7 +185,7 @@ export interface EventBusProps {
    *
    *   const auditLogger = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/audit-logger.ts' }
    *     },
    *     events: [
@@ -229,7 +229,7 @@ export interface EventBusArchivation {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/consumer.ts
    *       events:
@@ -258,7 +258,7 @@ export interface EventBusArchivation {
    *
    *   const eventConsumer = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/consumer.ts' }
    *     },
    *     events: [
@@ -300,7 +300,7 @@ export interface EventBusArchivation {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/replay-handler.ts
    *       events:
@@ -329,7 +329,7 @@ export interface EventBusArchivation {
    *
    *   const replayHandler = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/replay-handler.ts' }
    *     },
    *     events: [

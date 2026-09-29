@@ -49,7 +49,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/server.ts
       resources:
@@ -60,11 +60,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { WebService, StacktapeImageBuildpackPackaging, $ResourceParam, defineConfig } from 'stacktape';
+import { WebService, $ResourceParam, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.25, memory: 512 }
   });
 

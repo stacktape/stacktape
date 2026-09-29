@@ -46,17 +46,17 @@ This example defines two [Lambda functions](/resources/compute/lambda-function) 
   defineConfig,
   LambdaFunction,
   StateMachine,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
   const validateOrder = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/validate-order.ts' })
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/validate-order.ts' })
   });
 
   const processOrder = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/process-order.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/process-order.ts' }),
     timeout: 60
   });
 
@@ -171,17 +171,17 @@ AWS Step Functions provides built-in error handling through `Retry` and `Catch` 
   defineConfig,
   LambdaFunction,
   StateMachine,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
   const chargePayment = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/charge.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/charge.ts' }),
     timeout: 60
   });
 
   const notifySupport = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/notify-support.ts' })
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/notify-support.ts' })
   });
 
   // [!code focus-start]
@@ -252,12 +252,12 @@ The `StateMachine` resource configures only the workflow definition. To start ex
   defineConfig,
   LambdaFunction,
   StateMachine,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
   const processOrder = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/process-order.ts' })
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/process-order.ts' })
   });
 
   const orderWorkflow = new StateMachine({
@@ -275,7 +275,7 @@ export default defineConfig(() => {
 
   // [!code focus-start]
   const startOrder = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/start-order.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/start-order.ts' }),
     connectTo: [orderWorkflow],
     environment: { ORDER_WORKFLOW_ARN: "$ResourceParam('orderWorkflow', 'arn')" }
   });

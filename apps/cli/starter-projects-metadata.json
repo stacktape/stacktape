@@ -1183,7 +1183,7 @@
     "hasReact": false,
     "isRestApi": true,
     "hasCognito": false,
-    "description": "HTTP API built with Rust using the AWS Lambda Rust Runtime.\nRuns serverlessly in AWS Lambda with minimal cold\n  starts and extremely low memory usage. Requires cargo-lambda for building.\n"
+    "description": "HTTP API built with Rust using the AWS Lambda Rust Runtime.\nRuns serverlessly in AWS Lambda with minimal cold\n  starts and extremely low memory usage. Stacktape builds the binary in Docker with\n  cargo-lambda.\n"
   },
   {
     "name": "S3 Image Processor",

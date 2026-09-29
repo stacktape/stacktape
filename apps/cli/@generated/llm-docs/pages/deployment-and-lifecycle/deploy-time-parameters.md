@@ -10,10 +10,10 @@ The `defineConfig` wrapper lets you write your Stacktape configuration as a Type
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/api.ts'
     }),
     memory: 2048,
@@ -62,10 +62,10 @@ Stacktape exposes deployment context through four config-time directives. These 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/api.ts'
     }),
     environment: {
@@ -90,10 +90,10 @@ The `$CliArgs()` directive reads custom values passed at the command line. It ac
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/api.ts'
     }),
     environment: {
@@ -121,10 +121,10 @@ The `$File()` directive loads and parses structured data from external files at 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/api.ts'
     }),
     environment: {
@@ -150,10 +150,10 @@ The `$GitInfo()` directive provides metadata from the current Git repository at 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/api.ts'
     }),
     environment: {
@@ -181,10 +181,10 @@ When you need to combine multiple values into a single string, use `$Format()` (
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/api.ts'
     }),
     environment: {
@@ -218,10 +218,10 @@ Two directives read outputs exported from other CloudFormation stacks. Both acce
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/api.ts'
     }),
     environment: {
@@ -252,10 +252,10 @@ For sensitive values, use CloudFormation-time directives that resolve during sta
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/api.ts'
     }),
     environment: {
@@ -282,12 +282,12 @@ Two runtime directives reference outputs and attributes of resources within your
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging, Bucket } from 'stacktape';
+import { defineConfig, LambdaFunction, Bucket, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const uploads = new Bucket({});
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/api.ts'
     }),
     connectTo: [uploads],

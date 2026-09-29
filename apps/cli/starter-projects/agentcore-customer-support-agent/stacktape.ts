@@ -2,10 +2,10 @@ import {
   AgentCoreGateway,
   AgentCoreMemory,
   AgentCoreRuntime,
-  CustomDockerfilePackaging,
+  DockerfilePackaging,
   DynamoDbTable,
+  JsBundleLambdaPackaging,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   defineConfig
 } from '../../__release-npm';
 
@@ -25,7 +25,7 @@ export default defineConfig(() => {
   });
 
   const getCustomerProfile = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/get-customer-profile.ts'
     }),
     memory: 512,
@@ -33,7 +33,7 @@ export default defineConfig(() => {
   });
 
   const createSupportTicket = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/create-support-ticket.ts'
     }),
     memory: 512,
@@ -92,7 +92,7 @@ export default defineConfig(() => {
 
   const supportAgent = new AgentCoreRuntime({
     description: 'Customer support agent with persistent memory and governed business tools.',
-    packaging: new CustomDockerfilePackaging({
+    packaging: new DockerfilePackaging({
       buildContextPath: './'
     }),
     useMemory: 'supportMemory',

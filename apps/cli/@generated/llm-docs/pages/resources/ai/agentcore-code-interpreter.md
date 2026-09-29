@@ -50,7 +50,7 @@ Set `useCodeInterpreter` on an [AgentCore Runtime](/resources/ai/agentcore-runti
 
 The code interpreter exposes `id` and `arn` as [referenceable parameters](/configuration/referenceable-parameters). If your application code needs the provisioned ID, use [`$ResourceParam`](/configuration/directives) to pass it as an environment variable — for example, `$ResourceParam('analysisCodeInterpreter', 'id')`.
 
-AgentCore Runtime uses the same [container packaging modes](/packaging/overview) as other Stacktape container workloads: Stacktape image buildpack, custom Dockerfile, prebuilt image, Nixpacks, and external buildpack. The examples below use `CustomDockerfilePackaging` because agent runtimes often need explicit system dependencies. The `buildContextPath` property points to the Docker build context relative to your `stacktape.ts` — adjust `'./'` if your Dockerfile is in a different directory.
+AgentCore Runtime uses the same [container packaging types](/packaging/overview) as other Stacktape container workloads: `js-bundle`, `buildpack`, `dockerfile` and `prebuilt-image`. The examples below use `DockerfilePackaging` because agent runtimes often need explicit system dependencies. The `buildContextPath` property points to the Docker build context relative to your `stacktape.ts` — adjust `'./'` if your Dockerfile is in a different directory.
 
 
 Example (TypeScript):
@@ -60,7 +60,7 @@ import {
   defineConfig,
   AgentCoreCodeInterpreter,
   AgentCoreRuntime,
-  CustomDockerfilePackaging
+  DockerfilePackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const analysisCodeInterpreter = new AgentCoreCodeInterpreter({
@@ -69,7 +69,7 @@ export default defineConfig(() => {
 
   const analystAgent = new AgentCoreRuntime({
     description: 'Data analyst agent that explores datasets and generates reports.',
-    packaging: new CustomDockerfilePackaging({
+    packaging: new DockerfilePackaging({
       buildContextPath: './'
     }),
     useCodeInterpreter: 'analysisCodeInterpreter',
@@ -104,7 +104,7 @@ import {
   defineConfig,
   AgentCoreCodeInterpreter,
   AgentCoreRuntime,
-  CustomDockerfilePackaging
+  DockerfilePackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const tutorCodeInterpreter = new AgentCoreCodeInterpreter({
@@ -114,7 +114,7 @@ export default defineConfig(() => {
 
   const tutorAgent = new AgentCoreRuntime({
     description: 'Code tutoring agent that runs student submissions and explains results.',
-    packaging: new CustomDockerfilePackaging({
+    packaging: new DockerfilePackaging({
       buildContextPath: './'
     }),
     protocol: 'MCP',

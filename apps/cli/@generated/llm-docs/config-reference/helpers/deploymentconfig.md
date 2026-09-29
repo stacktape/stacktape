@@ -50,7 +50,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/server.ts
       resources:
@@ -61,11 +61,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.25, memory: 512 }
   });
 
@@ -98,7 +98,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/server.ts
       resources:
@@ -109,11 +109,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.25, memory: 512 }
   });
 
@@ -146,7 +146,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/server.ts
       resources:
@@ -157,11 +157,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.25, memory: 512 }
   });
 
@@ -193,7 +193,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
 ```
@@ -201,13 +201,13 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+import { LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => ({
   deploymentConfig: { issues: { stages: ['production', 'staging'] } },
   resources: {
     api: new LambdaFunction({
-      packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/api.ts' })
+      packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/api.ts' })
     })
   }
 }));
@@ -236,7 +236,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/server.ts
       resources:
@@ -247,11 +247,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.5, memory: 1024 }
   });
 
@@ -286,7 +286,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/server.ts
       resources:
@@ -297,11 +297,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.25, memory: 512 }
   });
 
@@ -332,7 +332,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/server.ts
       resources:
@@ -343,11 +343,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.25, memory: 512 }
   });
 
@@ -381,7 +381,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/server.ts
       resources:
@@ -392,11 +392,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.25, memory: 512 }
   });
 
@@ -481,7 +481,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/server.ts
       resources:
@@ -492,11 +492,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.5, memory: 1024 }
   });
 

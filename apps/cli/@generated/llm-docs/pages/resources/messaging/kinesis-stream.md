@@ -53,7 +53,7 @@ import {
   defineConfig,
   KinesisStream,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const clickStream = new KinesisStream({
@@ -63,7 +63,7 @@ export default defineConfig(() => {
   });
 
   const analyticsProcessor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/analytics-processor.ts'
     }),
     memory: 1024,
@@ -104,7 +104,7 @@ import {
   KinesisStream,
   LambdaFunction,
   HttpApiGateway,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const eventStream = new KinesisStream({
@@ -115,7 +115,7 @@ export default defineConfig(() => {
   const gateway = new HttpApiGateway({});
 
   const ingestApi = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/ingest.ts'
     }),
     connectTo: [eventStream],
@@ -219,7 +219,7 @@ import {
   defineConfig,
   KinesisStream,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const eventStream = new KinesisStream({
@@ -227,7 +227,7 @@ export default defineConfig(() => {
   });
 
   const analytics = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/analytics.ts'
     }),
     memory: 512,
@@ -300,13 +300,13 @@ import {
   defineConfig,
   KinesisStream,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const eventStream = new KinesisStream({});
 
   const processor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/processor.ts'
     }),
     memory: 512,
@@ -361,13 +361,13 @@ import {
   defineConfig,
   KinesisStream,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const eventStream = new KinesisStream({});
 
   const producer = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/producer.ts'
     }),
     connectTo: [eventStream],

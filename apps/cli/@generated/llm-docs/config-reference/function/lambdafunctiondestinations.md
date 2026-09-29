@@ -28,7 +28,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/worker.ts
       destinations:
@@ -44,7 +44,7 @@ import { LambdaFunction, SqsQueue, defineConfig, $ResourceParam } from 'stacktap
 
 export default defineConfig(() => {
   const asyncWorker = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/worker.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/worker.ts' } },
     destinations: {
       onFailure: $ResourceParam('failureQueue', 'arn')
     }
@@ -69,7 +69,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/worker.ts
       destinations:
@@ -85,7 +85,7 @@ import { LambdaFunction, SnsTopic, defineConfig, $ResourceParam } from 'stacktap
 
 export default defineConfig(() => {
   const asyncWorker = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/worker.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/worker.ts' } },
     destinations: {
       onSuccess: $ResourceParam('resultsTopic', 'arn')
     }

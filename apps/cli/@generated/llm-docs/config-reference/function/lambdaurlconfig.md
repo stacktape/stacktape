@@ -34,7 +34,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/public.ts
       url:
@@ -48,7 +48,7 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const publicFunction = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/public.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/public.ts' } },
     url: {
       enabled: true
     }
@@ -76,7 +76,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/internal.ts
       url:
@@ -91,7 +91,7 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const internalFunction = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/internal.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/internal.ts' } },
     url: {
       enabled: true,
       authMode: 'AWS_IAM'
@@ -116,7 +116,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
       url:
@@ -134,7 +134,7 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const apiFunction = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
     url: {
       enabled: true,
       cors: { enabled: true, allowedOrigins: ['https://app.example.com'] }
@@ -162,7 +162,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/stream.ts
       memory: 1024
@@ -178,7 +178,7 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const streamingFunction = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/stream.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/stream.ts' } },
     memory: 1024,
     url: {
       enabled: true,

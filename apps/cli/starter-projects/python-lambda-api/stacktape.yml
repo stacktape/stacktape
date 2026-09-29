@@ -20,7 +20,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: buildpack
         properties:
           entryfilePath: ./src/lambdas/save-post.py
       memory: 512
@@ -40,7 +40,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: buildpack
         properties:
           entryfilePath: ./src/lambdas/get-posts.py
       memory: 512

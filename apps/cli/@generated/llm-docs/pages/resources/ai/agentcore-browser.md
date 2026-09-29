@@ -28,7 +28,7 @@ import {
   defineConfig,
   AgentCoreBrowser,
   AgentCoreRuntime,
-  CustomDockerfilePackaging
+  DockerfilePackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const browser = new AgentCoreBrowser({
@@ -37,7 +37,7 @@ export default defineConfig(() => {
 
   const agent = new AgentCoreRuntime({
     description: 'Research agent with browser access.',
-    packaging: new CustomDockerfilePackaging({
+    packaging: new DockerfilePackaging({
       buildContextPath: './'
     }),
     useBrowser: 'browser',
@@ -53,7 +53,7 @@ export default defineConfig(() => {
 
 `AgentCoreRuntimeProps` includes `useBrowser?: string`. Set it to the key name of your AgentCore Browser resource in the `resources` object — in this example, `'browser'` matches the key used when returning `{ browser, agent }`.
 
-AgentCore Runtime uses the same [container packaging](/packaging/overview) options as other container workloads: Stacktape image buildpack, custom Dockerfile, prebuilt image, Nixpacks, and external buildpack. The examples on this page use `CustomDockerfilePackaging` because agent runtimes often need explicit control over browser and tool dependencies.
+AgentCore Runtime uses the same [container packaging](/packaging/overview) types as other container workloads: `js-bundle`, `buildpack`, `dockerfile` and `prebuilt-image`. The examples on this page use `DockerfilePackaging` because agent runtimes often need explicit control over browser and tool dependencies.
 
 ## Examples
 
@@ -107,7 +107,7 @@ import {
   AgentCoreBrowser,
   AgentCoreMemory,
   AgentCoreRuntime,
-  CustomDockerfilePackaging
+  DockerfilePackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const researchMemory = new AgentCoreMemory({
@@ -121,7 +121,7 @@ export default defineConfig(() => {
 
   const researchAgent = new AgentCoreRuntime({
     description: 'Research agent with browser and persistent memory.',
-    packaging: new CustomDockerfilePackaging({
+    packaging: new DockerfilePackaging({
       buildContextPath: './'
     }),
     useMemory: 'researchMemory',

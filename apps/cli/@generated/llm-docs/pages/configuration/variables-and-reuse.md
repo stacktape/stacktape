@@ -21,18 +21,18 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  HttpApiGateway
+  HttpApiGateway,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const listUsers = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/list-users.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/list-users.ts' }),
     timeout: 30,
     environment: { APP_PORT: '3000' }
   });
 
   const createUser = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/create-user.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/create-user.ts' }),
     timeout: 30,
     environment: { APP_PORT: '3000' }
   });
@@ -54,10 +54,10 @@ The `stage` parameter from `defineConfig` lets you branch configuration per [sta
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/api.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/api.ts' }),
     memory: 2048
   });
 
@@ -79,9 +79,9 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   HttpApiGateway,
-  HttpApiIntegration
+  HttpApiIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const createApiFunction = (
@@ -90,7 +90,7 @@ export default defineConfig(() => {
     path: string
   ) =>
     new LambdaFunction({
-      packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: entryfile }),
+      packaging: new JsBundleLambdaPackaging({ entryfilePath: entryfile }),
       memory: 512,
       timeout: 30,
       events: [new HttpApiIntegration({ httpApiGatewayName: 'gateway', method, path })]
@@ -138,10 +138,10 @@ The top-level `variables` property defines named values you can reference with t
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/api.ts' })
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/api.ts' })
   });
 
   return {
@@ -161,10 +161,10 @@ Variables can hold any value: strings, numbers, booleans, objects, or arrays. Re
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/api.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/api.ts' }),
     environment: {
       APP_PORT: '$Var().appPort',
       API_DOMAIN: '$Var().apiDomain'
@@ -199,10 +199,10 @@ When you need values computed dynamically at deploy time — fetching from exter
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/api.ts' })
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/api.ts' })
   });
 
   return {

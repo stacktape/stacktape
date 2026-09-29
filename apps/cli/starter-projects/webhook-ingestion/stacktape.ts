@@ -1,10 +1,10 @@
 import {
   HttpApiGateway,
   HttpApiIntegration,
+  JsBundleLambdaPackaging,
   LambdaFunction,
   SqsIntegration,
   SqsQueue,
-  StacktapeLambdaBuildpackPackaging,
   defineConfig
 } from '../../__release-npm';
 
@@ -18,7 +18,7 @@ export default defineConfig(() => {
     visibilityTimeoutSeconds: 120
   });
   const receiveWebhook = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/receive.ts'
     }),
     memory: 512,
@@ -32,7 +32,7 @@ export default defineConfig(() => {
     ]
   });
   const processWebhook = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/process.ts'
     }),
     memory: 512,

@@ -2,11 +2,11 @@ import {
   $Secret,
   HttpApiGateway,
   HttpApiIntegration,
+  JsBundleLambdaPackaging,
   LambdaFunction,
   LocalScript,
   RdsEngineMysql,
   RelationalDatabase,
-  StacktapeLambdaBuildpackPackaging,
   defineConfig
 } from '../../__release-npm';
 
@@ -28,7 +28,7 @@ export default defineConfig(() => {
     })
   });
   const savePost = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/lambdas/save-post.ts'
     }),
     memory: 512,
@@ -42,7 +42,7 @@ export default defineConfig(() => {
     ]
   });
   const getPosts = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/lambdas/get-posts.ts'
     }),
     memory: 512,

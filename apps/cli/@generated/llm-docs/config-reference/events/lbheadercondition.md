@@ -29,7 +29,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
       events:
@@ -53,7 +53,7 @@ import { LambdaFunction, ApplicationLoadBalancer, defineConfig } from 'stacktape
 export default defineConfig(() => {
   const publicAlb = new ApplicationLoadBalancer({});
   const apiFunction = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
     events: [
       {
         type: 'application-load-balancer',
@@ -95,7 +95,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
       events:
@@ -119,7 +119,7 @@ import { LambdaFunction, ApplicationLoadBalancer, defineConfig } from 'stacktape
 export default defineConfig(() => {
   const publicAlb = new ApplicationLoadBalancer({});
   const apiFunction = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
     events: [
       {
         type: 'application-load-balancer',

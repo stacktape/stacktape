@@ -239,7 +239,7 @@
   ],
   "containers": [
     {
-      "build": "Stacktape image buildpack",
+      "build": "Stacktape js-bundle",
       "runtimeBase": "Alpine Linux v3.24",
       "imageCompressedBytes": 73153476,
       "coldBuildMs": 3067,
@@ -259,7 +259,7 @@
       "pushAfterDependencyChangeBytes": 208810522
     },
     {
-      "build": "nixpacks, through Stacktape",
+      "build": "nixpacks (previous Stacktape integration)",
       "runtimeBase": "Ubuntu 24.04.2 LTS",
       "imageCompressedBytes": 642358206,
       "coldBuildMs": 63306,
@@ -269,7 +269,7 @@
       "pushAfterDependencyChangeBytes": 371734128
     },
     {
-      "build": "Paketo buildpacks, through Stacktape",
+      "build": "Paketo buildpacks (previous Stacktape integration)",
       "runtimeBase": "Paketo Buildpacks Base Jammy",
       "imageCompressedBytes": 248137324,
       "coldBuildMs": 94946,

@@ -113,13 +113,13 @@ import {
   defineConfig,
   SnsTopic,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const orderEvents = new SnsTopic({});
 
   const emailNotifier = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/email-notifier.ts'
     }),
     memory: 256,
@@ -135,7 +135,7 @@ export default defineConfig(() => {
   });
 
   const analyticsProcessor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/analytics-processor.ts'
     }),
     memory: 512,
@@ -178,13 +178,13 @@ import {
   defineConfig,
   SnsTopic,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const notifications = new SnsTopic({});
 
   const handler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     memory: 512,
@@ -238,13 +238,13 @@ import {
   defineConfig,
   SnsTopic,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const notifications = new SnsTopic({});
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/api.ts'
     }),
     connectTo: [notifications],
@@ -291,13 +291,13 @@ import {
   defineConfig,
   SnsTopic,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const orderEvents = new SnsTopic({});
 
   const emailNotifier = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/email-notifier.ts'
     }),
     memory: 256,
@@ -313,7 +313,7 @@ export default defineConfig(() => {
   });
 
   const analyticsProcessor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/analytics-processor.ts'
     }),
     memory: 512,
@@ -347,13 +347,13 @@ import {
   defineConfig,
   SnsTopic,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const alerts = new SnsTopic({});
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/api.ts'
     }),
     connectTo: [alerts],

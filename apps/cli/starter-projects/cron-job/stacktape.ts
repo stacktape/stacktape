@@ -1,13 +1,8 @@
-import {
-  LambdaFunction,
-  ScheduleIntegration,
-  StacktapeLambdaBuildpackPackaging,
-  defineConfig
-} from '../../__release-npm';
+import { JsBundleLambdaPackaging, LambdaFunction, ScheduleIntegration, defineConfig } from '../../__release-npm';
 
 export default defineConfig(() => {
   const scheduledTask = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     memory: 512,

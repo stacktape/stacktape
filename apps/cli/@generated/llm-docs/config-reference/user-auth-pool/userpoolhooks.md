@@ -78,7 +78,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/create-auth-challenge.ts
   userPool:
@@ -96,7 +96,7 @@ import { LambdaFunction, UserAuthPool, $ResourceParam, defineConfig } from 'stac
 
 export default defineConfig(() => {
   const createAuthChallengeFn = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/create-auth-challenge.ts' } }
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/create-auth-challenge.ts' } }
   });
   const userPool = new UserAuthPool({
     userVerificationType: 'email-code',
@@ -128,7 +128,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/custom-message.ts
   userPool:
@@ -146,7 +146,7 @@ import { LambdaFunction, UserAuthPool, $ResourceParam, defineConfig } from 'stac
 
 export default defineConfig(() => {
   const customMessageFn = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/custom-message.ts' } }
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/custom-message.ts' } }
   });
   const userPool = new UserAuthPool({
     userVerificationType: 'email-code',
@@ -176,7 +176,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/define-auth-challenge.ts
   userPool:
@@ -194,7 +194,7 @@ import { LambdaFunction, UserAuthPool, $ResourceParam, defineConfig } from 'stac
 
 export default defineConfig(() => {
   const defineAuthChallengeFn = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/define-auth-challenge.ts' } }
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/define-auth-challenge.ts' } }
   });
   const userPool = new UserAuthPool({
     userVerificationType: 'email-code',
@@ -224,7 +224,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/post-authentication.ts
   userPool:
@@ -242,7 +242,7 @@ import { LambdaFunction, UserAuthPool, $ResourceParam, defineConfig } from 'stac
 
 export default defineConfig(() => {
   const postAuthenticationFn = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/post-authentication.ts' } }
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/post-authentication.ts' } }
   });
   const userPool = new UserAuthPool({
     userVerificationType: 'email-code',
@@ -272,7 +272,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/post-confirmation.ts
   userPool:
@@ -290,7 +290,7 @@ import { LambdaFunction, UserAuthPool, $ResourceParam, defineConfig } from 'stac
 
 export default defineConfig(() => {
   const postConfirmationFn = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/post-confirmation.ts' } }
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/post-confirmation.ts' } }
   });
   const userPool = new UserAuthPool({
     userVerificationType: 'email-code',
@@ -320,7 +320,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/pre-authentication.ts
   userPool:
@@ -338,7 +338,7 @@ import { LambdaFunction, UserAuthPool, $ResourceParam, defineConfig } from 'stac
 
 export default defineConfig(() => {
   const preAuthenticationFn = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/pre-authentication.ts' } }
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/pre-authentication.ts' } }
   });
   const userPool = new UserAuthPool({
     userVerificationType: 'email-code',
@@ -368,7 +368,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/pre-sign-up.ts
   userPool:
@@ -386,7 +386,7 @@ import { LambdaFunction, UserAuthPool, $ResourceParam, defineConfig } from 'stac
 
 export default defineConfig(() => {
   const preSignUpFn = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/pre-sign-up.ts' } }
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/pre-sign-up.ts' } }
   });
   const userPool = new UserAuthPool({
     userVerificationType: 'email-code',
@@ -416,7 +416,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/pre-token-generation.ts
   userPool:
@@ -434,7 +434,7 @@ import { LambdaFunction, UserAuthPool, $ResourceParam, defineConfig } from 'stac
 
 export default defineConfig(() => {
   const preTokenGenerationFn = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/pre-token-generation.ts' } }
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/pre-token-generation.ts' } }
   });
   const userPool = new UserAuthPool({
     userVerificationType: 'email-code',
@@ -464,7 +464,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/user-migration.ts
   userPool:
@@ -482,7 +482,7 @@ import { LambdaFunction, UserAuthPool, $ResourceParam, defineConfig } from 'stac
 
 export default defineConfig(() => {
   const userMigrationFn = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/user-migration.ts' } }
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/user-migration.ts' } }
   });
   const userPool = new UserAuthPool({
     userVerificationType: 'email-code',
@@ -511,7 +511,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/verify-auth-challenge-response.ts
   userPool:
@@ -529,7 +529,7 @@ import { LambdaFunction, UserAuthPool, $ResourceParam, defineConfig } from 'stac
 
 export default defineConfig(() => {
   const verifyAuthChallengeResponseFn = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/verify-auth-challenge-response.ts' } }
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/verify-auth-challenge-response.ts' } }
   });
   const userPool = new UserAuthPool({
     userVerificationType: 'email-code',

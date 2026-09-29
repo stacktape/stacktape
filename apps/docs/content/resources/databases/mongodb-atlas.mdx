@@ -89,7 +89,7 @@ Stacktape workloads connect to a MongoDB Atlas cluster through the [`connectTo`]
   defineConfig,
   MongoDbAtlasCluster,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -99,7 +99,7 @@ export default defineConfig(() => {
   });
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     connectTo: [mainDb]

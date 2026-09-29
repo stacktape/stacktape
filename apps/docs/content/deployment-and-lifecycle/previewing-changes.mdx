@@ -190,7 +190,7 @@ Stacktape normalizes the template diff to filter out internal-only changes, but 
 
 ### Preview takes a long time
 
-The preview command packages all workloads (Lambda bundles, container images) before generating the change set. If packaging is slow, the bottleneck is usually container image builds. Stacktape enables caching for this step (`commandCanUseCache: true`) — if you're seeing slow builds, check that your Docker layer cache is working. See [container packaging](/packaging/containers/stacktape-buildpack) for details on optimizing build times.
+The preview command packages all workloads (Lambda bundles, container images) before generating the change set. If packaging is slow, the bottleneck is usually container image builds. Stacktape enables caching for this step (`commandCanUseCache: true`) — if you're seeing slow builds, check that your Docker layer cache is working. See [container packaging](/packaging/overview#container-packaging) for details on optimizing build times.
 
 ## FAQ
 

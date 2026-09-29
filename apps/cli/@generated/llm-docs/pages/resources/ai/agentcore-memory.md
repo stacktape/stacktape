@@ -44,7 +44,7 @@ export default defineConfig(() => {
 
 `AgentCoreRuntimeProps` exposes an optional `useMemory` string. The examples below set it to the name of an `AgentCoreMemory` resource.
 
-The runtime example below uses `CustomDockerfilePackaging`, but AgentCore Runtime supports the same container packaging modes as other Stacktape container workloads: [Stacktape buildpack](/packaging/containers/stacktape-buildpack), [custom Dockerfile](/packaging/containers/custom-dockerfile), [prebuilt image](/packaging/containers/prebuilt-image), [Nixpacks](/packaging/containers/nixpacks), and [external buildpack](/packaging/containers/external-buildpack).
+The runtime example below uses `DockerfilePackaging`, but AgentCore Runtime supports the same container packaging types as other Stacktape container workloads: [`js-bundle`](/packaging/containers/js-bundle), [`buildpack`](/packaging/containers/buildpack), [`dockerfile`](/packaging/containers/dockerfile) and [`prebuilt-image`](/packaging/containers/prebuilt-image).
 
 AgentCore Memory exposes `id` and `arn` as [referenceable parameters](/configuration/referenceable-parameters). To pass the memory ID into your runtime container, add an explicit environment variable using the [`$ResourceParam()` directive](/configuration/directives):
 
@@ -56,7 +56,7 @@ import {
   defineConfig,
   AgentCoreMemory,
   AgentCoreRuntime,
-  CustomDockerfilePackaging
+  DockerfilePackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const supportMemory = new AgentCoreMemory({
@@ -65,7 +65,7 @@ export default defineConfig(() => {
   });
 
   const supportAgent = new AgentCoreRuntime({
-    packaging: new CustomDockerfilePackaging({
+    packaging: new DockerfilePackaging({
       buildContextPath: './'
     }),
     useMemory: 'supportMemory',
@@ -187,7 +187,7 @@ import {
   defineConfig,
   AgentCoreMemory,
   AgentCoreRuntime,
-  StacktapeImageBuildpackPackaging
+  JsBundleImagePackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const chatMemory = new AgentCoreMemory({
@@ -196,7 +196,7 @@ export default defineConfig(() => {
   });
 
   const chatAgent = new AgentCoreRuntime({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: './src/agent.ts'
     }),
     useMemory: 'chatMemory',

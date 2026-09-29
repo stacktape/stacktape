@@ -172,7 +172,6 @@ const secretReference = generatedDatabasePasswordSecretReference;
 
 /** Node majors and Python versions the buildpack schema accepts. Anything else is left unpinned. */
 const SUPPORTED_NODE_MAJORS: ReadonlySet<number> = new Set([16, 17, 18, 19, 20, 21, 22, 23, 24]);
-const SUPPORTED_PYTHON_VERSIONS: ReadonlySet<number> = new Set([2.7, 3.6, 3.7, 3.8, 3.9, 3.11, 3.12, 3.13, 3.14]);
 
 /**
  * Pin the buildpack runtime to the version the repository declares, when the schema can take it.
@@ -188,23 +187,38 @@ const runtimeVersionConfig = (service: ServiceFact): Record<string, unknown> => 
     const major = Number.parseInt(service.runtimeVersion, 10);
     return SUPPORTED_NODE_MAJORS.has(major) ? { nodeVersion: major } : {};
   }
-  if (service.language === 'python') {
-    const version = Number.parseFloat(service.runtimeVersion);
-    return SUPPORTED_PYTHON_VERSIONS.has(version) ? { pythonVersion: version } : {};
-  }
   return {};
 };
 
-const packagingFor = (
-  service: ServiceFact,
-  packageManager: PackageManager | undefined,
-  suppressNixpacksRelease = false
-): Record<string, unknown> => {
+const JS_ENTRY_FILE = /\.(m?[jt]sx?|cjs)$/;
+
+/**
+ * The start command for a Python entry point Railpack cannot know: the scan found the ASGI or WSGI application
+ * object (`app/main.py:app`), Railpack only knows the framework. Django needs nothing: Railpack finds its WSGI module.
+ */
+const pythonStartCommand = (service: ServiceFact): string | undefined => {
+  const entry = service.containerEntrypoint;
+  if (entry === undefined) return undefined;
+  const match = entry.match(/^(.+)\.py(?::([A-Za-z_]\w*))?$/);
+  if (!match) return undefined;
+  const buildRoot = service.buildRoot ?? service.path;
+  const modulePath = posix.relative(buildRoot === '.' ? '' : buildRoot, match[1]!).replace(/^\.\//, '');
+  const target = `${modulePath.split('/').join('.')}:${match[2] ?? 'app'}`;
+  if (service.framework === 'fastapi' || service.framework === 'starlette') {
+    return `uvicorn ${target} --host 0.0.0.0 --port $PORT`;
+  }
+  if (service.framework === 'flask') {
+    return `gunicorn --bind 0.0.0.0:$PORT ${target}`;
+  }
+  return undefined;
+};
+
+const packagingFor = (service: ServiceFact, packageManager: PackageManager | undefined): Record<string, unknown> => {
   const buildRoot = service.buildRoot ?? service.path;
   if (service.dockerfile !== undefined) {
     // Their Dockerfile is the most faithful description of how this runs that exists. Use it.
     return {
-      type: 'custom-dockerfile',
+      type: 'dockerfile',
       properties: {
         buildContextPath: buildRoot,
         // Facts keep repository-relative evidence paths; Stacktape expects this one relative to the
@@ -213,51 +227,27 @@ const packagingFor = (
       }
     };
   }
-  if (service.containerEntrypoint !== undefined) {
-    const pythonRunMode =
-      service.framework === 'fastapi' || service.framework === 'starlette'
-        ? 'ASGI'
-        : service.framework === 'flask' || service.framework === 'django'
-          ? 'WSGI'
-          : undefined;
-    const languageSpecificConfig = {
-      ...(pythonRunMode === undefined ? {} : { runAppAs: pythonRunMode }),
-      ...runtimeVersionConfig(service)
-    };
+  if (service.containerEntrypoint !== undefined && JS_ENTRY_FILE.test(service.containerEntrypoint)) {
+    // A known JavaScript entry file: Stacktape bundles it, which is smaller and faster than a project build.
     return {
-      type: 'stacktape-image-buildpack',
-      properties: {
-        entryfilePath: service.containerEntrypoint,
-        ...(Object.keys(languageSpecificConfig).length === 0 ? {} : { languageSpecificConfig })
-      }
+      type: 'js-bundle',
+      properties: { entryfilePath: service.containerEntrypoint, ...runtimeVersionConfig(service) }
     };
   }
   // A workspace member that imports internal packages must be installed and built from the root,
   // or its `workspace:*` specifiers fail before the first resource exists.
   const monorepo = monorepoPackaging(service, packageManager);
-  const nixpacks =
-    monorepo?.packaging ??
-    // Nixpacks detects the language and builds without anyone writing a Dockerfile, which is the
-    // whole promise for a user who does not want to learn containers.
-    ({
-      type: 'nixpacks',
-      properties: {
-        sourceDirectoryPath: buildRoot,
-        ...(service.startCommand === undefined ? {} : { startCmd: service.startCommand })
-      }
-    } as { type: 'nixpacks'; properties: Record<string, unknown> });
-
-  if (suppressNixpacksRelease) {
-    // Nixpacks' Procfile provider replays `release:` as an image-build step, where the database the
-    // migration needs does not exist yet. The deploy owns that migration as an `afterDeploy` hook,
-    // so the build-time copy is neutralised with a no-op phase.
-    const phases = (nixpacks.properties.phases as Array<{ name: string; cmds: string[] }> | undefined) ?? [];
-    nixpacks.properties = {
-      ...nixpacks.properties,
-      phases: [...phases, { name: 'release', cmds: ['true'] }]
-    };
-  }
-  return nixpacks;
+  if (monorepo !== undefined) return monorepo.packaging;
+  // Railpack detects the language and builds without anyone writing a Dockerfile, which is the
+  // whole promise for a user who does not want to learn containers.
+  const startCommand = service.startCommand ?? pythonStartCommand(service);
+  return {
+    type: 'buildpack',
+    properties: {
+      sourceDirectoryPath: buildRoot,
+      ...(startCommand === undefined ? {} : { startCommand })
+    }
+  };
 };
 
 /**
@@ -889,10 +879,6 @@ export const composeConfig = ({
       ...(httpApiGatewayName === undefined ? {} : { httpApiGatewayName }),
       profile,
       packageManager: facts.packageManager,
-      // This deploy owns the migration, so the image build must not replay it. Nixpacks' Procfile
-      // provider runs `release:` at build time, where the database this migration needs does not
-      // exist — caught on the first real-AWS run of the validation lane.
-      suppressNixpacksRelease: migrationHooks.hookedServices.includes(service.name),
       requiresVpc
     });
     provenance[name] = {
@@ -902,16 +888,18 @@ export const composeConfig = ({
 
     // Root-context builds can carry a stated limitation; the packaging itself is emitted inside
     // `buildServiceResource`, and the caveat belongs next to the other honest omissions. Only the
-    // container shapes reach the Nixpacks branch — framework `-web` resources, hosting buckets and
+    // container shapes reach the buildpack branch — framework `-web` resources, hosting buckets and
     // functions package themselves.
-    const usesNixpacksPackaging =
+    const usesBuildpackPackaging =
       (classification.resourceType === 'web-service' ||
         classification.resourceType === 'worker-service' ||
         classification.resourceType === 'private-service' ||
         classification.resourceType === 'batch-job') &&
       service.dockerfile === undefined &&
-      service.containerEntrypoint === undefined;
-    const monorepoCaveat = usesNixpacksPackaging ? monorepoPackaging(service, facts.packageManager)?.caveat : undefined;
+      (service.containerEntrypoint === undefined || !JS_ENTRY_FILE.test(service.containerEntrypoint));
+    const monorepoCaveat = usesBuildpackPackaging
+      ? monorepoPackaging(service, facts.packageManager)?.caveat
+      : undefined;
     if (monorepoCaveat !== undefined) {
       gaps.push({ subject: service.name, message: monorepoCaveat });
     }
@@ -1031,7 +1019,6 @@ const buildServiceResource = ({
   httpApiGatewayName,
   profile,
   packageManager,
-  suppressNixpacksRelease,
   requiresVpc
 }: {
   resourceType: ServiceResourceType;
@@ -1042,7 +1029,6 @@ const buildServiceResource = ({
   httpApiGatewayName?: string;
   profile: InfrastructureProfile;
   packageManager: PackageManager | undefined;
-  suppressNixpacksRelease: boolean;
   requiresVpc: boolean;
 }): ComposedResource => {
   const shared = {
@@ -1133,7 +1119,7 @@ const buildServiceResource = ({
       type: 'function',
       properties: {
         packaging: {
-          type: 'stacktape-lambda-buildpack',
+          type: JS_ENTRY_FILE.test(service.functionEntrypoint ?? '') ? 'js-bundle' : 'buildpack',
           properties: { entryfilePath: service.functionEntrypoint }
         },
         ...(events.length === 0 ? {} : { events }),
@@ -1175,7 +1161,7 @@ const buildServiceResource = ({
       type: 'batch-job',
       properties: {
         container: {
-          packaging: packagingFor(service, packageManager, suppressNixpacksRelease)
+          packaging: packagingFor(service, packageManager)
         },
         resources: { ...profile.container },
         ...(service.schedule === undefined
@@ -1194,14 +1180,14 @@ const buildServiceResource = ({
   }
 
   // No health check is emitted on purpose. Stacktape's `internalHealthCheck` takes a container
-  // command, not an HTTP path, and a guessed command — `curl` against a nixpacks image that may not
+  // command, not an HTTP path, and a guessed command — `curl` against a buildpack image that may not
   // ship curl — produces a container that never reports healthy and a deploy that hangs until it
   // times out. The platform defaults are correct far more often than a guess, and the observed
   // `healthCheckPath` is better spent on load-balancer configuration once that is modelled.
   return {
     type: resourceType,
     properties: {
-      packaging: packagingFor(service, packageManager, suppressNixpacksRelease),
+      packaging: packagingFor(service, packageManager),
       resources: { ...profile.container },
       // Scaling is only meaningful for something that stays up. A batch job is sized, not scaled.
       scaling: {

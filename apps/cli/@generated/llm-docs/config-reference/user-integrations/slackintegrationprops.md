@@ -28,7 +28,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/worker.ts
       memory: 512
@@ -54,7 +54,7 @@ import { LambdaFunction, defineConfig, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const workerFunction = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/worker.ts' }
     },
     memory: 512,
@@ -96,7 +96,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/worker.ts
       memory: 512
@@ -122,7 +122,7 @@ import { LambdaFunction, defineConfig, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const workerFunction = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/worker.ts' }
     },
     memory: 512,

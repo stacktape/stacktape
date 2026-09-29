@@ -32,16 +32,16 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   KinesisIntegration,
-  KinesisStream
+  KinesisStream,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
   const clickStream = new KinesisStream({});
 
   const processor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/process-records.ts'
     }),
     events: [
@@ -112,16 +112,16 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   KinesisIntegration,
-  KinesisStream
+  KinesisStream,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
   const telemetry = new KinesisStream({});
 
   const aggregator = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/aggregate.ts'
     }),
     events: [

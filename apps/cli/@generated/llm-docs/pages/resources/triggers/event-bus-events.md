@@ -34,15 +34,15 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   EventBus,
-  EventBusIntegration
+  EventBusIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const orderBus = new EventBus({});
 
   const orderProcessor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/order-processor.ts'
     }),
     events: [
@@ -92,12 +92,12 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  EventBusIntegration
+  EventBusIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const ec2Monitor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/ec2-monitor.ts'
     }),
     events: [
@@ -132,12 +132,12 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  EventBusIntegration
+  EventBusIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const crossAccountHandler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/cross-account-handler.ts'
     }),
     events: [
@@ -188,15 +188,15 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   EventBus,
-  EventBusIntegration
+  EventBusIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const orderBus = new EventBus({});
 
   const highValueHandler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/high-value-handler.ts'
     }),
     events: [
@@ -252,15 +252,15 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   EventBus,
-  EventBusIntegration
+  EventBusIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const orderBus = new EventBus({});
 
   const notifier = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/notifier.ts'
     }),
     events: [
@@ -302,17 +302,17 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   EventBus,
   EventBusIntegration,
-  SqsQueue
+  SqsQueue,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const orderBus = new EventBus({});
   const dlq = new SqsQueue({});
 
   const orderProcessor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/order-processor.ts'
     }),
     events: [

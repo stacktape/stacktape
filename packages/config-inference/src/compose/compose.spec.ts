@@ -115,7 +115,7 @@ describe('classifyService', () => {
 });
 
 describe('composeConfig', () => {
-  it('emits a container service with nixpacks packaging and the start command', () => {
+  it('emits a container service with buildpack packaging and the start command', () => {
     const { config } = composeConfig({ facts: facts(), projectName: 'shop' });
 
     expect(config.projectName).toBe('shop');
@@ -123,8 +123,8 @@ describe('composeConfig', () => {
       type: 'web-service',
       properties: {
         packaging: {
-          type: 'nixpacks',
-          properties: { sourceDirectoryPath: '.', startCmd: 'npm run start' }
+          type: 'buildpack',
+          properties: { sourceDirectoryPath: '.', startCommand: 'npm run start' }
         },
         // The recommended capacity choice. `economical` would be half of this.
         resources: { cpu: 0.5, memory: 1024 },
@@ -159,7 +159,7 @@ describe('composeConfig', () => {
       type: 'function',
       properties: {
         packaging: {
-          type: 'stacktape-lambda-buildpack',
+          type: 'js-bundle',
           properties: { entryfilePath: 'src/get-user.ts' }
         },
         events: [
@@ -473,7 +473,7 @@ describe('composeConfig', () => {
     });
 
     expect(config.resources.web?.properties.packaging).toMatchObject({
-      type: 'custom-dockerfile',
+      type: 'dockerfile',
       properties: { buildContextPath: '.', dockerfilePath: 'Dockerfile' }
     });
   });
@@ -1059,11 +1059,11 @@ describe('packaging a workspace member from the repository root', () => {
     });
 
     expect(config.resources.web?.properties.packaging).toEqual({
-      type: 'nixpacks',
+      type: 'buildpack',
       properties: {
         sourceDirectoryPath: '.',
-        phases: [{ name: 'build', cmds: ['pnpm --filter @acme/web... run build'] }],
-        startCmd: 'pnpm --filter @acme/web start'
+        buildCommand: 'pnpm --filter @acme/web... run build',
+        startCommand: 'pnpm --filter @acme/web start'
       }
     });
   });
@@ -1085,7 +1085,7 @@ describe('packaging a workspace member from the repository root', () => {
     });
 
     expect(config.resources.web?.properties.packaging).toMatchObject({
-      type: 'nixpacks',
+      type: 'buildpack',
       properties: { sourceDirectoryPath: 'apps/web' }
     });
   });
@@ -1096,10 +1096,10 @@ describe('packaging a workspace member from the repository root', () => {
     });
 
     expect(config.resources.web?.properties.packaging).toMatchObject({
-      type: 'nixpacks',
+      type: 'buildpack',
       properties: {
         sourceDirectoryPath: '.',
-        startCmd: 'yarn workspace @acme/web start'
+        startCommand: 'yarn workspace @acme/web start'
       }
     });
     expect(gaps.some((gap) => gap.subject === 'web' && gap.message.includes('workspace imports'))).toBe(true);
@@ -1124,7 +1124,7 @@ describe('packaging a workspace member from the repository root', () => {
     // Falls back to per-directory packaging: an install failure names the real problem, a hostile
     // command does not.
     expect(config.resources.web?.properties.packaging).toMatchObject({
-      type: 'nixpacks',
+      type: 'buildpack',
       properties: { sourceDirectoryPath: 'apps/web' }
     });
   });
@@ -1138,14 +1138,14 @@ describe('pinning the declared runtime version', () => {
       ...overrides
     });
 
-  it('pins a supported Node major on the buildpack', () => {
+  it('pins a supported Node major on the JavaScript bundle', () => {
     const { config } = composeConfig({
       facts: facts({ services: [entrypointService({ runtimeVersion: '22' })] })
     });
 
-    expect(config.resources.web?.properties.packaging).toMatchObject({
-      type: 'stacktape-image-buildpack',
-      properties: { languageSpecificConfig: { nodeVersion: 22 } }
+    expect(config.resources.web?.properties.packaging).toEqual({
+      type: 'js-bundle',
+      properties: { entryfilePath: 'src/server.ts', nodeVersion: 22 }
     });
   });
 
@@ -1155,38 +1155,45 @@ describe('pinning the declared runtime version', () => {
         facts: facts({ services: [entrypointService({ runtimeVersion })] })
       });
       const packaging = config.resources.web?.properties.packaging as {
-        properties: { languageSpecificConfig?: Record<string, unknown> };
+        properties: { nodeVersion?: number };
       };
-      return packaging.properties.languageSpecificConfig;
+      return packaging.properties.nodeVersion;
     };
 
     expect(versionOf('>=18')).toBeUndefined();
-    expect(versionOf('22.1')).toEqual({ nodeVersion: 22 });
+    expect(versionOf('22.1')).toBe(22);
   });
 
-  it('pins Python only to versions the schema actually lists', () => {
-    const configFor = (runtimeVersion: string) =>
+  it('leaves the Python version to the project files and states the start command', () => {
+    const packagingFor = (overrides: Partial<ServiceFactInput>) =>
       composeConfig({
         facts: facts({
           services: [
             entrypointService({
               language: 'python',
               framework: 'fastapi',
-              containerEntrypoint: 'main.py:app',
-              runtimeVersion
+              containerEntrypoint: 'app/main.py:app',
+              runtimeVersion: '3.12',
+              ...overrides
             })
           ]
         })
-      }).config;
+      }).config.resources.web?.properties.packaging;
 
-    expect(configFor('3.12').resources.web?.properties.packaging).toMatchObject({
-      properties: {
-        languageSpecificConfig: { runAppAs: 'ASGI', pythonVersion: 3.12 }
-      }
+    // Railpack reads the version from the repository's own files, so the config does not repeat it.
+    // It cannot know the application object, so the scan's `app/main.py:app` becomes the command.
+    expect(packagingFor({})).toEqual({
+      type: 'buildpack',
+      properties: { sourceDirectoryPath: '.', startCommand: 'uvicorn app.main:app --host 0.0.0.0 --port $PORT' }
     });
-    // 3.10 is absent from the schema's union; pinning it would fail validation downstream.
-    expect(configFor('3.10').resources.web?.properties.packaging).toMatchObject({
-      properties: { languageSpecificConfig: { runAppAs: 'ASGI' } }
+    expect(packagingFor({ framework: 'flask', containerEntrypoint: 'wsgi.py:application' })).toEqual({
+      type: 'buildpack',
+      properties: { sourceDirectoryPath: '.', startCommand: 'gunicorn --bind 0.0.0.0:$PORT wsgi:application' }
+    });
+    // Django needs no command: Railpack finds its WSGI module.
+    expect(packagingFor({ framework: 'django', containerEntrypoint: 'mysite/wsgi.py' })).toEqual({
+      type: 'buildpack',
+      properties: { sourceDirectoryPath: '.' }
     });
   });
 });
@@ -1328,10 +1335,10 @@ describe('composing detected migrations into deploy hooks', () => {
     expect(gaps.some((gap) => gap.subject === 'web.migrations')).toBe(true);
   });
 
-  it('neutralises the build-time replay of a release phase this deploy now owns', () => {
-    // Caught on the first real-AWS lane run: Nixpacks' Procfile provider ran `release:` during the
-    // image build, against a database that does not exist at build time. When the migration is ours
-    // — an afterDeploy hook — the build-time copy must become a no-op.
+  it('leaves the build free of the migration this deploy now owns', () => {
+    // Caught on the first real-AWS lane run with Nixpacks: its Procfile provider ran `release:` during
+    // the image build, against a database that does not exist at build time. Railpack reads only the
+    // start command from a Procfile, so the afterDeploy hook is the one place the migration runs.
     const { config } = composeConfig({
       facts: facts({
         services: [service({ environmentVariables: [] })],
@@ -1349,9 +1356,9 @@ describe('composing detected migrations into deploy hooks', () => {
     });
 
     expect(config.hooks?.afterDeploy).toEqual([{ scriptName: 'migrateDatabase' }]);
-    expect(config.resources.web?.properties.packaging).toMatchObject({
-      type: 'nixpacks',
-      properties: { phases: [{ name: 'release', cmds: ['true'] }] }
+    expect(config.resources.web?.properties.packaging).toEqual({
+      type: 'buildpack',
+      properties: { sourceDirectoryPath: '.', startCommand: 'npm run start' }
     });
   });
 

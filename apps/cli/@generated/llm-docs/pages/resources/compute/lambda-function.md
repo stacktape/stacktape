@@ -19,7 +19,7 @@ A Lambda function is the right default for event-driven code that finishes withi
 - **Always-on HTTP servers** — use a [web service](/resources/compute/web-service) when you need a continuously running container or a container-native web framework.
 - **VPC access with internet egress** — `joinDefaultVpc` gives VPC access but removes direct internet access (S3 and DynamoDB stay reachable via VPC endpoints). If you need both, use a [web service](/resources/compute/web-service) or [worker service](/resources/compute/worker-service).
 - **Persistent local state** — `/tmp` is ephemeral per invocation. Use [EFS](/resources/storage/efs-filesystem), an [S3 bucket](/resources/storage/s3-bucket), or a database for persistent data.
-- **Custom OS or daemon requirements** — Stacktape Lambda packaging uses source buildpack or custom artifact zip. If you need image-level control over system packages or daemons, use a [container workload](/resources/compute/multi-container-workload) or [web service](/resources/compute/web-service).
+- **Custom OS or daemon requirements** — Stacktape Lambda packaging builds a zip from source (`js-bundle`, `buildpack`) or uses your own zip (`custom-artifact`). If you need image-level control over system packages or daemons, use a [container workload](/resources/compute/multi-container-workload) or [web service](/resources/compute/web-service).
 
 ## Basic example
 
@@ -33,13 +33,13 @@ import {
   defineConfig,
   LambdaFunction,
   HttpApiGateway,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const apiGateway = new HttpApiGateway({});
 
   const getUser = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/get-user.ts'
     }),
     events: [
@@ -89,7 +89,7 @@ import {
   LambdaFunction,
   HttpApiGateway,
   DynamoDbTable,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const apiGateway = new HttpApiGateway({});
@@ -99,7 +99,7 @@ export default defineConfig(() => {
   });
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/api.ts'
     }),
     events: [
@@ -169,7 +169,7 @@ import {
   defineConfig,
   LambdaFunction,
   DynamoDbTable,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const sessionsTable = new DynamoDbTable({
@@ -177,7 +177,7 @@ export default defineConfig(() => {
   });
 
   const cleanup = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/cleanup.ts'
     }),
     events: [
@@ -224,32 +224,31 @@ export async function handler() {
 
 ## Packaging
 
-Stacktape supports two Lambda packaging modes: [Stacktape Lambda buildpack](/packaging/function/stacktape-buildpack) and [custom artifact](/packaging/function/custom-artifact).
+Stacktape supports three Lambda packaging types: [`js-bundle`](/packaging/function/js-bundle), [`buildpack`](/packaging/function/buildpack) and [`custom-artifact`](/packaging/function/custom-artifact).
 
-| Mode | Best for |
+| Type | Best for |
 |---|---|
-| **Stacktape Lambda buildpack** (recommended) | Point to a source file — Stacktape bundles, uploads, and configures the function. Supports JS, TS, Python, Java, Go, Ruby, PHP, and .NET. |
-| **Custom artifact** | Provide a pre-built zip. Use when your CI already produces a deployment package or when you need a build step Stacktape does not support. |
+| **`js-bundle`** (JavaScript, TypeScript) | Point to a source file. Stacktape bundles, minifies and source-maps the code, moves code shared between functions into a shared layer, and uploads the package. |
+| **`buildpack`** (Python, Java, Go, Ruby, .NET, Rust) | Point to a source file. Stacktape installs dependencies and compiles the code in Docker on the Lambda build image of the function's `runtime`. |
+| **`custom-artifact`** | Provide a pre-built zip. Use when your CI already produces a deployment package or when you need a build step Stacktape does not support. |
 
-The Stacktape Lambda buildpack is the better default: it auto-detects the runtime, builds for the selected architecture, minifies and generates source maps (JS/TS), moves code shared between functions into a shared layer, and caches unchanged packages. Use [custom artifact](/packaging/function/custom-artifact) only when you own the build outside Stacktape.
+`js-bundle` and `buildpack` are the better defaults: they detect the runtime from the file extension, build for the selected architecture and skip unchanged packages. Use [custom artifact](/packaging/function/custom-artifact) only when you own the build outside Stacktape.
 
-### Stacktape Lambda buildpack
+### JS bundle
 
-The `StacktapeLambdaBuildpackPackaging` class accepts a `languageSpecificConfig` property for runtime-specific settings — Node.js version, Python version, Java build tool, ESM vs CJS output, source map and minification control, and more. See [Stacktape Lambda buildpack](/packaging/function/stacktape-buildpack) for language-specific details.
+`JsBundleLambdaPackaging` options such as `nodeVersion`, `outputModuleFormat`, `disableSourceMaps` and `minify` are direct properties next to `entryfilePath`. See [JS Bundle for Lambda](/packaging/function/js-bundle) for all options.
 
 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/api.ts',
-      languageSpecificConfig: {
-        nodeVersion: 22,
-        outputModuleFormat: 'esm'
-      }
+      nodeVersion: 22,
+      outputModuleFormat: 'esm'
     })
   });
 
@@ -260,9 +259,32 @@ export default defineConfig(() => {
 
 `nodeVersion` selects the Node.js major version for the build; keep it aligned with the function's `runtime`. `outputModuleFormat` switches between `'cjs'` (CommonJS) and `'esm'` (ES Modules, enables top-level `await`). Node.js 24 and later use ESM output automatically; earlier versions default to CommonJS. Some npm packages do not support ESM.
 
+### Buildpack
+
+`BuildpackLambdaPackaging` builds Python, Java, Go, Ruby, .NET and Rust functions. The function's `runtime` selects the language version. Language options are grouped under `python`, `java` and `dotnet`. See [Buildpack for Lambda](/packaging/function/buildpack) for all options.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, LambdaFunction, BuildpackLambdaPackaging } from 'stacktape';
+export default defineConfig(() => {
+  const processor = new LambdaFunction({
+    runtime: 'python3.13',
+    packaging: new BuildpackLambdaPackaging({
+      entryfilePath: './src/process.py',
+      python: { packageManagerFile: './pyproject.toml' }
+    })
+  });
+
+  return { resources: { processor } };
+});
+```
+
+
 ### Custom artifact
 
-The `CustomArtifactLambdaPackaging` class takes a `packagePath` pointing to a pre-built deployment package. If the path points to a directory or a non-zip file, Stacktape zips it before upload. With `custom-artifact`, there is no source file for buildpack auto-detection, so set `runtime` when the Lambda runtime cannot be inferred elsewhere. If you use `architecture: 'arm64'`, pre-compile any native dependencies for that architecture yourself.
+The `CustomArtifactLambdaPackaging` class takes a `packagePath` pointing to a pre-built deployment package. If the path points to a directory or a non-zip file, Stacktape zips it before upload. With `custom-artifact`, there is no source file for runtime auto-detection, so set `runtime` when the Lambda runtime cannot be inferred elsewhere. If you use `architecture: 'arm64'`, pre-compile any native dependencies for that architecture yourself.
 
 
 Example (TypeScript):
@@ -315,13 +337,13 @@ import {
   defineConfig,
   LambdaFunction,
   SqsQueue,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const jobs = new SqsQueue({});
 
   const worker = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/worker.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/worker.ts' }),
     events: [
       {
         type: 'sqs',
@@ -355,10 +377,10 @@ A Lambda function URL gives one function its own HTTPS endpoint (`https://{id}.l
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const webhook = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/webhook.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/webhook.ts' }),
     url: {
       enabled: true,
       authMode: 'NONE',
@@ -385,7 +407,7 @@ export default defineConfig(() => {
 
 Lambda function runtime resources are controlled by `runtime`, `architecture`, `memory`, `timeout`, and `storage`. These properties determine the language version, CPU allocation, execution limits, and ephemeral disk available to each invocation.
 
-`runtime` is auto-detected from the source file extension when using the Stacktape Lambda buildpack. Supported runtime identifiers are `nodejs18.x`, `nodejs20.x`, `nodejs22.x`, `nodejs24.x`, `python3.8`, `python3.9`, `python3.10`, `python3.11`, `python3.12`, `python3.13`, `ruby3.3`, `java8`, `java8.al2`, `java11`, `java17`, `dotnet6`, `dotnet7`, `dotnet8`, `provided.al2`, and `provided.al2023`. Override `runtime` only when you need a specific version or when using `custom-artifact` packaging where there is no source file for buildpack auto-detection.
+`runtime` is auto-detected from the source file extension when using `js-bundle` or `buildpack` packaging. Supported runtime identifiers are `nodejs18.x`, `nodejs20.x`, `nodejs22.x`, `nodejs24.x`, `python3.8`, `python3.9`, `python3.10`, `python3.11`, `python3.12`, `python3.13`, `python3.14`, `ruby3.3`, `ruby3.4`, `ruby4.0`, `java8`, `java8.al2`, `java11`, `java17`, `java21`, `java25`, `dotnet6`, `dotnet7`, `dotnet8`, `dotnet10`, `provided.al2`, and `provided.al2023`. With `buildpack`, `runtime` also selects the language version used for the build. Set it when you need a specific version, for Rust functions (`provided.al2023`), and with `custom-artifact` packaging, where there is no source file for auto-detection.
 
 `memory` accepts `128` to `10,240` MB and determines CPU power proportionally: `1,769` MB equals 1 vCPU, `3,538` MB equals 2 vCPUs. For CPU-bound functions, increasing memory often reduces total cost because shorter execution time offsets the higher per-millisecond rate.
 
@@ -393,10 +415,10 @@ Lambda function runtime resources are controlled by `runtime`, `architecture`, `
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const imageProcessor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/image-processor.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/image-processor.ts' }),
     runtime: 'nodejs22.x',
     architecture: 'arm64',
     memory: 2048,
@@ -409,7 +431,7 @@ export default defineConfig(() => {
 ```
 
 
-`architecture` is `'x86_64'` by default. `'arm64'` (AWS Graviton) is ~20% cheaper per GB-second and often works without code changes. When using the Stacktape Lambda buildpack, Stacktape builds for the selected architecture automatically; with a custom artifact, you must pre-compile for the target.
+`architecture` is `'x86_64'` by default. `'arm64'` (AWS Graviton) is ~20% cheaper per GB-second and often works without code changes. When using `js-bundle` or `buildpack`, Stacktape builds for the selected architecture automatically; with a custom artifact, you must pre-compile for the target.
 
 `storage` controls the ephemeral `/tmp` directory size from `512` (default) to `10,240` MB. This space is only available during one invocation and is not shared. Use it for temporary downloads or intermediate files, not persistent data.
 
@@ -430,10 +452,10 @@ Use `reservedConcurrency` when a database, third-party API, or queue consumer mu
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const checkout = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/checkout.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/checkout.ts' }),
     reservedConcurrency: 25,
     provisionedConcurrency: 3
   });
@@ -466,8 +488,8 @@ import {
   LambdaFunction,
   RelationalDatabase,
   RdsEnginePostgres,
-  StacktapeLambdaBuildpackPackaging,
-  $Secret
+  $Secret,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const database = new RelationalDatabase({
@@ -479,7 +501,7 @@ export default defineConfig(() => {
   });
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/api.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/api.ts' }),
     connectTo: [database],
     joinDefaultVpc: true,
     environment: { LOG_LEVEL: 'info' },
@@ -500,10 +522,10 @@ Use `iamRoleStatements` for AWS services not covered by `connectTo` (e.g., Rekog
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const analyzer = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/analyzer.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/analyzer.ts' }),
     iamRoleStatements: [
       {
         Effect: 'Allow',
@@ -536,13 +558,13 @@ import {
   defineConfig,
   LambdaFunction,
   EfsFilesystem,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const sharedFiles = new EfsFilesystem({});
 
   const renderer = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/renderer.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/renderer.ts' }),
     joinDefaultVpc: true,
     storage: 2048,
     volumeMounts: [
@@ -578,10 +600,10 @@ A Lambda function can be placed behind a CDN by setting the `cdn` property. Clou
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const catalog = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/catalog.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/catalog.ts' }),
     url: { enabled: true },
     cdn: {
       enabled: true
@@ -615,10 +637,10 @@ Available strategies:
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/api.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/api.ts' }),
     deployment: {
       strategy: 'Canary10Percent5Minutes'
     }
@@ -651,13 +673,13 @@ import {
   defineConfig,
   LambdaFunction,
   SqsQueue,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const deadLetterQueue = new SqsQueue({});
 
   const processor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/processor.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/processor.ts' }),
     destinations: {
       onFailure: "$ResourceParam('deadLetterQueue', 'arn')"
     }
@@ -686,10 +708,10 @@ Lambda function alarms support `lambda-error-rate` and `lambda-duration` trigger
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/api.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/api.ts' }),
     logging: {
       retentionDays: 30
     },
@@ -720,7 +742,7 @@ export default defineConfig(() => {
 
 Lambda layers are zip archives with additional code or data that get mounted into the function at runtime. Set `layers` to an array of Lambda layer ARNs to attach shared libraries, custom runtimes, or large datasets that multiple functions need without duplicating them in each deployment package. Stacktape supports up to 5 layer ARNs per function.
 
-Most teams do not need layers. The Stacktape Lambda buildpack handles dependency bundling automatically. Use layers when you need a binary dependency too large for the zip package, a shared custom runtime, or a public layer maintained by a third party.
+Most teams do not need layers. `js-bundle` and `buildpack` handle dependencies automatically. Use layers when you need a binary dependency too large for the zip package, a shared custom runtime, or a public layer maintained by a third party.
 
 ## FAQ
 
@@ -757,7 +779,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 
 | Property | Required | Type | Default |
 | --- | --- | --- | --- |
-| `packaging` | yes | `stacktape-lambda-buildpack \| custom-artifact` | - |
+| `packaging` | yes | `js-bundle \| buildpack \| custom-artifact` | - |
 | `alarms` | no | `Array<LambdaAlarm>` | - |
 | `architecture` | no | `string: "arm64" \| "x86_64"` | `x86_64` |
 | `cdn` | no | `CdnConfiguration` | - |

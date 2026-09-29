@@ -16,7 +16,7 @@ import type { ResourceOverrides } from './shared';
  *     type: function
  *     properties:
  *       packaging:
- *         type: stacktape-lambda-buildpack
+ *         type: js-bundle
  *         properties:
  *           entryfilePath: ./src/process-order.ts
  *
@@ -40,11 +40,11 @@ import type { ResourceOverrides } from './shared';
  * **Example (TypeScript):**
  *
  * ```ts
- * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, StateMachine, defineConfig } from 'stacktape';
+ * import { LambdaFunction, StateMachine, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
  *
  * export default defineConfig(() => {
  *   const processOrder = new LambdaFunction({
- *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/process-order.ts' })
+ *     packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/process-order.ts' })
  *   });
  *   // stp-focus
  *   const orderWorkflow = new StateMachine({
@@ -85,7 +85,7 @@ export interface StateMachineProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: ./src/charge-card.ts
    *
@@ -110,11 +110,11 @@ export interface StateMachineProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, StateMachine, defineConfig } from 'stacktape';
+   * import { LambdaFunction, StateMachine, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const chargeCard = new LambdaFunction({
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/charge-card.ts' })
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/charge-card.ts' })
    *   });
    *   const paymentWorkflow = new StateMachine({
    *     // stp-focus
@@ -152,7 +152,7 @@ export interface StateMachineDefinition {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: ./src/send-email.ts
    *
@@ -177,11 +177,11 @@ export interface StateMachineDefinition {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, StateMachine, defineConfig } from 'stacktape';
+   * import { LambdaFunction, StateMachine, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const sendEmail = new LambdaFunction({
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/send-email.ts' })
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/send-email.ts' })
    *   });
    *   const notifyWorkflow = new StateMachine({
    *     definition: {
@@ -216,7 +216,7 @@ export interface StateMachineDefinition {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: ./src/validate-input.ts
    *
@@ -241,11 +241,11 @@ export interface StateMachineDefinition {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, StateMachine, defineConfig } from 'stacktape';
+   * import { LambdaFunction, StateMachine, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const validateInput = new LambdaFunction({
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/validate-input.ts' })
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/validate-input.ts' })
    *   });
    *   const ingestWorkflow = new StateMachine({
    *     definition: {
@@ -280,14 +280,14 @@ export interface StateMachineDefinition {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: ./src/extract.ts
    *   transform:
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: ./src/transform.ts
    *
@@ -319,14 +319,14 @@ export interface StateMachineDefinition {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, StateMachine, defineConfig } from 'stacktape';
+   * import { LambdaFunction, StateMachine, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const extract = new LambdaFunction({
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/extract.ts' })
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/extract.ts' })
    *   });
    *   const transform = new LambdaFunction({
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/transform.ts' })
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/transform.ts' })
    *   });
    *   const etlWorkflow = new StateMachine({
    *     definition: {
@@ -368,7 +368,7 @@ export interface StateMachineDefinition {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: ./src/do-work.ts
    *
@@ -394,11 +394,11 @@ export interface StateMachineDefinition {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, StateMachine, defineConfig } from 'stacktape';
+   * import { LambdaFunction, StateMachine, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const doWork = new LambdaFunction({
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/do-work.ts' })
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/do-work.ts' })
    *   });
    *   const versionedWorkflow = new StateMachine({
    *     definition: {
@@ -434,7 +434,7 @@ export interface StateMachineDefinition {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: ./src/long-task.ts
    *
@@ -460,11 +460,11 @@ export interface StateMachineDefinition {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, StateMachine, defineConfig } from 'stacktape';
+   * import { LambdaFunction, StateMachine, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const longTask = new LambdaFunction({
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/long-task.ts' })
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/long-task.ts' })
    *   });
    *   const boundedWorkflow = new StateMachine({
    *     definition: {

@@ -41,10 +41,10 @@ Datadog is the most common external log destination for AWS workloads. The `data
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     logging: {
@@ -70,10 +70,10 @@ The default endpoint is `https://aws-kinesis-http-intake.logs.datadoghq.com/v1/i
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
 export default defineConfig(() => {
   const app = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: './src/app.ts'
     }),
     resources: { cpu: 0.25, memory: 512 },
@@ -103,10 +103,10 @@ Highlight.io is an open-source observability platform. Highlight forwarding requ
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     logging: {
@@ -130,10 +130,10 @@ The `projectId` is found in your Highlight.io console under project settings. Th
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, WorkerService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, WorkerService, JsBundleImagePackaging } from 'stacktape';
 export default defineConfig(() => {
   const processor = new WorkerService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: './src/processor.ts'
     }),
     resources: { cpu: 0.5, memory: 1024 },
@@ -161,10 +161,10 @@ The `http-endpoint` log forwarding type forwards logs to any HTTPS endpoint that
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     logging: {

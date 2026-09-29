@@ -180,7 +180,7 @@ describe('TypeScript authoring compilation', () => {
       engine: { type: 'postgres', properties: { version: '16.6', primaryInstance: { instanceSize: 'db.t4g.micro' } } }
     });
     const handler = new LambdaFunction({
-      packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: './src/handler.ts' } },
+      packaging: { type: 'js-bundle', properties: { entryfilePath: './src/handler.ts' } },
       connectTo: [database],
       environment: { DATABASE_URL: database.connectionString },
       events: [
@@ -216,7 +216,7 @@ describe('TypeScript authoring compilation', () => {
 
   test('transforms a container secrets map without resolving its directives', () => {
     const api = new WebService({
-      packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: './src/server.ts' } },
+      packaging: { type: 'js-bundle', properties: { entryfilePath: './src/server.ts' } },
       resources: { cpu: 0.25, memory: 512 },
       secrets: {
         API_TOKEN: "$SsmParam('/my-app/test/api-token')",
@@ -241,7 +241,7 @@ describe('TypeScript authoring compilation', () => {
       mountPath: '/mnt/data'
     });
     const handler = new LambdaFunction({
-      packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: './src/handler.ts' } },
+      packaging: { type: 'js-bundle', properties: { entryfilePath: './src/handler.ts' } },
       events: [integration],
       volumeMounts: [mount],
       alarms: [
@@ -288,7 +288,7 @@ describe('TypeScript authoring compilation', () => {
       engine: { type: 'postgres', properties: { version: '16.6', primaryInstance: { instanceSize: 'db.t4g.micro' } } }
     });
     const handler = new LambdaFunction({
-      packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: './src/handler.ts' } },
+      packaging: { type: 'js-bundle', properties: { entryfilePath: './src/handler.ts' } },
       environment: { DATABASE_URL: database.connectionString }
     });
     const config = defineConfig(() => ({ resources: { handler } }));
@@ -326,11 +326,11 @@ describe('TypeScript authoring compilation', () => {
 
   test('treats every top-level resource class as a resource, including the formerly misclassified classes', () => {
     const provisioner = new CustomResourceDefinition({
-      packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: './src/provisioner.ts' } }
+      packaging: { type: 'js-bundle', properties: { entryfilePath: './src/provisioner.ts' } }
     });
     const provisionedThing = new CustomResourceInstance({ definitionName: provisioner, resourceProperties: {} });
     const edgeHandler = new EdgeLambdaFunction({
-      packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: './src/edge.ts' } }
+      packaging: { type: 'js-bundle', properties: { entryfilePath: './src/edge.ts' } }
     });
     const api = new HttpApiGateway({ cdn: { enabled: true, edgeFunctions: { onRequest: edgeHandler } } });
     const { config } = compileAuthoringConfig({ resources: { api, edgeHandler, provisionedThing, provisioner } });

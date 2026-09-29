@@ -40,7 +40,7 @@ The core of our application consists of two serverless functions:
 Functions are configured as follows:
 
 - **Packaging** - determines how the lambda artifact is built. The easiest and most optimized way to build the lambda is
-  using `stacktape-lambda-buildpack`. We only need to configure `entryfilePath`. Stacktape automatically builds the
+  using `buildpack`. We only need to configure `entryfilePath`. Stacktape automatically builds the
   application code with all of its dependencies, creates the lambda zip artifact, and uploads it to a pre-created S3
   bucket on AWS. You can also use
   [other types of packaging](https://docs.stacktape.com/configuration/packaging/#packaging-lambda-functions).
@@ -60,7 +60,7 @@ savePost:
   type: function
   properties:
     packaging:
-      type: stacktape-lambda-buildpack
+      type: js-bundle
       properties:
         entryfilePath: ./src/lambdas/save-post.ts
     memory: 512
@@ -77,7 +77,7 @@ getPosts:
   type: function
   properties:
     packaging:
-      type: stacktape-lambda-buildpack
+      type: js-bundle
       properties:
         entryfilePath: ./src/lambdas/get-posts.ts
     memory: 512

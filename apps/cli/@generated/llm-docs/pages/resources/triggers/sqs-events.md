@@ -30,13 +30,13 @@ import {
   LambdaFunction,
   SqsQueue,
   SqsIntegration,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const orderQueue = new SqsQueue({});
 
   const orderProcessor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/process-orders.ts'
     }),
     events: [
@@ -82,14 +82,14 @@ import {
   LambdaFunction,
   SqsQueue,
   SqsIntegration,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
   const eventQueue = new SqsQueue({});
 
   const batchProcessor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/batch-processor.ts'
     }),
     events: [
@@ -126,12 +126,12 @@ import {
   defineConfig,
   LambdaFunction,
   SqsIntegration,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
   const processor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/processor.ts'
     }),
     events: [

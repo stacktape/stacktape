@@ -2,7 +2,7 @@ import {
   AgentCoreBrowser,
   AgentCoreMemory,
   AgentCoreRuntime,
-  CustomDockerfilePackaging,
+  DockerfilePackaging,
   defineConfig
 } from '../../__release-npm';
 
@@ -21,7 +21,7 @@ export default defineConfig(() => {
 
   const researchAgent = new AgentCoreRuntime({
     description: 'Research agent with managed browser automation and persistent research memory.',
-    packaging: new CustomDockerfilePackaging({
+    packaging: new DockerfilePackaging({
       buildContextPath: './'
     }),
     useMemory: 'researchMemory',

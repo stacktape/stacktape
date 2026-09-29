@@ -5,7 +5,7 @@ Resource type: `edge-lambda-function`
 ## TypeScript definition
 
 ```typescript
-import type { CustomArtifactLambdaPackaging, LambdaFunctionLogging, StpBuildpackLambdaPackaging, StpIamRoleStatement } from 'stacktape';
+import type { BuildpackLambdaPackaging, CustomArtifactLambdaPackaging, JsBundleLambdaPackaging, LambdaFunctionLogging, StpIamRoleStatement } from 'stacktape';
 
 type EdgeLambdaFunctionProps = {
   /** How the function code is packaged and deployed. */
@@ -26,19 +26,21 @@ type EdgeLambdaFunctionProps = {
 
 /** Union choices used by the properties above. */
 type EdgeLambdaFunctionPackaging =
-  | StpBuildpackLambdaPackaging
+  | JsBundleLambdaPackaging
+  | BuildpackLambdaPackaging
   | CustomArtifactLambdaPackaging;
 ```
 
 ## Property: `packaging`
 
 - Required: yes
-- Type: `stacktape-lambda-buildpack | custom-artifact`
+- Type: `js-bundle | buildpack | custom-artifact`
 
 How the function code is packaged and deployed.
 
 Choices:
-- `stacktape-lambda-buildpack` (`StpBuildpackLambdaPackaging`) — A zero-config buildpack that packages your code for AWS Lambda.. Properties: `handlerFunction?: string`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `languageSpecificConfig?: Es | Py | Java | Go | Ruby | Php | Dotnet`.
+- `js-bundle` (`JsBundleLambdaPackaging`) — Bundles a JavaScript or TypeScript Lambda function with Stacktape's bundler.. Properties: `handlerFunction?: string`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `minify?: boolean`, `minifyIdentifiers?: boolean`, `bundleAwsSdk?: boolean`.
+- `buildpack` (`BuildpackLambdaPackaging`) — Builds a Python, Java, Go, Ruby, .NET or Rust Lambda function from its source.. Properties: `entryfilePath: string`, `handlerFunction?: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `python?: PythonBuildpackConfig`, `java?: JavaBuildpackConfig`, `dotnet?: DotnetBuildpackConfig`.
 - `custom-artifact` (`CustomArtifactLambdaPackaging`) — Uses a pre-built artifact for Lambda deployment.. Properties: `packagePath: string`, `handler?: string`.
 
 ### Example 1 (yaml)
@@ -49,7 +51,7 @@ resources:
     type: edge-lambda-function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/edge/viewer-request.ts
   website:
@@ -69,7 +71,7 @@ import { EdgeLambdaFunction, HostingBucket, defineConfig } from 'stacktape';
 export default defineConfig(() => {
   const webEdgeFn = new EdgeLambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: {
         entryfilePath: 'src/edge/viewer-request.ts'
       }
@@ -109,7 +111,7 @@ resources:
     type: edge-lambda-function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/edge/auth-check.ts
       connectTo:
@@ -133,7 +135,7 @@ export default defineConfig(() => {
 
   const authEdgeFn = new EdgeLambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: {
         entryfilePath: 'src/edge/auth-check.ts'
       }
@@ -168,7 +170,7 @@ resources:
     type: edge-lambda-function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/edge/auth-check.ts
       iamRoleStatements:
@@ -195,7 +197,7 @@ import { EdgeLambdaFunction, HostingBucket, defineConfig } from 'stacktape';
 export default defineConfig(() => {
   const authEdgeFn = new EdgeLambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: {
         entryfilePath: 'src/edge/auth-check.ts'
       }
@@ -237,7 +239,7 @@ resources:
     type: edge-lambda-function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/edge/viewer-request.ts
       logging:
@@ -259,7 +261,7 @@ import { EdgeLambdaFunction, HostingBucket, defineConfig } from 'stacktape';
 export default defineConfig(() => {
   const webEdgeFn = new EdgeLambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: {
         entryfilePath: 'src/edge/viewer-request.ts'
       }
@@ -297,7 +299,7 @@ resources:
     type: edge-lambda-function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/edge/origin-request.ts
       memory: 512
@@ -318,7 +320,7 @@ import { EdgeLambdaFunction, HostingBucket, defineConfig } from 'stacktape';
 export default defineConfig(() => {
   const originEdgeFn = new EdgeLambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: {
         entryfilePath: 'src/edge/origin-request.ts'
       }
@@ -353,7 +355,7 @@ resources:
     type: edge-lambda-function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: buildpack
         properties:
           entryfilePath: src/edge/viewer-request.py
       runtime: python3.12
@@ -374,7 +376,7 @@ import { EdgeLambdaFunction, HostingBucket, defineConfig } from 'stacktape';
 export default defineConfig(() => {
   const webEdgeFn = new EdgeLambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'buildpack',
       properties: {
         entryfilePath: 'src/edge/viewer-request.py'
       }
@@ -410,7 +412,7 @@ resources:
     type: edge-lambda-function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/edge/origin-request.ts
       memory: 256
@@ -432,7 +434,7 @@ import { EdgeLambdaFunction, HostingBucket, defineConfig } from 'stacktape';
 export default defineConfig(() => {
   const originEdgeFn = new EdgeLambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: {
         entryfilePath: 'src/edge/origin-request.ts'
       }

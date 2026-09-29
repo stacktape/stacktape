@@ -4223,6 +4223,218 @@
       ]
     },
     {
+      "id": "config-reference:BuildpackBjImagePackaging",
+      "title": "BuildpackBjImagePackaging API Reference",
+      "route": "/config-reference/deployment-artifacts",
+      "sourcePath": "packages/config/src/deployment-artifacts.ts",
+      "outputPath": "config-reference/deployment-artifacts/buildpackbjimagepackaging.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "BuildpackBjImagePackaging"
+      ],
+      "tags": [
+        "config-reference",
+        "BuildpackBjImagePackaging",
+        "properties"
+      ],
+      "chunks": [
+        "config-reference:BuildpackBjImagePackaging#buildpackbjimagepackaging-api-reference",
+        "config-reference:BuildpackBjImagePackaging#typescript-definition",
+        "config-reference:BuildpackBjImagePackaging#property-properties"
+      ]
+    },
+    {
+      "id": "config-reference:BuildpackBjImagePackagingProps",
+      "title": "BuildpackBjImagePackagingProps API Reference",
+      "route": "/config-reference/deployment-artifacts",
+      "sourcePath": "packages/config/src/deployment-artifacts.ts",
+      "outputPath": "config-reference/deployment-artifacts/buildpackbjimagepackagingprops.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "BuildpackBjImagePackagingProps"
+      ],
+      "tags": [
+        "config-reference",
+        "BuildpackBjImagePackagingProps",
+        "aptPackages",
+        "buildCommand",
+        "buildEnvironment",
+        "installCommand",
+        "packages",
+        "railpackConfig",
+        "sourceDirectoryPath",
+        "startCommand"
+      ],
+      "chunks": [
+        "config-reference:BuildpackBjImagePackagingProps#buildpackbjimagepackagingprops-api-reference",
+        "config-reference:BuildpackBjImagePackagingProps#typescript-definition",
+        "config-reference:BuildpackBjImagePackagingProps#property-aptpackages",
+        "config-reference:BuildpackBjImagePackagingProps#example-1-yaml",
+        "config-reference:BuildpackBjImagePackagingProps#example-2-typescript",
+        "config-reference:BuildpackBjImagePackagingProps#property-buildcommand",
+        "config-reference:BuildpackBjImagePackagingProps#example-1-yaml-2",
+        "config-reference:BuildpackBjImagePackagingProps#example-2-typescript-2",
+        "config-reference:BuildpackBjImagePackagingProps#property-buildenvironment",
+        "config-reference:BuildpackBjImagePackagingProps#example-1-yaml-3",
+        "config-reference:BuildpackBjImagePackagingProps#example-2-typescript-3",
+        "config-reference:BuildpackBjImagePackagingProps#property-installcommand",
+        "config-reference:BuildpackBjImagePackagingProps#example-1-yaml-4",
+        "config-reference:BuildpackBjImagePackagingProps#example-2-typescript-4",
+        "config-reference:BuildpackBjImagePackagingProps#property-packages",
+        "config-reference:BuildpackBjImagePackagingProps#example-1-yaml-5",
+        "config-reference:BuildpackBjImagePackagingProps#example-2-typescript-5",
+        "config-reference:BuildpackBjImagePackagingProps#property-railpackconfig",
+        "config-reference:BuildpackBjImagePackagingProps#example-1-yaml-6",
+        "config-reference:BuildpackBjImagePackagingProps#example-2-typescript-6",
+        "config-reference:BuildpackBjImagePackagingProps#property-sourcedirectorypath",
+        "config-reference:BuildpackBjImagePackagingProps#example-1-yaml-7",
+        "config-reference:BuildpackBjImagePackagingProps#example-2-typescript-7",
+        "config-reference:BuildpackBjImagePackagingProps#property-startcommand",
+        "config-reference:BuildpackBjImagePackagingProps#example-1-yaml-8",
+        "config-reference:BuildpackBjImagePackagingProps#example-2-typescript-8"
+      ]
+    },
+    {
+      "id": "config-reference:BuildpackCwImagePackaging",
+      "title": "BuildpackCwImagePackaging API Reference",
+      "route": "/config-reference/deployment-artifacts",
+      "sourcePath": "packages/config/src/deployment-artifacts.ts",
+      "outputPath": "config-reference/deployment-artifacts/buildpackcwimagepackaging.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "BuildpackCwImagePackaging"
+      ],
+      "tags": [
+        "config-reference",
+        "BuildpackCwImagePackaging",
+        "properties"
+      ],
+      "chunks": [
+        "config-reference:BuildpackCwImagePackaging#buildpackcwimagepackaging-api-reference",
+        "config-reference:BuildpackCwImagePackaging#typescript-definition",
+        "config-reference:BuildpackCwImagePackaging#property-properties"
+      ]
+    },
+    {
+      "id": "config-reference:BuildpackCwImagePackagingProps",
+      "title": "BuildpackCwImagePackagingProps API Reference",
+      "route": "/config-reference/deployment-artifacts",
+      "sourcePath": "packages/config/src/deployment-artifacts.ts",
+      "outputPath": "config-reference/deployment-artifacts/buildpackcwimagepackagingprops.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "BuildpackCwImagePackagingProps"
+      ],
+      "tags": [
+        "config-reference",
+        "BuildpackCwImagePackagingProps",
+        "aptPackages",
+        "buildCommand",
+        "buildEnvironment",
+        "installCommand",
+        "packages",
+        "railpackConfig",
+        "sourceDirectoryPath",
+        "startCommand"
+      ],
+      "chunks": [
+        "config-reference:BuildpackCwImagePackagingProps#buildpackcwimagepackagingprops-api-reference",
+        "config-reference:BuildpackCwImagePackagingProps#typescript-definition",
+        "config-reference:BuildpackCwImagePackagingProps#property-aptpackages",
+        "config-reference:BuildpackCwImagePackagingProps#example-1-yaml",
+        "config-reference:BuildpackCwImagePackagingProps#example-2-typescript",
+        "config-reference:BuildpackCwImagePackagingProps#property-buildcommand",
+        "config-reference:BuildpackCwImagePackagingProps#example-1-yaml-2",
+        "config-reference:BuildpackCwImagePackagingProps#example-2-typescript-2",
+        "config-reference:BuildpackCwImagePackagingProps#property-buildenvironment",
+        "config-reference:BuildpackCwImagePackagingProps#example-1-yaml-3",
+        "config-reference:BuildpackCwImagePackagingProps#example-2-typescript-3",
+        "config-reference:BuildpackCwImagePackagingProps#property-installcommand",
+        "config-reference:BuildpackCwImagePackagingProps#example-1-yaml-4",
+        "config-reference:BuildpackCwImagePackagingProps#example-2-typescript-4",
+        "config-reference:BuildpackCwImagePackagingProps#property-packages",
+        "config-reference:BuildpackCwImagePackagingProps#example-1-yaml-5",
+        "config-reference:BuildpackCwImagePackagingProps#example-2-typescript-5",
+        "config-reference:BuildpackCwImagePackagingProps#property-railpackconfig",
+        "config-reference:BuildpackCwImagePackagingProps#example-1-yaml-6",
+        "config-reference:BuildpackCwImagePackagingProps#example-2-typescript-6",
+        "config-reference:BuildpackCwImagePackagingProps#property-sourcedirectorypath",
+        "config-reference:BuildpackCwImagePackagingProps#example-1-yaml-7",
+        "config-reference:BuildpackCwImagePackagingProps#example-2-typescript-7",
+        "config-reference:BuildpackCwImagePackagingProps#property-startcommand",
+        "config-reference:BuildpackCwImagePackagingProps#example-1-yaml-8",
+        "config-reference:BuildpackCwImagePackagingProps#example-2-typescript-8"
+      ]
+    },
+    {
+      "id": "config-reference:BuildpackLambdaPackaging",
+      "title": "BuildpackLambdaPackaging API Reference",
+      "route": "/config-reference/deployment-artifacts",
+      "sourcePath": "packages/config/src/deployment-artifacts.ts",
+      "outputPath": "config-reference/deployment-artifacts/buildpacklambdapackaging.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "BuildpackLambdaPackaging"
+      ],
+      "tags": [
+        "config-reference",
+        "BuildpackLambdaPackaging",
+        "properties"
+      ],
+      "chunks": [
+        "config-reference:BuildpackLambdaPackaging#buildpacklambdapackaging-api-reference",
+        "config-reference:BuildpackLambdaPackaging#typescript-definition",
+        "config-reference:BuildpackLambdaPackaging#property-properties"
+      ]
+    },
+    {
+      "id": "config-reference:BuildpackLambdaPackagingProps",
+      "title": "BuildpackLambdaPackagingProps API Reference",
+      "route": "/config-reference/deployment-artifacts",
+      "sourcePath": "packages/config/src/deployment-artifacts.ts",
+      "outputPath": "config-reference/deployment-artifacts/buildpacklambdapackagingprops.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "BuildpackLambdaPackagingProps"
+      ],
+      "tags": [
+        "config-reference",
+        "BuildpackLambdaPackagingProps",
+        "entryfilePath",
+        "dotnet",
+        "excludeFiles",
+        "handlerFunction",
+        "includeFiles",
+        "java",
+        "python"
+      ],
+      "chunks": [
+        "config-reference:BuildpackLambdaPackagingProps#buildpacklambdapackagingprops-api-reference",
+        "config-reference:BuildpackLambdaPackagingProps#typescript-definition",
+        "config-reference:BuildpackLambdaPackagingProps#property-entryfilepath",
+        "config-reference:BuildpackLambdaPackagingProps#example-1-yaml",
+        "config-reference:BuildpackLambdaPackagingProps#example-2-typescript",
+        "config-reference:BuildpackLambdaPackagingProps#property-dotnet",
+        "config-reference:BuildpackLambdaPackagingProps#example-1-yaml-2",
+        "config-reference:BuildpackLambdaPackagingProps#example-2-typescript-2",
+        "config-reference:BuildpackLambdaPackagingProps#property-excludefiles",
+        "config-reference:BuildpackLambdaPackagingProps#example-1-yaml-3",
+        "config-reference:BuildpackLambdaPackagingProps#example-2-typescript-3",
+        "config-reference:BuildpackLambdaPackagingProps#property-handlerfunction",
+        "config-reference:BuildpackLambdaPackagingProps#example-1-yaml-4",
+        "config-reference:BuildpackLambdaPackagingProps#example-2-typescript-4",
+        "config-reference:BuildpackLambdaPackagingProps#property-includefiles",
+        "config-reference:BuildpackLambdaPackagingProps#example-1-yaml-5",
+        "config-reference:BuildpackLambdaPackagingProps#example-2-typescript-5",
+        "config-reference:BuildpackLambdaPackagingProps#property-java",
+        "config-reference:BuildpackLambdaPackagingProps#example-1-yaml-6",
+        "config-reference:BuildpackLambdaPackagingProps#example-2-typescript-6",
+        "config-reference:BuildpackLambdaPackagingProps#property-python",
+        "config-reference:BuildpackLambdaPackagingProps#example-1-yaml-7",
+        "config-reference:BuildpackLambdaPackagingProps#example-2-typescript-7"
+      ]
+    },
+    {
       "id": "config-reference:CustomArtifactLambdaPackaging",
       "title": "CustomArtifactLambdaPackaging API Reference",
       "route": "/config-reference/deployment-artifacts",
@@ -4271,122 +4483,6 @@
       ]
     },
     {
-      "id": "config-reference:CustomDockerfileBjImagePackaging",
-      "title": "CustomDockerfileBjImagePackaging API Reference",
-      "route": "/config-reference/deployment-artifacts",
-      "sourcePath": "packages/config/src/deployment-artifacts.ts",
-      "outputPath": "config-reference/deployment-artifacts/customdockerfilebjimagepackaging.md",
-      "docKind": "config-reference",
-      "definitionNames": [
-        "CustomDockerfileBjImagePackaging"
-      ],
-      "tags": [
-        "config-reference",
-        "CustomDockerfileBjImagePackaging",
-        "properties"
-      ],
-      "chunks": [
-        "config-reference:CustomDockerfileBjImagePackaging#customdockerfilebjimagepackaging-api-reference",
-        "config-reference:CustomDockerfileBjImagePackaging#typescript-definition",
-        "config-reference:CustomDockerfileBjImagePackaging#property-properties"
-      ]
-    },
-    {
-      "id": "config-reference:CustomDockerfileBjImagePackagingProps",
-      "title": "CustomDockerfileBjImagePackagingProps API Reference",
-      "route": "/config-reference/deployment-artifacts",
-      "sourcePath": "packages/config/src/deployment-artifacts.ts",
-      "outputPath": "config-reference/deployment-artifacts/customdockerfilebjimagepackagingprops.md",
-      "docKind": "config-reference",
-      "definitionNames": [
-        "CustomDockerfileBjImagePackagingProps"
-      ],
-      "tags": [
-        "config-reference",
-        "CustomDockerfileBjImagePackagingProps",
-        "buildContextPath",
-        "buildArgs",
-        "command",
-        "dockerfilePath"
-      ],
-      "chunks": [
-        "config-reference:CustomDockerfileBjImagePackagingProps#customdockerfilebjimagepackagingprops-api-reference",
-        "config-reference:CustomDockerfileBjImagePackagingProps#typescript-definition",
-        "config-reference:CustomDockerfileBjImagePackagingProps#property-buildcontextpath",
-        "config-reference:CustomDockerfileBjImagePackagingProps#example-1-yaml",
-        "config-reference:CustomDockerfileBjImagePackagingProps#example-2-typescript",
-        "config-reference:CustomDockerfileBjImagePackagingProps#property-buildargs",
-        "config-reference:CustomDockerfileBjImagePackagingProps#example-1-yaml-2",
-        "config-reference:CustomDockerfileBjImagePackagingProps#example-2-typescript-2",
-        "config-reference:CustomDockerfileBjImagePackagingProps#property-command",
-        "config-reference:CustomDockerfileBjImagePackagingProps#example-1-yaml-3",
-        "config-reference:CustomDockerfileBjImagePackagingProps#example-2-typescript-3",
-        "config-reference:CustomDockerfileBjImagePackagingProps#property-dockerfilepath",
-        "config-reference:CustomDockerfileBjImagePackagingProps#example-1-yaml-4",
-        "config-reference:CustomDockerfileBjImagePackagingProps#example-2-typescript-4"
-      ]
-    },
-    {
-      "id": "config-reference:CustomDockerfileCwImagePackaging",
-      "title": "CustomDockerfileCwImagePackaging API Reference",
-      "route": "/config-reference/deployment-artifacts",
-      "sourcePath": "packages/config/src/deployment-artifacts.ts",
-      "outputPath": "config-reference/deployment-artifacts/customdockerfilecwimagepackaging.md",
-      "docKind": "config-reference",
-      "definitionNames": [
-        "CustomDockerfileCwImagePackaging"
-      ],
-      "tags": [
-        "config-reference",
-        "CustomDockerfileCwImagePackaging",
-        "properties"
-      ],
-      "chunks": [
-        "config-reference:CustomDockerfileCwImagePackaging#customdockerfilecwimagepackaging-api-reference",
-        "config-reference:CustomDockerfileCwImagePackaging#typescript-definition",
-        "config-reference:CustomDockerfileCwImagePackaging#property-properties"
-      ]
-    },
-    {
-      "id": "config-reference:CustomDockerfileCwImagePackagingProps",
-      "title": "CustomDockerfileCwImagePackagingProps API Reference",
-      "route": "/config-reference/deployment-artifacts",
-      "sourcePath": "packages/config/src/deployment-artifacts.ts",
-      "outputPath": "config-reference/deployment-artifacts/customdockerfilecwimagepackagingprops.md",
-      "docKind": "config-reference",
-      "definitionNames": [
-        "CustomDockerfileCwImagePackagingProps"
-      ],
-      "tags": [
-        "config-reference",
-        "CustomDockerfileCwImagePackagingProps",
-        "buildContextPath",
-        "buildArgs",
-        "command",
-        "dockerfilePath",
-        "entryPoint"
-      ],
-      "chunks": [
-        "config-reference:CustomDockerfileCwImagePackagingProps#customdockerfilecwimagepackagingprops-api-reference",
-        "config-reference:CustomDockerfileCwImagePackagingProps#typescript-definition",
-        "config-reference:CustomDockerfileCwImagePackagingProps#property-buildcontextpath",
-        "config-reference:CustomDockerfileCwImagePackagingProps#example-1-yaml",
-        "config-reference:CustomDockerfileCwImagePackagingProps#example-2-typescript",
-        "config-reference:CustomDockerfileCwImagePackagingProps#property-buildargs",
-        "config-reference:CustomDockerfileCwImagePackagingProps#example-1-yaml-2",
-        "config-reference:CustomDockerfileCwImagePackagingProps#example-2-typescript-2",
-        "config-reference:CustomDockerfileCwImagePackagingProps#property-command",
-        "config-reference:CustomDockerfileCwImagePackagingProps#example-1-yaml-3",
-        "config-reference:CustomDockerfileCwImagePackagingProps#example-2-typescript-3",
-        "config-reference:CustomDockerfileCwImagePackagingProps#property-dockerfilepath",
-        "config-reference:CustomDockerfileCwImagePackagingProps#example-1-yaml-4",
-        "config-reference:CustomDockerfileCwImagePackagingProps#example-2-typescript-4",
-        "config-reference:CustomDockerfileCwImagePackagingProps#property-entrypoint",
-        "config-reference:CustomDockerfileCwImagePackagingProps#example-1-yaml-5",
-        "config-reference:CustomDockerfileCwImagePackagingProps#example-2-typescript-5"
-      ]
-    },
-    {
       "id": "config-reference:DockerBuildArg",
       "title": "DockerBuildArg API Reference",
       "route": "/config-reference/deployment-artifacts",
@@ -4414,50 +4510,431 @@
       ]
     },
     {
-      "id": "config-reference:DotnetLanguageSpecificConfig",
-      "title": "DotnetLanguageSpecificConfig API Reference",
+      "id": "config-reference:DockerfileBjImagePackaging",
+      "title": "DockerfileBjImagePackaging API Reference",
       "route": "/config-reference/deployment-artifacts",
       "sourcePath": "packages/config/src/deployment-artifacts.ts",
-      "outputPath": "config-reference/deployment-artifacts/dotnetlanguagespecificconfig.md",
+      "outputPath": "config-reference/deployment-artifacts/dockerfilebjimagepackaging.md",
       "docKind": "config-reference",
       "definitionNames": [
-        "DotnetLanguageSpecificConfig"
+        "DockerfileBjImagePackaging"
       ],
       "tags": [
         "config-reference",
-        "DotnetLanguageSpecificConfig",
-        "dotnetVersion",
-        "projectFile"
+        "DockerfileBjImagePackaging",
+        "properties"
       ],
       "chunks": [
-        "config-reference:DotnetLanguageSpecificConfig#dotnetlanguagespecificconfig-api-reference",
-        "config-reference:DotnetLanguageSpecificConfig#typescript-definition",
-        "config-reference:DotnetLanguageSpecificConfig#property-dotnetversion",
-        "config-reference:DotnetLanguageSpecificConfig#example-1-yaml",
-        "config-reference:DotnetLanguageSpecificConfig#example-2-typescript",
-        "config-reference:DotnetLanguageSpecificConfig#property-projectfile",
-        "config-reference:DotnetLanguageSpecificConfig#example-1-yaml-2",
-        "config-reference:DotnetLanguageSpecificConfig#example-2-typescript-2"
+        "config-reference:DockerfileBjImagePackaging#dockerfilebjimagepackaging-api-reference",
+        "config-reference:DockerfileBjImagePackaging#typescript-definition",
+        "config-reference:DockerfileBjImagePackaging#property-properties"
       ]
     },
     {
-      "id": "config-reference:EsLanguageSpecificConfig",
-      "title": "EsLanguageSpecificConfig API Reference",
+      "id": "config-reference:DockerfileBjImagePackagingProps",
+      "title": "DockerfileBjImagePackagingProps API Reference",
       "route": "/config-reference/deployment-artifacts",
       "sourcePath": "packages/config/src/deployment-artifacts.ts",
-      "outputPath": "config-reference/deployment-artifacts/eslanguagespecificconfig.md",
+      "outputPath": "config-reference/deployment-artifacts/dockerfilebjimagepackagingprops.md",
       "docKind": "config-reference",
       "definitionNames": [
-        "EsLanguageSpecificConfig"
+        "DockerfileBjImagePackagingProps"
       ],
       "tags": [
         "config-reference",
-        "EsLanguageSpecificConfig",
+        "DockerfileBjImagePackagingProps",
+        "buildContextPath",
+        "buildArgs",
+        "command",
+        "dockerfilePath"
+      ],
+      "chunks": [
+        "config-reference:DockerfileBjImagePackagingProps#dockerfilebjimagepackagingprops-api-reference",
+        "config-reference:DockerfileBjImagePackagingProps#typescript-definition",
+        "config-reference:DockerfileBjImagePackagingProps#property-buildcontextpath",
+        "config-reference:DockerfileBjImagePackagingProps#example-1-yaml",
+        "config-reference:DockerfileBjImagePackagingProps#example-2-typescript",
+        "config-reference:DockerfileBjImagePackagingProps#property-buildargs",
+        "config-reference:DockerfileBjImagePackagingProps#example-1-yaml-2",
+        "config-reference:DockerfileBjImagePackagingProps#example-2-typescript-2",
+        "config-reference:DockerfileBjImagePackagingProps#property-command",
+        "config-reference:DockerfileBjImagePackagingProps#example-1-yaml-3",
+        "config-reference:DockerfileBjImagePackagingProps#example-2-typescript-3",
+        "config-reference:DockerfileBjImagePackagingProps#property-dockerfilepath",
+        "config-reference:DockerfileBjImagePackagingProps#example-1-yaml-4",
+        "config-reference:DockerfileBjImagePackagingProps#example-2-typescript-4"
+      ]
+    },
+    {
+      "id": "config-reference:DockerfileCwImagePackaging",
+      "title": "DockerfileCwImagePackaging API Reference",
+      "route": "/config-reference/deployment-artifacts",
+      "sourcePath": "packages/config/src/deployment-artifacts.ts",
+      "outputPath": "config-reference/deployment-artifacts/dockerfilecwimagepackaging.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "DockerfileCwImagePackaging"
+      ],
+      "tags": [
+        "config-reference",
+        "DockerfileCwImagePackaging",
+        "properties"
+      ],
+      "chunks": [
+        "config-reference:DockerfileCwImagePackaging#dockerfilecwimagepackaging-api-reference",
+        "config-reference:DockerfileCwImagePackaging#typescript-definition",
+        "config-reference:DockerfileCwImagePackaging#property-properties"
+      ]
+    },
+    {
+      "id": "config-reference:DockerfileCwImagePackagingProps",
+      "title": "DockerfileCwImagePackagingProps API Reference",
+      "route": "/config-reference/deployment-artifacts",
+      "sourcePath": "packages/config/src/deployment-artifacts.ts",
+      "outputPath": "config-reference/deployment-artifacts/dockerfilecwimagepackagingprops.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "DockerfileCwImagePackagingProps"
+      ],
+      "tags": [
+        "config-reference",
+        "DockerfileCwImagePackagingProps",
+        "buildContextPath",
+        "buildArgs",
+        "command",
+        "dockerfilePath",
+        "entryPoint"
+      ],
+      "chunks": [
+        "config-reference:DockerfileCwImagePackagingProps#dockerfilecwimagepackagingprops-api-reference",
+        "config-reference:DockerfileCwImagePackagingProps#typescript-definition",
+        "config-reference:DockerfileCwImagePackagingProps#property-buildcontextpath",
+        "config-reference:DockerfileCwImagePackagingProps#example-1-yaml",
+        "config-reference:DockerfileCwImagePackagingProps#example-2-typescript",
+        "config-reference:DockerfileCwImagePackagingProps#property-buildargs",
+        "config-reference:DockerfileCwImagePackagingProps#example-1-yaml-2",
+        "config-reference:DockerfileCwImagePackagingProps#example-2-typescript-2",
+        "config-reference:DockerfileCwImagePackagingProps#property-command",
+        "config-reference:DockerfileCwImagePackagingProps#example-1-yaml-3",
+        "config-reference:DockerfileCwImagePackagingProps#example-2-typescript-3",
+        "config-reference:DockerfileCwImagePackagingProps#property-dockerfilepath",
+        "config-reference:DockerfileCwImagePackagingProps#example-1-yaml-4",
+        "config-reference:DockerfileCwImagePackagingProps#example-2-typescript-4",
+        "config-reference:DockerfileCwImagePackagingProps#property-entrypoint",
+        "config-reference:DockerfileCwImagePackagingProps#example-1-yaml-5",
+        "config-reference:DockerfileCwImagePackagingProps#example-2-typescript-5"
+      ]
+    },
+    {
+      "id": "config-reference:DotnetBuildpackConfig",
+      "title": "DotnetBuildpackConfig API Reference",
+      "route": "/config-reference/deployment-artifacts",
+      "sourcePath": "packages/config/src/deployment-artifacts.ts",
+      "outputPath": "config-reference/deployment-artifacts/dotnetbuildpackconfig.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "DotnetBuildpackConfig"
+      ],
+      "tags": [
+        "config-reference",
+        "DotnetBuildpackConfig",
+        "projectFile"
+      ],
+      "chunks": [
+        "config-reference:DotnetBuildpackConfig#dotnetbuildpackconfig-api-reference",
+        "config-reference:DotnetBuildpackConfig#typescript-definition",
+        "config-reference:DotnetBuildpackConfig#property-projectfile",
+        "config-reference:DotnetBuildpackConfig#example-1-yaml",
+        "config-reference:DotnetBuildpackConfig#example-2-typescript"
+      ]
+    },
+    {
+      "id": "config-reference:JavaBuildpackConfig",
+      "title": "JavaBuildpackConfig API Reference",
+      "route": "/config-reference/deployment-artifacts",
+      "sourcePath": "packages/config/src/deployment-artifacts.ts",
+      "outputPath": "config-reference/deployment-artifacts/javabuildpackconfig.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "JavaBuildpackConfig"
+      ],
+      "tags": [
+        "config-reference",
+        "JavaBuildpackConfig",
+        "packageManagerFile",
+        "useMaven"
+      ],
+      "chunks": [
+        "config-reference:JavaBuildpackConfig#javabuildpackconfig-api-reference",
+        "config-reference:JavaBuildpackConfig#typescript-definition",
+        "config-reference:JavaBuildpackConfig#property-packagemanagerfile",
+        "config-reference:JavaBuildpackConfig#example-1-yaml",
+        "config-reference:JavaBuildpackConfig#example-2-typescript",
+        "config-reference:JavaBuildpackConfig#property-usemaven",
+        "config-reference:JavaBuildpackConfig#example-1-yaml-2",
+        "config-reference:JavaBuildpackConfig#example-2-typescript-2"
+      ]
+    },
+    {
+      "id": "config-reference:JsBundleBjImagePackaging",
+      "title": "JsBundleBjImagePackaging API Reference",
+      "route": "/config-reference/deployment-artifacts",
+      "sourcePath": "packages/config/src/deployment-artifacts.ts",
+      "outputPath": "config-reference/deployment-artifacts/jsbundlebjimagepackaging.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "JsBundleBjImagePackaging"
+      ],
+      "tags": [
+        "config-reference",
+        "JsBundleBjImagePackaging",
+        "properties"
+      ],
+      "chunks": [
+        "config-reference:JsBundleBjImagePackaging#jsbundlebjimagepackaging-api-reference",
+        "config-reference:JsBundleBjImagePackaging#typescript-definition",
+        "config-reference:JsBundleBjImagePackaging#property-properties"
+      ]
+    },
+    {
+      "id": "config-reference:JsBundleBjImagePackagingProps",
+      "title": "JsBundleBjImagePackagingProps API Reference",
+      "route": "/config-reference/deployment-artifacts",
+      "sourcePath": "packages/config/src/deployment-artifacts.ts",
+      "outputPath": "config-reference/deployment-artifacts/jsbundlebjimagepackagingprops.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "JsBundleBjImagePackagingProps"
+      ],
+      "tags": [
+        "config-reference",
+        "JsBundleBjImagePackagingProps",
+        "entryfilePath",
+        "bundleAwsSdk",
+        "customDockerBuildCommands",
+        "dependenciesToExcludeFromBundle",
+        "dependenciesToExcludeFromDeploymentPackage",
+        "disableSourceMaps",
+        "emitTsDecoratorMetadata",
+        "excludeDependencies",
+        "excludeFiles",
+        "includeFiles",
+        "minify",
+        "minifyIdentifiers",
+        "nodeVersion",
+        "outputModuleFormat",
+        "outputSourceMapsTo",
+        "requiresGlibcBinaries",
+        "tsConfigPath"
+      ],
+      "chunks": [
+        "config-reference:JsBundleBjImagePackagingProps#jsbundlebjimagepackagingprops-api-reference",
+        "config-reference:JsBundleBjImagePackagingProps#typescript-definition",
+        "config-reference:JsBundleBjImagePackagingProps#property-entryfilepath",
+        "config-reference:JsBundleBjImagePackagingProps#example-1-yaml",
+        "config-reference:JsBundleBjImagePackagingProps#example-2-typescript",
+        "config-reference:JsBundleBjImagePackagingProps#property-bundleawssdk",
+        "config-reference:JsBundleBjImagePackagingProps#example-1-yaml-2",
+        "config-reference:JsBundleBjImagePackagingProps#example-2-typescript-2",
+        "config-reference:JsBundleBjImagePackagingProps#property-customdockerbuildcommands",
+        "config-reference:JsBundleBjImagePackagingProps#example-1-yaml-3",
+        "config-reference:JsBundleBjImagePackagingProps#example-2-typescript-3",
+        "config-reference:JsBundleBjImagePackagingProps#property-dependenciestoexcludefrombundle",
+        "config-reference:JsBundleBjImagePackagingProps#example-1-yaml-4",
+        "config-reference:JsBundleBjImagePackagingProps#example-2-typescript-4",
+        "config-reference:JsBundleBjImagePackagingProps#property-dependenciestoexcludefromdeploymentpackage",
+        "config-reference:JsBundleBjImagePackagingProps#example-1-yaml-5",
+        "config-reference:JsBundleBjImagePackagingProps#example-2-typescript-5",
+        "config-reference:JsBundleBjImagePackagingProps#property-disablesourcemaps",
+        "config-reference:JsBundleBjImagePackagingProps#example-1-yaml-6",
+        "config-reference:JsBundleBjImagePackagingProps#example-2-typescript-6",
+        "config-reference:JsBundleBjImagePackagingProps#property-emittsdecoratormetadata",
+        "config-reference:JsBundleBjImagePackagingProps#example-1-yaml-7",
+        "config-reference:JsBundleBjImagePackagingProps#example-2-typescript-7",
+        "config-reference:JsBundleBjImagePackagingProps#property-excludedependencies",
+        "config-reference:JsBundleBjImagePackagingProps#example-1-yaml-8",
+        "config-reference:JsBundleBjImagePackagingProps#example-2-typescript-8",
+        "config-reference:JsBundleBjImagePackagingProps#property-excludefiles",
+        "config-reference:JsBundleBjImagePackagingProps#example-1-yaml-9",
+        "config-reference:JsBundleBjImagePackagingProps#example-2-typescript-9",
+        "config-reference:JsBundleBjImagePackagingProps#property-includefiles",
+        "config-reference:JsBundleBjImagePackagingProps#example-1-yaml-10",
+        "config-reference:JsBundleBjImagePackagingProps#example-2-typescript-10",
+        "config-reference:JsBundleBjImagePackagingProps#property-minify",
+        "config-reference:JsBundleBjImagePackagingProps#example-1-yaml-11",
+        "config-reference:JsBundleBjImagePackagingProps#example-2-typescript-11",
+        "config-reference:JsBundleBjImagePackagingProps#property-minifyidentifiers",
+        "config-reference:JsBundleBjImagePackagingProps#example-1-yaml-12",
+        "config-reference:JsBundleBjImagePackagingProps#example-2-typescript-12",
+        "config-reference:JsBundleBjImagePackagingProps#property-nodeversion",
+        "config-reference:JsBundleBjImagePackagingProps#example-1-yaml-13",
+        "config-reference:JsBundleBjImagePackagingProps#example-2-typescript-13",
+        "config-reference:JsBundleBjImagePackagingProps#property-outputmoduleformat",
+        "config-reference:JsBundleBjImagePackagingProps#example-1-yaml-14",
+        "config-reference:JsBundleBjImagePackagingProps#example-2-typescript-14",
+        "config-reference:JsBundleBjImagePackagingProps#property-outputsourcemapsto",
+        "config-reference:JsBundleBjImagePackagingProps#example-1-yaml-15",
+        "config-reference:JsBundleBjImagePackagingProps#example-2-typescript-15",
+        "config-reference:JsBundleBjImagePackagingProps#property-requiresglibcbinaries",
+        "config-reference:JsBundleBjImagePackagingProps#example-1-yaml-16",
+        "config-reference:JsBundleBjImagePackagingProps#example-2-typescript-16",
+        "config-reference:JsBundleBjImagePackagingProps#property-tsconfigpath",
+        "config-reference:JsBundleBjImagePackagingProps#example-1-yaml-17",
+        "config-reference:JsBundleBjImagePackagingProps#example-2-typescript-17"
+      ]
+    },
+    {
+      "id": "config-reference:JsBundleCwImagePackaging",
+      "title": "JsBundleCwImagePackaging API Reference",
+      "route": "/config-reference/deployment-artifacts",
+      "sourcePath": "packages/config/src/deployment-artifacts.ts",
+      "outputPath": "config-reference/deployment-artifacts/jsbundlecwimagepackaging.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "JsBundleCwImagePackaging"
+      ],
+      "tags": [
+        "config-reference",
+        "JsBundleCwImagePackaging",
+        "properties"
+      ],
+      "chunks": [
+        "config-reference:JsBundleCwImagePackaging#jsbundlecwimagepackaging-api-reference",
+        "config-reference:JsBundleCwImagePackaging#typescript-definition",
+        "config-reference:JsBundleCwImagePackaging#property-properties"
+      ]
+    },
+    {
+      "id": "config-reference:JsBundleCwImagePackagingProps",
+      "title": "JsBundleCwImagePackagingProps API Reference",
+      "route": "/config-reference/deployment-artifacts",
+      "sourcePath": "packages/config/src/deployment-artifacts.ts",
+      "outputPath": "config-reference/deployment-artifacts/jsbundlecwimagepackagingprops.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "JsBundleCwImagePackagingProps"
+      ],
+      "tags": [
+        "config-reference",
+        "JsBundleCwImagePackagingProps",
+        "entryfilePath",
+        "bundleAwsSdk",
+        "customDockerBuildCommands",
+        "dependenciesToExcludeFromBundle",
+        "dependenciesToExcludeFromDeploymentPackage",
+        "disableSourceMaps",
+        "emitTsDecoratorMetadata",
+        "excludeDependencies",
+        "excludeFiles",
+        "includeFiles",
+        "minify",
+        "minifyIdentifiers",
+        "nodeVersion",
+        "outputModuleFormat",
+        "outputSourceMapsTo",
+        "requiresGlibcBinaries",
+        "tsConfigPath"
+      ],
+      "chunks": [
+        "config-reference:JsBundleCwImagePackagingProps#jsbundlecwimagepackagingprops-api-reference",
+        "config-reference:JsBundleCwImagePackagingProps#typescript-definition",
+        "config-reference:JsBundleCwImagePackagingProps#property-entryfilepath",
+        "config-reference:JsBundleCwImagePackagingProps#example-1-yaml",
+        "config-reference:JsBundleCwImagePackagingProps#example-2-typescript",
+        "config-reference:JsBundleCwImagePackagingProps#property-bundleawssdk",
+        "config-reference:JsBundleCwImagePackagingProps#example-1-yaml-2",
+        "config-reference:JsBundleCwImagePackagingProps#example-2-typescript-2",
+        "config-reference:JsBundleCwImagePackagingProps#property-customdockerbuildcommands",
+        "config-reference:JsBundleCwImagePackagingProps#example-1-yaml-3",
+        "config-reference:JsBundleCwImagePackagingProps#example-2-typescript-3",
+        "config-reference:JsBundleCwImagePackagingProps#property-dependenciestoexcludefrombundle",
+        "config-reference:JsBundleCwImagePackagingProps#example-1-yaml-4",
+        "config-reference:JsBundleCwImagePackagingProps#example-2-typescript-4",
+        "config-reference:JsBundleCwImagePackagingProps#property-dependenciestoexcludefromdeploymentpackage",
+        "config-reference:JsBundleCwImagePackagingProps#example-1-yaml-5",
+        "config-reference:JsBundleCwImagePackagingProps#example-2-typescript-5",
+        "config-reference:JsBundleCwImagePackagingProps#property-disablesourcemaps",
+        "config-reference:JsBundleCwImagePackagingProps#example-1-yaml-6",
+        "config-reference:JsBundleCwImagePackagingProps#example-2-typescript-6",
+        "config-reference:JsBundleCwImagePackagingProps#property-emittsdecoratormetadata",
+        "config-reference:JsBundleCwImagePackagingProps#example-1-yaml-7",
+        "config-reference:JsBundleCwImagePackagingProps#example-2-typescript-7",
+        "config-reference:JsBundleCwImagePackagingProps#property-excludedependencies",
+        "config-reference:JsBundleCwImagePackagingProps#example-1-yaml-8",
+        "config-reference:JsBundleCwImagePackagingProps#example-2-typescript-8",
+        "config-reference:JsBundleCwImagePackagingProps#property-excludefiles",
+        "config-reference:JsBundleCwImagePackagingProps#example-1-yaml-9",
+        "config-reference:JsBundleCwImagePackagingProps#example-2-typescript-9",
+        "config-reference:JsBundleCwImagePackagingProps#property-includefiles",
+        "config-reference:JsBundleCwImagePackagingProps#example-1-yaml-10",
+        "config-reference:JsBundleCwImagePackagingProps#example-2-typescript-10",
+        "config-reference:JsBundleCwImagePackagingProps#property-minify",
+        "config-reference:JsBundleCwImagePackagingProps#example-1-yaml-11",
+        "config-reference:JsBundleCwImagePackagingProps#example-2-typescript-11",
+        "config-reference:JsBundleCwImagePackagingProps#property-minifyidentifiers",
+        "config-reference:JsBundleCwImagePackagingProps#example-1-yaml-12",
+        "config-reference:JsBundleCwImagePackagingProps#example-2-typescript-12",
+        "config-reference:JsBundleCwImagePackagingProps#property-nodeversion",
+        "config-reference:JsBundleCwImagePackagingProps#example-1-yaml-13",
+        "config-reference:JsBundleCwImagePackagingProps#example-2-typescript-13",
+        "config-reference:JsBundleCwImagePackagingProps#property-outputmoduleformat",
+        "config-reference:JsBundleCwImagePackagingProps#example-1-yaml-14",
+        "config-reference:JsBundleCwImagePackagingProps#example-2-typescript-14",
+        "config-reference:JsBundleCwImagePackagingProps#property-outputsourcemapsto",
+        "config-reference:JsBundleCwImagePackagingProps#example-1-yaml-15",
+        "config-reference:JsBundleCwImagePackagingProps#example-2-typescript-15",
+        "config-reference:JsBundleCwImagePackagingProps#property-requiresglibcbinaries",
+        "config-reference:JsBundleCwImagePackagingProps#example-1-yaml-16",
+        "config-reference:JsBundleCwImagePackagingProps#example-2-typescript-16",
+        "config-reference:JsBundleCwImagePackagingProps#property-tsconfigpath",
+        "config-reference:JsBundleCwImagePackagingProps#example-1-yaml-17",
+        "config-reference:JsBundleCwImagePackagingProps#example-2-typescript-17"
+      ]
+    },
+    {
+      "id": "config-reference:JsBundleLambdaPackaging",
+      "title": "JsBundleLambdaPackaging API Reference",
+      "route": "/config-reference/deployment-artifacts",
+      "sourcePath": "packages/config/src/deployment-artifacts.ts",
+      "outputPath": "config-reference/deployment-artifacts/jsbundlelambdapackaging.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "JsBundleLambdaPackaging"
+      ],
+      "tags": [
+        "config-reference",
+        "JsBundleLambdaPackaging",
+        "properties"
+      ],
+      "chunks": [
+        "config-reference:JsBundleLambdaPackaging#jsbundlelambdapackaging-api-reference",
+        "config-reference:JsBundleLambdaPackaging#typescript-definition",
+        "config-reference:JsBundleLambdaPackaging#property-properties"
+      ]
+    },
+    {
+      "id": "config-reference:JsBundleLambdaPackagingProps",
+      "title": "JsBundleLambdaPackagingProps API Reference",
+      "route": "/config-reference/deployment-artifacts",
+      "sourcePath": "packages/config/src/deployment-artifacts.ts",
+      "outputPath": "config-reference/deployment-artifacts/jsbundlelambdapackagingprops.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "JsBundleLambdaPackagingProps"
+      ],
+      "tags": [
+        "config-reference",
+        "JsBundleLambdaPackagingProps",
+        "entryfilePath",
         "bundleAwsSdk",
         "dependenciesToExcludeFromBundle",
         "dependenciesToExcludeFromDeploymentPackage",
         "disableSourceMaps",
         "emitTsDecoratorMetadata",
+        "excludeDependencies",
+        "excludeFiles",
+        "handlerFunction",
+        "includeFiles",
         "minify",
         "minifyIdentifiers",
         "nodeVersion",
@@ -4466,398 +4943,56 @@
         "tsConfigPath"
       ],
       "chunks": [
-        "config-reference:EsLanguageSpecificConfig#eslanguagespecificconfig-api-reference",
-        "config-reference:EsLanguageSpecificConfig#typescript-definition",
-        "config-reference:EsLanguageSpecificConfig#property-bundleawssdk",
-        "config-reference:EsLanguageSpecificConfig#example-1-yaml",
-        "config-reference:EsLanguageSpecificConfig#example-2-typescript",
-        "config-reference:EsLanguageSpecificConfig#property-dependenciestoexcludefrombundle",
-        "config-reference:EsLanguageSpecificConfig#example-1-yaml-2",
-        "config-reference:EsLanguageSpecificConfig#example-2-typescript-2",
-        "config-reference:EsLanguageSpecificConfig#property-dependenciestoexcludefromdeploymentpackage",
-        "config-reference:EsLanguageSpecificConfig#example-1-yaml-3",
-        "config-reference:EsLanguageSpecificConfig#example-2-typescript-3",
-        "config-reference:EsLanguageSpecificConfig#property-disablesourcemaps",
-        "config-reference:EsLanguageSpecificConfig#example-1-yaml-4",
-        "config-reference:EsLanguageSpecificConfig#example-2-typescript-4",
-        "config-reference:EsLanguageSpecificConfig#property-emittsdecoratormetadata",
-        "config-reference:EsLanguageSpecificConfig#example-1-yaml-5",
-        "config-reference:EsLanguageSpecificConfig#example-2-typescript-5",
-        "config-reference:EsLanguageSpecificConfig#property-minify",
-        "config-reference:EsLanguageSpecificConfig#example-1-yaml-6",
-        "config-reference:EsLanguageSpecificConfig#example-2-typescript-6",
-        "config-reference:EsLanguageSpecificConfig#property-minifyidentifiers",
-        "config-reference:EsLanguageSpecificConfig#example-1-yaml-7",
-        "config-reference:EsLanguageSpecificConfig#example-2-typescript-7",
-        "config-reference:EsLanguageSpecificConfig#property-nodeversion",
-        "config-reference:EsLanguageSpecificConfig#example-1-yaml-8",
-        "config-reference:EsLanguageSpecificConfig#example-2-typescript-8",
-        "config-reference:EsLanguageSpecificConfig#property-outputmoduleformat",
-        "config-reference:EsLanguageSpecificConfig#example-1-yaml-9",
-        "config-reference:EsLanguageSpecificConfig#example-2-typescript-9",
-        "config-reference:EsLanguageSpecificConfig#property-outputsourcemapsto",
-        "config-reference:EsLanguageSpecificConfig#example-1-yaml-10",
-        "config-reference:EsLanguageSpecificConfig#example-2-typescript-10",
-        "config-reference:EsLanguageSpecificConfig#property-tsconfigpath",
-        "config-reference:EsLanguageSpecificConfig#example-1-yaml-11",
-        "config-reference:EsLanguageSpecificConfig#example-2-typescript-11"
-      ]
-    },
-    {
-      "id": "config-reference:ExternalBuildpackBjImagePackaging",
-      "title": "ExternalBuildpackBjImagePackaging API Reference",
-      "route": "/config-reference/deployment-artifacts",
-      "sourcePath": "packages/config/src/deployment-artifacts.ts",
-      "outputPath": "config-reference/deployment-artifacts/externalbuildpackbjimagepackaging.md",
-      "docKind": "config-reference",
-      "definitionNames": [
-        "ExternalBuildpackBjImagePackaging"
-      ],
-      "tags": [
-        "config-reference",
-        "ExternalBuildpackBjImagePackaging",
-        "properties"
-      ],
-      "chunks": [
-        "config-reference:ExternalBuildpackBjImagePackaging#externalbuildpackbjimagepackaging-api-reference",
-        "config-reference:ExternalBuildpackBjImagePackaging#typescript-definition",
-        "config-reference:ExternalBuildpackBjImagePackaging#property-properties"
-      ]
-    },
-    {
-      "id": "config-reference:ExternalBuildpackBjImagePackagingProps",
-      "title": "ExternalBuildpackBjImagePackagingProps API Reference",
-      "route": "/config-reference/deployment-artifacts",
-      "sourcePath": "packages/config/src/deployment-artifacts.ts",
-      "outputPath": "config-reference/deployment-artifacts/externalbuildpackbjimagepackagingprops.md",
-      "docKind": "config-reference",
-      "definitionNames": [
-        "ExternalBuildpackBjImagePackagingProps"
-      ],
-      "tags": [
-        "config-reference",
-        "ExternalBuildpackBjImagePackagingProps",
-        "sourceDirectoryPath",
-        "builder",
-        "buildpacks",
-        "command"
-      ],
-      "chunks": [
-        "config-reference:ExternalBuildpackBjImagePackagingProps#externalbuildpackbjimagepackagingprops-api-reference",
-        "config-reference:ExternalBuildpackBjImagePackagingProps#typescript-definition",
-        "config-reference:ExternalBuildpackBjImagePackagingProps#property-sourcedirectorypath",
-        "config-reference:ExternalBuildpackBjImagePackagingProps#example-1-yaml",
-        "config-reference:ExternalBuildpackBjImagePackagingProps#example-2-typescript",
-        "config-reference:ExternalBuildpackBjImagePackagingProps#property-builder",
-        "config-reference:ExternalBuildpackBjImagePackagingProps#example-1-yaml-2",
-        "config-reference:ExternalBuildpackBjImagePackagingProps#example-2-typescript-2",
-        "config-reference:ExternalBuildpackBjImagePackagingProps#property-buildpacks",
-        "config-reference:ExternalBuildpackBjImagePackagingProps#example-1-yaml-3",
-        "config-reference:ExternalBuildpackBjImagePackagingProps#example-2-typescript-3",
-        "config-reference:ExternalBuildpackBjImagePackagingProps#property-command",
-        "config-reference:ExternalBuildpackBjImagePackagingProps#example-1-yaml-4",
-        "config-reference:ExternalBuildpackBjImagePackagingProps#example-2-typescript-4"
-      ]
-    },
-    {
-      "id": "config-reference:ExternalBuildpackCwImagePackaging",
-      "title": "ExternalBuildpackCwImagePackaging API Reference",
-      "route": "/config-reference/deployment-artifacts",
-      "sourcePath": "packages/config/src/deployment-artifacts.ts",
-      "outputPath": "config-reference/deployment-artifacts/externalbuildpackcwimagepackaging.md",
-      "docKind": "config-reference",
-      "definitionNames": [
-        "ExternalBuildpackCwImagePackaging"
-      ],
-      "tags": [
-        "config-reference",
-        "ExternalBuildpackCwImagePackaging",
-        "properties"
-      ],
-      "chunks": [
-        "config-reference:ExternalBuildpackCwImagePackaging#externalbuildpackcwimagepackaging-api-reference",
-        "config-reference:ExternalBuildpackCwImagePackaging#typescript-definition",
-        "config-reference:ExternalBuildpackCwImagePackaging#property-properties"
-      ]
-    },
-    {
-      "id": "config-reference:ExternalBuildpackCwImagePackagingProps",
-      "title": "ExternalBuildpackCwImagePackagingProps API Reference",
-      "route": "/config-reference/deployment-artifacts",
-      "sourcePath": "packages/config/src/deployment-artifacts.ts",
-      "outputPath": "config-reference/deployment-artifacts/externalbuildpackcwimagepackagingprops.md",
-      "docKind": "config-reference",
-      "definitionNames": [
-        "ExternalBuildpackCwImagePackagingProps"
-      ],
-      "tags": [
-        "config-reference",
-        "ExternalBuildpackCwImagePackagingProps",
-        "sourceDirectoryPath",
-        "builder",
-        "buildpacks",
-        "command"
-      ],
-      "chunks": [
-        "config-reference:ExternalBuildpackCwImagePackagingProps#externalbuildpackcwimagepackagingprops-api-reference",
-        "config-reference:ExternalBuildpackCwImagePackagingProps#typescript-definition",
-        "config-reference:ExternalBuildpackCwImagePackagingProps#property-sourcedirectorypath",
-        "config-reference:ExternalBuildpackCwImagePackagingProps#example-1-yaml",
-        "config-reference:ExternalBuildpackCwImagePackagingProps#example-2-typescript",
-        "config-reference:ExternalBuildpackCwImagePackagingProps#property-builder",
-        "config-reference:ExternalBuildpackCwImagePackagingProps#example-1-yaml-2",
-        "config-reference:ExternalBuildpackCwImagePackagingProps#example-2-typescript-2",
-        "config-reference:ExternalBuildpackCwImagePackagingProps#property-buildpacks",
-        "config-reference:ExternalBuildpackCwImagePackagingProps#example-1-yaml-3",
-        "config-reference:ExternalBuildpackCwImagePackagingProps#example-2-typescript-3",
-        "config-reference:ExternalBuildpackCwImagePackagingProps#property-command",
-        "config-reference:ExternalBuildpackCwImagePackagingProps#example-1-yaml-4",
-        "config-reference:ExternalBuildpackCwImagePackagingProps#example-2-typescript-4"
-      ]
-    },
-    {
-      "id": "config-reference:JavaLanguageSpecificConfig",
-      "title": "JavaLanguageSpecificConfig API Reference",
-      "route": "/config-reference/deployment-artifacts",
-      "sourcePath": "packages/config/src/deployment-artifacts.ts",
-      "outputPath": "config-reference/deployment-artifacts/javalanguagespecificconfig.md",
-      "docKind": "config-reference",
-      "definitionNames": [
-        "JavaLanguageSpecificConfig"
-      ],
-      "tags": [
-        "config-reference",
-        "JavaLanguageSpecificConfig",
-        "javaVersion",
-        "packageManagerFile",
-        "useMaven"
-      ],
-      "chunks": [
-        "config-reference:JavaLanguageSpecificConfig#javalanguagespecificconfig-api-reference",
-        "config-reference:JavaLanguageSpecificConfig#typescript-definition",
-        "config-reference:JavaLanguageSpecificConfig#property-javaversion",
-        "config-reference:JavaLanguageSpecificConfig#example-1-yaml",
-        "config-reference:JavaLanguageSpecificConfig#example-2-typescript",
-        "config-reference:JavaLanguageSpecificConfig#property-packagemanagerfile",
-        "config-reference:JavaLanguageSpecificConfig#example-1-yaml-2",
-        "config-reference:JavaLanguageSpecificConfig#example-2-typescript-2",
-        "config-reference:JavaLanguageSpecificConfig#property-usemaven",
-        "config-reference:JavaLanguageSpecificConfig#example-1-yaml-3",
-        "config-reference:JavaLanguageSpecificConfig#example-2-typescript-3"
-      ]
-    },
-    {
-      "id": "config-reference:NixpacksBjImagePackaging",
-      "title": "NixpacksBjImagePackaging API Reference",
-      "route": "/config-reference/deployment-artifacts",
-      "sourcePath": "packages/config/src/deployment-artifacts.ts",
-      "outputPath": "config-reference/deployment-artifacts/nixpacksbjimagepackaging.md",
-      "docKind": "config-reference",
-      "definitionNames": [
-        "NixpacksBjImagePackaging"
-      ],
-      "tags": [
-        "config-reference",
-        "NixpacksBjImagePackaging",
-        "properties"
-      ],
-      "chunks": [
-        "config-reference:NixpacksBjImagePackaging#nixpacksbjimagepackaging-api-reference",
-        "config-reference:NixpacksBjImagePackaging#typescript-definition",
-        "config-reference:NixpacksBjImagePackaging#property-properties"
-      ]
-    },
-    {
-      "id": "config-reference:NixpacksBjImagePackagingProps",
-      "title": "NixpacksBjImagePackagingProps API Reference",
-      "route": "/config-reference/deployment-artifacts",
-      "sourcePath": "packages/config/src/deployment-artifacts.ts",
-      "outputPath": "config-reference/deployment-artifacts/nixpacksbjimagepackagingprops.md",
-      "docKind": "config-reference",
-      "definitionNames": [
-        "NixpacksBjImagePackagingProps"
-      ],
-      "tags": [
-        "config-reference",
-        "NixpacksBjImagePackagingProps",
-        "sourceDirectoryPath",
-        "buildImage",
-        "phases",
-        "providers",
-        "startCmd",
-        "startOnlyIncludeFiles",
-        "startRunImage"
-      ],
-      "chunks": [
-        "config-reference:NixpacksBjImagePackagingProps#nixpacksbjimagepackagingprops-api-reference",
-        "config-reference:NixpacksBjImagePackagingProps#typescript-definition",
-        "config-reference:NixpacksBjImagePackagingProps#property-sourcedirectorypath",
-        "config-reference:NixpacksBjImagePackagingProps#example-1-yaml",
-        "config-reference:NixpacksBjImagePackagingProps#example-2-typescript",
-        "config-reference:NixpacksBjImagePackagingProps#property-buildimage",
-        "config-reference:NixpacksBjImagePackagingProps#example-1-yaml-2",
-        "config-reference:NixpacksBjImagePackagingProps#example-2-typescript-2",
-        "config-reference:NixpacksBjImagePackagingProps#property-phases",
-        "config-reference:NixpacksBjImagePackagingProps#example-1-yaml-3",
-        "config-reference:NixpacksBjImagePackagingProps#example-2-typescript-3",
-        "config-reference:NixpacksBjImagePackagingProps#property-providers",
-        "config-reference:NixpacksBjImagePackagingProps#example-1-yaml-4",
-        "config-reference:NixpacksBjImagePackagingProps#example-2-typescript-4",
-        "config-reference:NixpacksBjImagePackagingProps#property-startcmd",
-        "config-reference:NixpacksBjImagePackagingProps#example-1-yaml-5",
-        "config-reference:NixpacksBjImagePackagingProps#example-2-typescript-5",
-        "config-reference:NixpacksBjImagePackagingProps#property-startonlyincludefiles",
-        "config-reference:NixpacksBjImagePackagingProps#example-1-yaml-6",
-        "config-reference:NixpacksBjImagePackagingProps#example-2-typescript-6",
-        "config-reference:NixpacksBjImagePackagingProps#property-startrunimage",
-        "config-reference:NixpacksBjImagePackagingProps#example-1-yaml-7",
-        "config-reference:NixpacksBjImagePackagingProps#example-2-typescript-7"
-      ]
-    },
-    {
-      "id": "config-reference:NixpacksCwImagePackaging",
-      "title": "NixpacksCwImagePackaging API Reference",
-      "route": "/config-reference/deployment-artifacts",
-      "sourcePath": "packages/config/src/deployment-artifacts.ts",
-      "outputPath": "config-reference/deployment-artifacts/nixpackscwimagepackaging.md",
-      "docKind": "config-reference",
-      "definitionNames": [
-        "NixpacksCwImagePackaging"
-      ],
-      "tags": [
-        "config-reference",
-        "NixpacksCwImagePackaging",
-        "properties"
-      ],
-      "chunks": [
-        "config-reference:NixpacksCwImagePackaging#nixpackscwimagepackaging-api-reference",
-        "config-reference:NixpacksCwImagePackaging#typescript-definition",
-        "config-reference:NixpacksCwImagePackaging#property-properties"
-      ]
-    },
-    {
-      "id": "config-reference:NixpacksCwImagePackagingProps",
-      "title": "NixpacksCwImagePackagingProps API Reference",
-      "route": "/config-reference/deployment-artifacts",
-      "sourcePath": "packages/config/src/deployment-artifacts.ts",
-      "outputPath": "config-reference/deployment-artifacts/nixpackscwimagepackagingprops.md",
-      "docKind": "config-reference",
-      "definitionNames": [
-        "NixpacksCwImagePackagingProps"
-      ],
-      "tags": [
-        "config-reference",
-        "NixpacksCwImagePackagingProps",
-        "sourceDirectoryPath",
-        "buildImage",
-        "phases",
-        "providers",
-        "startCmd",
-        "startOnlyIncludeFiles",
-        "startRunImage"
-      ],
-      "chunks": [
-        "config-reference:NixpacksCwImagePackagingProps#nixpackscwimagepackagingprops-api-reference",
-        "config-reference:NixpacksCwImagePackagingProps#typescript-definition",
-        "config-reference:NixpacksCwImagePackagingProps#property-sourcedirectorypath",
-        "config-reference:NixpacksCwImagePackagingProps#example-1-yaml",
-        "config-reference:NixpacksCwImagePackagingProps#example-2-typescript",
-        "config-reference:NixpacksCwImagePackagingProps#property-buildimage",
-        "config-reference:NixpacksCwImagePackagingProps#example-1-yaml-2",
-        "config-reference:NixpacksCwImagePackagingProps#example-2-typescript-2",
-        "config-reference:NixpacksCwImagePackagingProps#property-phases",
-        "config-reference:NixpacksCwImagePackagingProps#example-1-yaml-3",
-        "config-reference:NixpacksCwImagePackagingProps#example-2-typescript-3",
-        "config-reference:NixpacksCwImagePackagingProps#property-providers",
-        "config-reference:NixpacksCwImagePackagingProps#example-1-yaml-4",
-        "config-reference:NixpacksCwImagePackagingProps#example-2-typescript-4",
-        "config-reference:NixpacksCwImagePackagingProps#property-startcmd",
-        "config-reference:NixpacksCwImagePackagingProps#example-1-yaml-5",
-        "config-reference:NixpacksCwImagePackagingProps#example-2-typescript-5",
-        "config-reference:NixpacksCwImagePackagingProps#property-startonlyincludefiles",
-        "config-reference:NixpacksCwImagePackagingProps#example-1-yaml-6",
-        "config-reference:NixpacksCwImagePackagingProps#example-2-typescript-6",
-        "config-reference:NixpacksCwImagePackagingProps#property-startrunimage",
-        "config-reference:NixpacksCwImagePackagingProps#example-1-yaml-7",
-        "config-reference:NixpacksCwImagePackagingProps#example-2-typescript-7"
-      ]
-    },
-    {
-      "id": "config-reference:NixpacksPhase",
-      "title": "NixpacksPhase API Reference",
-      "route": "/config-reference/deployment-artifacts",
-      "sourcePath": "packages/config/src/deployment-artifacts.ts",
-      "outputPath": "config-reference/deployment-artifacts/nixpacksphase.md",
-      "docKind": "config-reference",
-      "definitionNames": [
-        "NixpacksPhase"
-      ],
-      "tags": [
-        "config-reference",
-        "NixpacksPhase",
-        "name",
-        "aptPkgs",
-        "cacheDirectories",
-        "cmds",
-        "nixLibs",
-        "nixOverlay",
-        "nixPkgs",
-        "nixpkgsArchive",
-        "onlyIncludeFiles"
-      ],
-      "chunks": [
-        "config-reference:NixpacksPhase#nixpacksphase-api-reference",
-        "config-reference:NixpacksPhase#typescript-definition",
-        "config-reference:NixpacksPhase#property-name",
-        "config-reference:NixpacksPhase#example-1-yaml",
-        "config-reference:NixpacksPhase#example-2-typescript",
-        "config-reference:NixpacksPhase#property-aptpkgs",
-        "config-reference:NixpacksPhase#example-1-yaml-2",
-        "config-reference:NixpacksPhase#example-2-typescript-2",
-        "config-reference:NixpacksPhase#property-cachedirectories",
-        "config-reference:NixpacksPhase#example-1-yaml-3",
-        "config-reference:NixpacksPhase#example-2-typescript-3",
-        "config-reference:NixpacksPhase#property-cmds",
-        "config-reference:NixpacksPhase#example-1-yaml-4",
-        "config-reference:NixpacksPhase#example-2-typescript-4",
-        "config-reference:NixpacksPhase#property-nixlibs",
-        "config-reference:NixpacksPhase#example-1-yaml-5",
-        "config-reference:NixpacksPhase#example-2-typescript-5",
-        "config-reference:NixpacksPhase#property-nixoverlay",
-        "config-reference:NixpacksPhase#example-1-yaml-6",
-        "config-reference:NixpacksPhase#example-2-typescript-6",
-        "config-reference:NixpacksPhase#property-nixpkgs",
-        "config-reference:NixpacksPhase#example-1-yaml-7",
-        "config-reference:NixpacksPhase#example-2-typescript-7",
-        "config-reference:NixpacksPhase#property-nixpkgsarchive",
-        "config-reference:NixpacksPhase#example-1-yaml-8",
-        "config-reference:NixpacksPhase#example-2-typescript-8",
-        "config-reference:NixpacksPhase#property-onlyincludefiles",
-        "config-reference:NixpacksPhase#example-1-yaml-9",
-        "config-reference:NixpacksPhase#example-2-typescript-9"
-      ]
-    },
-    {
-      "id": "config-reference:PhpLanguageSpecificConfig",
-      "title": "PhpLanguageSpecificConfig API Reference",
-      "route": "/config-reference/deployment-artifacts",
-      "sourcePath": "packages/config/src/deployment-artifacts.ts",
-      "outputPath": "config-reference/deployment-artifacts/phplanguagespecificconfig.md",
-      "docKind": "config-reference",
-      "definitionNames": [
-        "PhpLanguageSpecificConfig"
-      ],
-      "tags": [
-        "config-reference",
-        "PhpLanguageSpecificConfig",
-        "phpVersion"
-      ],
-      "chunks": [
-        "config-reference:PhpLanguageSpecificConfig#phplanguagespecificconfig-api-reference",
-        "config-reference:PhpLanguageSpecificConfig#typescript-definition",
-        "config-reference:PhpLanguageSpecificConfig#property-phpversion",
-        "config-reference:PhpLanguageSpecificConfig#example-1-yaml",
-        "config-reference:PhpLanguageSpecificConfig#example-2-typescript"
+        "config-reference:JsBundleLambdaPackagingProps#jsbundlelambdapackagingprops-api-reference",
+        "config-reference:JsBundleLambdaPackagingProps#typescript-definition",
+        "config-reference:JsBundleLambdaPackagingProps#property-entryfilepath",
+        "config-reference:JsBundleLambdaPackagingProps#example-1-yaml",
+        "config-reference:JsBundleLambdaPackagingProps#example-2-typescript",
+        "config-reference:JsBundleLambdaPackagingProps#property-bundleawssdk",
+        "config-reference:JsBundleLambdaPackagingProps#example-1-yaml-2",
+        "config-reference:JsBundleLambdaPackagingProps#example-2-typescript-2",
+        "config-reference:JsBundleLambdaPackagingProps#property-dependenciestoexcludefrombundle",
+        "config-reference:JsBundleLambdaPackagingProps#example-1-yaml-3",
+        "config-reference:JsBundleLambdaPackagingProps#example-2-typescript-3",
+        "config-reference:JsBundleLambdaPackagingProps#property-dependenciestoexcludefromdeploymentpackage",
+        "config-reference:JsBundleLambdaPackagingProps#example-1-yaml-4",
+        "config-reference:JsBundleLambdaPackagingProps#example-2-typescript-4",
+        "config-reference:JsBundleLambdaPackagingProps#property-disablesourcemaps",
+        "config-reference:JsBundleLambdaPackagingProps#example-1-yaml-5",
+        "config-reference:JsBundleLambdaPackagingProps#example-2-typescript-5",
+        "config-reference:JsBundleLambdaPackagingProps#property-emittsdecoratormetadata",
+        "config-reference:JsBundleLambdaPackagingProps#example-1-yaml-6",
+        "config-reference:JsBundleLambdaPackagingProps#example-2-typescript-6",
+        "config-reference:JsBundleLambdaPackagingProps#property-excludedependencies",
+        "config-reference:JsBundleLambdaPackagingProps#example-1-yaml-7",
+        "config-reference:JsBundleLambdaPackagingProps#example-2-typescript-7",
+        "config-reference:JsBundleLambdaPackagingProps#property-excludefiles",
+        "config-reference:JsBundleLambdaPackagingProps#example-1-yaml-8",
+        "config-reference:JsBundleLambdaPackagingProps#example-2-typescript-8",
+        "config-reference:JsBundleLambdaPackagingProps#property-handlerfunction",
+        "config-reference:JsBundleLambdaPackagingProps#example-1-yaml-9",
+        "config-reference:JsBundleLambdaPackagingProps#example-2-typescript-9",
+        "config-reference:JsBundleLambdaPackagingProps#property-includefiles",
+        "config-reference:JsBundleLambdaPackagingProps#example-1-yaml-10",
+        "config-reference:JsBundleLambdaPackagingProps#example-2-typescript-10",
+        "config-reference:JsBundleLambdaPackagingProps#property-minify",
+        "config-reference:JsBundleLambdaPackagingProps#example-1-yaml-11",
+        "config-reference:JsBundleLambdaPackagingProps#example-2-typescript-11",
+        "config-reference:JsBundleLambdaPackagingProps#property-minifyidentifiers",
+        "config-reference:JsBundleLambdaPackagingProps#example-1-yaml-12",
+        "config-reference:JsBundleLambdaPackagingProps#example-2-typescript-12",
+        "config-reference:JsBundleLambdaPackagingProps#property-nodeversion",
+        "config-reference:JsBundleLambdaPackagingProps#example-1-yaml-13",
+        "config-reference:JsBundleLambdaPackagingProps#example-2-typescript-13",
+        "config-reference:JsBundleLambdaPackagingProps#property-outputmoduleformat",
+        "config-reference:JsBundleLambdaPackagingProps#example-1-yaml-14",
+        "config-reference:JsBundleLambdaPackagingProps#example-2-typescript-14",
+        "config-reference:JsBundleLambdaPackagingProps#property-outputsourcemapsto",
+        "config-reference:JsBundleLambdaPackagingProps#example-1-yaml-15",
+        "config-reference:JsBundleLambdaPackagingProps#example-2-typescript-15",
+        "config-reference:JsBundleLambdaPackagingProps#property-tsconfigpath",
+        "config-reference:JsBundleLambdaPackagingProps#example-1-yaml-16",
+        "config-reference:JsBundleLambdaPackagingProps#example-2-typescript-16"
       ]
     },
     {
@@ -4965,281 +5100,42 @@
       ]
     },
     {
-      "id": "config-reference:PyLanguageSpecificConfig",
-      "title": "PyLanguageSpecificConfig API Reference",
+      "id": "config-reference:PythonBuildpackConfig",
+      "title": "PythonBuildpackConfig API Reference",
       "route": "/config-reference/deployment-artifacts",
       "sourcePath": "packages/config/src/deployment-artifacts.ts",
-      "outputPath": "config-reference/deployment-artifacts/pylanguagespecificconfig.md",
+      "outputPath": "config-reference/deployment-artifacts/pythonbuildpackconfig.md",
       "docKind": "config-reference",
       "definitionNames": [
-        "PyLanguageSpecificConfig"
+        "PythonBuildpackConfig"
       ],
       "tags": [
         "config-reference",
-        "PyLanguageSpecificConfig",
-        "minify",
-        "packageManager",
+        "PythonBuildpackConfig",
         "packageManagerFile",
-        "pythonVersion",
-        "runAppAs",
         "uvOnlyGroups",
         "uvOptionalDependencies",
         "uvWithGroups",
         "uvWithoutGroups"
       ],
       "chunks": [
-        "config-reference:PyLanguageSpecificConfig#pylanguagespecificconfig-api-reference",
-        "config-reference:PyLanguageSpecificConfig#typescript-definition",
-        "config-reference:PyLanguageSpecificConfig#property-minify",
-        "config-reference:PyLanguageSpecificConfig#example-1-yaml",
-        "config-reference:PyLanguageSpecificConfig#example-2-typescript",
-        "config-reference:PyLanguageSpecificConfig#property-packagemanager",
-        "config-reference:PyLanguageSpecificConfig#example-1-yaml-2",
-        "config-reference:PyLanguageSpecificConfig#example-2-typescript-2",
-        "config-reference:PyLanguageSpecificConfig#property-packagemanagerfile",
-        "config-reference:PyLanguageSpecificConfig#example-1-yaml-3",
-        "config-reference:PyLanguageSpecificConfig#example-2-typescript-3",
-        "config-reference:PyLanguageSpecificConfig#property-pythonversion",
-        "config-reference:PyLanguageSpecificConfig#example-1-yaml-4",
-        "config-reference:PyLanguageSpecificConfig#example-2-typescript-4",
-        "config-reference:PyLanguageSpecificConfig#property-runappas",
-        "config-reference:PyLanguageSpecificConfig#example-1-yaml-5",
-        "config-reference:PyLanguageSpecificConfig#example-2-typescript-5",
-        "config-reference:PyLanguageSpecificConfig#property-uvonlygroups",
-        "config-reference:PyLanguageSpecificConfig#example-1-yaml-6",
-        "config-reference:PyLanguageSpecificConfig#example-2-typescript-6",
-        "config-reference:PyLanguageSpecificConfig#property-uvoptionaldependencies",
-        "config-reference:PyLanguageSpecificConfig#example-1-yaml-7",
-        "config-reference:PyLanguageSpecificConfig#example-2-typescript-7",
-        "config-reference:PyLanguageSpecificConfig#property-uvwithgroups",
-        "config-reference:PyLanguageSpecificConfig#example-1-yaml-8",
-        "config-reference:PyLanguageSpecificConfig#example-2-typescript-8",
-        "config-reference:PyLanguageSpecificConfig#property-uvwithoutgroups",
-        "config-reference:PyLanguageSpecificConfig#example-1-yaml-9",
-        "config-reference:PyLanguageSpecificConfig#example-2-typescript-9"
-      ]
-    },
-    {
-      "id": "config-reference:RubyLanguageSpecificConfig",
-      "title": "RubyLanguageSpecificConfig API Reference",
-      "route": "/config-reference/deployment-artifacts",
-      "sourcePath": "packages/config/src/deployment-artifacts.ts",
-      "outputPath": "config-reference/deployment-artifacts/rubylanguagespecificconfig.md",
-      "docKind": "config-reference",
-      "definitionNames": [
-        "RubyLanguageSpecificConfig"
-      ],
-      "tags": [
-        "config-reference",
-        "RubyLanguageSpecificConfig",
-        "rubyVersion"
-      ],
-      "chunks": [
-        "config-reference:RubyLanguageSpecificConfig#rubylanguagespecificconfig-api-reference",
-        "config-reference:RubyLanguageSpecificConfig#typescript-definition",
-        "config-reference:RubyLanguageSpecificConfig#property-rubyversion",
-        "config-reference:RubyLanguageSpecificConfig#example-1-yaml",
-        "config-reference:RubyLanguageSpecificConfig#example-2-typescript"
-      ]
-    },
-    {
-      "id": "config-reference:StpBuildpackBjImagePackaging",
-      "title": "StpBuildpackBjImagePackaging API Reference",
-      "route": "/config-reference/deployment-artifacts",
-      "sourcePath": "packages/config/src/deployment-artifacts.ts",
-      "outputPath": "config-reference/deployment-artifacts/stpbuildpackbjimagepackaging.md",
-      "docKind": "config-reference",
-      "definitionNames": [
-        "StpBuildpackBjImagePackaging"
-      ],
-      "tags": [
-        "config-reference",
-        "StpBuildpackBjImagePackaging",
-        "properties"
-      ],
-      "chunks": [
-        "config-reference:StpBuildpackBjImagePackaging#stpbuildpackbjimagepackaging-api-reference",
-        "config-reference:StpBuildpackBjImagePackaging#typescript-definition",
-        "config-reference:StpBuildpackBjImagePackaging#property-properties"
-      ]
-    },
-    {
-      "id": "config-reference:StpBuildpackBjImagePackagingProps",
-      "title": "StpBuildpackBjImagePackagingProps API Reference",
-      "route": "/config-reference/deployment-artifacts",
-      "sourcePath": "packages/config/src/deployment-artifacts.ts",
-      "outputPath": "config-reference/deployment-artifacts/stpbuildpackbjimagepackagingprops.md",
-      "docKind": "config-reference",
-      "definitionNames": [
-        "StpBuildpackBjImagePackagingProps"
-      ],
-      "tags": [
-        "config-reference",
-        "StpBuildpackBjImagePackagingProps",
-        "entryfilePath",
-        "customDockerBuildCommands",
-        "excludeDependencies",
-        "excludeFiles",
-        "includeFiles",
-        "languageSpecificConfig",
-        "requiresGlibcBinaries"
-      ],
-      "chunks": [
-        "config-reference:StpBuildpackBjImagePackagingProps#stpbuildpackbjimagepackagingprops-api-reference",
-        "config-reference:StpBuildpackBjImagePackagingProps#typescript-definition",
-        "config-reference:StpBuildpackBjImagePackagingProps#property-entryfilepath",
-        "config-reference:StpBuildpackBjImagePackagingProps#example-1-yaml",
-        "config-reference:StpBuildpackBjImagePackagingProps#example-2-typescript",
-        "config-reference:StpBuildpackBjImagePackagingProps#property-customdockerbuildcommands",
-        "config-reference:StpBuildpackBjImagePackagingProps#example-1-yaml-2",
-        "config-reference:StpBuildpackBjImagePackagingProps#example-2-typescript-2",
-        "config-reference:StpBuildpackBjImagePackagingProps#property-excludedependencies",
-        "config-reference:StpBuildpackBjImagePackagingProps#example-1-yaml-3",
-        "config-reference:StpBuildpackBjImagePackagingProps#example-2-typescript-3",
-        "config-reference:StpBuildpackBjImagePackagingProps#property-excludefiles",
-        "config-reference:StpBuildpackBjImagePackagingProps#example-1-yaml-4",
-        "config-reference:StpBuildpackBjImagePackagingProps#example-2-typescript-4",
-        "config-reference:StpBuildpackBjImagePackagingProps#property-includefiles",
-        "config-reference:StpBuildpackBjImagePackagingProps#example-1-yaml-5",
-        "config-reference:StpBuildpackBjImagePackagingProps#example-2-typescript-5",
-        "config-reference:StpBuildpackBjImagePackagingProps#property-languagespecificconfig",
-        "config-reference:StpBuildpackBjImagePackagingProps#example-1-yaml-6",
-        "config-reference:StpBuildpackBjImagePackagingProps#example-2-typescript-6",
-        "config-reference:StpBuildpackBjImagePackagingProps#property-requiresglibcbinaries",
-        "config-reference:StpBuildpackBjImagePackagingProps#example-1-yaml-7",
-        "config-reference:StpBuildpackBjImagePackagingProps#example-2-typescript-7"
-      ]
-    },
-    {
-      "id": "config-reference:StpBuildpackCwImagePackaging",
-      "title": "StpBuildpackCwImagePackaging API Reference",
-      "route": "/config-reference/deployment-artifacts",
-      "sourcePath": "packages/config/src/deployment-artifacts.ts",
-      "outputPath": "config-reference/deployment-artifacts/stpbuildpackcwimagepackaging.md",
-      "docKind": "config-reference",
-      "definitionNames": [
-        "StpBuildpackCwImagePackaging"
-      ],
-      "tags": [
-        "config-reference",
-        "StpBuildpackCwImagePackaging",
-        "properties"
-      ],
-      "chunks": [
-        "config-reference:StpBuildpackCwImagePackaging#stpbuildpackcwimagepackaging-api-reference",
-        "config-reference:StpBuildpackCwImagePackaging#typescript-definition",
-        "config-reference:StpBuildpackCwImagePackaging#property-properties"
-      ]
-    },
-    {
-      "id": "config-reference:StpBuildpackCwImagePackagingProps",
-      "title": "StpBuildpackCwImagePackagingProps API Reference",
-      "route": "/config-reference/deployment-artifacts",
-      "sourcePath": "packages/config/src/deployment-artifacts.ts",
-      "outputPath": "config-reference/deployment-artifacts/stpbuildpackcwimagepackagingprops.md",
-      "docKind": "config-reference",
-      "definitionNames": [
-        "StpBuildpackCwImagePackagingProps"
-      ],
-      "tags": [
-        "config-reference",
-        "StpBuildpackCwImagePackagingProps",
-        "entryfilePath",
-        "customDockerBuildCommands",
-        "excludeDependencies",
-        "excludeFiles",
-        "includeFiles",
-        "languageSpecificConfig",
-        "requiresGlibcBinaries"
-      ],
-      "chunks": [
-        "config-reference:StpBuildpackCwImagePackagingProps#stpbuildpackcwimagepackagingprops-api-reference",
-        "config-reference:StpBuildpackCwImagePackagingProps#typescript-definition",
-        "config-reference:StpBuildpackCwImagePackagingProps#property-entryfilepath",
-        "config-reference:StpBuildpackCwImagePackagingProps#example-1-yaml",
-        "config-reference:StpBuildpackCwImagePackagingProps#example-2-typescript",
-        "config-reference:StpBuildpackCwImagePackagingProps#property-customdockerbuildcommands",
-        "config-reference:StpBuildpackCwImagePackagingProps#example-1-yaml-2",
-        "config-reference:StpBuildpackCwImagePackagingProps#example-2-typescript-2",
-        "config-reference:StpBuildpackCwImagePackagingProps#property-excludedependencies",
-        "config-reference:StpBuildpackCwImagePackagingProps#example-1-yaml-3",
-        "config-reference:StpBuildpackCwImagePackagingProps#example-2-typescript-3",
-        "config-reference:StpBuildpackCwImagePackagingProps#property-excludefiles",
-        "config-reference:StpBuildpackCwImagePackagingProps#example-1-yaml-4",
-        "config-reference:StpBuildpackCwImagePackagingProps#example-2-typescript-4",
-        "config-reference:StpBuildpackCwImagePackagingProps#property-includefiles",
-        "config-reference:StpBuildpackCwImagePackagingProps#example-1-yaml-5",
-        "config-reference:StpBuildpackCwImagePackagingProps#example-2-typescript-5",
-        "config-reference:StpBuildpackCwImagePackagingProps#property-languagespecificconfig",
-        "config-reference:StpBuildpackCwImagePackagingProps#example-1-yaml-6",
-        "config-reference:StpBuildpackCwImagePackagingProps#example-2-typescript-6",
-        "config-reference:StpBuildpackCwImagePackagingProps#property-requiresglibcbinaries",
-        "config-reference:StpBuildpackCwImagePackagingProps#example-1-yaml-7",
-        "config-reference:StpBuildpackCwImagePackagingProps#example-2-typescript-7"
-      ]
-    },
-    {
-      "id": "config-reference:StpBuildpackLambdaPackaging",
-      "title": "StpBuildpackLambdaPackaging API Reference",
-      "route": "/config-reference/deployment-artifacts",
-      "sourcePath": "packages/config/src/deployment-artifacts.ts",
-      "outputPath": "config-reference/deployment-artifacts/stpbuildpacklambdapackaging.md",
-      "docKind": "config-reference",
-      "definitionNames": [
-        "StpBuildpackLambdaPackaging"
-      ],
-      "tags": [
-        "config-reference",
-        "StpBuildpackLambdaPackaging",
-        "properties"
-      ],
-      "chunks": [
-        "config-reference:StpBuildpackLambdaPackaging#stpbuildpacklambdapackaging-api-reference",
-        "config-reference:StpBuildpackLambdaPackaging#typescript-definition",
-        "config-reference:StpBuildpackLambdaPackaging#property-properties"
-      ]
-    },
-    {
-      "id": "config-reference:StpBuildpackLambdaPackagingProps",
-      "title": "StpBuildpackLambdaPackagingProps API Reference",
-      "route": "/config-reference/deployment-artifacts",
-      "sourcePath": "packages/config/src/deployment-artifacts.ts",
-      "outputPath": "config-reference/deployment-artifacts/stpbuildpacklambdapackagingprops.md",
-      "docKind": "config-reference",
-      "definitionNames": [
-        "StpBuildpackLambdaPackagingProps"
-      ],
-      "tags": [
-        "config-reference",
-        "StpBuildpackLambdaPackagingProps",
-        "entryfilePath",
-        "excludeDependencies",
-        "excludeFiles",
-        "handlerFunction",
-        "includeFiles",
-        "languageSpecificConfig"
-      ],
-      "chunks": [
-        "config-reference:StpBuildpackLambdaPackagingProps#stpbuildpacklambdapackagingprops-api-reference",
-        "config-reference:StpBuildpackLambdaPackagingProps#typescript-definition",
-        "config-reference:StpBuildpackLambdaPackagingProps#property-entryfilepath",
-        "config-reference:StpBuildpackLambdaPackagingProps#example-1-yaml",
-        "config-reference:StpBuildpackLambdaPackagingProps#example-2-typescript",
-        "config-reference:StpBuildpackLambdaPackagingProps#property-excludedependencies",
-        "config-reference:StpBuildpackLambdaPackagingProps#example-1-yaml-2",
-        "config-reference:StpBuildpackLambdaPackagingProps#example-2-typescript-2",
-        "config-reference:StpBuildpackLambdaPackagingProps#property-excludefiles",
-        "config-reference:StpBuildpackLambdaPackagingProps#example-1-yaml-3",
-        "config-reference:StpBuildpackLambdaPackagingProps#example-2-typescript-3",
-        "config-reference:StpBuildpackLambdaPackagingProps#property-handlerfunction",
-        "config-reference:StpBuildpackLambdaPackagingProps#example-1-yaml-4",
-        "config-reference:StpBuildpackLambdaPackagingProps#example-2-typescript-4",
-        "config-reference:StpBuildpackLambdaPackagingProps#property-includefiles",
-        "config-reference:StpBuildpackLambdaPackagingProps#example-1-yaml-5",
-        "config-reference:StpBuildpackLambdaPackagingProps#example-2-typescript-5",
-        "config-reference:StpBuildpackLambdaPackagingProps#property-languagespecificconfig",
-        "config-reference:StpBuildpackLambdaPackagingProps#example-1-yaml-6",
-        "config-reference:StpBuildpackLambdaPackagingProps#example-2-typescript-6"
+        "config-reference:PythonBuildpackConfig#pythonbuildpackconfig-api-reference",
+        "config-reference:PythonBuildpackConfig#typescript-definition",
+        "config-reference:PythonBuildpackConfig#property-packagemanagerfile",
+        "config-reference:PythonBuildpackConfig#example-1-yaml",
+        "config-reference:PythonBuildpackConfig#example-2-typescript",
+        "config-reference:PythonBuildpackConfig#property-uvonlygroups",
+        "config-reference:PythonBuildpackConfig#example-1-yaml-2",
+        "config-reference:PythonBuildpackConfig#example-2-typescript-2",
+        "config-reference:PythonBuildpackConfig#property-uvoptionaldependencies",
+        "config-reference:PythonBuildpackConfig#example-1-yaml-3",
+        "config-reference:PythonBuildpackConfig#example-2-typescript-3",
+        "config-reference:PythonBuildpackConfig#property-uvwithgroups",
+        "config-reference:PythonBuildpackConfig#example-1-yaml-4",
+        "config-reference:PythonBuildpackConfig#example-2-typescript-4",
+        "config-reference:PythonBuildpackConfig#property-uvwithoutgroups",
+        "config-reference:PythonBuildpackConfig#example-1-yaml-5",
+        "config-reference:PythonBuildpackConfig#example-2-typescript-5"
       ]
     },
     {
@@ -18094,6 +17990,32 @@
       ]
     },
     {
+      "id": "page:/getting-started/upgrading-from-v3",
+      "title": "Upgrading from v3",
+      "route": "/getting-started/upgrading-from-v3",
+      "sourcePath": "apps/docs/content/getting-started/upgrading-from-v3.mdx",
+      "outputPath": "pages/getting-started/upgrading-from-v3.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "getting-started",
+        "upgrading-from-v3"
+      ],
+      "chunks": [
+        "page:/getting-started/upgrading-from-v3#upgrading-from-v3",
+        "page:/getting-started/upgrading-from-v3#packaging",
+        "page:/getting-started/upgrading-from-v3#javascript-and-typescript-lambda-functions",
+        "page:/getting-started/upgrading-from-v3#python-java-go-ruby-and-net-lambda-functions",
+        "page:/getting-started/upgrading-from-v3#rust-lambda-functions",
+        "page:/getting-started/upgrading-from-v3#javascript-and-typescript-container-services",
+        "page:/getting-started/upgrading-from-v3#python-and-other-non-javascript-container-services",
+        "page:/getting-started/upgrading-from-v3#nixpacks",
+        "page:/getting-started/upgrading-from-v3#external-buildpacks",
+        "page:/getting-started/upgrading-from-v3#custom-dockerfiles",
+        "page:/getting-started/upgrading-from-v3#removed-packaging-properties"
+      ]
+    },
+    {
       "id": "page:/getting-started/use-the-dev-mode",
       "title": "Use the Dev Mode",
       "route": "/getting-started/use-the-dev-mode",
@@ -19190,136 +19112,134 @@
       ]
     },
     {
-      "id": "page:/packaging/containers/custom-dockerfile",
-      "title": "Custom Dockerfile",
-      "route": "/packaging/containers/custom-dockerfile",
-      "sourcePath": "apps/docs/content/packaging/containers/custom-dockerfile.mdx",
-      "outputPath": "pages/packaging/containers/custom-dockerfile.md",
+      "id": "page:/packaging/containers/buildpack",
+      "title": "Buildpack for Containers",
+      "route": "/packaging/containers/buildpack",
+      "sourcePath": "apps/docs/content/packaging/containers/buildpack.mdx",
+      "outputPath": "pages/packaging/containers/buildpack.md",
       "docKind": "docs-page",
       "definitionNames": [
-        "CustomDockerfileCwImagePackagingProps"
+        "BuildpackCwImagePackagingProps"
       ],
       "tags": [
         "packaging",
         "containers",
-        "custom-dockerfile",
-        "CustomDockerfileCwImagePackagingProps"
+        "buildpack",
+        "BuildpackCwImagePackagingProps"
       ],
       "chunks": [
-        "page:/packaging/containers/custom-dockerfile#custom-dockerfile",
-        "page:/packaging/containers/custom-dockerfile#when-to-use",
-        "page:/packaging/containers/custom-dockerfile#when-not-to-use",
-        "page:/packaging/containers/custom-dockerfile#basic-example",
-        "page:/packaging/containers/custom-dockerfile#dockerfile-path",
-        "page:/packaging/containers/custom-dockerfile#build-context",
-        "page:/packaging/containers/custom-dockerfile#dockerignore",
-        "page:/packaging/containers/custom-dockerfile#build-arguments",
-        "page:/packaging/containers/custom-dockerfile#overriding-cmd-and-entrypoint",
-        "page:/packaging/containers/custom-dockerfile#multi-stage-builds",
-        "page:/packaging/containers/custom-dockerfile#build-stage",
-        "page:/packaging/containers/custom-dockerfile#production-stage",
-        "page:/packaging/containers/custom-dockerfile#docker-layer-caching",
-        "page:/packaging/containers/custom-dockerfile#dependencies-change-less-often-than-source-code",
-        "page:/packaging/containers/custom-dockerfile#source-code-changes-frequently",
-        "page:/packaging/containers/custom-dockerfile#using-with-batch-jobs",
-        "page:/packaging/containers/custom-dockerfile#using-with-multi-container-workloads",
-        "page:/packaging/containers/custom-dockerfile#best-practices",
-        "page:/packaging/containers/custom-dockerfile#faq",
-        "page:/packaging/containers/custom-dockerfile#what-base-images-can-i-use",
-        "page:/packaging/containers/custom-dockerfile#how-do-i-pass-runtime-secrets-to-the-container",
-        "page:/packaging/containers/custom-dockerfile#how-does-custom-dockerfile-differ-from-the-stacktape-container-buildpack",
-        "page:/packaging/containers/custom-dockerfile#what-is-the-maximum-container-image-size",
-        "page:/packaging/containers/custom-dockerfile#how-do-i-debug-a-failing-docker-build",
-        "page:/packaging/containers/custom-dockerfile#can-i-override-cmd-or-entrypoint-without-modifying-the-dockerfile",
-        "page:/packaging/containers/custom-dockerfile#definition-customdockerfilecwimagepackagingprops"
+        "page:/packaging/containers/buildpack#buildpack-for-containers",
+        "page:/packaging/containers/buildpack#when-to-use",
+        "page:/packaging/containers/buildpack#basic-example",
+        "page:/packaging/containers/buildpack#what-is-detected",
+        "page:/packaging/containers/buildpack#supported-languages",
+        "page:/packaging/containers/buildpack#properties",
+        "page:/packaging/containers/buildpack#start-build-and-install-commands",
+        "page:/packaging/containers/buildpack#tool-versions-and-system-packages",
+        "page:/packaging/containers/buildpack#build-environment-variables",
+        "page:/packaging/containers/buildpack#railpack-configuration",
+        "page:/packaging/containers/buildpack#how-the-image-is-built",
+        "page:/packaging/containers/buildpack#caching",
+        "page:/packaging/containers/buildpack#image-base-and-size",
+        "page:/packaging/containers/buildpack#framework-and-platform-notes",
+        "page:/packaging/containers/buildpack#django-migrations",
+        "page:/packaging/containers/buildpack#dev-mode",
+        "page:/packaging/containers/buildpack#windows",
+        "page:/packaging/containers/buildpack#full-control-with-a-dockerfile",
+        "page:/packaging/containers/buildpack#faq",
+        "page:/packaging/containers/buildpack#do-i-need-railpack-installed",
+        "page:/packaging/containers/buildpack#why-does-my-web-service-fail-its-health-check",
+        "page:/packaging/containers/buildpack#how-do-i-pass-a-secret-to-the-build",
+        "page:/packaging/containers/buildpack#can-i-keep-my-railpack-json",
+        "page:/packaging/containers/buildpack#api-reference",
+        "page:/packaging/containers/buildpack#definition-buildpackcwimagepackagingprops"
       ]
     },
     {
-      "id": "page:/packaging/containers/external-buildpack",
-      "title": "External Buildpack",
-      "route": "/packaging/containers/external-buildpack",
-      "sourcePath": "apps/docs/content/packaging/containers/external-buildpack.mdx",
-      "outputPath": "pages/packaging/containers/external-buildpack.md",
+      "id": "page:/packaging/containers/dockerfile",
+      "title": "Dockerfile",
+      "route": "/packaging/containers/dockerfile",
+      "sourcePath": "apps/docs/content/packaging/containers/dockerfile.mdx",
+      "outputPath": "pages/packaging/containers/dockerfile.md",
       "docKind": "docs-page",
       "definitionNames": [
-        "ExternalBuildpackCwImagePackagingProps"
+        "DockerfileCwImagePackagingProps"
       ],
       "tags": [
         "packaging",
         "containers",
-        "external-buildpack",
-        "ExternalBuildpackCwImagePackagingProps"
+        "dockerfile",
+        "DockerfileCwImagePackagingProps"
       ],
       "chunks": [
-        "page:/packaging/containers/external-buildpack#external-buildpack",
-        "page:/packaging/containers/external-buildpack#when-to-use",
-        "page:/packaging/containers/external-buildpack#when-not-to-use",
-        "page:/packaging/containers/external-buildpack#basic-example",
-        "page:/packaging/containers/external-buildpack#source-directory",
-        "page:/packaging/containers/external-buildpack#builder",
-        "page:/packaging/containers/external-buildpack#buildpacks",
-        "page:/packaging/containers/external-buildpack#start-command",
-        "page:/packaging/containers/external-buildpack#how-it-works",
-        "page:/packaging/containers/external-buildpack#complete-example",
-        "page:/packaging/containers/external-buildpack#using-with-batch-jobs",
-        "page:/packaging/containers/external-buildpack#choosing-a-container-packaging-mode",
-        "page:/packaging/containers/external-buildpack#api-reference",
-        "page:/packaging/containers/external-buildpack#definition-externalbuildpackcwimagepackagingprops",
-        "page:/packaging/containers/external-buildpack#faq",
-        "page:/packaging/containers/external-buildpack#can-i-use-heroku-buildpacks-with-stacktape",
-        "page:/packaging/containers/external-buildpack#how-does-external-buildpack-differ-from-the-stacktape-image-buildpack",
-        "page:/packaging/containers/external-buildpack#why-is-my-buildpack-build-failing",
-        "page:/packaging/containers/external-buildpack#when-should-i-use-a-custom-dockerfile-instead",
-        "page:/packaging/containers/external-buildpack#is-external-buildpack-more-expensive-than-other-packaging-modes"
+        "page:/packaging/containers/dockerfile#dockerfile",
+        "page:/packaging/containers/dockerfile#when-to-use",
+        "page:/packaging/containers/dockerfile#when-not-to-use",
+        "page:/packaging/containers/dockerfile#basic-example",
+        "page:/packaging/containers/dockerfile#dockerfile-path",
+        "page:/packaging/containers/dockerfile#build-context",
+        "page:/packaging/containers/dockerfile#dockerignore",
+        "page:/packaging/containers/dockerfile#build-arguments",
+        "page:/packaging/containers/dockerfile#overriding-cmd-and-entrypoint",
+        "page:/packaging/containers/dockerfile#multi-stage-builds",
+        "page:/packaging/containers/dockerfile#build-stage",
+        "page:/packaging/containers/dockerfile#production-stage",
+        "page:/packaging/containers/dockerfile#docker-layer-caching",
+        "page:/packaging/containers/dockerfile#dependencies-change-less-often-than-source-code",
+        "page:/packaging/containers/dockerfile#source-code-changes-frequently",
+        "page:/packaging/containers/dockerfile#using-with-batch-jobs",
+        "page:/packaging/containers/dockerfile#using-with-multi-container-workloads",
+        "page:/packaging/containers/dockerfile#best-practices",
+        "page:/packaging/containers/dockerfile#faq",
+        "page:/packaging/containers/dockerfile#what-base-images-can-i-use",
+        "page:/packaging/containers/dockerfile#how-do-i-pass-runtime-secrets-to-the-container",
+        "page:/packaging/containers/dockerfile#how-does-dockerfile-differ-from-buildpack",
+        "page:/packaging/containers/dockerfile#what-is-the-maximum-container-image-size",
+        "page:/packaging/containers/dockerfile#how-do-i-debug-a-failing-docker-build",
+        "page:/packaging/containers/dockerfile#can-i-override-cmd-or-entrypoint-without-modifying-the-dockerfile",
+        "page:/packaging/containers/dockerfile#definition-dockerfilecwimagepackagingprops"
       ]
     },
     {
-      "id": "page:/packaging/containers/nixpacks",
-      "title": "Nixpacks",
-      "route": "/packaging/containers/nixpacks",
-      "sourcePath": "apps/docs/content/packaging/containers/nixpacks.mdx",
-      "outputPath": "pages/packaging/containers/nixpacks.md",
+      "id": "page:/packaging/containers/js-bundle",
+      "title": "JS Bundle for Containers",
+      "route": "/packaging/containers/js-bundle",
+      "sourcePath": "apps/docs/content/packaging/containers/js-bundle.mdx",
+      "outputPath": "pages/packaging/containers/js-bundle.md",
       "docKind": "docs-page",
       "definitionNames": [
-        "NixpacksCwImagePackagingProps"
+        "JsBundleCwImagePackagingProps"
       ],
       "tags": [
         "packaging",
         "containers",
-        "nixpacks",
-        "NixpacksCwImagePackagingProps"
+        "js-bundle",
+        "JsBundleCwImagePackagingProps"
       ],
       "chunks": [
-        "page:/packaging/containers/nixpacks#nixpacks",
-        "page:/packaging/containers/nixpacks#when-to-use",
-        "page:/packaging/containers/nixpacks#when-not-to-use",
-        "page:/packaging/containers/nixpacks#basic-example",
-        "page:/packaging/containers/nixpacks#start-command",
-        "page:/packaging/containers/nixpacks#build-and-run-images",
-        "page:/packaging/containers/nixpacks#build-image",
-        "page:/packaging/containers/nixpacks#run-image",
-        "page:/packaging/containers/nixpacks#runtime-file-filtering",
-        "page:/packaging/containers/nixpacks#providers",
-        "page:/packaging/containers/nixpacks#build-phases",
-        "page:/packaging/containers/nixpacks#installing-system-dependencies",
-        "page:/packaging/containers/nixpacks#custom-build-commands",
-        "page:/packaging/containers/nixpacks#build-caching",
-        "page:/packaging/containers/nixpacks#phase-file-filtering",
-        "page:/packaging/containers/nixpacks#pinning-a-nixpkgs-version",
-        "page:/packaging/containers/nixpacks#combining-multiple-phases",
-        "page:/packaging/containers/nixpacks#using-with-batch-jobs",
-        "page:/packaging/containers/nixpacks#using-with-multi-container-workloads",
-        "page:/packaging/containers/nixpacks#full-example",
-        "page:/packaging/containers/nixpacks#faq",
-        "page:/packaging/containers/nixpacks#what-languages-does-nixpacks-support",
-        "page:/packaging/containers/nixpacks#when-should-i-use-nixpacks-vs-a-custom-dockerfile",
-        "page:/packaging/containers/nixpacks#how-does-nixpacks-differ-from-the-stacktape-container-buildpack",
-        "page:/packaging/containers/nixpacks#can-i-use-nixpacks-with-lambda-functions",
-        "page:/packaging/containers/nixpacks#how-do-i-install-system-packages-like-ffmpeg-or-libpq",
-        "page:/packaging/containers/nixpacks#how-do-i-reduce-the-final-container-image-size",
-        "page:/packaging/containers/nixpacks#what-is-the-difference-between-buildimage-and-startrunimage",
-        "page:/packaging/containers/nixpacks#api-reference",
-        "page:/packaging/containers/nixpacks#definition-nixpackscwimagepackagingprops"
+        "page:/packaging/containers/js-bundle#js-bundle-for-containers",
+        "page:/packaging/containers/js-bundle#when-to-use",
+        "page:/packaging/containers/js-bundle#basic-example",
+        "page:/packaging/containers/js-bundle#how-the-image-is-built",
+        "page:/packaging/containers/js-bundle#bundling-options",
+        "page:/packaging/containers/js-bundle#module-format",
+        "page:/packaging/containers/js-bundle#node-js-version",
+        "page:/packaging/containers/js-bundle#typescript-decorator-metadata",
+        "page:/packaging/containers/js-bundle#typescript-path-aliases",
+        "page:/packaging/containers/js-bundle#native-and-excluded-dependencies",
+        "page:/packaging/containers/js-bundle#source-maps",
+        "page:/packaging/containers/js-bundle#minification",
+        "page:/packaging/containers/js-bundle#image-customization",
+        "page:/packaging/containers/js-bundle#using-glibc-instead-of-alpine-musl",
+        "page:/packaging/containers/js-bundle#custom-docker-build-commands",
+        "page:/packaging/containers/js-bundle#file-inclusion-and-exclusion",
+        "page:/packaging/containers/js-bundle#comparison-with-other-container-packaging-types",
+        "page:/packaging/containers/js-bundle#faq",
+        "page:/packaging/containers/js-bundle#where-are-built-images-stored-and-what-does-it-cost",
+        "page:/packaging/containers/js-bundle#can-i-set-a-custom-start-command",
+        "page:/packaging/containers/js-bundle#how-do-i-install-system-packages-in-the-image",
+        "page:/packaging/containers/js-bundle#api-reference",
+        "page:/packaging/containers/js-bundle#definition-jsbundlecwimagepackagingprops"
       ]
     },
     {
@@ -19340,7 +19260,7 @@
       ],
       "chunks": [
         "page:/packaging/containers/prebuilt-image#prebuilt-image",
-        "page:/packaging/containers/prebuilt-image#container-packaging-modes",
+        "page:/packaging/containers/prebuilt-image#container-packaging-types",
         "page:/packaging/containers/prebuilt-image#when-to-use",
         "page:/packaging/containers/prebuilt-image#when-not-to-use",
         "page:/packaging/containers/prebuilt-image#basic-example",
@@ -19362,61 +19282,52 @@
       ]
     },
     {
-      "id": "page:/packaging/containers/stacktape-buildpack",
-      "title": "Stacktape Buildpack for Containers",
-      "route": "/packaging/containers/stacktape-buildpack",
-      "sourcePath": "apps/docs/content/packaging/containers/stacktape-buildpack.mdx",
-      "outputPath": "pages/packaging/containers/stacktape-buildpack.md",
+      "id": "page:/packaging/function/buildpack",
+      "title": "Buildpack for Lambda",
+      "route": "/packaging/function/buildpack",
+      "sourcePath": "apps/docs/content/packaging/function/buildpack.mdx",
+      "outputPath": "pages/packaging/function/buildpack.md",
       "docKind": "docs-page",
       "definitionNames": [
-        "StpBuildpackCwImagePackagingProps"
+        "BuildpackLambdaPackagingProps",
+        "PythonBuildpackConfig",
+        "JavaBuildpackConfig",
+        "DotnetBuildpackConfig"
       ],
       "tags": [
         "packaging",
-        "containers",
-        "stacktape-buildpack",
-        "StpBuildpackCwImagePackagingProps"
+        "function",
+        "buildpack",
+        "BuildpackLambdaPackagingProps",
+        "PythonBuildpackConfig",
+        "JavaBuildpackConfig",
+        "DotnetBuildpackConfig"
       ],
       "chunks": [
-        "page:/packaging/containers/stacktape-buildpack#stacktape-buildpack-for-containers",
-        "page:/packaging/containers/stacktape-buildpack#when-to-use",
-        "page:/packaging/containers/stacktape-buildpack#when-not-to-use",
-        "page:/packaging/containers/stacktape-buildpack#basic-example",
-        "page:/packaging/containers/stacktape-buildpack#supported-languages",
-        "page:/packaging/containers/stacktape-buildpack#javascript-and-typescript",
-        "page:/packaging/containers/stacktape-buildpack#module-format",
-        "page:/packaging/containers/stacktape-buildpack#node-js-version",
-        "page:/packaging/containers/stacktape-buildpack#typescript-decorator-metadata",
-        "page:/packaging/containers/stacktape-buildpack#excluding-dependencies-from-the-bundle",
-        "page:/packaging/containers/stacktape-buildpack#typescript-path-aliases",
-        "page:/packaging/containers/stacktape-buildpack#source-maps",
-        "page:/packaging/containers/stacktape-buildpack#minification-javascript-and-typescript",
-        "page:/packaging/containers/stacktape-buildpack#python",
-        "page:/packaging/containers/stacktape-buildpack#wsgi-and-asgi-server-mode",
-        "page:/packaging/containers/stacktape-buildpack#python-version",
-        "page:/packaging/containers/stacktape-buildpack#dependency-management",
-        "page:/packaging/containers/stacktape-buildpack#minification",
-        "page:/packaging/containers/stacktape-buildpack#java",
-        "page:/packaging/containers/stacktape-buildpack#additional-language-specific-options",
-        "page:/packaging/containers/stacktape-buildpack#go",
-        "page:/packaging/containers/stacktape-buildpack#ruby",
-        "page:/packaging/containers/stacktape-buildpack#php",
-        "page:/packaging/containers/stacktape-buildpack#net",
-        "page:/packaging/containers/stacktape-buildpack#image-customization",
-        "page:/packaging/containers/stacktape-buildpack#installing-system-dependencies",
-        "page:/packaging/containers/stacktape-buildpack#using-glibc-instead-of-alpine-musl",
-        "page:/packaging/containers/stacktape-buildpack#file-inclusion-and-exclusion",
-        "page:/packaging/containers/stacktape-buildpack#mode-comparison",
-        "page:/packaging/containers/stacktape-buildpack#faq",
-        "page:/packaging/containers/stacktape-buildpack#where-are-built-images-stored-and-what-does-it-cost",
-        "page:/packaging/containers/stacktape-buildpack#when-should-i-use-the-stacktape-buildpack-instead-of-a-custom-dockerfile",
-        "page:/packaging/containers/stacktape-buildpack#how-does-the-stacktape-container-buildpack-handle-python-web-servers",
-        "page:/packaging/containers/stacktape-buildpack#what-base-image-does-the-stacktape-container-buildpack-use",
-        "page:/packaging/containers/stacktape-buildpack#how-do-i-install-system-level-packages-in-the-container",
-        "page:/packaging/containers/stacktape-buildpack#what-is-the-difference-between-the-stacktape-buildpack-and-nixpacks",
-        "page:/packaging/containers/stacktape-buildpack#how-do-i-set-a-custom-start-command-with-the-stacktape-buildpack",
-        "page:/packaging/containers/stacktape-buildpack#api-reference",
-        "page:/packaging/containers/stacktape-buildpack#definition-stpbuildpackcwimagepackagingprops"
+        "page:/packaging/function/buildpack#buildpack-for-lambda",
+        "page:/packaging/function/buildpack#when-to-use",
+        "page:/packaging/function/buildpack#basic-example",
+        "page:/packaging/function/buildpack#supported-languages",
+        "page:/packaging/function/buildpack#runtime-and-language-versions",
+        "page:/packaging/function/buildpack#handler-function",
+        "page:/packaging/function/buildpack#python",
+        "page:/packaging/function/buildpack#java",
+        "page:/packaging/function/buildpack#go-and-ruby",
+        "page:/packaging/function/buildpack#net",
+        "page:/packaging/function/buildpack#rust",
+        "page:/packaging/function/buildpack#including-and-excluding-files",
+        "page:/packaging/function/buildpack#build-caching",
+        "page:/packaging/function/buildpack#api-reference",
+        "page:/packaging/function/buildpack#definition-buildpacklambdapackagingprops",
+        "page:/packaging/function/buildpack#python-options",
+        "page:/packaging/function/buildpack#definition-pythonbuildpackconfig",
+        "page:/packaging/function/buildpack#java-options",
+        "page:/packaging/function/buildpack#definition-javabuildpackconfig",
+        "page:/packaging/function/buildpack#net-options",
+        "page:/packaging/function/buildpack#definition-dotnetbuildpackconfig",
+        "page:/packaging/function/buildpack#faq",
+        "page:/packaging/function/buildpack#where-did-pythonversion-and-the-other-version-options-go",
+        "page:/packaging/function/buildpack#can-i-build-a-php-lambda-function"
       ]
     },
     {
@@ -19445,9 +19356,9 @@
         "page:/packaging/function/custom-artifact#handler",
         "page:/packaging/function/custom-artifact#using-with-a-custom-build-step",
         "page:/packaging/function/custom-artifact#directory-packaging-example",
-        "page:/packaging/function/custom-artifact#comparison-with-stacktape-buildpack",
+        "page:/packaging/function/custom-artifact#comparison-with-other-lambda-packaging-types",
         "page:/packaging/function/custom-artifact#faq",
-        "page:/packaging/function/custom-artifact#when-should-i-use-custom-artifact-instead-of-the-stacktape-buildpack",
+        "page:/packaging/function/custom-artifact#when-should-i-use-custom-artifact-instead-of-js-bundle-or-buildpack",
         "page:/packaging/function/custom-artifact#do-i-have-to-zip-my-artifact-myself",
         "page:/packaging/function/custom-artifact#what-value-do-i-set-for-the-handler-property",
         "page:/packaging/function/custom-artifact#why-does-my-custom-artifact-deploy-but-fail-at-runtime",
@@ -19455,53 +19366,47 @@
       ]
     },
     {
-      "id": "page:/packaging/function/stacktape-buildpack",
-      "title": "Stacktape Buildpack for Lambda",
-      "route": "/packaging/function/stacktape-buildpack",
-      "sourcePath": "apps/docs/content/packaging/function/stacktape-buildpack.mdx",
-      "outputPath": "pages/packaging/function/stacktape-buildpack.md",
+      "id": "page:/packaging/function/js-bundle",
+      "title": "JS Bundle for Lambda",
+      "route": "/packaging/function/js-bundle",
+      "sourcePath": "apps/docs/content/packaging/function/js-bundle.mdx",
+      "outputPath": "pages/packaging/function/js-bundle.md",
       "docKind": "docs-page",
       "definitionNames": [
-        "StpBuildpackLambdaPackagingProps"
+        "JsBundleLambdaPackagingProps"
       ],
       "tags": [
         "packaging",
         "function",
-        "stacktape-buildpack",
-        "StpBuildpackLambdaPackagingProps"
+        "js-bundle",
+        "JsBundleLambdaPackagingProps"
       ],
       "chunks": [
-        "page:/packaging/function/stacktape-buildpack#stacktape-buildpack-for-lambda",
-        "page:/packaging/function/stacktape-buildpack#when-to-use",
-        "page:/packaging/function/stacktape-buildpack#when-not-to-use",
-        "page:/packaging/function/stacktape-buildpack#basic-example",
-        "page:/packaging/function/stacktape-buildpack#supported-languages",
-        "page:/packaging/function/stacktape-buildpack#entry-file",
-        "page:/packaging/function/stacktape-buildpack#handler-function",
-        "page:/packaging/function/stacktape-buildpack#including-and-excluding-files",
-        "page:/packaging/function/stacktape-buildpack#including-additional-files",
-        "page:/packaging/function/stacktape-buildpack#excluding-files",
-        "page:/packaging/function/stacktape-buildpack#excluding-dependencies",
-        "page:/packaging/function/stacktape-buildpack#language-specific-configuration",
-        "page:/packaging/function/stacktape-buildpack#node-js-and-typescript",
-        "page:/packaging/function/stacktape-buildpack#python",
-        "page:/packaging/function/stacktape-buildpack#java",
-        "page:/packaging/function/stacktape-buildpack#other-languages",
-        "page:/packaging/function/stacktape-buildpack#build-caching",
-        "page:/packaging/function/stacktape-buildpack#shared-code-between-functions",
-        "page:/packaging/function/stacktape-buildpack#when-a-function-is-packaged-on-its-own",
-        "page:/packaging/function/stacktape-buildpack#processor-architecture",
-        "page:/packaging/function/stacktape-buildpack#api-reference",
-        "page:/packaging/function/stacktape-buildpack#definition-stpbuildpacklambdapackagingprops",
-        "page:/packaging/function/stacktape-buildpack#faq",
-        "page:/packaging/function/stacktape-buildpack#should-i-use-the-stacktape-buildpack-or-a-custom-artifact",
-        "page:/packaging/function/stacktape-buildpack#can-i-use-es-modules-esm-with-the-lambda-buildpack",
-        "page:/packaging/function/stacktape-buildpack#what-is-the-maximum-lambda-deployment-package-size",
-        "page:/packaging/function/stacktape-buildpack#how-do-i-handle-native-binary-dependencies-like-sharp-or-prisma",
-        "page:/packaging/function/stacktape-buildpack#my-function-runs-an-older-aws-sdk-than-the-one-in-my-package-json-why",
-        "page:/packaging/function/stacktape-buildpack#my-python-or-minified-lambda-works-locally-but-breaks-in-production-why",
-        "page:/packaging/function/stacktape-buildpack#why-does-my-stack-contain-lambda-layers-i-did-not-configure",
-        "page:/packaging/function/stacktape-buildpack#how-do-i-debug-a-lambda-function-packaged-with-the-buildpack"
+        "page:/packaging/function/js-bundle#js-bundle-for-lambda",
+        "page:/packaging/function/js-bundle#when-to-use",
+        "page:/packaging/function/js-bundle#basic-example",
+        "page:/packaging/function/js-bundle#entry-file",
+        "page:/packaging/function/js-bundle#handler-function",
+        "page:/packaging/function/js-bundle#including-and-excluding-files",
+        "page:/packaging/function/js-bundle#including-additional-files",
+        "page:/packaging/function/js-bundle#excluding-files",
+        "page:/packaging/function/js-bundle#excluding-dependencies",
+        "page:/packaging/function/js-bundle#bundling-options",
+        "page:/packaging/function/js-bundle#how-the-bundle-is-built",
+        "page:/packaging/function/js-bundle#build-caching",
+        "page:/packaging/function/js-bundle#shared-code-between-functions",
+        "page:/packaging/function/js-bundle#when-a-function-is-packaged-on-its-own",
+        "page:/packaging/function/js-bundle#processor-architecture",
+        "page:/packaging/function/js-bundle#api-reference",
+        "page:/packaging/function/js-bundle#definition-jsbundlelambdapackagingprops",
+        "page:/packaging/function/js-bundle#faq",
+        "page:/packaging/function/js-bundle#should-i-use-js-bundle-or-a-custom-artifact",
+        "page:/packaging/function/js-bundle#can-i-use-es-modules-esm",
+        "page:/packaging/function/js-bundle#what-is-the-maximum-lambda-deployment-package-size",
+        "page:/packaging/function/js-bundle#how-do-i-handle-native-binary-dependencies-like-sharp-or-prisma",
+        "page:/packaging/function/js-bundle#my-function-runs-an-older-aws-sdk-than-the-one-in-my-package-json-why",
+        "page:/packaging/function/js-bundle#why-does-my-stack-contain-lambda-layers-i-did-not-configure",
+        "page:/packaging/function/js-bundle#how-do-i-debug-a-function-packaged-with-js-bundle"
       ]
     },
     {
@@ -19522,16 +19427,17 @@
         "page:/packaging/overview#feature-comparison",
         "page:/packaging/overview#function-packaging",
         "page:/packaging/overview#container-packaging",
-        "page:/packaging/overview#deciding-between-container-modes",
+        "page:/packaging/overview#choosing-a-container-packaging-type",
         "page:/packaging/overview#build-caching",
         "page:/packaging/overview#faq",
         "page:/packaging/overview#what-s-the-difference-between-function-packaging-and-container-packaging",
-        "page:/packaging/overview#which-packaging-mode-should-i-start-with",
-        "page:/packaging/overview#what-languages-does-the-stacktape-buildpack-support",
+        "page:/packaging/overview#which-packaging-type-should-i-start-with",
+        "page:/packaging/overview#which-languages-are-supported",
+        "page:/packaging/overview#are-the-lambda-buildpack-and-the-container-buildpack-the-same",
         "page:/packaging/overview#how-large-can-a-lambda-deployment-package-be",
         "page:/packaging/overview#where-does-stacktape-store-container-images",
         "page:/packaging/overview#does-stacktape-rebuild-my-code-on-every-deploy",
-        "page:/packaging/overview#when-should-i-use-nixpacks-vs-the-stacktape-buildpack"
+        "page:/packaging/overview#i-m-upgrading-from-stacktape-v3-what-changed"
       ]
     },
     {
@@ -19603,7 +19509,7 @@
         "page:/resources/advanced/custom-resources#handler-best-practices",
         "page:/resources/advanced/custom-resources#instances",
         "page:/resources/advanced/custom-resources#packaging",
-        "page:/resources/advanced/custom-resources#stacktape-lambda-buildpack",
+        "page:/resources/advanced/custom-resources#building-from-source",
         "page:/resources/advanced/custom-resources#custom-artifact",
         "page:/resources/advanced/custom-resources#runtime",
         "page:/resources/advanced/custom-resources#connecting-to-resources",
@@ -20069,7 +19975,8 @@
         "page:/resources/compute/lambda-function#http-api-with-dynamodb",
         "page:/resources/compute/lambda-function#scheduled-cleanup-task",
         "page:/resources/compute/lambda-function#packaging",
-        "page:/resources/compute/lambda-function#stacktape-lambda-buildpack",
+        "page:/resources/compute/lambda-function#js-bundle",
+        "page:/resources/compute/lambda-function#buildpack",
         "page:/resources/compute/lambda-function#custom-artifact",
         "page:/resources/compute/lambda-function#triggers",
         "page:/resources/compute/lambda-function#function-urls",
@@ -20180,7 +20087,7 @@
         "page:/resources/compute/private-service#using-service-connect",
         "page:/resources/compute/private-service#using-an-application-load-balancer",
         "page:/resources/compute/private-service#packaging",
-        "page:/resources/compute/private-service#using-a-custom-dockerfile",
+        "page:/resources/compute/private-service#using-a-dockerfile",
         "page:/resources/compute/private-service#connecting-to-other-resources",
         "page:/resources/compute/private-service#health-checks",
         "page:/resources/compute/private-service#side-containers",

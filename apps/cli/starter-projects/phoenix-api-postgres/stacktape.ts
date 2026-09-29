@@ -1,6 +1,6 @@
 import {
   $Secret,
-  NixpacksPackaging,
+  BuildpackImagePackaging,
   RdsEnginePostgres,
   RelationalDatabase,
   WebService,
@@ -20,8 +20,11 @@ export default defineConfig(() => {
     })
   });
   const webService = new WebService({
-    packaging: new NixpacksPackaging({
-      sourceDirectoryPath: './'
+    packaging: new BuildpackImagePackaging({
+      sourceDirectoryPath: './',
+      // Railpack builds a Mix release; run the Ecto migrations before starting it.
+      startCommand:
+        "/app/_build/prod/rel/phoenix_api/bin/phoenix_api eval 'PhoenixApi.Release.migrate()' && /app/_build/prod/rel/phoenix_api/bin/phoenix_api start"
     }),
     resources: {
       cpu: 0.25,

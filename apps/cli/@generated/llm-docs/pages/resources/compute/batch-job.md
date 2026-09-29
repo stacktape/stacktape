@@ -23,17 +23,17 @@ A batch job is the right choice when the workload should start, do a defined uni
 
 ## Basic example
 
-This example runs a scheduled TypeScript container every night. The Stacktape image buildpack builds the container from `./src/jobs/nightly-report.ts`; `resources` requests 2 vCPU and 4096 MB memory; `timeout` stops the job if it runs longer than one hour.
+This example runs a scheduled TypeScript container every night. `js-bundle` packaging builds the container from `./src/jobs/nightly-report.ts`; `resources` requests 2 vCPU and 4096 MB memory; `timeout` stops the job if it runs longer than one hour.
 
 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, BatchJob, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, BatchJob, JsBundleImagePackaging } from 'stacktape';
 export default defineConfig(() => {
   const nightlyReport = new BatchJob({
     container: {
-      packaging: new StacktapeImageBuildpackPackaging({
+      packaging: new JsBundleImagePackaging({
         entryfilePath: './src/jobs/nightly-report.ts'
       }),
       environment: { REPORT_BUCKET_PREFIX: 'reports/nightly' }
@@ -68,12 +68,12 @@ A batch job declares the CPU and memory required by one job run. Stacktape uses 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, BatchJob, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, BatchJob, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const trainingJob = new BatchJob({
     container: {
-      packaging: new StacktapeImageBuildpackPackaging({
+      packaging: new JsBundleImagePackaging({
         entryfilePath: './src/jobs/train-model.ts'
       })
     },
@@ -93,15 +93,14 @@ export default defineConfig(() => {
 
 ## Packaging
 
-A batch job supports five container image packaging modes: Stacktape image buildpack, custom Dockerfile, prebuilt image, Nixpacks, and external buildpack. Most teams should start with the Stacktape image buildpack, then switch only when the image needs precise runtime control.
+A batch job supports four container image packaging types. Start with `js-bundle` for JavaScript or TypeScript and `buildpack` for other languages, then switch only when the image needs precise runtime control.
 
-| Mode | When to use |
+| Type | When to use |
 |------|-------------|
-| [Stacktape image buildpack](/packaging/containers/stacktape-buildpack) | Build JS/TS, Python, Java, Go, Ruby, PHP, or .NET source into a container image from an entry file |
-| [Custom Dockerfile](/packaging/containers/custom-dockerfile) | Control the Dockerfile, build context, build args, and startup command |
-| [Prebuilt image](/packaging/containers/prebuilt-image) | Run an image that already exists in a registry and optionally override its command |
-| [Nixpacks](/packaging/containers/nixpacks) | Build from a source directory with Nixpacks detection and optional phase configuration |
-| [External buildpack](/packaging/containers/external-buildpack) | Use a Cloud Native Buildpack builder, optional buildpacks, and a source directory |
+| [`js-bundle`](/packaging/containers/js-bundle) | A JavaScript or TypeScript job with one entry file. Stacktape bundles it into a small image. |
+| [`buildpack`](/packaging/containers/buildpack) | Build from source without a Dockerfile. Detects Python, Go, Rust, Java, PHP, Ruby, .NET, Node.js and more. |
+| [`dockerfile`](/packaging/containers/dockerfile) | Control the Dockerfile, build context, build args and startup command |
+| [`prebuilt-image`](/packaging/containers/prebuilt-image) | Run an image that already exists in a registry and optionally override its command |
 
 Use `container.environment` for runtime settings that belong to this job, such as feature flags or fixed paths. Use `$Secret()` or `$ResourceParam()` when a value should come from Stacktape directives instead of being hard-coded; see [directives](/configuration/directives) for the supported directive model.
 
@@ -132,12 +131,12 @@ A batch job can stop runaway work with `timeout` and retry failed attempts with 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, BatchJob, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, BatchJob, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const importJob = new BatchJob({
     container: {
-      packaging: new StacktapeImageBuildpackPackaging({
+      packaging: new JsBundleImagePackaging({
         entryfilePath: './src/jobs/import-catalog.ts'
       })
     },
@@ -169,12 +168,12 @@ export default defineConfig(() => {
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, BatchJob, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, BatchJob, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const thumbnailJob = new BatchJob({
     container: {
-      packaging: new StacktapeImageBuildpackPackaging({
+      packaging: new JsBundleImagePackaging({
         entryfilePath: './src/jobs/thumbnails.ts'
       })
     },
@@ -208,7 +207,7 @@ import {
   RelationalDatabase,
   RdsEnginePostgres,
   $Secret,
-  StacktapeImageBuildpackPackaging
+  JsBundleImagePackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
@@ -221,7 +220,7 @@ export default defineConfig(() => {
   const exportJob = new BatchJob({
     connectTo: [mainDatabase, reports],
     container: {
-      packaging: new StacktapeImageBuildpackPackaging({
+      packaging: new JsBundleImagePackaging({
         entryfilePath: './src/jobs/export.ts'
       })
     },
@@ -243,12 +242,12 @@ A batch job can send container `stdout` and `stderr` to CloudWatch Logs. Logging
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, BatchJob, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, BatchJob, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const cleanupJob = new BatchJob({
     container: {
-      packaging: new StacktapeImageBuildpackPackaging({
+      packaging: new JsBundleImagePackaging({
         entryfilePath: './src/jobs/cleanup.ts'
       })
     },

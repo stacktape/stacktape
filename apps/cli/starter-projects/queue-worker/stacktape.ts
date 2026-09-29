@@ -1,10 +1,10 @@
 import {
   HttpApiGateway,
   HttpApiIntegration,
+  JsBundleLambdaPackaging,
   LambdaFunction,
   SqsIntegration,
   SqsQueue,
-  StacktapeLambdaBuildpackPackaging,
   defineConfig
 } from '../../__release-npm';
 
@@ -16,7 +16,7 @@ export default defineConfig(() => {
   });
   const jobQueue = new SqsQueue({});
   const enqueueJob = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/enqueue.ts'
     }),
     memory: 512,
@@ -30,7 +30,7 @@ export default defineConfig(() => {
     ]
   });
   const processJob = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/process.ts'
     }),
     memory: 512,

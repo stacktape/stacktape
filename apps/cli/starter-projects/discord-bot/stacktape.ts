@@ -1,8 +1,8 @@
-import { $Secret, StacktapeImageBuildpackPackaging, WorkerService, defineConfig } from '../../__release-npm';
+import { $Secret, JsBundleImagePackaging, WorkerService, defineConfig } from '../../__release-npm';
 
 export default defineConfig(() => {
   const bot = new WorkerService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: './src/index.ts'
     }),
     resources: {

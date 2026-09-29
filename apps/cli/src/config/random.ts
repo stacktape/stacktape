@@ -29,6 +29,7 @@ export const possiblySupportedLangExtensions = [
   'go',
   'php',
   'cs',
+  'rs',
   'jsx',
   'tsx'
 ] as const;
@@ -45,8 +46,10 @@ export const lambdaRuntimesForFileExtension: {
   py: ['python3.14', 'python3.13', 'python3.12', 'python3.11', 'python3.10'],
   java: ['java25', 'java21', 'java17', 'java11'],
   rb: ['ruby4.0', 'ruby3.4', 'ruby3.3'],
-  php: ['provided.al2023'],
+  // PHP runs only as a container (buildpack packaging); no Lambda runtime is offered for it.
+  php: [],
   go: ['provided.al2023', 'provided.al2'],
+  rs: ['provided.al2023', 'provided.al2'],
   cs: ['dotnet10', 'dotnet8', 'dotnet6']
 };
 export const supportedWorkloadExtensions: (typeof possiblySupportedLangExtensions)[number][] = [
@@ -59,8 +62,8 @@ export const supportedWorkloadExtensions: (typeof possiblySupportedLangExtension
   'java',
   'go',
   'rb',
-  'php',
-  'cs'
+  'cs',
+  'rs'
 ];
 export const supportedAwsCdkConstructExtensions: (typeof possiblySupportedLangExtensions)[number][] = ['js', 'ts'];
 export const supportedCodeConfigLanguages: (typeof possiblySupportedLangExtensions)[number][] = ['js', 'ts', 'py'];

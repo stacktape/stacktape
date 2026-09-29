@@ -52,7 +52,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
 ```
@@ -64,7 +64,7 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } }
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } }
   });
   return {
     stackConfig: { tracing: { enabled: true } },
@@ -98,7 +98,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
 ```
@@ -110,7 +110,7 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } }
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } }
   });
   return {
     stackConfig: { tracing: { enabled: true, samplingRate: 0.2 } },

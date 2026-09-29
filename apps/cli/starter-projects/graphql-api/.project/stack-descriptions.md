@@ -35,7 +35,7 @@ The catch-all route pattern (`/{proxy+}`) forwards all requests to the yoga hand
 
 The function is configured as follows:
 
-- **Packaging** - uses `stacktape-lambda-buildpack` to auto-build from TypeScript source.
+- **Packaging** - uses `js-bundle` to auto-build from TypeScript source.
 - **ConnectTo list** - connecting to `postsTable` grants DynamoDB access and injects the table name as
   `STP_POSTS_TABLE_NAME` environment variable.
 - **Events** - all HTTP methods and paths are forwarded to the function, which handles routing internally.
@@ -45,7 +45,7 @@ api:
   type: function
   properties:
     packaging:
-      type: stacktape-lambda-buildpack
+      type: js-bundle
       properties:
         entryfilePath: ./src/index.ts
     memory: 512

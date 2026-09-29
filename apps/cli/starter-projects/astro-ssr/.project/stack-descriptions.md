@@ -2,10 +2,9 @@
 
 Application runs in web-service resource and is configured as follows:
 
-- **Packaging** - determines how the Docker container image is built. In this case, we are using `external-buildpack`.
-  We are configuring `sourceDirectoryPath`(in our case it is the root of our project) as well as specifying custom
-  heroku builder. The builder scans the directory and automatically chooses buildpack to build the image. Built image is
-  then pushed to a pre-created image repository on AWS. You can also use
+- **Packaging** - determines how the Docker container image is built. In this case, we are using `buildpack`. We are
+  configuring `sourceDirectoryPath` (in our case it is the root of our project). Stacktape detects the Astro project,
+  builds the image and pushes it to a pre-created image repository on AWS. You can also use
   [other types of packaging](https://docs.stacktape.com/configuration/packaging/#packaging-web-services).
 
 - [Resources](https://docs.stacktape.com/compute-resources/web-services#resources). The cheapest available resource
@@ -22,10 +21,9 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: external-buildpack
+        type: buildpack
         properties:
           sourceDirectoryPath: ./
-          builder: public.ecr.aws/heroku/builder:24
       resources:
         cpu: 0.25
         memory: 512

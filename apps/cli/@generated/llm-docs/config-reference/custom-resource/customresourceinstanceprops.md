@@ -28,7 +28,7 @@ resources:
     type: custom-resource-definition
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: provisioners/slack-channel.ts
       runtime: nodejs22.x
@@ -50,7 +50,7 @@ import { CustomResourceDefinition, CustomResourceInstance, defineConfig } from '
 export default defineConfig(() => {
   const slackProvisioner = new CustomResourceDefinition({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'provisioners/slack-channel.ts' }
     },
     runtime: 'nodejs22.x',
@@ -81,7 +81,7 @@ resources:
     type: custom-resource-definition
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: provisioners/cloudflare-dns.ts
       environment:
@@ -107,7 +107,7 @@ import { CustomResourceDefinition, CustomResourceInstance, $Secret, defineConfig
 export default defineConfig(() => {
   const dnsProvisioner = new CustomResourceDefinition({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'provisioners/cloudflare-dns.ts' }
     },
     environment: [{ name: 'CLOUDFLARE_API_TOKEN', value: $Secret('cloudflare-token') }],

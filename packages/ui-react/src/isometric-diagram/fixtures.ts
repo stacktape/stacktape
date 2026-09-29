@@ -24,7 +24,7 @@ export const diagramFixtures: DiagramFixture[] = [
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: services/users/index.ts
       resources:
@@ -40,7 +40,7 @@ export const diagramFixtures: DiagramFixture[] = [
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: services/orders/index.ts
       resources:
@@ -97,7 +97,7 @@ export const diagramFixtures: DiagramFixture[] = [
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/get-items.ts
       events:
@@ -113,7 +113,7 @@ export const diagramFixtures: DiagramFixture[] = [
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/create-item.ts
       events:
@@ -144,7 +144,7 @@ export const diagramFixtures: DiagramFixture[] = [
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/server.ts
       resources:
@@ -188,7 +188,7 @@ export const diagramFixtures: DiagramFixture[] = [
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/app.ts
       resources:
@@ -206,7 +206,7 @@ export const diagramFixtures: DiagramFixture[] = [
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/process-queue.ts
       events:
@@ -221,7 +221,7 @@ export const diagramFixtures: DiagramFixture[] = [
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
       events:
@@ -238,7 +238,7 @@ export const diagramFixtures: DiagramFixture[] = [
     properties:
       container:
         packaging:
-          type: stacktape-image-buildpack
+          type: js-bundle
           properties:
             entryfilePath: src/batch.ts
       resources:
@@ -320,7 +320,7 @@ export const diagramFixtures: DiagramFixture[] = [
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/ingest.ts
       events:
@@ -334,7 +334,7 @@ export const diagramFixtures: DiagramFixture[] = [
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/processor.ts
       events:
@@ -363,7 +363,7 @@ export const diagramFixtures: DiagramFixture[] = [
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/notifier.ts
       events:
@@ -387,7 +387,7 @@ export const diagramFixtures: DiagramFixture[] = [
     type: worker-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/worker.ts
       resources:
@@ -418,7 +418,7 @@ export const diagramFixtures: DiagramFixture[] = [
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
       events:
@@ -441,7 +441,7 @@ export const diagramFixtures: DiagramFixture[] = [
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/handler.ts
       url:
@@ -473,7 +473,7 @@ export const diagramFixtures: DiagramFixture[] = [
       containers:
         - name: catalog
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: services/catalog/index.ts
           events:
@@ -497,7 +497,7 @@ export const diagramFixtures: DiagramFixture[] = [
       containers:
         - name: checkout
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: services/checkout/index.ts
           events:
@@ -521,7 +521,7 @@ export const diagramFixtures: DiagramFixture[] = [
       containers:
         - name: admin
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: services/admin/index.ts
           events:
@@ -583,7 +583,7 @@ export const diagramFixtures: DiagramFixture[] = [
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/upload-api.ts
       events:
@@ -600,7 +600,7 @@ export const diagramFixtures: DiagramFixture[] = [
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/image-processor.ts
       events:

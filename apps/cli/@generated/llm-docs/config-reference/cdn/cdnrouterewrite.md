@@ -155,7 +155,7 @@ authAtEdge:
   type: edge-lambda-function
   properties:
     packaging:
-      type: stacktape-lambda-buildpack
+      type: js-bundle
       properties:
         entryfilePath: ./src/edge/auth.ts
 api:
@@ -181,11 +181,11 @@ assets:
 ### Example 2 (typescript)
 
 ```typescript
-import { Bucket, EdgeLambdaFunction, HttpApiGateway, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+import { Bucket, EdgeLambdaFunction, HttpApiGateway, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
 const authAtEdge = new EdgeLambdaFunction({
-  packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/edge/auth.ts' })
+  packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/edge/auth.ts' })
 });
 const assets = new Bucket({
   directoryUpload: { directoryPath: './public' }

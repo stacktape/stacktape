@@ -211,7 +211,7 @@ import {
   defineConfig,
   OpenSearchDomain,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const search = new OpenSearchDomain({
@@ -228,7 +228,7 @@ export default defineConfig(() => {
   });
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     joinDefaultVpc: true,
@@ -257,7 +257,7 @@ import {
   defineConfig,
   OpenSearchDomain,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const search = new OpenSearchDomain({
@@ -271,7 +271,7 @@ export default defineConfig(() => {
   });
 
   const indexer = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/indexer.ts'
     }),
     connectTo: [search],

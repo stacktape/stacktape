@@ -2,12 +2,7 @@ import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource'
 import { beforeAll, describe, expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import {
-  DynamoDbTable,
-  LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  defineConfig
-} from '@stacktape/config-authoring';
+import { DynamoDbTable, LambdaFunction, JsBundleLambdaPackaging, defineConfig } from '@stacktape/config-authoring';
 import { synthesizeFixture } from './synthesis-fixture';
 
 /**
@@ -29,7 +24,7 @@ const createConfig = ({
     const records = new DynamoDbTable({ primaryKey: { partitionKey: { name: 'id', type: 'string' } } });
     // Behind a CodeDeploy alias.
     const releases = new LambdaFunction({
-      packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/api.ts' }),
+      packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/api.ts' }),
       connectTo: [records],
       environment: {
         GREETING: greeting,
@@ -42,7 +37,7 @@ const createConfig = ({
     });
     // Behind an alias that exists only for provisioned concurrency.
     const warm = new LambdaFunction({
-      packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/worker.ts' }),
+      packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/worker.ts' }),
       environment: { GREETING: greeting },
       provisionedConcurrency: 1
     });

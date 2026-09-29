@@ -1,0 +1,290 @@
+# JS Bundle for Containers
+
+The `js-bundle` packaging type (`JsBundleImagePackaging`) builds a container image from a JavaScript or TypeScript entry file. Stacktape bundles the entry file and everything it imports into one file, installs only the dependencies that cannot be bundled, and uploads the image to a managed ECR repository. No Dockerfile is needed.
+
+It applies to [web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), [multi-container workloads](/resources/compute/multi-container-workload), [batch jobs](/resources/compute/batch-job) and [AgentCore runtimes](/resources/ai/agentcore-runtime).
+
+`js-bundle` supports JavaScript and TypeScript only. For Python, Java, Go, Ruby, PHP, .NET, Rust and other languages, use [`buildpack`](/packaging/containers/buildpack).
+
+## When to use
+
+Use `js-bundle` for Node.js services with a single entry file: Express, Hono, Fastify, NestJS or plain Node.js workers. The image is small because it contains one bundled file and the few dependencies that must stay on disk.
+
+Use another packaging type when:
+
+- **Your app is not a single bundled entry file.** Frameworks such as Next.js, Nuxt or Remix produce their own build output. Use [`buildpack`](/packaging/containers/buildpack), which runs the framework's build and start commands.
+- **The project is not JavaScript or TypeScript.** Use [`buildpack`](/packaging/containers/buildpack).
+- **You need full control over the image.** Use [`dockerfile`](/packaging/containers/dockerfile) for a custom base image, multi-stage builds or a custom entrypoint.
+- **The image already exists.** Use [`prebuilt-image`](/packaging/containers/prebuilt-image).
+
+## Basic example
+
+`entryfilePath` is the only required property. It is relative to the Stacktape configuration file.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new JsBundleImagePackaging({
+      entryfilePath: './src/server.ts'
+    }),
+    resources: {
+      cpu: 0.25,
+      memory: 512
+    }
+  });
+
+  return {
+    resources: { api }
+  };
+});
+```
+
+
+Example (YAML):
+
+```yaml
+resources:
+  api:
+    type: web-service
+    properties:
+      # stp-focus
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: ./src/server.ts
+      # stp-end-focus
+      resources:
+        cpu: 0.25
+        memory: 512
+```
+
+
+The `cpu` and `memory` values belong to the web service, not to packaging. See [web service](/resources/compute/web-service) for valid values.
+
+## How the image is built
+
+1. Stacktape bundles the entry file and its imports into one file with source maps.
+2. Dependencies that cannot be bundled are installed in Docker. These are packages with native binaries and packages listed in `dependenciesToExcludeFromBundle`.
+3. The bundle and those dependencies are copied into an Alpine-based Node.js image.
+4. The image is pushed to a managed ECR repository.
+
+Artifacts are cached by a checksum of their inputs. When the code and dependencies have not changed, Stacktape does not build the image again.
+
+## Bundling options
+
+All options are properties of `JsBundleImagePackaging` next to `entryfilePath`.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new JsBundleImagePackaging({
+      entryfilePath: './src/server.ts',
+      nodeVersion: 22,
+      outputModuleFormat: 'esm',
+      emitTsDecoratorMetadata: true,
+      dependenciesToExcludeFromBundle: ['@prisma/client']
+    }),
+    resources: {
+      cpu: 0.25,
+      memory: 512
+    }
+  });
+
+  return {
+    resources: { api }
+  };
+});
+```
+
+
+`dependenciesToExcludeFromBundle: ['@prisma/client']` is an example. List the packages your application cannot bundle, or omit the property.
+
+### Module format
+
+`outputModuleFormat` sets the bundle output to CommonJS (`'cjs'`) or ES Modules (`'esm'`). When omitted, Node.js 24 and later use ESM and earlier versions use CommonJS. ESM enables top-level `await`. Some npm packages do not support ESM, and ESM stack traces can be less readable.
+
+### Node.js version
+
+`nodeVersion` selects the Node.js major version of the image. Supported values are `16` to `24`. The default is `24`.
+
+### TypeScript decorator metadata
+
+Set `emitTsDecoratorMetadata: true` if the project uses decorators with runtime metadata. NestJS, TypeORM and other frameworks that rely on `reflect-metadata` need it.
+
+### TypeScript path aliases
+
+`tsConfigPath` points to the `tsconfig.json` that the bundler reads to resolve path aliases such as `@/lib/db`.
+
+### Native and excluded dependencies
+
+`dependenciesToExcludeFromBundle` keeps packages out of the bundle. They are installed in the image instead. Use it for packages that break when bundled: ORMs with dynamic imports, packages that locate files through `__dirname`, and native add-ons. `['*']` excludes all dependencies from the bundle.
+
+`dependenciesToExcludeFromDeploymentPackage` removes non-bundled packages from the image entirely. Use it only for packages that are never needed at runtime. `['*']` removes all non-bundled dependencies.
+
+### Source maps
+
+Source maps are generated by default. `disableSourceMaps: true` skips them, which makes the image smaller and production errors harder to read. `outputSourceMapsTo` saves the maps to a local directory for an external error tracker such as Sentry; CloudWatch stack traces are then not mapped.
+
+### Minification
+
+The bundle is minified by default. Whitespace and syntax are shortened, but local function and variable names are kept, so stack traces stay readable. `minifyIdentifiers: true` also shortens those names for a slightly smaller image. The names then change with every build, and Stacktape Console cannot group the same error across deployments. `minify: false` deploys the code unminified.
+
+## Image customization
+
+### Using glibc instead of Alpine musl
+
+The image is based on Alpine Linux, which uses musl libc. Some native dependencies need glibc, for example `sharp`, `canvas`, `bcrypt` and `puppeteer`. Set `requiresGlibcBinaries: true` to use a glibc-based image. The image is larger, so enable it only when you see errors such as `Error loading shared library` or `GLIBC_X.XX not found`.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const imageService = new WebService({
+    packaging: new JsBundleImagePackaging({
+      entryfilePath: './src/processor.ts',
+      requiresGlibcBinaries: true
+    }),
+    resources: {
+      cpu: 0.5,
+      memory: 1024
+    }
+  });
+
+  return {
+    resources: { imageService }
+  };
+});
+```
+
+
+### Custom Docker build commands
+
+`customDockerBuildCommands` adds shell commands to the image build. Each string runs as a `RUN` instruction. Use it to install system packages or add build-time files.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new JsBundleImagePackaging({
+      entryfilePath: './src/server.ts',
+      customDockerBuildCommands: ['apk add --no-cache ffmpeg', 'apk add --no-cache imagemagick']
+    }),
+    resources: {
+      cpu: 0.5,
+      memory: 1024
+    }
+  });
+
+  return {
+    resources: { api }
+  };
+});
+```
+
+
+> **Info:** `apk add` works on the default Alpine image. With `requiresGlibcBinaries: true` the image is not Alpine, so use that image's package manager instead.
+
+
+## File inclusion and exclusion
+
+`includeFiles` and `excludeFiles` take glob patterns relative to the Stacktape configuration file. `excludeDependencies` removes named packages from the image.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, WorkerService, JsBundleImagePackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const worker = new WorkerService({
+    packaging: new JsBundleImagePackaging({
+      entryfilePath: './src/worker.ts',
+      includeFiles: ['./config/**', './templates/**'],
+      excludeFiles: ['./tests/**', './**/*.test.ts'],
+      excludeDependencies: ['jest', '@types/jest']
+    }),
+    resources: {
+      cpu: 0.25,
+      memory: 512
+    }
+  });
+
+  return {
+    resources: { worker }
+  };
+});
+```
+
+
+- **`includeFiles`** adds files that the code reads at runtime but does not import, such as templates or static assets.
+- **`excludeFiles`** removes files the service does not need, such as tests and development configuration.
+- **`excludeDependencies`** removes packages that are not needed at runtime.
+
+## Comparison with other container packaging types
+
+| | `js-bundle` | [`buildpack`](/packaging/containers/buildpack) | [`dockerfile`](/packaging/containers/dockerfile) | [`prebuilt-image`](/packaging/containers/prebuilt-image) |
+|---|---|---|---|---|
+| Languages | JavaScript, TypeScript | Detected: Node.js, Python, Go, Rust, Java, PHP, Ruby, .NET and more | Any | Any |
+| Dockerfile needed | No | No | Yes | No |
+| Input | Entry file | Project directory | Dockerfile and build context | Image reference |
+| Start command | Generated from the bundle | Detected or `startCommand` | `command`, `entryPoint` | `command`, `entryPoint` |
+| Base image | Alpine (or glibc) | Debian | Your choice | Your choice |
+
+## FAQ
+
+### Where are built images stored, and what does it cost?
+
+Stacktape uploads each image to a managed ECR repository. You do not create or configure it. ECR charges for image storage and data transfer out, so smaller images cost less. Keep the default Alpine image unless a dependency needs glibc, and remove tests and development files with `excludeFiles`.
+
+### Can I set a custom start command?
+
+No. The container runs the bundled entry file. If you need a different start command, use [`buildpack`](/packaging/containers/buildpack) with `startCommand`, or [`dockerfile`](/packaging/containers/dockerfile) with `command` and `entryPoint`.
+
+### How do I install system packages in the image?
+
+Use `customDockerBuildCommands`. On the default Alpine image, use `apk add --no-cache <package>`. This covers tools such as `ffmpeg`, native crypto libraries and database clients.
+
+## API reference
+
+
+### Definition: `JsBundleCwImagePackagingProps`
+
+Bundles a JavaScript or TypeScript entry file and builds a container image from it.
+
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/deployment-artifacts` with definition name `JsBundleCwImagePackagingProps`.
+
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `entryfilePath` | yes | `string` | - |
+| `bundleAwsSdk` | no | `boolean` | `false` |
+| `customDockerBuildCommands` | no | `Array<string>` | - |
+| `dependenciesToExcludeFromBundle` | no | `Array<string>` | - |
+| `dependenciesToExcludeFromDeploymentPackage` | no | `Array<string>` | - |
+| `disableSourceMaps` | no | `boolean` | - |
+| `emitTsDecoratorMetadata` | no | `boolean` | - |
+| `excludeDependencies` | no | `Array<string>` | - |
+| `excludeFiles` | no | `Array<string>` | - |
+| `includeFiles` | no | `Array<string>` | - |
+| `minify` | no | `boolean` | `true` |
+| `minifyIdentifiers` | no | `boolean` | `false` |
+| `nodeVersion` | no | `number: 16 \| 17 \| 18 \| 19 \| 20 \| 21 \| 22 \| 23 \| 24` | - |
+| `outputModuleFormat` | no | `string: "cjs" \| "esm"` | - |
+| `outputSourceMapsTo` | no | `string` | - |
+| `requiresGlibcBinaries` | no | `boolean` | - |
+| `tsConfigPath` | no | `string` | - |

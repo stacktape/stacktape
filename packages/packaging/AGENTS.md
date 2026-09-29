@@ -1,8 +1,8 @@
 # @stacktape/packaging
 
 This package builds deployable Lambda, container and web artifacts. It owns language bundlers, image buildpacks, custom
-artifacts, Dockerfile/Nixpacks behavior, hosting and SSR builds, ES split bundling, artifact hashing and runtime
-defaults.
+artifacts, Dockerfile and Railpack (`buildpack`) image builds, hosting and SSR builds, ES split bundling, artifact
+hashing and runtime defaults.
 
 The CLI remains the composition root. It supplies invocation paths, dependency installation, process/Docker actions,
 errors and progress reporting. Packaging code accepts only the values and callbacks it uses; it never imports the CLI or

@@ -5,7 +5,7 @@ Resource type: `private-service`
 ## TypeScript definition
 
 ```typescript
-import type { ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, PrivateServiceLoadBalancing, SecretEnvironmentVar, ServiceHelperContainer, StpBuildpackCwImagePackaging, StpIamRoleStatement, TracingOptions } from 'stacktape';
+import type { BuildpackCwImagePackaging, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, DockerfileCwImagePackaging, EnvironmentVar, JsBundleCwImagePackaging, PrebuiltCwImagePackaging, PrivateServiceLoadBalancing, SecretEnvironmentVar, ServiceHelperContainer, StpIamRoleStatement, TracingOptions } from 'stacktape';
 
 type PrivateServiceProps = {
   /** Configures the container image for the service. */
@@ -58,11 +58,10 @@ secrets: {
 
 /** Union choices used by the properties above. */
 type PrivateServicePackaging =
+  | JsBundleCwImagePackaging
   | PrebuiltCwImagePackaging
-  | CustomDockerfileCwImagePackaging
-  | ExternalBuildpackCwImagePackaging
-  | NixpacksCwImagePackaging
-  | StpBuildpackCwImagePackaging;
+  | DockerfileCwImagePackaging
+  | BuildpackCwImagePackaging;
 
 type PrivateServiceTracing =
   | TracingOptions
@@ -72,16 +71,15 @@ type PrivateServiceTracing =
 ## Property: `packaging`
 
 - Required: yes
-- Type: `prebuilt-image | custom-dockerfile | external-buildpack | nixpacks | stacktape-image-buildpack`
+- Type: `js-bundle | prebuilt-image | dockerfile | buildpack`
 
 Configures the container image for the service.
 
 Choices:
+- `js-bundle` (`JsBundleCwImagePackaging`) — Builds a container image from a bundled JavaScript or TypeScript entry file.. Properties: `requiresGlibcBinaries?: boolean`, `customDockerBuildCommands?: Array<string>`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `minify?: boolean`, `minifyIdentifiers?: boolean`, `bundleAwsSdk?: boolean`.
 - `prebuilt-image` (`PrebuiltCwImagePackaging`) — Uses a pre-built container image.. Properties: `repositoryCredentialsSecretArn?: string`, `entryPoint?: Array<string>`, `image: string`, `command?: Array<string>`.
-- `custom-dockerfile` (`CustomDockerfileCwImagePackaging`) — Builds a container image from your own Dockerfile.. Properties: `entryPoint?: Array<string>`, `dockerfilePath?: string`, `buildContextPath: string`, `buildArgs?: Array<DockerBuildArg>`, `command?: Array<string>`.
-- `external-buildpack` (`ExternalBuildpackCwImagePackaging`) — Builds a container image using an external buildpack.. Properties: `builder?: string`, `buildpacks?: Array<string>`, `sourceDirectoryPath: string`, `command?: Array<string>`.
-- `nixpacks` (`NixpacksCwImagePackaging`) — Builds a container image using Nixpacks.. Properties: `sourceDirectoryPath: string`, `buildImage?: string`, `providers?: Array<string>`, `startCmd?: string`, `startRunImage?: string`, `startOnlyIncludeFiles?: Array<string>`, `phases?: Array<NixpacksPhase>`.
-- `stacktape-image-buildpack` (`StpBuildpackCwImagePackaging`) — A zero-config buildpack that creates a container image from your source code.. Properties: `languageSpecificConfig?: Es | Py | Java | Go | Ruby | Php | Dotnet`, `requiresGlibcBinaries?: boolean`, `customDockerBuildCommands?: Array<string>`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`.
+- `dockerfile` (`DockerfileCwImagePackaging`) — Builds a container image from your own Dockerfile.. Properties: `entryPoint?: Array<string>`, `dockerfilePath?: string`, `buildContextPath: string`, `buildArgs?: Array<DockerBuildArg>`, `command?: Array<string>`.
+- `buildpack` (`BuildpackCwImagePackaging`) — Builds a container image from a project directory without a Dockerfile.. Properties: `sourceDirectoryPath?: string`, `startCommand?: string`, `buildCommand?: string`, `installCommand?: string`, `packages?: unknown`, `aptPackages?: Array<string>`, `buildEnvironment?: Array<EnvironmentVar>`, `railpackConfig?: unknown`.
 
 ### Example 1 (yaml)
 
@@ -91,7 +89,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/server.ts
       resources:
@@ -102,11 +100,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.25, memory: 512 }
   });
 
@@ -134,7 +132,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/server.ts
       resources:
@@ -146,11 +144,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 1, memory: 2048, architecture: 'arm64' }
   });
 
@@ -213,7 +211,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/server.ts
       resources:
@@ -241,7 +239,7 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { WebService, RelationalDatabase, Bucket, RdsEnginePostgres, StacktapeImageBuildpackPackaging, $Secret, defineConfig } from 'stacktape';
+import { WebService, RelationalDatabase, Bucket, RdsEnginePostgres, $Secret, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
@@ -250,7 +248,7 @@ export default defineConfig(() => {
   });
   const uploads = new Bucket({});
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
     connectTo: [mainDb, uploads]
   });
@@ -278,7 +276,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/server.ts
       resources:
@@ -290,11 +288,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.25, memory: 512 },
     enableRemoteSessions: true
   });
@@ -321,7 +319,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/server.ts
       resources:
@@ -350,7 +348,7 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { WebService, RelationalDatabase, RdsEnginePostgres, StacktapeImageBuildpackPackaging, $ResourceParam, $Secret, defineConfig } from 'stacktape';
+import { WebService, RelationalDatabase, RdsEnginePostgres, $ResourceParam, $Secret, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
@@ -358,7 +356,7 @@ export default defineConfig(() => {
     engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.25, memory: 512 },
     environment: {
       LOG_LEVEL: 'info',
@@ -390,7 +388,7 @@ resources:
     properties:
       container:
         packaging:
-          type: stacktape-image-buildpack
+          type: js-bundle
           properties:
             entryfilePath: src/job.ts
       resources:
@@ -407,11 +405,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { BatchJob, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { BatchJob, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const processor = new BatchJob({
-    container: { packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/job.ts' }) },
+    container: { packaging: new JsBundleImagePackaging({ entryfilePath: 'src/job.ts' }) },
     resources: { cpu: 1, memory: 2048 },
     iamRoleStatements: [
       {
@@ -443,7 +441,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/server.ts
       resources:
@@ -460,11 +458,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.25, memory: 512 },
     internalHealthCheck: {
       healthCheckCommand: ['CMD-SHELL', 'curl -f http://localhost:3000/health || exit 1'],
@@ -497,7 +495,7 @@ resources:
     type: private-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/payments.ts
       port: 3000
@@ -516,7 +514,7 @@ import { PrivateService, defineConfig } from 'stacktape';
 export default defineConfig(() => {
   const paymentsService = new PrivateService({
     packaging: {
-      type: 'stacktape-image-buildpack',
+      type: 'js-bundle',
       properties: {
         entryfilePath: 'src/payments.ts'
       }
@@ -553,7 +551,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/server.ts
       resources:
@@ -566,11 +564,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.25, memory: 512 },
     logging: { retentionDays: 30 }
   });
@@ -595,7 +593,7 @@ resources:
     type: private-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/server.ts
       port: 8080
@@ -615,7 +613,7 @@ import { PrivateService, defineConfig } from 'stacktape';
 export default defineConfig(() => {
   const internalApi = new PrivateService({
     packaging: {
-      type: 'stacktape-image-buildpack',
+      type: 'js-bundle',
       properties: {
         entryfilePath: 'src/server.ts'
       }
@@ -649,7 +647,7 @@ resources:
     type: private-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/grpc-server.ts
       port: 50051
@@ -667,7 +665,7 @@ import { PrivateService, defineConfig } from 'stacktape';
 export default defineConfig(() => {
   const grpcBackend = new PrivateService({
     packaging: {
-      type: 'stacktape-image-buildpack',
+      type: 'js-bundle',
       properties: {
         entryfilePath: 'src/grpc-server.ts'
       }
@@ -701,7 +699,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/server.ts
       resources:
@@ -717,11 +715,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
     scaling: {
       minInstances: 2,
@@ -780,7 +778,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/server.ts
       resources:
@@ -792,11 +790,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.25, memory: 512 },
     stopTimeout: 30
   });
@@ -838,7 +836,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/server.ts
       resources:
@@ -855,7 +853,7 @@ import { WebService, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: 'src/server.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/server.ts' } },
     resources: { cpu: 0.5, memory: 1024 },
     tracing: { samplingRate: 0.5 }
   });
@@ -886,7 +884,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/server.ts
       resources:
@@ -898,11 +896,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.25, memory: 512 },
     usePrivateSubnetsWithNAT: true
   });
@@ -929,7 +927,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/server.ts
       resources:
@@ -948,12 +946,12 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { WebService, EfsFilesystem, ContainerEfsMount, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { WebService, EfsFilesystem, ContainerEfsMount, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const sharedData = new EfsFilesystem({});
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
     volumeMounts: [
       new ContainerEfsMount({ efsFilesystemName: 'sharedData', mountPath: '/data' })

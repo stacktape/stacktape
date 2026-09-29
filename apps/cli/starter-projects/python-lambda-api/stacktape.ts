@@ -1,9 +1,9 @@
 import {
+  BuildpackLambdaPackaging,
   HttpApiGateway,
   HttpApiIntegration,
   LambdaFunction,
   MongoDbAtlasCluster,
-  StacktapeLambdaBuildpackPackaging,
   defineConfig
 } from '../../__release-npm';
 
@@ -17,7 +17,7 @@ export default defineConfig(() => {
     clusterTier: 'M2'
   });
   const savePost = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new BuildpackLambdaPackaging({
       entryfilePath: './src/lambdas/save-post.py'
     }),
     memory: 512,
@@ -32,7 +32,7 @@ export default defineConfig(() => {
     ]
   });
   const getPosts = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new BuildpackLambdaPackaging({
       entryfilePath: './src/lambdas/get-posts.py'
     }),
     memory: 512,

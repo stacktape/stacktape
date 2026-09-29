@@ -34,8 +34,8 @@ import {
   SourceCodeWatcher
 } from '../utils';
 import type {
-  EsLanguageSpecificConfig,
-  ExternalBuildpackCwImagePackaging,
+  DockerfileCwImagePackaging,
+  JsBundleSharedProps,
   PrebuiltCwImagePackaging
 } from '@stacktape/config/deployment-artifacts';
 import { DEFAULT_CONTAINER_NODE_VERSION } from '@stacktape/packaging/bundlers/constants';
@@ -158,9 +158,7 @@ export const runDevContainer = async () => {
 
   const packagingType = containerDefinition.packaging?.type;
   const entryfilePath = (containerDefinition.packaging?.properties as { entryfilePath?: string })?.entryfilePath;
-  const languageSpecificConfig = (
-    containerDefinition.packaging?.properties as { languageSpecificConfig?: EsLanguageSpecificConfig }
-  )?.languageSpecificConfig;
+  const languageSpecificConfig = containerDefinition.packaging?.properties as JsBundleSharedProps | undefined;
   const nodeVersion = languageSpecificConfig?.nodeVersion || DEFAULT_CONTAINER_NODE_VERSION;
 
   // Skip AWS credentials when running fully local (no deployed stack and disableEmulation)
@@ -269,7 +267,7 @@ const runDockerContainer = async (
   });
 
   const { watch } = globalStateManager.args;
-  const command = (packaging as PrebuiltCwImagePackaging | ExternalBuildpackCwImagePackaging).properties.command;
+  const command = (packaging as PrebuiltCwImagePackaging | DockerfileCwImagePackaging).properties.command;
   const { exitCode } = await dockerRun({
     name: containerName,
     image: imageName,
@@ -338,6 +336,7 @@ export const prepareImage = async (
 
   const { imageName, sourceFiles, distFolderPath } = (await packagingManager.packageWorkload({
     packaging,
+    target: 'container',
     jobName,
     workloadName,
     commandCanUseCache: false,

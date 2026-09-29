@@ -26,12 +26,12 @@ Scripts can run shell commands or JS/TS/Python files. The examples below use `ex
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging, Bucket } from 'stacktape';
+import { defineConfig, LambdaFunction, Bucket, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const uploads = new Bucket({});
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     connectTo: [uploads]
@@ -156,12 +156,12 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  HostingBucket
+  HostingBucket,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     })
   });

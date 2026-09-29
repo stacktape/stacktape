@@ -35,7 +35,7 @@ export interface MongoDbAtlasClusterProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       connectTo:
@@ -57,7 +57,7 @@ export interface MongoDbAtlasClusterProps {
    *     enableBackups: true
    *   });
    *   const api = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
    *     connectTo: [ordersDb]
    *   });
    *   return { resources: { ordersDb, api } };
@@ -86,7 +86,7 @@ export interface MongoDbAtlasClusterProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       connectTo:
@@ -107,7 +107,7 @@ export interface MongoDbAtlasClusterProps {
    *     enableBackups: true
    *   });
    *   const api = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
    *     connectTo: [appDb]
    *   });
    *   return { resources: { appDb, api } };
@@ -165,7 +165,7 @@ export interface MongoDbAtlasClusterProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       connectTo:
@@ -186,7 +186,7 @@ export interface MongoDbAtlasClusterProps {
    *     enableBackups: true
    *   });
    *   const api = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
    *     connectTo: [contentDb]
    *   });
    *   return { resources: { contentDb, api } };
@@ -218,7 +218,7 @@ export interface MongoDbAtlasClusterProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       connectTo:
@@ -240,7 +240,7 @@ export interface MongoDbAtlasClusterProps {
    *     enableBackups: true
    *   });
    *   const api = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
    *     connectTo: [shardedDb]
    *   });
    *   return { resources: { shardedDb, api } };
@@ -275,7 +275,7 @@ export interface MongoDbAtlasClusterProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       connectTo:
@@ -301,7 +301,7 @@ export interface MongoDbAtlasClusterProps {
    *     enableBackups: true
    *   });
    *   const api = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
    *     connectTo: [analyticsDb]
    *   });
    *   return { resources: { analyticsDb, api } };
@@ -330,7 +330,7 @@ export interface MongoDbAtlasClusterProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       connectTo:
@@ -351,7 +351,7 @@ export interface MongoDbAtlasClusterProps {
    *     // stp-end-focus
    *   });
    *   const api = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
    *     connectTo: [paymentsDb]
    *   });
    *   return { resources: { paymentsDb, api } };
@@ -381,7 +381,7 @@ export interface MongoDbAtlasClusterProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       connectTo:
@@ -403,7 +403,7 @@ export interface MongoDbAtlasClusterProps {
    *     // stp-end-focus
    *   });
    *   const api = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
    *     connectTo: [ledgerDb]
    *   });
    *   return { resources: { ledgerDb, api } };
@@ -438,7 +438,7 @@ export interface MongoDbAtlasClusterProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       connectTo:
@@ -467,7 +467,7 @@ export interface MongoDbAtlasClusterProps {
    *     // stp-end-focus
    *   });
    *   const api = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
    *     connectTo: [reportingDb]
    *   });
    *   return { resources: { reportingDb, api } };
@@ -501,7 +501,7 @@ export interface MongoDbAtlasClusterProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       connectTo:
@@ -526,7 +526,7 @@ export interface MongoDbAtlasClusterProps {
    *     // stp-end-focus
    *   });
    *   const api = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
    *     connectTo: [scalingDb]
    *   });
    *   return { resources: { scalingDb, api } };
@@ -560,7 +560,7 @@ export interface MongoDbAtlasClusterProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       connectTo:
@@ -585,7 +585,7 @@ export interface MongoDbAtlasClusterProps {
    *     // stp-end-focus
    *   });
    *   const api = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
    *     connectTo: [primaryDb]
    *   });
    *   return { resources: { primaryDb, api } };
@@ -621,7 +621,7 @@ export interface MongoDbReplication {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       connectTo:
@@ -646,7 +646,7 @@ export interface MongoDbReplication {
    *     }
    *   });
    *   const api = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
    *     connectTo: [warehouseDb]
    *   });
    *   return { resources: { warehouseDb, api } };
@@ -677,7 +677,7 @@ export interface MongoDbReplication {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       connectTo:
@@ -701,7 +701,7 @@ export interface MongoDbReplication {
    *     }
    *   });
    *   const api = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
    *     connectTo: [haDb]
    *   });
    *   return { resources: { haDb, api } };
@@ -735,7 +735,7 @@ export interface MongoDbReplication {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       connectTo:
@@ -760,7 +760,7 @@ export interface MongoDbReplication {
    *     }
    *   });
    *   const api = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
    *     connectTo: [readScaleDb]
    *   });
    *   return { resources: { readScaleDb, api } };
@@ -799,7 +799,7 @@ export interface MongoDbBiConnector {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       connectTo:
@@ -828,7 +828,7 @@ export interface MongoDbBiConnector {
    *     }
    *   });
    *   const api = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
    *     connectTo: [biDb]
    *   });
    *   return { resources: { biDb, api } };
@@ -863,7 +863,7 @@ export interface MongoDbBiConnector {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       connectTo:
@@ -892,7 +892,7 @@ export interface MongoDbBiConnector {
    *     }
    *   });
    *   const api = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
    *     connectTo: [sqlAccessDb]
    *   });
    *   return { resources: { sqlAccessDb, api } };
@@ -930,7 +930,7 @@ export interface MongoDbAutoScaling {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       connectTo:
@@ -955,7 +955,7 @@ export interface MongoDbAutoScaling {
    *     }
    *   });
    *   const api = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
    *     connectTo: [floorDb]
    *   });
    *   return { resources: { floorDb, api } };
@@ -1012,7 +1012,7 @@ export interface MongoDbAutoScaling {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       connectTo:
@@ -1037,7 +1037,7 @@ export interface MongoDbAutoScaling {
    *     }
    *   });
    *   const api = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
    *     connectTo: [ceilingDb]
    *   });
    *   return { resources: { ceilingDb, api } };
@@ -1096,7 +1096,7 @@ export interface MongoDbAutoScaling {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       connectTo:
@@ -1123,7 +1123,7 @@ export interface MongoDbAutoScaling {
    *     }
    *   });
    *   const api = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
    *     connectTo: [fixedDiskDb]
    *   });
    *   return { resources: { fixedDiskDb, api } };
@@ -1156,7 +1156,7 @@ export interface MongoDbAutoScaling {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       connectTo:
@@ -1182,7 +1182,7 @@ export interface MongoDbAutoScaling {
    *     }
    *   });
    *   const api = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
    *     connectTo: [scaleUpOnlyDb]
    *   });
    *   return { resources: { scaleUpOnlyDb, api } };
@@ -1218,7 +1218,7 @@ export interface MongoDbAdminUserCredentials {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       connectTo:
@@ -1243,7 +1243,7 @@ export interface MongoDbAdminUserCredentials {
    *     }
    *   });
    *   const api = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
    *     connectTo: [adminDb]
    *   });
    *   return { resources: { adminDb, api } };
@@ -1275,7 +1275,7 @@ export interface MongoDbAdminUserCredentials {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       connectTo:
@@ -1300,7 +1300,7 @@ export interface MongoDbAdminUserCredentials {
    *     }
    *   });
    *   const api = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
    *     connectTo: [securedDb]
    *   });
    *   return { resources: { securedDb, api } };
@@ -1346,7 +1346,7 @@ export interface MongoDbAtlasAccessibility {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       joinDefaultVpc: true
@@ -1366,7 +1366,7 @@ export interface MongoDbAtlasAccessibility {
    *     enableBackups: true
    *   });
    *   const api = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
    *     joinDefaultVpc: true,
    *     connectTo: [appDb]
    *   });

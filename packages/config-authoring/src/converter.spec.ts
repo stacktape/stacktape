@@ -11,7 +11,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/worker.ts
       connectTo:
@@ -36,7 +36,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/handler.ts
       events:
@@ -80,7 +80,7 @@ resources:
     type: custom-resource-definition
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/provisioner.ts
 `);
@@ -117,7 +117,7 @@ resources:
     type: edge-lambda-function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/edge.ts
   recordings:

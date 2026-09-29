@@ -43,7 +43,13 @@ export type CommandResult = { stdout: string; stderr: string };
 /** Shell-out seams, injected so the engine is testable without Docker or a repository. */
 export type PreflightRunners = {
   docker: (commands: string[]) => Promise<CommandResult>;
-  nixpacks: (args: { args: string[]; cwd: string }) => Promise<unknown>;
+  /** Builds a buildpack (Railpack) service image the way a deploy does. */
+  buildpack: (input: {
+    sourceDirectory: string;
+    imageName: string;
+    startCommand?: string;
+    buildCommand?: string;
+  }) => Promise<unknown>;
   sleep?: (ms: number) => Promise<void>;
 };
 
@@ -196,7 +202,7 @@ const buildImage = async ({
 }): Promise<{ ok: true } | { ok: false; reason: string }> => {
   const { packaging } = entry;
   try {
-    if (packaging.type === 'custom-dockerfile') {
+    if (packaging.type === 'dockerfile') {
       const contextPath = String(packaging.properties.buildContextPath ?? entry.service.path);
       const dockerfilePath = String(packaging.properties.dockerfilePath ?? 'Dockerfile');
       await runners.docker([
@@ -209,21 +215,14 @@ const buildImage = async ({
       ]);
       return { ok: true };
     }
-    if (packaging.type === 'nixpacks') {
+    if (packaging.type === 'buildpack') {
       const sourceDirectory = String(packaging.properties.sourceDirectoryPath ?? entry.service.path);
-      const startCmd = packaging.properties.startCmd;
-      const phases = packaging.properties.phases as Array<{ name: string; cmds: string[] }> | undefined;
-      const buildCmd = phases?.find((phase) => phase.name === 'build')?.cmds[0];
-      await runners.nixpacks({
-        args: [
-          'build',
-          '.',
-          '--name',
-          imageName,
-          ...(typeof startCmd === 'string' ? ['--start-cmd', startCmd] : []),
-          ...(typeof buildCmd === 'string' ? ['--build-cmd', buildCmd] : [])
-        ],
-        cwd: sourceDirectory === '.' ? repositoryRoot : join(repositoryRoot, sourceDirectory)
+      const { startCommand, buildCommand } = packaging.properties;
+      await runners.buildpack({
+        sourceDirectory: sourceDirectory === '.' ? repositoryRoot : join(repositoryRoot, sourceDirectory),
+        imageName,
+        ...(typeof startCommand === 'string' ? { startCommand } : {}),
+        ...(typeof buildCommand === 'string' ? { buildCommand } : {})
       });
       return { ok: true };
     }

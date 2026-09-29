@@ -568,7 +568,7 @@ const stacktapeConfig = ({ functions, revision }: { functions: FixtureFunction[]
       '    type: function',
       '    properties:',
       '      packaging:',
-      '        type: stacktape-lambda-buildpack',
+      '        type: js-bundle',
       '        properties:',
       `          entryfilePath: ${entryfilePath}`,
       '      memory: 512',

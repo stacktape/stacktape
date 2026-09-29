@@ -13,20 +13,20 @@ resources:
 
 ### 1.2 Rust Lambda Function
 
-The Rust binary runs as a custom Lambda runtime (`provided.al2023`). The binary is built locally using `cargo-lambda`
-and packaged as a zip artifact.
+The Rust binary runs as a custom Lambda runtime (`provided.al2023`). The `buildpack` packaging compiles the crate with
+`cargo-lambda` in Docker and packages the binary as the function's `bootstrap`. You don't need a local Rust toolchain.
 
 - **Memory** is set to 256 MB - Rust is very memory-efficient.
-- **Build** uses `cargo lambda build` in the `beforeDeploy` hook.
+- **Packaging** points `entryfilePath` at `src/main.rs`. Stacktape builds the crate from the nearest `Cargo.toml`.
 
 ```yml
 api:
   type: function
   properties:
     packaging:
-      type: custom-artifact
+      type: buildpack
       properties:
-        packagePath: ./target/lambda/rust-lambda-api/bootstrap.zip
+        entryfilePath: src/main.rs
     memory: 256
     runtime: provided.al2023
 ```

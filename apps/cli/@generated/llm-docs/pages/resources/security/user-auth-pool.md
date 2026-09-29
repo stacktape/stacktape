@@ -82,9 +82,9 @@ import {
   defineConfig,
   UserAuthPool,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   HttpApiGateway,
-  HttpApiIntegration
+  HttpApiIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const auth = new UserAuthPool({
@@ -94,7 +94,7 @@ export default defineConfig(() => {
   const gateway = new HttpApiGateway({});
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     connectTo: [auth],
@@ -138,9 +138,9 @@ import {
   defineConfig,
   UserAuthPool,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   HttpApiGateway,
-  HttpApiIntegration
+  HttpApiIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const auth = new UserAuthPool({
@@ -150,7 +150,7 @@ export default defineConfig(() => {
   const gateway = new HttpApiGateway({});
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     connectTo: [auth],
@@ -275,11 +275,11 @@ import {
   defineConfig,
   UserAuthPool,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const createProfile = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/create-profile.ts'
     })
   });

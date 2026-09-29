@@ -3,7 +3,7 @@ import {
   AgentCoreMemory,
   AgentCoreRuntime,
   Bucket,
-  CustomDockerfilePackaging,
+  DockerfilePackaging,
   defineConfig
 } from '../../__release-npm';
 
@@ -21,7 +21,7 @@ export default defineConfig(() => {
 
   const analystAgent = new AgentCoreRuntime({
     description: 'Data analyst agent for CSV exploration, KPI summaries, and report generation.',
-    packaging: new CustomDockerfilePackaging({
+    packaging: new DockerfilePackaging({
       buildContextPath: './'
     }),
     useMemory: 'analysisMemory',

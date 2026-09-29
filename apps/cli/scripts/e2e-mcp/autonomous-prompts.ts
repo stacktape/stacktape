@@ -34,7 +34,7 @@ const fullstackSeed = {
   RelationalDatabase,
   RdsEnginePostgres,
   SqsQueue,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
@@ -58,7 +58,7 @@ export default defineConfig(() => {
   const apiGateway = new HttpApiGateway({});
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/api.ts'
     }),
     connectTo: ['usersTable', 'mainDatabase', 'jobsQueue'],
@@ -78,7 +78,7 @@ export default defineConfig(() => {
   });
 
   const worker = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/worker.ts'
     }),
     connectTo: ['jobsQueue', 'mainDatabase']
@@ -98,7 +98,7 @@ const brokenConfigSeed = {
 export default defineConfig(() => {
   const api = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: {
         entryfilePath: './src/api.ts'
       }
@@ -432,7 +432,7 @@ export const AUTONOMOUS_PROMPTS: Prompt[] = [
         ...mustNotStacktapeBash,
         { tool: 'mcp__stacktape__stacktape_cli', matches: /"command"\s*:\s*"deploy"/ }
       ],
-      finalShouldMention: [/StacktapeLambdaBuildpackPackaging|packaging/i, /diff|preview/i]
+      finalShouldMention: [/JsBundleLambdaPackaging|packaging/i, /diff|preview/i]
     }
   },
   {

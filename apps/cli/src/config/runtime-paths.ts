@@ -122,12 +122,8 @@ export const fsPaths = {
     }
     return resolveExternalTool({ tool: 'session-manager-plugin', ...options });
   },
-  /** pack, downloaded from its GitHub release the first time a command needs it (`@utils/external-tools`). */
-  packPath(options?: ExternalToolDownloadOptions) {
-    return resolveExternalTool({ tool: 'pack', ...options });
-  },
-  /** nixpacks, downloaded from its GitHub release the first time a command needs it (`@utils/external-tools`). */
-  nixpacksPath(options?: ExternalToolDownloadOptions) {
-    return resolveExternalTool({ tool: 'nixpacks', ...options });
+  /** railpack, downloaded from its GitHub release the first time a command needs it (`@utils/external-tools`). */
+  railpackPath(options?: ExternalToolDownloadOptions) {
+    return resolveExternalTool({ tool: 'railpack', ...options });
   }
 };

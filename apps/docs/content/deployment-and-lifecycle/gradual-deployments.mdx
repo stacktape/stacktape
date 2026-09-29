@@ -58,12 +58,12 @@ Lambda functions support nine deployment strategies through the `deployment` pro
     {
       label: 'TypeScript',
       lang: 'typescript',
-      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+      code: `import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     memory: 1024,
@@ -94,19 +94,19 @@ Both properties take the resource name of another Lambda function in your config
     {
       label: 'TypeScript',
       lang: 'typescript',
-      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+      code: `import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
   const smokeTest = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/smoke-test.ts'
     }),
     timeout: 60
   });
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     memory: 1024,
@@ -156,12 +156,12 @@ Container strategies use slightly different naming than Lambda strategies. Note 
     {
       label: 'TypeScript',
       lang: 'typescript',
-      code: `import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+      code: `import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: './src/server.ts'
     }),
     environment: {
@@ -199,21 +199,21 @@ Container workloads support the same `beforeAllowTrafficFunction` and `afterTraf
   defineConfig,
   WebService,
   LambdaFunction,
-  StacktapeImageBuildpackPackaging,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging,
+  JsBundleImagePackaging
 } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
   const validateDeploy = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/validate-deploy.ts'
     }),
     timeout: 120
   });
 
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: './src/server.ts'
     }),
     environment: {

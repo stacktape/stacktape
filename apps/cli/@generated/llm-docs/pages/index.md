@@ -39,7 +39,7 @@ import {
   HttpApiGateway,
   HttpApiIntegration,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 export default defineConfig(({ stage }) => {
@@ -53,7 +53,7 @@ export default defineConfig(({ stage }) => {
   });
 
   const myFunction = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/index.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/index.ts' }),
     events: [new HttpApiIntegration({ httpApiGatewayName: api, method: 'GET', path: '/' })],
     connectTo: [database],
     environment: { TABLE_NAME: database.name }
@@ -171,7 +171,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./src/index.ts
 ```
@@ -303,11 +303,11 @@ Need more control? Override or transform any AWS resource:
 Example (stacktape.ts):
 
 ```typescript
-import { LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 
 const myFunction = new LambdaFunction({
     // ... standard config
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/index.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/index.ts' }),
     overrides: {
       lambda: { Description: 'Overridden description' }
     },
@@ -324,11 +324,11 @@ Or drop in raw CloudFormation and AWS CDK constructs alongside your Stacktape re
 Example (stacktape.ts):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const myFunction = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/index.ts' })
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/index.ts' })
   });
 
   return {

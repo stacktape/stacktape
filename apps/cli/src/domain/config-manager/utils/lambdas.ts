@@ -774,13 +774,13 @@ export const getStacktapeServiceLambdaUptimeMonitoringStatements = ({
 };
 
 export const getLambdaHandler = ({ name, packaging }: { packaging: LambdaPackaging; name: string }) => {
-  if (packaging.type === 'stacktape-lambda-buildpack') {
+  if (packaging.type === 'js-bundle' || packaging.type === 'buildpack') {
     const extension = getFileExtension(packaging.properties.entryfilePath);
     const handlerToUse =
       packaging.properties.handlerFunction ??
       (extension === 'java'
         ? ''
-        : extension === 'go'
+        : extension === 'go' || extension === 'rs'
           ? ''
           : extension === 'py'
             ? 'handler'
@@ -795,8 +795,8 @@ export const getLambdaHandler = ({ name, packaging }: { packaging: LambdaPackagi
     switch (extension) {
       case 'py':
       case 'go':
+      case 'rs':
       case 'rb':
-      case 'php':
         entry = getFileNameWithoutExtension(packaging.properties.entryfilePath);
         break;
       case 'java':
@@ -851,7 +851,7 @@ export const getLambdaRuntime = ({
   if (packaging.type === 'custom-artifact' && !runtime) {
     throw configErrors.customArtifactRuntimeRequired({ functionName: name });
   }
-  if (packaging.type === 'stacktape-lambda-buildpack') {
+  if (packaging.type === 'js-bundle' || packaging.type === 'buildpack') {
     const defaultRuntime = getDefaultRuntimeForExtension(getFileExtension(packaging.properties.entryfilePath));
     return isEdgeFunction ? capEdgeFunctionRuntime(defaultRuntime) : defaultRuntime;
   }

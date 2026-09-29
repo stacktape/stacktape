@@ -39,7 +39,7 @@ Socket.IO server runs inside a container workload with a single container. The w
 - [Container](https://docs.stacktape.com/compute-resources/multi-container-workloads/#containers). This container
   workload uses only a single container: `socketio-server`. The container is configured as follows:
   - **Packaging** - determines how the Docker container image is built. The easiest and most optimized way to build the
-    image for a Typescript application is using `stacktape-image-buildpack`. We only need to configure `entryfilePath`.
+    image for a Typescript application is using `js-bundle`. We only need to configure `entryfilePath`.
     Stacktape automatically transpiles and builds the application code with all of its dependencies, builds the Docker
     image, and pushes it to a pre-created image repository on AWS. You can also use
     [other types of packaging](https://docs.stacktape.com/configuration/packaging/#packaging-multi-container-workloads).
@@ -68,7 +68,7 @@ websocketServer:
     containers:
       - name: socketio-server
         packaging:
-          type: stacktape-image-buildpack
+          type: js-bundle
           properties:
             entryfilePath: src/server/index.ts
         environment:

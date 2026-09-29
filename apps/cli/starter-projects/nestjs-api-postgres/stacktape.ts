@@ -1,9 +1,9 @@
 import {
   $Secret,
+  JsBundleImagePackaging,
   LocalScript,
   RdsEnginePostgres,
   RelationalDatabase,
-  StacktapeImageBuildpackPackaging,
   WebService,
   defineConfig
 } from '../../__release-npm';
@@ -21,7 +21,7 @@ export default defineConfig(() => {
     })
   });
   const webService = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: 'src/main.ts',
       excludeDependencies: [
         '@nestjs/websockets',
@@ -30,9 +30,7 @@ export default defineConfig(() => {
         'class-transformer',
         '@nestjs/microservices'
       ],
-      languageSpecificConfig: {
-        emitTsDecoratorMetadata: true
-      }
+      emitTsDecoratorMetadata: true
     }),
     resources: {
       cpu: 0.25,

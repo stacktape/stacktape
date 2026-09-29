@@ -1,7 +1,5 @@
-import { dirname, relative } from 'node:path';
+import { dirname } from 'node:path';
 import { transformToUnixPath } from '../fs/files';
-import { getJavaPackageName } from '../fs/files';
-import type { SupportedPythonRunAppAs } from '@stacktape/config/deployment-artifacts';
 import type { SupportedEsPackageManager } from '../runtime-contracts';
 import { getInstallDependenciesCommand, getInstallPackageManagerCommand } from '../es/package-manager-install';
 
@@ -211,13 +209,11 @@ CMD ["node", "--max-old-space-size=16384", "index.js"]`;
 
 export const buildPythonArtifactDockerfile = ({
   pythonVersion,
-  minify,
   alpine,
-  target = 'container',
+  target = 'lambda',
   requirementsWithoutSource
 }: {
   pythonVersion: number | string;
-  minify?: boolean | undefined;
   alpine?: boolean | undefined;
   target?: 'container' | 'lambda' | undefined;
   /**
@@ -263,8 +259,6 @@ if [ -n "$STP_PY_DEP_FILE" ]; then \
     uv pip install --system --target . -r "$STP_PY_DEP_FILE"; \
   fi; \
 fi`;
-  const minifyCommand = `RUN uv pip install --system python-minifier
-RUN pyminify . --in-place`;
   const buildArgs = `ARG STP_PY_DEP_FILE
 ARG STP_PY_DEP_TYPE
 ARG STP_PY_UV_OPTIONAL_DEPENDENCIES
@@ -277,7 +271,6 @@ ARG STP_PY_UV_ONLY_GROUPS`;
 
 ${installUvCommand}
 ${systemDepsCommand}
-${minify ? 'RUN uv pip install --system python-minifier' : ''}
 
 FROM tools AS deps
 
@@ -293,7 +286,6 @@ RUN mkdir /dist
 COPY ./ /dist
 WORKDIR /dist
 
-${minify ? 'RUN pyminify . --in-place' : ''}
 COPY --from=deps /dist/ /dist/
 
 FROM scratch AS artifact
@@ -311,7 +303,6 @@ WORKDIR /dist
 
 ${installUvCommand}
 ${systemDepsCommand}
-${minify ? minifyCommand : ''}
 ${installDepsCommand}
 
 FROM scratch AS artifact
@@ -326,7 +317,7 @@ export const buildJavaArtifactDockerfile = ({
   alpine,
   initScriptFileName,
   modulePath = '.',
-  target = 'container'
+  target = 'lambda'
 }: {
   javaVersion: number;
   useMaven?: boolean | undefined;
@@ -411,110 +402,10 @@ COPY --from=build /artifact .
 `;
 };
 
-export const buildPythonDockerfile = ({
-  pythonVersion,
-  entryfilePath,
-  sourceRootPath,
-  alpine,
-  runAppAs,
-  handler,
-  customDockerBuildCommands
-}: {
-  pythonVersion: number | string;
-  entryfilePath: string;
-  sourceRootPath: string;
-  alpine?: boolean | undefined;
-  runAppAs?: SupportedPythonRunAppAs | undefined;
-  handler?: string | undefined;
-  customDockerBuildCommands?: string[] | undefined;
-}) => {
-  let additionalDependencies = '';
-  let baseImage = `public.ecr.aws/docker/library/python:${pythonVersion}`;
-  if (alpine) {
-    baseImage += '-alpine';
-  }
-  const scriptPath = transformToUnixPath(relative(sourceRootPath, entryfilePath)).replace(/^\.\//, '');
-  let cmd = `CMD ["python", ${JSON.stringify(scriptPath)}]`;
-  const moduleName = transformToUnixPath(relative(sourceRootPath, entryfilePath))
-    .replace(/\.py$/, '')
-    .replace(/^\.\//, '')
-    .replace(/\//g, '.');
-
-  if (runAppAs === 'ASGI') {
-    additionalDependencies = 'RUN pip install uvicorn';
-    cmd = `CMD ["sh", "-c", ${JSON.stringify(
-      `exec python -m uvicorn ${quotePosixShellArgument(`${moduleName}:${handler}`)} --host 0.0.0.0 --port "$PORT"`
-    )}]`;
-  }
-  if (runAppAs === 'WSGI') {
-    additionalDependencies = 'RUN pip install gunicorn';
-    cmd = `CMD ["sh", "-c", ${JSON.stringify(
-      `exec python -m gunicorn --bind "0.0.0.0:$PORT" ${quotePosixShellArgument(`${moduleName}:${handler}`)}`
-    )}]`;
-  }
-
-  return `FROM ${baseImage}
-${(customDockerBuildCommands || []).map((command) => `RUN ${command}`).join('\n')}
-RUN mkdir /app
-COPY . /app
-WORKDIR /app
-ENV PYTHONPATH=/app
-${additionalDependencies}
-${cmd}
-`;
-};
-
-export const buildJavaDockerfile = ({
-  javaVersion,
-  entryfilePath,
-  alpine: _alpine,
-  customDockerBuildCommands
-}: {
-  javaVersion: number;
-  entryfilePath: string;
-  alpine?: boolean | undefined;
-  customDockerBuildCommands?: string[] | undefined;
-}) => {
-  const baseImage = `public.ecr.aws/amazoncorretto/amazoncorretto:${javaVersion}`;
-  return `FROM ${baseImage}
-RUN mkdir /app
-COPY . /app
-WORKDIR /app
-${(customDockerBuildCommands || []).map((command) => `RUN ${command}`).join('\n')}
-
-CMD ["sh", "-c", ${JSON.stringify(
-    `exec java -classpath "$CLASSPATH:/app/lib/*" ${quotePosixShellArgument(getJavaPackageName(entryfilePath))}`
-  )}]
-`;
-};
-
-export const buildGoDockerfile = ({
-  alpine,
-  customDockerBuildCommands
-}: {
-  alpine: boolean;
-  customDockerBuildCommands?: string[] | undefined;
-}) => {
-  let baseImage = 'public.ecr.aws/docker/library/debian:bookworm-slim';
-  if (alpine) {
-    baseImage = 'public.ecr.aws/docker/library/alpine:3.19';
-  }
-  return `FROM ${baseImage}
-RUN mkdir /app
-COPY . /app
-WORKDIR /app
-${(customDockerBuildCommands || []).map((command) => `RUN ${command}`).join('\n')}
-
-RUN chmod +x /app/bootstrap
-
-CMD ["./bootstrap"]
-`;
-};
-
 export const buildRubyArtifactDockerfile = ({
   rubyVersion,
   alpine,
-  target = 'container'
+  target = 'lambda'
 }: {
   rubyVersion: number;
   alpine?: boolean;
@@ -556,102 +447,12 @@ COPY --from=build /dist .
 `;
 };
 
-export const buildRubyDockerfile = ({
-  rubyVersion,
-  entryfilePath,
-  alpine,
-  customDockerBuildCommands
-}: {
-  rubyVersion: number;
-  entryfilePath: string;
-  alpine?: boolean | undefined;
-  customDockerBuildCommands?: string[] | undefined;
-}) => {
-  let baseImage = `public.ecr.aws/docker/library/ruby:${rubyVersion}`;
-  if (alpine) {
-    baseImage += '-alpine';
-  }
-  const scriptPath = transformToUnixPath(entryfilePath);
-  const runCommand =
-    'if [ -f Gemfile ]; then exec bundle exec ruby "$0"; ' +
-    'elif [ -f gems.rb ]; then exec env BUNDLE_GEMFILE=gems.rb bundle exec ruby "$0"; ' +
-    'else exec ruby "$0"; fi';
-  const cmd = `CMD ["sh", "-c", ${JSON.stringify(runCommand)}, ${JSON.stringify(scriptPath)}]`;
-
-  return `FROM ${baseImage}
-${(customDockerBuildCommands || []).map((command) => `RUN ${command}`).join('\n')}
-RUN mkdir /app
-COPY . /app
-WORKDIR /app
-
-ENV BUNDLE_APP_CONFIG=/app/.bundle
-ENV BUNDLE_PATH=/app/vendor/bundle
-
-${cmd}
-`;
-};
-
-export const buildPhpArtifactDockerfile = ({ phpVersion, alpine }: { phpVersion: number; alpine?: boolean }) => {
-  let baseImage = `public.ecr.aws/docker/library/php:${phpVersion}`;
-  if (alpine) {
-    baseImage += '-alpine';
-  }
-  const systemDepsCommand = alpine
-    ? 'RUN apk add --no-cache git unzip'
-    : 'RUN apt-get update && apt-get install -y git unzip';
-  const composerInstallCommand = `RUN if [ -f composer.json ]; then \
-  composer install --no-dev --prefer-dist --no-interaction --no-progress --optimize-autoloader; \
-fi`;
-
-  return `FROM composer:2 AS composer
-FROM ${baseImage} AS build
-
-${systemDepsCommand}
-COPY --from=composer /usr/bin/composer /usr/local/bin/composer
-
-RUN mkdir /dist
-COPY ./ /dist
-WORKDIR /dist
-
-${composerInstallCommand}
-
-FROM scratch AS artifact
-COPY --from=build /dist .
-`;
-};
-
-export const buildPhpDockerfile = ({
-  phpVersion,
-  entryfilePath,
-  alpine,
-  customDockerBuildCommands
-}: {
-  phpVersion: number;
-  entryfilePath: string;
-  alpine?: boolean | undefined;
-  customDockerBuildCommands?: string[] | undefined;
-}) => {
-  let baseImage = `public.ecr.aws/docker/library/php:${phpVersion}`;
-  if (alpine) {
-    baseImage += '-alpine';
-  }
-  const scriptPath = transformToUnixPath(entryfilePath);
-  return `FROM ${baseImage}
-${(customDockerBuildCommands || []).map((command) => `RUN ${command}`).join('\n')}
-RUN mkdir /app
-COPY . /app
-WORKDIR /app
-
-CMD ["php", ${JSON.stringify(scriptPath)}]
-`;
-};
-
 export const DOTNET_ASSEMBLY_NAME_FILE = '.stacktape-assembly-name';
 
 export const buildDotnetArtifactDockerfile = ({
   dotnetVersion,
   projectFilePath,
-  target = 'container'
+  target = 'lambda'
 }: {
   dotnetVersion: number;
   projectFilePath: string;
@@ -679,24 +480,33 @@ COPY --from=build /dist .
 `;
 };
 
-export const buildDotnetDockerfile = ({
-  dotnetVersion,
-  assemblyName,
-  customDockerBuildCommands
+/** The cargo-lambda release used to build Rust Lambda functions; bump deliberately, it decides the default toolchain. */
+export const CARGO_LAMBDA_IMAGE = 'ghcr.io/cargo-lambda/cargo-lambda:1.9.2';
+
+/**
+ * Builds a Rust Lambda function with cargo-lambda and exports its `bootstrap` for the `provided.al2023` runtime. The
+ * build always runs natively and cross-compiles with cargo-lambda's `--arm64`/`--x86-64`, so it never needs binfmt.
+ * Cargo's registry and the target directory are BuildKit cache mounts, so a source-only change rebuilds incrementally.
+ */
+export const buildRustArtifactDockerfile = ({
+  binaryName,
+  architecture
 }: {
-  dotnetVersion: number;
-  assemblyName: string;
-  customDockerBuildCommands?: string[] | undefined;
+  /** The `[[bin]]` or package built; every workspace member with a `main.rs` would otherwise be built. */
+  binaryName: string;
+  architecture: 'x86_64' | 'arm64';
 }) => {
-  const runtimeVersion = `${dotnetVersion}.0`;
-  const baseImage = `mcr.microsoft.com/dotnet/aspnet:${runtimeVersion}`;
+  const quotedBinary = quotePosixShellArgument(binaryName);
+  return `FROM ${CARGO_LAMBDA_IMAGE} AS build
 
-  return `FROM ${baseImage}
-${(customDockerBuildCommands || []).map((command) => `RUN ${command}`).join('\n')}
-RUN mkdir /app
-COPY . /app
-WORKDIR /app
+WORKDIR /src
+COPY . .
+RUN --mount=type=cache,target=/usr/local/cargo/registry \\
+    --mount=type=cache,target=/src/target \\
+    cargo lambda build --release ${architecture === 'arm64' ? '--arm64' : '--x86-64'} --bin ${quotedBinary} --lambda-dir /out \\
+    && mkdir -p /artifact && cp /out/${quotedBinary}/bootstrap /artifact/bootstrap
 
-CMD ["dotnet", "${assemblyName}.dll"]
+FROM scratch AS artifact
+COPY --from=build /artifact .
 `;
 };

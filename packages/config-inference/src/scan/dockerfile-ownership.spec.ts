@@ -112,7 +112,7 @@ describe('the ownership decision, end to end', () => {
     // and only the *fact* was removed — the file is still in the repository.
     const { config, assumptions } = composeConfig({ facts });
     expect(assumptions.some((entry) => entry.kind === 'dockerfile-ownership')).toBe(true);
-    expect((config.resources.orders!.properties.packaging as { type: string }).type).not.toBe('custom-dockerfile');
+    expect((config.resources.orders!.properties.packaging as { type: string }).type).not.toBe('dockerfile');
   });
 
   it('keeps a custom Dockerfile authoritative without asking anything', async () => {
@@ -125,7 +125,7 @@ describe('the ownership decision, end to end', () => {
     expect(facts.uncertainties.some((entry) => entry.kind === 'dockerfile-ownership')).toBe(false);
 
     const { config } = composeConfig({ facts });
-    expect((config.resources.orders!.properties.packaging as { type: string }).type).toBe('custom-dockerfile');
+    expect((config.resources.orders!.properties.packaging as { type: string }).type).toBe('dockerfile');
   });
 
   it('never asks when the Dockerfile is the only way to run the service', async () => {
@@ -149,6 +149,6 @@ describe('the ownership decision, end to end', () => {
       facts,
       decisions: { 'dockerfile-ownership:orders': 'keep-dockerfile' }
     });
-    expect((config.resources.orders!.properties.packaging as { type: string }).type).toBe('custom-dockerfile');
+    expect((config.resources.orders!.properties.packaging as { type: string }).type).toBe('dockerfile');
   });
 });

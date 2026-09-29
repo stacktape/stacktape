@@ -30,7 +30,7 @@ import type { DomainConfiguration, ResourceOverrides } from './shared';
  *       containers:
  *         - name: udp-game-server
  *           packaging:
- *             type: stacktape-image-buildpack
+ *             type: js-bundle
  *             properties:
  *               entryfilePath: src/server.ts
  *           environment:
@@ -62,7 +62,7 @@ import type { DomainConfiguration, ResourceOverrides } from './shared';
  *     containers: [
  *       {
  *         name: 'udp-game-server',
- *         packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: 'src/server.ts' } },
+ *         packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/server.ts' } },
  *         environment: { PORT: 9000 },
  *         events: [
  *           {
@@ -114,7 +114,7 @@ export interface NetworkLoadBalancerProps {
    *       containers:
    *         - name: broker
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/broker.ts
    *           environment:
@@ -146,7 +146,7 @@ export interface NetworkLoadBalancerProps {
    *     containers: [
    *       {
    *         name: 'broker',
-   *         packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: 'src/broker.ts' } },
+   *         packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/broker.ts' } },
    *         environment: { PORT: 1883 },
    *         events: [
    *           {
@@ -201,7 +201,7 @@ export interface NetworkLoadBalancerProps {
    *       containers:
    *         - name: broker
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/broker.ts
    *           environment:
@@ -236,7 +236,7 @@ export interface NetworkLoadBalancerProps {
    *     containers: [
    *       {
    *         name: 'broker',
-   *         packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: 'src/broker.ts' } },
+   *         packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/broker.ts' } },
    *         environment: { PORT: 8883 },
    *         events: [
    *           {
@@ -282,7 +282,7 @@ export interface NetworkLoadBalancerProps {
    *       containers:
    *         - name: game-server
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *           environment:
@@ -323,7 +323,7 @@ export interface NetworkLoadBalancerProps {
    *     containers: [
    *       {
    *         name: 'game-server',
-   *         packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: 'src/server.ts' } },
+   *         packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/server.ts' } },
    *         environment: { GAME_PORT: 9000, ADMIN_PORT: 9001 },
    *         events: [
    *           {
@@ -406,7 +406,7 @@ export interface NetworkLoadBalancerListener {
    *       containers:
    *         - name: broker
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/broker.ts
    *           environment:
@@ -440,7 +440,7 @@ export interface NetworkLoadBalancerListener {
    *     containers: [
    *       {
    *         name: 'broker',
-   *         packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: 'src/broker.ts' } },
+   *         packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/broker.ts' } },
    *         environment: { PORT: 8883 },
    *         events: [
    *           {
@@ -484,7 +484,7 @@ export interface NetworkLoadBalancerListener {
    *       containers:
    *         - name: game-server
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *           environment:
@@ -520,7 +520,7 @@ export interface NetworkLoadBalancerListener {
    *     containers: [
    *       {
    *         name: 'game-server',
-   *         packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: 'src/server.ts' } },
+   *         packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/server.ts' } },
    *         environment: { PORT: 7777 },
    *         events: [
    *           {
@@ -566,7 +566,7 @@ export interface NetworkLoadBalancerListener {
    *       containers:
    *         - name: broker
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/broker.ts
    *           environment:
@@ -605,7 +605,7 @@ export interface NetworkLoadBalancerListener {
    *     containers: [
    *       {
    *         name: 'broker',
-   *         packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: 'src/broker.ts' } },
+   *         packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/broker.ts' } },
    *         environment: { PORT: 8883 },
    *         events: [
    *           {
@@ -652,7 +652,7 @@ export interface NetworkLoadBalancerListener {
    *       containers:
    *         - name: proxy
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/proxy.ts
    *           environment:
@@ -689,7 +689,7 @@ export interface NetworkLoadBalancerListener {
    *     containers: [
    *       {
    *         name: 'proxy',
-   *         packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: 'src/proxy.ts' } },
+   *         packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/proxy.ts' } },
    *         environment: { PORT: 5432 },
    *         events: [
    *           {

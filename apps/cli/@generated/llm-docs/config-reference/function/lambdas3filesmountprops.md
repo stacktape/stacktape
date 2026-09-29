@@ -37,7 +37,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/read.ts
       joinDefaultVpc: true
@@ -55,7 +55,7 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const datasetReader = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/read.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/read.ts' } },
     joinDefaultVpc: true,
     volumeMounts: [
       {
@@ -86,7 +86,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/read.ts
       joinDefaultVpc: true
@@ -104,7 +104,7 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const datasetReader = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/read.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/read.ts' } },
     joinDefaultVpc: true,
     volumeMounts: [
       {

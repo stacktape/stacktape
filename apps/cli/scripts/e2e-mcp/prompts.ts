@@ -32,11 +32,11 @@ export type Prompt = {
 
 const minimalLambdaSeed = {
   path: 'stacktape.ts',
-  content: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+  content: `import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/index.ts'
     })
   });

@@ -372,7 +372,7 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
       // Skip if logForwarding is configured (max 2 subscription filters per CW log group).
       const containerEntryfilePath = (containerPackaging?.properties as { entryfilePath?: string })?.entryfilePath;
       const containerLanguage = getLanguageFromExtension(containerEntryfilePath);
-      const isStpManagedPackaging = containerPackaging?.type === 'stacktape-image-buildpack';
+      const isStpManagedPackaging = containerPackaging?.type === 'js-bundle';
       const hasContainerLogForwarding = !!logging?.logForwarding;
       if (
         configManager.isIssueDetectionEnabled &&

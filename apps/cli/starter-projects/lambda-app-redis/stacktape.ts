@@ -1,9 +1,9 @@
 import {
   HttpApiGateway,
   HttpApiIntegration,
+  JsBundleLambdaPackaging,
   LambdaFunction,
   RedisCluster,
-  StacktapeLambdaBuildpackPackaging,
   defineConfig
 } from '../../__release-npm';
 
@@ -19,7 +19,7 @@ export default defineConfig(() => {
     engineVersion: '7.1'
   });
   const storeKeyValuePair = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/store-key-value-pair.ts'
     }),
     joinDefaultVpc: true,

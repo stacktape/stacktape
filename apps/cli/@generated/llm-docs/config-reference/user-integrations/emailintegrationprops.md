@@ -26,7 +26,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/payments.ts
       memory: 512
@@ -52,7 +52,7 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 export default defineConfig(() => {
   const paymentsFunction = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/payments.ts' }
     },
     memory: 512,
@@ -92,7 +92,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/payments.ts
       memory: 512
@@ -118,7 +118,7 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 export default defineConfig(() => {
   const paymentsFunction = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/payments.ts' }
     },
     memory: 512,

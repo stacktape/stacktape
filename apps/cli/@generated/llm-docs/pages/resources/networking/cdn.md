@@ -394,17 +394,17 @@ import {
   defineConfig,
   HttpApiGateway,
   EdgeLambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const authAtEdge = new EdgeLambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/edge/auth.ts'
     })
   });
 
   const securityHeaders = new EdgeLambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/edge/headers.ts'
     })
   });

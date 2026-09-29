@@ -28,8 +28,9 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *
    * ---
    *
-   * - **`stacktape-lambda-buildpack`** (recommended): Point to your source file and Stacktape builds,
+   * - **`js-bundle`** (recommended for JavaScript and TypeScript): Point to your source file and Stacktape builds,
    *   bundles, and uploads it automatically.
+   * - **`buildpack`**: Point to a Python, Java, Go, Ruby, .NET or Rust source file and Stacktape builds it in Docker.
    * - **`custom-artifact`**: Provide a pre-built zip file. Stacktape handles the upload.
    *
    * **Example (YAML):**
@@ -41,7 +42,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *     properties:
    *       # stp-focus
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/handlers/api.ts
    *       # stp-end-focus
@@ -66,7 +67,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *   const apiFunction = new LambdaFunction({
    *     // stp-focus
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/handlers/api.ts' }
    *     },
    *     // stp-end-focus
@@ -98,7 +99,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/orders.ts
    *       # stp-focus
@@ -123,7 +124,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *
    * export default defineConfig(() => {
    *   const ordersApi = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/orders.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/orders.ts' } },
    *     // stp-focus
    *     events: [
    *       { type: 'http-api-gateway', properties: { httpApiGatewayName: 'publicApi', method: 'POST', path: '/orders' } },
@@ -167,7 +168,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/worker.ts
    *       # stp-focus
@@ -188,7 +189,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *
    * export default defineConfig(() => {
    *   const worker = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/worker.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/worker.ts' } },
    *     // stp-focus
    *     environment: {
    *       STAGE: 'production',
@@ -207,7 +208,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *
    * ---
    *
-   * Auto-detected from your source file extension when using `stacktape-lambda-buildpack`.
+   * Auto-detected from your source file extension when using `js-bundle` or `buildpack` packaging.
    * Override only if you need a specific version.
    *
    * **Example (YAML):**
@@ -218,7 +219,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: buildpack
    *         properties:
    *           entryfilePath: src/report.py
    *       # stp-focus
@@ -235,7 +236,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *
    * export default defineConfig(() => {
    *   const reportGenerator = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/report.py' } },
+   *     packaging: { type: 'buildpack', properties: { entryfilePath: 'src/report.py' } },
    *     // stp-focus
    *     runtime: 'python3.13',
    *     // stp-end-focus
@@ -253,7 +254,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    * ---
    *
    * `arm64` is cheaper per GB-second and often faster. Works with most code out of the box.
-   * If using `stacktape-lambda-buildpack`, Stacktape builds for the selected architecture automatically.
+   * If using `js-bundle` or `buildpack` packaging, Stacktape builds for the selected architecture automatically.
    * With `custom-artifact`, you must pre-compile for the target architecture.
    *
    *
@@ -265,7 +266,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/resize.ts
    *       # stp-focus
@@ -281,7 +282,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *
    * export default defineConfig(() => {
    *   const imageResizer = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/resize.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/resize.ts' } },
    *     // stp-focus
    *     architecture: 'arm64',
    *     // stp-end-focus
@@ -311,7 +312,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/pdf.ts
    *       # stp-focus
@@ -327,7 +328,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *
    * export default defineConfig(() => {
    *   const pdfRenderer = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/pdf.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/pdf.ts' } },
    *     // stp-focus
    *     memory: 3538,
    *     // stp-end-focus
@@ -354,7 +355,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/import.ts
    *       memory: 512
@@ -370,7 +371,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *
    * export default defineConfig(() => {
    *   const dataImporter = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/import.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/import.ts' } },
    *     memory: 512,
    *     // stp-focus
    *     timeout: 300
@@ -406,7 +407,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/migrate.ts
    *       # stp-focus
@@ -438,7 +439,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *     engine: { type: 'postgres', properties: { version: '16.2', primaryInstance: { instanceSize: 'db.t3.micro' } } }
    *   });
    *   const dbMigrator = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/migrate.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/migrate.ts' } },
    *     // stp-focus
    *     joinDefaultVpc: true,
    *     // stp-end-focus
@@ -464,7 +465,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/billing.ts
    *       # stp-focus
@@ -483,7 +484,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *
    * export default defineConfig(() => {
    *   const billingFunction = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/billing.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/billing.ts' } },
    *     // stp-focus
    *     tags: [
    *       { name: 'team', value: 'payments' },
@@ -512,7 +513,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/process.ts
    *       # stp-focus
@@ -533,7 +534,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *
    * export default defineConfig(() => {
    *   const asyncProcessor = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/process.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/process.ts' } },
    *     // stp-focus
    *     destinations: {
    *       onSuccess: $ResourceParam('successTopic', 'arn'),
@@ -563,7 +564,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    *       # stp-focus
@@ -583,7 +584,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *
    * export default defineConfig(() => {
    *   const apiHandler = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
    *     // stp-focus
    *     logging: {
    *       retentionDays: 30,
@@ -617,7 +618,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/checkout.ts
    *       memory: 1024
@@ -641,7 +642,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *
    * export default defineConfig(() => {
    *   const checkoutApi = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/checkout.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/checkout.ts' } },
    *     memory: 1024,
    *     // stp-focus
    *     provisionedConcurrency: 5,
@@ -677,7 +678,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/write.ts
    *       # stp-focus
@@ -709,7 +710,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *     engine: { type: 'postgres', properties: { version: '16.2', primaryInstance: { instanceSize: 'db.t3.micro' } } }
    *   });
    *   const legacyDbWriter = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/write.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/write.ts' } },
    *     // stp-focus
    *     reservedConcurrency: 10,
    *     // stp-end-focus
@@ -736,7 +737,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/handler.ts
    *       # stp-focus
@@ -752,7 +753,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *
    * export default defineConfig(() => {
    *   const monitoredFunction = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/handler.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/handler.ts' } },
    *     // stp-focus
    *     layers: ['arn:aws:lambda:eu-west-1:464622532012:layer:Datadog-Extension:62']
    *     // stp-end-focus
@@ -778,7 +779,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/payment.ts
    *       # stp-focus
@@ -790,7 +791,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/smoke-test.ts
    * ```
@@ -802,7 +803,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *
    * export default defineConfig(() => {
    *   const paymentApi = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/payment.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/payment.ts' } },
    *     // stp-focus
    *     deployment: {
    *       strategy: 'Canary10Percent5Minutes',
@@ -811,7 +812,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *     // stp-end-focus
    *   });
    *   const smokeTest = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/smoke-test.ts' } }
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/smoke-test.ts' } }
    *   });
    *   return { resources: { paymentApi, smokeTest } };
    * });
@@ -831,7 +832,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/critical.ts
    *       # stp-focus
@@ -855,7 +856,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *
    * export default defineConfig(() => {
    *   const criticalApi = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/critical.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/critical.ts' } },
    *     // stp-focus
    *     alarms: [
    *       {
@@ -893,7 +894,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/worker.ts
    *       # stp-focus
@@ -908,7 +909,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *
    * export default defineConfig(() => {
    *   const noisyWorker = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/worker.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/worker.ts' } },
    *     // stp-focus
    *     tracing: false
    *     // stp-end-focus
@@ -934,7 +935,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/batch.ts
    *       timeout: 300
@@ -951,7 +952,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *
    * export default defineConfig(() => {
    *   const batchReporter = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/batch.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/batch.ts' } },
    *     timeout: 300,
    *     // stp-focus
    *     disabledGlobalAlarms: ['lambda-duration-global']
@@ -978,7 +979,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/webhook.ts
    *       # stp-focus
@@ -995,7 +996,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *
    * export default defineConfig(() => {
    *   const webhookReceiver = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/webhook.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/webhook.ts' } },
    *     // stp-focus
    *     url: { enabled: true, authMode: 'NONE' }
    *     // stp-end-focus
@@ -1020,7 +1021,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/render.ts
    *       memory: 1024
@@ -1039,7 +1040,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *
    * export default defineConfig(() => {
    *   const ssrFunction = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/render.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/render.ts' } },
    *     memory: 1024,
    *     url: { enabled: true },
    *     // stp-focus
@@ -1067,7 +1068,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/transcode.ts
    *       memory: 3008
@@ -1084,7 +1085,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *
    * export default defineConfig(() => {
    *   const videoTranscoder = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/transcode.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/transcode.ts' } },
    *     memory: 3008,
    *     timeout: 600,
    *     // stp-focus
@@ -1115,7 +1116,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/handler.ts
    *       joinDefaultVpc: true
@@ -1137,7 +1138,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *
    * export default defineConfig(() => {
    *   const sharedDataFunction = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/handler.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/handler.ts' } },
    *     joinDefaultVpc: true,
    *     // stp-focus
    *     volumeMounts: [
@@ -1168,7 +1169,7 @@ export interface LambdaUrlConfig {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/public.ts
    *       url:
@@ -1184,7 +1185,7 @@ export interface LambdaUrlConfig {
    *
    * export default defineConfig(() => {
    *   const publicFunction = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/public.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/public.ts' } },
    *     url: {
    *       // stp-focus
    *       enabled: true
@@ -1209,7 +1210,7 @@ export interface LambdaUrlConfig {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    *       url:
@@ -1229,7 +1230,7 @@ export interface LambdaUrlConfig {
    *
    * export default defineConfig(() => {
    *   const apiFunction = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
    *     url: {
    *       enabled: true,
    *       // stp-focus
@@ -1259,7 +1260,7 @@ export interface LambdaUrlConfig {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/internal.ts
    *       url:
@@ -1276,7 +1277,7 @@ export interface LambdaUrlConfig {
    *
    * export default defineConfig(() => {
    *   const internalFunction = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/internal.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/internal.ts' } },
    *     url: {
    *       enabled: true,
    *       // stp-focus
@@ -1307,7 +1308,7 @@ export interface LambdaUrlConfig {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/stream.ts
    *       memory: 1024
@@ -1325,7 +1326,7 @@ export interface LambdaUrlConfig {
    *
    * export default defineConfig(() => {
    *   const streamingFunction = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/stream.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/stream.ts' } },
    *     memory: 1024,
    *     url: {
    *       enabled: true,
@@ -1356,7 +1357,7 @@ export interface LambdaUrlCorsConfig {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    *       url:
@@ -1374,7 +1375,7 @@ export interface LambdaUrlCorsConfig {
    *
    * export default defineConfig(() => {
    *   const apiFunction = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
    *     url: {
    *       enabled: true,
    *       cors: {
@@ -1403,7 +1404,7 @@ export interface LambdaUrlCorsConfig {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    *       url:
@@ -1424,7 +1425,7 @@ export interface LambdaUrlCorsConfig {
    *
    * export default defineConfig(() => {
    *   const apiFunction = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
    *     url: {
    *       enabled: true,
    *       cors: {
@@ -1455,7 +1456,7 @@ export interface LambdaUrlCorsConfig {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    *       url:
@@ -1478,7 +1479,7 @@ export interface LambdaUrlCorsConfig {
    *
    * export default defineConfig(() => {
    *   const apiFunction = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
    *     url: {
    *       enabled: true,
    *       cors: {
@@ -1508,7 +1509,7 @@ export interface LambdaUrlCorsConfig {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    *       url:
@@ -1532,7 +1533,7 @@ export interface LambdaUrlCorsConfig {
    *
    * export default defineConfig(() => {
    *   const apiFunction = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
    *     url: {
    *       enabled: true,
    *       cors: {
@@ -1562,7 +1563,7 @@ export interface LambdaUrlCorsConfig {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    *       url:
@@ -1583,7 +1584,7 @@ export interface LambdaUrlCorsConfig {
    *
    * export default defineConfig(() => {
    *   const apiFunction = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
    *     url: {
    *       enabled: true,
    *       cors: {
@@ -1613,7 +1614,7 @@ export interface LambdaUrlCorsConfig {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    *       url:
@@ -1635,7 +1636,7 @@ export interface LambdaUrlCorsConfig {
    *
    * export default defineConfig(() => {
    *   const apiFunction = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
    *     url: {
    *       enabled: true,
    *       cors: {
@@ -1665,7 +1666,7 @@ export interface LambdaUrlCorsConfig {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    *       url:
@@ -1686,7 +1687,7 @@ export interface LambdaUrlCorsConfig {
    *
    * export default defineConfig(() => {
    *   const apiFunction = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
    *     url: {
    *       enabled: true,
    *       cors: {
@@ -1724,7 +1725,7 @@ export interface LambdaDeploymentConfig {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/payment.ts
    *       deployment:
@@ -1740,7 +1741,7 @@ export interface LambdaDeploymentConfig {
    *
    * export default defineConfig(() => {
    *   const paymentApi = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/payment.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/payment.ts' } },
    *     deployment: {
    *       // stp-focus
    *       strategy: 'Linear10PercentEvery2Minutes'
@@ -1776,7 +1777,7 @@ export interface LambdaDeploymentConfig {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/payment.ts
    *       deployment:
@@ -1788,7 +1789,7 @@ export interface LambdaDeploymentConfig {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/pre-traffic.ts
    * ```
@@ -1800,7 +1801,7 @@ export interface LambdaDeploymentConfig {
    *
    * export default defineConfig(() => {
    *   const paymentApi = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/payment.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/payment.ts' } },
    *     deployment: {
    *       strategy: 'Canary10Percent5Minutes',
    *       // stp-focus
@@ -1809,7 +1810,7 @@ export interface LambdaDeploymentConfig {
    *     }
    *   });
    *   const preTrafficCheck = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/pre-traffic.ts' } }
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/pre-traffic.ts' } }
    *   });
    *   return { resources: { paymentApi, preTrafficCheck } };
    * });
@@ -1831,7 +1832,7 @@ export interface LambdaDeploymentConfig {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/payment.ts
    *       deployment:
@@ -1843,7 +1844,7 @@ export interface LambdaDeploymentConfig {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/post-traffic.ts
    * ```
@@ -1855,7 +1856,7 @@ export interface LambdaDeploymentConfig {
    *
    * export default defineConfig(() => {
    *   const paymentApi = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/payment.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/payment.ts' } },
    *     deployment: {
    *       strategy: 'Canary10Percent5Minutes',
    *       // stp-focus
@@ -1864,7 +1865,7 @@ export interface LambdaDeploymentConfig {
    *     }
    *   });
    *   const postTrafficCheck = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/post-traffic.ts' } }
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/post-traffic.ts' } }
    *   });
    *   return { resources: { paymentApi, postTrafficCheck } };
    * });
@@ -1888,7 +1889,7 @@ export interface LambdaFunctionDestinations {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/worker.ts
    *       destinations:
@@ -1906,7 +1907,7 @@ export interface LambdaFunctionDestinations {
    *
    * export default defineConfig(() => {
    *   const asyncWorker = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/worker.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/worker.ts' } },
    *     destinations: {
    *       // stp-focus
    *       onSuccess: $ResourceParam('resultsTopic', 'arn')
@@ -1932,7 +1933,7 @@ export interface LambdaFunctionDestinations {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/worker.ts
    *       destinations:
@@ -1950,7 +1951,7 @@ export interface LambdaFunctionDestinations {
    *
    * export default defineConfig(() => {
    *   const asyncWorker = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/worker.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/worker.ts' } },
    *     destinations: {
    *       // stp-focus
    *       onFailure: $ResourceParam('failureQueue', 'arn')
@@ -1981,7 +1982,7 @@ export interface LambdaFunctionLogging extends LogForwardingBase {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/handler.ts
    *       logging:
@@ -1997,7 +1998,7 @@ export interface LambdaFunctionLogging extends LogForwardingBase {
    *
    * export default defineConfig(() => {
    *   const highVolumeFunction = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/handler.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/handler.ts' } },
    *     logging: {
    *       // stp-focus
    *       disabled: true
@@ -2025,7 +2026,7 @@ export interface LambdaFunctionLogging extends LogForwardingBase {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/audit.ts
    *       logging:
@@ -2041,7 +2042,7 @@ export interface LambdaFunctionLogging extends LogForwardingBase {
    *
    * export default defineConfig(() => {
    *   const auditFunction = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/audit.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/audit.ts' } },
    *     logging: {
    *       // stp-focus
    *       retentionDays: 365
@@ -2072,7 +2073,7 @@ export interface LambdaEfsMount {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/media.ts
    *       joinDefaultVpc: true
@@ -2094,7 +2095,7 @@ export interface LambdaEfsMount {
    *
    * export default defineConfig(() => {
    *   const mediaProcessor = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/media.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/media.ts' } },
    *     joinDefaultVpc: true,
    *     volumeMounts: [
    *       {
@@ -2124,7 +2125,7 @@ export interface LambdaEfsMount {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/media.ts
    *       joinDefaultVpc: true
@@ -2146,7 +2147,7 @@ export interface LambdaEfsMount {
    *
    * export default defineConfig(() => {
    *   const mediaProcessor = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/media.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/media.ts' } },
    *     joinDefaultVpc: true,
    *     volumeMounts: [
    *       {
@@ -2180,7 +2181,7 @@ export interface LambdaEfsMountProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/media.ts
    *       joinDefaultVpc: true
@@ -2202,7 +2203,7 @@ export interface LambdaEfsMountProps {
    *
    * export default defineConfig(() => {
    *   const mediaProcessor = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/media.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/media.ts' } },
    *     joinDefaultVpc: true,
    *     volumeMounts: [
    *       {
@@ -2237,7 +2238,7 @@ export interface LambdaEfsMountProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/media.ts
    *       joinDefaultVpc: true
@@ -2260,7 +2261,7 @@ export interface LambdaEfsMountProps {
    *
    * export default defineConfig(() => {
    *   const mediaProcessor = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/media.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/media.ts' } },
    *     joinDefaultVpc: true,
    *     volumeMounts: [
    *       {
@@ -2297,7 +2298,7 @@ export interface LambdaEfsMountProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/media.ts
    *       joinDefaultVpc: true
@@ -2319,7 +2320,7 @@ export interface LambdaEfsMountProps {
    *
    * export default defineConfig(() => {
    *   const mediaProcessor = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/media.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/media.ts' } },
    *     joinDefaultVpc: true,
    *     volumeMounts: [
    *       {
@@ -2356,7 +2357,7 @@ export interface LambdaS3FilesMount {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/read.ts
    *       joinDefaultVpc: true
@@ -2376,7 +2377,7 @@ export interface LambdaS3FilesMount {
    *
    * export default defineConfig(() => {
    *   const datasetReader = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/read.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/read.ts' } },
    *     joinDefaultVpc: true,
    *     volumeMounts: [
    *       {
@@ -2405,7 +2406,7 @@ export interface LambdaS3FilesMount {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/read.ts
    *       joinDefaultVpc: true
@@ -2425,7 +2426,7 @@ export interface LambdaS3FilesMount {
    *
    * export default defineConfig(() => {
    *   const datasetReader = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/read.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/read.ts' } },
    *     joinDefaultVpc: true,
    *     volumeMounts: [
    *       {
@@ -2458,7 +2459,7 @@ export interface LambdaS3FilesMountProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/read.ts
    *       joinDefaultVpc: true
@@ -2478,7 +2479,7 @@ export interface LambdaS3FilesMountProps {
    *
    * export default defineConfig(() => {
    *   const datasetReader = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/read.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/read.ts' } },
    *     joinDefaultVpc: true,
    *     volumeMounts: [
    *       {
@@ -2511,7 +2512,7 @@ export interface LambdaS3FilesMountProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/read.ts
    *       joinDefaultVpc: true
@@ -2531,7 +2532,7 @@ export interface LambdaS3FilesMountProps {
    *
    * export default defineConfig(() => {
    *   const datasetReader = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/read.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/read.ts' } },
    *     joinDefaultVpc: true,
    *     volumeMounts: [
    *       {

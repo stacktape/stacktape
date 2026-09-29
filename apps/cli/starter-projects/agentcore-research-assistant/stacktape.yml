@@ -4,7 +4,7 @@ resources:
     properties:
       description: Research agent with managed browser automation and persistent research memory.
       packaging:
-        type: custom-dockerfile
+        type: dockerfile
         properties:
           buildContextPath: ./
       useMemory: researchMemory

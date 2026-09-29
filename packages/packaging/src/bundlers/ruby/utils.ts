@@ -1,4 +1,3 @@
-import type { RubyLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
 import { STACKTAPE_LANGUAGE_SOURCE_GLOBS } from '../../artifact/language-build-context';
 import { getBundleDigestFromGlobs, getSourceFilesFromGlobs } from '../digest';
 
@@ -18,14 +17,12 @@ export const getBundleDigest = ({
   externalDependencies,
   additionalDigestInput,
   rawEntryfilePath,
-  languageSpecificConfig,
   lambdaZip
 }: {
   rootPath: string;
   externalDependencies: { name: string; version: string }[];
   additionalDigestInput?: string | undefined;
   rawEntryfilePath: string;
-  languageSpecificConfig?: RubyLanguageSpecificConfig | undefined;
   lambdaZip?: boolean | undefined;
 }) =>
   getBundleDigestFromGlobs({
@@ -35,7 +32,6 @@ export const getBundleDigest = ({
     externalDependencies,
     additionalDigestInput,
     rawEntryfilePath,
-    languageSpecificConfig,
     lambdaZip
   });
 

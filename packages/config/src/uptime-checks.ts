@@ -30,7 +30,7 @@ export interface UptimeCheckProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       resources:
@@ -53,7 +53,7 @@ export interface UptimeCheckProps {
    * export default defineConfig(() => {
    *   const api = new WebService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/server.ts' }
    *     },
    *     resources: { cpu: 0.25, memory: 512 }

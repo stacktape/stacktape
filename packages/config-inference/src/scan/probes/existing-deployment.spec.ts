@@ -142,7 +142,7 @@ describe('the existing-deployment probe', () => {
     expect(composed.config.resources.api).toMatchObject({
       type: 'web-service',
       properties: {
-        packaging: { properties: { startCmd: 'node src/index.js' } },
+        packaging: { type: 'buildpack', properties: { startCommand: 'node src/index.js' } },
         connectTo: ['mainDatabase'],
         environment: [
           {

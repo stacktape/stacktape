@@ -105,7 +105,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./src/worker.ts
       joinDefaultVpc: true
@@ -127,7 +127,7 @@ export default defineConfig(() => {
 
   const worker = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: './src/worker.ts' }
     },
     joinDefaultVpc: true,
@@ -161,7 +161,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./src/worker.ts
       joinDefaultVpc: true
@@ -185,7 +185,7 @@ export default defineConfig(() => {
 
   const worker = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: './src/worker.ts' }
     },
     joinDefaultVpc: true,
@@ -297,7 +297,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./src/worker.ts
       joinDefaultVpc: true
@@ -320,7 +320,7 @@ export default defineConfig(() => {
 
   const worker = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: './src/worker.ts' }
     },
     joinDefaultVpc: true,
@@ -360,7 +360,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./src/worker.ts
       joinDefaultVpc: true
@@ -384,7 +384,7 @@ export default defineConfig(() => {
 
   const worker = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: './src/worker.ts' }
     },
     joinDefaultVpc: true,
@@ -500,7 +500,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./src/worker.ts
       joinDefaultVpc: true
@@ -523,7 +523,7 @@ export default defineConfig(() => {
 
   const worker = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: './src/worker.ts' }
     },
     joinDefaultVpc: true,
@@ -559,7 +559,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./src/worker.ts
       joinDefaultVpc: true
@@ -583,7 +583,7 @@ export default defineConfig(() => {
 
   const worker = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: './src/worker.ts' }
     },
     joinDefaultVpc: true,
@@ -617,7 +617,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./src/worker.ts
       joinDefaultVpc: true
@@ -639,7 +639,7 @@ export default defineConfig(() => {
 
   const worker = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: './src/worker.ts' }
     },
     joinDefaultVpc: true,

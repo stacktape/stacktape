@@ -30,11 +30,11 @@ import {
   defineConfig,
   AgentCoreGateway,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const orderLookupFn = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/order-lookup.ts'
     }),
     memory: 512,
@@ -88,17 +88,17 @@ import {
   defineConfig,
   AgentCoreGateway,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const orderFn = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/orders.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/orders.ts' }),
     memory: 512,
     timeout: 30
   });
 
   const inventoryFn = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/inventory.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/inventory.ts' }),
     memory: 256,
     timeout: 15
   });
@@ -190,12 +190,12 @@ import {
   AgentCoreGateway,
   AgentCoreRuntime,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  CustomDockerfilePackaging
+  JsBundleLambdaPackaging,
+  DockerfilePackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const getCustomerProfile = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/get-customer-profile.ts'
     }),
     memory: 512,
@@ -203,7 +203,7 @@ export default defineConfig(() => {
   });
 
   const createSupportTicket = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/create-support-ticket.ts'
     }),
     memory: 512,
@@ -257,7 +257,7 @@ export default defineConfig(() => {
 
   const supportAgent = new AgentCoreRuntime({
     description: 'Customer support agent with governed business tools',
-    packaging: new CustomDockerfilePackaging({ buildContextPath: './agent' }),
+    packaging: new DockerfilePackaging({ buildContextPath: './agent' }),
     useGateway: 'supportGateway',
     environment: {
       AI_MODEL: 'eu.amazon.nova-micro-v1:0',
@@ -348,7 +348,7 @@ import {
   defineConfig,
   AgentCoreGateway,
   AgentCoreRuntime,
-  CustomDockerfilePackaging
+  DockerfilePackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const toolGateway = new AgentCoreGateway({
@@ -357,7 +357,7 @@ export default defineConfig(() => {
   });
 
   const agentRuntime = new AgentCoreRuntime({
-    packaging: new CustomDockerfilePackaging({
+    packaging: new DockerfilePackaging({
       buildContextPath: './agent'
     }),
     protocol: 'MCP',

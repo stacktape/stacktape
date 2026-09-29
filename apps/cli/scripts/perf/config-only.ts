@@ -7,7 +7,7 @@
  * - `base`: the configuration the fixture is generated with;
  * - `deployment-edit`: every function's `CONFIG_REVISION` environment value changed, which is deployment configuration;
  * - `base-after-deployment-edit`: the bytes the edit replaced, written back;
- * - `packaging-edit`: `languageSpecificConfig.minify: false` added to every function's buildpack, a packaging input;
+ * - `packaging-edit`: `minify: false` added to every function's `js-bundle` properties, a packaging input;
  * - `base-after-packaging-edit`: the replaced bytes written back again.
  * An edit and its revert run back to back. The three blocks (base, the deployment pair, the packaging pair) rotate per
  * round, and so do the fixture sizes.
@@ -105,7 +105,7 @@ const REVISION_LINE = '          value: fixture-base';
 const EDITED_REVISION_LINE = '          value: fixture-edited';
 const INVALID_REVISION_LINE = '          value: [fixture-invalid]';
 const ENTRYFILE_LINE_PREFIX = '          entryfilePath: ';
-const MINIFY_LINES = ['          languageSpecificConfig:', '            minify: false'];
+const MINIFY_LINES = ['          minify: false'];
 
 /** The base configuration with each edit applied once per function; anything else refuses to produce a variant. */
 export const configVariantText = ({
@@ -192,8 +192,7 @@ const intendedParse = (base: ParsedConfig, variant: ConfigVariant): ParsedConfig
     if (variant === CONFIG_CONTROL) {
       resource.properties!.environment = [{ name: 'CONFIG_REVISION', value: ['fixture-invalid'] }];
     }
-    if (variant === 'packaging-edit')
-      resource.properties!.packaging!.properties!.languageSpecificConfig = { minify: false };
+    if (variant === 'packaging-edit') resource.properties!.packaging!.properties!.minify = false;
   }
   return copy;
 };
@@ -245,8 +244,8 @@ export const describeConfigVariant = ({
     problems.push(`it names ${resources.join(', ') || 'no resource'}, not ${functionNames.join(', ')}`);
   }
   for (const [name, resource] of Object.entries(parsed?.resources ?? {})) {
-    if (resource.type !== 'function' || resource.properties?.packaging?.type !== 'stacktape-lambda-buildpack') {
-      problems.push(`${name} is not a function packaged by stacktape-lambda-buildpack`);
+    if (resource.type !== 'function' || resource.properties?.packaging?.type !== 'js-bundle') {
+      problems.push(`${name} is not a function packaged by js-bundle`);
     }
   }
   if (parsedBase && parsed) {

@@ -374,7 +374,7 @@ export const buildBinaryFile = async ({
 };
 
 /**
- * pack, nixpacks and the Session Manager plugin are downloaded on first use (`src/utils/external-tools.ts`). The one
+ * railpack and the Session Manager plugin are downloaded on first use (`src/utils/external-tools.ts`). The one
  * exception is the plugin on Windows, where AWS publishes only an installer: that archive keeps shipping it.
  */
 export const copySessionsManagerPluginBinary = async ({

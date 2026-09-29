@@ -28,10 +28,10 @@ This example defines an edge function packaged from a TypeScript entry file. The
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, EdgeLambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, EdgeLambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const edgeAuth = new EdgeLambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/edge-auth.ts',
       handlerFunction: 'handler'
     }),
@@ -63,11 +63,11 @@ Use the viewer-event shape for lightweight request decisions that only need head
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, EdgeLambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, EdgeLambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const edgeRewrite = new EdgeLambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/edge-rewrite.ts',
       handlerFunction: 'handler'
     }),
@@ -84,24 +84,25 @@ export default defineConfig(() => {
 
 ## Packaging
 
-Edge functions use Lambda packaging, not container packaging. Stacktape supports the same two Lambda packaging modes shown in the function packaging docs: `stacktape-lambda-buildpack` for source-based packaging and `custom-artifact` for a pre-built deployment package. Most teams should start with the buildpack and switch only when they already own a separate build pipeline.
+Edge functions use Lambda packaging, not container packaging. Edge functions run Node.js or Python, so two source-based packaging types apply: `js-bundle` for JavaScript and TypeScript and `buildpack` for Python. `custom-artifact` takes a pre-built deployment package. Most teams should start with source-based packaging and switch only when they already own a separate build pipeline.
 
-| Mode | When to use |
+| Type | When to use |
 |------|-------------|
-| [Stacktape Lambda buildpack](/packaging/function/stacktape-buildpack) | Package JS/TS, Python, Java, Go, Ruby, PHP, or .NET from an entry file |
-| [Custom artifact](/packaging/function/custom-artifact) | Provide a pre-built Lambda zip, directory, or file from your own build process |
+| [`js-bundle`](/packaging/function/js-bundle) | Bundle a JavaScript or TypeScript entry file |
+| [`buildpack`](/packaging/function/buildpack) | Package a Python entry file and its dependencies |
+| [`custom-artifact`](/packaging/function/custom-artifact) | Provide a pre-built Lambda zip, directory, or file from your own build process |
 
-The buildpack is the default choice for most teams. Point `entryfilePath` at your source file and optionally set `handlerFunction` to name the exported handler. Stacktape bundles and uploads the package automatically.
+`js-bundle` is the default choice for most teams. Point `entryfilePath` at your source file and optionally set `handlerFunction` to name the exported handler. Stacktape bundles and uploads the package automatically.
 
 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, EdgeLambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, EdgeLambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const edgeRewrite = new EdgeLambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/edge-rewrite.ts',
       handlerFunction: 'handler'
     })
@@ -145,14 +146,14 @@ import {
   defineConfig,
   Bucket,
   EdgeLambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
   const assets = new Bucket({});
 
   const edgeRewrite = new EdgeLambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/edge-rewrite.ts',
       handlerFunction: 'handler'
     }),
@@ -213,7 +214,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 
 | Property | Required | Type | Default |
 | --- | --- | --- | --- |
-| `packaging` | yes | `stacktape-lambda-buildpack \| custom-artifact` | - |
+| `packaging` | yes | `js-bundle \| buildpack \| custom-artifact` | - |
 | `connectTo` | no | `Array<string>` | - |
 | `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | - |
 | `logging` | no | `LambdaFunctionLogging` | - |

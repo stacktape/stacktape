@@ -131,7 +131,7 @@ export interface ApplicationLoadBalancerCustomTriggerProps extends TriggerWithCu
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       resources:
@@ -170,7 +170,7 @@ export interface ApplicationLoadBalancerCustomTriggerProps extends TriggerWithCu
    * export default defineConfig(() => {
    *   const webApi = new WebService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     resources: { cpu: 0.25, memory: 512 }
@@ -227,7 +227,7 @@ export interface ApplicationLoadBalancerCustomTriggerProps extends TriggerWithCu
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       resources:
@@ -266,7 +266,7 @@ export interface ApplicationLoadBalancerCustomTriggerProps extends TriggerWithCu
    * export default defineConfig(() => {
    *   const webApi = new WebService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     resources: { cpu: 0.25, memory: 512 }

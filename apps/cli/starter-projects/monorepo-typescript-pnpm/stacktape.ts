@@ -1,9 +1,9 @@
 import {
   HttpApiGateway,
   HttpApiIntegration,
+  JsBundleImagePackaging,
+  JsBundleLambdaPackaging,
   LambdaFunction,
-  StacktapeImageBuildpackPackaging,
-  StacktapeLambdaBuildpackPackaging,
   WebService,
   defineConfig
 } from '../../__release-npm';
@@ -18,12 +18,12 @@ export default defineConfig(() => {
         path: '/{proxy+}'
       })
     ],
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: 'packages/lambda/src/index.ts'
     })
   });
   const myServer = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: 'packages/server/src/index.ts'
     }),
     resources: {

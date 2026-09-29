@@ -13,9 +13,9 @@ Choose custom artifact packaging when:
 
 ## When NOT to use
 
-Skip custom artifact packaging if you're writing TypeScript, JavaScript, Python, Java, Go, Ruby, PHP, or .NET and don't have a custom build step — the [Stacktape buildpack](/packaging/function/stacktape-buildpack) is simpler. For JS/TS, the buildpack bundles code into a single file and automatically generates source maps — no build configuration beyond an entry file path.
+Skip custom artifact packaging if you don't have a custom build step. For JavaScript and TypeScript, [`js-bundle`](/packaging/function/js-bundle) bundles the code into a single file with source maps from an entry file path. For Python, Java, Go, Ruby, .NET and Rust, [`buildpack`](/packaging/function/buildpack) installs dependencies and compiles the code for you.
 
-Use the buildpack if you want Stacktape to manage the build. Use custom artifact if you manage the build yourself.
+Use `js-bundle` or `buildpack` if you want Stacktape to manage the build. Use custom artifact if you manage the build yourself.
 
 ## Basic example
 
@@ -136,27 +136,26 @@ export default defineConfig(() => {
 
 Stacktape zips the directory before deployment. Make sure the file referenced by `handler` is located at the expected path inside the package — in this case, `app.py` must be at the root of the `./lambda-build` directory. As with the previous example, `memory` and `timeout` are [Lambda function](/resources/compute/lambda-function) settings configured alongside packaging.
 
-## Comparison with Stacktape buildpack
+## Comparison with other Lambda packaging types
 
-| | Custom Artifact | Stacktape Buildpack |
-|---|---|---|
-| **Build responsibility** | You build the artifact | Stacktape builds from source |
-| **Configuration** | `packagePath` + optional `handler` | `entryfilePath` + language config |
-| **Supported languages** | Any Lambda-compatible artifact you build yourself | JS, TS, Python, Java, Go, Ruby, PHP, .NET |
-| **JS/TS bundling** | Your responsibility | Automatic single-file bundle, minified |
-| **Source maps** | Your responsibility | Automatic (JS/TS) |
-| **Shared code between functions** | Your responsibility | Moved into a shared Lambda layer automatically |
-| **Best for** | Custom build processes, pre-built CI artifacts | Standard app code with minimal config |
+| | `custom-artifact` | [`js-bundle`](/packaging/function/js-bundle) | [`buildpack`](/packaging/function/buildpack) |
+|---|---|---|---|
+| **Build responsibility** | You build the artifact | Stacktape bundles from source | Stacktape builds from source in Docker |
+| **Configuration** | `packagePath` + optional `handler` | `entryfilePath` + bundling options | `entryfilePath` + `runtime` + language options |
+| **Supported languages** | Any Lambda-compatible artifact you build yourself | JavaScript, TypeScript | Python, Java, Go, Ruby, .NET, Rust |
+| **Source maps** | Your responsibility | Automatic | Not applicable |
+| **Shared code between functions** | Your responsibility | Moved into a shared Lambda layer automatically | Not shared |
+| **Best for** | Custom build processes, pre-built CI artifacts | Node.js functions | Other languages with standard dependency files |
 
 
-> **Info:** Both packaging modes produce a Lambda deployment package. The difference is who builds the artifact — you or Stacktape.
+> **Info:** All three packaging types produce a Lambda deployment package. The difference is who builds the artifact: you or Stacktape.
 
 
 ## FAQ
 
-### When should I use custom artifact instead of the Stacktape buildpack?
+### When should I use custom artifact instead of `js-bundle` or `buildpack`?
 
-Use custom artifact packaging when your project has a custom build process that the buildpack can't replicate, or when your CI pipeline already produces a tested zip and you want Stacktape to deploy it directly. If you're writing standard TypeScript or Python without special build requirements, the [Stacktape buildpack](/packaging/function/stacktape-buildpack) is simpler and handles bundling automatically.
+Use custom artifact packaging when your project has a custom build process that Stacktape can't replicate, or when your CI pipeline already produces a tested zip and you want Stacktape to deploy it directly. For standard TypeScript or Python code, [`js-bundle`](/packaging/function/js-bundle) and [`buildpack`](/packaging/function/buildpack) are simpler.
 
 ### Do I have to zip my artifact myself?
 

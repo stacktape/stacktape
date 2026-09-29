@@ -115,7 +115,7 @@ Use `$ResourceParam` to pass the Convex cloud origin URL to another workload as 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, Convex, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, Convex, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const myConvex = new Convex({
     appDirectory: './convex',
@@ -134,7 +134,7 @@ export default defineConfig(() => {
   });
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     environment: {

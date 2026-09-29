@@ -36,7 +36,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/audit-logger.ts
       events:
@@ -63,7 +63,7 @@ export default defineConfig(() => {
 
   const auditLogger = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/audit-logger.ts' }
     },
     events: [
@@ -100,7 +100,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/handle-partner-event.ts
       events:
@@ -124,7 +124,7 @@ export default defineConfig(() => {
 
   const partnerHandler = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/handle-partner-event.ts' }
     },
     events: [

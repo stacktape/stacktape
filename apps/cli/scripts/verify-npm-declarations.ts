@@ -31,21 +31,21 @@ import { cfnResource as cfnResourceFromSubpath } from '${entry('cloudformation')
 import type { AnyCloudFormationResource, Intrinsic } from '${entry('cloudformation')}';
 
 const api = new LambdaFunction({
-  packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } }
+  packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } }
 });
 const site = new WebService({
-  packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: 'src/server.ts' } },
+  packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/server.ts' } },
   resources: { cpu: 0.25, memory: 512 }
 });
 const uploads = new Bucket({ versioning: true });
 const gateway = new HttpApiGateway({});
 const route = new HttpApiIntegration({ httpApiGatewayName: gateway, method: 'GET', path: '/' });
 const namedConnection = new LambdaFunction({
-  packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/named.ts' } },
+  packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/named.ts' } },
   connectTo: ['uploads']
 });
 const invalidConnection = new LambdaFunction({
-  packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/invalid.ts' } },
+  packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/invalid.ts' } },
   // @ts-expect-error Lambda functions cannot connect to an HTTP API Gateway object
   connectTo: [gateway]
 });

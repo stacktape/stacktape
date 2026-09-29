@@ -42,7 +42,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
       events:
@@ -66,7 +66,7 @@ export default defineConfig(() => {
   const authPool = new UserAuthPool({ userVerificationType: 'email-code' });
   const httpApi = new HttpApiGateway({});
   const apiFunction = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
     events: [
       {
         type: 'http-api-gateway',
@@ -116,7 +116,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
       events:
@@ -142,7 +142,7 @@ export default defineConfig(() => {
   const authPool = new UserAuthPool({ userVerificationType: 'email-code' });
   const httpApi = new HttpApiGateway({});
   const apiFunction = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
     events: [
       {
         type: 'http-api-gateway',

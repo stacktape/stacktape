@@ -44,13 +44,13 @@ import {
   LambdaFunction,
   HttpApiGateway,
   HttpApiIntegration,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const apiGateway = new HttpApiGateway({});
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     events: [
@@ -111,13 +111,13 @@ import {
   LambdaFunction,
   ApplicationLoadBalancer,
   ApplicationLoadBalancerIntegration,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const alb = new ApplicationLoadBalancer({});
 
   const usersApi = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/users.ts'
     }),
     events: [

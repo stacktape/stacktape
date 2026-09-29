@@ -40,7 +40,7 @@ resources:
       containers:
         - name: web
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/index.ts
           events:
@@ -60,7 +60,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/smoke-test.ts
 ```
@@ -68,16 +68,16 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, ApplicationLoadBalancer, LambdaFunction, StacktapeImageBuildpackPackaging, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, ApplicationLoadBalancer, LambdaFunction, defineConfig, JsBundleLambdaPackaging, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const appLb = new ApplicationLoadBalancer({});
-  const smokeTest = new LambdaFunction({ packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/smoke-test.ts' }) });
+  const smokeTest = new LambdaFunction({ packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/smoke-test.ts' }) });
   const app = new MultiContainerWorkload({
     containers: [
       {
         name: 'web',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/index.ts' }),
+        packaging: new JsBundleImagePackaging({ entryfilePath: 'src/index.ts' }),
         events: [
           { type: 'application-load-balancer', properties: { loadBalancerName: 'appLb', priority: 1, containerPort: 3000 } }
         ]
@@ -109,7 +109,7 @@ resources:
       containers:
         - name: web
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/index.ts
           events:
@@ -130,7 +130,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/smoke-test.ts
 ```
@@ -138,16 +138,16 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, ApplicationLoadBalancer, LambdaFunction, StacktapeImageBuildpackPackaging, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, ApplicationLoadBalancer, LambdaFunction, defineConfig, JsBundleLambdaPackaging, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const appLb = new ApplicationLoadBalancer({});
-  const smokeTest = new LambdaFunction({ packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/smoke-test.ts' }) });
+  const smokeTest = new LambdaFunction({ packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/smoke-test.ts' }) });
   const app = new MultiContainerWorkload({
     containers: [
       {
         name: 'web',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/index.ts' }),
+        packaging: new JsBundleImagePackaging({ entryfilePath: 'src/index.ts' }),
         events: [
           { type: 'application-load-balancer', properties: { loadBalancerName: 'appLb', priority: 1, containerPort: 3000 } }
         ]
@@ -180,7 +180,7 @@ resources:
       containers:
         - name: web
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/index.ts
           events:
@@ -201,7 +201,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/smoke-test.ts
 ```
@@ -209,16 +209,16 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, ApplicationLoadBalancer, LambdaFunction, StacktapeImageBuildpackPackaging, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, ApplicationLoadBalancer, LambdaFunction, defineConfig, JsBundleLambdaPackaging, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const appLb = new ApplicationLoadBalancer({});
-  const smokeTest = new LambdaFunction({ packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/smoke-test.ts' }) });
+  const smokeTest = new LambdaFunction({ packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/smoke-test.ts' }) });
   const app = new MultiContainerWorkload({
     containers: [
       {
         name: 'web',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/index.ts' }),
+        packaging: new JsBundleImagePackaging({ entryfilePath: 'src/index.ts' }),
         events: [
           { type: 'application-load-balancer', properties: { loadBalancerName: 'appLb', priority: 1, containerPort: 3000 } }
         ]
@@ -251,7 +251,7 @@ resources:
       containers:
         - name: web
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/index.ts
           events:
@@ -273,7 +273,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/smoke-test.ts
 ```
@@ -281,16 +281,16 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, ApplicationLoadBalancer, LambdaFunction, StacktapeImageBuildpackPackaging, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, ApplicationLoadBalancer, LambdaFunction, defineConfig, JsBundleLambdaPackaging, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const appLb = new ApplicationLoadBalancer({});
-  const smokeTest = new LambdaFunction({ packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/smoke-test.ts' }) });
+  const smokeTest = new LambdaFunction({ packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/smoke-test.ts' }) });
   const app = new MultiContainerWorkload({
     containers: [
       {
         name: 'web',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/index.ts' }),
+        packaging: new JsBundleImagePackaging({ entryfilePath: 'src/index.ts' }),
         events: [
           { type: 'application-load-balancer', properties: { loadBalancerName: 'appLb', priority: 1, containerPort: 3000 } }
         ]

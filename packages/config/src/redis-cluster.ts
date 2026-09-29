@@ -40,7 +40,7 @@ export interface RedisClusterProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: ./src/worker.ts
    *       joinDefaultVpc: true
@@ -66,7 +66,7 @@ export interface RedisClusterProps {
    *
    *   const worker = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: './src/worker.ts' }
    *     },
    *     joinDefaultVpc: true,
@@ -102,7 +102,7 @@ export interface RedisClusterProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: ./src/worker.ts
    *       joinDefaultVpc: true
@@ -128,7 +128,7 @@ export interface RedisClusterProps {
    *
    *   const worker = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: './src/worker.ts' }
    *     },
    *     joinDefaultVpc: true,
@@ -169,7 +169,7 @@ export interface RedisClusterProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: ./src/worker.ts
    *       joinDefaultVpc: true
@@ -194,7 +194,7 @@ export interface RedisClusterProps {
    *
    *   const worker = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: './src/worker.ts' }
    *     },
    *     joinDefaultVpc: true,
@@ -235,7 +235,7 @@ export interface RedisClusterProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: ./src/worker.ts
    *       joinDefaultVpc: true
@@ -260,7 +260,7 @@ export interface RedisClusterProps {
    *
    *   const worker = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: './src/worker.ts' }
    *     },
    *     joinDefaultVpc: true,
@@ -305,7 +305,7 @@ export interface RedisClusterProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: ./src/worker.ts
    *       joinDefaultVpc: true
@@ -329,7 +329,7 @@ export interface RedisClusterProps {
    *
    *   const worker = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: './src/worker.ts' }
    *     },
    *     joinDefaultVpc: true,
@@ -508,7 +508,7 @@ export interface RedisClusterProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: ./src/worker.ts
    *       joinDefaultVpc: true
@@ -532,7 +532,7 @@ export interface RedisClusterProps {
    *
    *   const worker = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: './src/worker.ts' }
    *     },
    *     joinDefaultVpc: true,
@@ -610,7 +610,7 @@ export interface RedisClusterProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: ./src/worker.ts
    *       joinDefaultVpc: true
@@ -636,7 +636,7 @@ export interface RedisClusterProps {
    *
    *   const worker = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: './src/worker.ts' }
    *     },
    *     joinDefaultVpc: true,
@@ -900,7 +900,7 @@ export interface RedisAccessibility {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: ./src/worker.ts
    *       joinDefaultVpc: true
@@ -926,7 +926,7 @@ export interface RedisAccessibility {
    *
    *   const worker = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: './src/worker.ts' }
    *     },
    *     joinDefaultVpc: true,

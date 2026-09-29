@@ -152,8 +152,8 @@ describe('a conventions-following repository, end to end', () => {
     expect(composition.deployable).toBe(true);
     expect(composition.config.resources.orders?.type).toBe('web-service');
     expect(composition.config.resources.orders?.properties.packaging).toMatchObject({
-      type: 'nixpacks',
-      properties: { startCmd: './mvnw spring-boot:run' }
+      type: 'buildpack',
+      properties: { startCommand: './mvnw spring-boot:run' }
     });
     // Decided for you, changeable, with the alternative on the card.
     const assumption = composition.assumptions.find((entry) => entry.kind === 'command-unknown');
@@ -176,7 +176,7 @@ describe('a conventions-following repository, end to end', () => {
   });
 
   it('lets the container builder answer where the curated table refused', async () => {
-    // Django again — but this time the injected planner stands in for `nixpacks plan`, whose
+    // Django again — but this time the injected planner stands in for `railpack prepare`, whose
     // answer is what the packaged container would run anyway.
     root = await makeRepo({ 'requirements.txt': 'django==5.0\n' });
     const planned: string[] = [];

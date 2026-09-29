@@ -31,15 +31,15 @@ import {
   defineConfig,
   Bucket,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   S3Integration,
-  $ResourceParam
+  $ResourceParam,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const imagesBucket = new Bucket({});
 
   const processImage = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/process-image.ts'
     }),
     memory: 1024,
@@ -105,16 +105,16 @@ import {
   defineConfig,
   Bucket,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   S3Integration,
-  $ResourceParam
+  $ResourceParam,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
   const dataBucket = new Bucket({});
 
   const csvProcessor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/process-csv.ts'
     }),
     memory: 512,

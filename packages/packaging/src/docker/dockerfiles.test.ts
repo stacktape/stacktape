@@ -4,12 +4,10 @@ import {
   buildEsDockerfile,
   buildGoArtifactDockerfile,
   buildJavaArtifactDockerfile,
-  buildJavaDockerfile,
-  buildPhpDockerfile,
   buildPythonArtifactDockerfile,
-  buildPythonDockerfile,
   buildRubyArtifactDockerfile,
-  buildRubyDockerfile
+  buildRustArtifactDockerfile,
+  CARGO_LAMBDA_IMAGE
 } from './dockerfiles';
 
 describe('Stacktape Dockerfile contracts', () => {
@@ -56,63 +54,18 @@ describe('Stacktape Dockerfile contracts', () => {
     expect(dockerfile).toContain('ENV NODE_ENV production');
   });
 
-  test('derives a Python ASGI module from the artifact root, not from the dependency filename', () => {
-    const dockerfile = buildPythonDockerfile({
-      pythonVersion: 3.12,
-      entryfilePath: 'C:/project/service/api/main.py',
-      sourceRootPath: 'C:/project/service',
-      runAppAs: 'ASGI',
-      handler: 'app'
-    });
-
-    expect(dockerfile).toContain("python -m uvicorn 'api.main:app'");
-    expect(dockerfile).toContain('exec python -m uvicorn');
-  });
-
-  test('execs Java and Python servers as PID 1 for graceful container shutdown', () => {
-    expect(
-      buildJavaDockerfile({
-        javaVersion: 21,
-        entryfilePath: 'src/main/java/example/Main.java'
-      })
-    ).toContain('exec java -classpath');
-    expect(
-      buildPythonDockerfile({
-        pythonVersion: 3.13,
-        entryfilePath: '/src/api.py',
-        sourceRootPath: '/src',
-        runAppAs: 'WSGI',
-        handler: 'app'
-      })
-    ).toContain('exec python -m gunicorn');
-  });
-
   test('exports locked uv dependencies before installing them', () => {
     const dockerfile = buildPythonArtifactDockerfile({
       pythonVersion: 3.12,
-      minify: false,
       alpine: true
     });
 
     expect(dockerfile).toMatch(/uv-lock" \]; then\s+uv export --locked --no-dev --no-emit-project/);
   });
 
-  test('minifies only application code before dependencies are installed', () => {
-    const dockerfile = buildPythonArtifactDockerfile({
-      pythonVersion: 3.14,
-      minify: true,
-      alpine: false
-    });
-
-    expect(dockerfile.indexOf('RUN pyminify . --in-place')).toBeLessThan(
-      dockerfile.indexOf('uv pip install --system --target .')
-    );
-  });
-
   test('builds native Python and Ruby Lambda dependencies in runtime-compatible SAM images', () => {
     const python = buildPythonArtifactDockerfile({
       pythonVersion: 3.14,
-      minify: false,
       alpine: true,
       target: 'lambda'
     });
@@ -146,44 +99,28 @@ describe('Stacktape Dockerfile contracts', () => {
     expect(dotnet).toContain('/dist/.stacktape-assembly-name');
   });
 
-  test('does not reinstall already prepared Ruby and PHP dependencies in runtime images', () => {
-    const ruby = buildRubyDockerfile({
-      rubyVersion: 3.3,
-      entryfilePath: 'src/app.rb',
-      alpine: true
-    });
-    const php = buildPhpDockerfile({
-      phpVersion: 8.3,
-      entryfilePath: 'public/index.php',
-      alpine: true
-    });
-
-    expect(ruby).not.toContain('bundle install');
-    expect(ruby).not.toContain('build-base');
-    expect(php).not.toContain('composer install');
-    expect(php).not.toContain('FROM composer');
-    expect(php).not.toContain('git unzip');
-    expect(ruby).toContain('exec bundle exec ruby \\"$0\\"');
-    expect(ruby).toContain('"src/app.rb"');
-    expect(php).toContain('CMD ["php", "public/index.php"]');
-  });
-
-  test('supports the Bundler gems.rb manifest and safely passes Ruby entrypoints with spaces', () => {
+  test('supports the Bundler gems.rb manifest', () => {
     const artifact = buildRubyArtifactDockerfile({
       rubyVersion: 4,
       target: 'lambda'
-    });
-    const image = buildRubyDockerfile({
-      rubyVersion: 4,
-      entryfilePath: 'src/my worker.rb'
     });
 
     expect(artifact).toContain('[ -f Gemfile ] || [ -f gems.rb ]');
     expect(artifact).toContain("bundle config set --local without 'development test'");
     expect(artifact).toContain('BUNDLE_GEMFILE="$gemfile" bundle install');
     expect(artifact).not.toContain('bundle install --without');
-    expect(image).toContain('BUNDLE_GEMFILE=gems.rb bundle exec ruby');
-    expect(image).toContain('"src/my worker.rb"');
+  });
+
+  test('cross-compiles Rust Lambda bootstraps with cargo-lambda and quotes the binary name', () => {
+    const arm = buildRustArtifactDockerfile({ binaryName: "my app's api", architecture: 'arm64' });
+    const x86 = buildRustArtifactDockerfile({ binaryName: 'api', architecture: 'x86_64' });
+
+    expect(arm).toStartWith(`FROM ${CARGO_LAMBDA_IMAGE} AS build`);
+    expect(arm).toContain(`cargo lambda build --release --arm64 --bin 'my app'"'"'s api' --lambda-dir /out`);
+    expect(arm).toContain(`cp /out/'my app'"'"'s api'/bootstrap /artifact/bootstrap`);
+    expect(arm).toContain('--mount=type=cache,target=/src/target');
+    expect(x86).toContain("--x86-64 --bin 'api'");
+    expect(x86).toContain('FROM scratch AS artifact');
   });
 
   test('builds Maven projects with Maven rather than converting their build to Gradle', () => {
@@ -193,7 +130,7 @@ describe('Stacktape Dockerfile contracts', () => {
       alpine: false
     });
 
-    expect(dockerfile).toContain('maven:3.9-eclipse-temurin-17');
+    expect(dockerfile).toStartWith('FROM public.ecr.aws/sam/build-java17:latest AS build');
     expect(dockerfile).toContain("mvn --batch-mode --no-transfer-progress -pl '.' -am -DskipTests package");
     expect(dockerfile).toContain("'./target/classes/.' /dist/");
     expect(dockerfile).not.toContain('gradle init');

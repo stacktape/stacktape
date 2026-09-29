@@ -78,7 +78,7 @@ describe('real-AWS packaging smoke fixture', () => {
           type: 'function',
           properties: expect.objectContaining({
             packaging: expect.objectContaining({
-              type: 'stacktape-lambda-buildpack',
+              type: 'js-bundle',
               properties: expect.objectContaining({ entryfilePath: expect.stringMatching(/\.ts$/) })
             }),
             url: { enabled: true, authMode: 'NONE' },

@@ -22,7 +22,7 @@ resources:
       containers:
         - name: socketio-server
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/server/index.ts
           environment:

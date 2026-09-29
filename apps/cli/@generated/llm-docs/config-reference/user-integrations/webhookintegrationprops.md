@@ -28,7 +28,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/scheduler.ts
       memory: 256
@@ -54,7 +54,7 @@ import { LambdaFunction, defineConfig, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const schedulerFunction = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/scheduler.ts' }
     },
     memory: 256,
@@ -94,7 +94,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/scheduler.ts
       memory: 256
@@ -123,7 +123,7 @@ import { LambdaFunction, defineConfig, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const schedulerFunction = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/scheduler.ts' }
     },
     memory: 256,
@@ -169,7 +169,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/scheduler.ts
       memory: 256
@@ -195,7 +195,7 @@ import { LambdaFunction, defineConfig, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const schedulerFunction = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/scheduler.ts' }
     },
     memory: 256,

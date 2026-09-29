@@ -1,9 +1,9 @@
 import {
+  BuildpackLambdaPackaging,
   DynamoDbTable,
   HttpApiGateway,
   HttpApiIntegration,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   defineConfig
 } from '../../__release-npm';
 
@@ -22,13 +22,11 @@ export default defineConfig(() => {
     }
   });
   const savePost = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/main/java/posts/SavePost.java',
-      languageSpecificConfig: {
-        javaVersion: 17
-      }
+    packaging: new BuildpackLambdaPackaging({
+      entryfilePath: './src/main/java/posts/SavePost.java'
     }),
     memory: 512,
+    runtime: 'java17',
     connectTo: [mainDynamoDbTable],
     events: [
       new HttpApiIntegration({
@@ -39,13 +37,11 @@ export default defineConfig(() => {
     ]
   });
   const getPosts = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/main/java/posts/GetPosts.java',
-      languageSpecificConfig: {
-        javaVersion: 17
-      }
+    packaging: new BuildpackLambdaPackaging({
+      entryfilePath: './src/main/java/posts/GetPosts.java'
     }),
     memory: 512,
+    runtime: 'java17',
     connectTo: [mainDynamoDbTable],
     events: [
       new HttpApiIntegration({

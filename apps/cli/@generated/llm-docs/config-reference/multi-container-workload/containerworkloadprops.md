@@ -51,7 +51,7 @@ resources:
       containers:
         - name: web
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/index.ts
           events:
@@ -70,7 +70,7 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, ApplicationLoadBalancer, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, ApplicationLoadBalancer, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const appLb = new ApplicationLoadBalancer({});
@@ -78,7 +78,7 @@ export default defineConfig(() => {
     containers: [
       {
         name: 'web',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/index.ts' }),
+        packaging: new JsBundleImagePackaging({ entryfilePath: 'src/index.ts' }),
         events: [
           { type: 'application-load-balancer', properties: { loadBalancerName: 'appLb', priority: 1, containerPort: 3000 } }
         ]
@@ -110,7 +110,7 @@ resources:
       containers:
         - name: api
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/server.ts
       resources:
@@ -122,12 +122,12 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const app = new MultiContainerWorkload({
     containers: [
-      { name: 'api', packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }) }
+      { name: 'api', packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }) }
     ],
     resources: { cpu: 1, memory: 2048, architecture: 'arm64' }
   });
@@ -190,7 +190,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/server.ts
       resources:
@@ -218,7 +218,7 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { WebService, RelationalDatabase, Bucket, RdsEnginePostgres, StacktapeImageBuildpackPackaging, $Secret, defineConfig } from 'stacktape';
+import { WebService, RelationalDatabase, Bucket, RdsEnginePostgres, $Secret, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
@@ -227,7 +227,7 @@ export default defineConfig(() => {
   });
   const uploads = new Bucket({});
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
     connectTo: [mainDb, uploads]
   });
@@ -253,7 +253,7 @@ resources:
       containers:
         - name: web
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/index.ts
           events:
@@ -274,7 +274,7 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, ApplicationLoadBalancer, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, ApplicationLoadBalancer, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const appLb = new ApplicationLoadBalancer({});
@@ -282,7 +282,7 @@ export default defineConfig(() => {
     containers: [
       {
         name: 'web',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/index.ts' }),
+        packaging: new JsBundleImagePackaging({ entryfilePath: 'src/index.ts' }),
         events: [
           { type: 'application-load-balancer', properties: { loadBalancerName: 'appLb', priority: 1, containerPort: 3000 } }
         ]
@@ -312,7 +312,7 @@ resources:
       containers:
         - name: api
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/server.ts
       resources:
@@ -324,12 +324,12 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const app = new MultiContainerWorkload({
     containers: [
-      { name: 'api', packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }) }
+      { name: 'api', packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }) }
     ],
     resources: { cpu: 0.5, memory: 1024 },
     enableRemoteSessions: true
@@ -357,7 +357,7 @@ resources:
     properties:
       container:
         packaging:
-          type: stacktape-image-buildpack
+          type: js-bundle
           properties:
             entryfilePath: src/job.ts
       resources:
@@ -374,11 +374,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { BatchJob, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { BatchJob, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const processor = new BatchJob({
-    container: { packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/job.ts' }) },
+    container: { packaging: new JsBundleImagePackaging({ entryfilePath: 'src/job.ts' }) },
     resources: { cpu: 1, memory: 2048 },
     iamRoleStatements: [
       {
@@ -410,7 +410,7 @@ resources:
       containers:
         - name: api
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/server.ts
       resources:
@@ -426,12 +426,12 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const app = new MultiContainerWorkload({
     containers: [
-      { name: 'api', packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }) }
+      { name: 'api', packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }) }
     ],
     resources: { cpu: 0.5, memory: 1024 },
     scaling: {
@@ -483,7 +483,7 @@ resources:
       containers:
         - name: worker
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/worker.ts
 ```
@@ -500,7 +500,7 @@ export default defineConfig(() => {
     containers: [
       {
         name: 'worker',
-        packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: 'src/worker.ts' } }
+        packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/worker.ts' } }
       }
     ]
   });
@@ -528,7 +528,7 @@ resources:
       containers:
         - name: worker
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/worker.ts
       resources:
@@ -540,12 +540,12 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const app = new MultiContainerWorkload({
     containers: [
-      { name: 'worker', packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/worker.ts' }) }
+      { name: 'worker', packaging: new JsBundleImagePackaging({ entryfilePath: 'src/worker.ts' }) }
     ],
     resources: { cpu: 0.5, memory: 1024 },
     usePrivateSubnetsWithNAT: true

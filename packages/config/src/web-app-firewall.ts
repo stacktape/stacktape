@@ -40,7 +40,7 @@ export interface WebAppFirewallProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       resources:
@@ -75,7 +75,7 @@ export interface WebAppFirewallProps {
    *
    *   const apiService = new WebService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     resources: { cpu: 0.25, memory: 512 },
@@ -118,7 +118,7 @@ export interface WebAppFirewallProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/admin.ts
    *       resources:
@@ -154,7 +154,7 @@ export interface WebAppFirewallProps {
    *
    *   const adminService = new WebService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/admin.ts' }
    *     },
    *     resources: { cpu: 0.25, memory: 512 },
@@ -207,7 +207,7 @@ export interface WebAppFirewallProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       resources:
@@ -259,7 +259,7 @@ export interface WebAppFirewallProps {
    *
    *   const apiService = new WebService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     resources: { cpu: 0.25, memory: 512 },
@@ -302,7 +302,7 @@ export interface WebAppFirewallProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       resources:
@@ -344,7 +344,7 @@ export interface WebAppFirewallProps {
    *
    *   const apiService = new WebService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     resources: { cpu: 0.25, memory: 512 },
@@ -385,7 +385,7 @@ export interface WebAppFirewallProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       resources:
@@ -423,7 +423,7 @@ export interface WebAppFirewallProps {
    *
    *   const apiService = new WebService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     resources: { cpu: 0.25, memory: 512 },
@@ -466,7 +466,7 @@ export interface WebAppFirewallProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       resources:
@@ -504,7 +504,7 @@ export interface WebAppFirewallProps {
    *
    *   const apiService = new WebService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     resources: { cpu: 0.25, memory: 512 },
@@ -609,7 +609,7 @@ export interface WebAppFirewallProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       resources:
@@ -645,7 +645,7 @@ export interface WebAppFirewallProps {
    *
    *   const apiService = new WebService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     resources: { cpu: 0.25, memory: 512 },
@@ -686,7 +686,7 @@ export interface WebAppFirewallProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       resources:
@@ -722,7 +722,7 @@ export interface WebAppFirewallProps {
    *
    *   const apiService = new WebService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     resources: { cpu: 0.25, memory: 512 },
@@ -771,7 +771,7 @@ export interface CommonRuleProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       resources:
@@ -814,7 +814,7 @@ export interface CommonRuleProps {
    *
    *   const apiService = new WebService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     resources: { cpu: 0.25, memory: 512 },
@@ -862,7 +862,7 @@ export interface CommonRuleProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       resources:
@@ -898,7 +898,7 @@ export interface CommonRuleProps {
    *
    *   const apiService = new WebService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     resources: { cpu: 0.25, memory: 512 },
@@ -939,7 +939,7 @@ export interface CommonRuleProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       resources:
@@ -975,7 +975,7 @@ export interface CommonRuleProps {
    *
    *   const apiService = new WebService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     resources: { cpu: 0.25, memory: 512 },
@@ -1025,7 +1025,7 @@ export interface ManagedRuleGroupProps extends CommonRuleProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       resources:
@@ -1060,7 +1060,7 @@ export interface ManagedRuleGroupProps extends CommonRuleProps {
    *
    *   const apiService = new WebService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     resources: { cpu: 0.25, memory: 512 },
@@ -1101,7 +1101,7 @@ export interface ManagedRuleGroupProps extends CommonRuleProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       resources:
@@ -1137,7 +1137,7 @@ export interface ManagedRuleGroupProps extends CommonRuleProps {
    *
    *   const apiService = new WebService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     resources: { cpu: 0.25, memory: 512 },
@@ -1176,7 +1176,7 @@ export interface ManagedRuleGroupProps extends CommonRuleProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       resources:
@@ -1212,7 +1212,7 @@ export interface ManagedRuleGroupProps extends CommonRuleProps {
    *
    *   const apiService = new WebService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     resources: { cpu: 0.25, memory: 512 },
@@ -1260,7 +1260,7 @@ export interface CustomRuleGroupProps extends CommonRuleProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       resources:
@@ -1295,7 +1295,7 @@ export interface CustomRuleGroupProps extends CommonRuleProps {
    *
    *   const apiService = new WebService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     resources: { cpu: 0.25, memory: 512 },
@@ -1334,7 +1334,7 @@ export interface CustomRuleGroupProps extends CommonRuleProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       resources:
@@ -1370,7 +1370,7 @@ export interface CustomRuleGroupProps extends CommonRuleProps {
    *
    *   const apiService = new WebService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     resources: { cpu: 0.25, memory: 512 },
@@ -1420,7 +1420,7 @@ export interface RateBasedStatementProps extends CommonRuleProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       resources:
@@ -1457,7 +1457,7 @@ export interface RateBasedStatementProps extends CommonRuleProps {
    *
    *   const apiService = new WebService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     resources: { cpu: 0.25, memory: 512 },
@@ -1500,7 +1500,7 @@ export interface RateBasedStatementProps extends CommonRuleProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       resources:
@@ -1541,7 +1541,7 @@ export interface RateBasedStatementProps extends CommonRuleProps {
    *
    *   const apiService = new WebService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     resources: { cpu: 0.25, memory: 512 },
@@ -1584,7 +1584,7 @@ export interface RateBasedStatementProps extends CommonRuleProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       resources:
@@ -1625,7 +1625,7 @@ export interface RateBasedStatementProps extends CommonRuleProps {
    *
    *   const apiService = new WebService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     resources: { cpu: 0.25, memory: 512 },
@@ -1670,7 +1670,7 @@ export interface RateBasedStatementProps extends CommonRuleProps {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       resources:
@@ -1707,7 +1707,7 @@ export interface RateBasedStatementProps extends CommonRuleProps {
    *
    *   const apiService = new WebService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     resources: { cpu: 0.25, memory: 512 },
@@ -1756,7 +1756,7 @@ export interface ForwardedIPConfig {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       resources:
@@ -1797,7 +1797,7 @@ export interface ForwardedIPConfig {
    *
    *   const apiService = new WebService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     resources: { cpu: 0.25, memory: 512 },
@@ -1840,7 +1840,7 @@ export interface ForwardedIPConfig {
    *     type: web-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       resources:
@@ -1881,7 +1881,7 @@ export interface ForwardedIPConfig {
    *
    *   const apiService = new WebService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     resources: { cpu: 0.25, memory: 512 },
@@ -1929,7 +1929,7 @@ export interface CustomResponseBodies {
      *     type: web-service
      *     properties:
      *       packaging:
-     *         type: stacktape-image-buildpack
+     *         type: js-bundle
      *         properties:
      *           entryfilePath: src/index.ts
      *       resources:
@@ -1971,7 +1971,7 @@ export interface CustomResponseBodies {
      *
      *   const siteService = new WebService({
      *     packaging: {
-     *       type: 'stacktape-image-buildpack',
+     *       type: 'js-bundle',
      *       properties: { entryfilePath: 'src/index.ts' }
      *     },
      *     resources: { cpu: 0.25, memory: 512 },
@@ -2014,7 +2014,7 @@ export interface CustomResponseBodies {
      *     type: web-service
      *     properties:
      *       packaging:
-     *         type: stacktape-image-buildpack
+     *         type: js-bundle
      *         properties:
      *           entryfilePath: src/index.ts
      *       resources:
@@ -2056,7 +2056,7 @@ export interface CustomResponseBodies {
      *
      *   const siteService = new WebService({
      *     packaging: {
-     *       type: 'stacktape-image-buildpack',
+     *       type: 'js-bundle',
      *       properties: { entryfilePath: 'src/index.ts' }
      *     },
      *     resources: { cpu: 0.25, memory: 512 },

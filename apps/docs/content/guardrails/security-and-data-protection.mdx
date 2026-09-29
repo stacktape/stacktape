@@ -269,12 +269,12 @@ A compliant [web service](/resources/compute/web-service) configuration with a c
     {
       label: 'TypeScript',
       lang: 'typescript',
-      code: `import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+      code: `import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: './src/server.ts'
     }),
     resources: {

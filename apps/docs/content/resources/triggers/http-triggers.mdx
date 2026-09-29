@@ -52,7 +52,7 @@ An HTTP API Gateway integration triggers a [Lambda function](/resources/compute/
   LambdaFunction,
   HttpApiGateway,
   HttpApiIntegration,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -60,7 +60,7 @@ export default defineConfig(() => {
   const apiGateway = new HttpApiGateway({});
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     events: [
@@ -126,7 +126,7 @@ An [Application Load Balancer](/resources/networking/application-load-balancer) 
   LambdaFunction,
   ApplicationLoadBalancer,
   ApplicationLoadBalancerIntegration,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -134,7 +134,7 @@ export default defineConfig(() => {
   const alb = new ApplicationLoadBalancer({});
 
   const usersApi = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/users.ts'
     }),
     events: [

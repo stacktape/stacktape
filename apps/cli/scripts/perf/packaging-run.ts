@@ -4,7 +4,7 @@
  * It calls the packaging package's entrypoints in the order `PackagingManager` does for Node Lambdas and passes them
  * the CLI's real callbacks: the production archiver, `createCliPackagingError`, the grouping policy, the digest inputs,
  * the split function digest and the artifact names. Keep the two sequences equal when either changes: this file
- * mirrors `#packageNodeLambdasWithSplitBundling` and the ES branch of `packageWorkload`, because both read
+ * mirrors `#packageNodeLambdasWithSplitBundling` and the js-bundle branch of `packageWorkload`, because both read
  * invocation-global CLI state that an offline process does not have.
  *
  * Nothing here may reach the network. Dependency installation verifies the vendored tree and refuses to install;
@@ -27,8 +27,8 @@ import {
   LAMBDA_MAX_COMBINED_UNZIPPED_SIZE_BYTES,
   LAMBDA_MAX_LAYERS
 } from '@stacktape/packaging/artifact/lambda-limits';
-import { buildUsingStacktapeEsImageBuildpack } from '@stacktape/packaging/buildpacks/stacktape-es-image-buildpack';
-import { buildUsingStacktapeEsLambdaBuildpack } from '@stacktape/packaging/buildpacks/stacktape-es-lambda-buildpack';
+import { buildJsBundleImage } from '@stacktape/packaging/buildpacks/js-bundle-image';
+import { buildJsBundleLambda } from '@stacktape/packaging/buildpacks/js-bundle-lambda';
 import { STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION } from '@stacktape/packaging/bundlers/constants';
 import { resolveNodeVersion } from '@stacktape/packaging/bundlers/node-version';
 import { findProjectRoot } from '@stacktape/packaging/es/project-root';
@@ -239,7 +239,7 @@ const run = async (request: RunRequest, readyMs: number): Promise<RunResult> => 
       ...(nodeVersion >= 24 && { outputModuleFormat: 'esm' as const })
     };
     const startedAt = performance.now();
-    const output = await buildUsingStacktapeEsImageBuildpack({
+    const output = await buildJsBundleImage({
       ...buildpackProps,
       name: request.imageTag,
       existingDigests: [],
@@ -285,7 +285,7 @@ const run = async (request: RunRequest, readyMs: number): Promise<RunResult> => 
 
   const candidates = request.functions.map(({ name, entryfilePath }) => ({
     name,
-    packaging: { type: 'stacktape-lambda-buildpack' as const, properties: { entryfilePath } },
+    packaging: { type: 'js-bundle' as const, properties: { entryfilePath } },
     tracingEnabled: false
   }));
   const { split: splitCandidates, perFunction: perFunctionCandidates } = selectSplitBundlingGroup(candidates);
@@ -423,7 +423,7 @@ const run = async (request: RunRequest, readyMs: number): Promise<RunResult> => 
     };
   };
 
-  // The ES branch of PackagingManager#packageWorkload for a default `stacktape-lambda-buildpack` function. ESM output
+  // The js-bundle branch of PackagingManager#packageWorkload for a default `js-bundle` function. ESM output
   // needs no source-map-support banner file, so `sourceMapInstallPath` is not passed.
   const packagePerFunction = async ({ name, packaging }: (typeof perFunctionCandidates)[number]) => {
     const jobName = getJobName({ workloadName: name, workloadType: 'function' });
@@ -435,7 +435,7 @@ const run = async (request: RunRequest, readyMs: number): Promise<RunResult> => 
       entryfilePath: join(fixtureRoot, packaging.properties.entryfilePath),
       ...(nodeVersion >= 24 && { outputModuleFormat: 'esm' as const })
     };
-    const output = await buildUsingStacktapeEsLambdaBuildpack({
+    const output = await buildJsBundleLambda({
       ...buildpackProps,
       name: jobName,
       existingDigests: [],

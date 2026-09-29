@@ -37,7 +37,7 @@ import type {
   AgentCoreJwtAuthorizerConfig,
   AgentCoreRuntimeEndpointConfig
 } from '@stacktape/config/agentcore';
-import type { EsLanguageSpecificConfig, PrebuiltImageCwPackagingProps } from '@stacktape/config/deployment-artifacts';
+import type { JsBundleSharedProps, PrebuiltImageCwPackagingProps } from '@stacktape/config/deployment-artifacts';
 import type { CloudformationTag, EnvironmentVar, StpIamRoleStatement } from '@stacktape/config/shared';
 
 const BEDROCK_AGENTCORE_PRINCIPAL = 'bedrock-agentcore.amazonaws.com';
@@ -104,9 +104,7 @@ const resolveAgentCoreRuntimes = () => {
     const cfLogicalName = cfLogicalNames.agentCoreRuntime(name);
     const packagingType = runtime.packaging?.type as Parameters<typeof getAugmentedEnvironment>[0]['packagingType'];
     const entryfilePath = (runtime.packaging?.properties as { entryfilePath?: string })?.entryfilePath;
-    const languageSpecificConfig = (
-      runtime.packaging?.properties as { languageSpecificConfig?: EsLanguageSpecificConfig }
-    )?.languageSpecificConfig;
+    const languageSpecificConfig = runtime.packaging?.properties as JsBundleSharedProps | undefined;
     const environmentVariables = Object.fromEntries(
       getCfEnvironment(
         getAugmentedEnvironment({

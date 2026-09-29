@@ -88,8 +88,8 @@ if ($ChecksumRequired) {
 }
 
 # A release archive is a complete installation snapshot. Remove payloads omitted by the new version so an upgrade
-# cannot keep stale MCP documentation, an obsolete production source map, or the pack and nixpacks binaries that the
-# CLI now downloads on first use.
+# cannot keep stale MCP documentation, an obsolete production source map, or the pack and nixpacks binaries that
+# earlier releases bundled (the CLI no longer uses them and downloads its tools on first use).
 foreach ($StalePath in @(
     "$BinDirPath\llm-docs",
     "$BinDirPath\ai-docs",

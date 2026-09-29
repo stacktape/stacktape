@@ -30,7 +30,7 @@ enqueueJob:
   type: function
   properties:
     packaging:
-      type: stacktape-lambda-buildpack
+      type: js-bundle
       properties:
         entryfilePath: ./src/enqueue.ts
     memory: 512
@@ -54,7 +54,7 @@ processJob:
   type: function
   properties:
     packaging:
-      type: stacktape-lambda-buildpack
+      type: js-bundle
       properties:
         entryfilePath: ./src/process.ts
     memory: 512

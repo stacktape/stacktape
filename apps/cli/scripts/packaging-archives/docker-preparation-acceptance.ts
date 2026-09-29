@@ -455,7 +455,7 @@ refuse 1 'not part of this scenario' "$@"
 
 const lambda = (entryfilePath: string): LambdaFunction => ({
   type: 'function',
-  properties: { packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath } } }
+  properties: { packaging: { type: 'js-bundle', properties: { entryfilePath } } }
 });
 
 const customArtifact = (packagePath: string): LambdaFunction => ({
@@ -466,7 +466,7 @@ const customArtifact = (packagePath: string): LambdaFunction => ({
 const workerService = (architecture: 'x86_64' | 'arm64'): WorkerService => ({
   type: 'worker-service',
   properties: {
-    packaging: { type: 'custom-dockerfile', properties: { buildContextPath: './image', dockerfilePath: 'Dockerfile' } },
+    packaging: { type: 'dockerfile', properties: { buildContextPath: './image', dockerfilePath: 'Dockerfile' } },
     resources: { cpu: 0.25, memory: 512, architecture }
   }
 });
@@ -1026,10 +1026,10 @@ const BIG_ARTIFACT_HANDLER = [
 
 const lambdaWith = (
   entryfilePath: string,
-  properties: { includeFiles?: string[]; languageSpecificConfig?: { disableSourceMaps: boolean } }
+  properties: { includeFiles?: string[]; disableSourceMaps?: boolean }
 ): LambdaFunction => ({
   type: 'function',
-  properties: { packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath, ...properties } } }
+  properties: { packaging: { type: 'js-bundle', properties: { entryfilePath, ...properties } } }
 });
 
 /** The function's own package: a sparse file, so it takes no disk space until the build copies it. */
@@ -1320,8 +1320,8 @@ const createScenarios = ({ realDocker }: { realDocker: string | null }): Scenari
       command: 'deploy',
       docker: { kind: 'absent' },
       resources: {
-        alpha: lambdaWith('./src/alpha.ts', { languageSpecificConfig: { disableSourceMaps: true } }),
-        beta: lambdaWith('./src/beta.ts', { languageSpecificConfig: { disableSourceMaps: true } })
+        alpha: lambdaWith('./src/alpha.ts', { disableSourceMaps: true }),
+        beta: lambdaWith('./src/beta.ts', { disableSourceMaps: true })
       },
       files: {
         'src/alpha.ts':

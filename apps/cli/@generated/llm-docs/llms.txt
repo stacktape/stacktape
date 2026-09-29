@@ -111,6 +111,7 @@ Use the concise index below to locate the canonical documentation page for a tas
 - [Deploy Your First Stage](/getting-started/deploy-your-first-stage) - source: apps/docs/content/getting-started/deploy-your-first-stage.mdx
 - [Going to Production](/getting-started/going-to-production) - source: apps/docs/content/getting-started/going-to-production.mdx
 - [Starter Projects](/getting-started/starter-projects) - source: apps/docs/content/getting-started/starter-projects.mdx
+- [Upgrading from v3](/getting-started/upgrading-from-v3) - source: apps/docs/content/getting-started/upgrading-from-v3.mdx
 - [Use the Dev Mode](/getting-started/use-the-dev-mode) - source: apps/docs/content/getting-started/use-the-dev-mode.mdx
 - [Using Console UI](/getting-started/using-console-ui) - source: apps/docs/content/getting-started/using-console-ui.mdx
 - [Database Guardrails](/guardrails/databases) - source: apps/docs/content/guardrails/databases.mdx
@@ -143,13 +144,13 @@ Use the concise index below to locate the canonical documentation page for a tas
 - [Synthetic Tests](/observability/synthetic-tests) - source: apps/docs/content/observability/synthetic-tests.mdx
 - [Tracing](/observability/tracing) - source: apps/docs/content/observability/tracing.mdx
 - [Uptime Checks](/observability/uptime-checks) - source: apps/docs/content/observability/uptime-checks.mdx
-- [Custom Dockerfile](/packaging/containers/custom-dockerfile) - source: apps/docs/content/packaging/containers/custom-dockerfile.mdx
-- [External Buildpack](/packaging/containers/external-buildpack) - source: apps/docs/content/packaging/containers/external-buildpack.mdx
-- [Nixpacks](/packaging/containers/nixpacks) - source: apps/docs/content/packaging/containers/nixpacks.mdx
+- [Buildpack for Containers](/packaging/containers/buildpack) - source: apps/docs/content/packaging/containers/buildpack.mdx
+- [Dockerfile](/packaging/containers/dockerfile) - source: apps/docs/content/packaging/containers/dockerfile.mdx
+- [JS Bundle for Containers](/packaging/containers/js-bundle) - source: apps/docs/content/packaging/containers/js-bundle.mdx
 - [Prebuilt Image](/packaging/containers/prebuilt-image) - source: apps/docs/content/packaging/containers/prebuilt-image.mdx
-- [Stacktape Buildpack for Containers](/packaging/containers/stacktape-buildpack) - source: apps/docs/content/packaging/containers/stacktape-buildpack.mdx
+- [Buildpack for Lambda](/packaging/function/buildpack) - source: apps/docs/content/packaging/function/buildpack.mdx
 - [Custom Artifact](/packaging/function/custom-artifact) - source: apps/docs/content/packaging/function/custom-artifact.mdx
-- [Stacktape Buildpack for Lambda](/packaging/function/stacktape-buildpack) - source: apps/docs/content/packaging/function/stacktape-buildpack.mdx
+- [JS Bundle for Lambda](/packaging/function/js-bundle) - source: apps/docs/content/packaging/function/js-bundle.mdx
 - [Packaging Overview](/packaging/overview) - source: apps/docs/content/packaging/overview.mdx
 - [AWS CDK Constructs](/resources/advanced/aws-cdk-constructs) - source: apps/docs/content/resources/advanced/aws-cdk-constructs.mdx
 - [Custom Resources](/resources/advanced/custom-resources) - source: apps/docs/content/resources/advanced/custom-resources.mdx

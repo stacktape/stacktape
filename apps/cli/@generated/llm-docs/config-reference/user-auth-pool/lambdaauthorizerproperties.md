@@ -35,7 +35,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/authorizer.ts
   httpApi:
@@ -44,7 +44,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
       events:
@@ -66,11 +66,11 @@ import { LambdaFunction, HttpApiGateway, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const authorizerFunction = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/authorizer.ts' } }
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/authorizer.ts' } }
   });
   const httpApi = new HttpApiGateway({});
   const apiFunction = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
     events: [
       {
         type: 'http-api-gateway',
@@ -112,7 +112,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/authorizer.ts
   httpApi:
@@ -121,7 +121,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
       events:
@@ -146,11 +146,11 @@ import { LambdaFunction, HttpApiGateway, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const authorizerFunction = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/authorizer.ts' } }
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/authorizer.ts' } }
   });
   const httpApi = new HttpApiGateway({});
   const apiFunction = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
     events: [
       {
         type: 'http-api-gateway',
@@ -195,7 +195,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/authorizer.ts
   httpApi:
@@ -204,7 +204,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
       events:
@@ -227,11 +227,11 @@ import { LambdaFunction, HttpApiGateway, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const authorizerFunction = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/authorizer.ts' } }
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/authorizer.ts' } }
   });
   const httpApi = new HttpApiGateway({});
   const apiFunction = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
     events: [
       {
         type: 'http-api-gateway',
@@ -274,7 +274,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/authorizer.ts
   httpApi:
@@ -283,7 +283,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
       events:
@@ -308,11 +308,11 @@ import { LambdaFunction, HttpApiGateway, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const authorizerFunction = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/authorizer.ts' } }
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/authorizer.ts' } }
   });
   const httpApi = new HttpApiGateway({});
   const apiFunction = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
     events: [
       {
         type: 'http-api-gateway',

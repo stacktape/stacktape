@@ -47,7 +47,7 @@ submitOrder:
   type: function
   properties:
     packaging:
-      type: stacktape-lambda-buildpack
+      type: js-bundle
       properties:
         entryfilePath: ./src/submit-order.ts
     memory: 512
@@ -71,7 +71,7 @@ processOrder:
   type: function
   properties:
     packaging:
-      type: stacktape-lambda-buildpack
+      type: js-bundle
       properties:
         entryfilePath: ./src/process-order.ts
     memory: 512
@@ -105,7 +105,7 @@ onOrderProcessed:
   type: function
   properties:
     packaging:
-      type: stacktape-lambda-buildpack
+      type: js-bundle
       properties:
         entryfilePath: ./src/on-order-processed.ts
     memory: 512

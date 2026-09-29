@@ -47,7 +47,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/index.ts
       joinDefaultVpc: true
@@ -67,7 +67,7 @@ export default defineConfig(() => {
     enableBackups: true
   });
   const api = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
     joinDefaultVpc: true,
     connectTo: [appDb]
   });

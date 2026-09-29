@@ -49,8 +49,8 @@ This configuration creates a DynamoDB table with streams enabled and a Lambda fu
   LambdaFunction,
   DynamoDbTable,
   DynamoDbIntegration,
-  StacktapeLambdaBuildpackPackaging,
-  $ResourceParam
+  $ResourceParam,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -63,7 +63,7 @@ export default defineConfig(() => {
   });
 
   const streamProcessor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/process-stream.ts'
     }),
     events: [
@@ -109,8 +109,8 @@ Setting `maxBatchWindowSeconds` lets you accumulate larger batches before invoki
   LambdaFunction,
   DynamoDbTable,
   DynamoDbIntegration,
-  StacktapeLambdaBuildpackPackaging,
-  $ResourceParam
+  $ResourceParam,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
@@ -122,7 +122,7 @@ export default defineConfig(() => {
   });
 
   const batchProcessor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/batch-handler.ts'
     }),
     // [!code focus-start]
@@ -169,8 +169,8 @@ When a batch fails (the function throws an error), the entire batch is retried â
   DynamoDbTable,
   DynamoDbIntegration,
   SqsQueue,
-  StacktapeLambdaBuildpackPackaging,
-  $ResourceParam
+  $ResourceParam,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
@@ -184,7 +184,7 @@ export default defineConfig(() => {
   const dlq = new SqsQueue({});
 
   const processor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/processor.ts'
     }),
     // [!code focus-start]
@@ -269,12 +269,12 @@ To consume changes from a DynamoDB table not managed by your Stacktape stack, pa
   defineConfig,
   LambdaFunction,
   DynamoDbIntegration,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
   const processor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/external-processor.ts'
     }),
     // [!code focus-start]

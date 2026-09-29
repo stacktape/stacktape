@@ -11,7 +11,7 @@ import objectHash from 'object-hash';
 import { relative } from 'node:path';
 
 import { getBundleDigest, getSourceFiles } from './utils';
-import type { RubyLanguageSpecificConfig, SupportedRubyVersion } from '@stacktape/config/deployment-artifacts';
+import type { SupportedRubyVersion } from '@stacktape/config/deployment-artifacts';
 import { DEFAULT_RUBY_VERSION } from '../constants';
 import {
   applyArtifactFileSelection,
@@ -35,12 +35,11 @@ export const buildRubyArtifact = async ({
   distIndexFilePath,
   progressLogger,
   existingDigests,
-  languageSpecificConfig,
   requiresGlibcBinaries,
   dockerBuildOutputArchitecture,
   includeFiles,
   excludeFiles,
-  target = 'container',
+  target = 'lambda',
   createPackagingError,
   runDocker
 }: StpBuildpackInput & {
@@ -49,7 +48,6 @@ export const buildRubyArtifact = async ({
   rawEntryfilePath: string;
   distIndexFilePath?: string | undefined;
   progressLogger: ProgressLogger;
-  languageSpecificConfig?: RubyLanguageSpecificConfig | undefined;
   target?: 'container' | 'lambda' | undefined;
   createPackagingError: CreatePackagingError;
   runDocker: RunDocker;
@@ -71,7 +69,6 @@ export const buildRubyArtifact = async ({
       target,
       explicitlyIncludedFilesDigest: artifactFileSelection.digest
     }),
-    languageSpecificConfig,
     rawEntryfilePath
   });
   const sourceFiles = mergeExplicitlyIncludedSourceFiles({

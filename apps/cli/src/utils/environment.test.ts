@@ -8,7 +8,7 @@ describe('--enable-source-maps follows the source maps', () => {
   test('a JS/TS Lambda whose build ships maps gets the flag', () => {
     const environment = getAugmentedEnvironment({
       workloadType: 'function',
-      packagingType: 'stacktape-lambda-buildpack',
+      packagingType: 'js-bundle',
       entryfilePath: 'src/handler.ts',
       nodeVersion: 24
     });
@@ -18,7 +18,7 @@ describe('--enable-source-maps follows the source maps', () => {
   test('a build that keeps maps out of the package does not set a flag that would read them', () => {
     const environment = getAugmentedEnvironment({
       workloadType: 'function',
-      packagingType: 'stacktape-lambda-buildpack',
+      packagingType: 'js-bundle',
       entryfilePath: 'src/handler.ts',
       nodeVersion: 24,
       sourceMapsInPackage: false
@@ -32,7 +32,7 @@ describe('--enable-source-maps follows the source maps', () => {
     const environment = getAugmentedEnvironment({
       environment: [{ name: 'NODE_OPTIONS', value: '--max-old-space-size=512' }],
       workloadType: 'function',
-      packagingType: 'stacktape-lambda-buildpack',
+      packagingType: 'js-bundle',
       entryfilePath: 'src/handler.ts',
       nodeVersion: 20,
       sourceMapsInPackage: false

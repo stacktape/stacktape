@@ -240,7 +240,7 @@ CloudFormation detected that your template matches the currently deployed stack.
 
 Common causes of slow Stacktape deployments:
 
-- **Large container images** — Use multi-stage Docker builds or [Stacktape buildpack packaging](/packaging/containers/stacktape-buildpack) to reduce image size.
+- **Large container images** — Use multi-stage Docker builds or [`js-bundle` packaging](/packaging/containers/js-bundle) for Node.js services to reduce image size.
 - **Many resources** — CloudFormation serializes dependent resources. This is expected for complex stacks.
 - **Slow local builds** — Use a machine with more CPU and memory, improve package and Docker caching, or use Console GitOps with its [dedicated EC2 runner](/ci-cd-and-gitops/build-runners).
 - **First deploy to a new region** — Initial infrastructure setup (S3 deployment bucket, ECR repositories) adds one-time overhead.

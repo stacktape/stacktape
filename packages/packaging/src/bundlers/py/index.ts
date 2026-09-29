@@ -14,7 +14,7 @@ import {
   getSourceFiles,
   resolvePythonDependencyFile
 } from './utils';
-import type { PyLanguageSpecificConfig, SupportedPythonVersion } from '@stacktape/config/deployment-artifacts';
+import type { PythonBuildpackConfig, SupportedPythonVersion } from '@stacktape/config/deployment-artifacts';
 import {
   applyArtifactFileSelection,
   assertRequiredArtifactFile,
@@ -42,7 +42,7 @@ export const buildPythonArtifact = async ({
   dockerBuildOutputArchitecture,
   includeFiles,
   excludeFiles,
-  target = 'container',
+  target = 'lambda',
   createPackagingError,
   runDocker
 }: StpBuildpackInput & {
@@ -50,7 +50,7 @@ export const buildPythonArtifact = async ({
   pythonVersion: SupportedPythonVersion;
   rawEntryfilePath: string;
   distIndexFilePath?: string | undefined;
-  languageSpecificConfig: PyLanguageSpecificConfig;
+  languageSpecificConfig?: PythonBuildpackConfig | undefined;
   target?: 'container' | 'lambda' | undefined;
   createPackagingError: CreatePackagingError;
   runDocker: RunDocker;
@@ -59,12 +59,6 @@ export const buildPythonArtifact = async ({
     eventType: 'CALCULATE_CHECKSUM',
     description: 'Calculating checksum for caching'
   });
-  if (languageSpecificConfig?.packageManager && languageSpecificConfig.packageManager !== 'uv') {
-    throw createPackagingError({
-      type: 'PACKAGING',
-      message: 'Only the "uv" package manager is supported for Python.'
-    });
-  }
   const artifactFileSelection = await resolveArtifactFileSelection({ cwd, includeFiles, lambdaZip });
   const dependencyFilePath = await resolvePythonDependencyFile({
     cwd,
@@ -74,8 +68,7 @@ export const buildPythonArtifact = async ({
   if (!dependencyFilePath && languageSpecificConfig?.packageManagerFile) {
     throw createPackagingError({
       type: 'PACKAGING',
-      message:
-        "Failed to resolve the python dependency file. Check 'languageSpecificConfig.packageManagerFile' and verify it exists."
+      message: "Failed to resolve the python dependency file. Check 'python.packageManagerFile' and verify it exists."
     });
   }
   const dependencyRootPath = getPythonDependencyRootPath(dependencyFilePath, sourcePath);
@@ -142,8 +135,6 @@ export const buildPythonArtifact = async ({
   await progressLogger.startEvent({ eventType: 'BUILD_CODE', description: 'Building code' });
   const dockerfileContents = buildPythonArtifactDockerfile({
     pythonVersion,
-    // The documented default; the CLI fills it in as well, so this only matters for direct callers.
-    minify: languageSpecificConfig?.minify ?? true,
     alpine: !requiresGlibcBinaries,
     target,
     requirementsWithoutSource: await canInstallRequirementsWithoutSource(dependencyFilePath)

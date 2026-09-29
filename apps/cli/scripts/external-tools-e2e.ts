@@ -11,9 +11,11 @@
  * - two concurrent first uses download once;
  * - a download that stalls fails within its bound (shortened here; commands allow 30 s without data and 10 minutes in
  *   all), leaves nothing behind, and the retry succeeds;
- * - the CLI's call sites (the nixpacks planner, `pack`) use a preseeded executable without any request.
+ * - the CLI's call sites (`runRailpackPrepare` and the init planner's `planStartCommand`) use a preseeded executable
+ *   without any request, and a build variable reaches `railpack prepare` through its environment, not its arguments.
  *
- * The synthetic executables are shell scripts, so this runs on Linux and macOS. The report goes to
+ * The synthetic executables are shell scripts, so this runs on Linux and macOS. The synthetic `railpack prepare`
+ * writes a plan and an info file to its `--plan-out` and `--info-out` paths as the real one does. The report goes to
  * `.stacktape/external-tools-e2e/<timestamp>/report.json`, or to `--output-dir`.
  */
 import type { Subprocess } from 'bun';
@@ -25,14 +27,16 @@ import { dirname, join, resolve } from 'node:path';
 import AdmZip from 'adm-zip';
 import * as tar from 'tar';
 
-type Tool = 'pack' | 'nixpacks' | 'session-manager-plugin';
+type Tool = 'railpack' | 'session-manager-plugin';
 type Platform = 'linux' | 'alpine' | 'linux-arm' | 'macos' | 'macos-arm' | 'win';
 type Asset = { url: string; sha256: string; bytes: number; archive: 'tar.gz' | 'zip' | 'deb'; executable: string };
 type Manifest = Record<Tool, { version: string; assets: Partial<Record<Platform, Asset>> }>;
 type DriverResult = { ok: boolean; path?: string; output?: string; message?: string; code?: string };
 
 const CLI_ROOT = resolve(import.meta.dir, '..');
-const VERSIONS: Record<Tool, string> = { pack: '0.40.0', nixpacks: '1.39.0', 'session-manager-plugin': '1.2.707.0' };
+const VERSIONS: Record<Tool, string> = { railpack: '0.40.1', 'session-manager-plugin': '1.2.707.0' };
+/** The build variable the prepare call site passes; the synthetic planner reports how it arrived. */
+const BUILD_VARIABLE = { name: 'STP_E2E_BUILD_VARIABLE', value: 'synthetic-build-value' };
 
 const argument = (name: string) => {
   const index = process.argv.indexOf(`--${name}`);
@@ -46,14 +50,17 @@ const runDriver = async () => {
   let result: DriverResult;
   try {
     if (callSite === 'planner') {
-      const { createNixpacksPlanner } = await import('src/init/nixpacks-planner');
-      const planned = await createNixpacksPlanner(argument('cwd')!).planStart('.');
-      if (planned === null) throw new Error('The nixpacks planner returned no start command.');
+      const { planStartCommand } = await import('@domain-services/packaging-manager/railpack-command');
+      const planned = await planStartCommand(argument('cwd')!);
+      if (planned === null) throw new Error('The Railpack planner returned no start command.');
       result = { ok: true, path: '', output: planned };
-    } else if (callSite === 'pack') {
-      const { execPack } = await import('@domain-services/packaging-manager/pack-command');
-      const { stdout } = await execPack({ args: ['version'], cwd: argument('cwd')! });
-      result = { ok: true, path: '', output: stdout.trim() };
+    } else if (callSite === 'prepare') {
+      const { runRailpackPrepare } = await import('@domain-services/packaging-manager/railpack-command');
+      const prepared = await runRailpackPrepare({
+        sourceDirectoryPath: argument('cwd')!,
+        variables: { [BUILD_VARIABLE.name]: BUILD_VARIABLE.value }
+      });
+      result = { ok: true, path: '', output: JSON.stringify(prepared) };
     } else {
       const { resolveExternalTool } = await import('src/utils/external-tools');
       const manifest = JSON.parse(await readFile(argument('manifest')!, 'utf8')) as Manifest;
@@ -77,12 +84,29 @@ const runDriver = async () => {
   console.info(JSON.stringify(result));
 };
 
+/**
+ * `--version` prints a recognizable line. `prepare <dir> --plan-out <file> --info-out <file> [--env NAME]...` writes a
+ * plan with a start command and an info file recording the source directory, its whole command line, the names passed
+ * with `--env` and the value of the build variable as it arrived in the environment.
+ */
 const syntheticExecutable = (tool: Tool) =>
   [
     '#!/bin/sh',
     'case "$1" in',
     `  --version|version) echo "${tool} synthetic ${VERSIONS[tool]}" ;;`,
-    `  plan) echo '{"start":{"cmd":"node synthetic-server.js"}}' ;;`,
+    '  prepare)',
+    '    all="$*"; shift; source="$1"; shift; plan=""; info=""; names=""',
+    '    while [ $# -gt 0 ]; do',
+    '      case "$1" in',
+    '        --plan-out) plan="$2"; shift 2 ;;',
+    '        --info-out) info="$2"; shift 2 ;;',
+    '        --env) names="$names $2"; shift 2 ;;',
+    '        *) shift ;;',
+    '      esac',
+    '    done',
+    `    printf '%s' '{"deploy":{"startCommand":"node synthetic-server.js"}}' > "$plan"`,
+    `    printf '{"success":true,"source":"%s","commandLine":"%s","envNames":"%s","variable":"%s"}' "$source" "$all" "$names" "\${${BUILD_VARIABLE.name}:-}" > "$info"`,
+    '    ;;',
     `  *) echo "${tool} synthetic: $*" ;;`,
     'esac',
     ''
@@ -132,7 +156,7 @@ const main = async () => {
   // Archives in the upstream formats, around synthetic executables.
   const staging = join(work, 'archives');
   const archives: Record<string, { body: Uint8Array; archive: Asset['archive']; executable: string }> = {};
-  for (const tool of ['pack', 'nixpacks'] as const) {
+  for (const tool of ['railpack'] as const) {
     const root = join(staging, tool);
     await mkdir(root, { recursive: true });
     await writeFile(join(root, tool), syntheticExecutable(tool), { mode: 0o755 });
@@ -220,18 +244,22 @@ const main = async () => {
     archive: archives[archive]!.archive,
     executable: archives[archive]!.executable
   });
+  // Each scenario uses its own platform, so each starts from an empty cache directory.
   const manifest: Manifest = {
-    pack: {
-      version: VERSIONS.pack,
-      assets: { linux: asset('pack', 'linux', 'pack.tar.gz'), 'linux-arm': asset('pack', 'linux-arm', 'pack.tar.gz') }
-    },
-    nixpacks: {
-      version: VERSIONS.nixpacks,
+    railpack: {
+      version: VERSIONS.railpack,
       assets: {
+        linux: asset('railpack', 'linux', 'railpack.tar.gz'),
+        'linux-arm': asset('railpack', 'linux-arm', 'railpack.tar.gz'),
         // A pinned checksum that the served file does not have.
-        linux: asset('nixpacks', 'linux', 'nixpacks.tar.gz', sha256(new TextEncoder().encode('not the served file'))),
-        alpine: asset('nixpacks', 'alpine', 'nixpacks.tar.gz'),
-        macos: asset('nixpacks', 'macos', 'nixpacks.tar.gz')
+        'macos-arm': asset(
+          'railpack',
+          'macos-arm',
+          'railpack.tar.gz',
+          sha256(new TextEncoder().encode('not the served file'))
+        ),
+        alpine: asset('railpack', 'alpine', 'railpack.tar.gz'),
+        macos: asset('railpack', 'macos', 'railpack.tar.gz')
       }
     },
     'session-manager-plugin': {
@@ -246,8 +274,9 @@ const main = async () => {
   await writeFile(manifestPath, JSON.stringify(manifest, null, 2));
 
   // A proxy on a closed port: any request that does not go to the stand-in fails at once instead of leaving the host.
+  const { STP_RAILPACK_PLANNER: _plannerOverride, ...inheritedEnv } = process.env;
   const driverEnv = {
-    ...process.env,
+    ...inheritedEnv,
     STACKTAPE_TOOLS_DIR: toolsDirectory,
     HTTP_PROXY: 'http://127.0.0.1:9',
     HTTPS_PROXY: 'http://127.0.0.1:9',
@@ -295,23 +324,23 @@ const main = async () => {
 
   try {
     // Cold first use: download, verify, extract, run.
-    const packLinux = serve('pack', 'linux', 'pack.tar.gz');
-    const cold = await resolveIn('pack', 'linux');
+    const railpackLinux = serve('railpack', 'linux', 'railpack.tar.gz');
+    const cold = await resolveIn('railpack', 'linux');
     check(
       'cold first use downloads, verifies, extracts and runs --version',
       cold.ok &&
-        cold.path === finalPath('pack', 'linux') &&
-        versionOf(cold.path) === 'pack synthetic 0.40.0' &&
-        requests.get(packLinux) === 1,
-      JSON.stringify({ result: cold, requests: requests.get(packLinux) ?? 0 })
+        cold.path === finalPath('railpack', 'linux') &&
+        versionOf(cold.path) === 'railpack synthetic 0.40.1' &&
+        requests.get(railpackLinux) === 1,
+      JSON.stringify({ result: cold, requests: requests.get(railpackLinux) ?? 0 })
     );
 
     // Warm use: no request.
-    const warm = await resolveIn('pack', 'linux');
+    const warm = await resolveIn('railpack', 'linux');
     check(
       'warm use makes no request',
-      warm.ok && warm.path === finalPath('pack', 'linux') && requests.get(packLinux) === 1,
-      JSON.stringify({ result: warm, requests: requests.get(packLinux) ?? 0 })
+      warm.ok && warm.path === finalPath('railpack', 'linux') && requests.get(railpackLinux) === 1,
+      JSON.stringify({ result: warm, requests: requests.get(railpackLinux) ?? 0 })
     );
 
     // The deb (ar + data.tar.gz) and the macOS zip bundle, read in-process.
@@ -337,28 +366,28 @@ const main = async () => {
     );
 
     // A checksum mismatch: refused, nothing left behind.
-    serve('nixpacks', 'linux', 'nixpacks.tar.gz');
-    const mismatch = await resolveIn('nixpacks', 'linux');
+    serve('railpack', 'macos-arm', 'railpack.tar.gz');
+    const mismatch = await resolveIn('railpack', 'macos-arm');
     check(
       'a checksum mismatch is refused and leaves no executable',
       !mismatch.ok &&
         /sha-?256/i.test(mismatch.message) &&
-        !existsSync(finalPath('nixpacks', 'linux')) &&
-        leftovers('nixpacks').length === 0,
-      JSON.stringify({ result: mismatch, leftovers: leftovers('nixpacks') })
+        !existsSync(finalPath('railpack', 'macos-arm')) &&
+        leftovers('railpack').length === 0,
+      JSON.stringify({ result: mismatch, leftovers: leftovers('railpack') })
     );
 
     // A refused download names the asset, its checksum and the offline path.
-    serve('nixpacks', 'alpine', 'nixpacks.tar.gz', 'refuse');
-    const refused = await resolveIn('nixpacks', 'alpine');
-    const refusedAsset = manifest.nixpacks.assets.alpine!;
+    serve('railpack', 'alpine', 'railpack.tar.gz', 'refuse');
+    const refused = await resolveIn('railpack', 'alpine');
+    const refusedAsset = manifest.railpack.assets.alpine!;
     check(
       'a refused download names the asset URL, its checksum and the path to place it offline',
       !refused.ok &&
         refused.message.includes(refusedAsset.url) &&
         refused.message.includes(refusedAsset.sha256) &&
-        refused.message.includes(finalPath('nixpacks', 'alpine')) &&
-        !existsSync(finalPath('nixpacks', 'alpine')),
+        refused.message.includes(finalPath('railpack', 'alpine')) &&
+        !existsSync(finalPath('railpack', 'alpine')),
       JSON.stringify({ result: refused })
     );
 
@@ -398,10 +427,10 @@ const main = async () => {
     );
 
     // Two concurrent first uses: one download.
-    const concurrentRoute = serve('pack', 'linux-arm', 'pack.tar.gz', 'slow');
+    const concurrentRoute = serve('railpack', 'linux-arm', 'railpack.tar.gz', 'slow');
     const [first, second] = await Promise.all([
-      finish(startDriver(['--manifest', manifestPath, '--tool', 'pack', '--platform', 'linux-arm'])),
-      finish(startDriver(['--manifest', manifestPath, '--tool', 'pack', '--platform', 'linux-arm']))
+      finish(startDriver(['--manifest', manifestPath, '--tool', 'railpack', '--platform', 'linux-arm'])),
+      finish(startDriver(['--manifest', manifestPath, '--tool', 'railpack', '--platform', 'linux-arm']))
     ]);
     check(
       'two concurrent first uses download once',
@@ -409,15 +438,15 @@ const main = async () => {
         second.ok &&
         first.path === second.path &&
         requests.get(concurrentRoute) === 1 &&
-        versionOf(first.path) === 'pack synthetic 0.40.0' &&
-        leftovers('pack').length === 0,
-      JSON.stringify({ first, second, requests: requests.get(concurrentRoute) ?? 0, left: leftovers('pack') })
+        versionOf(first.path) === 'railpack synthetic 0.40.1' &&
+        leftovers('railpack').length === 0,
+      JSON.stringify({ first, second, requests: requests.get(concurrentRoute) ?? 0, left: leftovers('railpack') })
     );
 
     // A stalled download: headers and 64 bytes, then nothing. Commands allow 30 s without data and 10 minutes in all;
     // the test passes shorter bounds, one run reaching the idle bound and one the overall cap.
-    const hangRoute = serve('nixpacks', 'macos', 'nixpacks.tar.gz', 'hang');
-    const stalledAsset = manifest.nixpacks.assets.macos!;
+    const hangRoute = serve('railpack', 'macos', 'railpack.tar.gz', 'hang');
+    const stalledAsset = manifest.railpack.assets.macos!;
     const boundedRun = async (bounds: { idleMs: number; totalMs: number }) => {
       // Monotonic: the wall clock can jump while a run waits.
       const started = performance.now();
@@ -425,7 +454,7 @@ const main = async () => {
         '--manifest',
         manifestPath,
         '--tool',
-        'nixpacks',
+        'railpack',
         '--platform',
         'macos',
         '--idle-timeout-ms',
@@ -452,14 +481,14 @@ const main = async () => {
       !run.result.ok &&
       run.result.code === 'EXTERNAL_TOOL_DOWNLOAD_FAILED' &&
       reason.test(run.result.message ?? '') &&
-      [stalledAsset.url, stalledAsset.sha256, finalPath('nixpacks', 'macos')].every((part) =>
+      [stalledAsset.url, stalledAsset.sha256, finalPath('railpack', 'macos')].every((part) =>
         (run.result.message ?? '').includes(part)
       );
     const idle = await boundedRun({ idleMs: 1_000, totalMs: 60_000 });
     const overall = await boundedRun({ idleMs: 60_000, totalMs: 1_500 });
-    const afterStalls = { executable: existsSync(finalPath('nixpacks', 'macos')), left: leftovers('nixpacks') };
-    serve('nixpacks', 'macos', 'nixpacks.tar.gz');
-    const healthy = await resolveIn('nixpacks', 'macos');
+    const afterStalls = { executable: existsSync(finalPath('railpack', 'macos')), left: leftovers('railpack') };
+    serve('railpack', 'macos', 'railpack.tar.gz');
+    const healthy = await resolveIn('railpack', 'macos');
     check(
       'a stalled download fails within its bound and leaves nothing behind, and the retry succeeds',
       failedWithinBound(idle, 1_000, /no data/) &&
@@ -467,36 +496,46 @@ const main = async () => {
         !afterStalls.executable &&
         afterStalls.left.length === 0 &&
         healthy.ok &&
-        versionOf(healthy.path!) === 'nixpacks synthetic 1.39.0' &&
+        versionOf(healthy.path!) === 'railpack synthetic 0.40.1' &&
         requests.get(hangRoute) === 3 &&
-        leftovers('nixpacks').length === 0,
+        leftovers('railpack').length === 0,
       JSON.stringify({ idle, overall, afterStalls, healthy, requests: requests.get(hangRoute) ?? 0 })
     );
 
     // Preseeded: the CLI's call sites use a file already at the resolver's path, without any request.
-    const { EXTERNAL_TOOL_MANIFEST, externalToolPath } = await import('src/utils/external-tools');
+    const { externalToolPath } = await import('src/utils/external-tools');
     const project = join(work, 'project');
     await mkdir(project, { recursive: true });
-    const preseeded: string[] = [];
-    for (const tool of ['nixpacks', 'pack'] as const) {
-      const path = externalToolPath({ tool, toolsDirectory });
-      await mkdir(dirname(path), { recursive: true });
-      await writeFile(path, syntheticExecutable(tool));
-      await chmod(path, 0o755);
-      preseeded.push(path);
-    }
+    const preseeded = externalToolPath({ tool: 'railpack', toolsDirectory });
+    await mkdir(dirname(preseeded), { recursive: true });
+    await writeFile(preseeded, syntheticExecutable('railpack'));
+    await chmod(preseeded, 0o755);
     const requestsBefore = [...requests.values()].reduce((sum, count) => sum + count, 0);
     const planner = await finish(startDriver(['--call-site', 'planner', '--cwd', project]));
-    const pack = await finish(startDriver(['--call-site', 'pack', '--cwd', project]));
+    const prepare = await finish(startDriver(['--call-site', 'prepare', '--cwd', project]));
     const requestsAfter = [...requests.values()].reduce((sum, count) => sum + count, 0);
+    const prepared = prepare.ok
+      ? (JSON.parse(prepare.output!) as {
+          plan?: { deploy?: { startCommand?: string } };
+          info?: { success?: boolean; source?: string; commandLine?: string; envNames?: string; variable?: string };
+        })
+      : undefined;
     check(
-      'a preseeded file is used by the nixpacks planner and by pack without any request',
+      'a preseeded railpack is used by runRailpackPrepare and planStartCommand without any request',
       planner.ok &&
         planner.output === 'node synthetic-server.js' &&
-        pack.ok &&
-        pack.output === `pack synthetic ${EXTERNAL_TOOL_MANIFEST.pack.version}` &&
+        prepared?.plan?.deploy?.startCommand === 'node synthetic-server.js' &&
+        prepared.info?.success === true &&
+        prepared.info.source === project &&
         requestsAfter === requestsBefore,
-      JSON.stringify({ preseeded, planner, pack, requests: requestsAfter - requestsBefore })
+      JSON.stringify({ preseeded, planner, prepare, requests: requestsAfter - requestsBefore })
+    );
+    check(
+      'a build variable reaches railpack prepare through its environment and never its command line',
+      prepared?.info?.envNames?.trim() === BUILD_VARIABLE.name &&
+        prepared.info.variable === BUILD_VARIABLE.value &&
+        !(prepared.info.commandLine ?? BUILD_VARIABLE.value).includes(BUILD_VARIABLE.value),
+      JSON.stringify({ info: prepared?.info })
     );
   } catch (error) {
     check('the check ran to the end', false, error instanceof Error ? (error.stack ?? error.message) : String(error));

@@ -343,7 +343,7 @@ export interface HostingBucketProps {
    *     type: edge-lambda-function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: ./edge/auth.ts
    *   frontend:
@@ -367,7 +367,7 @@ export interface HostingBucketProps {
    * export default defineConfig(() => {
    *   const authChecker = new EdgeLambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: './edge/auth.ts' }
    *     }
    *   });

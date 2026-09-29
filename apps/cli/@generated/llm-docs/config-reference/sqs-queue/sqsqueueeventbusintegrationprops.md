@@ -78,7 +78,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/process-order.ts
       events:
@@ -95,12 +95,12 @@ resources:
 **Example (TypeScript):**
 
 ```ts
-import { LambdaFunction, EventBus, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+import { LambdaFunction, EventBus, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const orderEvents = new EventBus({});
   const orderProcessor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/process-order.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/process-order.ts' }),
     events: [
       {
         type: 'event-bus',
@@ -136,7 +136,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/process-order.ts
       events:
@@ -152,12 +152,12 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { LambdaFunction, EventBus, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+import { LambdaFunction, EventBus, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const orderEvents = new EventBus({});
   const orderProcessor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/process-order.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/process-order.ts' }),
     events: [
       {
         type: 'event-bus',
@@ -193,7 +193,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/process-order.ts
       events:
@@ -214,12 +214,12 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { LambdaFunction, EventBus, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+import { LambdaFunction, EventBus, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const orderEvents = new EventBus({});
   const orderProcessor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/process-order.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/process-order.ts' }),
     events: [
       {
         type: 'event-bus',
@@ -273,7 +273,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/audit-worker.ts
       events:
@@ -307,7 +307,7 @@ export default defineConfig(() => {
 
   const auditWorker = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/audit-worker.ts' }
     },
     events: [{ type: 'sqs', properties: { sqsQueueName: 'auditQueue' } }]

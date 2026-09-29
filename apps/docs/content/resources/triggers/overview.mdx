@@ -118,10 +118,10 @@ The `events` array can contain typed integration objects. This example shows an 
       code: `import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   HttpApiGateway,
   HttpApiIntegration,
-  ScheduleIntegration
+  ScheduleIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -129,7 +129,7 @@ export default defineConfig(() => {
   const myApi = new HttpApiGateway({});
 
   const processOrders = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     events: [

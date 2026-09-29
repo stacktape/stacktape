@@ -44,7 +44,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./src/index.ts
       memory: 512
@@ -59,7 +59,7 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { HttpApiGateway, HttpApiIntegration, LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+import { HttpApiGateway, HttpApiIntegration, LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const apiGateway = new HttpApiGateway({
@@ -68,7 +68,7 @@ export default defineConfig(() => {
     }
   });
   const apiHandler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/index.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/index.ts' }),
     memory: 512,
     events: [new HttpApiIntegration({ httpApiGatewayName: 'apiGateway', path: '/{proxy+}', method: '*' })]
   });
@@ -99,7 +99,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./src/index.ts
       memory: 512
@@ -114,7 +114,7 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { HttpApiGateway, HttpApiIntegration, LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+import { HttpApiGateway, HttpApiIntegration, LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const apiGateway = new HttpApiGateway({
@@ -125,7 +125,7 @@ export default defineConfig(() => {
     }
   });
   const apiHandler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/index.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/index.ts' }),
     memory: 512,
     events: [new HttpApiIntegration({ httpApiGatewayName: 'apiGateway', path: '/{proxy+}', method: '*' })]
   });
@@ -158,7 +158,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./src/index.ts
       memory: 512
@@ -173,7 +173,7 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { HttpApiGateway, HttpApiIntegration, LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+import { HttpApiGateway, HttpApiIntegration, LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const apiGateway = new HttpApiGateway({
@@ -184,7 +184,7 @@ export default defineConfig(() => {
     }
   });
   const apiHandler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/index.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/index.ts' }),
     memory: 512,
     events: [new HttpApiIntegration({ httpApiGatewayName: 'apiGateway', path: '/{proxy+}', method: '*' })]
   });
@@ -218,7 +218,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./src/index.ts
       memory: 512
@@ -233,7 +233,7 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { HttpApiGateway, HttpApiIntegration, LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+import { HttpApiGateway, HttpApiIntegration, LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const apiGateway = new HttpApiGateway({
@@ -244,7 +244,7 @@ export default defineConfig(() => {
     }
   });
   const apiHandler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/index.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/index.ts' }),
     memory: 512,
     events: [new HttpApiIntegration({ httpApiGatewayName: 'apiGateway', path: '/{proxy+}', method: '*' })]
   });
@@ -276,7 +276,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./src/index.ts
       memory: 512
@@ -291,7 +291,7 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { HttpApiGateway, HttpApiIntegration, LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+import { HttpApiGateway, HttpApiIntegration, LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const apiGateway = new HttpApiGateway({
@@ -301,7 +301,7 @@ export default defineConfig(() => {
     }
   });
   const apiHandler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/index.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/index.ts' }),
     memory: 512,
     events: [new HttpApiIntegration({ httpApiGatewayName: 'apiGateway', path: '/{proxy+}', method: '*' })]
   });
@@ -334,7 +334,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./src/index.ts
       memory: 512
@@ -349,7 +349,7 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { HttpApiGateway, HttpApiIntegration, LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+import { HttpApiGateway, HttpApiIntegration, LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const apiGateway = new HttpApiGateway({
@@ -360,7 +360,7 @@ export default defineConfig(() => {
     }
   });
   const apiHandler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/index.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/index.ts' }),
     memory: 512,
     events: [new HttpApiIntegration({ httpApiGatewayName: 'apiGateway', path: '/{proxy+}', method: '*' })]
   });
@@ -391,7 +391,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./src/index.ts
       memory: 512
@@ -406,7 +406,7 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { HttpApiGateway, HttpApiIntegration, LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+import { HttpApiGateway, HttpApiIntegration, LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const apiGateway = new HttpApiGateway({
@@ -417,7 +417,7 @@ export default defineConfig(() => {
     }
   });
   const apiHandler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/index.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/index.ts' }),
     memory: 512,
     events: [new HttpApiIntegration({ httpApiGatewayName: 'apiGateway', path: '/{proxy+}', method: '*' })]
   });

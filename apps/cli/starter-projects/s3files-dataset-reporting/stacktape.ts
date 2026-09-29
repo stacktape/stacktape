@@ -1,8 +1,8 @@
 import {
+  JsBundleLambdaPackaging,
   LambdaFunction,
   LambdaS3FilesMount,
   ScheduleIntegration,
-  StacktapeLambdaBuildpackPackaging,
   defineConfig
 } from '../../__release-npm';
 
@@ -24,7 +24,7 @@ export default defineConfig(() => {
   };
 
   const buildCatalog = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/build-catalog.ts'
     }),
     memory: 1024,
@@ -43,7 +43,7 @@ export default defineConfig(() => {
   });
 
   const datasetApi = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/api.ts'
     }),
     memory: 1024,

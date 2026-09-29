@@ -33,7 +33,7 @@ export interface BatchJobProps extends ResourceAccessProps {
    *       # stp-focus
    *       container:
    *         packaging:
-   *           type: stacktape-image-buildpack
+   *           type: js-bundle
    *           properties:
    *             entryfilePath: src/process.ts
    *         environment:
@@ -60,7 +60,7 @@ export interface BatchJobProps extends ResourceAccessProps {
    *     // stp-focus
    *     container: {
    *       packaging: {
-   *         type: 'stacktape-image-buildpack',
+   *         type: 'js-bundle',
    *         properties: { entryfilePath: 'src/process.ts' }
    *       },
    *       environment: { OUTPUT_BUCKET: $ResourceParam('resultsBucket', 'name') }
@@ -88,7 +88,7 @@ export interface BatchJobProps extends ResourceAccessProps {
    *     properties:
    *       container:
    *         packaging:
-   *           type: stacktape-image-buildpack
+   *           type: js-bundle
    *           properties:
    *             entryfilePath: src/encode.ts
    *       # stp-focus
@@ -109,7 +109,7 @@ export interface BatchJobProps extends ResourceAccessProps {
    *   const videoEncoder = new BatchJob({
    *     container: {
    *       packaging: {
-   *         type: 'stacktape-image-buildpack',
+   *         type: 'js-bundle',
    *         properties: { entryfilePath: 'src/encode.ts' }
    *       }
    *     },
@@ -137,7 +137,7 @@ export interface BatchJobProps extends ResourceAccessProps {
    *     properties:
    *       container:
    *         packaging:
-   *           type: stacktape-image-buildpack
+   *           type: js-bundle
    *           properties:
    *             entryfilePath: src/import.ts
    *       resources:
@@ -157,7 +157,7 @@ export interface BatchJobProps extends ResourceAccessProps {
    *   const dataImporter = new BatchJob({
    *     container: {
    *       packaging: {
-   *         type: 'stacktape-image-buildpack',
+   *         type: 'js-bundle',
    *         properties: { entryfilePath: 'src/import.ts' }
    *       }
    *     },
@@ -195,7 +195,7 @@ export interface BatchJobProps extends ResourceAccessProps {
    *     properties:
    *       container:
    *         packaging:
-   *           type: stacktape-image-buildpack
+   *           type: js-bundle
    *           properties:
    *             entryfilePath: src/train.ts
    *       resources:
@@ -218,7 +218,7 @@ export interface BatchJobProps extends ResourceAccessProps {
    *   const mlTrainer = new BatchJob({
    *     container: {
    *       packaging: {
-   *         type: 'stacktape-image-buildpack',
+   *         type: 'js-bundle',
    *         properties: { entryfilePath: 'src/train.ts' }
    *       }
    *     },
@@ -249,7 +249,7 @@ export interface BatchJobProps extends ResourceAccessProps {
    *     properties:
    *       container:
    *         packaging:
-   *           type: stacktape-image-buildpack
+   *           type: js-bundle
    *           properties:
    *             entryfilePath: src/report.ts
    *       resources:
@@ -270,7 +270,7 @@ export interface BatchJobProps extends ResourceAccessProps {
    *   const reportGenerator = new BatchJob({
    *     container: {
    *       packaging: {
-   *         type: 'stacktape-image-buildpack',
+   *         type: 'js-bundle',
    *         properties: { entryfilePath: 'src/report.ts' }
    *       }
    *     },
@@ -298,7 +298,7 @@ export interface BatchJobProps extends ResourceAccessProps {
    *     properties:
    *       container:
    *         packaging:
-   *           type: stacktape-image-buildpack
+   *           type: js-bundle
    *           properties:
    *             entryfilePath: src/job.ts
    *       resources:
@@ -321,7 +321,7 @@ export interface BatchJobProps extends ResourceAccessProps {
    *   const flakyJob = new BatchJob({
    *     container: {
    *       packaging: {
-   *         type: 'stacktape-image-buildpack',
+   *         type: 'js-bundle',
    *         properties: { entryfilePath: 'src/job.ts' }
    *       }
    *     },
@@ -349,7 +349,7 @@ export interface BatchJobProps extends ResourceAccessProps {
    *     properties:
    *       container:
    *         packaging:
-   *           type: stacktape-image-buildpack
+   *           type: js-bundle
    *           properties:
    *             entryfilePath: src/onUpload.ts
    *       resources:
@@ -381,7 +381,7 @@ export interface BatchJobProps extends ResourceAccessProps {
    *   const uploadProcessor = new BatchJob({
    *     container: {
    *       packaging: {
-   *         type: 'stacktape-image-buildpack',
+   *         type: 'js-bundle',
    *         properties: { entryfilePath: 'src/onUpload.ts' }
    *       }
    *     },
@@ -434,7 +434,7 @@ export interface BatchJobRetryConfiguration {
    *     properties:
    *       container:
    *         packaging:
-   *           type: stacktape-image-buildpack
+   *           type: js-bundle
    *           properties:
    *             entryfilePath: src/process.ts
    *       resources:
@@ -455,7 +455,7 @@ export interface BatchJobRetryConfiguration {
    *   const batchProcessor = new BatchJob({
    *     container: {
    *       packaging: {
-   *         type: 'stacktape-image-buildpack',
+   *         type: 'js-bundle',
    *         properties: { entryfilePath: 'src/process.ts' }
    *       }
    *     },
@@ -487,7 +487,7 @@ export interface BatchJobRetryConfiguration {
    *     properties:
    *       container:
    *         packaging:
-   *           type: stacktape-image-buildpack
+   *           type: js-bundle
    *           properties:
    *             entryfilePath: src/process.ts
    *       resources:
@@ -509,7 +509,7 @@ export interface BatchJobRetryConfiguration {
    *   const batchProcessor = new BatchJob({
    *     container: {
    *       packaging: {
-   *         type: 'stacktape-image-buildpack',
+   *         type: 'js-bundle',
    *         properties: { entryfilePath: 'src/process.ts' }
    *       }
    *     },
@@ -545,7 +545,7 @@ export interface BatchJobRetryConfiguration {
    *     properties:
    *       container:
    *         packaging:
-   *           type: stacktape-image-buildpack
+   *           type: js-bundle
    *           properties:
    *             entryfilePath: src/process.ts
    *       resources:
@@ -568,7 +568,7 @@ export interface BatchJobRetryConfiguration {
    *   const batchProcessor = new BatchJob({
    *     container: {
    *       packaging: {
-   *         type: 'stacktape-image-buildpack',
+   *         type: 'js-bundle',
    *         properties: { entryfilePath: 'src/process.ts' }
    *       }
    *     },
@@ -607,7 +607,7 @@ export interface BatchJobContainer {
    *       container:
    *         # stp-focus
    *         packaging:
-   *           type: custom-dockerfile
+   *           type: dockerfile
    *           properties:
    *             buildContextPath: ./job
    *             dockerfilePath: Dockerfile
@@ -627,7 +627,7 @@ export interface BatchJobContainer {
    *     container: {
    *       // stp-focus
    *       packaging: {
-   *         type: 'custom-dockerfile',
+   *         type: 'dockerfile',
    *         properties: { buildContextPath: './job', dockerfilePath: 'Dockerfile' }
    *       }
    *       // stp-end-focus
@@ -655,7 +655,7 @@ export interface BatchJobContainer {
    *     properties:
    *       container:
    *         packaging:
-   *           type: stacktape-image-buildpack
+   *           type: js-bundle
    *           properties:
    *             entryfilePath: src/worker.ts
    *         # stp-focus
@@ -699,7 +699,7 @@ export interface BatchJobContainer {
    *   const worker = new BatchJob({
    *     container: {
    *       packaging: {
-   *         type: 'stacktape-image-buildpack',
+   *         type: 'js-bundle',
    *         properties: { entryfilePath: 'src/worker.ts' }
    *       },
    *       // stp-focus
@@ -741,7 +741,7 @@ export interface BatchJobResources {
    *     properties:
    *       container:
    *         packaging:
-   *           type: stacktape-image-buildpack
+   *           type: js-bundle
    *           properties:
    *             entryfilePath: src/compute.ts
    *       resources:
@@ -760,7 +760,7 @@ export interface BatchJobResources {
    *   const computeJob = new BatchJob({
    *     container: {
    *       packaging: {
-   *         type: 'stacktape-image-buildpack',
+   *         type: 'js-bundle',
    *         properties: { entryfilePath: 'src/compute.ts' }
    *       }
    *     },
@@ -793,7 +793,7 @@ export interface BatchJobResources {
    *     properties:
    *       container:
    *         packaging:
-   *           type: stacktape-image-buildpack
+   *           type: js-bundle
    *           properties:
    *             entryfilePath: src/compute.ts
    *       resources:
@@ -812,7 +812,7 @@ export interface BatchJobResources {
    *   const memoryJob = new BatchJob({
    *     container: {
    *       packaging: {
-   *         type: 'stacktape-image-buildpack',
+   *         type: 'js-bundle',
    *         properties: { entryfilePath: 'src/compute.ts' }
    *       }
    *     },
@@ -844,7 +844,7 @@ export interface BatchJobResources {
    *     properties:
    *       container:
    *         packaging:
-   *           type: stacktape-image-buildpack
+   *           type: js-bundle
    *           properties:
    *             entryfilePath: src/infer.ts
    *       resources:
@@ -864,7 +864,7 @@ export interface BatchJobResources {
    *   const inferenceJob = new BatchJob({
    *     container: {
    *       packaging: {
-   *         type: 'stacktape-image-buildpack',
+   *         type: 'js-bundle',
    *         properties: { entryfilePath: 'src/infer.ts' }
    *       }
    *     },
@@ -907,7 +907,7 @@ export interface BatchJobLogging extends LogForwardingBase {
    *     properties:
    *       container:
    *         packaging:
-   *           type: stacktape-image-buildpack
+   *           type: js-bundle
    *           properties:
    *             entryfilePath: src/job.ts
    *       resources:
@@ -928,7 +928,7 @@ export interface BatchJobLogging extends LogForwardingBase {
    *   const quietJob = new BatchJob({
    *     container: {
    *       packaging: {
-   *         type: 'stacktape-image-buildpack',
+   *         type: 'js-bundle',
    *         properties: { entryfilePath: 'src/job.ts' }
    *       }
    *     },
@@ -960,7 +960,7 @@ export interface BatchJobLogging extends LogForwardingBase {
    *     properties:
    *       container:
    *         packaging:
-   *           type: stacktape-image-buildpack
+   *           type: js-bundle
    *           properties:
    *             entryfilePath: src/audit.ts
    *       resources:
@@ -981,7 +981,7 @@ export interface BatchJobLogging extends LogForwardingBase {
    *   const auditJob = new BatchJob({
    *     container: {
    *       packaging: {
-   *         type: 'stacktape-image-buildpack',
+   *         type: 'js-bundle',
    *         properties: { entryfilePath: 'src/audit.ts' }
    *       }
    *     },

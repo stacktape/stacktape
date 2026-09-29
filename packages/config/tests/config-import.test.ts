@@ -23,7 +23,7 @@ describe('a Stacktape configuration can be built from explicit package imports',
       'uploads'
     ]);
     expect(acceptedConfiguration.cloudformationResources?.LegacyTopic?.Type).toBe('AWS::SNS::Topic');
-    expect(api.properties.packaging.type).toBe('stacktape-lambda-buildpack');
+    expect(api.properties.packaging.type).toBe('js-bundle');
     expect(alarmDefinition.trigger.type).toBe('lambda-error-rate');
   });
 });
@@ -45,8 +45,7 @@ describe('the generated configuration schema package export', () => {
   });
 
   test('publishes defaults that match the authored and runtime configuration contract', () => {
-    expect('default' in configSchema.definitions.EsLanguageSpecificConfig.properties.nodeVersion).toBe(false);
-    expect(configSchema.definitions.PyLanguageSpecificConfig.properties.pythonVersion.default).toBe(3.12);
+    expect('default' in configSchema.definitions.JsBundleLambdaPackagingProps.properties.nodeVersion).toBe(false);
     expect(configSchema.definitions.LambdaFunctionLogging.properties.retentionDays.default).toBe(90);
     expect(configSchema.definitions.RedisLogging.properties.retentionDays.default).toBe(30);
     expect(configSchema.definitions.LambdaFunctionLogging.properties.logClass).toMatchObject({
@@ -61,7 +60,9 @@ describe('the generated configuration schema package export', () => {
 
     // These defaults depend on another property or the containing log type. They are applied by the
     // packaging/synthesis runtime and cannot be represented by one scalar JSON Schema default.
-    expect('default' in configSchema.definitions.EsLanguageSpecificConfig.properties.outputModuleFormat).toBe(false);
+    expect('default' in configSchema.definitions.JsBundleLambdaPackagingProps.properties.outputModuleFormat).toBe(
+      false
+    );
     expect('default' in configSchema.definitions.OpenSearchLogRetentionSettings.properties.retentionDays).toBe(false);
   });
 

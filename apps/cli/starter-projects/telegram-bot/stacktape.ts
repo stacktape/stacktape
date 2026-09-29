@@ -1,8 +1,8 @@
-import { $Secret, LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from '../../__release-npm';
+import { $Secret, JsBundleLambdaPackaging, LambdaFunction, defineConfig } from '../../__release-npm';
 
 export default defineConfig(() => {
   const bot = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/index.ts'
     }),
     memory: 512,

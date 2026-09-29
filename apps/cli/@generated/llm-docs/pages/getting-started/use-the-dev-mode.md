@@ -67,9 +67,9 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   RelationalDatabase,
-  RdsEnginePostgres
+  RdsEnginePostgres,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const myDatabase = new RelationalDatabase({
@@ -83,7 +83,7 @@ export default defineConfig(() => {
   });
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     connectTo: [myDatabase],

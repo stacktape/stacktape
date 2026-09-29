@@ -30,9 +30,9 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: buildpack
         properties:
-          entryfilePath: ./app.py
+          startCommand: gunicorn --bind 0.0.0.0:$PORT app:app
       resources:
         cpu: 0.25
         memory: 512

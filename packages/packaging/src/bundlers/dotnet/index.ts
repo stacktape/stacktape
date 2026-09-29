@@ -12,7 +12,7 @@ import { transformToUnixPath } from '../../fs/files';
 import objectHash from 'object-hash';
 
 import { getBundleDigest, getDotnetAssemblyName, getSourceFiles, resolveDotnetProjectFile } from './utils';
-import type { DotnetLanguageSpecificConfig, SupportedDotnetVersion } from '@stacktape/config/deployment-artifacts';
+import type { DotnetBuildpackConfig, SupportedDotnetVersion } from '@stacktape/config/deployment-artifacts';
 import { DEFAULT_DOTNET_VERSION } from '../constants';
 import {
   applyArtifactFileSelection,
@@ -42,7 +42,7 @@ export const buildDotnetArtifact = async ({
   dockerBuildOutputArchitecture,
   includeFiles,
   excludeFiles,
-  target = 'container',
+  target = 'lambda',
   createPackagingError,
   runDocker
 }: StpBuildpackInput & {
@@ -51,7 +51,7 @@ export const buildDotnetArtifact = async ({
   rawEntryfilePath: string;
   distIndexFilePath?: string | undefined;
   progressLogger: ProgressLogger;
-  languageSpecificConfig?: DotnetLanguageSpecificConfig | undefined;
+  languageSpecificConfig?: DotnetBuildpackConfig | undefined;
   createPackagingError: CreatePackagingError;
   runDocker: RunDocker;
   target?: 'container' | 'lambda' | undefined;

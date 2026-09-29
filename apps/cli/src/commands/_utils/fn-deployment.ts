@@ -31,6 +31,7 @@ export const buildAndUpdateFunctionCode = async (stpResourceName: string, option
     packaging: lambdaProps.packaging,
     workloadName: lambdaProps.name,
     commandCanUseCache: false,
+    target: 'lambda',
     dockerBuildOutputArchitecture: lambdaProps.architecture === 'arm64' ? 'linux/arm64' : 'linux/amd64',
     ...(devMode && { customProgressLogger: tuiManager.createSpinnerProgressLogger(spinner, lambdaProps.name) })
   })) as PackagingOutput;

@@ -39,7 +39,7 @@ export interface SqsQueueProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/email-worker.ts
    *       events:
@@ -63,7 +63,7 @@ export interface SqsQueueProps {
    *
    *   const emailWorker = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/email-worker.ts' }
    *     },
    *     events: [{ type: 'sqs', properties: { sqsQueueName: 'emailQueue' } }]
@@ -99,7 +99,7 @@ export interface SqsQueueProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/upload-processor.ts
    *       events:
@@ -123,7 +123,7 @@ export interface SqsQueueProps {
    *
    *   const uploadProcessor = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/upload-processor.ts' }
    *     },
    *     events: [{ type: 'sqs', properties: { sqsQueueName: 'uploadEventsQueue' } }]
@@ -159,7 +159,7 @@ export interface SqsQueueProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/report-worker.ts
    *       timeout: 240
@@ -184,7 +184,7 @@ export interface SqsQueueProps {
    *
    *   const reportWorker = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/report-worker.ts' }
    *     },
    *     timeout: 240,
@@ -224,7 +224,7 @@ export interface SqsQueueProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/image-worker.ts
    *       events:
@@ -248,7 +248,7 @@ export interface SqsQueueProps {
    *
    *   const imageWorker = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/image-worker.ts' }
    *     },
    *     events: [{ type: 'sqs', properties: { sqsQueueName: 'imageJobsQueue' } }]
@@ -287,7 +287,7 @@ export interface SqsQueueProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/video-encoder.ts
    *       timeout: 600
@@ -312,7 +312,7 @@ export interface SqsQueueProps {
    *
    *   const videoEncoder = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/video-encoder.ts' }
    *     },
    *     timeout: 600,
@@ -353,7 +353,7 @@ export interface SqsQueueProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/transaction-processor.ts
    *       events:
@@ -378,7 +378,7 @@ export interface SqsQueueProps {
    *
    *   const transactionProcessor = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/transaction-processor.ts' }
    *     },
    *     events: [{ type: 'sqs', properties: { sqsQueueName: 'transactionsQueue' } }]
@@ -415,7 +415,7 @@ export interface SqsQueueProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/clickstream-consumer.ts
    *       events:
@@ -441,7 +441,7 @@ export interface SqsQueueProps {
    *
    *   const clickstreamConsumer = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/clickstream-consumer.ts' }
    *     },
    *     events: [{ type: 'sqs', properties: { sqsQueueName: 'clickstreamQueue', batchSize: 10 } }]
@@ -477,7 +477,7 @@ export interface SqsQueueProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/order-event-consumer.ts
    *       events:
@@ -502,7 +502,7 @@ export interface SqsQueueProps {
    *
    *   const orderEventConsumer = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/order-event-consumer.ts' }
    *     },
    *     events: [{ type: 'sqs', properties: { sqsQueueName: 'orderEventsQueue' } }]
@@ -542,7 +542,7 @@ export interface SqsQueueProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/payments-worker.ts
    *       events:
@@ -571,7 +571,7 @@ export interface SqsQueueProps {
    *
    *   const paymentsWorker = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/payments-worker.ts' }
    *     },
    *     events: [{ type: 'sqs', properties: { sqsQueueName: 'paymentsQueue' } }]
@@ -612,7 +612,7 @@ export interface SqsQueueProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/backlog-worker.ts
    *       events:
@@ -651,7 +651,7 @@ export interface SqsQueueProps {
    *
    *   const backlogWorker = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/backlog-worker.ts' }
    *     },
    *     events: [{ type: 'sqs', properties: { sqsQueueName: 'backlogQueue' } }]
@@ -685,7 +685,7 @@ export interface SqsQueueProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/low-priority-worker.ts
    *       events:
@@ -709,7 +709,7 @@ export interface SqsQueueProps {
    *
    *   const lowPriorityWorker = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/low-priority-worker.ts' }
    *     },
    *     events: [{ type: 'sqs', properties: { sqsQueueName: 'lowPriorityQueue' } }]
@@ -747,7 +747,7 @@ export interface SqsQueueProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/cross-account-worker.ts
    *       events:
@@ -776,7 +776,7 @@ export interface SqsQueueProps {
    *
    *   const crossAccountWorker = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/cross-account-worker.ts' }
    *     },
    *     events: [{ type: 'sqs', properties: { sqsQueueName: 'crossAccountQueue' } }]
@@ -816,7 +816,7 @@ export interface SqsQueueProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/order-worker.ts
    *       events:
@@ -849,7 +849,7 @@ export interface SqsQueueProps {
    *
    *   const orderWorker = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/order-worker.ts' }
    *     },
    *     events: [{ type: 'sqs', properties: { sqsQueueName: 'orderQueue' } }]
@@ -887,7 +887,7 @@ export interface SqsQueuePolicyStatement {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/restricted-worker.ts
    *       events:
@@ -916,7 +916,7 @@ export interface SqsQueuePolicyStatement {
    *
    *   const restrictedWorker = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/restricted-worker.ts' }
    *     },
    *     events: [{ type: 'sqs', properties: { sqsQueueName: 'restrictedQueue' } }]
@@ -952,7 +952,7 @@ export interface SqsQueuePolicyStatement {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/ingest-worker.ts
    *       events:
@@ -981,7 +981,7 @@ export interface SqsQueuePolicyStatement {
    *
    *   const ingestWorker = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/ingest-worker.ts' }
    *     },
    *     events: [{ type: 'sqs', properties: { sqsQueueName: 'ingestQueue' } }]
@@ -1018,7 +1018,7 @@ export interface SqsQueuePolicyStatement {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/topic-bound-worker.ts
    *       events:
@@ -1052,7 +1052,7 @@ export interface SqsQueuePolicyStatement {
    *
    *   const topicBoundWorker = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/topic-bound-worker.ts' }
    *     },
    *     events: [{ type: 'sqs', properties: { sqsQueueName: 'topicBoundQueue' } }]
@@ -1088,7 +1088,7 @@ export interface SqsQueuePolicyStatement {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/partner-worker.ts
    *       events:
@@ -1117,7 +1117,7 @@ export interface SqsQueuePolicyStatement {
    *
    *   const partnerWorker = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/partner-worker.ts' }
    *     },
    *     events: [{ type: 'sqs', properties: { sqsQueueName: 'partnerQueue' } }]
@@ -1163,7 +1163,7 @@ export interface SqsQueueEventBusIntegration {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/shipment-worker.ts
    *       events:
@@ -1197,7 +1197,7 @@ export interface SqsQueueEventBusIntegration {
    *
    *   const shipmentWorker = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/shipment-worker.ts' }
    *     },
    *     events: [{ type: 'sqs', properties: { sqsQueueName: 'shipmentQueue' } }]
@@ -1244,7 +1244,7 @@ export interface SqsQueueEventBusIntegrationProps extends EventBusIntegrationPro
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/audit-worker.ts
    *       events:
@@ -1280,7 +1280,7 @@ export interface SqsQueueEventBusIntegrationProps extends EventBusIntegrationPro
    *
    *   const auditWorker = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/audit-worker.ts' }
    *     },
    *     events: [{ type: 'sqs', properties: { sqsQueueName: 'auditQueue' } }]
@@ -1318,7 +1318,7 @@ export interface SqsQueueRedrivePolicy {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/notifications-worker.ts
    *       events:
@@ -1346,7 +1346,7 @@ export interface SqsQueueRedrivePolicy {
    *
    *   const notificationsWorker = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/notifications-worker.ts' }
    *     },
    *     events: [{ type: 'sqs', properties: { sqsQueueName: 'notificationsQueue' } }]
@@ -1378,7 +1378,7 @@ export interface SqsQueueRedrivePolicy {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/events-worker.ts
    *       events:
@@ -1404,7 +1404,7 @@ export interface SqsQueueRedrivePolicy {
    *
    *   const eventsWorker = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/events-worker.ts' }
    *     },
    *     events: [{ type: 'sqs', properties: { sqsQueueName: 'eventsQueue' } }]
@@ -1440,7 +1440,7 @@ export interface SqsQueueRedrivePolicy {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/jobs-worker.ts
    *       events:
@@ -1468,7 +1468,7 @@ export interface SqsQueueRedrivePolicy {
    *
    *   const jobsWorker = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/jobs-worker.ts' }
    *     },
    *     events: [{ type: 'sqs', properties: { sqsQueueName: 'jobsQueue' } }]

@@ -1,9 +1,9 @@
 import {
   $Secret,
+  JsBundleImagePackaging,
   LocalScript,
   RdsEnginePostgres,
   RelationalDatabase,
-  StacktapeImageBuildpackPackaging,
   WebService,
   defineConfig
 } from '../../__release-npm';
@@ -21,7 +21,7 @@ export default defineConfig(() => {
     })
   });
   const webService = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: './src/index.ts'
     }),
     resources: {

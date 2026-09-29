@@ -1,7 +1,6 @@
 import { basename, dirname, isAbsolute, join } from 'node:path';
 import { exists } from 'fs-extra';
 
-import type { DotnetLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
 import { STACKTAPE_LANGUAGE_SOURCE_GLOBS } from '../../artifact/language-build-context';
 import { getBundleDigestFromGlobs, getSourceFilesFromGlobs } from '../digest';
 import { getMatchingFilesByGlob } from '../../fs/files';
@@ -27,7 +26,8 @@ export const getBundleDigest = ({
   externalDependencies: { name: string; version: string }[];
   additionalDigestInput?: string | undefined;
   rawEntryfilePath: string;
-  languageSpecificConfig?: DotnetLanguageSpecificConfig | undefined;
+  /** Hashed structurally into the digest; the concrete shape is free. */
+  languageSpecificConfig?: object | undefined;
   lambdaZip?: boolean | undefined;
 }) =>
   getBundleDigestFromGlobs({

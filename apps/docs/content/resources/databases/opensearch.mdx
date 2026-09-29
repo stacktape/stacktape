@@ -244,7 +244,7 @@ In `vpc` mode, the domain is accessible from resources inside your VPC — funct
   defineConfig,
   OpenSearchDomain,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -263,7 +263,7 @@ export default defineConfig(() => {
   });
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     joinDefaultVpc: true,
@@ -297,7 +297,7 @@ Add the OpenSearch domain to a workload's `connectTo` list so Stacktape adds the
   defineConfig,
   OpenSearchDomain,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -313,7 +313,7 @@ export default defineConfig(() => {
   });
 
   const indexer = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/indexer.ts'
     }),
     connectTo: [search],

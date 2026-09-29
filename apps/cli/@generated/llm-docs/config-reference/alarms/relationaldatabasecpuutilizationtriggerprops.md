@@ -164,7 +164,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./src/worker.ts
       alarms:
@@ -179,11 +179,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+import { LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const worker = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/worker.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/worker.ts' }),
     alarms: [
       {
         description: '99th-percentile duration too high',

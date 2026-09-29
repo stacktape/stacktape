@@ -43,10 +43,8 @@ import { validateSqsQueueConfig } from './sqs-queues';
 import { validateWebServiceConfig } from './web-services';
 import type { StacktapeConfig } from '@stacktape/config';
 import type {
-  PyLanguageSpecificConfig,
-  StpBuildpackBjImagePackaging,
-  StpBuildpackCwImagePackaging,
-  StpBuildpackLambdaPackaging
+  BuildpackCwImagePackagingProps,
+  BuildpackLambdaPackagingProps
 } from '@stacktape/config/deployment-artifacts';
 import type { LambdaRuntime } from '@stacktape/config/primitives';
 import type { AuroraEngine, RdsEngine } from '@stacktape/config/relational-databases';
@@ -97,9 +95,15 @@ export const validatePackagingProps = ({
   }`;
   const cwdHint =
     'Paths are resolved relative to `--currentWorkingDirectory` or the directory containing the Stacktape config.';
-  if (packaging.type === 'stacktape-image-buildpack' || packaging.type === 'stacktape-lambda-buildpack') {
-    const { entryfilePath } = packaging.properties;
-    const { extension, filePath, handler, hasExplicitHandler } = parseUserCodeFilepath({
+  const entryFileProperties =
+    packaging.type === 'js-bundle'
+      ? packaging.properties
+      : packaging.type === 'buildpack' && 'entryfilePath' in packaging.properties
+        ? (packaging.properties as BuildpackLambdaPackagingProps)
+        : undefined;
+  if (entryFileProperties) {
+    const { entryfilePath } = entryFileProperties;
+    const { extension, filePath, hasExplicitHandler } = parseUserCodeFilepath({
       codeType: `${workloadDescription} entryfilePath`,
       fullPath: entryfilePath,
       workingDir
@@ -124,6 +128,31 @@ export const validatePackagingProps = ({
         code: 'PACKAGING_LANGUAGE_NOT_SUPPORTED',
         message: `Packaging \`.${extension}\` compute resources is not yet supported.`,
         hints: issue
+      });
+    }
+    const isJsEntryFile = ['js', 'ts', 'jsx', 'mjs', 'tsx'].includes(extension);
+    if (packaging.type === 'js-bundle' && !isJsEntryFile) {
+      throw new CliError({
+        category: 'PACKAGING_CONFIG',
+        code: 'PACKAGING_JS_BUNDLE_ENTRYFILE_NOT_JS',
+        message: `${workloadDescription} uses js-bundle packaging with a \`.${extension}\` entry file.`,
+        hints: 'js-bundle packaging bundles JavaScript and TypeScript. Use buildpack packaging for other languages.'
+      });
+    }
+    if (packaging.type === 'buildpack' && isJsEntryFile) {
+      throw new CliError({
+        category: 'PACKAGING_CONFIG',
+        code: 'PACKAGING_BUILDPACK_ENTRYFILE_IS_JS',
+        message: `${workloadDescription} uses buildpack packaging with a \`.${extension}\` entry file.`,
+        hints: 'Use js-bundle packaging for JavaScript and TypeScript functions.'
+      });
+    }
+    if (hasExplicitHandler) {
+      throw new CliError({
+        category: 'PACKAGING_CONFIG',
+        code: 'PACKAGING_ENTRYFILE_HANDLER_SUFFIX',
+        message: `${workloadDescription} entry file \`${entryfilePath}\` carries a \`:handler\` suffix.`,
+        hints: 'Name the handler with the handlerFunction property instead.'
       });
     }
 
@@ -153,16 +182,7 @@ export const validatePackagingProps = ({
         hints: cwdHint
       });
     }
-    if (extension === 'py') {
-      validateStacktapeBuildpackPythonPackagingProps({
-        packaging,
-        workloadName,
-        workloadType,
-        hasAppVariableSpecified: hasExplicitHandler,
-        appVariable: handler
-      });
-    }
-  } else if (packaging.type === 'custom-dockerfile') {
+  } else if (packaging.type === 'dockerfile') {
     const { dockerfilePath, buildContextPath } = packaging.properties;
     const fullLocation = buildContextPath
       ? join(workingDir, buildContextPath, dockerfilePath || 'Dockerfile')
@@ -186,62 +206,19 @@ export const validatePackagingProps = ({
         hints: cwdHint
       });
     }
-  } else if (packaging.type === 'external-buildpack' || packaging.type === 'nixpacks') {
-    const { sourceDirectoryPath } = packaging.properties;
+  } else if (packaging.type === 'buildpack') {
+    const sourceDirectoryPath = (packaging.properties as BuildpackCwImagePackagingProps).sourceDirectoryPath ?? '.';
     const fullLocation = join(workingDir, sourceDirectoryPath);
-    if (!isFileAccessible(fullLocation) && !isDirAccessible(fullLocation)) {
+    if (!isDirAccessible(fullLocation)) {
       throw new CliError({
         category: 'PACKAGING_CONFIG',
         code: 'PACKAGING_SOURCE_DIRECTORY_MISSING',
-        message: `${workloadDescription} source directory \`${fullLocation}\` does not exist or is not accessible.`,
+        message: `${workloadDescription} buildpack source directory \`${sourceDirectoryPath}\` does not exist or is not a directory.`,
         hints: cwdHint
-      });
-    }
-    if (
-      packaging.type === 'nixpacks' &&
-      packaging.properties.startOnlyIncludeFiles?.length &&
-      !packaging.properties.startRunImage
-    ) {
-      throw new CliError({
-        category: 'PACKAGING_CONFIG',
-        code: 'NIXPACKS_RUNTIME_FILTER_REQUIRES_RUN_IMAGE',
-        message: `${workloadDescription} uses Nixpacks startOnlyIncludeFiles without startRunImage.`,
-        hints:
-          'Nixpacks applies startOnlyIncludeFiles only when copying files into a separate runtime image. Configure startRunImage or remove startOnlyIncludeFiles.'
       });
     }
   }
   // @todo validate prebuilt-image?
-};
-
-const validateStacktapeBuildpackPythonPackagingProps = ({
-  packaging,
-  workloadName,
-  hasAppVariableSpecified,
-  appVariable,
-  workloadType
-}: {
-  packaging: StpBuildpackCwImagePackaging | StpBuildpackBjImagePackaging | StpBuildpackLambdaPackaging;
-  workloadName: string;
-  hasAppVariableSpecified: boolean;
-  appVariable?: string;
-  workloadType: StpWorkloadType;
-}) => {
-  const languageSpecificConfig: PyLanguageSpecificConfig = packaging.properties
-    .languageSpecificConfig as PyLanguageSpecificConfig;
-  if (packaging.type === 'stacktape-lambda-buildpack' && languageSpecificConfig?.runAppAs) {
-    throw configErrors.runAppAsPackagingInvalid({ workloadName, workloadType });
-  }
-  if (!hasAppVariableSpecified && languageSpecificConfig?.runAppAs) {
-    throw configErrors.pythonAppVariableRequired({
-      entryfilePath: packaging.properties.entryfilePath,
-      workloadName,
-      workloadType
-    });
-  }
-  if (hasAppVariableSpecified && !languageSpecificConfig?.runAppAs) {
-    throw configErrors.pythonAppVariableRequiresRunAppAs({ workloadName, workloadType, appVariable });
-  }
 };
 
 export const validateAwsCdkConstructProps = ({

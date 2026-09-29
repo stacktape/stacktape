@@ -57,11 +57,11 @@ import {
   defineConfig,
   CustomResourceDefinition,
   CustomResourceInstance,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const webhookProvider = new CustomResourceDefinition({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/webhook-provider.ts'
     }),
     timeout: 30,
@@ -215,11 +215,11 @@ import {
   defineConfig,
   CustomResourceDefinition,
   CustomResourceInstance,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const dnsProvider = new CustomResourceDefinition({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/dns-provider.ts'
     }),
     timeout: 60
@@ -258,11 +258,11 @@ In this example, `dnsProvider` defines the Lambda that manages DNS records. The 
 
 ## Packaging
 
-The `packaging` property on `CustomResourceDefinition` configures how the backing Lambda code is built and deployed. Stacktape supports two [Lambda packaging](/packaging/overview) modes for custom resources: the Stacktape Lambda buildpack and custom artifact packaging.
+The `packaging` property on `CustomResourceDefinition` configures how the backing Lambda code is built and deployed. Custom resources use the same three [Lambda packaging](/packaging/overview) types as functions: `js-bundle`, `buildpack` and `custom-artifact`.
 
-### Stacktape Lambda buildpack
+### Building from source
 
-The [Stacktape Lambda buildpack](/packaging/function/stacktape-buildpack) is zero-config packaging that bundles your source code automatically. It supports JavaScript, TypeScript, Python, Java, Go, Ruby, PHP, and .NET. This is the recommended choice for most custom resources — point it at your handler file and Stacktape handles bundling, dependency resolution, and upload. The buildpack automatically resolves dependencies and optimizes the bundle size, but you have less control over the exact contents of the deployment package. Use this unless you have a pre-existing build pipeline or need precise control over the deployment artifact.
+[`js-bundle`](/packaging/function/js-bundle) bundles a JavaScript or TypeScript handler. [`buildpack`](/packaging/function/buildpack) builds Python, Java, Go, Ruby, .NET and Rust handlers. Point either one at your handler file and Stacktape handles bundling, dependency installation and upload. You have less control over the exact contents of the deployment package. Use them unless you have a pre-existing build pipeline or need precise control over the deployment artifact.
 
 
 Example (TypeScript):
@@ -271,11 +271,11 @@ Example (TypeScript):
 import {
   defineConfig,
   CustomResourceDefinition,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const provider = new CustomResourceDefinition({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/provider.ts'
     }),
     timeout: 60
@@ -292,7 +292,7 @@ The `timeout` is set to 60 seconds here — the default is 10 seconds. Increase 
 
 ### Custom artifact
 
-The [custom artifact](/packaging/function/custom-artifact) mode lets you provide a pre-built zip or directory. Stacktape uploads it as-is (zipping directories automatically). This works with any Lambda runtime since you provide the complete deployment package — unlike the buildpack, which handles only the supported languages listed above. Use custom artifact when you have a custom build pipeline, need dependencies that the buildpack doesn't handle well, or want precise control over the deployment package contents. The tradeoff is that you are responsible for maintaining the build process, dependency resolution, and artifact structure yourself.
+The [custom artifact](/packaging/function/custom-artifact) mode lets you provide a pre-built zip or directory. Stacktape uploads it as-is (zipping directories automatically). This works with any Lambda runtime since you provide the complete deployment package — unlike `js-bundle` and `buildpack`, which handle only the languages listed above. Use custom artifact when you have a custom build pipeline, need dependencies that source-based packaging doesn't handle well, or want precise control over the deployment package contents. The tradeoff is that you are responsible for maintaining the build process, dependency resolution, and artifact structure yourself.
 
 
 Example (TypeScript):
@@ -320,7 +320,7 @@ The `handler` property specifies the entry point in `filepath:functionName` form
 
 ## Runtime
 
-The `runtime` property sets the Lambda runtime to a supported AWS Lambda runtime identifier. When using the [Stacktape Lambda buildpack](/packaging/function/stacktape-buildpack), the runtime is auto-detected from the entry file extension, so you rarely need to set this explicitly. Set `runtime` manually when using [custom artifact](/packaging/function/custom-artifact) packaging (since there is no entry file for Stacktape to detect from) or when you need to pin a specific runtime version. See the API reference below for the full list of supported runtime values, and the [function packaging docs](/packaging/function/stacktape-buildpack#language-specific-configuration) for runtime-specific configuration.
+The `runtime` property sets the Lambda runtime to a supported AWS Lambda runtime identifier. When using [`js-bundle`](/packaging/function/js-bundle) or [`buildpack`](/packaging/function/buildpack), the runtime is auto-detected from the entry file extension, so you rarely need to set this explicitly. Set `runtime` manually when using [custom artifact](/packaging/function/custom-artifact) packaging (since there is no entry file for Stacktape to detect from) or when you need to pin a specific runtime version. See the API reference below for the full list of supported runtime values, and the [Lambda buildpack docs](/packaging/function/buildpack#runtime-and-language-versions) for how `runtime` selects the language version.
 
 ## Connecting to resources
 
@@ -334,14 +334,14 @@ import {
   defineConfig,
   CustomResourceDefinition,
   CustomResourceInstance,
-  StacktapeLambdaBuildpackPackaging,
-  Bucket
+  Bucket,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const configBucket = new Bucket({});
 
   const setupProvider = new CustomResourceDefinition({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/setup-provider.ts'
     }),
     timeout: 60,
@@ -371,11 +371,11 @@ Example (TypeScript):
 import {
   defineConfig,
   CustomResourceDefinition,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const provider = new CustomResourceDefinition({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/provider.ts'
     }),
     timeout: 30,
@@ -410,7 +410,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 
 | Property | Required | Type | Default |
 | --- | --- | --- | --- |
-| `packaging` | yes | `stacktape-lambda-buildpack \| custom-artifact` | - |
+| `packaging` | yes | `js-bundle \| buildpack \| custom-artifact` | - |
 | `connectTo` | no | `Array<string>` | - |
 | `environment` | no | `Array<EnvironmentVar>` | - |
 | `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | - |

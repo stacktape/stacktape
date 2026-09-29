@@ -36,7 +36,7 @@ Alarms require [alert channels](/observability/alert-channels) (such as Slack, e
 
 ## Issues (automatic error tracking)
 
-Issues is a built-in error inbox. Stacktape detects runtime errors in your Lambda functions and buildpack containers by scanning log patterns — unhandled exceptions, panics, tracebacks, exit errors, and handler-not-found failures across TypeScript/JavaScript, Python, Go, Java, .NET, Ruby, and PHP. Repeated errors are grouped into a single issue with the error message, stack trace, resource name, occurrence count, and last-seen timestamp.
+Issues is a built-in error inbox. Stacktape detects runtime errors in your Lambda functions and `js-bundle` containers by scanning log patterns — unhandled exceptions, panics, tracebacks, exit errors, and handler-not-found failures across TypeScript/JavaScript, Python, Go, Java, .NET, Ruby, and PHP. Repeated errors are grouped into a single issue with the error message, stack trace, resource name, occurrence count, and last-seen timestamp.
 
 Issues must be explicitly enabled. Configure issue detection for all projects or selected projects from the Issues page in the Console — you can optionally limit detection to specific stage names. Matching stages need to be deployed with Stacktape CLI 3.8.0 or newer for the CloudWatch Logs subscription filters to be added. Issues can be filtered by status (All, Open, Resolved, Ignored), project, stage, and search text.
 

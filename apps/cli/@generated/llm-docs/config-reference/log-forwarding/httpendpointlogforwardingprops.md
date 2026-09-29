@@ -32,7 +32,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
       memory: 512
@@ -46,11 +46,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+import { LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const apiFunction = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/api.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/api.ts' }),
     memory: 512,
     logging: {
       logForwarding: {
@@ -80,7 +80,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
       memory: 512
@@ -95,11 +95,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig, $Secret } from 'stacktape';
+import { LambdaFunction, defineConfig, $Secret, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const apiFunction = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/api.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/api.ts' }),
     memory: 512,
     logging: {
       logForwarding: {
@@ -131,7 +131,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
       memory: 512
@@ -146,11 +146,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+import { LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const apiFunction = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/api.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/api.ts' }),
     memory: 512,
     logging: {
       logForwarding: {
@@ -181,7 +181,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
       memory: 512
@@ -198,11 +198,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+import { LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const apiFunction = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/api.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/api.ts' }),
     memory: 512,
     logging: {
       logForwarding: {
@@ -237,7 +237,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
       memory: 512
@@ -252,11 +252,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+import { LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const apiFunction = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/api.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/api.ts' }),
     memory: 512,
     logging: {
       logForwarding: {

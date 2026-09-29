@@ -2,7 +2,7 @@
  * The JavaScript image's npm, pnpm or Bun install is reused across source edits and repeated when a dependency changes,
  * and the image carries and runs exactly what the conservative layout would.
  *
- * The production ES image buildpack generates its own Dockerfile, and real Docker builds it with the default builder,
+ * The production `js-bundle` image buildpack generates its own Dockerfile, and real Docker builds it with the default builder,
  * an owned Docker configuration and an owned local BuildKit cache. Each packaging runs in a fresh process, as each CLI
  * invocation does:
  * 1. `v1`, npm, ESM, cold (`--no-cache`), exporting that cache;
@@ -16,22 +16,29 @@
  *    the conservative layout;
  * 7. `bun1` to `bun-cjs2`, the same sequence as npm's for a Bun project, where every step of the dependency stage (Bun
  *    itself, the lifecycle policy that replaces the manifest, and `bun add`) must be reused by handler-only edits.
- * 8. `py1` to `py-nested`, a Python artifact (container target) with a pinned root `requirements.txt`, built by the
- *    production `buildPythonArtifact`: a handler-only edit must reuse uv, the system packages, the minifier and the
- *    requirements install; a requirements edit must install again; nested requirements keep the conservative layout.
- *    Each exported artifact tree (kind, mode, symlink target, bytes) and its handler's output must equal the
- *    conservative layout's.
- * 9. `dc1` to `dc3`, an image built from a custom Dockerfile by the production `buildUsingCustomDockerfile`. The
+ * 8. `py1` to `py-nested`, a Python Lambda artifact with a pinned root `requirements.txt`, built by the production
+ *    `buildPythonArtifact` as the Python Lambda buildpack calls it (Lambda target, Lambda ZIP digest): a handler-only
+ *    edit must reuse uv and the requirements install; a requirements edit must install again; nested requirements keep
+ *    the conservative layout. Each exported artifact tree (kind, mode, symlink target, bytes) and its handler's output
+ *    must equal the conservative layout's.
+ * 9. `dc1` to `dc3`, an image built from a custom Dockerfile by the production `buildUsingDockerfile`. The
  *    Dockerfile lies outside the build context, and its own ignore file must win over the context's `.dockerignore`,
  *    with a negation. The context holds a link and an 8 MiB file. The image must hold exactly the selected context,
  *    an edit to ignored files only must keep the digest and hit the cache, and a content edit must change the digest,
  *    rebuild, and print the edit.
- * 10. `pc-a` to `pc-b-edit`, the same Python project under two checkout roots (`--only python-checkouts` runs just
+ * 10. `pc-a` to `pc-b-edit`, the same Python Lambda project under two checkout roots (`--only python-checkouts` runs just
  *    this section): the second checkout must get the first's digest, artifact tree and output, and hit the cache when
  *    offered the first's digest; a handler edit must change the digest, rebuild and print the edit.
  * 11. `m1` to `m4`, an ES image whose handler runs an included `scripts/run.sh` (`--only es-image-mode`): at 0644 the
  *    script cannot run; an unchanged repeat hits the cache; `chmod 755` must change the digest and rebuild, so the
  *    deployed image runs it; a handler edit must still change the digest and the output.
+ * 12. `rp1` to `rp-checkout`, a Python container app built by the production Railpack path (`buildpack` packaging,
+ *    `buildUsingRailpack`) from a pinned `requirements.txt` (`--only railpack`): a handler-only edit must reuse the pip
+ *    install, change the digest and the image, and print the edit; a requirements edit must install again; the same
+ *    project in another checkout root must get the same digest and be reused. Railpack plans with a railpack binary
+ *    (`STP_RAILPACK_BINARY`, the CLI's tools directory or PATH; without one this section is skipped and reported) and
+ *    builds with its pinned frontend, builder and runtime images, which BuildKit fetches itself: they are the only
+ *    images exempt from the no-pull check. Its fixture names the run, so no earlier build can satisfy its install.
  *
  * Each bundle is also built in the generator's conservative layout, which installs beside the whole bundle: every
  * optimized image must hold exactly its entries under `/app` (kind, mode, owner, link target, contents), the runtime
@@ -55,24 +62,35 @@ import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import { lstat, readlink } from 'node:fs/promises';
 import { runDockerArtifactBuild } from '../src/artifact/docker-artifact-build';
-import { buildUsingStacktapeEsImageBuildpack } from '../src/buildpacks/stacktape-es-image-buildpack';
+import { buildJsBundleImage } from '../src/buildpacks/js-bundle-image';
 import { buildPythonArtifact } from '../src/bundlers/py/index';
 import { buildEsDockerfile, buildPythonArtifactDockerfile } from '../src/docker/dockerfiles';
-import { buildUsingCustomDockerfile } from '../src/image/custom-dockerfile';
+import { buildUsingDockerfile } from '../src/image/dockerfile';
+import { buildUsingRailpack } from '../src/image/railpack';
 import type { BuildDockerImage, RunDocker } from '../src/runtime-contracts';
-import { createPackagingError, progressLogger, run, runDocker, write } from './e2e-helpers';
+import {
+  createPackagingError,
+  createRailpackPrepare,
+  findRailpackBinary,
+  progressLogger,
+  RAILPACK_FRONTEND_IMAGE,
+  run,
+  runDocker,
+  write
+} from './e2e-helpers';
 
 const PACKAGE_ROOT = resolve(import.meta.dir, '..');
 const NODE_VERSION = 24;
 const PYTHON_VERSION = 3.12;
 /**
  * The images the generated Dockerfiles name, and the local official images this run derives its bases from. The
- * Python artifact's full image is served by the local slim one, which installs `build-essential` through apt instead.
+ * Python Lambda artifact's SAM build image is served by the local slim Python image: the Lambda target only installs
+ * uv and the requirements, which the slim image can do as well.
  */
 const OFFICIAL_BASE_IMAGES = {
   [`public.ecr.aws/docker/library/node:${NODE_VERSION}-bookworm`]: `node:${NODE_VERSION}-bookworm`,
   [`public.ecr.aws/docker/library/node:${NODE_VERSION}-bookworm-slim`]: `node:${NODE_VERSION}-bookworm-slim`,
-  [`public.ecr.aws/docker/library/python:${PYTHON_VERSION}`]: `python:${PYTHON_VERSION}-slim`
+  [`public.ecr.aws/sam/build-python${PYTHON_VERSION}:latest`]: `python:${PYTHON_VERSION}-slim`
 };
 
 const argument = (name: string) => {
@@ -80,10 +98,17 @@ const argument = (name: string) => {
   return index === -1 ? undefined : process.argv[index + 1];
 };
 const packageLabel = argument('--package');
-/** `--only <section>` runs one section (`python-checkouts` or `es-image-mode`), with the same owned setup and cleanup. */
+/**
+ * `--only <section>` runs one section (`python-checkouts`, `es-image-mode` or `railpack`), with the same owned setup and
+ * cleanup.
+ */
 const only = argument('--only');
-if (only !== undefined && only !== 'python-checkouts' && only !== 'es-image-mode') {
+if (only !== undefined && only !== 'python-checkouts' && only !== 'es-image-mode' && only !== 'railpack') {
   throw new Error(`Unknown --only ${only}.`);
+}
+const railpackBinary = findRailpackBinary();
+if (only === 'railpack' && !railpackBinary) {
+  throw new Error('--only railpack needs a railpack binary: set STP_RAILPACK_BINARY or put railpack on PATH.');
 }
 const out = resolve(argument('--out') ?? (await mkdtemp(join(tmpdir(), 'stacktape-es-image-deps-'))));
 const runId = argument('--run-id') ?? randomBytes(4).toString('hex');
@@ -220,7 +245,7 @@ const writeProject = async ({
 type Step = { instruction: string; decision: 'CACHED' | 'DONE' | 'ERROR' | 'unknown'; seconds: number | null };
 /** The Python requirements install, in the conservative script or the dependency stage. */
 const PYTHON_INSTALL_STEP = /uv pip install --system --target/;
-const PYTHON_DEPENDENCY_STEP = /pip install uv|apt-get|python-minifier|uv pip install --system --target/;
+const PYTHON_DEPENDENCY_STEP = /pip install uv|uv pip install --system --target/;
 /** What the fixture's handler prints for a marker and an installed `idna` version. */
 const pythonOutput = (marker: string, idna: string) => `python-requirements ${marker} idna=${idna} xn--mnich-kva`;
 /** The step that installs the external dependencies: `npm install --save …`, `pnpm add …` or `bun add …`. */
@@ -423,7 +448,7 @@ const buildEsImage = async ({
     };
     return { ...details, dockerOutput: result.stderr, duration: wallMs };
   };
-  const output = await buildUsingStacktapeEsImageBuildpack({
+  const output = await buildJsBundleImage({
     existingDigests,
     invocationId: runId,
     progressLogger,
@@ -434,11 +459,9 @@ const buildEsImage = async ({
     entryfilePath: join(project, 'src', 'index.ts'),
     includeFiles,
     distFolderPath,
-    languageSpecificConfig: {
-      nodeVersion: NODE_VERSION,
-      outputModuleFormat,
-      dependenciesToExcludeFromBundle: ['ms']
-    },
+    nodeVersion: NODE_VERSION,
+    outputModuleFormat,
+    dependenciesToExcludeFromBundle: ['ms'],
     buildDockerImage,
     checkDockerImageExists: async () => false,
     getDockerImageDetails,
@@ -623,7 +646,10 @@ const runPythonArtifact = async (dist: string): Promise<RunOutput> => {
   return { stdout: stdout.trim(), stderr: stderr.trim() };
 };
 
-/** The production Python bundler on `project`, a container artifact with the owned cache, into `dist/<label>`. */
+/**
+ * The production Python bundler on `project` as the Python Lambda buildpack calls it (Lambda target, Lambda ZIP digest),
+ * with the owned cache, into `dist/<label>`.
+ */
 const buildPythonProject = ({
   label,
   project,
@@ -648,10 +674,11 @@ const buildPythonProject = ({
     sourcePath: project,
     distFolderPath: join(out, 'dist', label),
     pythonVersion: PYTHON_VERSION,
-    languageSpecificConfig: { pythonVersion: PYTHON_VERSION, packageManagerFile: 'requirements.txt' },
+    languageSpecificConfig: { packageManagerFile: 'requirements.txt' },
     requiresGlibcBinaries: true,
     dockerBuildOutputArchitecture: 'linux/amd64',
-    target: 'container'
+    target: 'lambda',
+    lambdaZip: true
   });
 
 /** One Python artifact packaging through the production bundler, then the same source in the conservative layout. */
@@ -666,15 +693,14 @@ const packagePythonArtifact = async (label: string): Promise<PythonPackaged> => 
     onBuild: (recorded) => (build = recorded)
   });
   await writeFile(join(out, `${label}.build.log`), JSON.stringify(build!.steps, null, 2));
-  // The same source in the generator's conservative layout, which installs beside the whole minified source.
+  // The same source in the generator's conservative layout, which installs beside the whole source.
   const conservativeDist = join(out, 'dist', `${label}-conservative`);
   let conservativeBuild: PythonBuild | undefined;
   await runDockerArtifactBuild({
     dockerfileContents: buildPythonArtifactDockerfile({
       pythonVersion: PYTHON_VERSION,
-      minify: true,
       alpine: false,
-      target: 'container'
+      target: 'lambda'
     }),
     sourcePath: project,
     distFolderPath: conservativeDist,
@@ -765,7 +791,7 @@ const writeContextProject = async ({ data, ignored }: { data: string; ignored: s
 /** One custom-Dockerfile packaging through the production path, with this harness's `docker buildx build`. */
 const packageContextImage = async (label: string, existingDigests: string[]): Promise<ContextPackaged> => {
   const imageTag = `${imagePrefix}:${label}`;
-  const output = await buildUsingCustomDockerfile({
+  const output = await buildUsingDockerfile({
     name: imageTag,
     cwd: contextProject,
     buildContextPath: 'context',
@@ -809,7 +835,7 @@ type CheckoutPackaged = {
   run: RunOutput | null;
 };
 
-/** The Python project at `project`, built by the production bundler as a checkout there would build it. */
+/** The Python Lambda project at `project`, built by the production bundler as a checkout there would build it. */
 const packagePythonCheckout = async (
   label: string,
   project: string,
@@ -896,6 +922,130 @@ const packageModeImage = async (
   };
 };
 
+type RailpackPackaged = {
+  label: string;
+  project: string;
+  digest: string;
+  outcome: string;
+  detection: string | null;
+  imageId: string | null;
+  steps: Step[];
+  run: RunOutput | null;
+};
+const railpackProject = join(out, 'project-railpack');
+/** What the Railpack fixture prints for a marker and an installed `idna` version. */
+const railpackOutput = (marker: string, idna: string) => `railpack-python ${marker} idna=${idna} xn--mnich-kva`;
+/** The install step of Railpack's Python plan, which copies only `requirements.txt` before it runs. */
+const RAILPACK_INSTALL_STEP = /^pip install -r requirements\.txt$/;
+
+/**
+ * A Python app for Railpack: `main.py` (whose start command Railpack detects) and a pinned `requirements.txt`. The
+ * requirements name the run, so no earlier build on the shared daemon can satisfy the install step.
+ */
+const writeRailpackProject = async ({
+  marker,
+  idnaVersion,
+  project = railpackProject
+}: {
+  marker: string;
+  idnaVersion: string;
+  project?: string;
+}) => {
+  await write(join(project, 'requirements.txt'), `# stacktape e2e run ${runId}\nidna==${idnaVersion}\n`);
+  await write(
+    join(project, 'main.py'),
+    `import idna\n\nprint("railpack-python ${marker} idna=" + idna.__version__ + " " + idna.encode("m\u00fcnich").decode())\n`
+  );
+};
+
+/**
+ * Each step of a plain BuildKit log of a Railpack build with its cache decision. Railpack names its steps by their
+ * command (`pip install -r requirements.txt`), without the `[stage]` prefix a Dockerfile step has.
+ */
+const parseRailpackSteps = (log: string): Step[] => {
+  const steps = new Map<string, Step>();
+  for (const line of log.split('\n')) {
+    const finished = /^#(\d+) (CACHED|DONE (-?[\d.]+)s|ERROR)/.exec(line);
+    if (finished) {
+      const step = steps.get(finished[1]!);
+      if (step) {
+        step.decision = finished[2] === 'CACHED' ? 'CACHED' : finished[2] === 'ERROR' ? 'ERROR' : 'DONE';
+        step.seconds = finished[3] ? Number(finished[3]) : null;
+      }
+      continue;
+    }
+    const started = /^#(\d+) (.+)$/.exec(line);
+    if (started && !steps.has(started[1]!)) {
+      steps.set(started[1]!, { instruction: started[2]!, decision: 'unknown', seconds: null });
+    }
+  }
+  return [...steps.values()];
+};
+
+/**
+ * One `buildpack` packaging through the production Railpack path, with this harness's `docker buildx build`: the
+ * default builder, plain progress, build arguments and secrets passed by name through Docker's environment as the CLI
+ * passes them.
+ */
+const packageRailpackImage = async (
+  label: string,
+  project: string,
+  existingDigests: string[]
+): Promise<RailpackPackaged> => {
+  const imageTag = `${imagePrefix}:${label}`;
+  let steps: Step[] = [];
+  let imageId: string | null = null;
+  const output = await buildUsingRailpack({
+    name: imageTag,
+    cwd: project,
+    progressLogger,
+    existingDigests,
+    dockerBuildOutputArchitecture: 'linux/amd64',
+    railpackFrontendImage: RAILPACK_FRONTEND_IMAGE,
+    runRailpackPrepare: createRailpackPrepare(railpackBinary!),
+    createPackagingError,
+    buildDockerImage: async ({ buildContextPath, dockerfilePath, buildArgs = {}, secrets = {} }) => {
+      const started = performance.now();
+      const result = await run(
+        'docker',
+        [
+          'buildx',
+          'build',
+          '--builder',
+          'default',
+          '--progress=plain',
+          '--platform',
+          'linux/amd64',
+          ...Object.keys(buildArgs).flatMap((name) => ['--build-arg', name]),
+          ...Object.keys(secrets).flatMap((name) => ['--secret', `id=${name},env=${name}`]),
+          '-t',
+          imageTag,
+          '--file',
+          resolve(buildContextPath, dockerfilePath!),
+          buildContextPath
+        ],
+        undefined,
+        { ...dockerEnv, ...buildArgs, ...secrets }
+      );
+      await writeFile(join(out, `${label}.build.log`), result.stderr);
+      steps = parseRailpackSteps(result.stderr);
+      const details = await getDockerImageDetails(imageTag);
+      imageId = details.id;
+      return { ...details, dockerOutput: result.stderr, duration: Math.round(performance.now() - started) };
+    }
+  });
+  return {
+    label,
+    project: relative(out, project),
+    digest: output.digest,
+    outcome: output.outcome,
+    detection: typeof output.details?.detection === 'string' ? output.details.detection : null,
+    imageId,
+    steps,
+    run: output.outcome === 'bundled' ? await runHandler(imageTag) : null
+  };
+};
+
 /** Packages in a fresh process: the bundler caches dependency manifests for the life of one. */
 const packageInFreshProcess = async <Result = Packaged>(label: string): Promise<Result> => {
   await run(process.execPath, [import.meta.path, '--out', out, '--run-id', runId, '--package', label], PACKAGE_ROOT);
@@ -932,6 +1082,11 @@ if (packageLabel) {
   const contextPackaged: ContextPackaged[] = [];
   const checkoutPackaged: CheckoutPackaged[] = [];
   const modePackaged: ModePackaged[] = [];
+  const railpackPackaged: RailpackPackaged[] = [];
+  const railpackSkipped = railpackBinary
+    ? null
+    : 'no railpack binary: set STP_RAILPACK_BINARY, run a CLI Railpack build once to download it, or put railpack on PATH';
+  if (railpackSkipped) console.log(`SKIPPED Railpack section (rp1 to rp-checkout): ${railpackSkipped}.`);
   let cleanup: Record<string, unknown> = {};
   const baseImages: Record<string, string> = {};
   try {
@@ -1031,6 +1186,17 @@ if (packageLabel) {
       modePackaged.push(
         await packageModeImage('m4', [modePackaged[0]!.digest, modePackaged[2]!.digest], imageByDigest)
       );
+    }
+    if ((!only || only === 'railpack') && railpackBinary) {
+      await writeRailpackProject({ marker: 'handler-rp1', idnaVersion: '3.10' });
+      railpackPackaged.push(await packageRailpackImage('rp1', railpackProject, []));
+      await writeRailpackProject({ marker: 'handler-rp2', idnaVersion: '3.10' });
+      railpackPackaged.push(await packageRailpackImage('rp2', railpackProject, [railpackPackaged[0]!.digest]));
+      await writeRailpackProject({ marker: 'handler-rp2', idnaVersion: '3.9' });
+      railpackPackaged.push(await packageRailpackImage('rp3', railpackProject, [railpackPackaged[1]!.digest]));
+      const checkout = join(out, 'elsewhere', 'railpack-checkout', 'project');
+      await writeRailpackProject({ marker: 'handler-rp2', idnaVersion: '3.9', project: checkout });
+      railpackPackaged.push(await packageRailpackImage('rp-checkout', checkout, [railpackPackaged[2]!.digest]));
     }
 
     if (!only) {
@@ -1237,7 +1403,7 @@ if (packageLabel) {
       ];
       const pythonInstallStep = ({ build }: PythonPackaged) =>
         build.steps.find(({ instruction }) => PYTHON_INSTALL_STEP.test(instruction)) ?? null;
-      /** uv, the system packages, the minifier and the requirements install: everything but the source and its minifying. */
+      /** uv and the requirements install: everything but the source. */
       const pythonDependencySteps = ({ build }: PythonPackaged) =>
         build.steps.filter(({ instruction }) => PYTHON_DEPENDENCY_STEP.test(instruction));
       check(
@@ -1251,8 +1417,8 @@ if (packageLabel) {
         py1.run.stdout
       );
       check(
-        'py2: a handler-only edit reused uv, the system packages, the minifier and the requirements install',
-        pythonDependencySteps(py2).length >= 3 &&
+        'py2: a handler-only edit reused uv and the requirements install',
+        pythonDependencySteps(py2).length >= 2 &&
           pythonDependencySteps(py2).every(({ decision }) => decision === 'CACHED'),
         summarize(pythonDependencySteps(py2))
       );
@@ -1371,6 +1537,46 @@ if (packageLabel) {
         `${m3.digest} → ${m4.digest}; ${m4.outcome}; ${m4.run.stdout}`
       );
     }
+    if ((!only || only === 'railpack') && railpackBinary) {
+      const [rp1, rp2, rp3, rpCheckout] = railpackPackaged as [
+        RailpackPackaged,
+        RailpackPackaged,
+        RailpackPackaged,
+        RailpackPackaged
+      ];
+      const railpackInstallStep = ({ steps }: RailpackPackaged) =>
+        steps.find(({ instruction }) => RAILPACK_INSTALL_STEP.test(instruction)) ?? null;
+      check(
+        'rp1: the first Railpack build ran the pip install, and the image runs its handler with the dependency',
+        rp1.outcome === 'bundled' &&
+          railpackInstallStep(rp1)?.decision === 'DONE' &&
+          rp1.run?.stdout === railpackOutput('handler-rp1', '3.10'),
+        `${rp1.detection}; ${JSON.stringify(railpackInstallStep(rp1))}; ${rp1.run?.stdout}`
+      );
+      check(
+        'rp2: a handler-only edit reused the pip install',
+        railpackInstallStep(rp2)?.decision === 'CACHED',
+        JSON.stringify(railpackInstallStep(rp2))
+      );
+      check(
+        'rp2: the digest and the image changed, and the image runs the edited handler',
+        rp2.outcome === 'bundled' &&
+          rp2.digest !== rp1.digest &&
+          rp2.imageId !== rp1.imageId &&
+          rp2.run?.stdout === railpackOutput('handler-rp2', '3.10'),
+        `digest ${rp1.digest} → ${rp2.digest}; image ${rp1.imageId} → ${rp2.imageId}; ${rp2.run?.stdout}`
+      );
+      check(
+        'rp3: a requirements edit ran the pip install again',
+        railpackInstallStep(rp3)?.decision === 'DONE' && rp3.run?.stdout === railpackOutput('handler-rp2', '3.9'),
+        `${JSON.stringify(railpackInstallStep(rp3))}; ${rp3.run?.stdout}`
+      );
+      check(
+        "rp-checkout: the same project in another checkout root gets the same digest and reuses the first checkout's image",
+        rpCheckout.digest === rp3.digest && rpCheckout.outcome === 'skipped',
+        `${rpCheckout.project}: ${rp3.digest} → ${rpCheckout.digest}; ${rpCheckout.outcome}`
+      );
+    }
   } finally {
     const images = (
       await docker(['image', 'ls', '--filter', `reference=${imagePrefix}*`, '--format', '{{.Repository}}:{{.Tag}}'])
@@ -1413,23 +1619,23 @@ if (packageLabel) {
       imageEvents: events,
       ownedCache: { ...ownedCache, removed: !existsSync(cache) }
     };
+    // Railpack's pinned frontend, builder and runtime images are fetched by BuildKit and cannot be served locally.
+    const pulls = events.filter((event) => event.startsWith('pull') && !event.includes('ghcr.io/railwayapp/'));
     check(
       'owned images, containers and cache are removed and no image was pulled',
-      !remainingImages &&
-        !remainingContainers &&
-        !existsSync(cache) &&
-        !events.some((event) => event.startsWith('pull')),
-      JSON.stringify({ removed: images.length, pulls: events.filter((event) => event.startsWith('pull')) })
+      !remainingImages && !remainingContainers && !existsSync(cache) && pulls.length === 0,
+      JSON.stringify({ removed: images.length, pulls })
     );
     const sourceFiles = [
       'src/docker/dockerfiles.ts',
-      'src/buildpacks/stacktape-es-image-buildpack.ts',
+      'src/buildpacks/js-bundle-image.ts',
       'src/es/package-manager-install.ts',
       'src/bundlers/py/index.ts',
       'src/artifact/docker-context.ts',
       'src/bundlers/digest.ts',
       'src/bundlers/es/index.ts',
-      'src/image/custom-dockerfile.ts',
+      'src/image/dockerfile.ts',
+      'src/image/railpack.ts',
       'scripts/synthetic-es-image-deps-e2e.ts'
     ];
     const report = {
@@ -1455,11 +1661,14 @@ if (packageLabel) {
       contextPackaged,
       checkoutPackaged,
       modePackaged,
+      railpack: { binary: railpackBinary ?? null, frontendImage: RAILPACK_FRONTEND_IMAGE, skipped: railpackSkipped },
+      railpackPackaged,
       cleanup,
       results
     };
     await writeFile(join(out, 'report.json'), `${JSON.stringify(report, null, 2)}\n`);
     console.log(`Report: ${join(out, 'report.json')}`);
   }
-  if (results.some(({ ok }) => !ok) || results.length < (only ? 5 : 48)) process.exitCode = 1;
+  const expectedChecks = only ? 5 : 48 + (railpackBinary ? 5 : 0);
+  if (results.some(({ ok }) => !ok) || results.length < expectedChecks) process.exitCode = 1;
 }

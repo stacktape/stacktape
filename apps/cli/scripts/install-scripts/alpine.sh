@@ -119,7 +119,8 @@ download_and_install() {
 
     # A release archive is a complete installation snapshot. Remove payloads omitted by the new version so an
     # upgrade cannot keep stale MCP documentation, an obsolete production source map, or the pack, nixpacks and
-    # Session Manager plugin binaries that the CLI now downloads on first use.
+    # Session Manager plugin binaries that earlier releases bundled (the CLI no longer uses pack or nixpacks and
+    # downloads its tools on first use).
     rm -rf "$INSTALL_DIR/llm-docs" "$INSTALL_DIR/ai-docs"
     rm -rf "$INSTALL_DIR/pack" "$INSTALL_DIR/nixpacks" "$INSTALL_DIR/session-manager-plugin"
     rm -f "$INSTALL_DIR/compiled-cli.js.map"

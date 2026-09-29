@@ -35,8 +35,8 @@ Create a `stacktape.ts` file in your project root. This example deploys a [Lambd
   defineConfig,
   HttpApiGateway,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  HttpApiIntegration
+  HttpApiIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -44,7 +44,7 @@ export default defineConfig(() => {
   const api = new HttpApiGateway({});
 
   const myFunction = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     memory: 512,
@@ -72,7 +72,7 @@ Here's what each piece does:
 
 - **`defineConfig`** wraps your config in a function Stacktape calls at command time. It provides a context object with deployment details — stage, region, project name — you can use for [dynamic configuration](#adapt-config-per-stage).
 - **Resource classes** like `LambdaFunction` and `HttpApiGateway` define Stacktape resources. Stacktape creates and manages the corresponding AWS infrastructure. Each class accepts a typed configuration object with autocompletion in VS Code, WebStorm, and other TypeScript-capable editors.
-- **`StacktapeLambdaBuildpackPackaging`** tells Stacktape to bundle the Lambda from a source entry file. See [function packaging](/packaging/function/stacktape-buildpack) for details.
+- **`JsBundleLambdaPackaging`** tells Stacktape to bundle the Lambda from a JavaScript or TypeScript entry file. See [JS Bundle for Lambda](/packaging/function/js-bundle) for details.
 - **`HttpApiIntegration`** routes HTTP requests through the API Gateway to the function. The `httpApiGatewayName` value (`'api'`) points the function at the `api` gateway created above.
 - **The returned `resources` object** is required. The object keys name the resources that [`connectTo`](/configuration/connecting-resources) uses to wire up access between resources and that [`$ResourceParam()`](/configuration/directives) uses to reference outputs from other resources.
 
@@ -103,8 +103,8 @@ The `defineConfig` callback receives a context object you can use to vary infras
   LambdaFunction,
   RelationalDatabase,
   RdsEnginePostgres,
-  StacktapeLambdaBuildpackPackaging,
-  HttpApiIntegration
+  HttpApiIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -126,7 +126,7 @@ export default defineConfig(({ stage }) => {
   const api = new HttpApiGateway({});
 
   const apiHandler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     memory: isProduction ? 1024 : 512,

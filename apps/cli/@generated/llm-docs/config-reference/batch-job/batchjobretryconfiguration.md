@@ -32,7 +32,7 @@ resources:
     properties:
       container:
         packaging:
-          type: stacktape-image-buildpack
+          type: js-bundle
           properties:
             entryfilePath: src/process.ts
       resources:
@@ -51,7 +51,7 @@ export default defineConfig(() => {
   const batchProcessor = new BatchJob({
     container: {
       packaging: {
-        type: 'stacktape-image-buildpack',
+        type: 'js-bundle',
         properties: { entryfilePath: 'src/process.ts' }
       }
     },
@@ -83,7 +83,7 @@ resources:
     properties:
       container:
         packaging:
-          type: stacktape-image-buildpack
+          type: js-bundle
           properties:
             entryfilePath: src/process.ts
       resources:
@@ -104,7 +104,7 @@ export default defineConfig(() => {
   const batchProcessor = new BatchJob({
     container: {
       packaging: {
-        type: 'stacktape-image-buildpack',
+        type: 'js-bundle',
         properties: { entryfilePath: 'src/process.ts' }
       }
     },
@@ -136,7 +136,7 @@ resources:
     properties:
       container:
         packaging:
-          type: stacktape-image-buildpack
+          type: js-bundle
           properties:
             entryfilePath: src/process.ts
       resources:
@@ -156,7 +156,7 @@ export default defineConfig(() => {
   const batchProcessor = new BatchJob({
     container: {
       packaging: {
-        type: 'stacktape-image-buildpack',
+        type: 'js-bundle',
         properties: { entryfilePath: 'src/process.ts' }
       }
     },

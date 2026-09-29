@@ -31,7 +31,7 @@ resources:
     properties:
       container:
         packaging:
-          type: stacktape-image-buildpack
+          type: js-bundle
           properties:
             entryfilePath: src/compute.ts
       resources:
@@ -48,7 +48,7 @@ export default defineConfig(() => {
   const computeJob = new BatchJob({
     container: {
       packaging: {
-        type: 'stacktape-image-buildpack',
+        type: 'js-bundle',
         properties: { entryfilePath: 'src/compute.ts' }
       }
     },
@@ -80,7 +80,7 @@ resources:
     properties:
       container:
         packaging:
-          type: stacktape-image-buildpack
+          type: js-bundle
           properties:
             entryfilePath: src/compute.ts
       resources:
@@ -97,7 +97,7 @@ export default defineConfig(() => {
   const memoryJob = new BatchJob({
     container: {
       packaging: {
-        type: 'stacktape-image-buildpack',
+        type: 'js-bundle',
         properties: { entryfilePath: 'src/compute.ts' }
       }
     },
@@ -128,7 +128,7 @@ resources:
     properties:
       container:
         packaging:
-          type: stacktape-image-buildpack
+          type: js-bundle
           properties:
             entryfilePath: src/infer.ts
       resources:
@@ -146,7 +146,7 @@ export default defineConfig(() => {
   const inferenceJob = new BatchJob({
     container: {
       packaging: {
-        type: 'stacktape-image-buildpack',
+        type: 'js-bundle',
         properties: { entryfilePath: 'src/infer.ts' }
       }
     },

@@ -363,26 +363,6 @@ export const configErrors = {
       )} must be greater than or equal to ${inlineCode('scaling.minInstances')}.`
     });
   },
-  pythonAppVariableRequiresRunAppAs({
-    workloadType,
-    workloadName,
-    appVariable
-  }: {
-    workloadType: StpResourceType;
-    workloadName: string;
-    appVariable: string;
-  }): CliError {
-    return new CliError({
-      category: 'PACKAGING_CONFIG',
-      code: 'PACKAGING_CONFIG_PYTHON_RUN_APP_AS_REQUIRED',
-      message: `Error in ${inlineCode(workloadType)} ${inlineCode(workloadName)}:
-  You have specified ${inlineCode('app_variable')} "${appVariable}" in your ${inlineCode(
-    'entryfilePath'
-  )}. In this case, you must also specify ${inlineCode(
-    'runAppAs'
-  )} property in the ${inlineCode('languageSpecificConfig')}`
-    });
-  },
   httpApiRouteConflict({
     stpHttpApiGatewayName,
     stpResourceName1,
@@ -678,44 +658,6 @@ export const configErrors = {
       message: `Error in ${inlineCode(stpResourceName)} resource: Directory from ${inlineCode(propertyName)} ("${inlineCode(directoryPath)}") is not accessible or not a directory.${resolvedPathHint}`,
       hints:
         'Relative paths are resolved from the directory containing your Stacktape config file. If your config is already inside that app directory, use "." (the default) instead.'
-    });
-  },
-  pythonAppVariableRequired({
-    entryfilePath,
-    workloadType,
-    workloadName
-  }: {
-    entryfilePath: string;
-    workloadType: StpResourceType;
-    workloadName: string;
-  }): CliError {
-    return new CliError({
-      category: 'PACKAGING_CONFIG',
-      code: 'PACKAGING_CONFIG_PYTHON_APP_VARIABLE_REQUIRED',
-      message: `Error in ${inlineCode(workloadType)} ${inlineCode(workloadName)}:
-  If you want to run the app as WSGI/ASGI, specify the app variable (WSGI/ASGI callable) in ${inlineCode(
-    'entryfilePath'
-  )}, e.g. ${inlineCode(`${entryfilePath}:<<app_variable>>`)}.`,
-      hints: `${inlineCode('Typical paths')} for common frameworks:
-  Django: ${inlineCode('project/asgi.py:application')}
-  Flask: ${inlineCode('project/app.py:application')}
-  FastAPI: ${inlineCode('project/main.py:app')}`
-    });
-  },
-  runAppAsPackagingInvalid({
-    workloadType,
-    workloadName
-  }: {
-    workloadType: StpResourceType;
-    workloadName: string;
-  }): CliError {
-    return new CliError({
-      category: 'PACKAGING_CONFIG',
-      code: 'PACKAGING_CONFIG_RUN_APP_AS_INVALID',
-      message: `Error in ${inlineCode(workloadType)} ${inlineCode(workloadName)}:
-  Property ${inlineCode('runAppAs')} can be specified only for ${inlineCode(
-    'stacktape-image-buildpack'
-  )} packaging type.`
     });
   },
   webServiceFirewallLoadBalancingInvalid({ webServiceName }: { webServiceName: string }): CliError {

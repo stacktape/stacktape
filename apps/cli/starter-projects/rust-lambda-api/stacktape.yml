@@ -9,10 +9,9 @@ resources:
     type: function
     properties:
       packaging:
-        type: custom-artifact
+        type: buildpack
         properties:
-          packagePath: ./target/lambda/rust-lambda-api/bootstrap.zip
-          handler: bootstrap:handler
+          entryfilePath: src/main.rs
       memory: 256
       runtime: provided.al2023
       architecture: x86_64
@@ -27,13 +26,3 @@ resources:
             httpApiGatewayName: apiGateway
             path: /{proxy+}
             method: '*'
-
-scripts:
-  build:
-    type: local-script
-    properties:
-      executeCommand: cargo lambda build --release --output-format zip
-
-hooks:
-  beforeDeploy:
-    - scriptName: build

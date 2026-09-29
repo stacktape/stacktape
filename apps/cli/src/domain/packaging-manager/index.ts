@@ -34,8 +34,8 @@ import { STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION } from '@stacktape/packaging
 import { assignChunksToLayers, DEFAULT_LAYER_CONFIG } from '@stacktape/packaging/split-bundler/layer-assignment';
 import { createLayerArtifacts } from '@stacktape/packaging/split-bundler/layer-builder';
 import { buildUsingCustomArtifact } from '@stacktape/packaging/artifact/custom-artifact';
-import { buildUsingCustomDockerfile } from '@stacktape/packaging/image/custom-dockerfile';
-import { buildUsingExternalBuildpack } from '@stacktape/packaging/image/external-buildpack';
+import { buildUsingDockerfile } from '@stacktape/packaging/image/dockerfile';
+import { buildUsingRailpack } from '@stacktape/packaging/image/railpack';
 import { buildHostingBucket } from '@stacktape/packaging/web/hosting-bucket-build';
 import { createNextjsWebArtifacts } from '@stacktape/packaging/web/nextjs-web';
 import { createSsrWebArtifacts } from '@stacktape/packaging/web/ssr-web-shared';
@@ -43,21 +43,15 @@ import {
   SSR_WEB_FRAMEWORK_CONFIGS,
   type SsrWebResourceType
 } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/ssr-web-shared';
-import { buildUsingNixpacks } from '@stacktape/packaging/image/nixpacks';
 
-import { buildUsingStacktapeEsImageBuildpack } from '@stacktape/packaging/buildpacks/stacktape-es-image-buildpack';
-import { buildUsingStacktapeEsLambdaBuildpack } from '@stacktape/packaging/buildpacks/stacktape-es-lambda-buildpack';
-import { buildUsingStacktapeGoImageBuildpack } from '@stacktape/packaging/buildpacks/stacktape-go-image-buildpack';
-import { buildUsingStacktapeGoLambdaBuildpack } from '@stacktape/packaging/buildpacks/stacktape-go-lambda-buildpack';
-import { buildUsingStacktapeJavaImageBuildpack } from '@stacktape/packaging/buildpacks/stacktape-java-image-buildpack';
-import { buildUsingStacktapeJavaLambdaBuildpack } from '@stacktape/packaging/buildpacks/stacktape-java-lambda-buildpack';
-import { buildUsingStacktapeRbImageBuildpack } from '@stacktape/packaging/buildpacks/stacktape-rb-image-buildpack';
-import { buildUsingStacktapeRbLambdaBuildpack } from '@stacktape/packaging/buildpacks/stacktape-rb-lambda-buildpack';
-import { buildUsingStacktapePhpImageBuildpack } from '@stacktape/packaging/buildpacks/stacktape-php-image-buildpack';
-import { buildUsingStacktapeDotnetImageBuildpack } from '@stacktape/packaging/buildpacks/stacktape-dotnet-image-buildpack';
-import { buildUsingStacktapeDotnetLambdaBuildpack } from '@stacktape/packaging/buildpacks/stacktape-dotnet-lambda-buildpack';
-import { buildUsingStacktapePyImageBuildpack } from '@stacktape/packaging/buildpacks/stacktape-py-image-buildpack';
-import { buildUsingStacktapePyLambdaBuildpack } from '@stacktape/packaging/buildpacks/stacktape-py-lambda-buildpack';
+import { buildJsBundleImage } from '@stacktape/packaging/buildpacks/js-bundle-image';
+import { buildJsBundleLambda } from '@stacktape/packaging/buildpacks/js-bundle-lambda';
+import { buildGoLambda } from '@stacktape/packaging/buildpacks/go-lambda-buildpack';
+import { buildJavaLambda } from '@stacktape/packaging/buildpacks/java-lambda-buildpack';
+import { buildRubyLambda } from '@stacktape/packaging/buildpacks/rb-lambda-buildpack';
+import { buildDotnetLambda } from '@stacktape/packaging/buildpacks/dotnet-lambda-buildpack';
+import { buildPythonLambda } from '@stacktape/packaging/buildpacks/py-lambda-buildpack';
+import { buildRustLambda } from '@stacktape/packaging/buildpacks/rust-lambda-buildpack';
 import {
   buildDockerImage,
   checkDockerImageExists,
@@ -72,8 +66,8 @@ import { dependencyInstaller } from '@domain-services/packaging-manager/dependen
 import { createCliPackagingError } from '@domain-services/packaging-manager/errors';
 import { exec } from '@utils/exec';
 import { getFileExtension } from '@utils/fs-utils';
-import { execNixpacks } from '@domain-services/packaging-manager/nixpacks-command';
-import { execPack } from '@domain-services/packaging-manager/pack-command';
+import { runRailpackPrepare } from '@domain-services/packaging-manager/railpack-command';
+import { RAILPACK_FRONTEND_IMAGE } from 'src/config/railpack';
 import { archiveItem } from './timed-archive';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
@@ -85,14 +79,12 @@ import { isDevCommand } from '../../commands/dev/dev-resource-filter';
 import type { BatchJobResources } from '@stacktape/config/batch-jobs';
 import type {
   BatchJobContainerPackaging,
+  BuildpackCwImagePackagingProps,
+  BuildpackLambdaPackagingProps,
   ContainerWorkloadContainerPackaging,
-  DotnetLanguageSpecificConfig,
-  EsLanguageSpecificConfig,
-  JavaLanguageSpecificConfig,
-  LambdaPackaging,
-  PhpLanguageSpecificConfig,
-  PyLanguageSpecificConfig,
-  RubyLanguageSpecificConfig
+  JsBundleCwImagePackagingProps,
+  JsBundleLambdaPackagingProps,
+  LambdaPackaging
 } from '@stacktape/config/deployment-artifacts';
 import type { ContainerWorkloadResourcesConfig } from '@stacktape/config/multi-container-workloads';
 import type { LambdaRuntime } from '@stacktape/config/primitives';
@@ -108,49 +100,18 @@ import {
 } from '@stacktape/packaging/artifact/lambda-limits';
 import { loadFromJavascript, loadFromTypescript } from '@utils/file-loaders';
 import { getStableBuildpackDigestProps } from './artifact-digest-inputs';
+import type { PackagingTarget } from './types';
+
+/** The entry-file extensions `js-bundle` packaging accepts. */
+const JS_ENTRY_EXTENSIONS: ReadonlySet<string> = new Set(['js', 'ts', 'jsx', 'mjs', 'tsx']);
 import { canBuildSplitNativeDependencies, selectSplitBundlingGroup } from './split-bundling-policy';
 import { groupCompatibleNativeDependencies } from './native-layer-groups';
 import {
-  areBuildAndRuntimeVersionsAligned,
   getDotnetBuildVersionForRuntime,
   getJavaBuildVersionForRuntime,
   getPythonBuildVersionForRuntime,
   getRubyBuildVersionForRuntime
 } from './runtime-build-version';
-
-const resolveManagedLambdaBuildVersion = <Version extends string | number>({
-  configuredVersion,
-  runtimeVersion,
-  runtime,
-  language,
-  workloadName
-}: {
-  configuredVersion?: Version | undefined;
-  runtimeVersion?: Version | undefined;
-  runtime?: LambdaRuntime | undefined;
-  language: string;
-  workloadName: string;
-}): Version | undefined => {
-  if (runtime !== undefined && runtimeVersion === undefined) {
-    throw createCliPackagingError({
-      type: 'PACKAGING',
-      message: `Lambda runtime ${runtime} is not compatible with the ${language} Stacktape buildpack for ${workloadName}.`,
-      hint: `Select a managed ${language} runtime that matches the entry file.`
-    });
-  }
-  if (
-    configuredVersion !== undefined &&
-    runtimeVersion !== undefined &&
-    !areBuildAndRuntimeVersionsAligned(configuredVersion, runtimeVersion)
-  ) {
-    throw createCliPackagingError({
-      type: 'PACKAGING',
-      message: `${language} build version ${configuredVersion} does not match Lambda runtime ${runtime} for ${workloadName}.`,
-      hint: 'Remove the explicit language version to inherit it from the runtime, or make both versions match.'
-    });
-  }
-  return configuredVersion ?? runtimeVersion;
-};
 
 const formatLambdaSize = ({ sizeMB, sizeKB }: { sizeMB: number; sizeKB: number }) => {
   if (Number.isNaN(sizeMB) || Number.isNaN(sizeKB)) {
@@ -254,7 +215,7 @@ export class PackagingManager {
       )
     );
 
-  /** Prepares the platform a Docker, pack or Nixpacks command names with `--platform`, when it names one. */
+  /** Prepares the platform a Docker command names with `--platform`, when it names one. */
   #prepareRequestedDockerPlatform = async (args: string[]) => {
     const platformIndex = args.indexOf('--platform');
     const platform = platformIndex === -1 ? undefined : args[platformIndex + 1];
@@ -276,9 +237,10 @@ export class PackagingManager {
     );
 
   /**
-   * The Docker, pack and Nixpacks runners jobs receive. Each prepares what its own command needs just before running
-   * it: the platform the command names, and the registry cache builder and login when an image build uses the cache.
-   * A job that never runs such a command prepares nothing.
+   * The Docker and Railpack runners jobs receive. Each prepares what its own command needs just before running it:
+   * the platform the command names, and the registry cache builder and login when an image build uses the cache. A
+   * job that never runs such a command prepares nothing. The Railpack planner needs no Docker preparation; where it
+   * runs in a container, that container is the host's own platform.
    */
   #dockerRunners = {
     buildDockerImage: async (options: Parameters<typeof buildDockerImage>[0]) => {
@@ -294,14 +256,7 @@ export class PackagingManager {
       await this.#prepareRequestedDockerPlatform(commands);
       return execDocker(commands, options);
     },
-    runPack: async (input: Parameters<typeof execPack>[0]) => {
-      await this.#prepareRequestedDockerPlatform(input.args);
-      return execPack(input);
-    },
-    runNixpacks: async (input: Parameters<typeof execNixpacks>[0]) => {
-      await this.#prepareRequestedDockerPlatform(input.args);
-      return execNixpacks(input);
-    }
+    runRailpackPrepare
   };
 
   init = async () => {};
@@ -522,18 +477,16 @@ export class PackagingManager {
      * `selectSplitBundlingGroup` admits only the Stacktape buildpack, so the narrow always holds.
      */
     const firstLambda = nodeLambdas[0];
-    if (firstLambda.packaging.type !== 'stacktape-lambda-buildpack') {
+    if (firstLambda.packaging.type !== 'js-bundle') {
       throw createCliPackagingError({
         type: 'PACKAGING',
         message: `Function ${firstLambda.name} cannot be built together with other functions: its packaging is ${firstLambda.packaging.type}.`
       });
     }
     const sharedPackagingProperties = firstLambda.packaging.properties;
-    const languageSpecificConfig = sharedPackagingProperties.languageSpecificConfig as
-      | EsLanguageSpecificConfig
-      | undefined;
+    const languageSpecificConfig = sharedPackagingProperties;
     const nodeVersion = resolveNodeVersion({
-      nodeVersion: languageSpecificConfig?.nodeVersion,
+      nodeVersion: languageSpecificConfig.nodeVersion,
       runtime: firstLambda.runtime,
       target: 'lambda'
     });
@@ -975,7 +928,7 @@ export class PackagingManager {
     const nonNodeLambdas = configManager.allUserCodeLambdas.filter(({ name, packaging }) => {
       if (!shouldPackageWorkload(name)) return false;
       const ext = getFileExtension((packaging?.properties as { entryfilePath?: string })?.entryfilePath || '');
-      return !['js', 'ts', 'jsx', 'mjs', 'tsx'].includes(ext);
+      return !JS_ENTRY_EXTENSIONS.has(ext);
     });
 
     // In dev mode, skip container and hosting bucket builds (they run locally)
@@ -1014,6 +967,7 @@ export class PackagingManager {
                 jobName,
                 packaging,
                 workloadName,
+                target: 'container',
                 dockerBuildOutputArchitecture: this.getTargetCpuArchitectureForContainer(resources)
               });
           });
@@ -1030,6 +984,7 @@ export class PackagingManager {
                 packaging,
                 workloadName: name,
                 workloadType: 'agentcore-runtime',
+                target: 'container',
                 dockerBuildOutputArchitecture: 'linux/arm64'
               });
           });
@@ -1088,6 +1043,7 @@ export class PackagingManager {
             workloadType: type,
             packaging,
             runtime,
+            target: 'lambda',
             dockerBuildOutputArchitecture: architecture === 'arm64' ? 'linux/arm64' : 'linux/amd64'
           });
       }),
@@ -1128,6 +1084,7 @@ export class PackagingManager {
               jobName: getJobName({ workloadName: name, workloadType: type }),
               workloadName: name,
               workloadType: type,
+              target: 'lambda',
               packaging,
               runtime,
               dockerBuildOutputArchitecture: architecture === 'arm64' ? 'linux/arm64' : 'linux/amd64'
@@ -1147,6 +1104,7 @@ export class PackagingManager {
               jobName: getJobName({ workloadName: name, workloadType: type }),
               workloadName: name,
               workloadType: type,
+              target: 'lambda',
               packaging,
               runtime,
               dockerBuildOutputArchitecture: architecture === 'arm64' ? 'linux/arm64' : 'linux/amd64'
@@ -1229,6 +1187,7 @@ export class PackagingManager {
           jobName: name,
           workloadName: name,
           workloadType: type,
+          target: 'lambda',
           packaging,
           parentEventType: 'REPACKAGE_ARTIFACTS',
           dockerBuildOutputArchitecture: architecture === 'arm64' ? 'linux/arm64' : 'linux/amd64'
@@ -1244,6 +1203,7 @@ export class PackagingManager {
           jobName,
           packaging,
           workloadName,
+          target: 'container',
           dockerBuildOutputArchitecture: this.getTargetCpuArchitectureForContainer(resources),
           parentEventType: 'REPACKAGE_ARTIFACTS'
         });
@@ -1474,6 +1434,7 @@ export class PackagingManager {
     jobName,
     packaging,
     runtime,
+    target,
     dockerBuildOutputArchitecture = 'linux/amd64',
     parentEventType = 'PACKAGE_ARTIFACTS',
     devMode,
@@ -1488,6 +1449,8 @@ export class PackagingManager {
       | LambdaPackaging
       | HelperLambdaPackaging;
     commandCanUseCache: boolean;
+    /** What the packaging produces. `buildpack` and `js-bundle` mean different builds for a function and a service. */
+    target: PackagingTarget;
     runtime?: LambdaRuntime;
     dockerBuildOutputArchitecture?: DockerBuildOutputArchitecture;
     parentEventType?: Subtype<LoggableEventType, 'PACKAGE_ARTIFACTS' | 'REPACKAGE_ARTIFACTS'>;
@@ -1527,26 +1490,8 @@ export class PackagingManager {
       sourceMapInstallPath: SOURCE_MAP_INSTALL_DIST_PATH
     };
 
-    if (packagingType === 'custom-dockerfile') {
-      const result = await buildUsingCustomDockerfile({ ...sharedProps, ...packaging.properties });
-      this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
-      return result;
-    }
-    if (packagingType === 'external-buildpack') {
-      const result = await buildUsingExternalBuildpack({
-        ...sharedProps,
-        ...packaging.properties,
-        runPack: this.#dockerRunners.runPack
-      });
-      this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
-      return result;
-    }
-    if (packagingType === 'nixpacks') {
-      const result = await buildUsingNixpacks({
-        ...sharedProps,
-        ...packaging.properties,
-        runNixpacks: this.#dockerRunners.runNixpacks
-      });
+    if (packagingType === 'dockerfile') {
+      const result = await buildUsingDockerfile({ ...sharedProps, ...packaging.properties });
       this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
       return result;
     }
@@ -1559,402 +1504,143 @@ export class PackagingManager {
       this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
       return result;
     }
-    if (packagingType === 'stacktape-image-buildpack' || packagingType === 'stacktape-lambda-buildpack') {
-      const extension = getFileExtension(packaging.properties.entryfilePath);
-      switch (extension) {
-        case 'js':
-        case 'ts':
-        case 'jsx':
-        case 'mjs':
-        case 'tsx': {
-          const languageSpecificConfig =
-            (packaging.properties.languageSpecificConfig as EsLanguageSpecificConfig) || undefined;
-          const nodeVersionFromUser = languageSpecificConfig?.nodeVersion;
-          const nodeVersion = resolveNodeVersion({
-            nodeVersion: nodeVersionFromUser,
-            runtime,
-            target: packagingType === 'stacktape-image-buildpack' ? 'container' : 'lambda'
-          });
-          // Lambda@Edge doesn't support ESM with top-level await, so force CJS for edge functions
-          const isEdgeFunction = workloadType === 'edge-lambda-function';
-          const useEsm = !isEdgeFunction && (languageSpecificConfig?.outputModuleFormat === 'esm' || nodeVersion >= 24);
-          // Traced functions get Stacktape's OTel runtime bundled in and their handler wrapped at
-          // the bundle entry — module format stays whatever the function would use anyway. The
-          // AWS-managed layer is not used for Node: its hooks cannot see bundled code at all and it
-          // cannot wrap ESM handlers (verified live).
-          const tracingRuntimeFilePath =
-            packagingType === 'stacktape-lambda-buildpack' &&
-            configManager.instrumentedLambdaFunctions.some(({ name: tracedName }) => tracedName === workloadName)
-              ? LAMBDA_TRACING_RUNTIME_DIST_PATH
-              : undefined;
-          const sharedStpBuildpackProps = {
-            ...packaging.properties,
-            minify: languageSpecificConfig?.minify ?? true,
-            nodeTarget: String(nodeVersion),
-            entryfilePath: join(globalStateManager.workingDir, packaging.properties.entryfilePath),
-            ...(tracingRuntimeFilePath && { tracingRuntimeFilePath }),
-            ...(useEsm && { outputModuleFormat: 'esm' as const })
-          };
-          const additionalDigestInput = objectHash({
-            buildpackImplementationVersion: STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION,
-            props: getStableBuildpackDigestProps({ props: sharedStpBuildpackProps, configured: packaging.properties })
-          });
+    if (packagingType === 'buildpack' && target === 'container') {
+      const result = await buildUsingRailpack({
+        ...sharedProps,
+        ...(packaging.properties as BuildpackCwImagePackagingProps),
+        railpackFrontendImage: RAILPACK_FRONTEND_IMAGE,
+        runRailpackPrepare: this.#dockerRunners.runRailpackPrepare
+      });
+      this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
+      return result;
+    }
+    if (packagingType !== 'js-bundle' && packagingType !== 'buildpack') {
+      return undefined;
+    }
 
-          if (packagingType === 'stacktape-lambda-buildpack') {
-            const result = await buildUsingStacktapeEsLambdaBuildpack({
-              ...sharedProps,
-              ...sharedStpBuildpackProps,
-              sizeLimit: 250,
-              debug: globalStateManager.isDebugMode,
-              distFolderPath: fsPaths.absoluteLambdaArtifactFolderPath({
-                jobName,
-                invocationId: globalStateManager.invocationId
-              }),
-              additionalDigestInput
-            });
-            this.#packagedJobs.push({
-              ...result,
-              skipped: result.outcome === 'skipped',
-              resolvedModules: result.resolvedModules
-            });
-            return result;
-          }
-          if (packagingType === 'stacktape-image-buildpack') {
-            const result = await buildUsingStacktapeEsImageBuildpack({
-              ...sharedProps,
-              ...sharedStpBuildpackProps,
-              requiresGlibcBinaries: packaging.properties.requiresGlibcBinaries,
-              debug: globalStateManager.isDebugMode,
-              distFolderPath: fsPaths.absoluteContainerArtifactFolderPath({
-                jobName,
-                invocationId: globalStateManager.invocationId
-              }),
-              additionalDigestInput,
-              devMode
-            });
-            this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
-            return result;
-          }
-          break;
-        }
+    const configuredEntryfilePath = (packaging.properties as { entryfilePath: string }).entryfilePath;
+    const extension = getFileExtension(configuredEntryfilePath);
+    const entryfilePath = join(globalStateManager.workingDir, configuredEntryfilePath);
+    const distFolderPath =
+      target === 'lambda'
+        ? fsPaths.absoluteLambdaArtifactFolderPath({ jobName, invocationId: globalStateManager.invocationId })
+        : fsPaths.absoluteContainerArtifactFolderPath({ jobName, invocationId: globalStateManager.invocationId });
+    const getAdditionalDigestInput = (props: Record<string, unknown>) =>
+      objectHash({
+        buildpackImplementationVersion: STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION,
+        props: getStableBuildpackDigestProps({ props, configured: { entryfilePath: configuredEntryfilePath } })
+      });
+    const record = (result: PackagingOutput) => {
+      this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
+      return result;
+    };
 
-        case 'py': {
-          const languageSpecificConfig = packaging.properties.languageSpecificConfig as
-            | PyLanguageSpecificConfig
-            | undefined;
-          const runtimePythonVersion =
-            packagingType === 'stacktape-lambda-buildpack' ? getPythonBuildVersionForRuntime(runtime) : undefined;
-          const pythonVersion =
-            packagingType === 'stacktape-lambda-buildpack'
-              ? resolveManagedLambdaBuildVersion({
-                  configuredVersion: languageSpecificConfig?.pythonVersion,
-                  runtimeVersion: runtimePythonVersion,
-                  runtime,
-                  language: 'Python',
-                  workloadName
-                })
-              : languageSpecificConfig?.pythonVersion;
-          const sharedStpBuildpackProps = {
-            ...packaging.properties,
-            languageSpecificConfig: {
-              ...languageSpecificConfig,
-              minify: languageSpecificConfig?.minify ?? true,
-              ...(pythonVersion !== undefined ? { pythonVersion } : {})
-            },
-            entryfilePath: join(globalStateManager.workingDir, packaging.properties.entryfilePath)
-          };
-          const additionalDigestInput = objectHash({
-            buildpackImplementationVersion: STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION,
-            props: getStableBuildpackDigestProps({ props: sharedStpBuildpackProps, configured: packaging.properties })
-          });
-          if (packagingType === 'stacktape-lambda-buildpack') {
-            const result = await buildUsingStacktapePyLambdaBuildpack({
-              ...sharedProps,
-              ...sharedStpBuildpackProps,
-              sizeLimit: 250,
-              distFolderPath: fsPaths.absoluteLambdaArtifactFolderPath({
-                jobName,
-                invocationId: globalStateManager.invocationId
-              }),
-              additionalDigestInput
-            });
-            this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
-            return result;
-          }
-          if (packagingType === 'stacktape-image-buildpack') {
-            const result = await buildUsingStacktapePyImageBuildpack({
-              ...sharedProps,
-              ...sharedStpBuildpackProps,
-              distFolderPath: fsPaths.absoluteContainerArtifactFolderPath({
-                jobName,
-                invocationId: globalStateManager.invocationId
-              }),
-              additionalDigestInput
-            });
-            this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
-            return result;
-          }
-          break;
-        }
-        case 'java': {
-          const languageSpecificConfig = packaging.properties.languageSpecificConfig as
-            | JavaLanguageSpecificConfig
-            | undefined;
-          const runtimeJavaVersion =
-            packagingType === 'stacktape-lambda-buildpack' ? getJavaBuildVersionForRuntime(runtime) : undefined;
-          const javaVersion =
-            packagingType === 'stacktape-lambda-buildpack'
-              ? resolveManagedLambdaBuildVersion({
-                  configuredVersion: languageSpecificConfig?.javaVersion,
-                  runtimeVersion: runtimeJavaVersion,
-                  runtime,
-                  language: 'Java',
-                  workloadName
-                })
-              : languageSpecificConfig?.javaVersion;
-          const sharedStpBuildpackProps = {
-            ...packaging.properties,
-            languageSpecificConfig: {
-              ...languageSpecificConfig,
-              ...(javaVersion !== undefined ? { javaVersion } : {})
-            },
-            minify: true,
-            entryfilePath: join(globalStateManager.workingDir, packaging.properties.entryfilePath)
-          };
-          const additionalDigestInput = objectHash({
-            buildpackImplementationVersion: STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION,
-            props: getStableBuildpackDigestProps({ props: sharedStpBuildpackProps, configured: packaging.properties })
-          });
-          if (packagingType === 'stacktape-lambda-buildpack') {
-            const result = await buildUsingStacktapeJavaLambdaBuildpack({
-              ...sharedProps,
-              ...sharedStpBuildpackProps,
-              sizeLimit: 250,
-              distFolderPath: fsPaths.absoluteLambdaArtifactFolderPath({
-                jobName,
-                invocationId: globalStateManager.invocationId
-              }),
-              additionalDigestInput
-            });
-            this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
-            return result;
-          }
-          if (packagingType === 'stacktape-image-buildpack') {
-            const result = await buildUsingStacktapeJavaImageBuildpack({
-              ...sharedProps,
-              ...sharedStpBuildpackProps,
-              distFolderPath: fsPaths.absoluteContainerArtifactFolderPath({
-                jobName,
-                invocationId: globalStateManager.invocationId
-              }),
-              additionalDigestInput
-            });
-            this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
-            return result;
-          }
-          break;
-        }
-        case 'go': {
-          if (
-            packagingType === 'stacktape-lambda-buildpack' &&
-            runtime !== undefined &&
-            runtime !== 'provided.al2' &&
-            runtime !== 'provided.al2023'
-          ) {
-            throw createCliPackagingError({
-              type: 'PACKAGING',
-              message: `Lambda runtime ${runtime} is not compatible with the Go Stacktape buildpack for ${workloadName}.`,
-              hint: 'Use provided.al2023 for Go Lambda functions.'
-            });
-          }
-          const sharedStpBuildpackProps = {
-            ...packaging.properties,
-            minify: true,
-            entryfilePath: join(globalStateManager.workingDir, packaging.properties.entryfilePath)
-          };
-          const additionalDigestInput = objectHash({
-            buildpackImplementationVersion: STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION,
-            props: getStableBuildpackDigestProps({ props: sharedStpBuildpackProps, configured: packaging.properties })
-          });
-          if (packagingType === 'stacktape-lambda-buildpack') {
-            const result = await buildUsingStacktapeGoLambdaBuildpack({
-              ...sharedProps,
-              ...sharedStpBuildpackProps,
-              sizeLimit: 250,
-              distFolderPath: fsPaths.absoluteLambdaArtifactFolderPath({
-                jobName,
-                invocationId: globalStateManager.invocationId
-              }),
-              additionalDigestInput
-            });
-            this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
-            return result;
-          }
-          if (packagingType === 'stacktape-image-buildpack') {
-            const result = await buildUsingStacktapeGoImageBuildpack({
-              ...sharedProps,
-              ...sharedStpBuildpackProps,
-              distFolderPath: fsPaths.absoluteContainerArtifactFolderPath({
-                jobName,
-                invocationId: globalStateManager.invocationId
-              }),
-              additionalDigestInput
-            });
-            this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
-            return result;
-          }
-          break;
-        }
-        case 'rb': {
-          const languageSpecificConfig = packaging.properties.languageSpecificConfig as
-            | RubyLanguageSpecificConfig
-            | undefined;
-          const runtimeRubyVersion =
-            packagingType === 'stacktape-lambda-buildpack' ? getRubyBuildVersionForRuntime(runtime) : undefined;
-          const rubyVersion =
-            packagingType === 'stacktape-lambda-buildpack'
-              ? resolveManagedLambdaBuildVersion({
-                  configuredVersion: languageSpecificConfig?.rubyVersion,
-                  runtimeVersion: runtimeRubyVersion,
-                  runtime,
-                  language: 'Ruby',
-                  workloadName
-                })
-              : languageSpecificConfig?.rubyVersion;
-          const sharedStpBuildpackProps = {
-            ...packaging.properties,
-            languageSpecificConfig: {
-              ...languageSpecificConfig,
-              ...(rubyVersion !== undefined ? { rubyVersion } : {})
-            },
-            minify: true,
-            entryfilePath: join(globalStateManager.workingDir, packaging.properties.entryfilePath)
-          };
-          const additionalDigestInput = objectHash({
-            buildpackImplementationVersion: STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION,
-            props: getStableBuildpackDigestProps({ props: sharedStpBuildpackProps, configured: packaging.properties })
-          });
-          if (packagingType === 'stacktape-lambda-buildpack') {
-            const result = await buildUsingStacktapeRbLambdaBuildpack({
-              ...sharedProps,
-              ...sharedStpBuildpackProps,
-              sizeLimit: 250,
-              distFolderPath: fsPaths.absoluteLambdaArtifactFolderPath({
-                jobName,
-                invocationId: globalStateManager.invocationId
-              }),
-              additionalDigestInput
-            });
-            this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
-            return result;
-          }
-          if (packagingType === 'stacktape-image-buildpack') {
-            const result = await buildUsingStacktapeRbImageBuildpack({
-              ...sharedProps,
-              ...sharedStpBuildpackProps,
-              distFolderPath: fsPaths.absoluteContainerArtifactFolderPath({
-                jobName,
-                invocationId: globalStateManager.invocationId
-              }),
-              additionalDigestInput
-            });
-            this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
-            return result;
-          }
-          break;
-        }
-        case 'php': {
-          if (packagingType === 'stacktape-lambda-buildpack') {
-            throw createCliPackagingError({
-              type: 'PACKAGING',
-              message: `The Stacktape Lambda buildpack cannot create a PHP custom runtime for ${workloadName}.`,
-              hint: 'Use stacktape-image-buildpack for a container workload, or custom-artifact with a PHP runtime and bootstrap executable.'
-            });
-          }
-          const sharedStpBuildpackProps = {
-            ...packaging.properties,
-            languageSpecificConfig: packaging.properties.languageSpecificConfig as PhpLanguageSpecificConfig,
-            minify: true,
-            entryfilePath: join(globalStateManager.workingDir, packaging.properties.entryfilePath)
-          };
-          const additionalDigestInput = objectHash({
-            buildpackImplementationVersion: STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION,
-            props: getStableBuildpackDigestProps({ props: sharedStpBuildpackProps, configured: packaging.properties })
-          });
-          if (packagingType === 'stacktape-image-buildpack') {
-            const result = await buildUsingStacktapePhpImageBuildpack({
-              ...sharedProps,
-              ...sharedStpBuildpackProps,
-              distFolderPath: fsPaths.absoluteContainerArtifactFolderPath({
-                jobName,
-                invocationId: globalStateManager.invocationId
-              }),
-              additionalDigestInput
-            });
-            this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
-            return result;
-          }
-          break;
-        }
-        case 'cs': {
-          const languageSpecificConfig = packaging.properties.languageSpecificConfig as
-            | DotnetLanguageSpecificConfig
-            | undefined;
-          const runtimeDotnetVersion =
-            packagingType === 'stacktape-lambda-buildpack' ? getDotnetBuildVersionForRuntime(runtime) : undefined;
-          const dotnetVersion =
-            packagingType === 'stacktape-lambda-buildpack'
-              ? resolveManagedLambdaBuildVersion({
-                  configuredVersion: languageSpecificConfig?.dotnetVersion,
-                  runtimeVersion: runtimeDotnetVersion,
-                  runtime,
-                  language: '.NET',
-                  workloadName
-                })
-              : languageSpecificConfig?.dotnetVersion;
-          const sharedStpBuildpackProps = {
-            ...packaging.properties,
-            languageSpecificConfig: {
-              ...languageSpecificConfig,
-              ...(dotnetVersion !== undefined ? { dotnetVersion } : {})
-            },
-            minify: true,
-            entryfilePath: join(globalStateManager.workingDir, packaging.properties.entryfilePath)
-          };
-          const additionalDigestInput = objectHash({
-            buildpackImplementationVersion: STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION,
-            props: getStableBuildpackDigestProps({ props: sharedStpBuildpackProps, configured: packaging.properties })
-          });
-          if (packagingType === 'stacktape-lambda-buildpack') {
-            const result = await buildUsingStacktapeDotnetLambdaBuildpack({
-              ...sharedProps,
-              ...sharedStpBuildpackProps,
-              sizeLimit: 250,
-              distFolderPath: fsPaths.absoluteLambdaArtifactFolderPath({
-                jobName,
-                invocationId: globalStateManager.invocationId
-              }),
-              additionalDigestInput
-            });
-            this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
-            return result;
-          }
-          if (packagingType === 'stacktape-image-buildpack') {
-            const result = await buildUsingStacktapeDotnetImageBuildpack({
-              ...sharedProps,
-              ...sharedStpBuildpackProps,
-              distFolderPath: fsPaths.absoluteContainerArtifactFolderPath({
-                jobName,
-                invocationId: globalStateManager.invocationId
-              }),
-              additionalDigestInput
-            });
-            this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
-            return result;
-          }
-          break;
-        }
+    if (packagingType === 'js-bundle') {
+      if (!JS_ENTRY_EXTENSIONS.has(extension)) {
+        throw createCliPackagingError({
+          type: 'PACKAGING',
+          message: `js-bundle packaging of ${workloadName} needs a JavaScript or TypeScript entry file, not \`.${extension}\`.`,
+          hint: 'Use buildpack packaging for other languages.'
+        });
       }
+      const properties = packaging.properties as JsBundleLambdaPackagingProps & JsBundleCwImagePackagingProps;
+      const nodeVersion = resolveNodeVersion({ nodeVersion: properties.nodeVersion, runtime, target });
+      // Lambda@Edge doesn't support ESM with top-level await, so force CJS for edge functions
+      const isEdgeFunction = workloadType === 'edge-lambda-function';
+      const useEsm = !isEdgeFunction && (properties.outputModuleFormat === 'esm' || nodeVersion >= 24);
+      // Traced functions get Stacktape's OTel runtime bundled in and their handler wrapped at
+      // the bundle entry — module format stays whatever the function would use anyway. The
+      // AWS-managed layer is not used for Node: its hooks cannot see bundled code at all and it
+      // cannot wrap ESM handlers (verified live).
+      const tracingRuntimeFilePath =
+        target === 'lambda' &&
+        configManager.instrumentedLambdaFunctions.some(({ name: tracedName }) => tracedName === workloadName)
+          ? LAMBDA_TRACING_RUNTIME_DIST_PATH
+          : undefined;
+      const bundleProps = {
+        ...properties,
+        minify: properties.minify ?? true,
+        nodeTarget: String(nodeVersion),
+        entryfilePath,
+        ...(tracingRuntimeFilePath && { tracingRuntimeFilePath }),
+        ...(useEsm && { outputModuleFormat: 'esm' as const })
+      };
+      const additionalDigestInput = getAdditionalDigestInput(bundleProps);
+      if (target === 'lambda') {
+        const result = await buildJsBundleLambda({
+          ...sharedProps,
+          ...bundleProps,
+          sizeLimit: 250,
+          debug: globalStateManager.isDebugMode,
+          distFolderPath,
+          additionalDigestInput
+        });
+        this.#packagedJobs.push({
+          ...result,
+          skipped: result.outcome === 'skipped',
+          resolvedModules: result.resolvedModules
+        });
+        return result;
+      }
+      return record(
+        await buildJsBundleImage({
+          ...sharedProps,
+          ...bundleProps,
+          requiresGlibcBinaries: properties.requiresGlibcBinaries,
+          debug: globalStateManager.isDebugMode,
+          distFolderPath,
+          additionalDigestInput,
+          devMode
+        })
+      );
+    }
+
+    // The Lambda buildpack: the entry file's language, built in Docker on the runtime's build image.
+    const properties = packaging.properties as BuildpackLambdaPackagingProps;
+    const lambdaBuild = {
+      ...sharedProps,
+      ...properties,
+      entryfilePath,
+      sizeLimit: 250,
+      distFolderPath,
+      additionalDigestInput: getAdditionalDigestInput({ ...properties, entryfilePath, runtime })
+    };
+    const assertProvidedRuntime = (language: string) => {
+      if (runtime !== undefined && runtime !== 'provided.al2' && runtime !== 'provided.al2023') {
+        throw createCliPackagingError({
+          type: 'PACKAGING',
+          message: `Lambda runtime ${runtime} is not compatible with the ${language} buildpack for ${workloadName}.`,
+          hint: `Use provided.al2023 for ${language} Lambda functions.`
+        });
+      }
+    };
+    switch (extension) {
+      case 'py':
+        return record(
+          await buildPythonLambda({ ...lambdaBuild, pythonVersion: getPythonBuildVersionForRuntime(runtime) })
+        );
+      case 'java':
+        return record(await buildJavaLambda({ ...lambdaBuild, javaVersion: getJavaBuildVersionForRuntime(runtime) }));
+      case 'rb':
+        return record(await buildRubyLambda({ ...lambdaBuild, rubyVersion: getRubyBuildVersionForRuntime(runtime) }));
+      case 'cs':
+        return record(
+          await buildDotnetLambda({ ...lambdaBuild, dotnetVersion: getDotnetBuildVersionForRuntime(runtime) })
+        );
+      case 'go':
+        assertProvidedRuntime('Go');
+        return record(await buildGoLambda(lambdaBuild));
+      case 'rs':
+        assertProvidedRuntime('Rust');
+        return record(await buildRustLambda(lambdaBuild));
+      default:
+        throw createCliPackagingError({
+          type: 'PACKAGING',
+          message: `buildpack packaging of ${workloadName} does not support \`.${extension}\` entry files.`,
+          hint: JS_ENTRY_EXTENSIONS.has(extension)
+            ? 'Use js-bundle packaging for JavaScript and TypeScript.'
+            : 'Supported: .py, .java, .go, .rb, .cs and .rs. Use custom-artifact packaging for other languages.'
+        });
     }
   };
 

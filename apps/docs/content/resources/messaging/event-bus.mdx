@@ -137,7 +137,7 @@ Specify the bus using exactly one of three options: `eventBusName` for a Stackta
   defineConfig,
   EventBus,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -145,7 +145,7 @@ export default defineConfig(() => {
   const orderBus = new EventBus({});
 
   const orderProcessor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/order-processor.ts'
     }),
     memory: 512,
@@ -217,7 +217,7 @@ For more details on `connectTo`, see [Connecting resources](/configuration/conne
   defineConfig,
   EventBus,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -225,7 +225,7 @@ export default defineConfig(() => {
   const orderBus = new EventBus({});
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/api.ts'
     }),
     connectTo: [orderBus],

@@ -272,7 +272,7 @@ const TYPE_PROPERTIES_INTERFACE_MAP: Record<string, { interfaceName: string; fil
 
 /**
  * Extracts the JSDoc description for a type-properties class from its interface definition
- * @param className - The type-properties class name (e.g., 'StacktapeLambdaBuildpackPackaging')
+ * @param className - The type-properties class name (e.g., 'JsBundleLambdaPackaging')
  * @returns The JSDoc comment or undefined if not found
  */
 export function getTypePropertiesDescription(className: string): JSDocComment | undefined {

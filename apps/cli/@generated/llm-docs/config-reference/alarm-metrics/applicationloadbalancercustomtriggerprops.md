@@ -89,7 +89,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/index.ts
       resources:
@@ -126,7 +126,7 @@ import { WebService, ApplicationLoadBalancer, defineConfig, $Secret } from 'stac
 export default defineConfig(() => {
   const webApi = new WebService({
     packaging: {
-      type: 'stacktape-image-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/index.ts' }
     },
     resources: { cpu: 0.25, memory: 512 }
@@ -183,7 +183,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/index.ts
       resources:
@@ -220,7 +220,7 @@ import { WebService, ApplicationLoadBalancer, defineConfig } from 'stacktape';
 export default defineConfig(() => {
   const webApi = new WebService({
     packaging: {
-      type: 'stacktape-image-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/index.ts' }
     },
     resources: { cpu: 0.25, memory: 512 }
@@ -342,7 +342,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./src/worker.ts
       alarms:
@@ -357,11 +357,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+import { LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const worker = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/worker.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/worker.ts' }),
     alarms: [
       {
         description: '99th-percentile duration too high',

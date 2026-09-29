@@ -28,7 +28,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./src/charge-card.ts
 
@@ -51,11 +51,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { LambdaFunction, StacktapeLambdaBuildpackPackaging, StateMachine, defineConfig } from 'stacktape';
+import { LambdaFunction, StateMachine, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const chargeCard = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/charge-card.ts' })
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/charge-card.ts' })
   });
   const paymentWorkflow = new StateMachine({
     definition: {

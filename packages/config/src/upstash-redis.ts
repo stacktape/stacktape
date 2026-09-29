@@ -37,7 +37,7 @@ export interface UpstashRedisProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       connectTo:
@@ -58,7 +58,7 @@ export interface UpstashRedisProps {
    *
    *   const api = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     connectTo: [cache]
@@ -82,7 +82,7 @@ export interface UpstashRedisProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/index.ts
    *       environment:
@@ -110,7 +110,7 @@ export interface UpstashRedisProps {
    *
    *   const api = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/index.ts' }
    *     },
    *     environment: {

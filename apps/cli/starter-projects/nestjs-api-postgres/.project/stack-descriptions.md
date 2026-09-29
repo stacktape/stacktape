@@ -3,7 +3,7 @@
 Application runs in web-service resource and is configured as follows:
 
 - **Packaging** - determines how the Docker container image is built. The easiest and most optimized way to build the
-  image for a Typescript application is using `stacktape-image-buildpack`. We only need to configure `entryfilePath`. In
+  image for a Typescript application is using `js-bundle`. We only need to configure `entryfilePath`. In
   this case, we are also excluding dependencies that nestjs includes by default, but are not needed in this case (it
   will make the image smaller and deployment faster). Stacktape automatically transpiles and builds the application code
   with all of its dependencies, builds the Docker image, and pushes it to a pre-created image repository on AWS. You can
@@ -25,7 +25,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/main.ts
           excludeDependencies:
@@ -34,8 +34,7 @@ resources:
             - "class-validator"
             - "class-transformer"
             - "@nestjs/microservices"
-          languageSpecificConfig:
-            emitTsDecoratorMetadata: true
+          emitTsDecoratorMetadata: true
       resources:
         cpu: 0.25
         memory: 512

@@ -14,7 +14,7 @@ export interface SlackIntegrationProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/worker.ts
    *       memory: 512
@@ -42,7 +42,7 @@ export interface SlackIntegrationProps {
    * export default defineConfig(() => {
    *   const workerFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/worker.ts' }
    *     },
    *     memory: 512,
@@ -85,7 +85,7 @@ export interface SlackIntegrationProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/worker.ts
    *       memory: 512
@@ -113,7 +113,7 @@ export interface SlackIntegrationProps {
    * export default defineConfig(() => {
    *   const workerFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/worker.ts' }
    *     },
    *     memory: 512,
@@ -228,7 +228,7 @@ export interface MsTeamsIntegrationProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    *       memory: 1024
@@ -255,7 +255,7 @@ export interface MsTeamsIntegrationProps {
    * export default defineConfig(() => {
    *   const apiFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/api.ts' }
    *     },
    *     memory: 1024,
@@ -311,7 +311,7 @@ export interface EmailIntegrationProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/payments.ts
    *       memory: 512
@@ -339,7 +339,7 @@ export interface EmailIntegrationProps {
    * export default defineConfig(() => {
    *   const paymentsFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/payments.ts' }
    *     },
    *     memory: 512,
@@ -380,7 +380,7 @@ export interface EmailIntegrationProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/payments.ts
    *       memory: 512
@@ -408,7 +408,7 @@ export interface EmailIntegrationProps {
    * export default defineConfig(() => {
    *   const paymentsFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/payments.ts' }
    *     },
    *     memory: 512,
@@ -455,7 +455,7 @@ export interface DiscordIntegrationProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/ingest.ts
    *       memory: 256
@@ -482,7 +482,7 @@ export interface DiscordIntegrationProps {
    * export default defineConfig(() => {
    *   const ingestFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/ingest.ts' }
    *     },
    *     memory: 256,
@@ -532,7 +532,7 @@ export interface WebhookIntegrationProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/scheduler.ts
    *       memory: 256
@@ -560,7 +560,7 @@ export interface WebhookIntegrationProps {
    * export default defineConfig(() => {
    *   const schedulerFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/scheduler.ts' }
    *     },
    *     memory: 256,
@@ -603,7 +603,7 @@ export interface WebhookIntegrationProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/scheduler.ts
    *       memory: 256
@@ -631,7 +631,7 @@ export interface WebhookIntegrationProps {
    * export default defineConfig(() => {
    *   const schedulerFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/scheduler.ts' }
    *     },
    *     memory: 256,
@@ -672,7 +672,7 @@ export interface WebhookIntegrationProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/scheduler.ts
    *       memory: 256
@@ -703,7 +703,7 @@ export interface WebhookIntegrationProps {
    * export default defineConfig(() => {
    *   const schedulerFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/scheduler.ts' }
    *     },
    *     memory: 256,

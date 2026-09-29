@@ -46,7 +46,7 @@ describe('the standalone Dockerfile probe', () => {
       type: 'web-service',
       properties: {
         packaging: {
-          type: 'custom-dockerfile',
+          type: 'dockerfile',
           properties: {
             buildContextPath: 'apps/api',
             dockerfilePath: 'Dockerfile'

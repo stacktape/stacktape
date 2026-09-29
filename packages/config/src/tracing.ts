@@ -40,7 +40,7 @@ export interface TracingOptions {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    * ```
@@ -52,7 +52,7 @@ export interface TracingOptions {
    *
    * export default defineConfig(() => {
    *   const api = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } }
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } }
    *   });
    *   return {
    *     // stp-focus
@@ -88,7 +88,7 @@ export interface TracingOptions {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    * ```
@@ -100,7 +100,7 @@ export interface TracingOptions {
    *
    * export default defineConfig(() => {
    *   const api = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } }
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } }
    *   });
    *   return {
    *     // stp-focus

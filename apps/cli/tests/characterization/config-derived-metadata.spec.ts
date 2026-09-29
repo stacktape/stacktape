@@ -95,7 +95,7 @@ describe('configuration-derived initialization metadata', () => {
         type: 'function',
         properties: {
           packaging: {
-            type: 'stacktape-lambda-buildpack',
+            type: 'js-bundle',
             properties: { entryfilePath: './src/function.ts' }
           },
           cdn: {

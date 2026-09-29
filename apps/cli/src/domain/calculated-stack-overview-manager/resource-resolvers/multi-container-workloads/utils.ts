@@ -68,8 +68,8 @@ import { getCloudFormationLogGroupClassProperties } from '../_utils/log-groups';
 import { getPoliciesForRoles } from '../_utils/role-helpers';
 import type { CloudWatchLogGroupOptions } from '@stacktape/config/log-forwarding';
 import type {
-  CustomDockerfileCwImagePackagingProps,
-  EsLanguageSpecificConfig,
+  DockerfileCwImagePackagingProps,
+  JsBundleSharedProps,
   PrebuiltImageCwPackagingProps
 } from '@stacktape/config/deployment-artifacts';
 import type {
@@ -351,20 +351,17 @@ const getContainerWorkloadContainerDefinitions = (workload: StpContainerWorkload
   return workload.containers.map((container) => {
     const repositoryCredentialsSecretArn = (container.packaging.properties as PrebuiltImageCwPackagingProps)
       .repositoryCredentialsSecretArn;
-    const command = (
-      container.packaging.properties as PrebuiltImageCwPackagingProps | CustomDockerfileCwImagePackagingProps
-    ).command;
+    const command = (container.packaging.properties as PrebuiltImageCwPackagingProps | DockerfileCwImagePackagingProps)
+      .command;
     const entryPoint = (
-      container.packaging.properties as PrebuiltImageCwPackagingProps | CustomDockerfileCwImagePackagingProps
+      container.packaging.properties as PrebuiltImageCwPackagingProps | DockerfileCwImagePackagingProps
     ).entryPoint;
     const isLoggingEnabled = !container.logging?.disabled;
 
     // Get packaging info for environment augmentation
     const packagingType = container.packaging?.type;
     const entryfilePath = (container.packaging?.properties as { entryfilePath?: string })?.entryfilePath;
-    const languageSpecificConfig = (
-      container.packaging?.properties as { languageSpecificConfig?: EsLanguageSpecificConfig }
-    )?.languageSpecificConfig;
+    const languageSpecificConfig = container.packaging?.properties as JsBundleSharedProps | undefined;
     const nodeVersion = languageSpecificConfig?.nodeVersion || DEFAULT_CONTAINER_NODE_VERSION;
 
     // Augment environment with source maps and experimental flags for JS/TS workloads

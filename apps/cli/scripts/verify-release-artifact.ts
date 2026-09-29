@@ -147,10 +147,16 @@ export const verifyNativeInstallation = async ({
   }
   await verifyHelperLambdaArtifacts({ helperLambdasDir: join(binDirectory, 'helper-lambdas') });
 
-  // pack, nixpacks and the Session Manager plugin are downloaded on first use (`src/utils/external-tools.ts`); only
-  // Windows still ships the plugin, whose AWS download is an installer. Resolving them into an empty tools directory is
-  // a customer's first use: each pinned upstream asset downloads, matches its checksum and runs on this platform.
-  for (const toolDirectory of ['pack', 'nixpacks', ...(platform === 'win' ? [] : ['session-manager-plugin'])]) {
+  // railpack and the Session Manager plugin are downloaded on first use (`src/utils/external-tools.ts`); only Windows
+  // still ships the plugin, whose AWS download is an installer. pack and nixpacks, which earlier releases bundled, are
+  // no longer used and must not come back. Resolving the tools into an empty tools directory is a customer's first use:
+  // each pinned upstream asset downloads, matches its checksum and runs on this platform.
+  for (const toolDirectory of [
+    'railpack',
+    'pack',
+    'nixpacks',
+    ...(platform === 'win' ? [] : ['session-manager-plugin'])
+  ]) {
     if (existsSync(join(binDirectory, toolDirectory))) {
       throw new Error(`Native release archive still bundles ${toolDirectory}, which is downloaded on first use.`);
     }

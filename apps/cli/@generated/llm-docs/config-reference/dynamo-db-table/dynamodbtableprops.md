@@ -53,7 +53,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/reconcile.ts
       events:
@@ -77,7 +77,7 @@ export default defineConfig(() => {
 
   const reconcileJob = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/reconcile.ts' }
     },
     events: [
@@ -309,7 +309,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/audit.ts
       events:
@@ -335,7 +335,7 @@ export default defineConfig(() => {
 
   const auditLogger = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/audit.ts' }
     },
     events: [

@@ -221,10 +221,10 @@ const MAX_PLANNER_CALLS = 4;
  * Ask the container builder itself, for the services nothing else could answer.
  *
  * This is the strongest kind of suggestion there is, because it is not a guess about the build —
- * it is the build. Nixpacks' `plan` is the exact analysis its `build` runs later, so the suggested
+ * it is the build. Railpack's `prepare` is the exact analysis its build runs later, so the suggested
  * command is what the packaged container would do anyway; accepting it merely writes reality down
  * where the user can see and change it. It covers the ecosystems the curated table deliberately
- * refuses (a WSGI module path the scan cannot know, Nixpacks' Python provider derives from the
+ * refuses (a WSGI module path the scan cannot know, Railpack's Python provider derives from the
  * files), and it runs last: the curated table's commands are tuned for the card, so where both
  * know an answer the table has already spoken.
  */

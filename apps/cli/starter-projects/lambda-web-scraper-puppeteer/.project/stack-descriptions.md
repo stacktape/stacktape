@@ -18,7 +18,7 @@ Core of our application is a lambda function `scrapeLinks` which can scrape link
 The function is configured as follows:
 
 - **Packaging** - determines how the lambda artifact is built. The easiest and most optimized way to build the lambda
-  from Typescript/Javascript is using `stacktape-lambda-buildpack`. We only need to configure `entryfilePath`. Stacktape
+  from Typescript/Javascript is using `js-bundle`. We only need to configure `entryfilePath`. Stacktape
   automatically transpiles and builds the application code with all of its dependencies, creates the lambda zip
   artifact, and uploads it to a pre-created S3 bucket on AWS. You can also use
   [other types of packaging](https://docs.stacktape.com/configuration/packaging/#packaging-lambda-functions).
@@ -32,7 +32,7 @@ scrapeLinks:
   type: function
   properties:
     packaging:
-      type: stacktape-lambda-buildpack
+      type: js-bundle
       properties:
         entryfilePath: src/scrape-links.ts
         excludeDependencies:

@@ -41,7 +41,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/index.ts
       connectTo:
@@ -68,7 +68,7 @@ export default defineConfig(() => {
     }
   });
   const api = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
     connectTo: [sqlAccessDb]
   });
   return { resources: { sqlAccessDb, api } };
@@ -102,7 +102,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/index.ts
       connectTo:
@@ -129,7 +129,7 @@ export default defineConfig(() => {
     }
   });
   const api = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/index.ts' } },
     connectTo: [biDb]
   });
   return { resources: { biDb, api } };

@@ -1,9 +1,9 @@
 import {
   $Secret,
+  BuildpackImagePackaging,
   LocalScript,
   RdsEnginePostgres,
   RelationalDatabase,
-  StacktapeImageBuildpackPackaging,
   WebService,
   defineConfig
 } from '../../__release-npm';
@@ -21,8 +21,8 @@ export default defineConfig(() => {
     })
   });
   const webService = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({
-      entryfilePath: './app.py'
+    packaging: new BuildpackImagePackaging({
+      startCommand: 'gunicorn --bind 0.0.0.0:$PORT app:app'
     }),
     resources: {
       cpu: 0.25,

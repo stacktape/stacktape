@@ -3,7 +3,7 @@ import { mkdtemp, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathExists } from 'fs-extra';
-import { buildUsingStacktapeEsLambdaBuildpack } from '../src/buildpacks/stacktape-es-lambda-buildpack';
+import { buildJsBundleLambda } from '../src/buildpacks/js-bundle-lambda';
 import { buildNativeBinaryLayer } from '../src/es/native-dependencies';
 import { assignChunksToLayers } from '../src/split-bundler/layer-assignment';
 import { buildSplitBundle } from '../src/split-bundler/bundler';
@@ -432,7 +432,7 @@ try {
     ].join('\n')
   );
   const hotSwapDist = join(buildRoot, 'functions', 'hotswap');
-  const hotSwapOutput = await buildUsingStacktapeEsLambdaBuildpack({
+  const hotSwapOutput = await buildJsBundleLambda({
     cwd: root,
     name: 'synthetic-hotswap',
     entryfilePath: join(sourceRoot, 'hotswap.ts'),
@@ -441,13 +441,11 @@ try {
     progressLogger,
     invocationId: 'synthetic-node-lambda-e2e',
     sizeLimit: 250,
-    languageSpecificConfig: {
-      nodeVersion: 24,
-      outputModuleFormat: 'esm',
-      disableSourceMaps: true,
-      // The opt-in, exercised on the real runtime; the split build above runs with the default.
-      minifyIdentifiers: true
-    },
+    nodeVersion: 24,
+    outputModuleFormat: 'esm',
+    disableSourceMaps: true,
+    // The opt-in, exercised on the real runtime; the split build above runs with the default.
+    minifyIdentifiers: true,
     requiresGlibcBinaries: true,
     dockerBuildOutputArchitecture: 'linux/amd64',
     nodeTarget: '24',

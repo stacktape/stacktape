@@ -1,0 +1,361 @@
+---
+title: 'Upgrading from v3'
+order: 9
+seoTitle: 'Upgrading from Stacktape v3 to v4 | Stacktape Docs'
+seoDescription: 'Changes to make when upgrading a Stacktape v3 configuration to v4: renamed packaging types, flattened options and removed properties.'
+---
+
+# Upgrading from v3
+
+Stacktape v4 makes deliberate breaking changes. v4 does not accept the old names, so update your configuration before deploying with v4. This page currently covers packaging.
+
+## Packaging
+
+v4 replaces the v3 packaging types with a smaller set:
+
+| v3 type | v4 type | v4 class |
+|---|---|---|
+| `stacktape-lambda-buildpack`, JavaScript or TypeScript entry file | `js-bundle` | `JsBundleLambdaPackaging` |
+| `stacktape-lambda-buildpack`, Python, Java, Go, Ruby or .NET entry file | `buildpack` | `BuildpackLambdaPackaging` |
+| `stacktape-image-buildpack`, JavaScript or TypeScript entry file | `js-bundle` | `JsBundleImagePackaging` |
+| `stacktape-image-buildpack`, other languages | `buildpack` | `BuildpackImagePackaging` |
+| `nixpacks` | `buildpack` | `BuildpackImagePackaging` |
+| `external-buildpack` | `buildpack` or `dockerfile` | `BuildpackImagePackaging` or `DockerfilePackaging` |
+| `custom-dockerfile` | `dockerfile` | `DockerfilePackaging` |
+| `custom-artifact` | `custom-artifact` (unchanged) | `CustomArtifactLambdaPackaging` |
+| `prebuilt-image` | `prebuilt-image` (unchanged) | `PrebuiltImagePackaging` |
+
+In TypeScript configurations, rename the classes in both the `new ...Packaging(...)` calls and the `import` list.
+
+### JavaScript and TypeScript Lambda functions
+
+Rename the type to `js-bundle` and move the options from `languageSpecificConfig` up one level.
+
+Before:
+
+```yaml
+resources:
+  api:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/api.ts
+          languageSpecificConfig:
+            nodeVersion: 22
+            outputModuleFormat: esm
+```
+
+After:
+
+```yaml
+resources:
+  api:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: ./src/api.ts
+          nodeVersion: 22
+          outputModuleFormat: esm
+```
+
+See [JS Bundle for Lambda](/packaging/function/js-bundle).
+
+### Python, Java, Go, Ruby and .NET Lambda functions
+
+Rename the type to `buildpack`. Rename `languageSpecificConfig` to `python`, `java` or `dotnet`, depending on the language. Delete the version fields and set the function's `runtime` instead. Go and Ruby have no options, so delete their `languageSpecificConfig`.
+
+Before:
+
+```yaml
+resources:
+  processor:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/process.py
+          languageSpecificConfig:
+            pythonVersion: 3.12
+            packageManagerFile: ./pyproject.toml
+            minify: false
+```
+
+After:
+
+```yaml
+resources:
+  processor:
+    type: function
+    properties:
+      runtime: python3.12
+      packaging:
+        type: buildpack
+        properties:
+          entryfilePath: ./src/process.py
+          python:
+            packageManagerFile: ./pyproject.toml
+```
+
+See [Buildpack for Lambda](/packaging/function/buildpack).
+
+### Rust Lambda functions
+
+v3 had no Rust support, so Rust functions used `custom-artifact` with a hook that ran cargo-lambda. In v4, delete the hook and use `buildpack`.
+
+Before:
+
+```yaml
+hooks:
+  beforeDeploy:
+    - scriptName: buildRust
+scripts:
+  buildRust:
+    type: local-script
+    properties:
+      executeCommand: cargo lambda build --release --output-format zip
+resources:
+  resizer:
+    type: function
+    properties:
+      runtime: provided.al2023
+      packaging:
+        type: custom-artifact
+        properties:
+          packagePath: ./target/lambda/resizer/bootstrap.zip
+```
+
+After:
+
+```yaml
+resources:
+  resizer:
+    type: function
+    properties:
+      runtime: provided.al2023
+      packaging:
+        type: buildpack
+        properties:
+          entryfilePath: src/main.rs
+```
+
+### JavaScript and TypeScript container services
+
+Rename the type to `js-bundle` and move the options from `languageSpecificConfig` up one level. `requiresGlibcBinaries` and `customDockerBuildCommands` stay where they are.
+
+Before:
+
+```yaml
+resources:
+  api:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: ./src/server.ts
+          requiresGlibcBinaries: true
+          languageSpecificConfig:
+            emitTsDecoratorMetadata: true
+      resources:
+        cpu: 0.25
+        memory: 512
+```
+
+After:
+
+```yaml
+resources:
+  api:
+    type: web-service
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: ./src/server.ts
+          requiresGlibcBinaries: true
+          emitTsDecoratorMetadata: true
+      resources:
+        cpu: 0.25
+        memory: 512
+```
+
+See [JS Bundle for Containers](/packaging/containers/js-bundle).
+
+### Python and other non-JavaScript container services
+
+Rename the type to `buildpack`. The container `buildpack` builds the whole project directory, so replace `entryfilePath` with `sourceDirectoryPath`. Replace `runAppAs` with a `startCommand` that starts the server on `$PORT`, and add the server (for example `uvicorn` or `gunicorn`) to the project's dependencies.
+
+Before:
+
+```yaml
+resources:
+  api:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: ./app/main.py:app
+          languageSpecificConfig:
+            runAppAs: ASGI
+            packageManagerFile: ./pyproject.toml
+      resources:
+        cpu: 0.5
+        memory: 1024
+```
+
+After:
+
+```yaml
+resources:
+  api:
+    type: web-service
+    properties:
+      packaging:
+        type: buildpack
+        properties:
+          sourceDirectoryPath: .
+          startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+      resources:
+        cpu: 0.5
+        memory: 1024
+```
+
+For a WSGI app, use gunicorn, for example `gunicorn --bind 0.0.0.0:$PORT app.main:app`. When a FastAPI, Flask or Django project uses the conventional module layout, the start command is detected and `startCommand` can be omitted.
+
+The v4 images are Debian-based and larger than the v3 Alpine images. See [Buildpack for Containers](/packaging/containers/buildpack).
+
+### Nixpacks
+
+Rename the type to `buildpack` and `startCmd` to `startCommand`. Nixpacks phases have no direct equivalent: move install and build commands to `installCommand` and `buildCommand`, and use `railpackConfig` for anything else.
+
+Before:
+
+```yaml
+resources:
+  web:
+    type: web-service
+    properties:
+      packaging:
+        type: nixpacks
+        properties:
+          sourceDirectoryPath: ./web
+          startCmd: node dist/server.js
+          phases:
+            - name: build
+              cmds:
+                - npm run build
+      resources:
+        cpu: 0.25
+        memory: 512
+```
+
+After:
+
+```yaml
+resources:
+  web:
+    type: web-service
+    properties:
+      packaging:
+        type: buildpack
+        properties:
+          sourceDirectoryPath: ./web
+          startCommand: node dist/server.js
+          buildCommand: npm run build
+      resources:
+        cpu: 0.25
+        memory: 512
+```
+
+### External buildpacks
+
+Cloud Native Buildpacks and the pack CLI are no longer supported. Try `buildpack`, which detects most projects without configuration. If you depended on a specific builder or buildpack, write a Dockerfile and use `dockerfile`.
+
+Before:
+
+```yaml
+resources:
+  web:
+    type: web-service
+    properties:
+      packaging:
+        type: external-buildpack
+        properties:
+          sourceDirectoryPath: ./web
+          builder: paketobuildpacks/builder-jammy-base
+      resources:
+        cpu: 0.25
+        memory: 512
+```
+
+After:
+
+```yaml
+resources:
+  web:
+    type: web-service
+    properties:
+      packaging:
+        type: buildpack
+        properties:
+          sourceDirectoryPath: ./web
+      resources:
+        cpu: 0.25
+        memory: 512
+```
+
+### Custom Dockerfiles
+
+Rename the type to `dockerfile`. The properties are unchanged.
+
+Before:
+
+```yaml
+resources:
+  worker:
+    type: worker-service
+    properties:
+      packaging:
+        type: custom-dockerfile
+        properties:
+          buildContextPath: ./worker
+          dockerfilePath: Dockerfile.prod
+      resources:
+        cpu: 0.5
+        memory: 1024
+```
+
+After:
+
+```yaml
+resources:
+  worker:
+    type: worker-service
+    properties:
+      packaging:
+        type: dockerfile
+        properties:
+          buildContextPath: ./worker
+          dockerfilePath: Dockerfile.prod
+      resources:
+        cpu: 0.5
+        memory: 1024
+```
+
+See [Dockerfile](/packaging/containers/dockerfile).
+
+### Removed packaging properties
+
+- `languageSpecificConfig`: its options are direct properties of `js-bundle`, or `python`, `java` and `dotnet` on the Lambda `buildpack`.
+- `pythonVersion`, `javaVersion`, `rubyVersion` and `dotnetVersion` on Lambda functions: set the function's `runtime`.
+- `packageManager`, `minify` and `runAppAs` for Python Lambda functions.
+- `entryfilePath`, `runAppAs`, `languageSpecificConfig`, `requiresGlibcBinaries` and `customDockerBuildCommands` for non-JavaScript container services. Use `sourceDirectoryPath`, `startCommand`, `aptPackages` or a Dockerfile.
+- `startCmd`, `phases`, `providers`, `buildImage`, `startRunImage` and `startOnlyIncludeFiles` from `nixpacks`. Use `startCommand`, `installCommand`, `buildCommand`, `aptPackages` or `railpackConfig`.
+- `builder` and `buildpacks` from `external-buildpack`.
+- PHP Lambda functions. Run PHP as a container with [`buildpack`](/packaging/containers/buildpack).

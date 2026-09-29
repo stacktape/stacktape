@@ -411,7 +411,7 @@ For workload `connectTo`, Stacktape injects `STP_MAIN_DATABASE_CONNECTION_STRING
   RelationalDatabase,
   RdsEnginePostgres,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -429,7 +429,7 @@ export default defineConfig(() => {
   });
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/api.ts'
     }),
     memory: 1024,

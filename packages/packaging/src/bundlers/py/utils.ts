@@ -1,7 +1,7 @@
 import { basename, dirname, isAbsolute, join } from 'node:path';
 import { exists, readFile } from 'fs-extra';
 
-import type { PyLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
+import type { PythonBuildpackConfig } from '@stacktape/config/deployment-artifacts';
 import type { CreatePackagingError } from '../../runtime-contracts';
 import { STACKTAPE_LANGUAGE_SOURCE_GLOBS } from '../../artifact/language-build-context';
 import { getBundleDigestFromGlobs, getSourceFilesFromGlobs } from '../digest';
@@ -30,7 +30,7 @@ export const getBundleDigest = ({
   externalDependencies: { name: string; version: string }[];
   additionalDigestInput?: string | undefined;
   rawEntryfilePath: string;
-  languageSpecificConfig?: PyLanguageSpecificConfig | undefined;
+  languageSpecificConfig?: PythonBuildpackConfig | undefined;
   lambdaZip?: boolean | undefined;
 }) =>
   getBundleDigestFromGlobs({
@@ -135,7 +135,7 @@ export const canInstallRequirementsWithoutSource = async (dependencyFilePath: st
 const UV_SELECTOR_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 export const getPythonUvDependencySelectorBuildArgs = (
-  languageSpecificConfig: PyLanguageSpecificConfig | undefined,
+  languageSpecificConfig: PythonBuildpackConfig | undefined,
   createPackagingError: CreatePackagingError
 ) => {
   const selectors = {
@@ -150,7 +150,7 @@ export const getPythonUvDependencySelectorBuildArgs = (
       if (!UV_SELECTOR_NAME_PATTERN.test(value)) {
         throw createPackagingError({
           type: 'PACKAGING',
-          message: `Invalid Python uv dependency selector "${value}" in languageSpecificConfig.${propertyName}. Use only letters, numbers, ".", "_" and "-".`
+          message: `Invalid Python uv dependency selector "${value}" in python.${propertyName}. Use only letters, numbers, ".", "_" and "-".`
         });
       }
     });

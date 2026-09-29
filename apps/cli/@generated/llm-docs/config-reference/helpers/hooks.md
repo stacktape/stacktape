@@ -94,7 +94,7 @@ resources:
     type: worker-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/worker.ts
       resources:
@@ -105,12 +105,12 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { WorkerService, StacktapeImageBuildpackPackaging, LocalScript, defineConfig } from 'stacktape';
+import { WorkerService, LocalScript, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const notifyCleanup = new LocalScript({ executeCommand: 'node ./scripts/notify-slack.js' });
   const worker = new WorkerService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/worker.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/worker.ts' }),
     resources: { cpu: 0.25, memory: 512 }
   });
 

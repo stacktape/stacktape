@@ -10,7 +10,7 @@ describe('config repository paths', () => {
           type: 'function',
           properties: {
             packaging: {
-              type: 'stacktape-lambda-buildpack',
+              type: 'js-bundle',
               properties: {
                 entryfilePath: 'src/api.ts',
                 tsConfigPath: 'tsconfig.build.json'

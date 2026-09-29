@@ -1,9 +1,9 @@
 import {
+  BuildpackLambdaPackaging,
   DynamoDbTable,
   HttpApiGateway,
   HttpApiIntegration,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   defineConfig
 } from '../../__release-npm';
 
@@ -22,7 +22,7 @@ export default defineConfig(() => {
     }
   });
   const savePost = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new BuildpackLambdaPackaging({
       entryfilePath: './src/save-post/main.go'
     }),
     memory: 512,
@@ -36,7 +36,7 @@ export default defineConfig(() => {
     ]
   });
   const getPosts = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new BuildpackLambdaPackaging({
       entryfilePath: './src/get-posts/main.go'
     }),
     memory: 512,

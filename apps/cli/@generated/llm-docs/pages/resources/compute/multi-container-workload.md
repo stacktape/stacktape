@@ -33,7 +33,7 @@ import {
   defineConfig,
   MultiContainerWorkload,
   HttpApiGateway,
-  StacktapeImageBuildpackPackaging
+  JsBundleImagePackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const apiGateway = new HttpApiGateway({});
@@ -42,7 +42,7 @@ export default defineConfig(() => {
     containers: [
       {
         name: 'server',
-        packaging: new StacktapeImageBuildpackPackaging({
+        packaging: new JsBundleImagePackaging({
           entryfilePath: './src/server.ts'
         }),
         events: [
@@ -59,7 +59,7 @@ export default defineConfig(() => {
       },
       {
         name: 'metrics',
-        packaging: new StacktapeImageBuildpackPackaging({
+        packaging: new JsBundleImagePackaging({
           entryfilePath: './src/metrics.ts'
         }),
         events: [
@@ -103,8 +103,8 @@ import {
   defineConfig,
   MultiContainerWorkload,
   HttpApiGateway,
-  StacktapeImageBuildpackPackaging,
-  CustomDockerfilePackaging
+  JsBundleImagePackaging,
+  DockerfilePackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
@@ -115,7 +115,7 @@ export default defineConfig(() => {
       {
         name: 'migrate',
         essential: false,
-        packaging: new CustomDockerfilePackaging({
+        packaging: new DockerfilePackaging({
           buildContextPath: './migrations',
           dockerfilePath: './Dockerfile'
         })
@@ -123,7 +123,7 @@ export default defineConfig(() => {
       {
         name: 'server',
         dependsOn: [{ containerName: 'migrate', condition: 'SUCCESS' }],
-        packaging: new StacktapeImageBuildpackPackaging({
+        packaging: new JsBundleImagePackaging({
           entryfilePath: './src/server.ts'
         }),
         events: [
@@ -179,7 +179,7 @@ import {
   defineConfig,
   MultiContainerWorkload,
   HttpApiGateway,
-  StacktapeImageBuildpackPackaging
+  JsBundleImagePackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
@@ -189,7 +189,7 @@ export default defineConfig(() => {
     containers: [
       {
         name: 'server',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/server.ts' }),
+        packaging: new JsBundleImagePackaging({ entryfilePath: './src/server.ts' }),
         events: [
           {
             type: 'http-api-gateway',
@@ -223,7 +223,7 @@ import {
   defineConfig,
   MultiContainerWorkload,
   ApplicationLoadBalancer,
-  StacktapeImageBuildpackPackaging
+  JsBundleImagePackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
@@ -233,7 +233,7 @@ export default defineConfig(() => {
     containers: [
       {
         name: 'server',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/server.ts' }),
+        packaging: new JsBundleImagePackaging({ entryfilePath: './src/server.ts' }),
         events: [
           {
             type: 'application-load-balancer',
@@ -274,7 +274,7 @@ import {
   defineConfig,
   MultiContainerWorkload,
   NetworkLoadBalancer,
-  StacktapeImageBuildpackPackaging
+  JsBundleImagePackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
@@ -286,7 +286,7 @@ export default defineConfig(() => {
     containers: [
       {
         name: 'broker',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/broker.ts' }),
+        packaging: new JsBundleImagePackaging({ entryfilePath: './src/broker.ts' }),
         events: [
           {
             type: 'network-load-balancer',
@@ -317,14 +317,14 @@ export default defineConfig(() => {
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, MultiContainerWorkload, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, MultiContainerWorkload, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const workload = new MultiContainerWorkload({
     containers: [
       {
         name: 'api',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/api.ts' }),
+        packaging: new JsBundleImagePackaging({ entryfilePath: './src/api.ts' }),
         events: [
           {
             type: 'service-connect',
@@ -357,14 +357,14 @@ A Stacktape multi-container-workload allocates CPU and memory at the task level,
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, MultiContainerWorkload, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, MultiContainerWorkload, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const workload = new MultiContainerWorkload({
     containers: [
       {
         name: 'server',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/server.ts' })
+        packaging: new JsBundleImagePackaging({ entryfilePath: './src/server.ts' })
       }
     ],
     resources: {
@@ -387,14 +387,14 @@ Use `enableWarmPool: true` (single instance type only) to keep pre-initialized E
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, MultiContainerWorkload, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, MultiContainerWorkload, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const workload = new MultiContainerWorkload({
     containers: [
       {
         name: 'server',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/server.ts' })
+        packaging: new JsBundleImagePackaging({ entryfilePath: './src/server.ts' })
       }
     ],
     resources: {
@@ -432,14 +432,14 @@ Multi-container-workloads auto-scale horizontally by adding or removing whole ta
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, MultiContainerWorkload, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, MultiContainerWorkload, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const workload = new MultiContainerWorkload({
     containers: [
       {
         name: 'server',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/server.ts' })
+        packaging: new JsBundleImagePackaging({ entryfilePath: './src/server.ts' })
       }
     ],
     resources: { cpu: 0.5, memory: 1024 },
@@ -471,15 +471,14 @@ export default defineConfig(() => {
 
 ## Packaging
 
-Stacktape multi-container-workload containers independently specify their packaging mode. Containers in the same workload can use different modes — for example, an init container using a custom Dockerfile while the API container uses the Stacktape buildpack. For detailed configuration, see the [packaging overview](/packaging/overview).
+Stacktape multi-container-workload containers independently specify their packaging type. Containers in the same workload can use different types. For example, an init container can use `dockerfile` while the API container uses `js-bundle`. For detailed configuration, see the [packaging overview](/packaging/overview).
 
-| Mode | When to use |
+| Type | When to use |
 |------|-------------|
-| [Stacktape image buildpack](/packaging/containers/stacktape-buildpack) | Zero-config for JS/TS, Python, Java, Go |
-| [Custom Dockerfile](/packaging/containers/custom-dockerfile) | Full control over the container environment |
-| [Prebuilt image](/packaging/containers/prebuilt-image) | Use an existing image from Docker Hub or a private registry |
-| [Nixpacks](/packaging/containers/nixpacks) | Auto-detects language and builds an optimized image |
-| [External buildpack](/packaging/containers/external-buildpack) | Use Cloud Native Buildpacks (buildpacks.io) |
+| [`js-bundle`](/packaging/containers/js-bundle) | A JavaScript or TypeScript container with one entry file |
+| [`buildpack`](/packaging/containers/buildpack) | Build from source without a Dockerfile. The language, framework and start command are detected. |
+| [`dockerfile`](/packaging/containers/dockerfile) | Full control over the container environment |
+| [`prebuilt-image`](/packaging/containers/prebuilt-image) | Use an existing image from Docker Hub or a private registry |
 
 ## Connecting to other resources
 
@@ -496,7 +495,7 @@ import {
   RdsEnginePostgres,
   Bucket,
   $Secret,
-  StacktapeImageBuildpackPackaging
+  JsBundleImagePackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
@@ -511,7 +510,7 @@ export default defineConfig(() => {
     containers: [
       {
         name: 'server',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/server.ts' })
+        packaging: new JsBundleImagePackaging({ entryfilePath: './src/server.ts' })
       }
     ],
     resources: { cpu: 0.5, memory: 1024 }
@@ -536,14 +535,14 @@ Stacktape multi-container-workload containers independently support two health c
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, MultiContainerWorkload, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, MultiContainerWorkload, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const workload = new MultiContainerWorkload({
     containers: [
       {
         name: 'server',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/server.ts' }),
+        packaging: new JsBundleImagePackaging({ entryfilePath: './src/server.ts' }),
         internalHealthCheck: {
           healthCheckCommand: ['CMD-SHELL', 'curl -f http://localhost:3000/health || exit 1'],
           intervalSeconds: 30,
@@ -581,7 +580,7 @@ import {
   defineConfig,
   MultiContainerWorkload,
   EfsFilesystem,
-  StacktapeImageBuildpackPackaging
+  JsBundleImagePackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
@@ -591,7 +590,7 @@ export default defineConfig(() => {
     containers: [
       {
         name: 'server',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/server.ts' }),
+        packaging: new JsBundleImagePackaging({ entryfilePath: './src/server.ts' }),
         volumeMounts: [
           {
             type: 'efs',
@@ -630,7 +629,7 @@ import {
   defineConfig,
   MultiContainerWorkload,
   ApplicationLoadBalancer,
-  StacktapeImageBuildpackPackaging
+  JsBundleImagePackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
@@ -640,7 +639,7 @@ export default defineConfig(() => {
     containers: [
       {
         name: 'server',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/server.ts' }),
+        packaging: new JsBundleImagePackaging({ entryfilePath: './src/server.ts' }),
         events: [
           {
             type: 'application-load-balancer',

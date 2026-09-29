@@ -7,7 +7,7 @@ import type {
 import {
   ENGINE_TYPE_TO_CLASS,
   MISC_TYPES_CONVERTIBLE_TO_CLASSES,
-  PACKAGING_TYPE_TO_CLASS,
+  getPackagingTypeToClass,
   RESOURCE_TYPE_TO_CLASS,
   SCRIPT_TYPE_TO_CLASS
 } from './class-config.js';
@@ -366,7 +366,7 @@ const generatePropsCode = (
     if (key === 'packaging' && isTypedProperty(value)) {
       const code = generateTypedPropertyCode(
         value as Record<string, unknown>,
-        PACKAGING_TYPE_TO_CLASS,
+        getPackagingTypeToClass(resourceType),
         imports,
         indent,
         resourceNames,
@@ -526,7 +526,7 @@ const generateArrayCode = (
       const type = typed.type as string;
 
       // Check event types first (context-aware), then packaging/engine
-      const className = eventTypeMap[type] || PACKAGING_TYPE_TO_CLASS[type] || ENGINE_TYPE_TO_CLASS[type];
+      const className = eventTypeMap[type] || getPackagingTypeToClass(resourceType)[type] || ENGINE_TYPE_TO_CLASS[type];
       if (className) {
         items.push(
           generateTypedPropertyCode(typed, { [type]: className }, imports, indent, resourceNames, resourceType)

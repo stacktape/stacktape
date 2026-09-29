@@ -11,7 +11,7 @@ import { remove } from 'fs-extra';
 import { createTemporaryBuildFile } from '../../fs/temporary-file';
 import objectHash from 'object-hash';
 import { getBundleDigest, getSourceFiles } from './utils';
-import type { JavaLanguageSpecificConfig, SupportedJavaVersion } from '@stacktape/config/deployment-artifacts';
+import type { JavaBuildpackConfig, SupportedJavaVersion } from '@stacktape/config/deployment-artifacts';
 import { DEFAULT_JAVA_VERSION } from '../constants';
 import {
   applyArtifactFileSelection,
@@ -43,7 +43,7 @@ export const buildJavaArtifact = async ({
   dockerBuildOutputArchitecture,
   includeFiles,
   excludeFiles,
-  target = 'container',
+  target = 'lambda',
   createPackagingError,
   requiresGlibcBinaries,
   runDocker
@@ -55,7 +55,7 @@ export const buildJavaArtifact = async ({
   rawEntryfilePath: string;
   distIndexFilePath?: string | undefined;
   progressLogger: ProgressLogger;
-  languageSpecificConfig: JavaLanguageSpecificConfig;
+  languageSpecificConfig?: JavaBuildpackConfig | undefined;
   createPackagingError: CreatePackagingError;
   runDocker: RunDocker;
 }): Promise<LanguageBundleOutput> => {

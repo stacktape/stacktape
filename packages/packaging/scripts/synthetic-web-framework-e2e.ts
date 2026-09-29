@@ -47,10 +47,15 @@ const event = ({
   isBase64Encoded: false
 });
 
-const assertLambdaZip = (output: { outcome: string; size: number | null; zippedSize?: number | undefined }) => {
+const assertLambdaZip = (output: {
+  outcome: string;
+  size: number | null | undefined;
+  zippedSize?: number | undefined;
+}) => {
   if (
     output.outcome !== 'bundled' ||
     output.size === null ||
+    output.size === undefined ||
     output.size >= 250 ||
     output.zippedSize === undefined ||
     output.zippedSize >= 50

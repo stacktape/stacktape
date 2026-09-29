@@ -29,7 +29,7 @@ import {
 import { runAgentSessionWithRetry } from './agent/session-runner';
 import type { AgentEvent } from './agent/transport';
 import { runGreenfieldMission, type AgentRunner, type GreenfieldResult } from './missions/greenfield';
-import { createNixpacksPlanner } from './nixpacks-planner';
+import { createRailpackPlanner } from './railpack-planner';
 import { runPreflight } from './preflight/preflight';
 import { createPreflightRunners } from './preflight/runners';
 import { runRepairMission } from './missions/repair';
@@ -265,7 +265,7 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
       onEvent,
       // The container builder answers what the repository and the convention table could not; the
       // eval harness deliberately runs without it so the baseline never depends on a binary.
-      planner: createNixpacksPlanner(repositoryRoot),
+      planner: createRailpackPlanner(repositoryRoot),
       ...(runAgent === undefined ? {} : { runAgent })
     });
 

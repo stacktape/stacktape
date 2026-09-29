@@ -33,7 +33,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/index.ts
       connectTo:
@@ -52,7 +52,7 @@ export default defineConfig(() => {
 
   const api = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/index.ts' }
     },
     connectTo: [cache]

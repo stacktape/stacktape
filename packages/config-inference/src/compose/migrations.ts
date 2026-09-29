@@ -91,7 +91,7 @@ export type ComposedMigrationHooks = {
   scripts: Record<string, ComposedScript>;
   afterDeploy: Array<{ scriptName: string }>;
   /**
-   * Services whose migration this deploy now owns. Their packaging must suppress Nixpacks' own
+   * Services whose migration this deploy now owns. Their image build must not replay it: the old Nixpacks
    * Procfile `release` replay — caught on the first real-AWS lane run, where the image build ran
    * `node migrate.js` against a database that does not exist at build time.
    */

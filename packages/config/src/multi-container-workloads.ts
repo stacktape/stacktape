@@ -35,7 +35,7 @@ export interface ContainerWorkloadProps extends ResourceAccessProps {
    *       containers:
    *         - name: web
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/index.ts
    *           events:
@@ -55,7 +55,7 @@ export interface ContainerWorkloadProps extends ResourceAccessProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, ApplicationLoadBalancer, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, ApplicationLoadBalancer, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const appLb = new ApplicationLoadBalancer({});
@@ -64,7 +64,7 @@ export interface ContainerWorkloadProps extends ResourceAccessProps {
    *     containers: [
    *       {
    *         name: 'web',
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/index.ts' }),
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/index.ts' }),
    *         events: [
    *           { type: 'application-load-balancer', properties: { loadBalancerName: 'appLb', priority: 1, containerPort: 3000 } }
    *         ]
@@ -96,7 +96,7 @@ export interface ContainerWorkloadProps extends ResourceAccessProps {
    *       containers:
    *         - name: api
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *       # stp-focus
@@ -110,12 +110,12 @@ export interface ContainerWorkloadProps extends ResourceAccessProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const app = new MultiContainerWorkload({
    *     containers: [
-   *       { name: 'api', packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }) }
+   *       { name: 'api', packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }) }
    *     ],
    *     // stp-focus
    *     resources: { cpu: 1, memory: 2048, architecture: 'arm64' }
@@ -146,7 +146,7 @@ export interface ContainerWorkloadProps extends ResourceAccessProps {
    *       containers:
    *         - name: api
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *       resources:
@@ -164,12 +164,12 @@ export interface ContainerWorkloadProps extends ResourceAccessProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const app = new MultiContainerWorkload({
    *     containers: [
-   *       { name: 'api', packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }) }
+   *       { name: 'api', packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }) }
    *     ],
    *     resources: { cpu: 0.5, memory: 1024 },
    *     // stp-focus
@@ -200,7 +200,7 @@ export interface ContainerWorkloadProps extends ResourceAccessProps {
    *       containers:
    *         - name: web
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/index.ts
    *           events:
@@ -223,7 +223,7 @@ export interface ContainerWorkloadProps extends ResourceAccessProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, ApplicationLoadBalancer, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, ApplicationLoadBalancer, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const appLb = new ApplicationLoadBalancer({});
@@ -231,7 +231,7 @@ export interface ContainerWorkloadProps extends ResourceAccessProps {
    *     containers: [
    *       {
    *         name: 'web',
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/index.ts' }),
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/index.ts' }),
    *         events: [
    *           { type: 'application-load-balancer', properties: { loadBalancerName: 'appLb', priority: 1, containerPort: 3000 } }
    *         ]
@@ -262,7 +262,7 @@ export interface ContainerWorkloadProps extends ResourceAccessProps {
    *       containers:
    *         - name: api
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *       resources:
@@ -276,12 +276,12 @@ export interface ContainerWorkloadProps extends ResourceAccessProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const app = new MultiContainerWorkload({
    *     containers: [
-   *       { name: 'api', packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }) }
+   *       { name: 'api', packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }) }
    *     ],
    *     resources: { cpu: 0.5, memory: 1024 },
    *     // stp-focus
@@ -311,7 +311,7 @@ export interface ContainerWorkloadProps extends ResourceAccessProps {
    *       containers:
    *         - name: worker
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/worker.ts
    *       resources:
@@ -325,12 +325,12 @@ export interface ContainerWorkloadProps extends ResourceAccessProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const app = new MultiContainerWorkload({
    *     containers: [
-   *       { name: 'worker', packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/worker.ts' }) }
+   *       { name: 'worker', packaging: new JsBundleImagePackaging({ entryfilePath: 'src/worker.ts' }) }
    *     ],
    *     resources: { cpu: 0.5, memory: 1024 },
    *     // stp-focus
@@ -379,7 +379,7 @@ export interface ContainerWorkloadProps extends ResourceAccessProps {
    *       containers:
    *         - name: worker
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/worker.ts
    * ```
@@ -398,7 +398,7 @@ export interface ContainerWorkloadProps extends ResourceAccessProps {
    *     containers: [
    *       {
    *         name: 'worker',
-   *         packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: 'src/worker.ts' } }
+   *         packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/worker.ts' } }
    *       }
    *     ]
    *   });
@@ -432,7 +432,7 @@ export interface ContainerWorkloadDeploymentConfig {
    *       containers:
    *         - name: web
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/index.ts
    *           events:
@@ -454,7 +454,7 @@ export interface ContainerWorkloadDeploymentConfig {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/smoke-test.ts
    * ```
@@ -462,16 +462,16 @@ export interface ContainerWorkloadDeploymentConfig {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, ApplicationLoadBalancer, LambdaFunction, StacktapeImageBuildpackPackaging, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, ApplicationLoadBalancer, LambdaFunction, defineConfig, JsBundleLambdaPackaging, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const appLb = new ApplicationLoadBalancer({});
-   *   const smokeTest = new LambdaFunction({ packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/smoke-test.ts' }) });
+   *   const smokeTest = new LambdaFunction({ packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/smoke-test.ts' }) });
    *   const app = new MultiContainerWorkload({
    *     containers: [
    *       {
    *         name: 'web',
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/index.ts' }),
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/index.ts' }),
    *         events: [
    *           { type: 'application-load-balancer', properties: { loadBalancerName: 'appLb', priority: 1, containerPort: 3000 } }
    *         ]
@@ -509,7 +509,7 @@ export interface ContainerWorkloadDeploymentConfig {
    *       containers:
    *         - name: web
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/index.ts
    *           events:
@@ -532,7 +532,7 @@ export interface ContainerWorkloadDeploymentConfig {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/smoke-test.ts
    * ```
@@ -540,16 +540,16 @@ export interface ContainerWorkloadDeploymentConfig {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, ApplicationLoadBalancer, LambdaFunction, StacktapeImageBuildpackPackaging, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, ApplicationLoadBalancer, LambdaFunction, defineConfig, JsBundleLambdaPackaging, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const appLb = new ApplicationLoadBalancer({});
-   *   const smokeTest = new LambdaFunction({ packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/smoke-test.ts' }) });
+   *   const smokeTest = new LambdaFunction({ packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/smoke-test.ts' }) });
    *   const app = new MultiContainerWorkload({
    *     containers: [
    *       {
    *         name: 'web',
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/index.ts' }),
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/index.ts' }),
    *         events: [
    *           { type: 'application-load-balancer', properties: { loadBalancerName: 'appLb', priority: 1, containerPort: 3000 } }
    *         ]
@@ -583,7 +583,7 @@ export interface ContainerWorkloadDeploymentConfig {
    *       containers:
    *         - name: web
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/index.ts
    *           events:
@@ -606,7 +606,7 @@ export interface ContainerWorkloadDeploymentConfig {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/smoke-test.ts
    * ```
@@ -614,16 +614,16 @@ export interface ContainerWorkloadDeploymentConfig {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, ApplicationLoadBalancer, LambdaFunction, StacktapeImageBuildpackPackaging, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, ApplicationLoadBalancer, LambdaFunction, defineConfig, JsBundleLambdaPackaging, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const appLb = new ApplicationLoadBalancer({});
-   *   const smokeTest = new LambdaFunction({ packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/smoke-test.ts' }) });
+   *   const smokeTest = new LambdaFunction({ packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/smoke-test.ts' }) });
    *   const app = new MultiContainerWorkload({
    *     containers: [
    *       {
    *         name: 'web',
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/index.ts' }),
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/index.ts' }),
    *         events: [
    *           { type: 'application-load-balancer', properties: { loadBalancerName: 'appLb', priority: 1, containerPort: 3000 } }
    *         ]
@@ -657,7 +657,7 @@ export interface ContainerWorkloadDeploymentConfig {
    *       containers:
    *         - name: web
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/index.ts
    *           events:
@@ -681,7 +681,7 @@ export interface ContainerWorkloadDeploymentConfig {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/smoke-test.ts
    * ```
@@ -689,16 +689,16 @@ export interface ContainerWorkloadDeploymentConfig {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, ApplicationLoadBalancer, LambdaFunction, StacktapeImageBuildpackPackaging, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, ApplicationLoadBalancer, LambdaFunction, defineConfig, JsBundleLambdaPackaging, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const appLb = new ApplicationLoadBalancer({});
-   *   const smokeTest = new LambdaFunction({ packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/smoke-test.ts' }) });
+   *   const smokeTest = new LambdaFunction({ packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/smoke-test.ts' }) });
    *   const app = new MultiContainerWorkload({
    *     containers: [
    *       {
    *         name: 'web',
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/index.ts' }),
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/index.ts' }),
    *         events: [
    *           { type: 'application-load-balancer', properties: { loadBalancerName: 'appLb', priority: 1, containerPort: 3000 } }
    *         ]
@@ -738,7 +738,7 @@ export interface ContainerWorkloadResourcesConfig {
    *       containers:
    *         - name: api
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *       resources:
@@ -751,12 +751,12 @@ export interface ContainerWorkloadResourcesConfig {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const app = new MultiContainerWorkload({
    *     containers: [
-   *       { name: 'api', packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }) }
+   *       { name: 'api', packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }) }
    *     ],
    *     resources: {
    *       // stp-focus
@@ -789,7 +789,7 @@ export interface ContainerWorkloadResourcesConfig {
    *       containers:
    *         - name: api
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *       resources:
@@ -802,12 +802,12 @@ export interface ContainerWorkloadResourcesConfig {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const app = new MultiContainerWorkload({
    *     containers: [
-   *       { name: 'api', packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }) }
+   *       { name: 'api', packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }) }
    *     ],
    *     resources: {
    *       cpu: 1,
@@ -839,7 +839,7 @@ export interface ContainerWorkloadResourcesConfig {
    *       containers:
    *         - name: api
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *       resources:
@@ -852,12 +852,12 @@ export interface ContainerWorkloadResourcesConfig {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const app = new MultiContainerWorkload({
    *     containers: [
-   *       { name: 'api', packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }) }
+   *       { name: 'api', packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }) }
    *     ],
    *     resources: {
    *       // stp-focus
@@ -885,7 +885,7 @@ export interface ContainerWorkloadResourcesConfig {
    *       containers:
    *         - name: api
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *       resources:
@@ -899,12 +899,12 @@ export interface ContainerWorkloadResourcesConfig {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const app = new MultiContainerWorkload({
    *     containers: [
-   *       { name: 'api', packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }) }
+   *       { name: 'api', packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }) }
    *     ],
    *     resources: {
    *       instanceTypes: ['t3.medium'],
@@ -933,7 +933,7 @@ export interface ContainerWorkloadResourcesConfig {
    *       containers:
    *         - name: api
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *       resources:
@@ -947,12 +947,12 @@ export interface ContainerWorkloadResourcesConfig {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const app = new MultiContainerWorkload({
    *     containers: [
-   *       { name: 'api', packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }) }
+   *       { name: 'api', packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }) }
    *     ],
    *     resources: {
    *       cpu: 0.5,
@@ -988,7 +988,7 @@ export interface ContainerWorkloadScaling {
    *       containers:
    *         - name: api
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *       resources:
@@ -1004,12 +1004,12 @@ export interface ContainerWorkloadScaling {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const app = new MultiContainerWorkload({
    *     containers: [
-   *       { name: 'api', packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }) }
+   *       { name: 'api', packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }) }
    *     ],
    *     resources: { cpu: 0.5, memory: 1024 },
    *     scaling: {
@@ -1041,7 +1041,7 @@ export interface ContainerWorkloadScaling {
    *       containers:
    *         - name: api
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *       resources:
@@ -1057,12 +1057,12 @@ export interface ContainerWorkloadScaling {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const app = new MultiContainerWorkload({
    *     containers: [
-   *       { name: 'api', packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }) }
+   *       { name: 'api', packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }) }
    *     ],
    *     resources: { cpu: 0.5, memory: 1024 },
    *     scaling: {
@@ -1094,7 +1094,7 @@ export interface ContainerWorkloadScaling {
    *       containers:
    *         - name: api
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *       resources:
@@ -1113,12 +1113,12 @@ export interface ContainerWorkloadScaling {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const app = new MultiContainerWorkload({
    *     containers: [
-   *       { name: 'api', packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }) }
+   *       { name: 'api', packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }) }
    *     ],
    *     resources: { cpu: 0.5, memory: 1024 },
    *     scaling: {
@@ -1153,7 +1153,7 @@ export interface ContainerWorkloadScalingPolicy {
    *       containers:
    *         - name: api
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *       resources:
@@ -1171,12 +1171,12 @@ export interface ContainerWorkloadScalingPolicy {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const app = new MultiContainerWorkload({
    *     containers: [
-   *       { name: 'api', packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }) }
+   *       { name: 'api', packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }) }
    *     ],
    *     resources: { cpu: 0.5, memory: 1024 },
    *     scaling: {
@@ -1211,7 +1211,7 @@ export interface ContainerWorkloadScalingPolicy {
    *       containers:
    *         - name: api
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *       resources:
@@ -1229,12 +1229,12 @@ export interface ContainerWorkloadScalingPolicy {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const app = new MultiContainerWorkload({
    *     containers: [
-   *       { name: 'api', packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }) }
+   *       { name: 'api', packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }) }
    *     ],
    *     resources: { cpu: 0.5, memory: 1024 },
    *     scaling: {
@@ -1273,7 +1273,7 @@ export interface ContainerWorkloadContainerLogging extends LogForwardingBase {
    *       containers:
    *         - name: api
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *           # stp-focus
@@ -1288,14 +1288,14 @@ export interface ContainerWorkloadContainerLogging extends LogForwardingBase {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const app = new MultiContainerWorkload({
    *     containers: [
    *       {
    *         name: 'api',
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *         // stp-focus
    *         logging: { disabled: true }
    *         // stp-end-focus
@@ -1325,7 +1325,7 @@ export interface ContainerWorkloadContainerLogging extends LogForwardingBase {
    *       containers:
    *         - name: api
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *           # stp-focus
@@ -1340,14 +1340,14 @@ export interface ContainerWorkloadContainerLogging extends LogForwardingBase {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const app = new MultiContainerWorkload({
    *     containers: [
    *       {
    *         name: 'api',
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *         // stp-focus
    *         logging: { retentionDays: 30 }
    *         // stp-end-focus
@@ -1383,7 +1383,7 @@ export interface ContainerWorkloadContainerBase {
    *         - name: api
    *         # stp-end-focus
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *       resources:
@@ -1394,7 +1394,7 @@ export interface ContainerWorkloadContainerBase {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const app = new MultiContainerWorkload({
@@ -1403,7 +1403,7 @@ export interface ContainerWorkloadContainerBase {
    *         // stp-focus
    *         name: 'api',
    *         // stp-end-focus
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' })
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' })
    *       }
    *     ],
    *     resources: { cpu: 0.5, memory: 1024 }
@@ -1429,7 +1429,7 @@ export interface ContainerWorkloadContainerBase {
    *         - name: api
    *           # stp-focus
    *           packaging:
-   *             type: custom-dockerfile
+   *             type: dockerfile
    *             properties:
    *               buildContextPath: ./api
    *               dockerfilePath: Dockerfile
@@ -1442,7 +1442,7 @@ export interface ContainerWorkloadContainerBase {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, CustomDockerfilePackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, defineConfig, DockerfilePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const app = new MultiContainerWorkload({
@@ -1450,7 +1450,7 @@ export interface ContainerWorkloadContainerBase {
    *       {
    *         name: 'api',
    *         // stp-focus
-   *         packaging: new CustomDockerfilePackaging({ buildContextPath: './api', dockerfilePath: 'Dockerfile' })
+   *         packaging: new DockerfilePackaging({ buildContextPath: './api', dockerfilePath: 'Dockerfile' })
    *         // stp-end-focus
    *       }
    *     ],
@@ -1476,7 +1476,7 @@ export interface ContainerWorkloadContainerBase {
    *       containers:
    *         - name: api
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *         - name: metrics-sidecar
@@ -1495,12 +1495,12 @@ export interface ContainerWorkloadContainerBase {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, PrebuiltImagePackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, PrebuiltImagePackaging, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const app = new MultiContainerWorkload({
    *     containers: [
-   *       { name: 'api', packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }) },
+   *       { name: 'api', packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }) },
    *       {
    *         name: 'metrics-sidecar',
    *         packaging: new PrebuiltImagePackaging({ image: 'prom/statsd-exporter:latest' }),
@@ -1531,7 +1531,7 @@ export interface ContainerWorkloadContainerBase {
    *       containers:
    *         - name: api
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *           # stp-focus
@@ -1547,14 +1547,14 @@ export interface ContainerWorkloadContainerBase {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const app = new MultiContainerWorkload({
    *     containers: [
    *       {
    *         name: 'api',
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *         // stp-focus
    *         logging: { retentionDays: 14, disabled: false }
    *         // stp-end-focus
@@ -1584,13 +1584,13 @@ export interface ContainerWorkloadContainerBase {
    *       containers:
    *         - name: migrations
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/migrate.ts
    *           essential: false
    *         - name: api
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *           # stp-focus
@@ -1606,15 +1606,15 @@ export interface ContainerWorkloadContainerBase {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const app = new MultiContainerWorkload({
    *     containers: [
-   *       { name: 'migrations', packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/migrate.ts' }), essential: false },
+   *       { name: 'migrations', packaging: new JsBundleImagePackaging({ entryfilePath: 'src/migrate.ts' }), essential: false },
    *       {
    *         name: 'api',
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *         // stp-focus
    *         dependsOn: [{ containerName: 'migrations', condition: 'SUCCESS' }]
    *         // stp-end-focus
@@ -1642,7 +1642,7 @@ export interface ContainerWorkloadContainerBase {
    *       containers:
    *         - name: api
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *           # stp-focus
@@ -1675,7 +1675,7 @@ export interface ContainerWorkloadContainerBase {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, RelationalDatabase, StacktapeImageBuildpackPackaging, $ResourceParam, $Secret, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, RelationalDatabase, $ResourceParam, $Secret, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const appDb = new RelationalDatabase({
@@ -1686,7 +1686,7 @@ export interface ContainerWorkloadContainerBase {
    *     containers: [
    *       {
    *         name: 'api',
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *         // stp-focus
    *         environment: {
    *           NODE_ENV: 'production',
@@ -1725,7 +1725,7 @@ export interface ContainerWorkloadContainerBase {
    *       containers:
    *         - name: api
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *           # stp-focus
@@ -1744,14 +1744,14 @@ export interface ContainerWorkloadContainerBase {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const app = new MultiContainerWorkload({
    *     containers: [
    *       {
    *         name: 'api',
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *         // stp-focus
    *         internalHealthCheck: {
    *           healthCheckCommand: ['CMD-SHELL', 'curl -f http://localhost:3000/health || exit 1'],
@@ -1783,7 +1783,7 @@ export interface ContainerWorkloadContainerBase {
    *       containers:
    *         - name: api
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *           # stp-focus
@@ -1797,14 +1797,14 @@ export interface ContainerWorkloadContainerBase {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const app = new MultiContainerWorkload({
    *     containers: [
    *       {
    *         name: 'api',
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *         // stp-focus
    *         stopTimeout: 30
    *         // stp-end-focus
@@ -1834,7 +1834,7 @@ export interface ContainerWorkloadContainerBase {
    *       containers:
    *         - name: api
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *           # stp-focus
@@ -1854,7 +1854,7 @@ export interface ContainerWorkloadContainerBase {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, EfsFilesystem, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, EfsFilesystem, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const sharedStorage = new EfsFilesystem({});
@@ -1862,7 +1862,7 @@ export interface ContainerWorkloadContainerBase {
    *     containers: [
    *       {
    *         name: 'api',
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *         // stp-focus
    *         volumeMounts: [
    *           { type: 'efs', properties: { efsFilesystemName: 'sharedStorage', mountPath: '/data' } }
@@ -1896,7 +1896,7 @@ export interface ContainerWorkloadContainer extends ContainerWorkloadContainerBa
    *       containers:
    *         - name: web
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/index.ts
    *           # stp-focus
@@ -1919,7 +1919,7 @@ export interface ContainerWorkloadContainer extends ContainerWorkloadContainerBa
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, ApplicationLoadBalancer, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, ApplicationLoadBalancer, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const appLb = new ApplicationLoadBalancer({});
@@ -1927,7 +1927,7 @@ export interface ContainerWorkloadContainer extends ContainerWorkloadContainerBa
    *     containers: [
    *       {
    *         name: 'web',
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/index.ts' }),
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/index.ts' }),
    *         // stp-focus
    *         events: [
    *           {
@@ -1966,7 +1966,7 @@ export interface ContainerWorkloadContainer extends ContainerWorkloadContainerBa
    *       containers:
    *         - name: web
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/index.ts
    *           events:
@@ -1990,7 +1990,7 @@ export interface ContainerWorkloadContainer extends ContainerWorkloadContainerBa
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, ApplicationLoadBalancer, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, ApplicationLoadBalancer, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const appLb = new ApplicationLoadBalancer({});
@@ -1998,7 +1998,7 @@ export interface ContainerWorkloadContainer extends ContainerWorkloadContainerBa
    *     containers: [
    *       {
    *         name: 'web',
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/index.ts' }),
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/index.ts' }),
    *         events: [
    *           { type: 'application-load-balancer', properties: { loadBalancerName: 'appLb', priority: 1, containerPort: 3000 } }
    *         ],
@@ -2033,7 +2033,7 @@ export interface ContainerEfsMount {
    *       containers:
    *         - name: api
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *           volumeMounts:
@@ -2053,7 +2053,7 @@ export interface ContainerEfsMount {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, EfsFilesystem, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, EfsFilesystem, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const sharedStorage = new EfsFilesystem({});
@@ -2061,7 +2061,7 @@ export interface ContainerEfsMount {
    *     containers: [
    *       {
    *         name: 'api',
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *         volumeMounts: [
    *           {
    *             // stp-focus
@@ -2094,7 +2094,7 @@ export interface ContainerEfsMount {
    *       containers:
    *         - name: api
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *           volumeMounts:
@@ -2114,7 +2114,7 @@ export interface ContainerEfsMount {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, EfsFilesystem, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, EfsFilesystem, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const sharedStorage = new EfsFilesystem({});
@@ -2122,7 +2122,7 @@ export interface ContainerEfsMount {
    *     containers: [
    *       {
    *         name: 'api',
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *         volumeMounts: [
    *           {
    *             type: 'efs',
@@ -2159,7 +2159,7 @@ export interface ContainerEfsMountProps {
    *       containers:
    *         - name: api
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *           volumeMounts:
@@ -2179,7 +2179,7 @@ export interface ContainerEfsMountProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, EfsFilesystem, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, EfsFilesystem, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const sharedStorage = new EfsFilesystem({});
@@ -2187,7 +2187,7 @@ export interface ContainerEfsMountProps {
    *     containers: [
    *       {
    *         name: 'api',
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *         volumeMounts: [
    *           {
    *             type: 'efs',
@@ -2223,7 +2223,7 @@ export interface ContainerEfsMountProps {
    *       containers:
    *         - name: api
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *           volumeMounts:
@@ -2244,7 +2244,7 @@ export interface ContainerEfsMountProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, EfsFilesystem, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, EfsFilesystem, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const sharedStorage = new EfsFilesystem({});
@@ -2252,7 +2252,7 @@ export interface ContainerEfsMountProps {
    *     containers: [
    *       {
    *         name: 'api',
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *         volumeMounts: [
    *           {
    *             type: 'efs',
@@ -2291,7 +2291,7 @@ export interface ContainerEfsMountProps {
    *       containers:
    *         - name: api
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *           volumeMounts:
@@ -2311,7 +2311,7 @@ export interface ContainerEfsMountProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, EfsFilesystem, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, EfsFilesystem, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const sharedStorage = new EfsFilesystem({});
@@ -2319,7 +2319,7 @@ export interface ContainerEfsMountProps {
    *     containers: [
    *       {
    *         name: 'api',
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *         volumeMounts: [
    *           {
    *             type: 'efs',
@@ -2359,7 +2359,7 @@ export interface LoadBalancerHealthCheck {
    *       containers:
    *         - name: web
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/index.ts
    *           events:
@@ -2382,7 +2382,7 @@ export interface LoadBalancerHealthCheck {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, ApplicationLoadBalancer, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, ApplicationLoadBalancer, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const appLb = new ApplicationLoadBalancer({});
@@ -2390,7 +2390,7 @@ export interface LoadBalancerHealthCheck {
    *     containers: [
    *       {
    *         name: 'web',
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/index.ts' }),
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/index.ts' }),
    *         events: [
    *           { type: 'application-load-balancer', properties: { loadBalancerName: 'appLb', priority: 1, containerPort: 3000 } }
    *         ],
@@ -2425,7 +2425,7 @@ export interface LoadBalancerHealthCheck {
    *       containers:
    *         - name: web
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/index.ts
    *           events:
@@ -2449,7 +2449,7 @@ export interface LoadBalancerHealthCheck {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, ApplicationLoadBalancer, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, ApplicationLoadBalancer, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const appLb = new ApplicationLoadBalancer({});
@@ -2457,7 +2457,7 @@ export interface LoadBalancerHealthCheck {
    *     containers: [
    *       {
    *         name: 'web',
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/index.ts' }),
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/index.ts' }),
    *         events: [
    *           { type: 'application-load-balancer', properties: { loadBalancerName: 'appLb', priority: 1, containerPort: 3000 } }
    *         ],
@@ -2493,7 +2493,7 @@ export interface LoadBalancerHealthCheck {
    *       containers:
    *         - name: web
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/index.ts
    *           events:
@@ -2517,7 +2517,7 @@ export interface LoadBalancerHealthCheck {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, ApplicationLoadBalancer, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, ApplicationLoadBalancer, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const appLb = new ApplicationLoadBalancer({});
@@ -2525,7 +2525,7 @@ export interface LoadBalancerHealthCheck {
    *     containers: [
    *       {
    *         name: 'web',
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/index.ts' }),
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/index.ts' }),
    *         events: [
    *           { type: 'application-load-balancer', properties: { loadBalancerName: 'appLb', priority: 1, containerPort: 3000 } }
    *         ],
@@ -2561,7 +2561,7 @@ export interface LoadBalancerHealthCheck {
    *       containers:
    *         - name: web
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/index.ts
    *           events:
@@ -2585,7 +2585,7 @@ export interface LoadBalancerHealthCheck {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, ApplicationLoadBalancer, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, ApplicationLoadBalancer, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const appLb = new ApplicationLoadBalancer({});
@@ -2593,7 +2593,7 @@ export interface LoadBalancerHealthCheck {
    *     containers: [
    *       {
    *         name: 'web',
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/index.ts' }),
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/index.ts' }),
    *         events: [
    *           { type: 'application-load-balancer', properties: { loadBalancerName: 'appLb', priority: 1, containerPort: 3000 } }
    *         ],
@@ -2627,7 +2627,7 @@ export interface LoadBalancerHealthCheck {
    *       containers:
    *         - name: web
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/index.ts
    *           events:
@@ -2651,7 +2651,7 @@ export interface LoadBalancerHealthCheck {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, ApplicationLoadBalancer, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, ApplicationLoadBalancer, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const appLb = new ApplicationLoadBalancer({});
@@ -2659,7 +2659,7 @@ export interface LoadBalancerHealthCheck {
    *     containers: [
    *       {
    *         name: 'web',
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/index.ts' }),
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/index.ts' }),
    *         events: [
    *           { type: 'application-load-balancer', properties: { loadBalancerName: 'appLb', priority: 1, containerPort: 3000 } }
    *         ],
@@ -2723,7 +2723,7 @@ export interface ContainerDependency {
    *               - redis-cli ping || exit 1
    *         - name: api
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *           dependsOn:
@@ -2739,7 +2739,7 @@ export interface ContainerDependency {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, PrebuiltImagePackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, PrebuiltImagePackaging, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const app = new MultiContainerWorkload({
@@ -2751,7 +2751,7 @@ export interface ContainerDependency {
    *       },
    *       {
    *         name: 'api',
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *         dependsOn: [
    *           {
    *             containerName: 'redis',
@@ -2801,7 +2801,7 @@ export interface ContainerHealthCheck {
    *       containers:
    *         - name: api
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *           internalHealthCheck:
@@ -2818,14 +2818,14 @@ export interface ContainerHealthCheck {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const app = new MultiContainerWorkload({
    *     containers: [
    *       {
    *         name: 'api',
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *         internalHealthCheck: {
    *           // stp-focus
    *           healthCheckCommand: ['CMD-SHELL', 'curl -f http://localhost:3000/ || exit 1']
@@ -2855,7 +2855,7 @@ export interface ContainerHealthCheck {
    *       containers:
    *         - name: api
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *           internalHealthCheck:
@@ -2873,14 +2873,14 @@ export interface ContainerHealthCheck {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const app = new MultiContainerWorkload({
    *     containers: [
    *       {
    *         name: 'api',
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *         internalHealthCheck: {
    *           healthCheckCommand: ['CMD-SHELL', 'curl -f http://localhost:3000/ || exit 1'],
    *           // stp-focus
@@ -2913,7 +2913,7 @@ export interface ContainerHealthCheck {
    *       containers:
    *         - name: api
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *           internalHealthCheck:
@@ -2931,14 +2931,14 @@ export interface ContainerHealthCheck {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const app = new MultiContainerWorkload({
    *     containers: [
    *       {
    *         name: 'api',
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *         internalHealthCheck: {
    *           healthCheckCommand: ['CMD-SHELL', 'curl -f http://localhost:3000/ || exit 1'],
    *           // stp-focus
@@ -2971,7 +2971,7 @@ export interface ContainerHealthCheck {
    *       containers:
    *         - name: api
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *           internalHealthCheck:
@@ -2989,14 +2989,14 @@ export interface ContainerHealthCheck {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const app = new MultiContainerWorkload({
    *     containers: [
    *       {
    *         name: 'api',
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *         internalHealthCheck: {
    *           healthCheckCommand: ['CMD-SHELL', 'curl -f http://localhost:3000/ || exit 1'],
    *           // stp-focus
@@ -3029,7 +3029,7 @@ export interface ContainerHealthCheck {
    *       containers:
    *         - name: api
    *           packaging:
-   *             type: stacktape-image-buildpack
+   *             type: js-bundle
    *             properties:
    *               entryfilePath: src/server.ts
    *           internalHealthCheck:
@@ -3047,14 +3047,14 @@ export interface ContainerHealthCheck {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const app = new MultiContainerWorkload({
    *     containers: [
    *       {
    *         name: 'api',
-   *         packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+   *         packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *         internalHealthCheck: {
    *           healthCheckCommand: ['CMD-SHELL', 'curl -f http://localhost:3000/ || exit 1'],
    *           // stp-focus

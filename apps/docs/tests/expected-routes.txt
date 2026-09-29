@@ -93,6 +93,7 @@
 /getting-started/deploy-your-first-stage
 /getting-started/going-to-production
 /getting-started/starter-projects
+/getting-started/upgrading-from-v3
 /getting-started/use-the-dev-mode
 /getting-started/using-console-ui
 /guardrails/databases
@@ -124,13 +125,13 @@
 /observability/synthetic-tests
 /observability/tracing
 /observability/uptime-checks
-/packaging/containers/custom-dockerfile
-/packaging/containers/external-buildpack
-/packaging/containers/nixpacks
+/packaging/containers/buildpack
+/packaging/containers/dockerfile
+/packaging/containers/js-bundle
 /packaging/containers/prebuilt-image
-/packaging/containers/stacktape-buildpack
+/packaging/function/buildpack
 /packaging/function/custom-artifact
-/packaging/function/stacktape-buildpack
+/packaging/function/js-bundle
 /packaging/overview
 /resources/advanced/aws-cdk-constructs
 /resources/advanced/custom-resources

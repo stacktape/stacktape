@@ -23,7 +23,7 @@ resources:
     type: private-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/notifications.ts
       port: 3000
@@ -42,7 +42,7 @@ import { PrivateService, defineConfig } from 'stacktape';
 export default defineConfig(() => {
   const notificationsService = new PrivateService({
     packaging: {
-      type: 'stacktape-image-buildpack',
+      type: 'js-bundle',
       properties: {
         entryfilePath: 'src/notifications.ts'
       }
@@ -69,7 +69,7 @@ resources:
     type: private-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/notifications.ts
       port: 3000
@@ -88,7 +88,7 @@ import { PrivateService, defineConfig } from 'stacktape';
 export default defineConfig(() => {
   const notificationsService = new PrivateService({
     packaging: {
-      type: 'stacktape-image-buildpack',
+      type: 'js-bundle',
       properties: {
         entryfilePath: 'src/notifications.ts'
       }

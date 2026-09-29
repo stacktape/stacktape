@@ -40,7 +40,7 @@ classifierJob:
   properties:
     container:
       packaging:
-        type: custom-dockerfile
+        type: dockerfile
         properties:
           buildContextPath: ./
     resources:

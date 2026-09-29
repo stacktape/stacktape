@@ -77,10 +77,10 @@ The `defineConfig` callback receives a `stage` parameter. Use standard TypeScrip
       code: `import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   RelationalDatabase,
   RdsEnginePostgres,
-  $Secret
+  $Secret,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -101,7 +101,7 @@ export default defineConfig(({ stage }) => {
   });
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     memory: isProduction ? 1024 : 256,
@@ -152,10 +152,10 @@ live traffic. Use a lookup object to map each stage to its resource configuratio
       code: `import {
   defineConfig,
   WebService,
-  StacktapeImageBuildpackPackaging,
   RelationalDatabase,
   RdsEnginePostgres,
-  $Secret
+  $Secret,
+  JsBundleImagePackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -184,7 +184,7 @@ export default defineConfig(({ stage }) => {
   });
 
   const app = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/app.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: './src/app.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
     scaling: { minInstances: tier.minInstances, maxInstances: tier.maxInstances },
     connectTo: [database]
@@ -239,11 +239,11 @@ for skipping expensive resources in ephemeral stages, or adding production-only 
       code: `import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   RelationalDatabase,
   RdsEnginePostgres,
   WebAppFirewall,
-  $Secret
+  $Secret,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -251,7 +251,7 @@ export default defineConfig(({ stage }) => {
   const resources: Record<string, any> = {};
 
   resources.api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/api.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/api.ts' }),
     memory: 512
   });
 
@@ -431,14 +431,14 @@ A consuming project references the shared stack's outputs using the `$CfStackOut
       code: `import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  $CfStackOutput
+  $CfStackOutput,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(({ stage }) => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     environment: {

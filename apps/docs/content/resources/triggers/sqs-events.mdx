@@ -39,7 +39,7 @@ This configuration creates an SQS queue and a Lambda function that processes mes
   LambdaFunction,
   SqsQueue,
   SqsIntegration,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -47,7 +47,7 @@ export default defineConfig(() => {
   const orderQueue = new SqsQueue({});
 
   const orderProcessor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/process-orders.ts'
     }),
     events: [
@@ -98,14 +98,14 @@ When `maxBatchWindowSeconds` is not set, the function is invoked as soon as mess
   LambdaFunction,
   SqsQueue,
   SqsIntegration,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
   const eventQueue = new SqsQueue({});
 
   const batchProcessor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/batch-processor.ts'
     }),
     // [!code focus-start]
@@ -146,12 +146,12 @@ To consume messages from an existing SQS queue not managed by this stack — for
   defineConfig,
   LambdaFunction,
   SqsIntegration,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
   const processor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/processor.ts'
     }),
     // [!code focus-start]

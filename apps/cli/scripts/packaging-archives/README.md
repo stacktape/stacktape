@@ -82,16 +82,18 @@ install decision, ZIP checksums and file list, and every registry request. It ne
 
 ## External tools
 
-`pnpm --filter @stacktape/cli run test:external-tools` resolves pack, nixpacks and the Session Manager plugin as a
-customer's first command does: each resolution runs in its own process through the CLI's resolver. A loopback stand-in
-serves a tar.gz, a zip bundle and a `.deb` around synthetic executables under a test manifest, and a proxy on a closed
-port refuses every other request. Cold first use must download, verify, extract and run the executable. Warm use, and a
-preseeded file used by the nixpacks planner and by `pack`, must make no request. A checksum mismatch must leave no
-executable, and a refused download must name the URL, the checksum and the path to place the file offline. A process
-killed mid-download must leave nothing usable before the retry succeeds, and two concurrent first uses must download
-once. It needs Linux or macOS, not Docker, AWS or the internet. The real upstream assets are checked by
-`scripts/pin-external-tools.ts` whenever a version changes, and by the release artifact check, which downloads each one
-on first use.
+`pnpm --filter @stacktape/cli run test:external-tools` resolves railpack and the Session Manager plugin as a customer's
+first command does: each resolution runs in its own process through the CLI's resolver. A loopback stand-in serves a
+tar.gz, a zip bundle and a `.deb` around synthetic executables under a test manifest, and a proxy on a closed port
+refuses every other request. Cold first use must download, verify, extract and run the executable. Warm use must make no
+request. A preseeded railpack must serve `runRailpackPrepare` and the init planner's `planStartCommand` without any
+request; the synthetic executable answers `railpack prepare` by writing `plan.json` and `info.json` to its `--plan-out`
+and `--info-out` paths, and a build variable must reach it through the environment, never the command line. A checksum
+mismatch must leave no executable, and a refused download must name the URL, the checksum and the path to place the file
+offline. A process killed mid-download must leave nothing usable before the retry succeeds, and two concurrent first
+uses must download once. It needs Linux or macOS, not Docker, AWS or the internet. The real upstream assets are checked
+by `scripts/pin-external-tools.ts` whenever a version changes, and by the release artifact check, which downloads each
+one on first use.
 
 ## Packaging performance
 

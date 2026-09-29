@@ -18,10 +18,10 @@ Without `notificationChannels`, alarms change state in CloudWatch but nobody get
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/api.ts'
     }),
     memory: 1024,
@@ -77,10 +77,10 @@ Stacktape [web services](/resources/compute/web-service) support custom domains 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: './src/server.ts'
     }),
     resources: { cpu: 0.25, memory: 512 },
@@ -113,10 +113,10 @@ Lambda deployments also support optional `beforeAllowTrafficFunction` and `after
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/api.ts'
     }),
     deployment: {
@@ -137,10 +137,10 @@ export default defineConfig(() => {
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: './src/server.ts'
     }),
     resources: { cpu: 0.5, memory: 1024 },

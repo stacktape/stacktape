@@ -43,7 +43,7 @@ Alarms monitor CloudWatch metrics and fire when a threshold is breached. You can
 
 Issues is an error inbox for your deployed workloads. Instead of manually searching logs for exceptions, Stacktape detects common runtime error patterns, groups repeated occurrences into a single item, and surfaces them with the error message, stack trace, originating resource, project, stage, and occurrence count.
 
-**How detection works** — on deployment, Stacktape adds CloudWatch Logs subscription filters to supported Stacktape-managed Lambda functions and buildpack containers. Matching log events are sent to the Stacktape service Lambda in your stack, parsed, fingerprinted, and reported to the Console. Issues are grouped by fingerprint, project, and stage.
+**How detection works** — on deployment, Stacktape adds CloudWatch Logs subscription filters to supported Stacktape-managed Lambda functions and `js-bundle` containers. Matching log events are sent to the Stacktape service Lambda in your stack, parsed, fingerprinted, and reported to the Console. Issues are grouped by fingerprint, project, and stage.
 
 Detection is log-pattern based. It looks for common runtime error markers: Lambda invoke errors, unhandled promise rejections, exceptions, tracebacks, panics, fatal errors, and stack-trace lines for TypeScript/JavaScript, Python, Go, Java, .NET, Ruby, and PHP.
 

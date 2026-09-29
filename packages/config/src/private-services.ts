@@ -37,7 +37,7 @@ export interface PrivateServiceProps extends SimpleServiceContainer {
    *     type: private-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/server.ts
    *       # stp-focus
@@ -59,7 +59,7 @@ export interface PrivateServiceProps extends SimpleServiceContainer {
    * export default defineConfig(() => {
    *   const internalApi = new PrivateService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: {
    *         entryfilePath: 'src/server.ts'
    *       }
@@ -96,7 +96,7 @@ export interface PrivateServiceProps extends SimpleServiceContainer {
    *     type: private-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/grpc-server.ts
    *       port: 50051
@@ -116,7 +116,7 @@ export interface PrivateServiceProps extends SimpleServiceContainer {
    * export default defineConfig(() => {
    *   const grpcBackend = new PrivateService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: {
    *         entryfilePath: 'src/grpc-server.ts'
    *       }
@@ -154,7 +154,7 @@ export interface PrivateServiceProps extends SimpleServiceContainer {
    *     type: private-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/payments.ts
    *       port: 3000
@@ -175,7 +175,7 @@ export interface PrivateServiceProps extends SimpleServiceContainer {
    * export default defineConfig(() => {
    *   const paymentsService = new PrivateService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: {
    *         entryfilePath: 'src/payments.ts'
    *       }
@@ -214,7 +214,7 @@ export interface PrivateServiceLoadBalancing {
    *     type: private-service
    *     properties:
    *       packaging:
-   *         type: stacktape-image-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/notifications.ts
    *       port: 3000
@@ -235,7 +235,7 @@ export interface PrivateServiceLoadBalancing {
    * export default defineConfig(() => {
    *   const notificationsService = new PrivateService({
    *     packaging: {
-   *       type: 'stacktape-image-buildpack',
+   *       type: 'js-bundle',
    *       properties: {
    *         entryfilePath: 'src/notifications.ts'
    *       }

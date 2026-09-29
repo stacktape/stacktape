@@ -1,22 +1,38 @@
+/**
+ * Builds a small project with each Docker-backed buildpack and runs what it produced:
+ * - Lambda buildpacks (Go, Go workspace, Python uv.lock and Pipfile, Ruby, Java Maven and Gradle reactors, .NET,
+ *   Rust through cargo-lambda) run their artifact in a matching runtime image; the Rust `bootstrap` is invoked through
+ *   the runtime interface emulator of `public.ecr.aws/lambda/provided:al2023`;
+ * - the `js-bundle` image runs its entry file;
+ * - the container `buildpack` (Railpack) builds a FastAPI app and a Node.js app, which must answer HTTP. The Node.js
+ *   app's build writes a `buildEnvironment` value that the server returns: the value must reach the build, stay out of
+ *   the image configuration and history, and a changed value must change the digest. The Railpack scenarios need a
+ *   railpack binary (`STP_RAILPACK_BINARY`, the CLI's tools directory or PATH); without one they are skipped.
+ *
+ *   bun run scripts/synthetic-docker-smoke.ts
+ */
 import { mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { buildUsingStacktapeDotnetLambdaBuildpack } from '../src/buildpacks/stacktape-dotnet-lambda-buildpack';
-import { buildUsingStacktapeEsImageBuildpack } from '../src/buildpacks/stacktape-es-image-buildpack';
-import { buildUsingStacktapeGoLambdaBuildpack } from '../src/buildpacks/stacktape-go-lambda-buildpack';
-import { buildUsingStacktapeJavaLambdaBuildpack } from '../src/buildpacks/stacktape-java-lambda-buildpack';
-import { buildUsingStacktapePhpImageBuildpack } from '../src/buildpacks/stacktape-php-image-buildpack';
-import { buildUsingStacktapePyImageBuildpack } from '../src/buildpacks/stacktape-py-image-buildpack';
-import { buildUsingStacktapePyLambdaBuildpack } from '../src/buildpacks/stacktape-py-lambda-buildpack';
-import { buildUsingStacktapeRbImageBuildpack } from '../src/buildpacks/stacktape-rb-image-buildpack';
-import { buildUsingStacktapeRbLambdaBuildpack } from '../src/buildpacks/stacktape-rb-lambda-buildpack';
-import type { BuildDockerImage, PackagingOutput } from '../src/runtime-contracts';
+import { buildDotnetLambda } from '../src/buildpacks/dotnet-lambda-buildpack';
+import { buildGoLambda } from '../src/buildpacks/go-lambda-buildpack';
+import { buildJavaLambda } from '../src/buildpacks/java-lambda-buildpack';
+import { buildJsBundleImage } from '../src/buildpacks/js-bundle-image';
+import { buildPythonLambda } from '../src/buildpacks/py-lambda-buildpack';
+import { buildRubyLambda } from '../src/buildpacks/rb-lambda-buildpack';
+import { buildRustLambda } from '../src/buildpacks/rust-lambda-buildpack';
+import { buildUsingRailpack } from '../src/image/railpack';
+import type { BuildDockerImage, PackagingOutput, RunRailpackPrepare } from '../src/runtime-contracts';
 import {
   archiveItem,
   assertFile,
   assertRunOutput,
   createPackagingError,
+  createRailpackPrepare,
+  findRailpackBinary,
+  invokeInLambdaImage,
   progressLogger,
+  RAILPACK_FRONTEND_IMAGE,
   run,
   runDocker,
   write
@@ -25,36 +41,43 @@ import {
 const root = await mkdtemp(join(tmpdir(), 'stacktape-buildpack-smoke-'));
 const projectsRoot = join(root, 'projects');
 const artifactsRoot = join(root, 'artifacts');
-const smokeImageTag = `stacktape-buildpack-smoke:${Date.now()}`;
+const runId = Date.now();
+const containerLabel = `stacktape.test=buildpack-smoke-${runId}`;
 const builtImageTags = new Set<string>();
 
+/**
+ * Builds as the CLI does: build argument and secret values reach Docker through its environment only
+ * (`--build-arg NAME`, `--secret id=NAME,env=NAME`), never on its command line.
+ */
 const buildDockerImage: BuildDockerImage = async ({
   buildContextPath,
   dockerfilePath,
   imageTag,
-  dockerBuildOutputArchitecture
+  dockerBuildOutputArchitecture,
+  buildArgs = {},
+  secrets = {}
 }) => {
   builtImageTags.add(imageTag);
   const started = Date.now();
   const dockerfile = dockerfilePath ? resolve(buildContextPath, dockerfilePath) : undefined;
-  const result = await run('docker', [
-    'image',
-    'build',
-    ...(dockerBuildOutputArchitecture ? ['--platform', dockerBuildOutputArchitecture] : []),
-    '-t',
-    imageTag,
-    ...(dockerfile ? ['--file', dockerfile] : []),
-    buildContextPath
-  ]);
-  const inspection = await run('docker', ['image', 'inspect', imageTag, '--format', '{{json .}}']);
-  const details = JSON.parse(inspection.stdout.trim());
-  return {
-    size: Math.round((details.Size / 1024 / 1024) * 100) / 100,
-    id: details.Id,
-    created: Date.parse(details.Created),
-    dockerOutput: result.stderr,
-    duration: Date.now() - started
-  };
+  const result = await run(
+    'docker',
+    [
+      'image',
+      'build',
+      ...(dockerBuildOutputArchitecture ? ['--platform', dockerBuildOutputArchitecture] : []),
+      '-t',
+      imageTag,
+      ...(dockerfile ? ['--file', dockerfile] : []),
+      ...Object.keys(buildArgs).flatMap((name) => ['--build-arg', name]),
+      ...Object.keys(secrets).flatMap((name) => ['--secret', `id=${name},env=${name}`]),
+      buildContextPath
+    ],
+    undefined,
+    { ...Bun.env, ...buildArgs, ...secrets }
+  );
+  const details = await getDockerImageDetails(imageTag);
+  return { ...details, dockerOutput: result.stderr, duration: Date.now() - started };
 };
 
 const getDockerImageDetails = async (imageTag: string) => {
@@ -65,6 +88,62 @@ const getDockerImageDetails = async (imageTag: string) => {
     id: details.Id as string,
     created: Date.parse(details.Created)
   };
+};
+
+/** Pulls an image only when it is not local, so repeated runs do not depend on the registry. */
+const ensureImage = async (image: string) => {
+  const present = await run('docker', ['image', 'inspect', image]).then(
+    () => true,
+    () => false
+  );
+  if (!present) await run('docker', ['pull', image]);
+};
+
+/** Starts an image with `PORT` set, waits until it answers `GET /` and returns the body. The container is removed. */
+const fetchFromContainer = async (image: string, port = 8080): Promise<string> => {
+  const name = `stacktape-buildpack-smoke-${runId}-${Math.random().toString(36).slice(2, 8)}`;
+  await run('docker', [
+    'run',
+    '--detach',
+    '--rm',
+    '--name',
+    name,
+    '--label',
+    containerLabel,
+    '--env',
+    `PORT=${port}`,
+    '--publish',
+    `127.0.0.1::${port}`,
+    image
+  ]);
+  try {
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 240; attempt += 1) {
+      try {
+        // oxlint-disable-next-line no-await-in-loop -- Polls the server until it answers.
+        const published = (await run('docker', ['port', name, `${port}/tcp`])).stdout.trim().match(/:(\d+)$/m)?.[1];
+        if (published) {
+          // oxlint-disable-next-line no-await-in-loop -- Polls the server until it answers.
+          const response = await fetch(`http://127.0.0.1:${published}/`);
+          // oxlint-disable-next-line no-await-in-loop -- Polls the server until it answers.
+          const body = await response.text();
+          if (response.ok) return body;
+          lastError = new Error(`HTTP ${response.status}: ${body}`);
+        }
+      } catch (error) {
+        lastError = error;
+      }
+      // oxlint-disable-next-line no-await-in-loop -- Polls the server until it answers.
+      await Bun.sleep(250);
+    }
+    const logs = await run('docker', ['logs', name]).then(
+      ({ stdout, stderr }) => `${stdout}${stderr}`,
+      (error: unknown) => String(error)
+    );
+    throw new Error(`${image} did not answer HTTP on port ${port}: ${String(lastError)}\n${logs}`);
+  } finally {
+    await run('docker', ['rm', '--force', name]).catch(() => undefined);
+  }
 };
 
 const common = {
@@ -90,14 +169,130 @@ const results: {
   buildpack: string;
   sizeMb: number | null;
   zippedSizeMb?: number | undefined;
+  detection?: string | undefined;
 }[] = [];
+const skipped: string[] = [];
 
 const record = (buildpack: string, output: PackagingOutput) => {
   results.push({
     buildpack,
-    sizeMb: output.size,
-    ...('zippedSize' in output && typeof output.zippedSize === 'number' ? { zippedSizeMb: output.zippedSize } : {})
+    sizeMb: output.size ?? null,
+    ...('zippedSize' in output && typeof output.zippedSize === 'number' ? { zippedSizeMb: output.zippedSize } : {}),
+    ...(typeof output.details?.detection === 'string' ? { detection: output.details.detection } : {})
   });
+};
+
+/** The Node.js Railpack app's build writes this variable into the file its server returns. */
+const buildMessage = (value: string) => [{ name: 'BUILD_MESSAGE', value }];
+
+const railpackScenarios = async (runRailpackPrepare: RunRailpackPrepare) => {
+  const railpack = {
+    cwd: projectsRoot,
+    progressLogger,
+    existingDigests: [] as string[],
+    railpackFrontendImage: RAILPACK_FRONTEND_IMAGE,
+    buildDockerImage,
+    runRailpackPrepare,
+    createPackagingError
+  };
+
+  console.log('Building and serving a FastAPI app with the Railpack buildpack...');
+  const fastapiRoot = join(projectsRoot, 'railpack-fastapi');
+  await write(join(fastapiRoot, 'requirements.txt'), 'fastapi==0.118.0\nuvicorn==0.37.0\n');
+  await write(
+    join(fastapiRoot, 'main.py'),
+    'from fastapi import FastAPI\n\napp = FastAPI()\n\n\n@app.get("/")\ndef root():\n    return {"message": "railpack-fastapi-ok"}\n'
+  );
+  const fastapiTag = `stacktape-buildpack-smoke-railpack-fastapi:${runId}`;
+  const fastapiOutput = await buildUsingRailpack({
+    ...railpack,
+    name: fastapiTag,
+    sourceDirectoryPath: 'railpack-fastapi'
+  });
+  const fastapiBody = await fetchFromContainer(fastapiTag);
+  if (!fastapiBody.includes('railpack-fastapi-ok')) {
+    throw new Error(`Unexpected FastAPI response: ${fastapiBody}`);
+  }
+  record('railpack-fastapi-image', fastapiOutput);
+
+  console.log('Building and serving a Node.js app with a build variable through the Railpack buildpack...');
+  const nodeRoot = join(projectsRoot, 'railpack-node');
+  await write(
+    join(nodeRoot, 'package.json'),
+    `${JSON.stringify(
+      {
+        name: 'railpack-smoke',
+        version: '1.0.0',
+        private: true,
+        scripts: { build: 'node build.js', start: 'node server.js' }
+      },
+      null,
+      2
+    )}\n`
+  );
+  await write(
+    join(nodeRoot, 'build.js'),
+    "require('node:fs').writeFileSync('build-output.txt', process.env.BUILD_MESSAGE ?? 'BUILD_MESSAGE is missing');\n"
+  );
+  await write(
+    join(nodeRoot, 'server.js'),
+    [
+      "const { createServer } = require('node:http');",
+      "const { readFileSync } = require('node:fs');",
+      "const message = readFileSync(`${__dirname}/build-output.txt`, 'utf8');",
+      'createServer((request, response) => response.end(`railpack-node-ok:${message}`)).listen(process.env.PORT || 3000);',
+      ''
+    ].join('\n')
+  );
+  const firstValue = `first-build-value-${runId}`;
+  const nodeTag = `stacktape-buildpack-smoke-railpack-node:${runId}`;
+  const nodeOutput = await buildUsingRailpack({
+    ...railpack,
+    name: nodeTag,
+    sourceDirectoryPath: 'railpack-node',
+    buildEnvironment: buildMessage(firstValue)
+  });
+  const nodeBody = await fetchFromContainer(nodeTag);
+  if (nodeBody !== `railpack-node-ok:${firstValue}`) {
+    throw new Error(`The build variable did not reach the Railpack build: ${nodeBody}`);
+  }
+  const imageMetadata = [
+    (await run('docker', ['image', 'inspect', nodeTag, '--format', '{{json .Config}}'])).stdout,
+    (await run('docker', ['image', 'history', '--no-trunc', '--format', '{{.CreatedBy}}', nodeTag])).stdout
+  ].join('\n');
+  if (imageMetadata.includes(firstValue)) {
+    throw new Error('The build variable value appears in the image configuration or history.');
+  }
+  record('railpack-node-image', nodeOutput);
+
+  const repeat = await buildUsingRailpack({
+    ...railpack,
+    name: `stacktape-buildpack-smoke-railpack-node-repeat:${runId}`,
+    existingDigests: [nodeOutput.digest],
+    sourceDirectoryPath: 'railpack-node',
+    buildEnvironment: buildMessage(firstValue)
+  });
+  if (repeat.outcome !== 'skipped' || repeat.digest !== nodeOutput.digest) {
+    throw new Error(`An unchanged Railpack build was not reused: ${repeat.outcome} ${repeat.digest}`);
+  }
+
+  const secondValue = `second-build-value-${runId}`;
+  const changedTag = `stacktape-buildpack-smoke-railpack-node-changed:${runId}`;
+  const changedOutput = await buildUsingRailpack({
+    ...railpack,
+    name: changedTag,
+    existingDigests: [nodeOutput.digest],
+    sourceDirectoryPath: 'railpack-node',
+    buildEnvironment: buildMessage(secondValue)
+  });
+  if (changedOutput.outcome !== 'bundled' || changedOutput.digest === nodeOutput.digest) {
+    throw new Error(`A changed build variable did not change the digest: ${changedOutput.digest}`);
+  }
+  const changedBody = await fetchFromContainer(changedTag);
+  if (changedBody !== `railpack-node-ok:${secondValue}`) {
+    throw new Error(`The changed build variable did not reach the rebuilt image: ${changedBody}`);
+  }
+  record('railpack-node-image-changed-build-variable', changedOutput);
 };
 
 try {
@@ -114,7 +309,7 @@ try {
   );
   await write(join(goRoot, 'cmd', 'worker', 'message.txt'), 'embedded-runtime-asset');
   const goDist = join(artifactsRoot, 'go');
-  const goOutput = await buildUsingStacktapeGoLambdaBuildpack({
+  const goOutput = await buildGoLambda({
     ...common,
     cwd: goRoot,
     name: 'synthetic-go',
@@ -154,7 +349,7 @@ try {
     'package main\n\nimport ("fmt"; "example.com/shared")\n\nfunc main() { fmt.Println(shared.Message()) }\n'
   );
   const goWorkspaceDist = join(artifactsRoot, 'go-workspace');
-  const goWorkspaceOutput = await buildUsingStacktapeGoLambdaBuildpack({
+  const goWorkspaceOutput = await buildGoLambda({
     ...common,
     cwd: goWorkspaceRoot,
     name: 'synthetic-go-workspace',
@@ -175,6 +370,53 @@ try {
   }
   record('go-workspace-lambda', goWorkspaceOutput);
 
+  console.log('Building and invoking a synthetic Rust Lambda artifact...');
+  const rustRoot = join(projectsRoot, 'rust');
+  await write(
+    join(rustRoot, 'Cargo.toml'),
+    '[package]\nname = "stacktape-smoke"\nversion = "0.1.0"\nedition = "2021"\n\n[dependencies]\nlambda_runtime = "0.14"\nserde_json = "1"\ntokio = { version = "1", features = ["macros"] }\n'
+  );
+  await write(
+    join(rustRoot, 'src', 'main.rs'),
+    [
+      'use lambda_runtime::{run, service_fn, Error, LambdaEvent};',
+      'use serde_json::{json, Value};',
+      '',
+      'async fn handler(event: LambdaEvent<Value>) -> Result<Value, Error> {',
+      '    let name = event.payload.get("name").and_then(Value::as_str).unwrap_or("nobody");',
+      '    Ok(json!({ "message": format!("rust-runtime-ok:{name}") }))',
+      '}',
+      '',
+      '#[tokio::main]',
+      'async fn main() -> Result<(), Error> {',
+      '    run(service_fn(handler)).await',
+      '}',
+      ''
+    ].join('\n')
+  );
+  const rustDist = join(artifactsRoot, 'rust');
+  const rustOutput = await buildRustLambda({
+    ...common,
+    cwd: rustRoot,
+    name: 'synthetic-rust',
+    entryfilePath: 'src/main.rs',
+    distFolderPath: rustDist
+  });
+  await assertFile(join(rustDist, 'bootstrap'));
+  await assertNoGeneratedDockerfile(rustDist);
+  await ensureImage('public.ecr.aws/lambda/provided:al2023');
+  const rustResponse = await invokeInLambdaImage<{ message?: string }>({
+    functionDirectory: rustDist,
+    event: { name: 'stacktape' },
+    containerLabel,
+    runtimeImage: 'public.ecr.aws/lambda/provided:al2023',
+    handler: 'bootstrap'
+  });
+  if (rustResponse.message !== 'rust-runtime-ok:stacktape') {
+    throw new Error(`Unexpected Rust Lambda response: ${JSON.stringify(rustResponse)}`);
+  }
+  record('rust-lambda-provided-al2023', rustOutput);
+
   console.log('Building synthetic Python uv.lock Lambda artifact...');
   const pythonRoot = join(projectsRoot, 'python');
   await write(
@@ -188,17 +430,14 @@ try {
   await write(join(pythonRoot, 'app', 'handler.py'), 'def handler(event, context):\n    return {"ok": True}\n');
   await write(join(pythonRoot, 'app', 'template.txt'), 'runtime-template');
   const pythonDist = join(artifactsRoot, 'python');
-  const pythonOutput = await buildUsingStacktapePyLambdaBuildpack({
+  const pythonOutput = await buildPythonLambda({
     ...common,
     cwd: pythonRoot,
     name: 'synthetic-python',
     entryfilePath: 'app/handler.py',
     distFolderPath: pythonDist,
-    languageSpecificConfig: {
-      pythonVersion: 3.14,
-      packageManager: 'uv',
-      packageManagerFile: 'uv.lock'
-    }
+    pythonVersion: 3.14,
+    python: { packageManagerFile: 'uv.lock' }
   });
   await assertFile(join(pythonDist, 'app', 'handler.py'));
   await assertFile(join(pythonDist, 'app', 'template.txt'));
@@ -227,16 +466,14 @@ try {
     'import idna\n\ndef handler(event, context):\n    return idna.encode("münich").decode()\n'
   );
   const pipfileDist = join(artifactsRoot, 'python-pipfile');
-  const pipfileOutput = await buildUsingStacktapePyLambdaBuildpack({
+  const pipfileOutput = await buildPythonLambda({
     ...common,
     cwd: pipfileRoot,
     name: 'synthetic-python-pipfile',
     entryfilePath: 'src/handler.py',
     distFolderPath: pipfileDist,
-    languageSpecificConfig: {
-      pythonVersion: 3.12,
-      packageManagerFile: 'Pipfile'
-    }
+    pythonVersion: 3.12,
+    python: { packageManagerFile: 'Pipfile' }
   });
   await assertRunOutput({
     dockerArgs: [
@@ -254,34 +491,6 @@ try {
   }
   record('python-lambda-pipfile', pipfileOutput);
 
-  console.log('Building and executing a synthetic Alpine Python image with a native dependency...');
-  const pythonImageRoot = join(projectsRoot, 'python-image');
-  await write(join(pythonImageRoot, 'requirements.txt'), 'orjson==3.10.15\n');
-  await write(
-    join(pythonImageRoot, 'src', 'runner.py'),
-    'import orjson\nprint(orjson.dumps({"message": "python-native-runtime-ok"}).decode())\n'
-  );
-  const pythonImageDist = join(artifactsRoot, 'python-image');
-  const pythonImageTag = `stacktape-python-smoke:${Date.now()}`;
-  const pythonImageOutput = await buildUsingStacktapePyImageBuildpack({
-    ...common,
-    cwd: pythonImageRoot,
-    name: pythonImageTag,
-    entryfilePath: 'src/runner.py',
-    distFolderPath: pythonImageDist,
-    languageSpecificConfig: {
-      pythonVersion: 3.13,
-      packageManagerFile: 'requirements.txt'
-    },
-    buildDockerImage,
-    requiresGlibcBinaries: false
-  });
-  await assertRunOutput({
-    dockerArgs: [pythonImageTag],
-    expected: 'python-native-runtime-ok'
-  });
-  record('python313-alpine-native-image', pythonImageOutput);
-
   console.log('Building synthetic Ruby Lambda artifact...');
   const rubyRoot = join(projectsRoot, 'ruby');
   await write(join(rubyRoot, 'gems.rb'), 'source "https://rubygems.org"\ngem "base64", "0.3.0"\n');
@@ -290,13 +499,13 @@ try {
     'require "base64"\ndef handler(event:, context:)\n  { value: Base64.strict_encode64("ruby-runtime-ok") }\nend\n'
   );
   const rubyDist = join(artifactsRoot, 'ruby');
-  const rubyOutput = await buildUsingStacktapeRbLambdaBuildpack({
+  const rubyOutput = await buildRubyLambda({
     ...common,
     cwd: rubyRoot,
     name: 'synthetic-ruby',
     entryfilePath: 'src/handler.rb',
     distFolderPath: rubyDist,
-    languageSpecificConfig: { rubyVersion: 4 }
+    rubyVersion: 4
   });
   await assertFile(join(rubyDist, 'src', 'handler.rb'));
   await assertFile(join(rubyDist, 'vendor', 'bundle', 'ruby', '4.0.0', 'specifications', 'base64-0.3.0.gemspec'));
@@ -317,26 +526,6 @@ try {
     expected: 'cnVieS1ydW50aW1lLW9r'
   });
   record('ruby-lambda', rubyOutput);
-
-  await write(
-    join(rubyRoot, 'src', 'runner.rb'),
-    'require "base64"\nputs Base64.strict_encode64("ruby-image-runtime-ok")\n'
-  );
-  const rubyImageTag = `stacktape-ruby-smoke:${Date.now()}`;
-  const rubyImageOutput = await buildUsingStacktapeRbImageBuildpack({
-    ...common,
-    cwd: rubyRoot,
-    name: rubyImageTag,
-    entryfilePath: 'src/runner.rb',
-    distFolderPath: join(artifactsRoot, 'ruby-image'),
-    languageSpecificConfig: { rubyVersion: 4 },
-    buildDockerImage
-  });
-  await assertRunOutput({
-    dockerArgs: [rubyImageTag],
-    expected: 'cnVieS1pbWFnZS1ydW50aW1lLW9r'
-  });
-  record('ruby4-gem-image', rubyImageOutput);
 
   console.log('Building and executing a synthetic zero-config Maven reactor Lambda artifact...');
   const javaRoot = join(projectsRoot, 'java');
@@ -362,13 +551,14 @@ try {
   );
   await write(join(javaRoot, 'app', 'src', 'main', 'resources', 'message.txt'), 'java-runtime-resource');
   const javaDist = join(artifactsRoot, 'java');
-  const javaOutput = await buildUsingStacktapeJavaLambdaBuildpack({
+  const javaOutput = await buildJavaLambda({
     ...common,
     cwd: javaRoot,
     name: 'synthetic-java',
     entryfilePath: 'app/src/main/java/smoke/Handler.java',
     distFolderPath: javaDist,
-    languageSpecificConfig: { javaVersion: 21, useMaven: true }
+    javaVersion: 21,
+    java: { useMaven: true }
   });
   await assertFile(join(javaDist, 'smoke', 'Handler.class'));
   await assertFile(join(javaDist, 'message.txt'));
@@ -404,13 +594,14 @@ try {
     'package smoke; public final class Handler { public String handleRequest() { return Shared.message(); } public static void main(String[] args) { System.out.println(Shared.message()); } }\n'
   );
   const gradleDist = join(artifactsRoot, 'java-gradle');
-  const gradleOutput = await buildUsingStacktapeJavaLambdaBuildpack({
+  const gradleOutput = await buildJavaLambda({
     ...common,
     cwd: gradleRoot,
     name: 'synthetic-java-gradle',
     entryfilePath: 'app/src/main/java/smoke/Handler.java',
     distFolderPath: gradleDist,
-    languageSpecificConfig: { javaVersion: 21, useMaven: false }
+    javaVersion: 21,
+    java: { useMaven: false }
   });
   await assertRunOutput({
     dockerArgs: [
@@ -450,16 +641,14 @@ try {
     'using Newtonsoft.Json; using Shared; Console.WriteLine("dotnet-runtime-ok:" + JsonConvert.SerializeObject(new { value = Value.Number }));\n'
   );
   const dotnetDist = join(artifactsRoot, 'dotnet');
-  const dotnetOutput = await buildUsingStacktapeDotnetLambdaBuildpack({
+  const dotnetOutput = await buildDotnetLambda({
     ...common,
     cwd: dotnetRoot,
     name: 'synthetic-dotnet',
     entryfilePath: 'services/App/Program.cs',
     distFolderPath: dotnetDist,
-    languageSpecificConfig: {
-      dotnetVersion: 8,
-      projectFile: 'services/App/App.csproj'
-    }
+    dotnetVersion: 8,
+    dotnet: { projectFile: 'services/App/App.csproj' }
   });
   await assertFile(join(dotnetDist, 'Smoke.dll'));
   await assertNoGeneratedDockerfile(dotnetDist);
@@ -475,17 +664,18 @@ try {
   });
   record('dotnet8-lambda-project-reference', dotnetOutput);
 
-  console.log('Building and executing a synthetic glibc Node image without external dependencies...');
+  console.log('Building and executing a synthetic glibc js-bundle image without external dependencies...');
   const esRoot = join(projectsRoot, 'es-image');
   await write(join(esRoot, 'src', 'index.ts'), 'console.log("es-glibc-runtime-ok");\n');
-  const esImageTag = `stacktape-es-smoke:${Date.now()}`;
-  const esImageOutput = await buildUsingStacktapeEsImageBuildpack({
+  const esImageTag = `stacktape-buildpack-smoke-js-bundle:${runId}`;
+  const esImageOutput = await buildJsBundleImage({
     ...common,
     cwd: esRoot,
     name: esImageTag,
     entryfilePath: join(esRoot, 'src', 'index.ts'),
     distFolderPath: join(artifactsRoot, 'es-image'),
-    languageSpecificConfig: { nodeVersion: 24, outputModuleFormat: 'esm' },
+    nodeVersion: 24,
+    outputModuleFormat: 'esm',
     buildDockerImage,
     checkDockerImageExists: async () => false,
     getDockerImageDetails,
@@ -499,47 +689,32 @@ try {
     dockerArgs: [esImageTag],
     expected: 'es-glibc-runtime-ok'
   });
-  record('es-node24-glibc-image', esImageOutput);
+  record('js-bundle-node24-glibc-image', esImageOutput);
 
-  console.log('Building and starting synthetic PHP image artifact...');
-  const phpRoot = join(projectsRoot, 'php');
-  await write(join(phpRoot, 'composer.json'), '{"name":"stacktape/smoke","require":{"psr/log":"3.0.2"}}\n');
-  await write(
-    join(phpRoot, 'public', 'index.php'),
-    '<?php require __DIR__ . "/../vendor/autoload.php"; echo interface_exists("Psr\\\\Log\\\\LoggerInterface") ? "php-runtime-ok" : "missing-dependency";\n'
-  );
-  const phpDist = join(artifactsRoot, 'php');
-  const phpOutput = await buildUsingStacktapePhpImageBuildpack({
-    ...common,
-    cwd: phpRoot,
-    name: smokeImageTag,
-    entryfilePath: 'public/index.php',
-    distFolderPath: phpDist,
-    languageSpecificConfig: { phpVersion: 8.3 },
-    buildDockerImage
-  });
-  await assertNoGeneratedDockerfile(phpDist);
-  const phpRun = await run('docker', ['run', '--rm', smokeImageTag]);
-  if (phpRun.stdout.trim() !== 'php-runtime-ok') {
-    throw new Error(`Unexpected PHP image output: ${phpRun.stdout}`);
+  const railpackBinary = findRailpackBinary();
+  if (railpackBinary) {
+    console.log(`Using railpack at ${railpackBinary}.`);
+    await railpackScenarios(createRailpackPrepare(railpackBinary));
+  } else {
+    skipped.push(
+      'Railpack buildpack (FastAPI, Node.js with build variable): no railpack binary. Set STP_RAILPACK_BINARY, run a CLI Railpack build once to download it, or put railpack on PATH.'
+    );
   }
-  const dockerfileLeak = await run('docker', [
-    'run',
-    '--rm',
-    '--entrypoint',
-    'sh',
-    smokeImageTag,
-    '-c',
-    'test ! -e /app/Dockerfile && ! find /app -name "*.Dockerfile" -print -quit | grep -q .'
-  ]);
-  if (dockerfileLeak.exitCode !== 0) {
-    throw new Error('A generated Dockerfile leaked into the PHP image.');
-  }
-  record('php-image', phpOutput);
 
   console.table(results);
-  console.log(`Synthetic buildpack smoke passed (${results.length} real Docker builds).`);
+  for (const reason of skipped) console.log(`SKIPPED  ${reason}`);
+  console.log(
+    `Synthetic buildpack smoke passed (${results.length} real Docker builds${skipped.length > 0 ? `, ${skipped.length} scenario group skipped` : ''}).`
+  );
 } finally {
+  const containers = (
+    await run('docker', ['ps', '-aq', '--filter', `label=${containerLabel}`]).catch(() => undefined)
+  )?.stdout
+    .split('\n')
+    .filter(Boolean);
+  if (containers && containers.length > 0) {
+    await run('docker', ['rm', '--force', ...containers]).catch(() => undefined);
+  }
   await Promise.all(
     [...builtImageTags].map((imageTag) => run('docker', ['image', 'rm', '--force', imageTag]).catch(() => undefined))
   );

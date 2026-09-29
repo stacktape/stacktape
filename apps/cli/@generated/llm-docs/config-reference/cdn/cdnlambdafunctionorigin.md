@@ -37,7 +37,7 @@ renderer:
   type: function
   properties:
     packaging:
-      type: stacktape-lambda-buildpack
+      type: js-bundle
       properties:
         entryfilePath: ./src/render.ts
     url:
@@ -47,11 +47,11 @@ renderer:
 ### Example 2 (typescript)
 
 ```typescript
-import { HttpApiGateway, LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+import { HttpApiGateway, LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
 const renderer = new LambdaFunction({
-  packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/render.ts' }),
+  packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/render.ts' }),
   url: { enabled: true }
 });
 const api = new HttpApiGateway({

@@ -51,7 +51,7 @@ export type NormalizedTypeInfo =
 
 export type NormalizedUnionBranch = {
   /** What the user picks in the selector. For discriminated unions: the discriminator value
-   *  (e.g. "stacktape-lambda-buildpack"). For non-discriminated unions: a derived label from
+   *  (e.g. "js-bundle"). For non-discriminated unions: a derived label from
    *  the underlying type name (e.g. "EsLanguageSpecificConfig" → "Es"). */
   label: string;
   /** The underlying type name, if this branch resolves to a single named type. */

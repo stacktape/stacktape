@@ -1,11 +1,11 @@
 import {
   BatchJob,
   Bucket,
-  CustomDockerfilePackaging,
+  DockerfilePackaging,
   HttpApiGateway,
   HttpApiIntegration,
+  JsBundleLambdaPackaging,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   defineConfig
 } from '../../__release-npm';
 
@@ -18,7 +18,7 @@ export default defineConfig(() => {
   const outputBucket = new Bucket({});
   const inferenceJob = new BatchJob({
     container: {
-      packaging: new CustomDockerfilePackaging({
+      packaging: new DockerfilePackaging({
         buildContextPath: './job'
       })
     },
@@ -34,7 +34,7 @@ export default defineConfig(() => {
     connectTo: [outputBucket]
   });
   const triggerInference = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/trigger.ts'
     }),
     memory: 512,

@@ -45,7 +45,7 @@ export interface DynamoDbTableProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/reconcile.ts
    *       events:
@@ -71,7 +71,7 @@ export interface DynamoDbTableProps {
    *
    *   const reconcileJob = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/reconcile.ts' }
    *     },
    *     events: [
@@ -207,7 +207,7 @@ export interface DynamoDbTableProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/audit.ts
    *       events:
@@ -235,7 +235,7 @@ export interface DynamoDbTableProps {
    *
    *   const auditLogger = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/audit.ts' }
    *     },
    *     events: [

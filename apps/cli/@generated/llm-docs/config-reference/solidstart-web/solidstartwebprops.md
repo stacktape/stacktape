@@ -206,7 +206,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/server.ts
       resources:
@@ -234,7 +234,7 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { WebService, RelationalDatabase, Bucket, RdsEnginePostgres, StacktapeImageBuildpackPackaging, $Secret, defineConfig } from 'stacktape';
+import { WebService, RelationalDatabase, Bucket, RdsEnginePostgres, $Secret, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
@@ -243,7 +243,7 @@ export default defineConfig(() => {
   });
   const uploads = new Bucket({});
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
     connectTo: [mainDb, uploads]
   });
@@ -443,7 +443,7 @@ resources:
     properties:
       container:
         packaging:
-          type: stacktape-image-buildpack
+          type: js-bundle
           properties:
             entryfilePath: src/job.ts
       resources:
@@ -460,11 +460,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { BatchJob, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { BatchJob, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const processor = new BatchJob({
-    container: { packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/job.ts' }) },
+    container: { packaging: new JsBundleImagePackaging({ entryfilePath: 'src/job.ts' }) },
     resources: { cpu: 1, memory: 2048 },
     iamRoleStatements: [
       {

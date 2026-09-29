@@ -4,7 +4,7 @@ resources:
     properties:
       # Replace the S3 Files access point and backing bucket ARNs before deploying.
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./src/index.ts
       memory: 1024

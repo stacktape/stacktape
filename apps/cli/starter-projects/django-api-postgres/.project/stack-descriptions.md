@@ -2,9 +2,10 @@
 
 Application runs in web-service resource and is configured as follows:
 
-- **Packaging** - determines how the Docker container image is built. In this case, we are using
-  `stacktape-image-buildpack`. We only need to configure `entryfilePath`. Stacktape automatically builds the application
-  code with all of its dependencies, builds the Docker image, and pushes it to a pre-created image repository on AWS.
+- **Packaging** - determines how the Docker container image is built. In this case, we are using `buildpack`. Stacktape
+  detects the Django project from `pyproject.toml` and `uv.lock`, installs its dependencies, builds the Docker image,
+  and pushes it to a pre-created image repository on AWS. `startCommand` serves the project's WSGI application with
+  gunicorn on the port Stacktape provides in `PORT`. Migrations run in the `afterDeploy` hook, not at container start.
   You can also use
   [other types of packaging](https://docs.stacktape.com/configuration/packaging/#packaging-web-services).
 - **ConnectTo list** - we are adding database `mainDatabase` into `connectTo` list. By doing this, Stacktape will
@@ -24,11 +25,9 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: buildpack
         properties:
-          entryfilePath: ./postsproject/asgi.py
-          languageSpecificConfig:
-            packageManagerFile: ./pyproject.toml
+          startCommand: gunicorn --bind 0.0.0.0:$PORT postsproject.wsgi:application
       resources:
         cpu: 0.25
         memory: 512

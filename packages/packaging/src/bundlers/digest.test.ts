@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { listArchiveEntries } from '../artifact/archive-entries';
 import { STACKTAPE_LANGUAGE_SOURCE_GLOBS } from '../artifact/language-build-context';
-import { buildUsingStacktapeRbLambdaBuildpack } from '../buildpacks/stacktape-rb-lambda-buildpack';
+import { buildRubyLambda } from '../buildpacks/rb-lambda-buildpack';
 import { getHashFromMultipleFiles } from '../fs/files';
 import { STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION } from './constants';
 import { getBundleDigestFromGlobs } from './digest';
@@ -178,7 +178,7 @@ describe('source-set bundle digest', () => {
     const build = (platform: NodeJS.Platform, existingDigests: string[]) =>
       withPlatform(platform, async () => {
         let archivedToolMode: number | undefined;
-        const { outcome, digest } = await buildUsingStacktapeRbLambdaBuildpack({
+        const { outcome, digest } = await buildRubyLambda({
           name: 'handler',
           cwd: root,
           entryfilePath: join(sourcePath, 'handler.rb'),

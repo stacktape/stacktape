@@ -29,28 +29,28 @@ const dsqlDatabase = new DsqlDatabase({});
 const kafkaCluster = new KafkaCluster({});
 const emailSender = new EmailSender({ identity: 'example.com' });
 const worker = new LambdaFunction({
-  packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: './src/worker.ts' } },
+  packaging: { type: 'js-bundle', properties: { entryfilePath: './src/worker.ts' } },
   connectTo: [database, dsqlDatabase, emailSender],
   environment: { DATABASE_URL: database.connectionString, RETRIES: 3 }
 });
 const uploads = new Bucket({ versioning: true });
 const edgeFunction = new EdgeLambdaFunction({
-  packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: './src/edge.ts' } }
+  packaging: { type: 'js-bundle', properties: { entryfilePath: './src/edge.ts' } }
 });
 const api = new HttpApiGateway({ cdn: { enabled: true, edgeFunctions: { onRequest: edgeFunction } } });
 const apiHandler = new LambdaFunction({
-  packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: './src/api.ts' } },
+  packaging: { type: 'js-bundle', properties: { entryfilePath: './src/api.ts' } },
   events: [{ type: 'http-api-gateway', properties: { httpApiGatewayName: api, method: 'GET', path: '/' } }]
 });
 const realtime = new WebSocketApiGateway({});
 const realtimeHandler = new LambdaFunction({
-  packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: './src/realtime.ts' } },
+  packaging: { type: 'js-bundle', properties: { entryfilePath: './src/realtime.ts' } },
   events: [new WebSocketApiIntegration({ websocketApiGatewayName: realtime, routeKey: '$default' })]
 });
 const firewall = new WebAppFirewall({ scope: 'cdn' });
 const website = new HostingBucket({ uploadDirectoryPath: './dist', useFirewall: firewall });
 const provisioner = new CustomResourceDefinition({
-  packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: './src/provisioner.ts' } }
+  packaging: { type: 'js-bundle', properties: { entryfilePath: './src/provisioner.ts' } }
 });
 const provisionedThing = new CustomResourceInstance({ definitionName: provisioner, resourceProperties: {} });
 const gateway = new AgentCoreGateway({
@@ -64,7 +64,7 @@ const runtime = new AgentCoreRuntime({
   endpoints: ['default']
 });
 const agentConsumer = new LambdaFunction({
-  packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: './src/agent-consumer.ts' } },
+  packaging: { type: 'js-bundle', properties: { entryfilePath: './src/agent-consumer.ts' } },
   connectTo: [runtime, memory, gateway, browser, codeInterpreter]
 });
 

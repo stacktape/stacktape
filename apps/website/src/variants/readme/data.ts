@@ -105,7 +105,7 @@ export const ACME_CONFIG = {
       type: 'web-service',
       properties: {
         packaging: {
-          type: 'custom-dockerfile',
+          type: 'dockerfile',
           properties: { buildContextPath: './api', dockerfilePath: './api/Dockerfile' }
         },
         resources: { cpu: 0.5, memory: 1024 },
@@ -116,7 +116,7 @@ export const ACME_CONFIG = {
     worker: {
       type: 'function',
       properties: {
-        packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'api/src/worker.ts' } },
+        packaging: { type: 'js-bundle', properties: { entryfilePath: 'api/src/worker.ts' } },
         connectTo: ['mainDatabase']
       }
     },
@@ -309,14 +309,14 @@ const YAML_SOURCE = `resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties: { entryfilePath: api/src/worker.ts }
       connectTo: [mainDatabase]
   apiService:
     type: web-service
     properties:
       packaging:
-        type: custom-dockerfile
+        type: dockerfile
         properties: { dockerfilePath: ./api/Dockerfile }
       resources: { cpu: 0.5, memory: 1024 }
       scaling: { minInstances: 2, maxInstances: 6 }
@@ -350,14 +350,14 @@ export default defineConfig(() => {
   });
   const worker = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'api/src/worker.ts' }
     },
     connectTo: [mainDatabase]
   });
   const apiService = new WebService({
     packaging: {
-      type: 'custom-dockerfile',
+      type: 'dockerfile',
       properties: { dockerfilePath: './api/Dockerfile' }
     },
     resources: { cpu: 0.5, memory: 1024 },
@@ -433,21 +433,21 @@ export const EDITOR_DOCS = {
   },
   packaging: {
     signature: {
-      yml: 'packaging: { type: "stacktape-lambda-buildpack" | "custom-dockerfile" | … , properties: {…} }',
+      yml: 'packaging: { type: "js-bundle" | "buildpack" | "dockerfile" | … , properties: {…} }',
       ts: '(property) packaging: LambdaPackaging | ContainerWorkloadContainerPackaging'
     },
-    text: 'How the code becomes an artifact. A buildpack takes an entry file and builds it for you; the other modes take your own Dockerfile or a prebuilt image.',
+    text: 'How the code becomes an artifact. Stacktape bundles a JavaScript entry file, builds a project directory with a buildpack, or uses your own Dockerfile or a prebuilt image.',
     href: `${DOCS}/packaging/overview`
   },
   entryfilePath: {
     signature: { yml: 'entryfilePath: string', ts: '(property) entryfilePath: string' },
-    text: "Your application's entry point. Stacktape bundles the code and its dependencies, writes source maps for JavaScript and TypeScript, and uploads the result. Everything else about the buildpack is optional.",
-    href: `${DOCS}/packaging/function/stacktape-buildpack`
+    text: "Your application's entry point. Stacktape bundles the code and its dependencies, writes source maps for JavaScript and TypeScript, and uploads the result. Everything else about the bundle is optional.",
+    href: `${DOCS}/packaging/function/js-bundle`
   },
   dockerfilePath: {
     signature: { yml: 'dockerfilePath: string', ts: '(property) dockerfilePath: string' },
     text: 'The Dockerfile Stacktape builds for this workload, instead of using a buildpack.',
-    href: `${DOCS}/packaging/containers/custom-dockerfile`
+    href: `${DOCS}/packaging/containers/dockerfile`
   },
   computeResources: {
     signature: {

@@ -46,7 +46,7 @@ resources:
               - redis-cli ping || exit 1
         - name: api
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/server.ts
           dependsOn:
@@ -60,7 +60,7 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, PrebuiltImagePackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, PrebuiltImagePackaging, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const app = new MultiContainerWorkload({
@@ -72,7 +72,7 @@ export default defineConfig(() => {
       },
       {
         name: 'api',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+        packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
         dependsOn: [
           {
             containerName: 'redis',

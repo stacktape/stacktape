@@ -1,9 +1,9 @@
 import {
   $Secret,
+  BuildpackImagePackaging,
   LocalScript,
   RdsEnginePostgres,
   RelationalDatabase,
-  StacktapeImageBuildpackPackaging,
   WebService,
   defineConfig
 } from '../../__release-npm';
@@ -21,12 +21,8 @@ export default defineConfig(() => {
     })
   });
   const webService = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({
-      entryfilePath: './app/main.py:app',
-      languageSpecificConfig: {
-        packageManagerFile: 'pyproject.toml',
-        runAppAs: 'ASGI'
-      }
+    packaging: new BuildpackImagePackaging({
+      startCommand: 'uvicorn app.main:app --host 0.0.0.0 --port $PORT'
     }),
     resources: {
       cpu: 0.25,

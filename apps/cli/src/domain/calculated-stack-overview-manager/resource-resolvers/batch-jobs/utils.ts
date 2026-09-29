@@ -16,8 +16,8 @@ import { getImageUrlForSingleTask } from '../_utils/image-urls';
 import { getPoliciesForRoles } from '../_utils/role-helpers';
 import type { CloudWatchLogGroupOptions } from '@stacktape/config/log-forwarding';
 import type {
-  CustomDockerfileBjImagePackaging,
-  EsLanguageSpecificConfig,
+  DockerfileBjImagePackaging,
+  JsBundleSharedProps,
   PrebuiltBjImagePackaging
 } from '@stacktape/config/deployment-artifacts';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
@@ -254,9 +254,7 @@ export const getBatchJobDefinitionContainerProperties = ({
     typeof getAugmentedEnvironment
   >[0]['packagingType'];
   const entryfilePath = (workload.container.packaging?.properties as { entryfilePath?: string })?.entryfilePath;
-  const languageSpecificConfig = (
-    workload.container.packaging?.properties as { languageSpecificConfig?: EsLanguageSpecificConfig }
-  )?.languageSpecificConfig;
+  const languageSpecificConfig = workload.container.packaging?.properties as JsBundleSharedProps | undefined;
   const nodeVersion = languageSpecificConfig?.nodeVersion || DEFAULT_CONTAINER_NODE_VERSION;
 
   // Augment environment with source maps and experimental flags for JS/TS workloads
@@ -274,8 +272,7 @@ export const getBatchJobDefinitionContainerProperties = ({
   })) as Secret[];
 
   return {
-    Command: (workload.container.packaging as CustomDockerfileBjImagePackaging | PrebuiltBjImagePackaging).properties
-      .command,
+    Command: (workload.container.packaging as DockerfileBjImagePackaging | PrebuiltBjImagePackaging).properties.command,
     Environment: getCfEnvironment(augmentedEnvironment),
     Secrets: secrets.length ? secrets : undefined,
     Image: getImageUrlForSingleTask(workload),

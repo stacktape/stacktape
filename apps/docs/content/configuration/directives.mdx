@@ -46,13 +46,13 @@ In TypeScript configuration, Stacktape exposes runtime directive helpers as func
       code: `import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   RelationalDatabase,
   RdsEnginePostgres,
   $Secret,
   $ResourceParam,
   $Stage,
-  $Region
+  $Region,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -68,7 +68,7 @@ export default defineConfig(({ stage }) => {
   });
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/handler.ts' }),
     environment: {
       DB_CONNECTION_STRING: $ResourceParam('database', 'connectionString'),
       STAGE: $Stage(),
@@ -99,12 +99,12 @@ Returns the current target stage name. Use it to differentiate resource naming, 
     {
       label: 'TypeScript',
       lang: 'typescript',
-      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging, $Stage } from 'stacktape';
+      code: `import { defineConfig, LambdaFunction, $Stage, JsBundleLambdaPackaging } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
   const handler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/handler.ts' }),
     environment: { STAGE: $Stage() }
   });
 
@@ -130,14 +130,14 @@ Returns the AWS region where the stack is being deployed (e.g. `us-east-1`, `eu-
       code: `import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  $Region
+  $Region,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
   const handler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/handler.ts' }),
     environment: { DEPLOY_REGION: $Region() }
   });
 
@@ -180,7 +180,7 @@ Access nested properties with dot notation: `$File('config.json').database.host`
     {
       label: 'TypeScript',
       lang: 'typescript',
-      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+      code: `import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 import { readFileSync } from 'fs';
 
 // [!code focus-start]
@@ -195,7 +195,7 @@ export default defineConfig(() => {
     });
 
   const handler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/handler.ts' }),
     environment: envVars
   });
 
@@ -234,14 +234,14 @@ Available properties:
       code: `import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  $GitInfo
+  $GitInfo,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
   const handler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/handler.ts' }),
     environment: {
       GIT_COMMIT: $GitInfo('commit'),
       GIT_BRANCH: $GitInfo('branch')
@@ -339,14 +339,14 @@ For JSON-formatted secrets, use dot notation to extract a single top-level key â
       code: `import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  $Secret
+  $Secret,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
   const handler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/handler.ts' }),
     environment: {
       STRIPE_KEY: $Secret('api-keys.stripe'),
       SENDGRID_KEY: $Secret('api-keys.sendgrid')
@@ -382,14 +382,14 @@ References a parameter from AWS Systems Manager Parameter Store. `$SsmParam()` r
       code: `import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  $SsmParam
+  $SsmParam,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
   const handler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/handler.ts' }),
     environment: {
       FEATURE_FLAGS: $SsmParam('/myapp/feature-flags'),
       DB_HOST: $SsmParam('/prod/database/host')
@@ -422,8 +422,8 @@ References a parameter from another Stacktape resource in the same stack. The va
   defineConfig,
   HttpApiGateway,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  $ResourceParam
+  $ResourceParam,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -431,7 +431,7 @@ export default defineConfig(() => {
   const api = new HttpApiGateway({});
 
   const handler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/handler.ts' }),
     environment: { API_URL: $ResourceParam('api', 'url') }
   });
 
@@ -460,14 +460,14 @@ References a parameter from a raw CloudFormation resource defined in the `cloudf
       code: `import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  $CfResourceParam
+  $CfResourceParam,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
   const handler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/handler.ts' }),
     environment: { TOPIC_ARN: $CfResourceParam('mySnsTopic', 'TopicArn') }
   });
 
@@ -502,12 +502,12 @@ Performs string interpolation at CloudFormation deployment time, similar to `$Fo
       code: `import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   RelationalDatabase,
   RdsEnginePostgres,
   $Secret,
   $CfFormat,
-  $ResourceParam
+  $ResourceParam,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -523,7 +523,7 @@ export default defineConfig(() => {
   });
 
   const handler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/handler.ts' }),
     environment: {
       JDBC_URL: $CfFormat(
         'jdbc:postgresql://{}:{}/{}',
@@ -557,14 +557,14 @@ References an exported output from another deployed stack, resolved at CloudForm
       code: `import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  $CfStackOutput
+  $CfStackOutput,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
   const handler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/handler.ts' }),
     environment: {
       SHARED_QUEUE_URL: $CfStackOutput('shared-infra-production', 'QueueQueueUrl')
     }
@@ -604,15 +604,15 @@ Example â€” valid 2-level nesting of `$ResourceParam` inside `$CfFormat`:
       code: `import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   $CfFormat,
-  $ResourceParam
+  $ResourceParam,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
   const handler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/handler.ts' }),
     environment: {
       API_ENDPOINT: $CfFormat('{}/v1', $ResourceParam('api', 'url'))
     }

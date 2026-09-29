@@ -19,7 +19,8 @@ tail, generated configuration, synthesized template when available, and a comman
 The package lane redirects the Stacktape CLI's AWS and Stacktape clients to a loopback guard. The guard supplies a fake
 AWS identity, an absent stack, empty metadata, and exact placeholder secrets. It refuses and records CLI requests
 outside that narrow contract. It is not a security sandbox for project code: package managers, lifecycle scripts,
-Dockerfiles, Nixpacks, buildpacks, and framework builders can execute code and use the public network.
+Dockerfiles, buildpacks (Railpack and the Lambda language builders), and framework builders can execute code and use the
+public network.
 
 For that reason, the package lane refuses to run on an ordinary host unless the operator explicitly adds
 `--allow-host-project-code`. Use that flag only for a pinned project whose execution risk has been reviewed and
@@ -148,8 +149,8 @@ Useful coverage axes include:
   consumer, monorepo, and migration job;
 - languages and frameworks: current Node/TypeScript, Python, Go, Ruby, PHP, Java, .NET, Rust, and the frameworks those
   customers actually start from;
-- packaging: plain Lambda, Stacktape buildpack, Dockerfile, Nixpacks, external buildpack, Next.js/OpenNext, native
-  modules, Prisma/code generation, and older but still supported lockfiles;
+- packaging: plain Lambda, `js-bundle`, Lambda language buildpacks, Railpack `buildpack` images, Dockerfile, prebuilt
+  image, Next.js/OpenNext, native modules, Prisma/code generation, and older but still supported lockfiles;
 - dependencies: PostgreSQL/MySQL, Redis, DynamoDB, queues, topics, buckets, email, secrets, and third-party services;
 - prior platform evidence: Vercel, Railway, Render, Heroku, Fly, SST, Serverless Framework, SAM, CDK, Terraform,
   Kubernetes, and Docker Compose;

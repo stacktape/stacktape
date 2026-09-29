@@ -4,7 +4,7 @@ resources:
     properties:
       description: Data analyst agent for CSV exploration, KPI summaries, and report generation.
       packaging:
-        type: custom-dockerfile
+        type: dockerfile
         properties:
           buildContextPath: ./
       useMemory: analysisMemory

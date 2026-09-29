@@ -103,9 +103,9 @@ To use the user pool from a [Lambda function](/resources/compute/lambda-function
   defineConfig,
   UserAuthPool,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   HttpApiGateway,
-  HttpApiIntegration
+  HttpApiIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -117,7 +117,7 @@ export default defineConfig(() => {
   const gateway = new HttpApiGateway({});
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     connectTo: [auth],
@@ -165,9 +165,9 @@ A Stacktape user authentication pool integrates with [HTTP API Gateway](/resourc
   defineConfig,
   UserAuthPool,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   HttpApiGateway,
-  HttpApiIntegration
+  HttpApiIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -179,7 +179,7 @@ export default defineConfig(() => {
   const gateway = new HttpApiGateway({});
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     connectTo: [auth],
@@ -314,13 +314,13 @@ Each hook value must be a Lambda function ARN. Stacktape maps the configured hoo
   defineConfig,
   UserAuthPool,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
   const createProfile = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/create-profile.ts'
     })
   });

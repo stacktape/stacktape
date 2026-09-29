@@ -3,8 +3,8 @@
  * and line.
  *
  * A TypeScript handler calls `validateOrder` in `lib/validate.ts`, which throws at a known line after validating with
- * a real bundled dependency (`zod`, copied from the workspace; nothing is installed). Through the production ES Lambda
- * buildpack and the E2E ZIP adapter:
+ * a real bundled dependency (`zod`, copied from the workspace; nothing is installed). Through the production
+ * `js-bundle` Lambda buildpack and the E2E ZIP adapter:
  * 1. default: every `.map` in the ZIP lacks `sourcesContent` and still names `lib/validate.ts`. The ZIP is extracted
  *    with `unzip` and invoked in the local Lambda Node.js 24 image with `NODE_OPTIONS=--enable-source-maps`, where the
  *    original sources do not exist; the caught error's stack must point at `lib/validate.ts:<line>`;
@@ -13,7 +13,8 @@
  * 4. `disableSourceMaps` ships no map;
  * 5. asset: `src/orders.ts`, which imports a file asset and throws after using it, is packaged alone the same way. Its
  *    reference to the asset is rewritten to `/var/task` on the minified line before the throw. Invoked in the Lambda
- *    image, its top frame must be the exact `<project>/src/orders.ts:<line>:<col>` of the `new Error(`;
+ *    image, its top frame must be the exact `src/orders.ts:<line>:<col>` of the `new Error(`, under the project path
+ *    that the map's relative `sources` resolve to from `/var/task`;
  * 6. split: three functions go through `buildSplitBundle` and `createLayerArtifacts` inside the project, where the CLI
  *    builds them. No function or layer `.map` carries `sourcesContent`, and every packaged map's `sources` name the
  *    project's files from where the map is. Each function's ZIP and the layer ZIPs are extracted and invoked in the
@@ -30,8 +31,9 @@ import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, readdir, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join, relative, resolve } from 'node:path';
-import { buildUsingStacktapeEsLambdaBuildpack } from '../src/buildpacks/stacktape-es-lambda-buildpack';
+import { dirname, join, posix, relative, resolve } from 'node:path';
+import { buildJsBundleLambda } from '../src/buildpacks/js-bundle-lambda';
+import type { JsBundleOptions } from '../src/runtime-contracts';
 import {
   archiveItem,
   buildSplitProjectWithLayers,
@@ -286,11 +288,11 @@ const invoke = (functionDirectory: string, event: unknown) =>
 
 const packageFunction = (
   label: string,
-  languageSpecificConfig: Record<string, unknown>,
+  bundleOptions: JsBundleOptions,
   existingDigests: string[] = [],
   entryfile = 'handler.ts'
 ) =>
-  buildUsingStacktapeEsLambdaBuildpack({
+  buildJsBundleLambda({
     cwd: project,
     name: label,
     entryfilePath: join(project, 'src', entryfile),
@@ -299,7 +301,9 @@ const packageFunction = (
     progressLogger,
     invocationId: 'lambda-source-map-e2e',
     sizeLimit: 250,
-    languageSpecificConfig: { nodeVersion: 24, outputModuleFormat: 'esm', ...languageSpecificConfig },
+    nodeVersion: 24,
+    outputModuleFormat: 'esm',
+    ...bundleOptions,
     requiresGlibcBinaries: true,
     dockerBuildOutputArchitecture: 'linux/amd64',
     nodeTarget: '24',
@@ -399,7 +403,12 @@ try {
   const assetDirectory = await extract(asset.artifactPath, 'asset');
   const assetFiles = (await readdir(assetDirectory, { recursive: true })).toSorted();
   const assetThrown = await invoke(assetDirectory, { mode: 'handler' });
-  const assetExpected = `${project}${throwSite('src/orders.ts', 'orders failed')}`;
+  // The map names the project relative to the build folder; Node resolves that from /var/task, where the map is.
+  const assetProjectAtRuntime = posix.resolve(
+    '/var/task',
+    relative(join(out, 'build', 'functions', 'asset'), project).replaceAll('\\', '/')
+  );
+  const assetExpected = `${assetProjectAtRuntime}${throwSite('src/orders.ts', 'orders failed')}`;
   const assetLocation = topFrameLocation(assetThrown.stack);
   report.asset = {
     digest: asset.digest,

@@ -26,7 +26,7 @@ import {
   defineConfig,
   DynamoDbTable,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from '@stacktape/config-authoring';
 import { resolveNodeVersion } from '@stacktape/packaging/bundlers/node-version';
 import { getTypescriptExport } from '@utils/file-loaders';
@@ -220,7 +220,7 @@ const singleFunctionConfig = ({ projectName, resourceName }: { projectName: stri
         type: 'function',
         properties: {
           packaging: {
-            type: 'stacktape-lambda-buildpack',
+            type: 'js-bundle',
             properties: { entryfilePath: './src/api.ts' }
           },
           environment: [{ name: 'INVOCATION_STAGE', value: '$Stage()' }]
@@ -239,7 +239,7 @@ const duplicateHttpRouteConfig: StacktapeConfig = {
       type: 'function',
       properties: {
         packaging: {
-          type: 'stacktape-lambda-buildpack',
+          type: 'js-bundle',
           properties: { entryfilePath: './src/api.ts' }
         },
         events: [
@@ -254,7 +254,7 @@ const duplicateHttpRouteConfig: StacktapeConfig = {
       type: 'function',
       properties: {
         packaging: {
-          type: 'stacktape-lambda-buildpack',
+          type: 'js-bundle',
           properties: { entryfilePath: './src/worker.ts' }
         },
         events: [
@@ -700,7 +700,7 @@ export default defineConfig(() => ({ projectName, resources: {} }));
         }
       });
       const worker = new LambdaFunction({
-        packaging: new StacktapeLambdaBuildpackPackaging({
+        packaging: new JsBundleLambdaPackaging({
           entryfilePath: './src/handler.ts'
         }),
         connectTo: [records],
@@ -1197,7 +1197,7 @@ export default defineConfig(() => ({ projectName, resources: {} }));
           properties: {
             events: [{ type: 'kafka-topic', properties }],
             packaging: {
-              type: 'stacktape-lambda-buildpack',
+              type: 'js-bundle',
               properties: { entryfilePath: 'src/worker.ts' }
             }
           }
@@ -1327,8 +1327,8 @@ export default defineConfig(() => ({ projectName, resources: {} }));
           type: 'function',
           properties: {
             packaging: {
-              type: 'stacktape-lambda-buildpack',
-              properties: { entryfilePath: 'src/index.ts', languageSpecificConfig: {} }
+              type: 'js-bundle',
+              properties: { entryfilePath: 'src/index.ts' }
             },
             runtime: 'nodejs22.x',
             logging: {}
@@ -1338,10 +1338,10 @@ export default defineConfig(() => ({ projectName, resources: {} }));
           type: 'function',
           properties: {
             packaging: {
-              type: 'stacktape-lambda-buildpack',
+              type: 'buildpack',
               properties: {
                 entryfilePath: 'src/index.py',
-                languageSpecificConfig: { packageManager: 'uv' }
+                python: { packageManagerFile: 'pyproject.toml' }
               }
             }
           }
@@ -1357,16 +1357,14 @@ export default defineConfig(() => ({ projectName, resources: {} }));
       }
     });
 
-    expect(
-      get(parsed, 'resources.nodeFunction.properties.packaging.properties.languageSpecificConfig.nodeVersion')
-    ).toBeUndefined();
+    expect(get(parsed, 'resources.nodeFunction.properties.packaging.properties.nodeVersion')).toBeUndefined();
     expect(get(parsed, 'resources.nodeFunction.properties.runtime')).toBe('nodejs22.x');
-    expect(
-      get(parsed, 'resources.nodeFunction.properties.packaging.properties.languageSpecificConfig.outputModuleFormat')
-    ).toBeUndefined();
-    expect(
-      get(parsed, 'resources.pythonFunction.properties.packaging.properties.languageSpecificConfig.pythonVersion')
-    ).toBe(3.12);
+    expect(get(parsed, 'resources.nodeFunction.properties.packaging.properties.outputModuleFormat')).toBeUndefined();
+    expect(get(parsed, 'resources.nodeFunction.properties.packaging.properties.minify')).toBe(true);
+    // The Lambda runtime decides the Python version; the buildpack options carry no version default.
+    expect(get(parsed, 'resources.pythonFunction.properties.packaging.properties.python')).toEqual({
+      packageManagerFile: 'pyproject.toml'
+    });
     expect(get(parsed, 'resources.nodeFunction.properties.logging.retentionDays')).toBe(90);
     expect(get(parsed, 'resources.cache.properties.logging.retentionDays')).toBe(30);
     expect(resolveNodeVersion({ runtime: 'nodejs22.x', target: 'lambda' })).toBe(22);
@@ -1410,7 +1408,7 @@ export default defineConfig(() => ({ projectName, resources: {} }));
           type: 'function',
           properties: {
             packaging: {
-              type: 'stacktape-lambda-buildpack',
+              type: 'js-bundle',
               properties: { entryfilePath: 'src/index.ts' }
             },
             volumeMounts: [

@@ -5,7 +5,7 @@ Resource type: `function`
 ## TypeScript definition
 
 ```typescript
-import type { AlarmIntegration, AppSyncApiIntegration, ApplicationLoadBalancerIntegration, CdnConfiguration, CloudformationTag, CloudwatchLogIntegration, CustomArtifactLambdaPackaging, DynamoDbIntegration, EnvironmentVar, EventBusIntegration, HttpApiIntegration, KafkaTopicIntegration, KinesisIntegration, LambdaAlarm, LambdaDeploymentConfig, LambdaEfsMount, LambdaFunctionDestinations, LambdaFunctionLogging, LambdaS3FilesMount, LambdaUrlConfig, S3Integration, ScheduleIntegration, SnsIntegration, SqsIntegration, StpBuildpackLambdaPackaging, StpIamRoleStatement, TracingOptions, WebSocketApiIntegration } from 'stacktape';
+import type { AlarmIntegration, AppSyncApiIntegration, ApplicationLoadBalancerIntegration, BuildpackLambdaPackaging, CdnConfiguration, CloudformationTag, CloudwatchLogIntegration, CustomArtifactLambdaPackaging, DynamoDbIntegration, EnvironmentVar, EventBusIntegration, HttpApiIntegration, JsBundleLambdaPackaging, KafkaTopicIntegration, KinesisIntegration, LambdaAlarm, LambdaDeploymentConfig, LambdaEfsMount, LambdaFunctionDestinations, LambdaFunctionLogging, LambdaS3FilesMount, LambdaUrlConfig, S3Integration, ScheduleIntegration, SnsIntegration, SqsIntegration, StpIamRoleStatement, TracingOptions, WebSocketApiIntegration } from 'stacktape';
 
 type LambdaFunctionProps = {
   /** How your code is built and packaged for deployment. */
@@ -60,7 +60,8 @@ type LambdaFunctionProps = {
 
 /** Union choices used by the properties above. */
 type LambdaFunctionPackaging =
-  | StpBuildpackLambdaPackaging
+  | JsBundleLambdaPackaging
+  | BuildpackLambdaPackaging
   | CustomArtifactLambdaPackaging;
 
 type LambdaFunctionEvents =
@@ -91,16 +92,18 @@ type LambdaFunctionVolumeMounts =
 ## Property: `packaging`
 
 - Required: yes
-- Type: `stacktape-lambda-buildpack | custom-artifact`
+- Type: `js-bundle | buildpack | custom-artifact`
 
 How your code is built and packaged for deployment.
 
-**`stacktape-lambda-buildpack`** (recommended): Point to your source file and Stacktape builds,
+**`js-bundle`** (recommended for JavaScript and TypeScript): Point to your source file and Stacktape builds,
 bundles, and uploads it automatically.
+**`buildpack`**: Point to a Python, Java, Go, Ruby, .NET or Rust source file and Stacktape builds it in Docker.
 **`custom-artifact`**: Provide a pre-built zip file. Stacktape handles the upload.
 
 Choices:
-- `stacktape-lambda-buildpack` (`StpBuildpackLambdaPackaging`) — A zero-config buildpack that packages your code for AWS Lambda.. Properties: `handlerFunction?: string`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `languageSpecificConfig?: Es | Py | Java | Go | Ruby | Php | Dotnet`.
+- `js-bundle` (`JsBundleLambdaPackaging`) — Bundles a JavaScript or TypeScript Lambda function with Stacktape's bundler.. Properties: `handlerFunction?: string`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `minify?: boolean`, `minifyIdentifiers?: boolean`, `bundleAwsSdk?: boolean`.
+- `buildpack` (`BuildpackLambdaPackaging`) — Builds a Python, Java, Go, Ruby, .NET or Rust Lambda function from its source.. Properties: `entryfilePath: string`, `handlerFunction?: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `python?: PythonBuildpackConfig`, `java?: JavaBuildpackConfig`, `dotnet?: DotnetBuildpackConfig`.
 - `custom-artifact` (`CustomArtifactLambdaPackaging`) — Uses a pre-built artifact for Lambda deployment.. Properties: `packagePath: string`, `handler?: string`.
 
 ### Example 1 (yaml)
@@ -111,7 +114,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/handlers/api.ts
       memory: 512
@@ -134,7 +137,7 @@ import { LambdaFunction, HttpApiGateway, defineConfig } from 'stacktape';
 export default defineConfig(() => {
   const apiFunction = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/handlers/api.ts' }
     },
     memory: 512,
@@ -163,7 +166,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/critical.ts
       alarms:
@@ -185,7 +188,7 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const criticalApi = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/critical.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/critical.ts' } },
     alarms: [
       {
         trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 5 } },
@@ -208,7 +211,7 @@ export default defineConfig(() => {
 Processor architecture: `x86_64` (default) or `arm64` (Graviton, ~20% cheaper).
 
 `arm64` is cheaper per GB-second and often faster. Works with most code out of the box.
-If using `stacktape-lambda-buildpack`, Stacktape builds for the selected architecture automatically.
+If using `js-bundle` or `buildpack` packaging, Stacktape builds for the selected architecture automatically.
 With `custom-artifact`, you must pre-compile for the target architecture.
 
 ### Example 1 (yaml)
@@ -219,7 +222,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/resize.ts
       architecture: arm64
@@ -233,7 +236,7 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const imageResizer = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/resize.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/resize.ts' } },
     architecture: 'arm64',
     memory: 1024
   });
@@ -258,7 +261,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/render.ts
       memory: 1024
@@ -275,7 +278,7 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const ssrFunction = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/render.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/render.ts' } },
     memory: 1024,
     url: { enabled: true },
     cdn: { enabled: true }
@@ -339,7 +342,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/server.ts
       resources:
@@ -367,7 +370,7 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { WebService, RelationalDatabase, Bucket, RdsEnginePostgres, StacktapeImageBuildpackPackaging, $Secret, defineConfig } from 'stacktape';
+import { WebService, RelationalDatabase, Bucket, RdsEnginePostgres, $Secret, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
@@ -376,7 +379,7 @@ export default defineConfig(() => {
   });
   const uploads = new Bucket({});
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
     connectTo: [mainDb, uploads]
   });
@@ -403,7 +406,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/payment.ts
       deployment:
@@ -413,7 +416,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/smoke-test.ts
 ```
@@ -425,14 +428,14 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const paymentApi = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/payment.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/payment.ts' } },
     deployment: {
       strategy: 'Canary10Percent5Minutes',
       beforeAllowTrafficFunction: 'smokeTest'
     }
   });
   const smokeTest = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/smoke-test.ts' } }
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/smoke-test.ts' } }
   });
   return { resources: { paymentApi, smokeTest } };
 });
@@ -456,7 +459,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/process.ts
       destinations:
@@ -475,7 +478,7 @@ import { LambdaFunction, SnsTopic, SqsQueue, defineConfig, $ResourceParam } from
 
 export default defineConfig(() => {
   const asyncProcessor = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/process.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/process.ts' } },
     destinations: {
       onSuccess: $ResourceParam('successTopic', 'arn'),
       onFailure: $ResourceParam('deadLetterQueue', 'arn')
@@ -502,7 +505,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/batch.ts
       timeout: 300
@@ -517,7 +520,7 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const batchReporter = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/batch.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/batch.ts' } },
     timeout: 300,
     disabledGlobalAlarms: ['lambda-duration-global']
   });
@@ -542,7 +545,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/worker.ts
       environment:
@@ -561,7 +564,7 @@ import { LambdaFunction, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const worker = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/worker.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/worker.ts' } },
     environment: {
       STAGE: 'production',
       STRIPE_SECRET_KEY: $Secret('stripe-key'),
@@ -606,7 +609,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/orders.ts
       events:
@@ -629,7 +632,7 @@ import { LambdaFunction, HttpApiGateway, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const ordersApi = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/orders.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/orders.ts' } },
     events: [
       { type: 'http-api-gateway', properties: { httpApiGatewayName: 'publicApi', method: 'POST', path: '/orders' } },
       { type: 'schedule', properties: { scheduleRate: 'rate(1 hour)' } }
@@ -659,7 +662,7 @@ resources:
     properties:
       container:
         packaging:
-          type: stacktape-image-buildpack
+          type: js-bundle
           properties:
             entryfilePath: src/job.ts
       resources:
@@ -676,11 +679,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { BatchJob, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { BatchJob, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const processor = new BatchJob({
-    container: { packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/job.ts' }) },
+    container: { packaging: new JsBundleImagePackaging({ entryfilePath: 'src/job.ts' }) },
     resources: { cpu: 1, memory: 2048 },
     iamRoleStatements: [
       {
@@ -720,7 +723,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/migrate.ts
       joinDefaultVpc: true
@@ -750,7 +753,7 @@ export default defineConfig(() => {
     engine: { type: 'postgres', properties: { version: '16.2', primaryInstance: { instanceSize: 'db.t3.micro' } } }
   });
   const dbMigrator = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/migrate.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/migrate.ts' } },
     joinDefaultVpc: true,
     connectTo: [mainDb]
   });
@@ -776,7 +779,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/handler.ts
       layers:
@@ -790,7 +793,7 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const monitoredFunction = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/handler.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/handler.ts' } },
     layers: ['arn:aws:lambda:eu-west-1:464622532012:layer:Datadog-Extension:62']
   });
   return { resources: { monitoredFunction } };
@@ -814,7 +817,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
       logging:
@@ -832,7 +835,7 @@ import { LambdaFunction, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
   const apiHandler = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
     logging: {
       retentionDays: 30,
       logForwarding: { type: 'datadog', properties: { apiKey: $Secret('datadog-api-key') } }
@@ -861,7 +864,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/pdf.ts
       memory: 3538
@@ -875,7 +878,7 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const pdfRenderer = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/pdf.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/pdf.ts' } },
     memory: 3538,
     timeout: 120
   });
@@ -906,7 +909,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/checkout.ts
       memory: 1024
@@ -928,7 +931,7 @@ import { LambdaFunction, HttpApiGateway, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const checkoutApi = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/checkout.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/checkout.ts' } },
     memory: 1024,
     provisionedConcurrency: 5,
     events: [
@@ -964,7 +967,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/write.ts
       reservedConcurrency: 10
@@ -994,7 +997,7 @@ export default defineConfig(() => {
     engine: { type: 'postgres', properties: { version: '16.2', primaryInstance: { instanceSize: 'db.t3.micro' } } }
   });
   const legacyDbWriter = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/write.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/write.ts' } },
     reservedConcurrency: 10,
     connectTo: [legacyDb]
   });
@@ -1009,7 +1012,7 @@ export default defineConfig(() => {
 
 The language runtime (e.g., `nodejs22.x`, `python3.13`).
 
-Auto-detected from your source file extension when using `stacktape-lambda-buildpack`.
+Auto-detected from your source file extension when using `js-bundle` or `buildpack` packaging.
 Override only if you need a specific version.
 
 ### Example 1 (yaml)
@@ -1020,7 +1023,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: buildpack
         properties:
           entryfilePath: src/report.py
       runtime: python3.13
@@ -1035,7 +1038,7 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const reportGenerator = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/report.py' } },
+    packaging: { type: 'buildpack', properties: { entryfilePath: 'src/report.py' } },
     runtime: 'python3.13',
     memory: 1024,
     timeout: 60
@@ -1062,7 +1065,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/transcode.ts
       memory: 3008
@@ -1077,7 +1080,7 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const videoTranscoder = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/transcode.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/transcode.ts' } },
     memory: 3008,
     timeout: 600,
     storage: 4096
@@ -1101,7 +1104,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/billing.ts
       tags:
@@ -1118,7 +1121,7 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const billingFunction = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/billing.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/billing.ts' } },
     tags: [
       { name: 'team', value: 'payments' },
       { name: 'cost-center', value: '4400' }
@@ -1146,7 +1149,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/import.ts
       memory: 512
@@ -1160,7 +1163,7 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const dataImporter = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/import.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/import.ts' } },
     memory: 512,
     timeout: 300
   });
@@ -1195,7 +1198,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/worker.ts
       tracing: false
@@ -1208,7 +1211,7 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const noisyWorker = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/worker.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/worker.ts' } },
     tracing: false
   });
   return {
@@ -1236,7 +1239,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/webhook.ts
       url:
@@ -1251,7 +1254,7 @@ import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const webhookReceiver = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/webhook.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/webhook.ts' } },
     url: { enabled: true, authMode: 'NONE' }
   });
   return { resources: { webhookReceiver } };
@@ -1281,7 +1284,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/handler.ts
       joinDefaultVpc: true
@@ -1301,7 +1304,7 @@ import { LambdaFunction, EfsFilesystem, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const sharedDataFunction = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/handler.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/handler.ts' } },
     joinDefaultVpc: true,
     volumeMounts: [
       { type: 'efs', properties: { efsFilesystemName: 'sharedStorage', mountPath: '/mnt/data' } }

@@ -42,7 +42,7 @@ export interface KinesisStreamProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/process-records.ts
    *       events:
@@ -69,7 +69,7 @@ export interface KinesisStreamProps {
    *
    *   const streamProcessor = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/process-records.ts' }
    *     },
    *     events: [
@@ -118,7 +118,7 @@ export interface KinesisStreamProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/analytics.ts
    *       events:
@@ -145,7 +145,7 @@ export interface KinesisStreamProps {
    *
    *   const analyticsConsumer = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/analytics.ts' }
    *     },
    *     events: [
@@ -188,7 +188,7 @@ export interface KinesisStreamProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/audit.ts
    *       events:
@@ -214,7 +214,7 @@ export interface KinesisStreamProps {
    *
    *   const auditConsumer = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/audit.ts' }
    *     },
    *     events: [
@@ -257,7 +257,7 @@ export interface KinesisStreamProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/consume.ts
    *       events:
@@ -284,7 +284,7 @@ export interface KinesisStreamProps {
    *
    *   const secureConsumer = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/consume.ts' }
    *     },
    *     events: [
@@ -329,7 +329,7 @@ export interface KinesisStreamProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/realtime.ts
    *       events:
@@ -356,7 +356,7 @@ export interface KinesisStreamProps {
    *
    *   const realtimeConsumer = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/realtime.ts' }
    *     },
    *     events: [
@@ -405,7 +405,7 @@ export interface KinesisStreamEncryption {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/consume.ts
    *       events:
@@ -433,7 +433,7 @@ export interface KinesisStreamEncryption {
    *
    *   const encryptedConsumer = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/consume.ts' }
    *     },
    *     events: [
@@ -476,7 +476,7 @@ export interface KinesisStreamEncryption {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/consume.ts
    *       events:
@@ -504,7 +504,7 @@ export interface KinesisStreamEncryption {
    *
    *   const cmkConsumer = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: { entryfilePath: 'src/consume.ts' }
    *     },
    *     events: [

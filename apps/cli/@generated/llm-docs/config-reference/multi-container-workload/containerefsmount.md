@@ -30,7 +30,7 @@ resources:
       containers:
         - name: api
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/server.ts
           volumeMounts:
@@ -48,7 +48,7 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, EfsFilesystem, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, EfsFilesystem, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const sharedStorage = new EfsFilesystem({});
@@ -56,7 +56,7 @@ export default defineConfig(() => {
     containers: [
       {
         name: 'api',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+        packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
         volumeMounts: [
           {
             type: 'efs',

@@ -5,10 +5,10 @@ Resource type: `deployment-script`
 ## TypeScript definition
 
 ```typescript
-import type { CustomArtifactLambdaPackaging, EnvironmentVar, StpBuildpackLambdaPackaging, StpIamRoleStatement } from 'stacktape';
+import type { BuildpackLambdaPackaging, CustomArtifactLambdaPackaging, EnvironmentVar, JsBundleLambdaPackaging, StpIamRoleStatement } from 'stacktape';
 
 type DeploymentScriptProps = {
-  /** How the script code is packaged. Use `stacktape-lambda-buildpack` for auto-bundling. */
+  /** How the script code is packaged. Use `js-bundle` for auto-bundling. */
   packaging: DeploymentScriptPackaging;
   /** When to run: `after:deploy` (fails → rollback) or `before:delete` (fails → deletion continues). */
   trigger: "after:deploy" | "before:delete";
@@ -34,19 +34,21 @@ type DeploymentScriptProps = {
 
 /** Union choices used by the properties above. */
 type DeploymentScriptPackaging =
-  | StpBuildpackLambdaPackaging
+  | JsBundleLambdaPackaging
+  | BuildpackLambdaPackaging
   | CustomArtifactLambdaPackaging;
 ```
 
 ## Property: `packaging`
 
 - Required: yes
-- Type: `stacktape-lambda-buildpack | custom-artifact`
+- Type: `js-bundle | buildpack | custom-artifact`
 
-How the script code is packaged. Use `stacktape-lambda-buildpack` for auto-bundling.
+How the script code is packaged. Use `js-bundle` for auto-bundling.
 
 Choices:
-- `stacktape-lambda-buildpack` (`StpBuildpackLambdaPackaging`) — A zero-config buildpack that packages your code for AWS Lambda.. Properties: `handlerFunction?: string`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `languageSpecificConfig?: Es | Py | Java | Go | Ruby | Php | Dotnet`.
+- `js-bundle` (`JsBundleLambdaPackaging`) — Bundles a JavaScript or TypeScript Lambda function with Stacktape's bundler.. Properties: `handlerFunction?: string`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `minify?: boolean`, `minifyIdentifiers?: boolean`, `bundleAwsSdk?: boolean`.
+- `buildpack` (`BuildpackLambdaPackaging`) — Builds a Python, Java, Go, Ruby, .NET or Rust Lambda function from its source.. Properties: `entryfilePath: string`, `handlerFunction?: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `python?: PythonBuildpackConfig`, `java?: JavaBuildpackConfig`, `dotnet?: DotnetBuildpackConfig`.
 - `custom-artifact` (`CustomArtifactLambdaPackaging`) — Uses a pre-built artifact for Lambda deployment.. Properties: `packagePath: string`, `handler?: string`.
 
 ### Example 1 (yaml)
@@ -58,7 +60,7 @@ resources:
     properties:
       trigger: after:deploy
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./scripts/seed.ts
       timeout: 120
@@ -67,12 +69,12 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { defineConfig, DeploymentScript, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, DeploymentScript, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const seedData = new DeploymentScript({
     trigger: 'after:deploy',
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './scripts/seed.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './scripts/seed.ts' }),
     timeout: 120
   });
 
@@ -96,7 +98,7 @@ resources:
     properties:
       trigger: before:delete
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./scripts/cleanup.ts
       timeout: 300
@@ -105,12 +107,12 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { defineConfig, DeploymentScript, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, DeploymentScript, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const cleanup = new DeploymentScript({
     trigger: 'before:delete',
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './scripts/cleanup.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './scripts/cleanup.ts' }),
     timeout: 300
   });
 
@@ -173,7 +175,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/server.ts
       resources:
@@ -201,7 +203,7 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { WebService, RelationalDatabase, Bucket, RdsEnginePostgres, StacktapeImageBuildpackPackaging, $Secret, defineConfig } from 'stacktape';
+import { WebService, RelationalDatabase, Bucket, RdsEnginePostgres, $Secret, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
@@ -210,7 +212,7 @@ export default defineConfig(() => {
   });
   const uploads = new Bucket({});
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
     connectTo: [mainDb, uploads]
   });
@@ -235,7 +237,7 @@ resources:
     properties:
       trigger: after:deploy
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./scripts/seed.ts
       environment:
@@ -249,12 +251,12 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { defineConfig, DeploymentScript, StacktapeLambdaBuildpackPackaging, $Stage, $Secret } from 'stacktape';
+import { defineConfig, DeploymentScript, $Stage, $Secret, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const seedData = new DeploymentScript({
     trigger: 'after:deploy',
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './scripts/seed.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './scripts/seed.ts' }),
     environment: [
       { name: 'STAGE', value: $Stage() },
       { name: 'ADMIN_API_KEY', value: $Secret('admin-api-key') }
@@ -285,7 +287,7 @@ resources:
     properties:
       container:
         packaging:
-          type: stacktape-image-buildpack
+          type: js-bundle
           properties:
             entryfilePath: src/job.ts
       resources:
@@ -302,11 +304,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { BatchJob, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { BatchJob, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const processor = new BatchJob({
-    container: { packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/job.ts' }) },
+    container: { packaging: new JsBundleImagePackaging({ entryfilePath: 'src/job.ts' }) },
     resources: { cpu: 1, memory: 2048 },
     iamRoleStatements: [
       {
@@ -337,7 +339,7 @@ resources:
     properties:
       trigger: after:deploy
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./scripts/migrate.ts
       connectTo:
@@ -360,7 +362,7 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { defineConfig, DeploymentScript, StacktapeLambdaBuildpackPackaging, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
+import { defineConfig, DeploymentScript, RelationalDatabase, RdsEnginePostgres, $Secret, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
@@ -373,7 +375,7 @@ export default defineConfig(() => {
 
   const runMigrations = new DeploymentScript({
     trigger: 'after:deploy',
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './scripts/migrate.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './scripts/migrate.ts' }),
     connectTo: ['mainDatabase'],
     joinDefaultVpc: true,
     timeout: 120
@@ -399,7 +401,7 @@ resources:
     properties:
       trigger: after:deploy
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./scripts/migrate.ts
       memory: 1024
@@ -409,12 +411,12 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { defineConfig, DeploymentScript, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, DeploymentScript, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const runMigrations = new DeploymentScript({
     trigger: 'after:deploy',
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './scripts/migrate.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './scripts/migrate.ts' }),
     memory: 1024,
     timeout: 120
   });
@@ -439,7 +441,7 @@ resources:
     properties:
       trigger: after:deploy
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./scripts/seed.ts
       parameters:
@@ -452,12 +454,12 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { defineConfig, DeploymentScript, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, DeploymentScript, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const seedData = new DeploymentScript({
     trigger: 'after:deploy',
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './scripts/seed.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './scripts/seed.ts' }),
     parameters: {
       seedCount: 100,
       truncateFirst: true,
@@ -486,7 +488,7 @@ resources:
     properties:
       trigger: after:deploy
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./scripts/migrate.ts
       runtime: nodejs22.x
@@ -496,12 +498,12 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { defineConfig, DeploymentScript, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, DeploymentScript, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const runMigrations = new DeploymentScript({
     trigger: 'after:deploy',
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './scripts/migrate.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './scripts/migrate.ts' }),
     runtime: 'nodejs22.x',
     timeout: 120
   });
@@ -527,7 +529,7 @@ resources:
     properties:
       trigger: before:delete
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./scripts/export.ts
       storage: 2048
@@ -537,12 +539,12 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { defineConfig, DeploymentScript, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, DeploymentScript, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const exportData = new DeploymentScript({
     trigger: 'before:delete',
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './scripts/export.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './scripts/export.ts' }),
     storage: 2048,
     timeout: 600
   });
@@ -568,7 +570,7 @@ resources:
     properties:
       trigger: after:deploy
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./scripts/seed.ts
       timeout: 900
@@ -578,12 +580,12 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { defineConfig, DeploymentScript, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, DeploymentScript, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const longSeed = new DeploymentScript({
     trigger: 'after:deploy',
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './scripts/seed.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './scripts/seed.ts' }),
     timeout: 900,
     memory: 1024
   });

@@ -2,8 +2,8 @@ import {
   DynamoDbTable,
   HttpApiGateway,
   HttpApiIntegration,
+  JsBundleLambdaPackaging,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   defineConfig
 } from '../../__release-npm';
 
@@ -26,7 +26,7 @@ export default defineConfig(() => {
     }
   });
   const ingest = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/ingest.ts'
     }),
     memory: 1024,
@@ -48,7 +48,7 @@ export default defineConfig(() => {
     ]
   });
   const ask = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/ask.ts'
     }),
     memory: 1024,

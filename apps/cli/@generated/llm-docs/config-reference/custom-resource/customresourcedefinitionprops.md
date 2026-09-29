@@ -5,7 +5,7 @@ Resource type: `custom-resource`
 ## TypeScript definition
 
 ```typescript
-import type { CustomArtifactLambdaPackaging, EnvironmentVar, StpBuildpackLambdaPackaging, StpIamRoleStatement } from 'stacktape';
+import type { BuildpackLambdaPackaging, CustomArtifactLambdaPackaging, EnvironmentVar, JsBundleLambdaPackaging, StpIamRoleStatement } from 'stacktape';
 
 type CustomResourceDefinitionProps = {
   /** How the Lambda function code is packaged and deployed. */
@@ -26,19 +26,21 @@ type CustomResourceDefinitionProps = {
 
 /** Union choices used by the properties above. */
 type CustomResourceDefinitionPackaging =
-  | StpBuildpackLambdaPackaging
+  | JsBundleLambdaPackaging
+  | BuildpackLambdaPackaging
   | CustomArtifactLambdaPackaging;
 ```
 
 ## Property: `packaging`
 
 - Required: yes
-- Type: `stacktape-lambda-buildpack | custom-artifact`
+- Type: `js-bundle | buildpack | custom-artifact`
 
 How the Lambda function code is packaged and deployed.
 
 Choices:
-- `stacktape-lambda-buildpack` (`StpBuildpackLambdaPackaging`) — A zero-config buildpack that packages your code for AWS Lambda.. Properties: `handlerFunction?: string`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `languageSpecificConfig?: Es | Py | Java | Go | Ruby | Php | Dotnet`.
+- `js-bundle` (`JsBundleLambdaPackaging`) — Bundles a JavaScript or TypeScript Lambda function with Stacktape's bundler.. Properties: `handlerFunction?: string`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `minify?: boolean`, `minifyIdentifiers?: boolean`, `bundleAwsSdk?: boolean`.
+- `buildpack` (`BuildpackLambdaPackaging`) — Builds a Python, Java, Go, Ruby, .NET or Rust Lambda function from its source.. Properties: `entryfilePath: string`, `handlerFunction?: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `python?: PythonBuildpackConfig`, `java?: JavaBuildpackConfig`, `dotnet?: DotnetBuildpackConfig`.
 - `custom-artifact` (`CustomArtifactLambdaPackaging`) — Uses a pre-built artifact for Lambda deployment.. Properties: `packagePath: string`, `handler?: string`.
 
 ### Example 1 (yaml)
@@ -49,7 +51,7 @@ resources:
     type: custom-resource-definition
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: provisioners/stripe-webhook.ts
       environment:
@@ -74,7 +76,7 @@ import { CustomResourceDefinition, CustomResourceInstance, $Secret, defineConfig
 export default defineConfig(() => {
   const stripeWebhookProvisioner = new CustomResourceDefinition({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'provisioners/stripe-webhook.ts' }
     },
     environment: [{ name: 'STRIPE_SECRET_KEY', value: $Secret('stripe-key') }],
@@ -148,7 +150,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/server.ts
       resources:
@@ -176,7 +178,7 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { WebService, RelationalDatabase, Bucket, RdsEnginePostgres, StacktapeImageBuildpackPackaging, $Secret, defineConfig } from 'stacktape';
+import { WebService, RelationalDatabase, Bucket, RdsEnginePostgres, $Secret, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
@@ -185,7 +187,7 @@ export default defineConfig(() => {
   });
   const uploads = new Bucket({});
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
     connectTo: [mainDb, uploads]
   });
@@ -211,7 +213,7 @@ resources:
     type: custom-resource-definition
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: provisioners/fastly-purge.ts
       environment:
@@ -245,7 +247,7 @@ export default defineConfig(() => {
 
   const cdnProvisioner = new CustomResourceDefinition({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'provisioners/fastly-purge.ts' }
     },
     environment: [
@@ -283,7 +285,7 @@ resources:
     properties:
       container:
         packaging:
-          type: stacktape-image-buildpack
+          type: js-bundle
           properties:
             entryfilePath: src/job.ts
       resources:
@@ -300,11 +302,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { BatchJob, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { BatchJob, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const processor = new BatchJob({
-    container: { packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/job.ts' }) },
+    container: { packaging: new JsBundleImagePackaging({ entryfilePath: 'src/job.ts' }) },
     resources: { cpu: 1, memory: 2048 },
     iamRoleStatements: [
       {
@@ -334,7 +336,7 @@ resources:
     type: custom-resource-definition
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: provisioners/optimize-images.ts
       timeout: 600
@@ -357,7 +359,7 @@ import { CustomResourceDefinition, CustomResourceInstance, defineConfig } from '
 export default defineConfig(() => {
   const imageOptimizerProvisioner = new CustomResourceDefinition({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'provisioners/optimize-images.ts' }
     },
     timeout: 600,
@@ -392,7 +394,7 @@ resources:
     type: custom-resource-definition
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: buildpack
         properties:
           entryfilePath: provisioners/datadog_monitor.py
       runtime: python3.12
@@ -420,7 +422,7 @@ import { CustomResourceDefinition, CustomResourceInstance, $Secret, defineConfig
 export default defineConfig(() => {
   const datadogMonitorProvisioner = new CustomResourceDefinition({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'buildpack',
       properties: { entryfilePath: 'provisioners/datadog_monitor.py' }
     },
     runtime: 'python3.12',
@@ -460,7 +462,7 @@ resources:
     type: custom-resource-definition
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: provisioners/algolia-index.ts
       environment:
@@ -488,7 +490,7 @@ import { CustomResourceDefinition, CustomResourceInstance, $Secret, defineConfig
 export default defineConfig(() => {
   const algoliaIndexProvisioner = new CustomResourceDefinition({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'provisioners/algolia-index.ts' }
     },
     environment: [

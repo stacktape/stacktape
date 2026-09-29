@@ -26,7 +26,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/api.ts
       memory: 1024
@@ -51,7 +51,7 @@ import { LambdaFunction, defineConfig, $Secret } from 'stacktape';
 export default defineConfig(() => {
   const apiFunction = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/api.ts' }
     },
     memory: 1024,

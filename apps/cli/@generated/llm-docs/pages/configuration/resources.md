@@ -19,9 +19,9 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   Bucket,
-  SqsQueue
+  SqsQueue,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const uploads = new Bucket({});
@@ -29,7 +29,7 @@ export default defineConfig(() => {
   const orderQueue = new SqsQueue({});
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     connectTo: [uploads, orderQueue]
@@ -78,12 +78,12 @@ Most applications need resources to talk to each other — a Lambda function que
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging, Bucket } from 'stacktape';
+import { defineConfig, LambdaFunction, Bucket, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const invoiceBucket = new Bucket({});
 
   const processOrder = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/process-order.ts'
     }),
     connectTo: [invoiceBucket]
@@ -134,14 +134,14 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  SqsQueue
+  SqsQueue,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const orderQueue = new SqsQueue({});
 
   const worker = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/worker.ts'
     }),
     environment: { QUEUE_URL: "$ResourceParam('orderQueue', 'url')" }

@@ -7,7 +7,7 @@
  * every sample, a failed one included, must hold exactly the install's helper-Lambda ZIPs there, byte for byte as
  * `install.json` records them. The packaging outputs are all under `<invocation>/build/`:
  * - `lambdas/<job>-<digest>.zip`, one per packaged function, and the function's unzipped dist folder `lambdas/<job>/`
- *   beside it. The per-function buildpack (`stacktape-es-lambda-buildpack.ts`) and the split path
+ *   beside it. The per-function build (`js-bundle-lambda.ts`) and the split path
  *   (`#packageNodeLambdasWithSplitBundling`) both zip the dist folder to `<dist>.zip` and rename that to
  *   `<dist>-<digest>.zip`. A function's job name is its resource name (`getJobName` for `function`): `handler01` to
  *   `handlerNN` in the fixture. The ZIP is its folder, zipped, so their canonical digests must be equal.

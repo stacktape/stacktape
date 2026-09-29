@@ -19,7 +19,7 @@ import type { LambdaRuntime } from './primitives';
  *     properties:
  *       trigger: after:deploy
  *       packaging:
- *         type: stacktape-lambda-buildpack
+ *         type: js-bundle
  *         properties:
  *           entryfilePath: ./scripts/migrate.ts
  *       connectTo:
@@ -44,7 +44,7 @@ import type { LambdaRuntime } from './primitives';
  * **Example (TypeScript):**
  *
  * ```ts
- * import { defineConfig, DeploymentScript, StacktapeLambdaBuildpackPackaging, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
+ * import { defineConfig, DeploymentScript, RelationalDatabase, RdsEnginePostgres, $Secret, JsBundleLambdaPackaging } from 'stacktape';
  *
  * export default defineConfig(() => {
  *   const mainDatabase = new RelationalDatabase({
@@ -58,7 +58,7 @@ import type { LambdaRuntime } from './primitives';
  *   // stp-focus
  *   const runMigrations = new DeploymentScript({
  *     trigger: 'after:deploy',
- *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './scripts/migrate.ts' }),
+ *     packaging: new JsBundleLambdaPackaging({ entryfilePath: './scripts/migrate.ts' }),
  *     connectTo: ['mainDatabase'],
  *     joinDefaultVpc: true,
  *     timeout: 120,
@@ -94,7 +94,7 @@ export interface DeploymentScriptProps extends ResourceAccessProps {
    *       trigger: before:delete
    *       # stp-end-focus
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: ./scripts/cleanup.ts
    *       timeout: 300
@@ -103,14 +103,14 @@ export interface DeploymentScriptProps extends ResourceAccessProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { defineConfig, DeploymentScript, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+   * import { defineConfig, DeploymentScript, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const cleanup = new DeploymentScript({
    *     // stp-focus
    *     trigger: 'before:delete',
    *     // stp-end-focus
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './scripts/cleanup.ts' }),
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: './scripts/cleanup.ts' }),
    *     timeout: 300
    *   });
    *
@@ -120,7 +120,7 @@ export interface DeploymentScriptProps extends ResourceAccessProps {
    */
   trigger: 'after:deploy' | 'before:delete';
   /**
-   * #### How the script code is packaged. Use `stacktape-lambda-buildpack` for auto-bundling.
+   * #### How the script code is packaged. Use `js-bundle` for auto-bundling.
    *
    * ---
    *
@@ -134,7 +134,7 @@ export interface DeploymentScriptProps extends ResourceAccessProps {
    *       trigger: after:deploy
    *       # stp-focus
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: ./scripts/seed.ts
    *       # stp-end-focus
@@ -144,13 +144,13 @@ export interface DeploymentScriptProps extends ResourceAccessProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { defineConfig, DeploymentScript, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+   * import { defineConfig, DeploymentScript, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const seedData = new DeploymentScript({
    *     trigger: 'after:deploy',
    *     // stp-focus
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './scripts/seed.ts' }),
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: './scripts/seed.ts' }),
    *     // stp-end-focus
    *     timeout: 120
    *   });
@@ -174,7 +174,7 @@ export interface DeploymentScriptProps extends ResourceAccessProps {
    *     properties:
    *       trigger: after:deploy
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: ./scripts/migrate.ts
    *       # stp-focus
@@ -186,12 +186,12 @@ export interface DeploymentScriptProps extends ResourceAccessProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { defineConfig, DeploymentScript, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+   * import { defineConfig, DeploymentScript, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const runMigrations = new DeploymentScript({
    *     trigger: 'after:deploy',
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './scripts/migrate.ts' }),
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: './scripts/migrate.ts' }),
    *     // stp-focus
    *     runtime: 'nodejs22.x',
    *     // stp-end-focus
@@ -217,7 +217,7 @@ export interface DeploymentScriptProps extends ResourceAccessProps {
    *     properties:
    *       trigger: after:deploy
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: ./scripts/seed.ts
    *       # stp-focus
@@ -233,12 +233,12 @@ export interface DeploymentScriptProps extends ResourceAccessProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { defineConfig, DeploymentScript, StacktapeLambdaBuildpackPackaging, $Stage, $Secret } from 'stacktape';
+   * import { defineConfig, DeploymentScript, $Stage, $Secret, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const seedData = new DeploymentScript({
    *     trigger: 'after:deploy',
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './scripts/seed.ts' }),
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: './scripts/seed.ts' }),
    *     // stp-focus
    *     environment: [
    *       { name: 'STAGE', value: $Stage() },
@@ -267,7 +267,7 @@ export interface DeploymentScriptProps extends ResourceAccessProps {
    *     properties:
    *       trigger: after:deploy
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: ./scripts/seed.ts
    *       # stp-focus
@@ -282,12 +282,12 @@ export interface DeploymentScriptProps extends ResourceAccessProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { defineConfig, DeploymentScript, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+   * import { defineConfig, DeploymentScript, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const seedData = new DeploymentScript({
    *     trigger: 'after:deploy',
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './scripts/seed.ts' }),
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: './scripts/seed.ts' }),
    *     // stp-focus
    *     parameters: {
    *       seedCount: 100,
@@ -317,7 +317,7 @@ export interface DeploymentScriptProps extends ResourceAccessProps {
    *     properties:
    *       trigger: after:deploy
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: ./scripts/migrate.ts
    *       # stp-focus
@@ -329,12 +329,12 @@ export interface DeploymentScriptProps extends ResourceAccessProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { defineConfig, DeploymentScript, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+   * import { defineConfig, DeploymentScript, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const runMigrations = new DeploymentScript({
    *     trigger: 'after:deploy',
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './scripts/migrate.ts' }),
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: './scripts/migrate.ts' }),
    *     // stp-focus
    *     memory: 1024,
    *     // stp-end-focus
@@ -360,7 +360,7 @@ export interface DeploymentScriptProps extends ResourceAccessProps {
    *     properties:
    *       trigger: after:deploy
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: ./scripts/seed.ts
    *       # stp-focus
@@ -372,12 +372,12 @@ export interface DeploymentScriptProps extends ResourceAccessProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { defineConfig, DeploymentScript, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+   * import { defineConfig, DeploymentScript, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const longSeed = new DeploymentScript({
    *     trigger: 'after:deploy',
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './scripts/seed.ts' }),
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: './scripts/seed.ts' }),
    *     // stp-focus
    *     timeout: 900,
    *     // stp-end-focus
@@ -405,7 +405,7 @@ export interface DeploymentScriptProps extends ResourceAccessProps {
    *     properties:
    *       trigger: after:deploy
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: ./scripts/migrate.ts
    *       connectTo:
@@ -430,7 +430,7 @@ export interface DeploymentScriptProps extends ResourceAccessProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { defineConfig, DeploymentScript, StacktapeLambdaBuildpackPackaging, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
+   * import { defineConfig, DeploymentScript, RelationalDatabase, RdsEnginePostgres, $Secret, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const mainDatabase = new RelationalDatabase({
@@ -443,7 +443,7 @@ export interface DeploymentScriptProps extends ResourceAccessProps {
    *
    *   const runMigrations = new DeploymentScript({
    *     trigger: 'after:deploy',
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './scripts/migrate.ts' }),
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: './scripts/migrate.ts' }),
    *     connectTo: ['mainDatabase'],
    *     // stp-focus
    *     joinDefaultVpc: true,
@@ -470,7 +470,7 @@ export interface DeploymentScriptProps extends ResourceAccessProps {
    *     properties:
    *       trigger: before:delete
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: ./scripts/export.ts
    *       # stp-focus
@@ -482,12 +482,12 @@ export interface DeploymentScriptProps extends ResourceAccessProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { defineConfig, DeploymentScript, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+   * import { defineConfig, DeploymentScript, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const exportData = new DeploymentScript({
    *     trigger: 'before:delete',
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './scripts/export.ts' }),
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: './scripts/export.ts' }),
    *     // stp-focus
    *     storage: 2048,
    *     // stp-end-focus

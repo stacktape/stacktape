@@ -12,7 +12,7 @@
  * differ only there. Beside it go the files a measured command reads: the
  * helper-Lambda artifacts every command loads, the
  * source-map banner and Lambda tracing runtime that packaging embeds, `release-data.json` and the config schema. The
- * downloaded third-party tools (pack, nixpacks, the Session Manager plugin), the MCP documentation corpus, the init
+ * downloaded third-party tools (railpack, the Session Manager plugin), the MCP documentation corpus, the init
  * wizard and the starter metadata are left out: no measured command reads them, and fetching them would add network
  * work.
  *
@@ -248,7 +248,7 @@ const main = async () => {
     buildMs,
     files,
     omitted: [
-      'pack, nixpacks and Session Manager plugin binaries (downloaded)',
+      'railpack and Session Manager plugin binaries (downloaded)',
       'MCP documentation corpus',
       'init wizard interface',
       'starter project metadata'

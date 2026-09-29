@@ -643,7 +643,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/post-confirmation.ts
   userPool:
@@ -661,7 +661,7 @@ import { LambdaFunction, UserAuthPool, $ResourceParam, defineConfig } from 'stac
 
 export default defineConfig(() => {
   const postConfirmFn = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/post-confirmation.ts' } }
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/post-confirmation.ts' } }
   });
   const userPool = new UserAuthPool({
     userVerificationType: 'email-code',

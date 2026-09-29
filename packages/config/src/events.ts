@@ -124,7 +124,7 @@ export interface ApplicationLoadBalancerIntegrationProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    *       events:
@@ -164,7 +164,7 @@ export interface ApplicationLoadBalancerIntegrationProps {
    * export default defineConfig(() => {
    *   const publicAlb = new ApplicationLoadBalancer({});
    *   const apiFunction = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
    *     events: [
    *       {
    *         type: 'application-load-balancer',
@@ -207,7 +207,7 @@ export interface ApplicationLoadBalancerIntegrationProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    *       events:
@@ -229,7 +229,7 @@ export interface ApplicationLoadBalancerIntegrationProps {
    * export default defineConfig(() => {
    *   const publicAlb = new ApplicationLoadBalancer({});
    *   const apiFunction = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
    *     events: [
    *       {
    *         type: 'application-load-balancer',
@@ -268,7 +268,7 @@ export interface ApplicationLoadBalancerIntegrationProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    *       events:
@@ -289,7 +289,7 @@ export interface ApplicationLoadBalancerIntegrationProps {
    * export default defineConfig(() => {
    *   const publicAlb = new ApplicationLoadBalancer({});
    *   const apiFunction = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
    *     events: [
    *       {
    *         type: 'application-load-balancer',
@@ -329,7 +329,7 @@ export interface ApplicationLoadBalancerIntegrationProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    *       events:
@@ -351,7 +351,7 @@ export interface ApplicationLoadBalancerIntegrationProps {
    * export default defineConfig(() => {
    *   const publicAlb = new ApplicationLoadBalancer({});
    *   const apiFunction = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
    *     events: [
    *       {
    *         type: 'application-load-balancer',
@@ -388,7 +388,7 @@ export interface ApplicationLoadBalancerIntegrationProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    *       events:
@@ -412,7 +412,7 @@ export interface ApplicationLoadBalancerIntegrationProps {
    * export default defineConfig(() => {
    *   const publicAlb = new ApplicationLoadBalancer({});
    *   const apiFunction = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
    *     events: [
    *       {
    *         type: 'application-load-balancer',
@@ -453,7 +453,7 @@ export interface ApplicationLoadBalancerIntegrationProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    *       events:
@@ -477,7 +477,7 @@ export interface ApplicationLoadBalancerIntegrationProps {
    * export default defineConfig(() => {
    *   const publicAlb = new ApplicationLoadBalancer({});
    *   const apiFunction = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
    *     events: [
    *       {
    *         type: 'application-load-balancer',
@@ -515,7 +515,7 @@ export interface ApplicationLoadBalancerIntegrationProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    *       events:
@@ -541,7 +541,7 @@ export interface ApplicationLoadBalancerIntegrationProps {
    * export default defineConfig(() => {
    *   const publicAlb = new ApplicationLoadBalancer({});
    *   const apiFunction = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
    *     events: [
    *       {
    *         type: 'application-load-balancer',
@@ -579,7 +579,7 @@ export interface ApplicationLoadBalancerIntegrationProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    *       events:
@@ -604,7 +604,7 @@ export interface ApplicationLoadBalancerIntegrationProps {
    * export default defineConfig(() => {
    *   const publicAlb = new ApplicationLoadBalancer({});
    *   const apiFunction = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
    *     events: [
    *       {
    *         type: 'application-load-balancer',
@@ -642,7 +642,7 @@ export interface ApplicationLoadBalancerIntegrationProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    *       events:
@@ -665,7 +665,7 @@ export interface ApplicationLoadBalancerIntegrationProps {
    * export default defineConfig(() => {
    *   const publicAlb = new ApplicationLoadBalancer({});
    *   const apiFunction = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
    *     events: [
    *       {
    *         type: 'application-load-balancer',
@@ -705,7 +705,7 @@ export interface LbHeaderCondition {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    *       events:
@@ -730,7 +730,7 @@ export interface LbHeaderCondition {
    * export default defineConfig(() => {
    *   const publicAlb = new ApplicationLoadBalancer({});
    *   const apiFunction = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
    *     events: [
    *       {
    *         type: 'application-load-balancer',
@@ -773,7 +773,7 @@ export interface LbHeaderCondition {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    *       events:
@@ -799,7 +799,7 @@ export interface LbHeaderCondition {
    * export default defineConfig(() => {
    *   const publicAlb = new ApplicationLoadBalancer({});
    *   const apiFunction = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
    *     events: [
    *       {
    *         type: 'application-load-balancer',
@@ -843,7 +843,7 @@ export interface LbQueryParamCondition {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    *       events:
@@ -868,7 +868,7 @@ export interface LbQueryParamCondition {
    * export default defineConfig(() => {
    *   const publicAlb = new ApplicationLoadBalancer({});
    *   const apiFunction = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
    *     events: [
    *       {
    *         type: 'application-load-balancer',
@@ -911,7 +911,7 @@ export interface LbQueryParamCondition {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    *       events:
@@ -936,7 +936,7 @@ export interface LbQueryParamCondition {
    * export default defineConfig(() => {
    *   const publicAlb = new ApplicationLoadBalancer({});
    *   const apiFunction = new LambdaFunction({
-   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } },
+   *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/api.ts' } },
    *     events: [
    *       {
    *         type: 'application-load-balancer',
@@ -1963,7 +1963,7 @@ export interface ScheduleIntegrationProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/report.ts
    *       events:
@@ -1979,11 +1979,11 @@ export interface ScheduleIntegrationProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const reportFunction = new LambdaFunction({
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/report.ts' }),
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/report.ts' }),
    *     events: [
    *       {
    *         type: 'schedule',
@@ -2017,7 +2017,7 @@ export interface ScheduleIntegrationProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/report.ts
    *       events:
@@ -2032,11 +2032,11 @@ export interface ScheduleIntegrationProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const reportFunction = new LambdaFunction({
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/report.ts' }),
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/report.ts' }),
    *     events: [
    *       {
    *         type: 'schedule',
@@ -2070,7 +2070,7 @@ export interface ScheduleIntegrationProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/report.ts
    *       events:
@@ -2089,11 +2089,11 @@ export interface ScheduleIntegrationProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const reportFunction = new LambdaFunction({
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/report.ts' }),
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/report.ts' }),
    *     events: [
    *       {
    *         type: 'schedule',
@@ -2448,7 +2448,7 @@ export interface EventBusIntegrationProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/process-order.ts
    *       events:
@@ -2467,12 +2467,12 @@ export interface EventBusIntegrationProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { LambdaFunction, EventBus, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { LambdaFunction, EventBus, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const orderEvents = new EventBus({});
    *   const orderProcessor = new LambdaFunction({
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/process-order.ts' }),
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/process-order.ts' }),
    *     events: [
    *       {
    *         type: 'event-bus',
@@ -2509,7 +2509,7 @@ export interface EventBusIntegrationProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/process-order.ts
    *       events:
@@ -2527,12 +2527,12 @@ export interface EventBusIntegrationProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { LambdaFunction, EventBus, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { LambdaFunction, EventBus, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const orderEvents = new EventBus({});
    *   const orderProcessor = new LambdaFunction({
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/process-order.ts' }),
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/process-order.ts' }),
    *     events: [
    *       {
    *         type: 'event-bus',
@@ -2569,7 +2569,7 @@ export interface EventBusIntegrationProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/process-order.ts
    *       events:
@@ -2592,12 +2592,12 @@ export interface EventBusIntegrationProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { LambdaFunction, EventBus, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { LambdaFunction, EventBus, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const orderEvents = new EventBus({});
    *   const orderProcessor = new LambdaFunction({
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/process-order.ts' }),
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/process-order.ts' }),
    *     events: [
    *       {
    *         type: 'event-bus',

@@ -31,7 +31,7 @@ export interface EdgeLambdaFunctionProps {
    *     properties:
    *       # stp-focus
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/edge/viewer-request.ts
    *       # stp-end-focus
@@ -53,7 +53,7 @@ export interface EdgeLambdaFunctionProps {
    *   const webEdgeFn = new EdgeLambdaFunction({
    *     // stp-focus
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: {
    *         entryfilePath: 'src/edge/viewer-request.ts'
    *       }
@@ -87,7 +87,7 @@ export interface EdgeLambdaFunctionProps {
    *     type: edge-lambda-function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: buildpack
    *         properties:
    *           entryfilePath: src/edge/viewer-request.py
    *       # stp-focus
@@ -110,7 +110,7 @@ export interface EdgeLambdaFunctionProps {
    * export default defineConfig(() => {
    *   const webEdgeFn = new EdgeLambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'buildpack',
    *       properties: {
    *         entryfilePath: 'src/edge/viewer-request.py'
    *       }
@@ -157,7 +157,7 @@ export interface EdgeLambdaFunctionProps {
    *     type: edge-lambda-function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/edge/origin-request.ts
    *       # stp-focus
@@ -180,7 +180,7 @@ export interface EdgeLambdaFunctionProps {
    * export default defineConfig(() => {
    *   const originEdgeFn = new EdgeLambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: {
    *         entryfilePath: 'src/edge/origin-request.ts'
    *       }
@@ -218,7 +218,7 @@ export interface EdgeLambdaFunctionProps {
    *     type: edge-lambda-function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/edge/origin-request.ts
    *       memory: 256
@@ -242,7 +242,7 @@ export interface EdgeLambdaFunctionProps {
    * export default defineConfig(() => {
    *   const originEdgeFn = new EdgeLambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: {
    *         entryfilePath: 'src/edge/origin-request.ts'
    *       }
@@ -288,7 +288,7 @@ export interface EdgeLambdaFunctionProps {
    *     type: edge-lambda-function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/edge/auth-check.ts
    *       # stp-focus
@@ -314,7 +314,7 @@ export interface EdgeLambdaFunctionProps {
    *
    *   const authEdgeFn = new EdgeLambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: {
    *         entryfilePath: 'src/edge/auth-check.ts'
    *       }
@@ -350,7 +350,7 @@ export interface EdgeLambdaFunctionProps {
    *     type: edge-lambda-function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/edge/auth-check.ts
    *       # stp-focus
@@ -379,7 +379,7 @@ export interface EdgeLambdaFunctionProps {
    * export default defineConfig(() => {
    *   const authEdgeFn = new EdgeLambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: {
    *         entryfilePath: 'src/edge/auth-check.ts'
    *       }
@@ -422,7 +422,7 @@ export interface EdgeLambdaFunctionProps {
    *     type: edge-lambda-function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/edge/viewer-request.ts
    *       # stp-focus
@@ -446,7 +446,7 @@ export interface EdgeLambdaFunctionProps {
    * export default defineConfig(() => {
    *   const webEdgeFn = new EdgeLambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: {
    *         entryfilePath: 'src/edge/viewer-request.ts'
    *       }

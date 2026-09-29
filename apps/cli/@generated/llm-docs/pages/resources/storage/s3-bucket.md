@@ -338,12 +338,12 @@ Use [`connectTo`](/configuration/connecting-resources) to grant a compute resour
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, Bucket, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, Bucket, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const uploads = new Bucket({});
 
   const processor = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/processor.ts'
     }),
     connectTo: [uploads]

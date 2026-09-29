@@ -33,7 +33,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/index.ts
       resources:
@@ -55,7 +55,7 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { WebService, DynamoDbTable, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { WebService, DynamoDbTable, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const sessionsTable = new DynamoDbTable({
@@ -64,7 +64,7 @@ export default defineConfig(() => {
   });
 
   const myApi = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/index.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/index.ts' }),
     resources: { cpu: 0.25, memory: 512 },
     connectTo: [sessionsTable]
   });

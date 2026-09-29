@@ -3,7 +3,7 @@ resources:
     type: worker-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./src/index.ts
       resources:

@@ -39,13 +39,13 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   RelationalDatabase,
   RdsEnginePostgres,
   $Secret,
   $ResourceParam,
   $Stage,
-  $Region
+  $Region,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(({ stage }) => {
   const database = new RelationalDatabase({
@@ -59,7 +59,7 @@ export default defineConfig(({ stage }) => {
   });
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/handler.ts' }),
     environment: {
       DB_CONNECTION_STRING: $ResourceParam('database', 'connectionString'),
       STAGE: $Stage(),
@@ -85,10 +85,10 @@ Returns the current target stage name. Use it to differentiate resource naming, 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging, $Stage } from 'stacktape';
+import { defineConfig, LambdaFunction, $Stage, JsBundleLambdaPackaging } from 'stacktape';
 export default defineConfig(() => {
   const handler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/handler.ts' }),
     environment: { STAGE: $Stage() }
   });
 
@@ -110,12 +110,12 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  $Region
+  $Region,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const handler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/handler.ts' }),
     environment: { DEPLOY_REGION: $Region() }
   });
 
@@ -153,7 +153,7 @@ Access nested properties with dot notation: `$File('config.json').database.host`
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 import { readFileSync } from 'fs';
 export default defineConfig(() => {
   const envVars: Record<string, string> = {};
@@ -166,7 +166,7 @@ export default defineConfig(() => {
     });
 
   const handler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/handler.ts' }),
     environment: envVars
   });
 
@@ -202,12 +202,12 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  $GitInfo
+  $GitInfo,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const handler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/handler.ts' }),
     environment: {
       GIT_COMMIT: $GitInfo('commit'),
       GIT_BRANCH: $GitInfo('branch')
@@ -299,12 +299,12 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  $Secret
+  $Secret,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const handler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/handler.ts' }),
     environment: {
       STRIPE_KEY: $Secret('api-keys.stripe'),
       SENDGRID_KEY: $Secret('api-keys.sendgrid')
@@ -335,12 +335,12 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  $SsmParam
+  $SsmParam,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const handler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/handler.ts' }),
     environment: {
       FEATURE_FLAGS: $SsmParam('/myapp/feature-flags'),
       DB_HOST: $SsmParam('/prod/database/host')
@@ -370,14 +370,14 @@ import {
   defineConfig,
   HttpApiGateway,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  $ResourceParam
+  $ResourceParam,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const api = new HttpApiGateway({});
 
   const handler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/handler.ts' }),
     environment: { API_URL: $ResourceParam('api', 'url') }
   });
 
@@ -403,12 +403,12 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  $CfResourceParam
+  $CfResourceParam,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const handler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/handler.ts' }),
     environment: { TOPIC_ARN: $CfResourceParam('mySnsTopic', 'TopicArn') }
   });
 
@@ -438,12 +438,12 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   RelationalDatabase,
   RdsEnginePostgres,
   $Secret,
   $CfFormat,
-  $ResourceParam
+  $ResourceParam,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const database = new RelationalDatabase({
@@ -457,7 +457,7 @@ export default defineConfig(() => {
   });
 
   const handler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/handler.ts' }),
     environment: {
       JDBC_URL: $CfFormat(
         'jdbc:postgresql://{}:{}/{}',
@@ -486,12 +486,12 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  $CfStackOutput
+  $CfStackOutput,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const handler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/handler.ts' }),
     environment: {
       SHARED_QUEUE_URL: $CfStackOutput('shared-infra-production', 'QueueQueueUrl')
     }
@@ -528,13 +528,13 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   $CfFormat,
-  $ResourceParam
+  $ResourceParam,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const handler = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/handler.ts' }),
     environment: {
       API_ENDPOINT: $CfFormat('{}/v1', $ResourceParam('api', 'url'))
     }

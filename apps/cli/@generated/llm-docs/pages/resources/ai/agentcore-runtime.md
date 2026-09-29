@@ -27,10 +27,10 @@ A minimal AgentCore Runtime using the HTTP protocol:
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, AgentCoreRuntime, CustomDockerfilePackaging } from 'stacktape';
+import { defineConfig, AgentCoreRuntime, DockerfilePackaging } from 'stacktape';
 export default defineConfig(() => {
   const myAgent = new AgentCoreRuntime({
-    packaging: new CustomDockerfilePackaging({
+    packaging: new DockerfilePackaging({
       buildContextPath: './agent'
     }),
     protocol: 'HTTP',
@@ -44,7 +44,7 @@ export default defineConfig(() => {
 ```
 
 
-The `AgentCoreRuntime` resource configures a container-packaged agent runtime with protocol, endpoint, lifecycle, and tool-attachment properties. The config declares a `chat` endpoint using the HTTP protocol. This example uses `CustomDockerfilePackaging` with `buildContextPath: './agent'`, so Stacktape uses the [Dockerfile-based container packaging](/packaging/containers/custom-dockerfile) mode for the runtime.
+The `AgentCoreRuntime` resource configures a container-packaged agent runtime with protocol, endpoint, lifecycle, and tool-attachment properties. The config declares a `chat` endpoint using the HTTP protocol. This example uses `DockerfilePackaging` with `buildContextPath: './agent'`, so Stacktape builds the runtime image with [`dockerfile` packaging](/packaging/containers/dockerfile).
 
 ## Examples
 
@@ -60,7 +60,7 @@ import {
   defineConfig,
   AgentCoreRuntime,
   AgentCoreMemory,
-  CustomDockerfilePackaging
+  DockerfilePackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const agentMemory = new AgentCoreMemory({
@@ -68,7 +68,7 @@ export default defineConfig(() => {
   });
 
   const supportAgent = new AgentCoreRuntime({
-    packaging: new CustomDockerfilePackaging({
+    packaging: new DockerfilePackaging({
       buildContextPath: './agent'
     }),
     protocol: 'HTTP',
@@ -105,7 +105,7 @@ import {
   AgentCoreBrowser,
   AgentCoreCodeInterpreter,
   DynamoDbTable,
-  CustomDockerfilePackaging
+  DockerfilePackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const agentMemory = new AgentCoreMemory({
@@ -132,7 +132,7 @@ export default defineConfig(() => {
   });
 
   const myAgent = new AgentCoreRuntime({
-    packaging: new CustomDockerfilePackaging({
+    packaging: new DockerfilePackaging({
       buildContextPath: './'
     }),
     protocol: 'HTTP',
@@ -198,10 +198,10 @@ The resource's `endpointName` and `endpointArn` references point to the endpoint
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, AgentCoreRuntime, CustomDockerfilePackaging } from 'stacktape';
+import { defineConfig, AgentCoreRuntime, DockerfilePackaging } from 'stacktape';
 export default defineConfig(() => {
   const myAgent = new AgentCoreRuntime({
-    packaging: new CustomDockerfilePackaging({
+    packaging: new DockerfilePackaging({
       buildContextPath: './agent'
     }),
     protocol: 'HTTP',
@@ -258,7 +258,7 @@ import {
   AgentCoreGateway,
   AgentCoreBrowser,
   AgentCoreCodeInterpreter,
-  CustomDockerfilePackaging
+  DockerfilePackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const toolGateway = new AgentCoreGateway({
@@ -275,7 +275,7 @@ export default defineConfig(() => {
   });
 
   const myAgent = new AgentCoreRuntime({
-    packaging: new CustomDockerfilePackaging({
+    packaging: new DockerfilePackaging({
       buildContextPath: './agent'
     }),
     protocol: 'HTTP',
@@ -305,10 +305,10 @@ Control how long agent runtime sessions live with the `lifecycle` property. Use 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, AgentCoreRuntime, CustomDockerfilePackaging } from 'stacktape';
+import { defineConfig, AgentCoreRuntime, DockerfilePackaging } from 'stacktape';
 export default defineConfig(() => {
   const myAgent = new AgentCoreRuntime({
-    packaging: new CustomDockerfilePackaging({
+    packaging: new DockerfilePackaging({
       buildContextPath: './agent'
     }),
     protocol: 'HTTP',
@@ -336,10 +336,10 @@ Protect your agent endpoints with JWT-based authorization using the `authorizer`
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, AgentCoreRuntime, CustomDockerfilePackaging } from 'stacktape';
+import { defineConfig, AgentCoreRuntime, DockerfilePackaging } from 'stacktape';
 export default defineConfig(() => {
   const myAgent = new AgentCoreRuntime({
-    packaging: new CustomDockerfilePackaging({
+    packaging: new DockerfilePackaging({
       buildContextPath: './agent'
     }),
     protocol: 'HTTP',
@@ -382,7 +382,7 @@ import {
   AgentCoreRuntime,
   DynamoDbTable,
   Bucket,
-  CustomDockerfilePackaging
+  DockerfilePackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const knowledgeBase = new Bucket({});
@@ -394,7 +394,7 @@ export default defineConfig(() => {
   });
 
   const myAgent = new AgentCoreRuntime({
-    packaging: new CustomDockerfilePackaging({
+    packaging: new DockerfilePackaging({
       buildContextPath: './agent'
     }),
     protocol: 'HTTP',
@@ -417,10 +417,10 @@ For AWS services not covered by `connectTo`, use `iamRoleStatements` to add raw 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, AgentCoreRuntime, CustomDockerfilePackaging } from 'stacktape';
+import { defineConfig, AgentCoreRuntime, DockerfilePackaging } from 'stacktape';
 export default defineConfig(() => {
   const myAgent = new AgentCoreRuntime({
-    packaging: new CustomDockerfilePackaging({
+    packaging: new DockerfilePackaging({
       buildContextPath: './agent'
     }),
     protocol: 'HTTP',
@@ -445,17 +445,16 @@ This example grants permission to invoke any Anthropic Claude foundation model v
 
 ## Packaging
 
-AgentCore Runtime uses [container packaging](/packaging/overview) — the same modes available to other container workloads. Five packaging modes are supported:
+AgentCore Runtime uses [container packaging](/packaging/overview), the same types available to other container workloads. Four packaging types are supported:
 
-| Mode | Class | When to use |
+| Type | Class | When to use |
 |------|-------|-------------|
-| [Stacktape buildpack](/packaging/containers/stacktape-buildpack) | `StacktapeImageBuildpackPackaging` | Zero-config from source code. Best for JS/TS/Python agents. |
-| [Custom Dockerfile](/packaging/containers/custom-dockerfile) | `CustomDockerfilePackaging` | Full control over the container environment. Use when you need specific system dependencies or a custom base image. |
-| [Prebuilt image](/packaging/containers/prebuilt-image) | `PrebuiltImagePackaging` | Reference an existing image from any registry. Skips the build step. |
-| [Nixpacks](/packaging/containers/nixpacks) | `NixpacksPackaging` | Auto-detected build from source. Alternative zero-config option. |
-| [External buildpack](/packaging/containers/external-buildpack) | `ExternalBuildpackPackaging` | Cloud Native Buildpacks (buildpacks.io). |
+| [`js-bundle`](/packaging/containers/js-bundle) | `JsBundleImagePackaging` | A JavaScript or TypeScript agent with one entry file. |
+| [`buildpack`](/packaging/containers/buildpack) | `BuildpackImagePackaging` | Build from source without a Dockerfile. The language and start command are detected. Suits Python agents. |
+| [`dockerfile`](/packaging/containers/dockerfile) | `DockerfilePackaging` | Full control over the container environment. Use when you need specific system dependencies or a custom base image. |
+| [`prebuilt-image`](/packaging/containers/prebuilt-image) | `PrebuiltImagePackaging` | Reference an existing image from any registry. Skips the build step. |
 
-Most teams use `CustomDockerfilePackaging` for full control or `StacktapeImageBuildpackPackaging` for zero-config builds. With `PrebuiltImagePackaging`, provide a reference to an existing public image or a private image with `repositoryCredentialsSecretArn` when credentials are needed. This page shows `CustomDockerfilePackaging` because agent containers commonly need runtime-specific dependencies — see [container packaging](/packaging/overview) for details and examples of all five modes.
+Most teams use `DockerfilePackaging` for full control or `BuildpackImagePackaging` to build without a Dockerfile. With `PrebuiltImagePackaging`, provide a reference to an existing public image or a private image with `repositoryCredentialsSecretArn` when credentials are needed. This page shows `DockerfilePackaging` because agent containers commonly need runtime-specific dependencies. See [container packaging](/packaging/overview) for all four types.
 
 ## Environment variables
 
@@ -465,10 +464,10 @@ Pass configuration to your agent container with the `environment` property. Use 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, AgentCoreRuntime, CustomDockerfilePackaging } from 'stacktape';
+import { defineConfig, AgentCoreRuntime, DockerfilePackaging } from 'stacktape';
 export default defineConfig(() => {
   const myAgent = new AgentCoreRuntime({
-    packaging: new CustomDockerfilePackaging({
+    packaging: new DockerfilePackaging({
       buildContextPath: './agent'
     }),
     protocol: 'HTTP',
@@ -497,10 +496,10 @@ The `requestHeaders` property accepts an array of header name strings for the Ag
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, AgentCoreRuntime, CustomDockerfilePackaging } from 'stacktape';
+import { defineConfig, AgentCoreRuntime, DockerfilePackaging } from 'stacktape';
 export default defineConfig(() => {
   const myAgent = new AgentCoreRuntime({
-    packaging: new CustomDockerfilePackaging({
+    packaging: new DockerfilePackaging({
       buildContextPath: './agent'
     }),
     protocol: 'HTTP',
@@ -556,7 +555,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 
 | Property | Required | Type | Default |
 | --- | --- | --- | --- |
-| `packaging` | yes | `prebuilt-image \| custom-dockerfile \| external-buildpack \| nixpacks \| stacktape-image-buildpack` | - |
+| `packaging` | yes | `js-bundle \| prebuilt-image \| dockerfile \| buildpack` | - |
 | `authorizer` | no | `AgentCoreJwtAuthorizerConfig` | - |
 | `connectTo` | no | `Array<string>` | - |
 | `description` | no | `string` | - |

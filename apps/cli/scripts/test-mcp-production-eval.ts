@@ -96,11 +96,11 @@ const createTempStacktapeProject = async (): Promise<string> => {
   );
   await writeFile(
     join(cwd, 'stacktape.ts'),
-    `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+    `import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     timeout: 30

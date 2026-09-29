@@ -1,9 +1,8 @@
 import {
-  CustomArtifactLambdaPackaging,
+  BuildpackLambdaPackaging,
   HttpApiGateway,
   HttpApiIntegration,
   LambdaFunction,
-  LocalScript,
   defineConfig
 } from '../../__release-npm';
 
@@ -14,9 +13,8 @@ export default defineConfig(() => {
     }
   });
   const api = new LambdaFunction({
-    packaging: new CustomArtifactLambdaPackaging({
-      packagePath: './target/lambda/rust-lambda-api/bootstrap.zip',
-      handler: 'bootstrap:handler'
+    packaging: new BuildpackLambdaPackaging({
+      entryfilePath: './src/main.rs'
     }),
     memory: 256,
     runtime: 'provided.al2023',
@@ -35,19 +33,7 @@ export default defineConfig(() => {
     ]
   });
 
-  const build = new LocalScript({
-    executeCommand: 'cargo lambda build --release --output-format zip'
-  });
-
   return {
-    resources: { apiGateway, api },
-    scripts: { build },
-    hooks: {
-      beforeDeploy: [
-        {
-          scriptName: 'build'
-        }
-      ]
-    }
+    resources: { apiGateway, api }
   };
 });

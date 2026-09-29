@@ -7,7 +7,7 @@ type KebabToPascalCase<Value extends string> = Value extends `${infer First}-${i
  * This file defines type-properties shaped definitions (e.g. Stacktape resources, packaging types etc.)
  * that can be converted to a Typescript class. These classes are then exported from stacktape/classes
  *
- * @example import { StacktapeLambdaBuildpackPackaging } from 'stacktape/classes';
+ * @example import {  } from 'stacktape/classes';
  */
 
 export type ResourceClassName =
@@ -694,10 +694,17 @@ export const MISC_TYPES_CONVERTIBLE_TO_CLASSES = [
   },
   // Lambda Packaging
   {
-    className: 'StacktapeLambdaBuildpackPackaging',
-    typeValue: 'stacktape-lambda-buildpack',
-    propsType: 'StpBuildpackLambdaPackagingProps',
-    interfaceName: 'StpBuildpackLambdaPackaging',
+    className: 'JsBundleLambdaPackaging',
+    typeValue: 'js-bundle',
+    propsType: 'JsBundleLambdaPackagingProps',
+    interfaceName: 'JsBundleLambdaPackaging',
+    sourceFile: 'deployment-artifacts.d.ts'
+  },
+  {
+    className: 'BuildpackLambdaPackaging',
+    typeValue: 'buildpack',
+    propsType: 'BuildpackLambdaPackagingProps',
+    interfaceName: 'BuildpackLambdaPackaging',
     sourceFile: 'deployment-artifacts.d.ts'
   },
   {
@@ -709,38 +716,31 @@ export const MISC_TYPES_CONVERTIBLE_TO_CLASSES = [
   },
   // Container Packaging
   {
+    className: 'JsBundleImagePackaging',
+    typeValue: 'js-bundle',
+    propsType: 'JsBundleCwImagePackagingProps',
+    interfaceName: 'JsBundleCwImagePackaging',
+    sourceFile: 'deployment-artifacts.d.ts'
+  },
+  {
+    className: 'BuildpackImagePackaging',
+    typeValue: 'buildpack',
+    propsType: 'BuildpackCwImagePackagingProps',
+    interfaceName: 'BuildpackCwImagePackaging',
+    sourceFile: 'deployment-artifacts.d.ts'
+  },
+  {
+    className: 'DockerfilePackaging',
+    typeValue: 'dockerfile',
+    propsType: 'DockerfileCwImagePackagingProps',
+    interfaceName: 'DockerfileCwImagePackaging',
+    sourceFile: 'deployment-artifacts.d.ts'
+  },
+  {
     className: 'PrebuiltImagePackaging',
     typeValue: 'prebuilt-image',
     propsType: 'PrebuiltImageCwPackagingProps',
     interfaceName: 'PrebuiltCwImagePackaging',
-    sourceFile: 'deployment-artifacts.d.ts'
-  },
-  {
-    className: 'CustomDockerfilePackaging',
-    typeValue: 'custom-dockerfile',
-    propsType: 'CustomDockerfileCwImagePackagingProps',
-    interfaceName: 'CustomDockerfileCwImagePackaging',
-    sourceFile: 'deployment-artifacts.d.ts'
-  },
-  {
-    className: 'ExternalBuildpackPackaging',
-    typeValue: 'external-buildpack',
-    propsType: 'ExternalBuildpackCwImagePackagingProps',
-    interfaceName: 'ExternalBuildpackCwImagePackaging',
-    sourceFile: 'deployment-artifacts.d.ts'
-  },
-  {
-    className: 'NixpacksPackaging',
-    typeValue: 'nixpacks',
-    propsType: 'NixpacksCwImagePackagingProps',
-    interfaceName: 'NixpacksCwImagePackaging',
-    sourceFile: 'deployment-artifacts.d.ts'
-  },
-  {
-    className: 'StacktapeImageBuildpackPackaging',
-    typeValue: 'stacktape-image-buildpack',
-    propsType: 'StpBuildpackCwImagePackagingProps',
-    interfaceName: 'StpBuildpackCwImagePackaging',
     sourceFile: 'deployment-artifacts.d.ts'
   },
   // Lambda Function Events/Integrations
@@ -1231,13 +1231,33 @@ export const SCRIPT_TYPE_TO_CLASS: Record<string, string> = Object.fromEntries(
   ).map((t) => [t.typeValue, t.className])
 );
 
-/** Packaging type → class name mapping */
-export const PACKAGING_TYPE_TO_CLASS: Record<string, string> = Object.fromEntries(
-  MISC_TYPES_CONVERTIBLE_TO_CLASSES.filter((t) => t.sourceFile === 'deployment-artifacts.d.ts').map((t) => [
-    t.typeValue,
-    t.className
-  ])
+/** Lambda packaging type → class name mapping (`function`, `edge-lambda-function`, deployment scripts, custom resources) */
+export const LAMBDA_PACKAGING_TYPE_TO_CLASS: Record<string, string> = Object.fromEntries(
+  MISC_TYPES_CONVERTIBLE_TO_CLASSES.filter(
+    (t) => t.sourceFile === 'deployment-artifacts.d.ts' && t.className.endsWith('LambdaPackaging')
+  ).map((t) => [t.typeValue, t.className])
 );
+
+/** Container packaging type → class name mapping (services, multi-container workloads, batch jobs, AgentCore runtimes) */
+export const CONTAINER_PACKAGING_TYPE_TO_CLASS: Record<string, string> = Object.fromEntries(
+  MISC_TYPES_CONVERTIBLE_TO_CLASSES.filter(
+    (t) => t.sourceFile === 'deployment-artifacts.d.ts' && !t.className.endsWith('LambdaPackaging')
+  ).map((t) => [t.typeValue, t.className])
+);
+
+/** Resource types whose `packaging` is a Lambda packaging. Every other packaging-bearing resource holds a container. */
+export const LAMBDA_PACKAGING_RESOURCE_TYPES: ReadonlySet<string> = new Set([
+  'function',
+  'edge-lambda-function',
+  'deployment-script',
+  'custom-resource-definition'
+]);
+
+/** Packaging type → class name mapping for the given resource type. */
+export const getPackagingTypeToClass = (resourceType: string | undefined): Record<string, string> =>
+  resourceType !== undefined && LAMBDA_PACKAGING_RESOURCE_TYPES.has(resourceType)
+    ? LAMBDA_PACKAGING_TYPE_TO_CLASS
+    : CONTAINER_PACKAGING_TYPE_TO_CLASS;
 
 /** Engine type → class name mapping */
 export const ENGINE_TYPE_TO_CLASS: Record<string, string> = Object.fromEntries(

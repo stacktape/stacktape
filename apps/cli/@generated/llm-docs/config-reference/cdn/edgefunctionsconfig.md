@@ -37,7 +37,7 @@ rewriteOrigin:
   type: edge-lambda-function
   properties:
     packaging:
-      type: stacktape-lambda-buildpack
+      type: js-bundle
       properties:
         entryfilePath: ./src/edge/origin-rewrite.ts
 api:
@@ -52,11 +52,11 @@ api:
 ### Example 2 (typescript)
 
 ```typescript
-import { EdgeLambdaFunction, HttpApiGateway, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+import { EdgeLambdaFunction, HttpApiGateway, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
 const rewriteOrigin = new EdgeLambdaFunction({
-  packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/edge/origin-rewrite.ts' })
+  packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/edge/origin-rewrite.ts' })
 });
 const api = new HttpApiGateway({
   cdn: {
@@ -87,7 +87,7 @@ cacheTuner:
   type: edge-lambda-function
   properties:
     packaging:
-      type: stacktape-lambda-buildpack
+      type: js-bundle
       properties:
         entryfilePath: ./src/edge/cache-tune.ts
 api:
@@ -102,11 +102,11 @@ api:
 ### Example 2 (typescript)
 
 ```typescript
-import { EdgeLambdaFunction, HttpApiGateway, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+import { EdgeLambdaFunction, HttpApiGateway, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
 const cacheTuner = new EdgeLambdaFunction({
-  packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/edge/cache-tune.ts' })
+  packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/edge/cache-tune.ts' })
 });
 const api = new HttpApiGateway({
   cdn: {
@@ -137,7 +137,7 @@ authAtEdge:
   type: edge-lambda-function
   properties:
     packaging:
-      type: stacktape-lambda-buildpack
+      type: js-bundle
       properties:
         entryfilePath: ./src/edge/auth.ts
 api:
@@ -152,11 +152,11 @@ api:
 ### Example 2 (typescript)
 
 ```typescript
-import { EdgeLambdaFunction, HttpApiGateway, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+import { EdgeLambdaFunction, HttpApiGateway, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
 const authAtEdge = new EdgeLambdaFunction({
-  packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/edge/auth.ts' })
+  packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/edge/auth.ts' })
 });
 const api = new HttpApiGateway({
   cdn: {
@@ -188,7 +188,7 @@ securityHeaders:
   type: edge-lambda-function
   properties:
     packaging:
-      type: stacktape-lambda-buildpack
+      type: js-bundle
       properties:
         entryfilePath: ./src/edge/headers.ts
 api:
@@ -203,11 +203,11 @@ api:
 ### Example 2 (typescript)
 
 ```typescript
-import { EdgeLambdaFunction, HttpApiGateway, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+import { EdgeLambdaFunction, HttpApiGateway, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
 
 export default defineConfig(() => {
 const securityHeaders = new EdgeLambdaFunction({
-  packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/edge/headers.ts' })
+  packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/edge/headers.ts' })
 });
 const api = new HttpApiGateway({
   cdn: {

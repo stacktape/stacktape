@@ -3,10 +3,10 @@ import {
   EventBusIntegration,
   HttpApiGateway,
   HttpApiIntegration,
+  JsBundleLambdaPackaging,
   LambdaFunction,
   SqsIntegration,
   SqsQueue,
-  StacktapeLambdaBuildpackPackaging,
   defineConfig
 } from '../../__release-npm';
 
@@ -27,7 +27,7 @@ export default defineConfig(() => {
     }
   });
   const submitOrder = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/submit-order.ts'
     }),
     memory: 512,
@@ -42,7 +42,7 @@ export default defineConfig(() => {
   });
   const eventBus = new EventBus({});
   const processOrder = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/process-order.ts'
     }),
     memory: 512,
@@ -56,7 +56,7 @@ export default defineConfig(() => {
     ]
   });
   const onOrderProcessed = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/on-order-processed.ts'
     }),
     memory: 512,

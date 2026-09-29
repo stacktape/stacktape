@@ -1,8 +1,8 @@
 import {
   HttpApiGateway,
   HttpApiIntegration,
+  JsBundleLambdaPackaging,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   StateMachine,
   defineConfig
 } from '../../__release-npm';
@@ -14,17 +14,17 @@ export default defineConfig(() => {
     }
   });
   const validateInput = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/validate-input.ts'
     })
   });
   const processData = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/process-data.ts'
     })
   });
   const generateReport = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/generate-report.ts'
     })
   });
@@ -66,7 +66,7 @@ export default defineConfig(() => {
     }
   });
   const startWorkflow = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/start-workflow.ts'
     }),
     memory: 512,

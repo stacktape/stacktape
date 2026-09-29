@@ -86,7 +86,7 @@ describe('the configuration variants', () => {
       ]);
       expect(packaging.resources[name]!.properties.packaging.properties).toEqual({
         entryfilePath: fixtureFunctions(count).find((fn) => fn.name === name)!.entryfilePath,
-        languageSpecificConfig: { minify: false }
+        minify: false
       });
       expect(packaging.resources[name]!.properties.environment[0].value).toBe('fixture-base');
       expect(control.resources[name]!.properties.environment[0].value).toEqual(['fixture-invalid']);
@@ -99,10 +99,7 @@ describe('the configuration variants', () => {
         functionNames: names
       })
     ).toMatchObject({
-      added: [
-        { line: '          languageSpecificConfig:', count },
-        { line: '            minify: false', count }
-      ],
+      added: [{ line: '          minify: false', count }],
       removed: []
     });
   });

@@ -45,7 +45,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/index.ts
       resources:
@@ -78,7 +78,7 @@ export default defineConfig(() => {
 
   const apiService = new WebService({
     packaging: {
-      type: 'stacktape-image-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/index.ts' }
     },
     resources: { cpu: 0.25, memory: 512 },
@@ -125,7 +125,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/index.ts
       resources:
@@ -166,7 +166,7 @@ export default defineConfig(() => {
 
   const apiService = new WebService({
     packaging: {
-      type: 'stacktape-image-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/index.ts' }
     },
     resources: { cpu: 0.25, memory: 512 },
@@ -205,7 +205,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/index.ts
       resources:
@@ -239,7 +239,7 @@ export default defineConfig(() => {
 
   const apiService = new WebService({
     packaging: {
-      type: 'stacktape-image-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/index.ts' }
     },
     resources: { cpu: 0.25, memory: 512 },
@@ -277,7 +277,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/index.ts
       resources:
@@ -311,7 +311,7 @@ export default defineConfig(() => {
 
   const apiService = new WebService({
     packaging: {
-      type: 'stacktape-image-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/index.ts' }
     },
     resources: { cpu: 0.25, memory: 512 },
@@ -350,7 +350,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/index.ts
       resources:
@@ -384,7 +384,7 @@ export default defineConfig(() => {
 
   const apiService = new WebService({
     packaging: {
-      type: 'stacktape-image-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/index.ts' }
     },
     resources: { cpu: 0.25, memory: 512 },

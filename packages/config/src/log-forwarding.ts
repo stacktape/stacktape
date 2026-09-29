@@ -14,7 +14,7 @@ export interface CloudWatchLogGroupOptions {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/archive.ts
    *       logging:
@@ -26,11 +26,11 @@ export interface CloudWatchLogGroupOptions {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const archiveWorker = new LambdaFunction({
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/archive.ts' }),
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/archive.ts' }),
    *     logging: {
    *       // stp-focus
    *       logClass: 'infrequent-access'
@@ -62,7 +62,7 @@ export interface LogForwardingBase extends CloudWatchLogGroupOptions {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    *       memory: 512
@@ -80,11 +80,11 @@ export interface LogForwardingBase extends CloudWatchLogGroupOptions {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig, $Secret } from 'stacktape';
+   * import { LambdaFunction, defineConfig, $Secret, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const apiFunction = new LambdaFunction({
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/api.ts' }),
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/api.ts' }),
    *     memory: 512,
    *     timeout: 10,
    *     logging: {
@@ -125,7 +125,7 @@ export interface HttpEndpointLogForwardingProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    *       memory: 512
@@ -141,11 +141,11 @@ export interface HttpEndpointLogForwardingProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const apiFunction = new LambdaFunction({
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/api.ts' }),
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/api.ts' }),
    *     memory: 512,
    *     logging: {
    *       logForwarding: {
@@ -176,7 +176,7 @@ export interface HttpEndpointLogForwardingProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    *       memory: 512
@@ -193,11 +193,11 @@ export interface HttpEndpointLogForwardingProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const apiFunction = new LambdaFunction({
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/api.ts' }),
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/api.ts' }),
    *     memory: 512,
    *     logging: {
    *       logForwarding: {
@@ -231,7 +231,7 @@ export interface HttpEndpointLogForwardingProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    *       memory: 512
@@ -250,11 +250,11 @@ export interface HttpEndpointLogForwardingProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const apiFunction = new LambdaFunction({
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/api.ts' }),
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/api.ts' }),
    *     memory: 512,
    *     logging: {
    *       logForwarding: {
@@ -289,7 +289,7 @@ export interface HttpEndpointLogForwardingProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    *       memory: 512
@@ -306,11 +306,11 @@ export interface HttpEndpointLogForwardingProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const apiFunction = new LambdaFunction({
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/api.ts' }),
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/api.ts' }),
    *     memory: 512,
    *     logging: {
    *       logForwarding: {
@@ -344,7 +344,7 @@ export interface HttpEndpointLogForwardingProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    *       memory: 512
@@ -361,11 +361,11 @@ export interface HttpEndpointLogForwardingProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig, $Secret } from 'stacktape';
+   * import { LambdaFunction, defineConfig, $Secret, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const apiFunction = new LambdaFunction({
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/api.ts' }),
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/api.ts' }),
    *     memory: 512,
    *     logging: {
    *       logForwarding: {
@@ -407,7 +407,7 @@ export interface HighlightLogForwardingProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    *       memory: 512
@@ -423,11 +423,11 @@ export interface HighlightLogForwardingProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const apiFunction = new LambdaFunction({
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/api.ts' }),
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/api.ts' }),
    *     memory: 512,
    *     logging: {
    *       logForwarding: {
@@ -458,7 +458,7 @@ export interface HighlightLogForwardingProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    *       memory: 512
@@ -475,11 +475,11 @@ export interface HighlightLogForwardingProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   * import { LambdaFunction, defineConfig, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const apiFunction = new LambdaFunction({
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/api.ts' }),
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/api.ts' }),
    *     memory: 512,
    *     logging: {
    *       logForwarding: {
@@ -523,7 +523,7 @@ export interface DatadogLogForwardingProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    *       memory: 512
@@ -539,11 +539,11 @@ export interface DatadogLogForwardingProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig, $Secret } from 'stacktape';
+   * import { LambdaFunction, defineConfig, $Secret, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const apiFunction = new LambdaFunction({
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/api.ts' }),
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/api.ts' }),
    *     memory: 512,
    *     logging: {
    *       logForwarding: {
@@ -574,7 +574,7 @@ export interface DatadogLogForwardingProps {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/api.ts
    *       memory: 512
@@ -591,11 +591,11 @@ export interface DatadogLogForwardingProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig, $Secret } from 'stacktape';
+   * import { LambdaFunction, defineConfig, $Secret, JsBundleLambdaPackaging } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const apiFunction = new LambdaFunction({
-   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/api.ts' }),
+   *     packaging: new JsBundleLambdaPackaging({ entryfilePath: 'src/api.ts' }),
    *     memory: 512,
    *     logging: {
    *       logForwarding: {

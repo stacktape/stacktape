@@ -23,13 +23,13 @@ import type {
   CdnLoadBalancerOrigin
 } from '@stacktape/config/cdn';
 import type {
+  BuildpackCwImagePackagingProps,
+  BuildpackLambdaPackagingProps,
   CustomArtifactLambdaPackagingProps,
-  CustomDockerfileCwImagePackagingProps,
-  ExternalBuildpackCwImagePackagingProps,
-  NixpacksCwImagePackagingProps,
-  PrebuiltImageCwPackagingProps,
-  StpBuildpackCwImagePackagingProps,
-  StpBuildpackLambdaPackagingProps
+  DockerfileCwImagePackagingProps,
+  JsBundleCwImagePackagingProps,
+  JsBundleLambdaPackagingProps,
+  PrebuiltImageCwPackagingProps
 } from '@stacktape/config/deployment-artifacts';
 import type {
   AlarmIntegrationProps,
@@ -110,13 +110,13 @@ type TypePropertyProperties = CompletePropertiesMap<{
   AuroraServerlessEngineMysql: AuroraServerlessEngineProperties;
   AuroraServerlessV2EnginePostgresql: AuroraServerlessV2EngineProperties;
   AuroraServerlessV2EngineMysql: AuroraServerlessV2EngineProperties;
-  StacktapeLambdaBuildpackPackaging: StpBuildpackLambdaPackagingProps;
+  JsBundleLambdaPackaging: JsBundleLambdaPackagingProps;
+  BuildpackLambdaPackaging: BuildpackLambdaPackagingProps;
   CustomArtifactLambdaPackaging: CustomArtifactLambdaPackagingProps;
+  JsBundleImagePackaging: JsBundleCwImagePackagingProps;
+  BuildpackImagePackaging: BuildpackCwImagePackagingProps;
+  DockerfilePackaging: DockerfileCwImagePackagingProps;
   PrebuiltImagePackaging: PrebuiltImageCwPackagingProps;
-  CustomDockerfilePackaging: CustomDockerfileCwImagePackagingProps;
-  ExternalBuildpackPackaging: ExternalBuildpackCwImagePackagingProps;
-  NixpacksPackaging: NixpacksCwImagePackagingProps;
-  StacktapeImageBuildpackPackaging: StpBuildpackCwImagePackagingProps;
   HttpApiIntegration: HttpApiIntegrationProps;
   AppSyncApiIntegration: AppSyncApiIntegrationProps;
   WebSocketApiIntegration: WebSocketApiIntegrationProps;
@@ -242,13 +242,13 @@ export const {
   AuroraServerlessEngineMysql,
   AuroraServerlessV2EnginePostgresql,
   AuroraServerlessV2EngineMysql,
-  StacktapeLambdaBuildpackPackaging,
+  JsBundleLambdaPackaging,
+  BuildpackLambdaPackaging,
   CustomArtifactLambdaPackaging,
+  JsBundleImagePackaging,
+  BuildpackImagePackaging,
+  DockerfilePackaging,
   PrebuiltImagePackaging,
-  CustomDockerfilePackaging,
-  ExternalBuildpackPackaging,
-  NixpacksPackaging,
-  StacktapeImageBuildpackPackaging,
   HttpApiIntegration,
   AppSyncApiIntegration,
   WebSocketApiIntegration,

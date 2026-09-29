@@ -31,10 +31,10 @@ A basic Stacktape web service needs container packaging and compute resources. T
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: './src/server.ts'
     }),
     resources: {
@@ -50,7 +50,7 @@ export default defineConfig(() => {
 ```
 
 
-`entryfilePath` points to the application entry point used by the Stacktape image buildpack. The `resources` block sets the Fargate task size for the container — `cpu: 0.5` and `memory: 1024` are explicit task-size selections, not implied defaults. Fargate is the default compute engine for web services unless you choose EC2 instance types through the resource configuration. See the [API reference](#api-reference) for the full resources configuration shape.
+`entryfilePath` points to the application entry point that `js-bundle` bundles. The `resources` block sets the Fargate task size for the container — `cpu: 0.5` and `memory: 1024` are explicit task-size selections, not implied defaults. Fargate is the default compute engine for web services unless you choose EC2 instance types through the resource configuration. See the [API reference](#api-reference) for the full resources configuration shape.
 
 ## Traffic
 
@@ -68,11 +68,11 @@ Use `application-load-balancer` when the service needs WebSocket support, [gradu
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: './src/server.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
     loadBalancing: {
       type: 'application-load-balancer',
@@ -95,11 +95,11 @@ Use `network-load-balancer` only when the service is not ordinary HTTP. Each `po
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const broker = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/broker.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: './src/broker.ts' }),
     resources: { cpu: 1, memory: 2048 },
     loadBalancing: {
       type: 'network-load-balancer',
@@ -133,11 +133,11 @@ A Stacktape web service can attach custom domains directly through `customDomain
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: './src/server.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
     customDomains: [
       {
@@ -171,11 +171,11 @@ Fargate is right for most web services because it keeps operations simple and bi
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: './src/server.ts' }),
     resources: {
       cpu: 1,
       memory: 2048
@@ -193,11 +193,11 @@ Use EC2 mode for workloads that need specific instance families, GPU-capable ins
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: './src/server.ts' }),
     resources: {
       instanceTypes: ['c6g.large']
     }
@@ -218,11 +218,11 @@ A Stacktape web service scales horizontally by running more container instances 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: './src/server.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
     scaling: {
       minInstances: 2,
@@ -247,17 +247,16 @@ export default defineConfig(() => {
 
 ## Packaging
 
-A Stacktape web service supports the container packaging modes used by Stacktape container workloads: Stacktape image buildpack, custom Dockerfile, prebuilt image, Nixpacks, and external buildpack. Most teams should start with the Stacktape image buildpack and switch only when the container build needs more control.
+A web service supports the same four container packaging types as other Stacktape container workloads. Start with `js-bundle` for a JavaScript or TypeScript service with one entry file, and with `buildpack` for everything else, including Next.js and other framework builds. Switch only when the container build needs more control.
 
-| Mode | When to use |
+| Type | When to use |
 |------|-------------|
-| [Stacktape image buildpack](/packaging/containers/stacktape-buildpack) | Build a container image from source with minimal configuration |
-| [Custom Dockerfile](/packaging/containers/custom-dockerfile) | Control the base image, system packages, build steps, entrypoint, or command |
-| [Prebuilt image](/packaging/containers/prebuilt-image) | Deploy an image already built by another pipeline or stored in a registry |
-| [Nixpacks](/packaging/containers/nixpacks) | Let Nixpacks detect and build the application image |
-| [External buildpack](/packaging/containers/external-buildpack) | Use Cloud Native Buildpacks and a configurable builder image |
+| [`js-bundle`](/packaging/containers/js-bundle) | A JavaScript or TypeScript service with one entry file. Stacktape bundles it into a small image. |
+| [`buildpack`](/packaging/containers/buildpack) | Build from source without a Dockerfile. Detects Node.js frameworks, Python, Go, Rust, Java, PHP, Ruby, .NET and more. |
+| [`dockerfile`](/packaging/containers/dockerfile) | Full control over the base image, system packages, build steps, entrypoint and command |
+| [`prebuilt-image`](/packaging/containers/prebuilt-image) | Deploy an image already built by another pipeline or stored in a registry |
 
-The Stacktape image buildpack supports JavaScript, TypeScript, Python, Java, and Go for container images. Use `requiresGlibcBinaries` only when native dependencies require glibc instead of the Alpine default; the source calls out packages such as `sharp`, `canvas`, `bcrypt`, and `puppeteer` as common cases.
+`js-bundle` images are based on Alpine. Set `requiresGlibcBinaries` only when native dependencies such as `sharp`, `canvas`, `bcrypt` or `puppeteer` need glibc. A `buildpack` web service must listen on the port in the `PORT` environment variable; set `startCommand` if the detected start command does not.
 
 ## Connecting to other resources
 
@@ -270,10 +269,10 @@ Example (TypeScript):
 import {
   defineConfig,
   WebService,
-  StacktapeImageBuildpackPackaging,
   RelationalDatabase,
   RdsEnginePostgres,
-  Bucket
+  Bucket,
+  JsBundleImagePackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
@@ -286,7 +285,7 @@ export default defineConfig(() => {
 
   const api = new WebService({
     connectTo: [myDatabase, uploadsBucket],
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: './src/server.ts' }),
     resources: { cpu: 0.5, memory: 1024 }
   });
 
@@ -318,19 +317,19 @@ Example (TypeScript):
 import {
   defineConfig,
   WebService,
-  StacktapeImageBuildpackPackaging,
-  CustomDockerfilePackaging
+  JsBundleImagePackaging,
+  DockerfilePackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: './src/server.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
     sideContainers: [
       {
         name: 'migrations',
         containerType: 'run-on-init',
-        packaging: new CustomDockerfilePackaging({
+        packaging: new DockerfilePackaging({
           buildContextPath: './migrations',
           dockerfilePath: './Dockerfile'
         })
@@ -359,14 +358,14 @@ import {
   defineConfig,
   WebService,
   EfsFilesystem,
-  StacktapeImageBuildpackPackaging
+  JsBundleImagePackaging
 } from 'stacktape';
 
 export default defineConfig(() => {
   const uploads = new EfsFilesystem({});
 
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: './src/server.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
     volumeMounts: [
       {
@@ -397,11 +396,11 @@ The deployment configuration supports canary, linear, or all-at-once gradual tra
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: './src/server.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
     loadBalancing: { type: 'application-load-balancer' },
     deployment: { strategy: 'Linear10PercentEvery3Minutes' }
@@ -422,11 +421,11 @@ A Stacktape web service runs in the default networking mode unless you set `useP
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: './src/server.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
     usePrivateSubnetsWithNAT: true
   });
@@ -459,11 +458,11 @@ A Stacktape web service can enable interactive container access by setting `enab
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/server.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: './src/server.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
     enableRemoteSessions: true
   });
@@ -518,7 +517,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 
 | Property | Required | Type | Default |
 | --- | --- | --- | --- |
-| `packaging` | yes | `prebuilt-image \| custom-dockerfile \| external-buildpack \| nixpacks \| stacktape-image-buildpack` | - |
+| `packaging` | yes | `js-bundle \| prebuilt-image \| dockerfile \| buildpack` | - |
 | `resources` | yes | `ContainerWorkloadResourcesConfig` | - |
 | `alarms` | no | `Array<ApplicationLoadBalancerAlarm \| HttpApiGatewayAlarm>` | - |
 | `cdn` | no | `CdnConfiguration` | - |

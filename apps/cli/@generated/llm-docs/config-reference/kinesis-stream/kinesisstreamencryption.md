@@ -37,7 +37,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/consume.ts
       events:
@@ -63,7 +63,7 @@ export default defineConfig(() => {
 
   const encryptedConsumer = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/consume.ts' }
     },
     events: [
@@ -103,7 +103,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/consume.ts
       events:
@@ -129,7 +129,7 @@ export default defineConfig(() => {
 
   const cmkConsumer = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/consume.ts' }
     },
     events: [

@@ -330,6 +330,15 @@ const toDockerEnvPassthrough = (
 const toBuildArgsPassthrough = (buildArgs: Record<string, string>) =>
   toDockerEnvPassthrough(buildArgs || {}, { flag: '--build-arg', description: 'Build argument' });
 
+/**
+ * BuildKit secrets, each read by Docker from this process's environment (`--secret id=NAME,env=NAME`). The same
+ * name checks as build arguments apply; the flag differs.
+ */
+const toBuildSecretsPassthrough = (secrets: Record<string, string>) => {
+  const { env } = toDockerEnvPassthrough(secrets || {}, { flag: '--build-arg', description: 'Build secret' });
+  return { env, flags: Object.keys(secrets || {}).flatMap((name) => ['--secret', `id=${name},env=${name}`]) };
+};
+
 const toContainerEnvironmentPassthrough = (environment: Record<string, any>) => {
   Object.entries(environment || {}).forEach(([name, value]) => validateEnvVariableValue(name, value));
   return toDockerEnvPassthrough(environment || {}, { flag: '-e', description: 'Environment variable' });
@@ -736,7 +745,8 @@ export const buildDockerImage = async ({
   dockerfilePath,
   dockerBuildOutputArchitecture,
   cacheFromRef,
-  cacheToRef
+  cacheToRef,
+  secrets
 }: {
   buildContextPath: string;
   dockerfilePath?: string;
@@ -747,6 +757,8 @@ export const buildDockerImage = async ({
   cacheFromRef?: string;
   /** ECR image ref for pushing cache layers */
   cacheToRef?: string;
+  /** BuildKit secrets by id; see `toBuildSecretsPassthrough`. */
+  secrets?: Record<string, string>;
 }) => {
   const start = Date.now();
   const contextPath = buildContextPath
@@ -760,6 +772,7 @@ export const buildDockerImage = async ({
   // Only the names go on the command line; Docker reads the values out of its own environment. See
   // `toDockerEnvPassthrough`.
   const buildArgsPassthrough = toBuildArgsPassthrough(buildArgs);
+  const secretsPassthrough = toBuildSecretsPassthrough(secrets || {});
 
   const command = [
     // Use buildx with docker-container builder when remote cache is enabled (required for cache export)
@@ -771,12 +784,13 @@ export const buildDockerImage = async ({
     ...(cacheToRef ? ['--cache-to', `type=registry,ref=${cacheToRef},image-manifest=true,mode=max`] : []),
     ...(dockerfilePath ? ['-f', join(buildContextPath, dockerfilePath)] : []),
     ...buildArgsPassthrough.flags,
+    ...secretsPassthrough.flags,
     contextPath
   ];
 
   let stderr;
   try {
-    ({ stderr } = await execDocker(command, { env: buildArgsPassthrough.env }));
+    ({ stderr } = await execDocker(command, { env: { ...buildArgsPassthrough.env, ...secretsPassthrough.env } }));
   } catch (err) {
     handleDockerError(err, `Error building docker image ${imageTag}:\n${err.message}`);
   }

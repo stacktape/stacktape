@@ -36,7 +36,7 @@ resources:
       containers:
         - name: web
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/index.ts
           events:
@@ -58,7 +58,7 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, ApplicationLoadBalancer, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, ApplicationLoadBalancer, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const appLb = new ApplicationLoadBalancer({});
@@ -66,7 +66,7 @@ export default defineConfig(() => {
     containers: [
       {
         name: 'web',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/index.ts' }),
+        packaging: new JsBundleImagePackaging({ entryfilePath: 'src/index.ts' }),
         events: [
           { type: 'application-load-balancer', properties: { loadBalancerName: 'appLb', priority: 1, containerPort: 3000 } }
         ],
@@ -99,7 +99,7 @@ resources:
       containers:
         - name: web
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/index.ts
           events:
@@ -121,7 +121,7 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, ApplicationLoadBalancer, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, ApplicationLoadBalancer, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const appLb = new ApplicationLoadBalancer({});
@@ -129,7 +129,7 @@ export default defineConfig(() => {
     containers: [
       {
         name: 'web',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/index.ts' }),
+        packaging: new JsBundleImagePackaging({ entryfilePath: 'src/index.ts' }),
         events: [
           { type: 'application-load-balancer', properties: { loadBalancerName: 'appLb', priority: 1, containerPort: 3000 } }
         ],
@@ -163,7 +163,7 @@ resources:
       containers:
         - name: web
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/index.ts
           events:
@@ -185,7 +185,7 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, ApplicationLoadBalancer, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, ApplicationLoadBalancer, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const appLb = new ApplicationLoadBalancer({});
@@ -193,7 +193,7 @@ export default defineConfig(() => {
     containers: [
       {
         name: 'web',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/index.ts' }),
+        packaging: new JsBundleImagePackaging({ entryfilePath: 'src/index.ts' }),
         events: [
           { type: 'application-load-balancer', properties: { loadBalancerName: 'appLb', priority: 1, containerPort: 3000 } }
         ],
@@ -227,7 +227,7 @@ resources:
       containers:
         - name: web
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/index.ts
           events:
@@ -248,7 +248,7 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, ApplicationLoadBalancer, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, ApplicationLoadBalancer, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const appLb = new ApplicationLoadBalancer({});
@@ -256,7 +256,7 @@ export default defineConfig(() => {
     containers: [
       {
         name: 'web',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/index.ts' }),
+        packaging: new JsBundleImagePackaging({ entryfilePath: 'src/index.ts' }),
         events: [
           { type: 'application-load-balancer', properties: { loadBalancerName: 'appLb', priority: 1, containerPort: 3000 } }
         ],
@@ -289,7 +289,7 @@ resources:
       containers:
         - name: web
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/index.ts
           events:
@@ -311,7 +311,7 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, ApplicationLoadBalancer, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, ApplicationLoadBalancer, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const appLb = new ApplicationLoadBalancer({});
@@ -319,7 +319,7 @@ export default defineConfig(() => {
     containers: [
       {
         name: 'web',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/index.ts' }),
+        packaging: new JsBundleImagePackaging({ entryfilePath: 'src/index.ts' }),
         events: [
           { type: 'application-load-balancer', properties: { loadBalancerName: 'appLb', priority: 1, containerPort: 3000 } }
         ],

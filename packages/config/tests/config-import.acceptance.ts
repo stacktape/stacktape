@@ -27,7 +27,7 @@ import type { EmailSender } from '@stacktape/config/email-senders';
  */
 
 export const lambdaPackaging: LambdaPackaging = {
-  type: 'stacktape-lambda-buildpack',
+  type: 'js-bundle',
   properties: { entryfilePath: 'src/index.ts' }
 };
 
@@ -53,7 +53,7 @@ export const api: LambdaFunction = {
 export const site: WebService = {
   type: 'web-service',
   properties: {
-    packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: 'src/server.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/server.ts' } },
     resources: { cpu: 0.25, memory: 512 }
   }
 };

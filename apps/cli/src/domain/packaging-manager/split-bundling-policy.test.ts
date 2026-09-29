@@ -3,17 +3,17 @@ import type { LambdaPackaging } from '@stacktape/config/deployment-artifacts';
 import type { SplitBundlingCandidate } from './split-bundling-policy';
 import { canBuildSplitNativeDependencies, selectSplitBundlingGroup } from './split-bundling-policy';
 
-type StacktapeLambdaPackaging = Extract<LambdaPackaging, { type: 'stacktape-lambda-buildpack' }>;
+type JsBundleLambdaPackaging = Extract<LambdaPackaging, { type: 'js-bundle' }>;
 type NamedCandidate = SplitBundlingCandidate & { name: string };
 
 const candidate = (
   name: string,
-  properties: Partial<StacktapeLambdaPackaging['properties']> = {},
+  properties: Partial<JsBundleLambdaPackaging['properties']> = {},
   overrides: Omit<SplitBundlingCandidate, 'packaging'> = {}
 ): NamedCandidate => ({
   name,
   packaging: {
-    type: 'stacktape-lambda-buildpack',
+    type: 'js-bundle',
     properties: { entryfilePath: `./${name}.ts`, ...properties }
   },
   ...overrides
@@ -39,7 +39,7 @@ describe('choosing which Lambdas share one build', () => {
       candidate('api'),
       candidate('worker'),
       candidate('reports'),
-      candidate('legacy', { languageSpecificConfig: { nodeVersion: 24, outputModuleFormat: 'cjs' } })
+      candidate('legacy', { nodeVersion: 24, outputModuleFormat: 'cjs' })
     ]);
     expect(names(split)).toEqual(['api', 'reports', 'worker']);
     expect(names(perFunction)).toEqual(['legacy']);
@@ -72,10 +72,10 @@ describe('choosing which Lambdas share one build', () => {
   test.each([
     ['a named handler export, which only the CloudFormation handler string depends on', { handlerFunction: 'handle' }],
     ['dependencies excluded from the deployment package', { excludeDependencies: ['sharp'] }],
-    ['Node 20', { languageSpecificConfig: { nodeVersion: 20 } }],
-    ['Node 18', { languageSpecificConfig: { nodeVersion: 18 } }]
+    ['Node 20', { nodeVersion: 20 }],
+    ['Node 18', { nodeVersion: 18 }]
   ])('shares a build across two Lambdas that both use %s', (_description, properties) => {
-    const shared = properties as Partial<StacktapeLambdaPackaging['properties']>;
+    const shared = properties as Partial<JsBundleLambdaPackaging['properties']>;
     const { split } = selectSplitBundlingGroup([candidate('api', shared), candidate('worker', shared)]);
     expect(names(split)).toEqual(['api', 'worker']);
   });
@@ -106,19 +106,19 @@ describe('choosing which Lambdas share one build', () => {
   test.each([
     ['included files', { includeFiles: ['templates/**'] }],
     ['excluded files', { excludeFiles: ['**/*.test.ts'] }],
-    ['decorator metadata', { languageSpecificConfig: { nodeVersion: 24, emitTsDecoratorMetadata: true } }],
-    ['local source-map output', { languageSpecificConfig: { nodeVersion: 24, outputSourceMapsTo: './maps' } }],
+    ['decorator metadata', { nodeVersion: 24, emitTsDecoratorMetadata: true }],
+    ['local source-map output', { nodeVersion: 24, outputSourceMapsTo: './maps' }],
     [
       'deployment-package dependency exclusions',
-      { languageSpecificConfig: { nodeVersion: 24, dependenciesToExcludeFromDeploymentPackage: ['pg'] } }
+      { nodeVersion: 24, dependenciesToExcludeFromDeploymentPackage: ['pg'] }
     ],
-    ['CommonJS output', { languageSpecificConfig: { nodeVersion: 24, outputModuleFormat: 'cjs' } }],
-    ['an unsupported Node target', { languageSpecificConfig: { nodeVersion: 16 } }]
+    ['CommonJS output', { nodeVersion: 24, outputModuleFormat: 'cjs' }],
+    ['an unsupported Node target', { nodeVersion: 16 }]
   ])('keeps a Lambda on the per-function path for %s', (_description, properties) => {
     const { split, perFunction } = selectSplitBundlingGroup([
       candidate('api'),
       candidate('worker'),
-      candidate('odd', properties as Partial<StacktapeLambdaPackaging['properties']>)
+      candidate('odd', properties as Partial<JsBundleLambdaPackaging['properties']>)
     ]);
     expect(names(split)).toEqual(['api', 'worker']);
     expect(names(perFunction)).toEqual(['odd']);
@@ -129,45 +129,27 @@ describe('choosing which Lambdas share one build', () => {
     [
       'tsconfig files',
       [
-        candidate('api', { languageSpecificConfig: { nodeVersion: 24, tsConfigPath: './tsconfig.api.json' } }),
-        candidate('worker', { languageSpecificConfig: { nodeVersion: 24, tsConfigPath: './tsconfig.worker.json' } })
+        candidate('api', { nodeVersion: 24, tsConfigPath: './tsconfig.api.json' }),
+        candidate('worker', { nodeVersion: 24, tsConfigPath: './tsconfig.worker.json' })
       ]
     ],
     [
       'source-map settings',
       [
-        candidate('api', { languageSpecificConfig: { nodeVersion: 24, disableSourceMaps: true } }),
-        candidate('worker', { languageSpecificConfig: { nodeVersion: 24, disableSourceMaps: false } })
+        candidate('api', { nodeVersion: 24, disableSourceMaps: true }),
+        candidate('worker', { nodeVersion: 24, disableSourceMaps: false })
       ]
     ],
-    [
-      'minification',
-      [
-        candidate('api', { languageSpecificConfig: { nodeVersion: 24, minify: false } }),
-        candidate('worker', { languageSpecificConfig: { nodeVersion: 24 } })
-      ]
-    ],
+    ['minification', [candidate('api', { nodeVersion: 24, minify: false }), candidate('worker', { nodeVersion: 24 })]],
     [
       'identifier minification',
-      [
-        candidate('api', { languageSpecificConfig: { nodeVersion: 24, minifyIdentifiers: true } }),
-        candidate('worker', { languageSpecificConfig: { nodeVersion: 24 } })
-      ]
+      [candidate('api', { nodeVersion: 24, minifyIdentifiers: true }), candidate('worker', { nodeVersion: 24 })]
     ],
     [
       'AWS SDK bundling',
-      [
-        candidate('api', { languageSpecificConfig: { nodeVersion: 24, bundleAwsSdk: true } }),
-        candidate('worker', { languageSpecificConfig: { nodeVersion: 24 } })
-      ]
+      [candidate('api', { nodeVersion: 24, bundleAwsSdk: true }), candidate('worker', { nodeVersion: 24 })]
     ],
-    [
-      'Node versions',
-      [
-        candidate('api', { languageSpecificConfig: { nodeVersion: 24 } }),
-        candidate('worker', { languageSpecificConfig: { nodeVersion: 20 } })
-      ]
-    ],
+    ['Node versions', [candidate('api', { nodeVersion: 24 }), candidate('worker', { nodeVersion: 20 })]],
     [
       'excluded dependencies',
       [candidate('api', { excludeDependencies: ['sharp'] }), candidate('worker', { excludeDependencies: ['bcrypt'] })]
@@ -181,7 +163,7 @@ describe('choosing which Lambdas share one build', () => {
   test.each([
     [
       'dependencies excluded from the bundle',
-      (names: string[]) => ({ languageSpecificConfig: { nodeVersion: 24, dependenciesToExcludeFromBundle: names } })
+      (names: string[]) => ({ nodeVersion: 24 as const, dependenciesToExcludeFromBundle: names })
     ],
     ['dependencies excluded from the deployment package', (names: string[]) => ({ excludeDependencies: names })]
   ])('shares a build when two Lambdas list the same %s in a different order', (_description, properties) => {
@@ -199,7 +181,8 @@ describe('choosing which Lambdas share one build', () => {
     const excludedFromPackage = Object.freeze(['pg', 'aws-crt']) as string[];
     const properties = {
       excludeDependencies: excludedFromPackage,
-      languageSpecificConfig: { nodeVersion: 24, dependenciesToExcludeFromBundle: excludedFromBundle }
+      nodeVersion: 24,
+      dependenciesToExcludeFromBundle: excludedFromBundle
     } as const;
 
     const { split } = selectSplitBundlingGroup([candidate('api', properties), candidate('worker', properties)]);
@@ -212,8 +195,8 @@ describe('choosing which Lambdas share one build', () => {
   test('breaks a tie between equally large groups by code-unit order, not the machine collation', () => {
     // Collation puts "api" before "Workers"; code units put "W" (0x57) before "a" (0x61). Code-unit order is the same
     // on every machine, so the same configuration always lifts the same functions into a shared layer.
-    const workers = { languageSpecificConfig: { nodeVersion: 24, tsConfigPath: './config/Workers.json' } } as const;
-    const api = { languageSpecificConfig: { nodeVersion: 24, tsConfigPath: './config/api.json' } } as const;
+    const workers = { nodeVersion: 24, tsConfigPath: './config/Workers.json' } as const;
+    const api = { nodeVersion: 24, tsConfigPath: './config/api.json' } as const;
     const { split, perFunction } = selectSplitBundlingGroup([
       candidate('apiOne', api),
       candidate('apiTwo', api),
@@ -225,13 +208,11 @@ describe('choosing which Lambdas share one build', () => {
   });
 
   test('allows identical supported ESM settings', () => {
-    const properties: Partial<StacktapeLambdaPackaging['properties']> = {
-      languageSpecificConfig: {
-        nodeVersion: 24,
-        outputModuleFormat: 'esm',
-        tsConfigPath: './tsconfig.build.json',
-        dependenciesToExcludeFromBundle: ['sharp']
-      }
+    const properties: Partial<JsBundleLambdaPackaging['properties']> = {
+      nodeVersion: 24,
+      outputModuleFormat: 'esm',
+      tsConfigPath: './tsconfig.build.json',
+      dependenciesToExcludeFromBundle: ['sharp']
     };
     const { split } = selectSplitBundlingGroup([candidate('api', properties), candidate('worker', properties)]);
     expect(names(split)).toEqual(['api', 'worker']);

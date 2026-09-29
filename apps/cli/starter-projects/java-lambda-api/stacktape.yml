@@ -17,12 +17,11 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: buildpack
         properties:
           entryfilePath: ./src/main/java/posts/SavePost.java
-          languageSpecificConfig:
-            javaVersion: 17
       memory: 512
+      runtime: java17
       connectTo:
         - mainDynamoDbTable
       events:
@@ -36,12 +35,11 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: buildpack
         properties:
           entryfilePath: ./src/main/java/posts/GetPosts.java
-          languageSpecificConfig:
-            javaVersion: 17
       memory: 512
+      runtime: java17
       connectTo:
         - mainDynamoDbTable
       events:

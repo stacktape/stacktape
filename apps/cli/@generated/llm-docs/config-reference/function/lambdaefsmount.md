@@ -28,7 +28,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/media.ts
       joinDefaultVpc: true
@@ -48,7 +48,7 @@ import { LambdaFunction, EfsFilesystem, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const mediaProcessor = new LambdaFunction({
-    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/media.ts' } },
+    packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/media.ts' } },
     joinDefaultVpc: true,
     volumeMounts: [
       {

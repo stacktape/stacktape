@@ -36,7 +36,7 @@ resources:
     type: worker-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/worker.ts
       resources:
@@ -48,11 +48,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { WorkerService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { WorkerService, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const worker = new WorkerService({
-    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/worker.ts' }),
+    packaging: new JsBundleImagePackaging({ entryfilePath: 'src/worker.ts' }),
     resources: { cpu: 0.25, memory: 512 },
     usePrivateSubnetsWithNAT: true
   });

@@ -17,7 +17,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: buildpack
         properties:
           entryfilePath: ./src/save-post/main.go
       memory: 512
@@ -34,7 +34,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: buildpack
         properties:
           entryfilePath: ./src/get-posts/main.go
       memory: 512

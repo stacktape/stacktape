@@ -1,3 +1,5 @@
+import type { EnvironmentVar } from './shared';
+
 export interface DockerBuildArg {
   /**
    * #### Argument name
@@ -13,7 +15,7 @@ export interface DockerBuildArg {
   *     properties:
   *       container:
   *         packaging:
-  *           type: custom-dockerfile
+  *           type: dockerfile
   *           properties:
   *             buildContextPath: ./worker
   *             buildArgs:
@@ -35,7 +37,7 @@ export interface DockerBuildArg {
   *   const processor = new BatchJob({
   *     container: {
   *       packaging: {
-  *         type: 'custom-dockerfile',
+  *         type: 'dockerfile',
   *         properties: {
   *           buildContextPath: './worker',
   *           buildArgs: [
@@ -73,7 +75,7 @@ export interface DockerBuildArg {
   *     properties:
   *       container:
   *         packaging:
-  *           type: custom-dockerfile
+  *           type: dockerfile
   *           properties:
   *             buildContextPath: ./worker
   *             buildArgs:
@@ -95,7 +97,7 @@ export interface DockerBuildArg {
   *   const processor = new BatchJob({
   *     container: {
   *       packaging: {
-  *         type: 'custom-dockerfile',
+  *         type: 'dockerfile',
   *         properties: {
   *           buildContextPath: './worker',
   *           buildArgs: [
@@ -122,7 +124,207 @@ export interface DockerBuildArg {
 }
 
 
-export interface EsLanguageSpecificConfig {
+/**
+ * #### Bundles a JavaScript or TypeScript entry file with Stacktape's bundler.
+ *
+ * ---
+ *
+ * The entry file and everything it imports become one file. Dependencies that cannot be bundled (native add-ons,
+ * packages excluded with `dependenciesToExcludeFromBundle`) are installed separately. Artifacts are cached by a
+ * checksum of their inputs, so unchanged code is not built again.
+ */
+export interface JsBundleSharedProps {
+  /**
+   * #### Path to your app's entry point, relative to the Stacktape config file.
+   *
+   * ---
+   *
+   * The file and everything it imports are bundled into a single file. Dependencies with native binaries are
+   * installed separately into the artifact.
+  *
+  * **Example (YAML):**
+  *
+  * ```yaml
+  * resources:
+  *   apiFunction:
+  *     type: function
+  *     properties:
+  *       packaging:
+  *         type: js-bundle
+  *         properties:
+  *           # stp-focus
+  *           entryfilePath: src/handlers/api.ts
+  *           # stp-end-focus
+  *       memory: 512
+  *       timeout: 15
+  * ```
+  *
+  * **Example (TypeScript):**
+  *
+  * ```ts
+  * import { LambdaFunction, defineConfig } from 'stacktape';
+  *
+  * export default defineConfig(() => {
+  *   const apiFunction = new LambdaFunction({
+  *     packaging: {
+  *       type: 'js-bundle',
+  *       properties: {
+  *         // stp-focus
+  *         entryfilePath: 'src/handlers/api.ts'
+  *         // stp-end-focus
+  *       }
+  *     },
+  *     memory: 512,
+  *     timeout: 15
+  *   });
+  *   return { resources: { apiFunction } };
+  * });
+  * ```
+   */
+  entryfilePath: string;
+  /**
+   * #### A glob pattern of files to explicitly include in the deployment package.
+   *
+   * ---
+   *
+   * The path is relative to your Stacktape configuration file.
+  *
+  * **Example (YAML):**
+  *
+  * ```yaml
+  * resources:
+  *   apiFunction:
+  *     type: function
+  *     properties:
+  *       packaging:
+  *         type: js-bundle
+  *         properties:
+  *           entryfilePath: src/handlers/api.ts
+  *           # stp-focus
+  *           includeFiles:
+  *             - templates/**\/*.html
+  *             - config/defaults.json
+  *           # stp-end-focus
+  *       memory: 512
+  * ```
+  *
+  * **Example (TypeScript):**
+  *
+  * ```ts
+  * import { LambdaFunction, defineConfig } from 'stacktape';
+  *
+  * export default defineConfig(() => {
+  *   const apiFunction = new LambdaFunction({
+  *     packaging: {
+  *       type: 'js-bundle',
+  *       properties: {
+  *         entryfilePath: 'src/handlers/api.ts',
+  *         // stp-focus
+  *         includeFiles: ['templates/**\/*.html', 'config/defaults.json']
+  *         // stp-end-focus
+  *       }
+  *     },
+  *     memory: 512
+  *   });
+  *   return { resources: { apiFunction } };
+  * });
+  * ```
+   */
+  includeFiles?: string[];
+  /**
+   * #### A glob pattern of files to explicitly exclude from the deployment package.
+   *
+   * ---
+  *
+  * **Example (YAML):**
+  *
+  * ```yaml
+  * resources:
+  *   apiFunction:
+  *     type: function
+  *     properties:
+  *       packaging:
+  *         type: js-bundle
+  *         properties:
+  *           entryfilePath: src/handlers/api.ts
+  *           # stp-focus
+  *           excludeFiles:
+  *             - "**\/*.test.ts"
+  *             - "**\/__mocks__/**"
+  *           # stp-end-focus
+  *       memory: 512
+  * ```
+  *
+  * **Example (TypeScript):**
+  *
+  * ```ts
+  * import { LambdaFunction, defineConfig } from 'stacktape';
+  *
+  * export default defineConfig(() => {
+  *   const apiFunction = new LambdaFunction({
+  *     packaging: {
+  *       type: 'js-bundle',
+  *       properties: {
+  *         entryfilePath: 'src/handlers/api.ts',
+  *         // stp-focus
+  *         excludeFiles: ['**\/*.test.ts', '**\/__mocks__/**']
+  *         // stp-end-focus
+  *       }
+  *     },
+  *     memory: 512
+  *   });
+  *   return { resources: { apiFunction } };
+  * });
+  * ```
+   */
+  excludeFiles?: string[];
+  /**
+   * #### A list of dependencies to exclude from the deployment package.
+  *
+  * ---
+  *
+  * **Example (YAML):**
+  *
+  * ```yaml
+  * resources:
+  *   apiFunction:
+  *     type: function
+  *     properties:
+  *       packaging:
+  *         type: js-bundle
+  *         properties:
+  *           entryfilePath: src/handlers/api.ts
+  *           # stp-focus
+  *           excludeDependencies:
+  *             - aws-sdk
+  *             - "@aws-sdk/client-s3"
+  *           # stp-end-focus
+  *       memory: 512
+  * ```
+  *
+  * **Example (TypeScript):**
+  *
+  * ```ts
+  * import { LambdaFunction, defineConfig } from 'stacktape';
+  *
+  * export default defineConfig(() => {
+  *   const apiFunction = new LambdaFunction({
+  *     packaging: {
+  *       type: 'js-bundle',
+  *       properties: {
+  *         entryfilePath: 'src/handlers/api.ts',
+  *         // stp-focus
+  *         excludeDependencies: ['aws-sdk', '@aws-sdk/client-s3']
+  *         // stp-end-focus
+  *       }
+  *     },
+  *     memory: 512
+  *   });
+  *   return { resources: { apiFunction } };
+  * });
+  * ```
+   */
+  excludeDependencies?: string[];
   /**
    * #### The path to the `tsconfig.json` file.
    *
@@ -138,13 +340,12 @@ export interface EsLanguageSpecificConfig {
   *     type: function
   *     properties:
   *       packaging:
-  *         type: stacktape-lambda-buildpack
+  *         type: js-bundle
   *         properties:
   *           entryfilePath: src/handlers/api.ts
-  *           languageSpecificConfig:
-  *             # stp-focus
-  *             tsConfigPath: src/tsconfig.build.json
-  *             # stp-end-focus
+  *           # stp-focus
+  *           tsConfigPath: src/tsconfig.build.json
+  *           # stp-end-focus
   *       memory: 512
   * ```
   *
@@ -156,14 +357,12 @@ export interface EsLanguageSpecificConfig {
   * export default defineConfig(() => {
   *   const apiFunction = new LambdaFunction({
   *     packaging: {
-  *       type: 'stacktape-lambda-buildpack',
+  *       type: 'js-bundle',
   *       properties: {
   *         entryfilePath: 'src/handlers/api.ts',
-  *         languageSpecificConfig: {
-  *           // stp-focus
-  *           tsConfigPath: 'src/tsconfig.build.json'
-  *           // stp-end-focus
-  *         }
+  *         // stp-focus
+  *         tsConfigPath: 'src/tsconfig.build.json'
+  *         // stp-end-focus
   *       }
   *     },
   *     memory: 512
@@ -189,13 +388,12 @@ export interface EsLanguageSpecificConfig {
   *     type: function
   *     properties:
   *       packaging:
-  *         type: stacktape-lambda-buildpack
+  *         type: js-bundle
   *         properties:
   *           entryfilePath: src/main.ts
-  *           languageSpecificConfig:
-  *             # stp-focus
-  *             emitTsDecoratorMetadata: true
-  *             # stp-end-focus
+  *           # stp-focus
+  *           emitTsDecoratorMetadata: true
+  *           # stp-end-focus
   *       memory: 1024
   * ```
   *
@@ -207,14 +405,12 @@ export interface EsLanguageSpecificConfig {
   * export default defineConfig(() => {
   *   const apiFunction = new LambdaFunction({
   *     packaging: {
-  *       type: 'stacktape-lambda-buildpack',
+  *       type: 'js-bundle',
   *       properties: {
   *         entryfilePath: 'src/main.ts',
-  *         languageSpecificConfig: {
-  *           // stp-focus
-  *           emitTsDecoratorMetadata: true
-  *           // stp-end-focus
-  *         }
+  *         // stp-focus
+  *         emitTsDecoratorMetadata: true
+  *         // stp-end-focus
   *       }
   *     },
   *     memory: 1024
@@ -241,15 +437,14 @@ export interface EsLanguageSpecificConfig {
   *     type: function
   *     properties:
   *       packaging:
-  *         type: stacktape-lambda-buildpack
+  *         type: js-bundle
   *         properties:
   *           entryfilePath: src/handlers/api.ts
-  *           languageSpecificConfig:
-  *             # stp-focus
-  *             dependenciesToExcludeFromBundle:
-  *               - sharp
-  *               - "@prisma/client"
-  *             # stp-end-focus
+  *           # stp-focus
+  *           dependenciesToExcludeFromBundle:
+  *             - sharp
+  *             - "@prisma/client"
+  *           # stp-end-focus
   *       memory: 1024
   * ```
   *
@@ -261,14 +456,12 @@ export interface EsLanguageSpecificConfig {
   * export default defineConfig(() => {
   *   const apiFunction = new LambdaFunction({
   *     packaging: {
-  *       type: 'stacktape-lambda-buildpack',
+  *       type: 'js-bundle',
   *       properties: {
   *         entryfilePath: 'src/handlers/api.ts',
-  *         languageSpecificConfig: {
-  *           // stp-focus
-  *           dependenciesToExcludeFromBundle: ['sharp', '@prisma/client']
-  *           // stp-end-focus
-  *         }
+  *         // stp-focus
+  *         dependenciesToExcludeFromBundle: ['sharp', '@prisma/client']
+  *         // stp-end-focus
   *       }
   *     },
   *     memory: 1024
@@ -278,6 +471,59 @@ export interface EsLanguageSpecificConfig {
   * ```
    */
   dependenciesToExcludeFromBundle?: string[];
+  /**
+   * #### A list of dependencies to exclude from the deployment package.
+   *
+   * ---
+   *
+   * This only applies to dependencies that are not statically bundled.
+   * To exclude a dependency from the static bundle, use `dependenciesToExcludeFromBundle`.
+   * Use `*` to exclude all non-bundled dependencies.
+  *
+  * **Example (YAML):**
+  *
+  * ```yaml
+  * resources:
+  *   apiFunction:
+  *     type: function
+  *     properties:
+  *       packaging:
+  *         type: js-bundle
+  *         properties:
+  *           entryfilePath: src/handlers/api.ts
+  *           dependenciesToExcludeFromBundle:
+  *             - sharp
+  *           # stp-focus
+  *           dependenciesToExcludeFromDeploymentPackage:
+  *             - "@types/node"
+  *           # stp-end-focus
+  *       memory: 1024
+  * ```
+  *
+  * **Example (TypeScript):**
+  *
+  * ```ts
+  * import { LambdaFunction, defineConfig } from 'stacktape';
+  *
+  * export default defineConfig(() => {
+  *   const apiFunction = new LambdaFunction({
+  *     packaging: {
+  *       type: 'js-bundle',
+  *       properties: {
+  *         entryfilePath: 'src/handlers/api.ts',
+  *         dependenciesToExcludeFromBundle: ['sharp'],
+  *         // stp-focus
+  *         dependenciesToExcludeFromDeploymentPackage: ['@types/node']
+  *         // stp-end-focus
+  *       }
+  *     },
+  *     memory: 1024
+  *   });
+  *   return { resources: { apiFunction } };
+  * });
+  * ```
+   */
+  dependenciesToExcludeFromDeploymentPackage?: string[];
   /**
    * #### Output module format: `cjs` (CommonJS) or `esm` (ES Modules, enables top-level `await`).
    *
@@ -294,13 +540,12 @@ export interface EsLanguageSpecificConfig {
   *     type: function
   *     properties:
   *       packaging:
-  *         type: stacktape-lambda-buildpack
+  *         type: js-bundle
   *         properties:
   *           entryfilePath: src/handlers/api.ts
-  *           languageSpecificConfig:
-  *             # stp-focus
-  *             outputModuleFormat: esm
-  *             # stp-end-focus
+  *           # stp-focus
+  *           outputModuleFormat: esm
+  *           # stp-end-focus
   *       memory: 512
   * ```
   *
@@ -312,14 +557,12 @@ export interface EsLanguageSpecificConfig {
   * export default defineConfig(() => {
   *   const apiFunction = new LambdaFunction({
   *     packaging: {
-  *       type: 'stacktape-lambda-buildpack',
+  *       type: 'js-bundle',
   *       properties: {
   *         entryfilePath: 'src/handlers/api.ts',
-  *         languageSpecificConfig: {
-  *           // stp-focus
-  *           outputModuleFormat: 'esm'
-  *           // stp-end-focus
-  *         }
+  *         // stp-focus
+  *         outputModuleFormat: 'esm'
+  *         // stp-end-focus
   *       }
   *     },
   *     memory: 512
@@ -346,13 +589,12 @@ export interface EsLanguageSpecificConfig {
   *     type: function
   *     properties:
   *       packaging:
-  *         type: stacktape-lambda-buildpack
+  *         type: js-bundle
   *         properties:
   *           entryfilePath: src/handlers/api.ts
-  *           languageSpecificConfig:
-  *             # stp-focus
-  *             nodeVersion: 22
-  *             # stp-end-focus
+  *           # stp-focus
+  *           nodeVersion: 22
+  *           # stp-end-focus
   *       memory: 512
   * ```
   *
@@ -364,14 +606,12 @@ export interface EsLanguageSpecificConfig {
   * export default defineConfig(() => {
   *   const apiFunction = new LambdaFunction({
   *     packaging: {
-  *       type: 'stacktape-lambda-buildpack',
+  *       type: 'js-bundle',
   *       properties: {
   *         entryfilePath: 'src/handlers/api.ts',
-  *         languageSpecificConfig: {
-  *           // stp-focus
-  *           nodeVersion: 22
-  *           // stp-end-focus
-  *         }
+  *         // stp-focus
+  *         nodeVersion: 22
+  *         // stp-end-focus
   *       }
   *     },
   *     memory: 512
@@ -397,13 +637,12 @@ export interface EsLanguageSpecificConfig {
   *     type: function
   *     properties:
   *       packaging:
-  *         type: stacktape-lambda-buildpack
+  *         type: js-bundle
   *         properties:
   *           entryfilePath: src/handlers/api.ts
-  *           languageSpecificConfig:
-  *             # stp-focus
-  *             disableSourceMaps: true
-  *             # stp-end-focus
+  *           # stp-focus
+  *           disableSourceMaps: true
+  *           # stp-end-focus
   *       memory: 512
   * ```
   *
@@ -415,14 +654,12 @@ export interface EsLanguageSpecificConfig {
   * export default defineConfig(() => {
   *   const apiFunction = new LambdaFunction({
   *     packaging: {
-  *       type: 'stacktape-lambda-buildpack',
+  *       type: 'js-bundle',
   *       properties: {
   *         entryfilePath: 'src/handlers/api.ts',
-  *         languageSpecificConfig: {
-  *           // stp-focus
-  *           disableSourceMaps: true
-  *           // stp-end-focus
-  *         }
+  *         // stp-focus
+  *         disableSourceMaps: true
+  *         // stp-end-focus
   *       }
   *     },
   *     memory: 512
@@ -447,13 +684,12 @@ export interface EsLanguageSpecificConfig {
   *     type: function
   *     properties:
   *       packaging:
-  *         type: stacktape-lambda-buildpack
+  *         type: js-bundle
   *         properties:
   *           entryfilePath: src/handlers/api.ts
-  *           languageSpecificConfig:
-  *             # stp-focus
-  *             outputSourceMapsTo: ./build/sourcemaps
-  *             # stp-end-focus
+  *           # stp-focus
+  *           outputSourceMapsTo: ./build/sourcemaps
+  *           # stp-end-focus
   *       memory: 512
   * ```
   *
@@ -465,14 +701,12 @@ export interface EsLanguageSpecificConfig {
   * export default defineConfig(() => {
   *   const apiFunction = new LambdaFunction({
   *     packaging: {
-  *       type: 'stacktape-lambda-buildpack',
+  *       type: 'js-bundle',
   *       properties: {
   *         entryfilePath: 'src/handlers/api.ts',
-  *         languageSpecificConfig: {
-  *           // stp-focus
-  *           outputSourceMapsTo: './build/sourcemaps'
-  *           // stp-end-focus
-  *         }
+  *         // stp-focus
+  *         outputSourceMapsTo: './build/sourcemaps'
+  *         // stp-end-focus
   *       }
   *     },
   *     memory: 512
@@ -499,13 +733,12 @@ export interface EsLanguageSpecificConfig {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/handlers/api.ts
-   *           languageSpecificConfig:
-   *             # stp-focus
-   *             minify: false
-   *             # stp-end-focus
+   *           # stp-focus
+   *           minify: false
+   *           # stp-end-focus
    *       memory: 512
    * ```
    *
@@ -517,14 +750,12 @@ export interface EsLanguageSpecificConfig {
    * export default defineConfig(() => {
    *   const apiFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: {
    *         entryfilePath: 'src/handlers/api.ts',
-   *         languageSpecificConfig: {
-   *           // stp-focus
-   *           minify: false
-   *           // stp-end-focus
-   *         }
+   *         // stp-focus
+   *         minify: false
+   *         // stp-end-focus
    *       }
    *     },
    *     memory: 512
@@ -554,13 +785,12 @@ export interface EsLanguageSpecificConfig {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/handlers/api.ts
-   *           languageSpecificConfig:
-   *             # stp-focus
-   *             minifyIdentifiers: true
-   *             # stp-end-focus
+   *           # stp-focus
+   *           minifyIdentifiers: true
+   *           # stp-end-focus
    *       memory: 512
    * ```
    *
@@ -572,14 +802,12 @@ export interface EsLanguageSpecificConfig {
    * export default defineConfig(() => {
    *   const apiFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: {
    *         entryfilePath: 'src/handlers/api.ts',
-   *         languageSpecificConfig: {
-   *           // stp-focus
-   *           minifyIdentifiers: true
-   *           // stp-end-focus
-   *         }
+   *         // stp-focus
+   *         minifyIdentifiers: true
+   *         // stp-end-focus
    *       }
    *     },
    *     memory: 512
@@ -591,62 +819,6 @@ export interface EsLanguageSpecificConfig {
    * @default false
    */
   minifyIdentifiers?: boolean;
-  /**
-   * #### A list of dependencies to exclude from the deployment package.
-   *
-   * ---
-   *
-   * This only applies to dependencies that are not statically bundled.
-   * To exclude a dependency from the static bundle, use `dependenciesToExcludeFromBundle`.
-   * Use `*` to exclude all non-bundled dependencies.
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   apiFunction:
-  *     type: function
-  *     properties:
-  *       packaging:
-  *         type: stacktape-lambda-buildpack
-  *         properties:
-  *           entryfilePath: src/handlers/api.ts
-  *           languageSpecificConfig:
-  *             dependenciesToExcludeFromBundle:
-  *               - sharp
-  *             # stp-focus
-  *             dependenciesToExcludeFromDeploymentPackage:
-  *               - "@types/node"
-  *             # stp-end-focus
-  *       memory: 1024
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { LambdaFunction, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const apiFunction = new LambdaFunction({
-  *     packaging: {
-  *       type: 'stacktape-lambda-buildpack',
-  *       properties: {
-  *         entryfilePath: 'src/handlers/api.ts',
-  *         languageSpecificConfig: {
-  *           dependenciesToExcludeFromBundle: ['sharp'],
-  *           // stp-focus
-  *           dependenciesToExcludeFromDeploymentPackage: ['@types/node']
-  *           // stp-end-focus
-  *         }
-  *       }
-  *     },
-  *     memory: 1024
-  *   });
-  *   return { resources: { apiFunction } };
-  * });
-  * ```
-   */
-  dependenciesToExcludeFromDeploymentPackage?: string[];
   /**
    * #### Bundle the AWS SDK from your `node_modules` instead of using the copy the Lambda runtime provides.
    *
@@ -666,13 +838,12 @@ export interface EsLanguageSpecificConfig {
    *     type: function
    *     properties:
    *       packaging:
-   *         type: stacktape-lambda-buildpack
+   *         type: js-bundle
    *         properties:
    *           entryfilePath: src/handlers/api.ts
-   *           languageSpecificConfig:
-   *             # stp-focus
-   *             bundleAwsSdk: true
-   *             # stp-end-focus
+   *           # stp-focus
+   *           bundleAwsSdk: true
+   *           # stp-end-focus
    *       memory: 512
    * ```
    *
@@ -684,14 +855,12 @@ export interface EsLanguageSpecificConfig {
    * export default defineConfig(() => {
    *   const apiFunction = new LambdaFunction({
    *     packaging: {
-   *       type: 'stacktape-lambda-buildpack',
+   *       type: 'js-bundle',
    *       properties: {
    *         entryfilePath: 'src/handlers/api.ts',
-   *         languageSpecificConfig: {
-   *           // stp-focus
-   *           bundleAwsSdk: true
-   *           // stp-end-focus
-   *         }
+   *         // stp-focus
+   *         bundleAwsSdk: true
+   *         // stp-end-focus
    *       }
    *     },
    *     memory: 512
@@ -706,7 +875,228 @@ export interface EsLanguageSpecificConfig {
 }
 
 
-export interface PyLanguageSpecificConfig {
+export interface JsBundleLambdaPackagingProps extends JsBundleSharedProps {
+  /**
+   * #### The name of the handler function to be executed when the Lambda is invoked.
+  *
+  * ---
+  *
+  * **Example (YAML):**
+  *
+  * ```yaml
+  * resources:
+  *   apiFunction:
+  *     type: function
+  *     properties:
+  *       packaging:
+  *         type: js-bundle
+  *         properties:
+  *           entryfilePath: src/handlers/api.ts
+  *           # stp-focus
+  *           handlerFunction: handler
+  *           # stp-end-focus
+  *       memory: 512
+  * ```
+  *
+  * **Example (TypeScript):**
+  *
+  * ```ts
+  * import { LambdaFunction, defineConfig } from 'stacktape';
+  *
+  * export default defineConfig(() => {
+  *   const apiFunction = new LambdaFunction({
+  *     packaging: {
+  *       type: 'js-bundle',
+  *       properties: {
+  *         entryfilePath: 'src/handlers/api.ts',
+  *         // stp-focus
+  *         handlerFunction: 'handler'
+  *         // stp-end-focus
+  *       }
+  *     },
+  *     memory: 512
+  *   });
+  *   return { resources: { apiFunction } };
+  * });
+  * ```
+   */
+  handlerFunction?: string;
+}
+
+
+/**
+ * #### Bundles a JavaScript or TypeScript Lambda function with Stacktape's bundler.
+ *
+ * ---
+ *
+ * The entry file is bundled into a single file with source maps. Shared code of several functions can become a
+ * Lambda layer automatically.
+ */
+export interface JsBundleLambdaPackaging {
+  type: 'js-bundle';
+  properties: JsBundleLambdaPackagingProps;
+}
+
+
+/**
+ * #### Bundles a JavaScript or TypeScript entry file and builds a container image from it.
+ */
+export interface JsBundleBjImagePackagingProps extends JsBundleSharedProps {
+  /**
+   * #### Use glibc instead of musl (Alpine default). Enable if native dependencies require glibc.
+   *
+   * ---
+   *
+   * Results in a larger image. Common packages needing this: `sharp`, `canvas`, `bcrypt`, `puppeteer`.
+  *
+  * **Example (YAML):**
+  *
+  * ```yaml
+  * resources:
+  *   imageProcessor:
+  *     type: web-service
+  *     properties:
+  *       packaging:
+  *         type: js-bundle
+  *         properties:
+  *           entryfilePath: src/server.ts
+  *           # stp-focus
+  *           requiresGlibcBinaries: true
+  *           # stp-end-focus
+  *       resources:
+  *         cpu: 1
+  *         memory: 2048
+  * ```
+  *
+  * **Example (TypeScript):**
+  *
+  * ```ts
+  * import { WebService, defineConfig } from 'stacktape';
+  *
+  * export default defineConfig(() => {
+  *   const imageProcessor = new WebService({
+  *     packaging: {
+  *       type: 'js-bundle',
+  *       properties: {
+  *         entryfilePath: 'src/server.ts',
+  *         // stp-focus
+  *         requiresGlibcBinaries: true
+  *         // stp-end-focus
+  *       }
+  *     },
+  *     resources: {
+  *       cpu: 1,
+  *       memory: 2048
+  *     }
+  *   });
+  *   return { resources: { imageProcessor } };
+  * });
+  * ```
+   */
+  requiresGlibcBinaries?: boolean;
+  /**
+   * #### A list of commands to be executed during the `docker build` process.
+   *
+   * ---
+   *
+   * These commands are executed using the `RUN` directive in the Dockerfile.
+   * This is useful for installing additional system dependencies in your container.
+  *
+  * **Example (YAML):**
+  *
+  * ```yaml
+  * resources:
+  *   imageProcessor:
+  *     type: web-service
+  *     properties:
+  *       packaging:
+  *         type: js-bundle
+  *         properties:
+  *           entryfilePath: src/server.ts
+  *           # stp-focus
+  *           customDockerBuildCommands:
+  *             - apt-get update && apt-get install -y poppler-utils
+  *             - fc-cache -f
+  *           # stp-end-focus
+  *       resources:
+  *         cpu: 1
+  *         memory: 2048
+  * ```
+  *
+  * **Example (TypeScript):**
+  *
+  * ```ts
+  * import { WebService, defineConfig } from 'stacktape';
+  *
+  * export default defineConfig(() => {
+  *   const imageProcessor = new WebService({
+  *     packaging: {
+  *       type: 'js-bundle',
+  *       properties: {
+  *         entryfilePath: 'src/server.ts',
+  *         // stp-focus
+  *         customDockerBuildCommands: [
+  *           'apt-get update && apt-get install -y poppler-utils',
+  *           'fc-cache -f'
+  *         ]
+  *         // stp-end-focus
+  *       }
+  *     },
+  *     resources: {
+  *       cpu: 1,
+  *       memory: 2048
+  *     }
+  *   });
+  *   return { resources: { imageProcessor } };
+  * });
+  * ```
+   */
+  customDockerBuildCommands?: string[];
+}
+
+
+/**
+ * #### Bundles a JavaScript or TypeScript entry file and builds a container image from it.
+ */
+export interface JsBundleCwImagePackagingProps extends JsBundleBjImagePackagingProps {}
+
+
+/**
+ * #### Builds a container image from a bundled JavaScript or TypeScript entry file.
+ *
+ * ---
+ *
+ * The entry file is bundled into a single file with source maps. Only dependencies that cannot be bundled are installed
+ * in the image. The resulting image is uploaded to a managed ECR repository.
+ */
+export interface JsBundleBjImagePackaging {
+  type: 'js-bundle';
+  properties: JsBundleBjImagePackagingProps;
+}
+
+
+/**
+ * #### Builds a container image from a bundled JavaScript or TypeScript entry file.
+ *
+ * ---
+ *
+ * The entry file is bundled into a single file with source maps. Only dependencies that cannot be bundled are installed
+ * in the image. The resulting image is uploaded to a managed ECR repository.
+ */
+export interface JsBundleCwImagePackaging {
+  type: 'js-bundle';
+  properties: JsBundleCwImagePackagingProps;
+}
+
+
+/**
+ * #### Python options of the Lambda buildpack.
+ *
+ * ---
+ *
+ * Applies when `entryfilePath` is a `.py` file. The Python version comes from the function's `runtime`.
+ */
+export interface PythonBuildpackConfig {
   /**
    * #### The path to your project's dependency file.
    *
@@ -723,10 +1113,10 @@ export interface PyLanguageSpecificConfig {
   *     type: function
   *     properties:
   *       packaging:
-  *         type: stacktape-lambda-buildpack
+  *         type: buildpack
   *         properties:
   *           entryfilePath: app/main.py
-  *           languageSpecificConfig:
+  *           python:
   *             # stp-focus
   *             packageManagerFile: app/pyproject.toml
   *             # stp-end-focus
@@ -741,10 +1131,10 @@ export interface PyLanguageSpecificConfig {
   * export default defineConfig(() => {
   *   const pyApi = new LambdaFunction({
   *     packaging: {
-  *       type: 'stacktape-lambda-buildpack',
+  *       type: 'buildpack',
   *       properties: {
   *         entryfilePath: 'app/main.py',
-  *         languageSpecificConfig: {
+  *         python: {
   *           // stp-focus
   *           packageManagerFile: 'app/pyproject.toml'
   *           // stp-end-focus
@@ -758,57 +1148,6 @@ export interface PyLanguageSpecificConfig {
   * ```
    */
   packageManagerFile?: string;
-  /**
-   * #### The Python package manager to use.
-   *
-   * ---
-   *
-   * Stacktape uses `uv` for dependency resolution and installation. This option is kept
-   * for compatibility and must be set to `uv` if provided.
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   pyApi:
-  *     type: function
-  *     properties:
-  *       packaging:
-  *         type: stacktape-lambda-buildpack
-  *         properties:
-  *           entryfilePath: app/main.py
-  *           languageSpecificConfig:
-  *             # stp-focus
-  *             packageManager: uv
-  *             # stp-end-focus
-  *       memory: 512
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { LambdaFunction, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const pyApi = new LambdaFunction({
-  *     packaging: {
-  *       type: 'stacktape-lambda-buildpack',
-  *       properties: {
-  *         entryfilePath: 'app/main.py',
-  *         languageSpecificConfig: {
-  *           // stp-focus
-  *           packageManager: 'uv'
-  *           // stp-end-focus
-  *         }
-  *       }
-  *     },
-  *     memory: 512
-  *   });
-  *   return { resources: { pyApi } };
-  * });
-  * ```
-   */
-  packageManager?: SupportedPythonPackageManager;
   /**
    * #### Optional dependency extras to include from `pyproject.toml`.
    *
@@ -824,10 +1163,10 @@ export interface PyLanguageSpecificConfig {
   *     type: function
   *     properties:
   *       packaging:
-  *         type: stacktape-lambda-buildpack
+  *         type: buildpack
   *         properties:
   *           entryfilePath: app/main.py
-  *           languageSpecificConfig:
+  *           python:
   *             packageManagerFile: app/pyproject.toml
   *             # stp-focus
   *             uvOptionalDependencies:
@@ -845,10 +1184,10 @@ export interface PyLanguageSpecificConfig {
   * export default defineConfig(() => {
   *   const pyApi = new LambdaFunction({
   *     packaging: {
-  *       type: 'stacktape-lambda-buildpack',
+  *       type: 'buildpack',
   *       properties: {
   *         entryfilePath: 'app/main.py',
-  *         languageSpecificConfig: {
+  *         python: {
   *           packageManagerFile: 'app/pyproject.toml',
   *           // stp-focus
   *           uvOptionalDependencies: ['postgres', 'redis']
@@ -878,10 +1217,10 @@ export interface PyLanguageSpecificConfig {
   *     type: function
   *     properties:
   *       packaging:
-  *         type: stacktape-lambda-buildpack
+  *         type: buildpack
   *         properties:
   *           entryfilePath: app/main.py
-  *           languageSpecificConfig:
+  *           python:
   *             packageManagerFile: app/pyproject.toml
   *             # stp-focus
   *             uvWithGroups:
@@ -898,10 +1237,10 @@ export interface PyLanguageSpecificConfig {
   * export default defineConfig(() => {
   *   const pyApi = new LambdaFunction({
   *     packaging: {
-  *       type: 'stacktape-lambda-buildpack',
+  *       type: 'buildpack',
   *       properties: {
   *         entryfilePath: 'app/main.py',
-  *         languageSpecificConfig: {
+  *         python: {
   *           packageManagerFile: 'app/pyproject.toml',
   *           // stp-focus
   *           uvWithGroups: ['prod']
@@ -931,10 +1270,10 @@ export interface PyLanguageSpecificConfig {
   *     type: function
   *     properties:
   *       packaging:
-  *         type: stacktape-lambda-buildpack
+  *         type: buildpack
   *         properties:
   *           entryfilePath: app/main.py
-  *           languageSpecificConfig:
+  *           python:
   *             packageManagerFile: app/pyproject.toml
   *             # stp-focus
   *             uvWithoutGroups:
@@ -952,10 +1291,10 @@ export interface PyLanguageSpecificConfig {
   * export default defineConfig(() => {
   *   const pyApi = new LambdaFunction({
   *     packaging: {
-  *       type: 'stacktape-lambda-buildpack',
+  *       type: 'buildpack',
   *       properties: {
   *         entryfilePath: 'app/main.py',
-  *         languageSpecificConfig: {
+  *         python: {
   *           packageManagerFile: 'app/pyproject.toml',
   *           // stp-focus
   *           uvWithoutGroups: ['dev', 'test']
@@ -986,10 +1325,10 @@ export interface PyLanguageSpecificConfig {
   *     type: function
   *     properties:
   *       packaging:
-  *         type: stacktape-lambda-buildpack
+  *         type: buildpack
   *         properties:
   *           entryfilePath: app/main.py
-  *           languageSpecificConfig:
+  *           python:
   *             packageManagerFile: app/pyproject.toml
   *             # stp-focus
   *             uvOnlyGroups:
@@ -1006,10 +1345,10 @@ export interface PyLanguageSpecificConfig {
   * export default defineConfig(() => {
   *   const pyApi = new LambdaFunction({
   *     packaging: {
-  *       type: 'stacktape-lambda-buildpack',
+  *       type: 'buildpack',
   *       properties: {
   *         entryfilePath: 'app/main.py',
-  *         languageSpecificConfig: {
+  *         python: {
   *           packageManagerFile: 'app/pyproject.toml',
   *           // stp-focus
   *           uvOnlyGroups: ['runtime']
@@ -1024,182 +1363,20 @@ export interface PyLanguageSpecificConfig {
   * ```
    */
   uvOnlyGroups?: string[];
-  /**
-   * #### The Python version the buildpack uses to create the artifact. For Lambda packaging, keep the function's `runtime` aligned with this value.
-   *
-  *
-  * ---
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   pyApi:
-  *     type: function
-  *     properties:
-  *       packaging:
-  *         type: stacktape-lambda-buildpack
-  *         properties:
-  *           entryfilePath: app/main.py
-  *           languageSpecificConfig:
-  *             # stp-focus
-  *             pythonVersion: 3.12
-  *             # stp-end-focus
-  *       memory: 512
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { LambdaFunction, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const pyApi = new LambdaFunction({
-  *     packaging: {
-  *       type: 'stacktape-lambda-buildpack',
-  *       properties: {
-  *         entryfilePath: 'app/main.py',
-  *         languageSpecificConfig: {
-  *           // stp-focus
-  *           pythonVersion: 3.12
-  *           // stp-end-focus
-  *         }
-  *       }
-  *     },
-  *     memory: 512
-  *   });
-  *   return { resources: { pyApi } };
-  * });
-  * ```
-   *
-   * @default 3.12
-   */
-  pythonVersion?: SupportedPythonVersion;
-  /**
-   * #### Python server type: `WSGI` (Flask, Django) or `ASGI` (FastAPI, Starlette).
-   *
-   * ---
-   *
-   * Only for `stacktape-image-buildpack`. Auto-binds to the `PORT` env var.
-   * Set `entryfilePath` to `module/file.py:app` (e.g., `app/main.py:app`).
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   fastapiService:
-  *     type: web-service
-  *     properties:
-  *       packaging:
-  *         type: stacktape-image-buildpack
-  *         properties:
-  *           entryfilePath: app/main.py:app
-  *           languageSpecificConfig:
-  *             pythonVersion: 3.12
-  *             # stp-focus
-  *             runAppAs: ASGI
-  *             # stp-end-focus
-  *       resources:
-  *         cpu: 0.5
-  *         memory: 1024
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { WebService, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const fastapiService = new WebService({
-  *     packaging: {
-  *       type: 'stacktape-image-buildpack',
-  *       properties: {
-  *         entryfilePath: 'app/main.py:app',
-  *         languageSpecificConfig: {
-  *           pythonVersion: 3.12,
-  *           // stp-focus
-  *           runAppAs: 'ASGI'
-  *           // stp-end-focus
-  *         }
-  *       }
-  *     },
-  *     resources: {
-  *       cpu: 0.5,
-  *       memory: 1024
-  *     }
-  *   });
-  *   return { resources: { fastapiService } };
-  * });
-  * ```
-   */
-  runAppAs?: SupportedPythonRunAppAs;
-  /**
-   * #### Minify Python code to reduce package size. Makes production stack traces harder to read.
-   *
-  *
-  * ---
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   pyApi:
-  *     type: function
-  *     properties:
-  *       packaging:
-  *         type: stacktape-lambda-buildpack
-  *         properties:
-  *           entryfilePath: app/main.py
-  *           languageSpecificConfig:
-  *             pythonVersion: 3.12
-  *             # stp-focus
-  *             minify: false
-  *             # stp-end-focus
-  *       memory: 512
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { LambdaFunction, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const pyApi = new LambdaFunction({
-  *     packaging: {
-  *       type: 'stacktape-lambda-buildpack',
-  *       properties: {
-  *         entryfilePath: 'app/main.py',
-  *         languageSpecificConfig: {
-  *           pythonVersion: 3.12,
-  *           // stp-focus
-  *           minify: false
-  *           // stp-end-focus
-  *         }
-  *       }
-  *     },
-  *     memory: 512
-  *   });
-  *   return { resources: { pyApi } };
-  * });
-  * ```
-   *
-   * @default true
-   */
-  minify?: boolean;
 }
 
 
-// Python 3.10 is a string because the numeric literal 3.10 is indistinguishable from 3.1.
 export type SupportedPythonVersion = 2.7 | 3.6 | 3.7 | 3.8 | 3.9 | '3.10' | 3.11 | 3.12 | 3.13 | 3.14;
 
 
-export type SupportedPythonPackageManager = 'uv';
-
-
-export type SupportedPythonRunAppAs = 'WSGI' | 'ASGI';
-
-
-export interface JavaLanguageSpecificConfig {
+/**
+ * #### Java options of the Lambda buildpack.
+ *
+ * ---
+ *
+ * Applies when `entryfilePath` is a `.java` file. The Java version comes from the function's `runtime`.
+ */
+export interface JavaBuildpackConfig {
   /**
    * #### Specifies whether to use Maven instead of Gradle.
    *
@@ -1215,10 +1392,10 @@ export interface JavaLanguageSpecificConfig {
   *     type: function
   *     properties:
   *       packaging:
-  *         type: stacktape-lambda-buildpack
+  *         type: buildpack
   *         properties:
   *           entryfilePath: src/main/java/com/example/Handler.java
-  *           languageSpecificConfig:
+  *           java:
   *             # stp-focus
   *             useMaven: true
   *             # stp-end-focus
@@ -1233,10 +1410,10 @@ export interface JavaLanguageSpecificConfig {
   * export default defineConfig(() => {
   *   const javaApi = new LambdaFunction({
   *     packaging: {
-  *       type: 'stacktape-lambda-buildpack',
+  *       type: 'buildpack',
   *       properties: {
   *         entryfilePath: 'src/main/java/com/example/Handler.java',
-  *         languageSpecificConfig: {
+  *         java: {
   *           // stp-focus
   *           useMaven: true
   *           // stp-end-focus
@@ -1263,10 +1440,10 @@ export interface JavaLanguageSpecificConfig {
   *     type: function
   *     properties:
   *       packaging:
-  *         type: stacktape-lambda-buildpack
+  *         type: buildpack
   *         properties:
   *           entryfilePath: src/main/java/com/example/Handler.java
-  *           languageSpecificConfig:
+  *           java:
   *             useMaven: true
   *             # stp-focus
   *             packageManagerFile: pom.xml
@@ -1282,10 +1459,10 @@ export interface JavaLanguageSpecificConfig {
   * export default defineConfig(() => {
   *   const javaApi = new LambdaFunction({
   *     packaging: {
-  *       type: 'stacktape-lambda-buildpack',
+  *       type: 'buildpack',
   *       properties: {
   *         entryfilePath: 'src/main/java/com/example/Handler.java',
-  *         languageSpecificConfig: {
+  *         java: {
   *           useMaven: true,
   *           // stp-focus
   *           packageManagerFile: 'pom.xml'
@@ -1300,193 +1477,23 @@ export interface JavaLanguageSpecificConfig {
   * ```
    */
   packageManagerFile?: string;
-  /**
-   * #### The version of Java to use.
-   *
-  *
-  * ---
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   javaApi:
-  *     type: function
-  *     properties:
-  *       packaging:
-  *         type: stacktape-lambda-buildpack
-  *         properties:
-  *           entryfilePath: src/main/java/com/example/Handler.java
-  *           languageSpecificConfig:
-  *             # stp-focus
-  *             javaVersion: 17
-  *             # stp-end-focus
-  *       memory: 1024
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { LambdaFunction, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const javaApi = new LambdaFunction({
-  *     packaging: {
-  *       type: 'stacktape-lambda-buildpack',
-  *       properties: {
-  *         entryfilePath: 'src/main/java/com/example/Handler.java',
-  *         languageSpecificConfig: {
-  *           // stp-focus
-  *           javaVersion: 17
-  *           // stp-end-focus
-  *         }
-  *       }
-  *     },
-  *     memory: 1024
-  *   });
-  *   return { resources: { javaApi } };
-  * });
-  * ```
-   *
-   * @default 11
-   */
-  javaVersion?: SupportedJavaVersion;
 }
 
 
 export type SupportedJavaVersion = 8 | 11 | 17 | 19 | 21 | 25;
 
 
-export interface GoLanguageSpecificConfig {}
-
-
-export interface RubyLanguageSpecificConfig {
-  /**
-   * #### The version of Ruby to use.
-   *
-  *
-  * ---
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   rubyApi:
-  *     type: web-service
-  *     properties:
-  *       packaging:
-  *         type: stacktape-image-buildpack
-  *         properties:
-  *           entryfilePath: config.ru
-  *           languageSpecificConfig:
-  *             # stp-focus
-  *             rubyVersion: 3.3
-  *             # stp-end-focus
-  *       resources:
-  *         cpu: 0.5
-  *         memory: 1024
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { WebService, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const rubyApi = new WebService({
-  *     packaging: {
-  *       type: 'stacktape-image-buildpack',
-  *       properties: {
-  *         entryfilePath: 'config.ru',
-  *         languageSpecificConfig: {
-  *           // stp-focus
-  *           rubyVersion: 3.3
-  *           // stp-end-focus
-  *         }
-  *       }
-  *     },
-  *     resources: {
-  *       cpu: 0.5,
-  *       memory: 1024
-  *     }
-  *   });
-  *   return { resources: { rubyApi } };
-  * });
-  * ```
-   *
-   * @default 3.3
-   */
-  rubyVersion?: SupportedRubyVersion;
-}
-
-
 export type SupportedRubyVersion = 3.2 | 3.3 | 3.4 | 4;
 
 
-export interface PhpLanguageSpecificConfig {
-  /**
-   * #### The version of PHP to use.
-   *
-  *
-  * ---
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   phpApi:
-  *     type: web-service
-  *     properties:
-  *       packaging:
-  *         type: stacktape-image-buildpack
-  *         properties:
-  *           entryfilePath: public/index.php
-  *           languageSpecificConfig:
-  *             # stp-focus
-  *             phpVersion: 8.3
-  *             # stp-end-focus
-  *       resources:
-  *         cpu: 0.5
-  *         memory: 1024
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { WebService, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const phpApi = new WebService({
-  *     packaging: {
-  *       type: 'stacktape-image-buildpack',
-  *       properties: {
-  *         entryfilePath: 'public/index.php',
-  *         languageSpecificConfig: {
-  *           // stp-focus
-  *           phpVersion: 8.3
-  *           // stp-end-focus
-  *         }
-  *       }
-  *     },
-  *     resources: {
-  *       cpu: 0.5,
-  *       memory: 1024
-  *     }
-  *   });
-  *   return { resources: { phpApi } };
-  * });
-  * ```
-   *
-   * @default 8.3
-   */
-  phpVersion?: SupportedPhpVersion;
-}
-
-
-export type SupportedPhpVersion = 8.2 | 8.3;
-
-
-export interface DotnetLanguageSpecificConfig {
+/**
+ * #### .NET options of the Lambda buildpack.
+ *
+ * ---
+ *
+ * Applies when `entryfilePath` is a `.cs` file. The .NET version comes from the function's `runtime`.
+ */
+export interface DotnetBuildpackConfig {
   /**
    * #### The path to your .NET project file (.csproj).
   *
@@ -1500,10 +1507,10 @@ export interface DotnetLanguageSpecificConfig {
   *     type: function
   *     properties:
   *       packaging:
-  *         type: stacktape-lambda-buildpack
+  *         type: buildpack
   *         properties:
   *           entryfilePath: src/Function.cs
-  *           languageSpecificConfig:
+  *           dotnet:
   *             # stp-focus
   *             projectFile: src/Api.csproj
   *             # stp-end-focus
@@ -1518,10 +1525,10 @@ export interface DotnetLanguageSpecificConfig {
   * export default defineConfig(() => {
   *   const dotnetApi = new LambdaFunction({
   *     packaging: {
-  *       type: 'stacktape-lambda-buildpack',
+  *       type: 'buildpack',
   *       properties: {
   *         entryfilePath: 'src/Function.cs',
-  *         languageSpecificConfig: {
+  *         dotnet: {
   *           // stp-focus
   *           projectFile: 'src/Api.csproj'
   *           // stp-end-focus
@@ -1535,73 +1542,30 @@ export interface DotnetLanguageSpecificConfig {
   * ```
    */
   projectFile?: string;
-  /**
-   * #### The version of .NET to use.
-   *
-  *
-  * ---
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   dotnetApi:
-  *     type: function
-  *     properties:
-  *       packaging:
-  *         type: stacktape-lambda-buildpack
-  *         properties:
-  *           entryfilePath: src/Function.cs
-  *           languageSpecificConfig:
-  *             projectFile: src/Api.csproj
-  *             # stp-focus
-  *             dotnetVersion: 8
-  *             # stp-end-focus
-  *       memory: 1024
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { LambdaFunction, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const dotnetApi = new LambdaFunction({
-  *     packaging: {
-  *       type: 'stacktape-lambda-buildpack',
-  *       properties: {
-  *         entryfilePath: 'src/Function.cs',
-  *         languageSpecificConfig: {
-  *           projectFile: 'src/Api.csproj',
-  *           // stp-focus
-  *           dotnetVersion: 8
-  *           // stp-end-focus
-  *         }
-  *       }
-  *     },
-  *     memory: 1024
-  *   });
-  *   return { resources: { dotnetApi } };
-  * });
-  * ```
-   *
-   * @default 8
-   */
-  dotnetVersion?: SupportedDotnetVersion;
 }
 
 
 export type SupportedDotnetVersion = 6 | 7 | 8 | 10;
 
 
-export interface StpBuildpackSharedProps {
+/**
+ * #### Builds a Python, Java, Go, Ruby, .NET or Rust Lambda function from its source.
+ *
+ * ---
+ *
+ * The language is chosen from the entry file's extension and the toolchain version from the function's `runtime`.
+ * Dependencies are installed and the code is compiled in Docker, then zipped into the deployment package.
+ */
+export interface BuildpackLambdaPackagingProps {
   /**
    * #### Path to your app's entry point, relative to the Stacktape config file.
    *
    * ---
    *
-   * For JS/TS: code is bundled into a single file. Dependencies with native binaries are installed separately.
-   * For Python: use `module/file.py:app` format when using `runAppAs` (WSGI/ASGI).
+   * The file extension selects the language: `.py`, `.java`, `.go`, `.rb`, `.cs` or `.rs`. Dependencies are
+   * installed from the nearest dependency file (`pyproject.toml`, `requirements.txt`, `pom.xml`, `build.gradle`,
+   * `go.mod`, `Gemfile`, `*.csproj`, `Cargo.toml`) and the build runs in Docker on the Lambda build image of the
+   * function's `runtime`.
   *
   * **Example (YAML):**
   *
@@ -1611,7 +1575,7 @@ export interface StpBuildpackSharedProps {
   *     type: function
   *     properties:
   *       packaging:
-  *         type: stacktape-lambda-buildpack
+  *         type: js-bundle
   *         properties:
   *           # stp-focus
   *           entryfilePath: src/handlers/api.ts
@@ -1628,7 +1592,7 @@ export interface StpBuildpackSharedProps {
   * export default defineConfig(() => {
   *   const apiFunction = new LambdaFunction({
   *     packaging: {
-  *       type: 'stacktape-lambda-buildpack',
+  *       type: 'js-bundle',
   *       properties: {
   *         // stp-focus
   *         entryfilePath: 'src/handlers/api.ts'
@@ -1644,6 +1608,51 @@ export interface StpBuildpackSharedProps {
    */
   entryfilePath: string;
   /**
+   * #### The name of the handler function to be executed when the Lambda is invoked.
+  *
+  * ---
+  *
+  * **Example (YAML):**
+  *
+  * ```yaml
+  * resources:
+  *   apiFunction:
+  *     type: function
+  *     properties:
+  *       packaging:
+  *         type: js-bundle
+  *         properties:
+  *           entryfilePath: src/handlers/api.ts
+  *           # stp-focus
+  *           handlerFunction: handler
+  *           # stp-end-focus
+  *       memory: 512
+  * ```
+  *
+  * **Example (TypeScript):**
+  *
+  * ```ts
+  * import { LambdaFunction, defineConfig } from 'stacktape';
+  *
+  * export default defineConfig(() => {
+  *   const apiFunction = new LambdaFunction({
+  *     packaging: {
+  *       type: 'js-bundle',
+  *       properties: {
+  *         entryfilePath: 'src/handlers/api.ts',
+  *         // stp-focus
+  *         handlerFunction: 'handler'
+  *         // stp-end-focus
+  *       }
+  *     },
+  *     memory: 512
+  *   });
+  *   return { resources: { apiFunction } };
+  * });
+  * ```
+   */
+  handlerFunction?: string;
+  /**
    * #### A glob pattern of files to explicitly include in the deployment package.
    *
    * ---
@@ -1658,7 +1667,7 @@ export interface StpBuildpackSharedProps {
   *     type: function
   *     properties:
   *       packaging:
-  *         type: stacktape-lambda-buildpack
+  *         type: js-bundle
   *         properties:
   *           entryfilePath: src/handlers/api.ts
   *           # stp-focus
@@ -1677,7 +1686,7 @@ export interface StpBuildpackSharedProps {
   * export default defineConfig(() => {
   *   const apiFunction = new LambdaFunction({
   *     packaging: {
-  *       type: 'stacktape-lambda-buildpack',
+  *       type: 'js-bundle',
   *       properties: {
   *         entryfilePath: 'src/handlers/api.ts',
   *         // stp-focus
@@ -1705,7 +1714,7 @@ export interface StpBuildpackSharedProps {
   *     type: function
   *     properties:
   *       packaging:
-  *         type: stacktape-lambda-buildpack
+  *         type: js-bundle
   *         properties:
   *           entryfilePath: src/handlers/api.ts
   *           # stp-focus
@@ -1724,7 +1733,7 @@ export interface StpBuildpackSharedProps {
   * export default defineConfig(() => {
   *   const apiFunction = new LambdaFunction({
   *     packaging: {
-  *       type: 'stacktape-lambda-buildpack',
+  *       type: 'js-bundle',
   *       properties: {
   *         entryfilePath: 'src/handlers/api.ts',
   *         // stp-focus
@@ -1740,176 +1749,155 @@ export interface StpBuildpackSharedProps {
    */
   excludeFiles?: string[];
   /**
-   * #### A list of dependencies to exclude from the deployment package.
-  *
-  * ---
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   apiFunction:
-  *     type: function
-  *     properties:
-  *       packaging:
-  *         type: stacktape-lambda-buildpack
-  *         properties:
-  *           entryfilePath: src/handlers/api.ts
-  *           # stp-focus
-  *           excludeDependencies:
-  *             - aws-sdk
-  *             - "@aws-sdk/client-s3"
-  *           # stp-end-focus
-  *       memory: 512
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { LambdaFunction, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const apiFunction = new LambdaFunction({
-  *     packaging: {
-  *       type: 'stacktape-lambda-buildpack',
-  *       properties: {
-  *         entryfilePath: 'src/handlers/api.ts',
-  *         // stp-focus
-  *         excludeDependencies: ['aws-sdk', '@aws-sdk/client-s3']
-  *         // stp-end-focus
-  *       }
-  *     },
-  *     memory: 512
-  *   });
-  *   return { resources: { apiFunction } };
-  * });
-  * ```
+   * #### Python options. Applies when `entryfilePath` is a `.py` file.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   apiFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: buildpack
+   *         properties:
+   *           entryfilePath: app/main.py
+   *           # stp-focus
+   *           python:
+   *             uvWithGroups:
+   *               - lambda
+   *           # stp-end-focus
+   *       runtime: python3.12
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { BuildpackLambdaPackaging, LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const apiFunction = new LambdaFunction({
+   *     packaging: new BuildpackLambdaPackaging({
+   *       entryfilePath: 'app/main.py',
+   *       // stp-focus
+   *       python: {
+   *         uvWithGroups: ['lambda']
+   *       }
+   *       // stp-end-focus
+   *     }),
+   *     runtime: 'python3.12'
+   *   });
+   *   return { resources: { apiFunction } };
+   * });
+   * ```
    */
-  excludeDependencies?: string[];
+  python?: PythonBuildpackConfig;
   /**
-   * #### Language-specific packaging configuration.
-  *
-  * ---
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   apiFunction:
-  *     type: function
-  *     properties:
-  *       packaging:
-  *         type: stacktape-lambda-buildpack
-  *         properties:
-  *           entryfilePath: src/handlers/api.ts
-  *           # stp-focus
-  *           languageSpecificConfig:
-  *             nodeVersion: 22
-  *             outputModuleFormat: esm
-  *           # stp-end-focus
-  *       memory: 512
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { LambdaFunction, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const apiFunction = new LambdaFunction({
-  *     packaging: {
-  *       type: 'stacktape-lambda-buildpack',
-  *       properties: {
-  *         entryfilePath: 'src/handlers/api.ts',
-  *         // stp-focus
-  *         languageSpecificConfig: {
-  *           nodeVersion: 22,
-  *           outputModuleFormat: 'esm'
-  *         }
-  *         // stp-end-focus
-  *       }
-  *     },
-  *     memory: 512
-  *   });
-  *   return { resources: { apiFunction } };
-  * });
-  * ```
+   * #### Java options. Applies when `entryfilePath` is a `.java` file.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   apiFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: buildpack
+   *         properties:
+   *           entryfilePath: src/main/java/com/example/Handler.java
+   *           # stp-focus
+   *           java:
+   *             useMaven: true
+   *           # stp-end-focus
+   *       runtime: java21
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { BuildpackLambdaPackaging, LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const apiFunction = new LambdaFunction({
+   *     packaging: new BuildpackLambdaPackaging({
+   *       entryfilePath: 'src/main/java/com/example/Handler.java',
+   *       // stp-focus
+   *       java: {
+   *         useMaven: true
+   *       }
+   *       // stp-end-focus
+   *     }),
+   *     runtime: 'java21'
+   *   });
+   *   return { resources: { apiFunction } };
+   * });
+   * ```
    */
-  languageSpecificConfig?:
-    | EsLanguageSpecificConfig
-    | PyLanguageSpecificConfig
-    | JavaLanguageSpecificConfig
-    | GoLanguageSpecificConfig
-    | PhpLanguageSpecificConfig
-    | DotnetLanguageSpecificConfig
-    | RubyLanguageSpecificConfig;
-}
-
-
-export interface StpBuildpackLambdaPackagingProps extends StpBuildpackSharedProps {
+  java?: JavaBuildpackConfig;
   /**
-   * #### The name of the handler function to be executed when the Lambda is invoked.
-  *
-  * ---
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   apiFunction:
-  *     type: function
-  *     properties:
-  *       packaging:
-  *         type: stacktape-lambda-buildpack
-  *         properties:
-  *           entryfilePath: src/handlers/api.ts
-  *           # stp-focus
-  *           handlerFunction: handler
-  *           # stp-end-focus
-  *       memory: 512
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { LambdaFunction, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const apiFunction = new LambdaFunction({
-  *     packaging: {
-  *       type: 'stacktape-lambda-buildpack',
-  *       properties: {
-  *         entryfilePath: 'src/handlers/api.ts',
-  *         // stp-focus
-  *         handlerFunction: 'handler'
-  *         // stp-end-focus
-  *       }
-  *     },
-  *     memory: 512
-  *   });
-  *   return { resources: { apiFunction } };
-  * });
-  * ```
+   * #### .NET options. Applies when `entryfilePath` is a `.cs` file.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   apiFunction:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: buildpack
+   *         properties:
+   *           entryfilePath: src/Function.cs
+   *           # stp-focus
+   *           dotnet:
+   *             projectFile: src/Function.csproj
+   *           # stp-end-focus
+   *       runtime: dotnet8
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { BuildpackLambdaPackaging, LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const apiFunction = new LambdaFunction({
+   *     packaging: new BuildpackLambdaPackaging({
+   *       entryfilePath: 'src/Function.cs',
+   *       // stp-focus
+   *       dotnet: {
+   *         projectFile: 'src/Function.csproj'
+   *       }
+   *       // stp-end-focus
+   *     }),
+   *     runtime: 'dotnet8'
+   *   });
+   *   return { resources: { apiFunction } };
+   * });
+   * ```
    */
-  handlerFunction?: string;
+  dotnet?: DotnetBuildpackConfig;
 }
 
 
 /**
- * #### A zero-config buildpack that packages your code for AWS Lambda.
+ * #### Builds a Python, Java, Go, Ruby, .NET or Rust Lambda function from its source.
  *
  * ---
  *
- * The `stacktape-lambda-buildpack` automatically bundles your code and dependencies into an optimized Lambda deployment package.
- *
- * **Supported languages:** JavaScript, TypeScript, Python, Java, Go, Ruby, PHP, and .NET.
- *
- * For JS/TS, your code is bundled into a single file. Source maps are automatically generated.
- * Packages are cached based on a checksum, so unchanged code is not re-packaged.
+ * The language is chosen from the entry file's extension and the toolchain version from the function's `runtime`.
+ * Dependencies are installed and the code is compiled in Docker, then zipped into the deployment package.
  */
-export interface StpBuildpackLambdaPackaging {
-  type: 'stacktape-lambda-buildpack';
-  properties: StpBuildpackLambdaPackagingProps;
+export interface BuildpackLambdaPackaging {
+  type: 'buildpack';
+  properties: BuildpackLambdaPackagingProps;
 }
 
 
@@ -2287,7 +2275,7 @@ export interface PrebuiltCwImagePackaging {
 /**
  * #### Configures an image to be built by Stacktape from a specified Dockerfile.
  */
-export interface CustomDockerfileBjImagePackagingProps {
+export interface DockerfileBjImagePackagingProps {
   /**
    * #### The path to the Dockerfile, relative to `buildContextPath`.
   *
@@ -2302,7 +2290,7 @@ export interface CustomDockerfileBjImagePackagingProps {
   *     properties:
   *       container:
   *         packaging:
-  *           type: custom-dockerfile
+  *           type: dockerfile
   *           properties:
   *             buildContextPath: ./worker
   *             # stp-focus
@@ -2322,7 +2310,7 @@ export interface CustomDockerfileBjImagePackagingProps {
   *   const processor = new BatchJob({
   *     container: {
   *       packaging: {
-  *         type: 'custom-dockerfile',
+  *         type: 'dockerfile',
   *         properties: {
   *           buildContextPath: './worker',
   *           // stp-focus
@@ -2355,7 +2343,7 @@ export interface CustomDockerfileBjImagePackagingProps {
   *     properties:
   *       container:
   *         packaging:
-  *           type: custom-dockerfile
+  *           type: dockerfile
   *           properties:
   *             # stp-focus
   *             buildContextPath: ./worker
@@ -2374,7 +2362,7 @@ export interface CustomDockerfileBjImagePackagingProps {
   *   const processor = new BatchJob({
   *     container: {
   *       packaging: {
-  *         type: 'custom-dockerfile',
+  *         type: 'dockerfile',
   *         properties: {
   *           // stp-focus
   *           buildContextPath: './worker'
@@ -2406,7 +2394,7 @@ export interface CustomDockerfileBjImagePackagingProps {
   *     properties:
   *       container:
   *         packaging:
-  *           type: custom-dockerfile
+  *           type: dockerfile
   *           properties:
   *             buildContextPath: ./worker
   *             # stp-focus
@@ -2430,7 +2418,7 @@ export interface CustomDockerfileBjImagePackagingProps {
   *   const processor = new BatchJob({
   *     container: {
   *       packaging: {
-  *         type: 'custom-dockerfile',
+  *         type: 'dockerfile',
   *         properties: {
   *           buildContextPath: './worker',
   *           // stp-focus
@@ -2470,7 +2458,7 @@ export interface CustomDockerfileBjImagePackagingProps {
   *     properties:
   *       container:
   *         packaging:
-  *           type: custom-dockerfile
+  *           type: dockerfile
   *           properties:
   *             buildContextPath: ./worker
   *             # stp-focus
@@ -2492,7 +2480,7 @@ export interface CustomDockerfileBjImagePackagingProps {
   *   const processor = new BatchJob({
   *     container: {
   *       packaging: {
-  *         type: 'custom-dockerfile',
+  *         type: 'dockerfile',
   *         properties: {
   *           buildContextPath: './worker',
   *           // stp-focus
@@ -2517,7 +2505,7 @@ export interface CustomDockerfileBjImagePackagingProps {
 /**
  * #### Configures an image to be built by Stacktape from a specified Dockerfile.
  */
-export interface CustomDockerfileCwImagePackagingProps extends CustomDockerfileBjImagePackagingProps {
+export interface DockerfileCwImagePackagingProps extends DockerfileBjImagePackagingProps {
   /**
    * #### A script to be executed when the container starts.
    *
@@ -2533,7 +2521,7 @@ export interface CustomDockerfileCwImagePackagingProps extends CustomDockerfileB
   *     type: web-service
   *     properties:
   *       packaging:
-  *         type: custom-dockerfile
+  *         type: dockerfile
   *         properties:
   *           buildContextPath: ./app
   *           # stp-focus
@@ -2553,7 +2541,7 @@ export interface CustomDockerfileCwImagePackagingProps extends CustomDockerfileB
   * export default defineConfig(() => {
   *   const appService = new WebService({
   *     packaging: {
-  *       type: 'custom-dockerfile',
+  *       type: 'dockerfile',
   *       properties: {
   *         buildContextPath: './app',
   *         // stp-focus
@@ -2574,9 +2562,9 @@ export interface CustomDockerfileCwImagePackagingProps extends CustomDockerfileB
 }
 
 
-export interface CustomDockerfileBjImagePackaging {
-  type: 'custom-dockerfile';
-  properties: CustomDockerfileBjImagePackagingProps;
+export interface DockerfileBjImagePackaging {
+  type: 'dockerfile';
+  properties: DockerfileBjImagePackagingProps;
 }
 
 
@@ -2585,1429 +2573,503 @@ export interface CustomDockerfileBjImagePackaging {
  *
  * ---
  *
- * With `custom-dockerfile`, you provide a path to your Dockerfile and build context.
+ * With `dockerfile`, you provide a path to your Dockerfile and build context.
  * Stacktape builds the image and uploads it to a managed ECR repository.
  *
  * This gives you full control over the container environment and is ideal for complex setups.
  */
-export interface CustomDockerfileCwImagePackaging {
-  type: 'custom-dockerfile';
-  properties: CustomDockerfileCwImagePackagingProps;
-}
-
-
-export interface ExternalBuildpackBjImagePackagingProps {
-  /**
-   * #### The Buildpack Builder to use.
-   *
-   * ---
-   *
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   importer:
-  *     type: batch-job
-  *     properties:
-  *       container:
-  *         packaging:
-  *           type: external-buildpack
-  *           properties:
-  *             sourceDirectoryPath: ./importer
-  *             # stp-focus
-  *             builder: paketobuildpacks/builder-jammy-full
-  *             # stp-end-focus
-  *       resources:
-  *         cpu: 1
-  *         memory: 2048
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { BatchJob, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const importer = new BatchJob({
-  *     container: {
-  *       packaging: {
-  *         type: 'external-buildpack',
-  *         properties: {
-  *           sourceDirectoryPath: './importer',
-  *           // stp-focus
-  *           builder: 'paketobuildpacks/builder-jammy-full'
-  *           // stp-end-focus
-  *         }
-  *       }
-  *     },
-  *     resources: {
-  *       cpu: 1,
-  *       memory: 2048
-  *     }
-  *   });
-  *   return { resources: { importer } };
-  * });
-  * ```
-   *
-   * @default "paketobuildpacks/builder-jammy-base"
-   */
-  builder?: string;
-  /**
-   * #### The specific Buildpack to use.
-   *
-   * ---
-   *
-   * By default, the buildpack is detected automatically.
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   importer:
-  *     type: batch-job
-  *     properties:
-  *       container:
-  *         packaging:
-  *           type: external-buildpack
-  *           properties:
-  *             sourceDirectoryPath: ./importer
-  *             # stp-focus
-  *             buildpacks:
-  *               - paketo-buildpacks/nodejs
-  *             # stp-end-focus
-  *       resources:
-  *         cpu: 1
-  *         memory: 2048
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { BatchJob, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const importer = new BatchJob({
-  *     container: {
-  *       packaging: {
-  *         type: 'external-buildpack',
-  *         properties: {
-  *           sourceDirectoryPath: './importer',
-  *           // stp-focus
-  *           buildpacks: ['paketo-buildpacks/nodejs']
-  *           // stp-end-focus
-  *         }
-  *       }
-  *     },
-  *     resources: {
-  *       cpu: 1,
-  *       memory: 2048
-  *     }
-  *   });
-  *   return { resources: { importer } };
-  * });
-  * ```
-   */
-  buildpacks?: string[];
-  /**
-   * #### The path to the source code directory.
-  *
-  * ---
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   importer:
-  *     type: batch-job
-  *     properties:
-  *       container:
-  *         packaging:
-  *           type: external-buildpack
-  *           properties:
-  *             # stp-focus
-  *             sourceDirectoryPath: ./importer
-  *             # stp-end-focus
-  *       resources:
-  *         cpu: 1
-  *         memory: 2048
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { BatchJob, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const importer = new BatchJob({
-  *     container: {
-  *       packaging: {
-  *         type: 'external-buildpack',
-  *         properties: {
-  *           // stp-focus
-  *           sourceDirectoryPath: './importer'
-  *           // stp-end-focus
-  *         }
-  *       }
-  *     },
-  *     resources: {
-  *       cpu: 1,
-  *       memory: 2048
-  *     }
-  *   });
-  *   return { resources: { importer } };
-  * });
-  * ```
-   */
-  sourceDirectoryPath: string;
-  /**
-   * #### A command to be executed when the container starts.
-   *
-   * ---
-   *
-   * Example: `['/app/start.sh']`
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   importer:
-  *     type: batch-job
-  *     properties:
-  *       container:
-  *         packaging:
-  *           type: external-buildpack
-  *           properties:
-  *             sourceDirectoryPath: ./importer
-  *             # stp-focus
-  *             command:
-  *               - npm
-  *               - run
-  *               - import
-  *             # stp-end-focus
-  *       resources:
-  *         cpu: 1
-  *         memory: 2048
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { BatchJob, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const importer = new BatchJob({
-  *     container: {
-  *       packaging: {
-  *         type: 'external-buildpack',
-  *         properties: {
-  *           sourceDirectoryPath: './importer',
-  *           // stp-focus
-  *           command: ['npm', 'run', 'import']
-  *           // stp-end-focus
-  *         }
-  *       }
-  *     },
-  *     resources: {
-  *       cpu: 1,
-  *       memory: 2048
-  *     }
-  *   });
-  *   return { resources: { importer } };
-  * });
-  * ```
-   */
-  command?: string[];
-}
-
-
-export interface ExternalBuildpackCwImagePackagingProps extends ExternalBuildpackBjImagePackagingProps {}
-
-
-export interface ExternalBuildpackBjImagePackaging {
-  type: 'external-buildpack';
-  properties: ExternalBuildpackBjImagePackagingProps;
+export interface DockerfileCwImagePackaging {
+  type: 'dockerfile';
+  properties: DockerfileCwImagePackagingProps;
 }
 
 
 /**
- * #### Builds a container image using an external buildpack.
+ * #### Builds a container image from a project directory without a Dockerfile.
  *
  * ---
  *
- * External buildpacks (buildpacks.io) automatically detect your application type
- * and build an optimized container image with zero configuration.
- *
- * The default builder is `paketobuildpacks/builder-jammy-base`.
- * You can find buildpacks for almost any language or framework.
+ * Powered by [Railpack](https://railpack.com). The language, framework, package manager and start command are detected
+ * from the project's own files: lockfiles, `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `Gemfile`,
+ * `composer.json`, `mix.exs` and version files such as `.nvmrc` or `.python-version`. Supported: Node.js (npm,
+ * pnpm, yarn, bun), Python, PHP, Ruby, Go, Rust, Java, .NET, Elixir, Deno, Gleam and static sites. Every property here
+ * is an override; a project that follows its ecosystem's conventions needs none of them.
  */
-export interface ExternalBuildpackCwImagePackaging {
-  type: 'external-buildpack';
-  properties: ExternalBuildpackCwImagePackagingProps;
-}
-
-
-export interface NixpacksPhase {
+export interface BuildpackBjImagePackagingProps {
   /**
-   * #### The name of the build phase.
-  *
-  * ---
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   worker:
-  *     type: worker-service
-  *     properties:
-  *       packaging:
-  *         type: nixpacks
-  *         properties:
-  *           sourceDirectoryPath: ./worker
-  *           phases:
-  *             # stp-focus
-  *             - name: install
-  *             # stp-end-focus
-  *               cmds:
-  *                 - npm ci
-  *       resources:
-  *         cpu: 0.5
-  *         memory: 1024
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { WorkerService, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const worker = new WorkerService({
-  *     packaging: {
-  *       type: 'nixpacks',
-  *       properties: {
-  *         sourceDirectoryPath: './worker',
-  *         phases: [
-  *           {
-  *             // stp-focus
-  *             name: 'install',
-  *             // stp-end-focus
-  *             cmds: ['npm ci']
-  *           }
-  *         ]
-  *       }
-  *     },
-  *     resources: {
-  *       cpu: 0.5,
-  *       memory: 1024
-  *     }
-  *   });
-  *   return { resources: { worker } };
-  * });
-  * ```
-   */
-  name: string;
-  /**
-   * #### A list of shell commands to execute in this phase.
-  *
-  * ---
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   worker:
-  *     type: worker-service
-  *     properties:
-  *       packaging:
-  *         type: nixpacks
-  *         properties:
-  *           sourceDirectoryPath: ./worker
-  *           phases:
-  *             - name: build
-  *               # stp-focus
-  *               cmds:
-  *                 - npm run build
-  *                 - npm prune --omit=dev
-  *               # stp-end-focus
-  *       resources:
-  *         cpu: 0.5
-  *         memory: 1024
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { WorkerService, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const worker = new WorkerService({
-  *     packaging: {
-  *       type: 'nixpacks',
-  *       properties: {
-  *         sourceDirectoryPath: './worker',
-  *         phases: [
-  *           {
-  *             name: 'build',
-  *             // stp-focus
-  *             cmds: ['npm run build', 'npm prune --omit=dev']
-  *             // stp-end-focus
-  *           }
-  *         ]
-  *       }
-  *     },
-  *     resources: {
-  *       cpu: 0.5,
-  *       memory: 1024
-  *     }
-  *   });
-  *   return { resources: { worker } };
-  * });
-  * ```
-   */
-  cmds?: string[];
-  /**
-   * #### A list of Nix packages to install in this phase.
-  *
-  * ---
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   worker:
-  *     type: worker-service
-  *     properties:
-  *       packaging:
-  *         type: nixpacks
-  *         properties:
-  *           sourceDirectoryPath: ./worker
-  *           phases:
-  *             - name: setup
-  *               # stp-focus
-  *               nixPkgs:
-  *                 - ffmpeg
-  *                 - imagemagick
-  *               # stp-end-focus
-  *       resources:
-  *         cpu: 0.5
-  *         memory: 1024
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { WorkerService, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const worker = new WorkerService({
-  *     packaging: {
-  *       type: 'nixpacks',
-  *       properties: {
-  *         sourceDirectoryPath: './worker',
-  *         phases: [
-  *           {
-  *             name: 'setup',
-  *             // stp-focus
-  *             nixPkgs: ['ffmpeg', 'imagemagick']
-  *             // stp-end-focus
-  *           }
-  *         ]
-  *       }
-  *     },
-  *     resources: {
-  *       cpu: 0.5,
-  *       memory: 1024
-  *     }
-  *   });
-  *   return { resources: { worker } };
-  * });
-  * ```
-   */
-  nixPkgs?: string[];
-  /**
-   * #### A list of Nix libraries to include in this phase.
-  *
-  * ---
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   worker:
-  *     type: worker-service
-  *     properties:
-  *       packaging:
-  *         type: nixpacks
-  *         properties:
-  *           sourceDirectoryPath: ./worker
-  *           phases:
-  *             - name: setup
-  *               # stp-focus
-  *               nixLibs:
-  *                 - openssl
-  *                 - zlib
-  *               # stp-end-focus
-  *       resources:
-  *         cpu: 0.5
-  *         memory: 1024
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { WorkerService, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const worker = new WorkerService({
-  *     packaging: {
-  *       type: 'nixpacks',
-  *       properties: {
-  *         sourceDirectoryPath: './worker',
-  *         phases: [
-  *           {
-  *             name: 'setup',
-  *             // stp-focus
-  *             nixLibs: ['openssl', 'zlib']
-  *             // stp-end-focus
-  *           }
-  *         ]
-  *       }
-  *     },
-  *     resources: {
-  *       cpu: 0.5,
-  *       memory: 1024
-  *     }
-  *   });
-  *   return { resources: { worker } };
-  * });
-  * ```
-   */
-  nixLibs?: string[];
-  /**
-   * #### A list of Nix overlay files to apply in this phase.
-  *
-  * ---
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   worker:
-  *     type: worker-service
-  *     properties:
-  *       packaging:
-  *         type: nixpacks
-  *         properties:
-  *           sourceDirectoryPath: ./worker
-  *           phases:
-  *             - name: setup
-  *               # stp-focus
-  *               nixOverlay:
-  *                 - ./nix/overlay.nix
-  *               # stp-end-focus
-  *       resources:
-  *         cpu: 0.5
-  *         memory: 1024
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { WorkerService, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const worker = new WorkerService({
-  *     packaging: {
-  *       type: 'nixpacks',
-  *       properties: {
-  *         sourceDirectoryPath: './worker',
-  *         phases: [
-  *           {
-  *             name: 'setup',
-  *             // stp-focus
-  *             nixOverlay: ['./nix/overlay.nix']
-  *             // stp-end-focus
-  *           }
-  *         ]
-  *       }
-  *     },
-  *     resources: {
-  *       cpu: 0.5,
-  *       memory: 1024
-  *     }
-  *   });
-  *   return { resources: { worker } };
-  * });
-  * ```
-   */
-  nixOverlay?: string[];
-  /**
-   * #### The Nixpkgs archive to use.
-  *
-  * ---
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   worker:
-  *     type: worker-service
-  *     properties:
-  *       packaging:
-  *         type: nixpacks
-  *         properties:
-  *           sourceDirectoryPath: ./worker
-  *           phases:
-  *             - name: setup
-  *               nixPkgs:
-  *                 - nodejs_22
-  *               # stp-focus
-  *               nixpkgsArchive: bf3287dac860542719b3849d6970d22f635f9da1
-  *               # stp-end-focus
-  *       resources:
-  *         cpu: 0.5
-  *         memory: 1024
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { WorkerService, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const worker = new WorkerService({
-  *     packaging: {
-  *       type: 'nixpacks',
-  *       properties: {
-  *         sourceDirectoryPath: './worker',
-  *         phases: [
-  *           {
-  *             name: 'setup',
-  *             nixPkgs: ['nodejs_22'],
-  *             // stp-focus
-  *             nixpkgsArchive: 'bf3287dac860542719b3849d6970d22f635f9da1'
-  *             // stp-end-focus
-  *           }
-  *         ]
-  *       }
-  *     },
-  *     resources: {
-  *       cpu: 0.5,
-  *       memory: 1024
-  *     }
-  *   });
-  *   return { resources: { worker } };
-  * });
-  * ```
-   */
-  nixpkgsArchive?: string;
-  /**
-   * #### A list of APT packages to install in this phase.
-  *
-  * ---
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   worker:
-  *     type: worker-service
-  *     properties:
-  *       packaging:
-  *         type: nixpacks
-  *         properties:
-  *           sourceDirectoryPath: ./worker
-  *           phases:
-  *             - name: setup
-  *               # stp-focus
-  *               aptPkgs:
-  *                 - libpq-dev
-  *                 - poppler-utils
-  *               # stp-end-focus
-  *       resources:
-  *         cpu: 0.5
-  *         memory: 1024
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { WorkerService, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const worker = new WorkerService({
-  *     packaging: {
-  *       type: 'nixpacks',
-  *       properties: {
-  *         sourceDirectoryPath: './worker',
-  *         phases: [
-  *           {
-  *             name: 'setup',
-  *             // stp-focus
-  *             aptPkgs: ['libpq-dev', 'poppler-utils']
-  *             // stp-end-focus
-  *           }
-  *         ]
-  *       }
-  *     },
-  *     resources: {
-  *       cpu: 0.5,
-  *       memory: 1024
-  *     }
-  *   });
-  *   return { resources: { worker } };
-  * });
-  * ```
-   */
-  aptPkgs?: string[];
-  /**
-   * #### A list of directories to cache between builds to speed up subsequent builds.
-  *
-  * ---
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   worker:
-  *     type: worker-service
-  *     properties:
-  *       packaging:
-  *         type: nixpacks
-  *         properties:
-  *           sourceDirectoryPath: ./worker
-  *           phases:
-  *             - name: install
-  *               cmds:
-  *                 - npm ci
-  *               # stp-focus
-  *               cacheDirectories:
-  *                 - node_modules/.cache
-  *                 - /root/.npm
-  *               # stp-end-focus
-  *       resources:
-  *         cpu: 0.5
-  *         memory: 1024
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { WorkerService, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const worker = new WorkerService({
-  *     packaging: {
-  *       type: 'nixpacks',
-  *       properties: {
-  *         sourceDirectoryPath: './worker',
-  *         phases: [
-  *           {
-  *             name: 'install',
-  *             cmds: ['npm ci'],
-  *             // stp-focus
-  *             cacheDirectories: ['node_modules/.cache', '/root/.npm']
-  *             // stp-end-focus
-  *           }
-  *         ]
-  *       }
-  *     },
-  *     resources: {
-  *       cpu: 0.5,
-  *       memory: 1024
-  *     }
-  *   });
-  *   return { resources: { worker } };
-  * });
-  * ```
-   */
-  cacheDirectories?: string[];
-  /**
-   * #### A list of file paths to include in this phase; all other files will be excluded.
-  *
-  * ---
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   worker:
-  *     type: worker-service
-  *     properties:
-  *       packaging:
-  *         type: nixpacks
-  *         properties:
-  *           sourceDirectoryPath: ./worker
-  *           phases:
-  *             - name: build
-  *               cmds:
-  *                 - npm run build
-  *               # stp-focus
-  *               onlyIncludeFiles:
-  *                 - src
-  *                 - package.json
-  *               # stp-end-focus
-  *       resources:
-  *         cpu: 0.5
-  *         memory: 1024
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { WorkerService, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const worker = new WorkerService({
-  *     packaging: {
-  *       type: 'nixpacks',
-  *       properties: {
-  *         sourceDirectoryPath: './worker',
-  *         phases: [
-  *           {
-  *             name: 'build',
-  *             cmds: ['npm run build'],
-  *             // stp-focus
-  *             onlyIncludeFiles: ['src', 'package.json']
-  *             // stp-end-focus
-  *           }
-  *         ]
-  *       }
-  *     },
-  *     resources: {
-  *       cpu: 0.5,
-  *       memory: 1024
-  *     }
-  *   });
-  *   return { resources: { worker } };
-  * });
-  * ```
-   */
-  onlyIncludeFiles?: string[];
-}
-
-
-export interface NixpacksBjImagePackagingProps {
-  /**
-   * #### The path to the source code directory.
-  *
-  * ---
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   worker:
-  *     type: worker-service
-  *     properties:
-  *       packaging:
-  *         type: nixpacks
-  *         properties:
-  *           # stp-focus
-  *           sourceDirectoryPath: ./worker
-  *           # stp-end-focus
-  *       resources:
-  *         cpu: 0.5
-  *         memory: 1024
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { WorkerService, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const worker = new WorkerService({
-  *     packaging: {
-  *       type: 'nixpacks',
-  *       properties: {
-  *         // stp-focus
-  *         sourceDirectoryPath: './worker'
-  *         // stp-end-focus
-  *       }
-  *     },
-  *     resources: {
-  *       cpu: 0.5,
-  *       memory: 1024
-  *     }
-  *   });
-  *   return { resources: { worker } };
-  * });
-  * ```
-   */
-  sourceDirectoryPath: string;
-  /**
-   * #### The base image to use for building the application.
+   * #### The directory to build, relative to the Stacktape config file. Defaults to the config file's directory.
    *
    * ---
    *
-   * For more details, see the [Nixpacks documentation](https://nixpacks.com/docs/configuration/file#build-image).
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   worker:
-  *     type: worker-service
-  *     properties:
-  *       packaging:
-  *         type: nixpacks
-  *         properties:
-  *           sourceDirectoryPath: ./worker
-  *           # stp-focus
-  *           buildImage: ubuntu:22.04
-  *           # stp-end-focus
-  *       resources:
-  *         cpu: 0.5
-  *         memory: 1024
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { WorkerService, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const worker = new WorkerService({
-  *     packaging: {
-  *       type: 'nixpacks',
-  *       properties: {
-  *         sourceDirectoryPath: './worker',
-  *         // stp-focus
-  *         buildImage: 'ubuntu:22.04'
-  *         // stp-end-focus
-  *       }
-  *     },
-  *     resources: {
-  *       cpu: 0.5,
-  *       memory: 1024
-  *     }
-  *   });
-  *   return { resources: { worker } };
-  * });
-  * ```
+   * Files matched by the directory's `.dockerignore` are left out of the build.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   apiService:
+   *     type: web-service
+   *     properties:
+   *       packaging:
+   *         type: buildpack
+   *         properties:
+   *           # stp-focus
+   *           sourceDirectoryPath: ./api
+   *           # stp-end-focus
+   *       resources:
+   *         cpu: 0.5
+   *         memory: 1024
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { BuildpackImagePackaging, WebService, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const apiService = new WebService({
+   *     packaging: new BuildpackImagePackaging({
+   *       // stp-focus
+   *       sourceDirectoryPath: './api'
+   *       // stp-end-focus
+   *     }),
+   *     resources: {
+   *       cpu: 0.5,
+   *       memory: 1024
+   *     }
+   *   });
+   *   return { resources: { apiService } };
+   * });
+   * ```
    */
-  buildImage?: string;
+  sourceDirectoryPath?: string;
   /**
-   * #### A list of providers to use for determining the build and runtime environments.
-  *
-  * ---
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   worker:
-  *     type: worker-service
-  *     properties:
-  *       packaging:
-  *         type: nixpacks
-  *         properties:
-  *           sourceDirectoryPath: ./worker
-  *           # stp-focus
-  *           providers:
-  *             - node
-  *           # stp-end-focus
-  *       resources:
-  *         cpu: 0.5
-  *         memory: 1024
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { WorkerService, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const worker = new WorkerService({
-  *     packaging: {
-  *       type: 'nixpacks',
-  *       properties: {
-  *         sourceDirectoryPath: './worker',
-  *         // stp-focus
-  *         providers: ['node']
-  *         // stp-end-focus
-  *       }
-  *     },
-  *     resources: {
-  *       cpu: 0.5,
-  *       memory: 1024
-  *     }
-  *   });
-  *   return { resources: { worker } };
-  * });
-  * ```
-   */
-  providers?: string[];
-  /**
-   * #### The command to execute when starting the application.
+   * #### The command that starts the application. Overrides the detected start command.
    *
    * ---
    *
-   * This overrides the default start command inferred by Nixpacks.
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   worker:
-  *     type: worker-service
-  *     properties:
-  *       packaging:
-  *         type: nixpacks
-  *         properties:
-  *           sourceDirectoryPath: ./worker
-  *           # stp-focus
-  *           startCmd: node dist/worker.js
-  *           # stp-end-focus
-  *       resources:
-  *         cpu: 0.5
-  *         memory: 1024
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { WorkerService, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const worker = new WorkerService({
-  *     packaging: {
-  *       type: 'nixpacks',
-  *       properties: {
-  *         sourceDirectoryPath: './worker',
-  *         // stp-focus
-  *         startCmd: 'node dist/worker.js'
-  *         // stp-end-focus
-  *       }
-  *     },
-  *     resources: {
-  *       cpu: 0.5,
-  *       memory: 1024
-  *     }
-  *   });
-  *   return { resources: { worker } };
-  * });
-  * ```
-   */
-  startCmd?: string;
-  /**
-   * #### The base image to use for running the application.
-  *
-  * ---
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   worker:
-  *     type: worker-service
-  *     properties:
-  *       packaging:
-  *         type: nixpacks
-  *         properties:
-  *           sourceDirectoryPath: ./worker
-  *           # stp-focus
-  *           startRunImage: gcr.io/distroless/nodejs22-debian12
-  *           # stp-end-focus
-  *       resources:
-  *         cpu: 0.5
-  *         memory: 1024
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { WorkerService, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const worker = new WorkerService({
-  *     packaging: {
-  *       type: 'nixpacks',
-  *       properties: {
-  *         sourceDirectoryPath: './worker',
-  *         // stp-focus
-  *         startRunImage: 'gcr.io/distroless/nodejs22-debian12'
-  *         // stp-end-focus
-  *       }
-  *     },
-  *     resources: {
-  *       cpu: 0.5,
-  *       memory: 1024
-  *     }
-  *   });
-  *   return { resources: { worker } };
-  * });
-  * ```
-   */
-  startRunImage?: string;
-  /**
-   * #### A list of file paths to include in the runtime environment; all other files will be excluded.
+   * Runs through `bash -c` in the image's `/app` directory. Web services must listen on `$PORT`.
    *
-   * Requires `startRunImage`. Nixpacks applies this filter while copying artifacts from the build image into that
-   * separate runtime image.
-  *
-  * ---
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   worker:
-  *     type: worker-service
-  *     properties:
-  *       packaging:
-  *         type: nixpacks
-  *         properties:
-  *           sourceDirectoryPath: ./worker
-  *           # stp-focus
-   *           startRunImage: node:22-slim
-   *           startOnlyIncludeFiles:
-  *             - dist
-  *             - node_modules
-  *           # stp-end-focus
-  *       resources:
-  *         cpu: 0.5
-  *         memory: 1024
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { WorkerService, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const worker = new WorkerService({
-  *     packaging: {
-  *       type: 'nixpacks',
-  *       properties: {
-  *         sourceDirectoryPath: './worker',
-  *         // stp-focus
-   *         startRunImage: 'node:22-slim',
-   *         startOnlyIncludeFiles: ['dist', 'node_modules']
-  *         // stp-end-focus
-  *       }
-  *     },
-  *     resources: {
-  *       cpu: 0.5,
-  *       memory: 1024
-  *     }
-  *   });
-  *   return { resources: { worker } };
-  * });
-  * ```
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   apiService:
+   *     type: web-service
+   *     properties:
+   *       packaging:
+   *         type: buildpack
+   *         properties:
+   *           sourceDirectoryPath: ./api
+   *           # stp-focus
+   *           startCommand: gunicorn --bind 0.0.0.0:$PORT app:app
+   *           # stp-end-focus
+   *       resources:
+   *         cpu: 0.5
+   *         memory: 1024
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { BuildpackImagePackaging, WebService, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const apiService = new WebService({
+   *     packaging: new BuildpackImagePackaging({
+   *       sourceDirectoryPath: './api',
+   *       // stp-focus
+   *       startCommand: 'gunicorn --bind 0.0.0.0:$PORT app:app'
+   *       // stp-end-focus
+   *     }),
+   *     resources: {
+   *       cpu: 0.5,
+   *       memory: 1024
+   *     }
+   *   });
+   *   return { resources: { apiService } };
+   * });
+   * ```
    */
-  startOnlyIncludeFiles?: string[];
+  startCommand?: string;
   /**
-   * #### The build phases for the application.
-  *
-  * ---
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   worker:
-  *     type: worker-service
-  *     properties:
-  *       packaging:
-  *         type: nixpacks
-  *         properties:
-  *           sourceDirectoryPath: ./worker
-  *           # stp-focus
-  *           phases:
-  *             - name: install
-  *               cmds:
-  *                 - npm ci
-  *             - name: build
-  *               cmds:
-  *                 - npm run build
-  *           # stp-end-focus
-  *       resources:
-  *         cpu: 0.5
-  *         memory: 1024
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { WorkerService, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const worker = new WorkerService({
-  *     packaging: {
-  *       type: 'nixpacks',
-  *       properties: {
-  *         sourceDirectoryPath: './worker',
-  *         // stp-focus
-  *         phases: [
-  *           { name: 'install', cmds: ['npm ci'] },
-  *           { name: 'build', cmds: ['npm run build'] }
-  *         ]
-  *         // stp-end-focus
-  *       }
-  *     },
-  *     resources: {
-  *       cpu: 0.5,
-  *       memory: 1024
-  *     }
-  *   });
-  *   return { resources: { worker } };
-  * });
-  * ```
+   * #### The command that builds the application after dependencies are installed. Overrides the detected build command.
+   *
+   * ---
+   *
+   * For Node.js projects the default is the `build` script of `package.json` when one exists.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   apiService:
+   *     type: web-service
+   *     properties:
+   *       packaging:
+   *         type: buildpack
+   *         properties:
+   *           sourceDirectoryPath: ./api
+   *           # stp-focus
+   *           buildCommand: npm run build:server
+   *           # stp-end-focus
+   *       resources:
+   *         cpu: 0.5
+   *         memory: 1024
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { BuildpackImagePackaging, WebService, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const apiService = new WebService({
+   *     packaging: new BuildpackImagePackaging({
+   *       sourceDirectoryPath: './api',
+   *       // stp-focus
+   *       buildCommand: 'npm run build:server'
+   *       // stp-end-focus
+   *     }),
+   *     resources: {
+   *       cpu: 0.5,
+   *       memory: 1024
+   *     }
+   *   });
+   *   return { resources: { apiService } };
+   * });
+   * ```
    */
-  phases?: NixpacksPhase[];
-}
-
-
-export interface NixpacksCwImagePackagingProps extends NixpacksBjImagePackagingProps {}
-
-
-export interface NixpacksBjImagePackaging {
-  type: 'nixpacks';
-  properties: NixpacksBjImagePackagingProps;
+  buildCommand?: string;
+  /**
+   * #### The command that installs dependencies. Overrides the detected install command.
+   *
+   * ---
+   *
+   * The default is the package manager's locked install, for example `npm ci`, `pnpm install --frozen-lockfile`
+   * or `uv sync --locked`.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   apiService:
+   *     type: web-service
+   *     properties:
+   *       packaging:
+   *         type: buildpack
+   *         properties:
+   *           sourceDirectoryPath: ./api
+   *           # stp-focus
+   *           installCommand: npm ci --include=optional
+   *           # stp-end-focus
+   *       resources:
+   *         cpu: 0.5
+   *         memory: 1024
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { BuildpackImagePackaging, WebService, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const apiService = new WebService({
+   *     packaging: new BuildpackImagePackaging({
+   *       sourceDirectoryPath: './api',
+   *       // stp-focus
+   *       installCommand: 'npm ci --include=optional'
+   *       // stp-end-focus
+   *     }),
+   *     resources: {
+   *       cpu: 0.5,
+   *       memory: 1024
+   *     }
+   *   });
+   *   return { resources: { apiService } };
+   * });
+   * ```
+   */
+  installCommand?: string;
+  /**
+   * #### Versions of language runtimes and tools to install, by [mise](https://mise.jdx.dev) tool name.
+   *
+   * ---
+   *
+   * Use it when the project has no version file of its own. Keys are tool names such as `node`, `python`,
+   * `go`, `rust`, `ruby`, `php`, `java` or `pnpm`; values are versions such as `22` or `3.12`.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   apiService:
+   *     type: web-service
+   *     properties:
+   *       packaging:
+   *         type: buildpack
+   *         properties:
+   *           sourceDirectoryPath: ./api
+   *           # stp-focus
+   *           packages:
+   *             node: '22'
+   *             pnpm: '10'
+   *           # stp-end-focus
+   *       resources:
+   *         cpu: 0.5
+   *         memory: 1024
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { BuildpackImagePackaging, WebService, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const apiService = new WebService({
+   *     packaging: new BuildpackImagePackaging({
+   *       sourceDirectoryPath: './api',
+   *       // stp-focus
+   *       packages: {
+   *         node: '22',
+   *         pnpm: '10'
+   *       }
+   *       // stp-end-focus
+   *     }),
+   *     resources: {
+   *       cpu: 0.5,
+   *       memory: 1024
+   *     }
+   *   });
+   *   return { resources: { apiService } };
+   * });
+   * ```
+   */
+  packages?: Record<string, string>;
+  /**
+   * #### Debian packages to install with `apt`, available both during the build and at runtime.
+   *
+   * ---
+   *
+   * Common libraries such as `libpq` for PostgreSQL clients are installed automatically when the dependency
+   * that needs them is detected.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   apiService:
+   *     type: web-service
+   *     properties:
+   *       packaging:
+   *         type: buildpack
+   *         properties:
+   *           sourceDirectoryPath: ./api
+   *           # stp-focus
+   *           aptPackages:
+   *             - ffmpeg
+   *             - libvips
+   *           # stp-end-focus
+   *       resources:
+   *         cpu: 0.5
+   *         memory: 1024
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { BuildpackImagePackaging, WebService, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const apiService = new WebService({
+   *     packaging: new BuildpackImagePackaging({
+   *       sourceDirectoryPath: './api',
+   *       // stp-focus
+   *       aptPackages: ['ffmpeg', 'libvips']
+   *       // stp-end-focus
+   *     }),
+   *     resources: {
+   *       cpu: 0.5,
+   *       memory: 1024
+   *     }
+   *   });
+   *   return { resources: { apiService } };
+   * });
+   * ```
+   */
+  aptPackages?: string[];
+  /**
+   * #### Environment variables available to the install and build commands.
+   *
+   * ---
+   *
+   * They are passed as Docker build secrets: their values never appear in the image or in the build log, and a
+   * changed value rebuilds the image. Runtime variables come from the resource's `environment` instead.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   apiService:
+   *     type: web-service
+   *     properties:
+   *       packaging:
+   *         type: buildpack
+   *         properties:
+   *           sourceDirectoryPath: ./api
+   *           # stp-focus
+   *           buildEnvironment:
+   *             - name: VITE_API_URL
+   *               value: https://api.example.com
+   *           # stp-end-focus
+   *       resources:
+   *         cpu: 0.5
+   *         memory: 1024
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { BuildpackImagePackaging, WebService, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const apiService = new WebService({
+   *     packaging: new BuildpackImagePackaging({
+   *       sourceDirectoryPath: './api',
+   *       // stp-focus
+   *       buildEnvironment: [{ name: 'VITE_API_URL', value: 'https://api.example.com' }]
+   *       // stp-end-focus
+   *     }),
+   *     resources: {
+   *       cpu: 0.5,
+   *       memory: 1024
+   *     }
+   *   });
+   *   return { resources: { apiService } };
+   * });
+   * ```
+   */
+  buildEnvironment?: EnvironmentVar[];
+  /**
+   * #### Advanced: a [railpack.json](https://railpack.com/config/file) configuration merged over the detected build.
+   *
+   * ---
+   *
+   * Use it for build steps, caches or deploy settings the properties above do not cover. It takes precedence
+   * over a `railpack.json` file in the source directory.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   apiService:
+   *     type: web-service
+   *     properties:
+   *       packaging:
+   *         type: buildpack
+   *         properties:
+   *           sourceDirectoryPath: ./api
+   *           # stp-focus
+   *           railpackConfig:
+   *             steps:
+   *               build:
+   *                 commands:
+   *                   - ...
+   *                   - npx prisma generate
+   *           # stp-end-focus
+   *       resources:
+   *         cpu: 0.5
+   *         memory: 1024
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { BuildpackImagePackaging, WebService, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const apiService = new WebService({
+   *     packaging: new BuildpackImagePackaging({
+   *       sourceDirectoryPath: './api',
+   *       // stp-focus
+   *       railpackConfig: {
+   *         steps: { build: { commands: ['...', 'npx prisma generate'] } }
+   *       }
+   *       // stp-end-focus
+   *     }),
+   *     resources: {
+   *       cpu: 0.5,
+   *       memory: 1024
+   *     }
+   *   });
+   *   return { resources: { apiService } };
+   * });
+   * ```
+   */
+  railpackConfig?: Record<string, unknown>;
 }
 
 
 /**
- * #### Builds a container image using Nixpacks.
+ * #### Builds a container image from a project directory without a Dockerfile.
+ */
+export interface BuildpackCwImagePackagingProps extends BuildpackBjImagePackagingProps {}
+
+
+/**
+ * #### Builds a container image from a project directory without a Dockerfile.
  *
  * ---
  *
- * Nixpacks automatically detects your application type and builds an optimized container image.
- * In most cases, no configuration is required.
- *
- * It supports a wide range of languages and frameworks out of the box.
+ * Powered by [Railpack](https://railpack.com). Detects the language, framework, package manager and start command
+ * from the project's own files. The resulting image is uploaded to a managed ECR repository.
  */
-export interface NixpacksCwImagePackaging {
-  type: 'nixpacks';
-  properties: NixpacksCwImagePackagingProps;
+export interface BuildpackBjImagePackaging {
+  type: 'buildpack';
+  properties: BuildpackBjImagePackagingProps;
 }
 
 
 /**
- * #### Configures an image to be built automatically by Stacktape from your source code.
- */
-export interface StpBuildpackBjImagePackagingProps extends StpBuildpackSharedProps {
-  /**
-   * #### Language-specific packaging configuration.
-  *
-  * ---
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   apiService:
-  *     type: web-service
-  *     properties:
-  *       packaging:
-  *         type: stacktape-image-buildpack
-  *         properties:
-  *           entryfilePath: src/server.ts
-  *           # stp-focus
-  *           languageSpecificConfig:
-  *             nodeVersion: 22
-  *             outputModuleFormat: esm
-  *           # stp-end-focus
-  *       resources:
-  *         cpu: 0.5
-  *         memory: 1024
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { WebService, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const apiService = new WebService({
-  *     packaging: {
-  *       type: 'stacktape-image-buildpack',
-  *       properties: {
-  *         entryfilePath: 'src/server.ts',
-  *         // stp-focus
-  *         languageSpecificConfig: {
-  *           nodeVersion: 22,
-  *           outputModuleFormat: 'esm'
-  *         }
-  *         // stp-end-focus
-  *       }
-  *     },
-  *     resources: {
-  *       cpu: 0.5,
-  *       memory: 1024
-  *     }
-  *   });
-  *   return { resources: { apiService } };
-  * });
-  * ```
-   */
-  languageSpecificConfig?:
-    | EsLanguageSpecificConfig
-    | PyLanguageSpecificConfig
-    | JavaLanguageSpecificConfig
-    | GoLanguageSpecificConfig
-    | PhpLanguageSpecificConfig
-    | DotnetLanguageSpecificConfig
-    | RubyLanguageSpecificConfig;
-  /**
-   * #### Use glibc instead of musl (Alpine default). Enable if native dependencies require glibc.
-   *
-   * ---
-   *
-   * Results in a larger image. Common packages needing this: `sharp`, `canvas`, `bcrypt`, `puppeteer`.
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   imageProcessor:
-  *     type: web-service
-  *     properties:
-  *       packaging:
-  *         type: stacktape-image-buildpack
-  *         properties:
-  *           entryfilePath: src/server.ts
-  *           # stp-focus
-  *           requiresGlibcBinaries: true
-  *           # stp-end-focus
-  *       resources:
-  *         cpu: 1
-  *         memory: 2048
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { WebService, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const imageProcessor = new WebService({
-  *     packaging: {
-  *       type: 'stacktape-image-buildpack',
-  *       properties: {
-  *         entryfilePath: 'src/server.ts',
-  *         // stp-focus
-  *         requiresGlibcBinaries: true
-  *         // stp-end-focus
-  *       }
-  *     },
-  *     resources: {
-  *       cpu: 1,
-  *       memory: 2048
-  *     }
-  *   });
-  *   return { resources: { imageProcessor } };
-  * });
-  * ```
-   */
-  requiresGlibcBinaries?: boolean;
-  /**
-   * #### A list of commands to be executed during the `docker build` process.
-   *
-   * ---
-   *
-   * These commands are executed using the `RUN` directive in the Dockerfile.
-   * This is useful for installing additional system dependencies in your container.
-  *
-  * **Example (YAML):**
-  *
-  * ```yaml
-  * resources:
-  *   imageProcessor:
-  *     type: web-service
-  *     properties:
-  *       packaging:
-  *         type: stacktape-image-buildpack
-  *         properties:
-  *           entryfilePath: src/server.ts
-  *           # stp-focus
-  *           customDockerBuildCommands:
-  *             - apt-get update && apt-get install -y poppler-utils
-  *             - fc-cache -f
-  *           # stp-end-focus
-  *       resources:
-  *         cpu: 1
-  *         memory: 2048
-  * ```
-  *
-  * **Example (TypeScript):**
-  *
-  * ```ts
-  * import { WebService, defineConfig } from 'stacktape';
-  *
-  * export default defineConfig(() => {
-  *   const imageProcessor = new WebService({
-  *     packaging: {
-  *       type: 'stacktape-image-buildpack',
-  *       properties: {
-  *         entryfilePath: 'src/server.ts',
-  *         // stp-focus
-  *         customDockerBuildCommands: [
-  *           'apt-get update && apt-get install -y poppler-utils',
-  *           'fc-cache -f'
-  *         ]
-  *         // stp-end-focus
-  *       }
-  *     },
-  *     resources: {
-  *       cpu: 1,
-  *       memory: 2048
-  *     }
-  *   });
-  *   return { resources: { imageProcessor } };
-  * });
-  * ```
-   */
-  customDockerBuildCommands?: string[];
-}
-
-
-/**
- * #### Configures an image to be built automatically by Stacktape from your source code.
- */
-export interface StpBuildpackCwImagePackagingProps extends StpBuildpackBjImagePackagingProps {}
-
-
-export interface StpBuildpackBjImagePackaging {
-  type: 'stacktape-image-buildpack';
-  properties: StpBuildpackBjImagePackagingProps;
-}
-
-
-/**
- * #### A zero-config buildpack that creates a container image from your source code.
+ * #### Builds a container image from a project directory without a Dockerfile.
  *
  * ---
  *
- * The `stacktape-image-buildpack` automatically bundles your code and dependencies into an optimized container image.
- *
- * **Supported languages:** JavaScript, TypeScript, Python, Java, and Go.
- *
- * For JS/TS, your code is bundled into a single file with source maps.
- * The resulting image is uploaded to a managed ECR repository.
+ * Powered by [Railpack](https://railpack.com). Detects the language, framework, package manager and start command
+ * from the project's own files. The resulting image is uploaded to a managed ECR repository.
  */
-export interface StpBuildpackCwImagePackaging {
-  type: 'stacktape-image-buildpack';
-  properties: StpBuildpackCwImagePackagingProps;
+export interface BuildpackCwImagePackaging {
+  type: 'buildpack';
+  properties: BuildpackCwImagePackagingProps;
 }
 
 
 export type BatchJobContainerPackaging =
-  | StpBuildpackBjImagePackaging
-  | ExternalBuildpackBjImagePackaging
-  | NixpacksBjImagePackaging
-  | CustomDockerfileBjImagePackaging
+  | JsBundleBjImagePackaging
+  | BuildpackBjImagePackaging
+  | DockerfileBjImagePackaging
   | PrebuiltBjImagePackaging;
 
 
 export type ContainerWorkloadContainerPackaging =
-  | StpBuildpackCwImagePackaging
-  | ExternalBuildpackCwImagePackaging
-  | NixpacksCwImagePackaging
-  | CustomDockerfileCwImagePackaging
+  | JsBundleCwImagePackaging
+  | BuildpackCwImagePackaging
+  | DockerfileCwImagePackaging
   | PrebuiltCwImagePackaging;
 
 
-export type LambdaPackaging = StpBuildpackLambdaPackaging | CustomArtifactLambdaPackaging;
+export type LambdaPackaging = JsBundleLambdaPackaging | BuildpackLambdaPackaging | CustomArtifactLambdaPackaging;

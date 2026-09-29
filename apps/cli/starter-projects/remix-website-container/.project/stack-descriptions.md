@@ -21,7 +21,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: custom-dockerfile
+        type: dockerfile
         properties:
           buildContextPath: ./
       resources:

@@ -2,8 +2,8 @@ import {
   $CfFormat,
   HttpApiGateway,
   HttpApiIntegration,
+  JsBundleLambdaPackaging,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   UserAuthPool,
   defineConfig
 } from '../../__release-npm';
@@ -28,7 +28,7 @@ export default defineConfig(() => {
     logoutURLs: ['https://example.com/logout']
   });
   const publicEndpoint = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/public.ts'
     }),
     memory: 512,
@@ -41,7 +41,7 @@ export default defineConfig(() => {
     ]
   });
   const protectedEndpoint = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/protected.ts'
     }),
     memory: 512,

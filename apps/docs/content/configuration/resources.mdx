@@ -28,9 +28,9 @@ Resources live in the `resources` object returned from `defineConfig`. Each key 
       code: `import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   Bucket,
-  SqsQueue
+  SqsQueue,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -40,7 +40,7 @@ export default defineConfig(() => {
   const orderQueue = new SqsQueue({});
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     connectTo: [uploads, orderQueue]
@@ -94,14 +94,14 @@ Most applications need resources to talk to each other — a Lambda function que
     {
       label: 'TypeScript',
       lang: 'typescript',
-      code: `import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging, Bucket } from 'stacktape';
+      code: `import { defineConfig, LambdaFunction, Bucket, JsBundleLambdaPackaging } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
   const invoiceBucket = new Bucket({});
 
   const processOrder = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/process-order.ts'
     }),
     connectTo: [invoiceBucket]
@@ -156,8 +156,8 @@ Beyond `connectTo`, you can reference any resource's parameters anywhere in your
       code: `import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  SqsQueue
+  SqsQueue,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 // [!code focus-start]
@@ -165,7 +165,7 @@ export default defineConfig(() => {
   const orderQueue = new SqsQueue({});
 
   const worker = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/worker.ts'
     }),
     environment: { QUEUE_URL: "$ResourceParam('orderQueue', 'url')" }

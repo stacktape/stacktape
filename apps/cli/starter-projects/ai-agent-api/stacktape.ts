@@ -1,4 +1,4 @@
-import { DynamoDbTable, LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from '../../__release-npm';
+import { DynamoDbTable, JsBundleLambdaPackaging, LambdaFunction, defineConfig } from '../../__release-npm';
 
 export default defineConfig(() => {
   const conversations = new DynamoDbTable({
@@ -14,7 +14,7 @@ export default defineConfig(() => {
     }
   });
   const agent = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/index.ts'
     }),
     memory: 1024,

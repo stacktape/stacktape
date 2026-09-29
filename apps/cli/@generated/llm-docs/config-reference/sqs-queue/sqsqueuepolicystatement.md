@@ -42,7 +42,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/ingest-worker.ts
       events:
@@ -69,7 +69,7 @@ export default defineConfig(() => {
 
   const ingestWorker = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/ingest-worker.ts' }
     },
     events: [{ type: 'sqs', properties: { sqsQueueName: 'ingestQueue' } }]
@@ -102,7 +102,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/restricted-worker.ts
       events:
@@ -129,7 +129,7 @@ export default defineConfig(() => {
 
   const restrictedWorker = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/restricted-worker.ts' }
     },
     events: [{ type: 'sqs', properties: { sqsQueueName: 'restrictedQueue' } }]
@@ -164,7 +164,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/partner-worker.ts
       events:
@@ -191,7 +191,7 @@ export default defineConfig(() => {
 
   const partnerWorker = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/partner-worker.ts' }
     },
     events: [{ type: 'sqs', properties: { sqsQueueName: 'partnerQueue' } }]
@@ -227,7 +227,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/topic-bound-worker.ts
       events:
@@ -259,7 +259,7 @@ export default defineConfig(() => {
 
   const topicBoundWorker = new LambdaFunction({
     packaging: {
-      type: 'stacktape-lambda-buildpack',
+      type: 'js-bundle',
       properties: { entryfilePath: 'src/topic-bound-worker.ts' }
     },
     events: [{ type: 'sqs', properties: { sqsQueueName: 'topicBoundQueue' } }]

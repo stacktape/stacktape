@@ -4,7 +4,7 @@ resources:
     properties:
       description: Customer support agent with persistent memory and governed business tools.
       packaging:
-        type: custom-dockerfile
+        type: dockerfile
         properties:
           buildContextPath: ./
       useMemory: supportMemory
@@ -86,7 +86,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./src/get-customer-profile.ts
       memory: 512
@@ -96,7 +96,7 @@ resources:
     type: function
     properties:
       packaging:
-        type: stacktape-lambda-buildpack
+        type: js-bundle
         properties:
           entryfilePath: ./src/create-support-ticket.ts
       memory: 512

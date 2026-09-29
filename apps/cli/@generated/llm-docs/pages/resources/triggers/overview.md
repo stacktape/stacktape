@@ -109,16 +109,16 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   HttpApiGateway,
   HttpApiIntegration,
-  ScheduleIntegration
+  ScheduleIntegration,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const myApi = new HttpApiGateway({});
 
   const processOrders = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     events: [

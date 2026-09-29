@@ -6,13 +6,13 @@
  *
  * The canary sets both environment variables below; the defaults only keep the file loadable on its own.
  */
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from '@stacktape/config-authoring';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from '@stacktape/config-authoring';
 
 export default defineConfig(() => {
   const canaryOwner = process.env.STP_AWS_ALIAS_CANARY_OWNER ?? 'local';
   const canaryValue = process.env.STP_AWS_ALIAS_CANARY_VALUE ?? 'base';
   const greeter = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/greeter.ts' }),
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/greeter.ts' }),
     environment: { CANARY_VALUE: canaryValue },
     deployment: { strategy: 'AllAtOnce' },
     memory: 128,

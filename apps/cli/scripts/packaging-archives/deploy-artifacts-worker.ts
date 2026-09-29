@@ -34,7 +34,7 @@ import { ec2Manager } from '@domain-services/ec2-manager';
 import { packagingManager } from '@domain-services/packaging-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { prepareTemplateForDeploy } from '@domain-services/template-manager/finalize';
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from '@stacktape/config-authoring';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from '@stacktape/config-authoring';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { outputNames } from '@stacktape/naming/stack-output-names';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
@@ -223,7 +223,7 @@ const main = async () => {
       SPLIT_FUNCTIONS.map((name) => [
         name,
         new LambdaFunction({
-          packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: `./src/handlers/${name}.ts` })
+          packaging: new JsBundleLambdaPackaging({ entryfilePath: `./src/handlers/${name}.ts` })
         })
       ])
     )

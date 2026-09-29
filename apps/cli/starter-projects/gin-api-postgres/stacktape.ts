@@ -1,8 +1,8 @@
 import {
   $Secret,
+  BuildpackImagePackaging,
   RdsEnginePostgres,
   RelationalDatabase,
-  StacktapeImageBuildpackPackaging,
   WebService,
   defineConfig
 } from '../../__release-npm';
@@ -20,8 +20,8 @@ export default defineConfig(() => {
     })
   });
   const webService = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({
-      entryfilePath: './src/main.go'
+    packaging: new BuildpackImagePackaging({
+      sourceDirectoryPath: './src'
     }),
     resources: {
       cpu: 0.25,

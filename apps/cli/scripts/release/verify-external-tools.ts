@@ -1,6 +1,6 @@
 /**
- * A release no longer bundles pack, nixpacks or the Session Manager plugin (Windows keeps the plugin, whose AWS
- * download is an installer). This check resolves each tool as a customer's first command would, through the CLI's own
+ * A release does not bundle railpack or the Session Manager plugin (Windows keeps the plugin, whose AWS download is an
+ * installer). This check resolves each tool as a customer's first command would, through the CLI's own
  * resolver (`src/utils/external-tools.ts`), and runs its version command on the target:
  *
  *   bun scripts/release/verify-external-tools.ts [--tools-dir <dir>] [--platform <platform>] [--no-run] [--offline]
@@ -22,8 +22,7 @@ import { getPlatform } from '@utils/bin-executable';
 import { EXTERNAL_TOOL_MANIFEST, externalToolPath, resolveExternalTool } from 'src/utils/external-tools';
 
 const VERSION_ARGUMENTS: Record<ExternalTool, string[]> = {
-  pack: ['version'],
-  nixpacks: ['--version'],
+  railpack: ['--version'],
   'session-manager-plugin': ['--version']
 };
 

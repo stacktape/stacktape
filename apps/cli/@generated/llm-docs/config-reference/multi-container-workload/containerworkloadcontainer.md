@@ -5,7 +5,7 @@ Resource type: `multi-container-workload`
 ## TypeScript definition
 
 ```typescript
-import type { ContainerDependency, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadHttpApiIntegration, ContainerWorkloadInternalIntegration, ContainerWorkloadLoadBalancerIntegration, ContainerWorkloadNetworkLoadBalancerIntegration, ContainerWorkloadServiceConnectIntegration, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, LoadBalancerHealthCheck, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, SecretEnvironmentVar, StpBuildpackCwImagePackaging } from 'stacktape';
+import type { BuildpackCwImagePackaging, ContainerDependency, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadHttpApiIntegration, ContainerWorkloadInternalIntegration, ContainerWorkloadLoadBalancerIntegration, ContainerWorkloadNetworkLoadBalancerIntegration, ContainerWorkloadServiceConnectIntegration, DockerfileCwImagePackaging, EnvironmentVar, JsBundleCwImagePackaging, LoadBalancerHealthCheck, PrebuiltCwImagePackaging, SecretEnvironmentVar } from 'stacktape';
 
 type ContainerWorkloadContainer = {
   /** Unique container name within this workload. */
@@ -38,11 +38,10 @@ Each `valueFrom` must be an exact `$SsmParam(...)` or `$Secret(...)` directive. 
 
 /** Union choices used by the properties above. */
 type ContainerWorkloadContainerPackaging =
+  | JsBundleCwImagePackaging
   | PrebuiltCwImagePackaging
-  | CustomDockerfileCwImagePackaging
-  | ExternalBuildpackCwImagePackaging
-  | NixpacksCwImagePackaging
-  | StpBuildpackCwImagePackaging;
+  | DockerfileCwImagePackaging
+  | BuildpackCwImagePackaging;
 
 type ContainerWorkloadContainerEvents =
   | ContainerWorkloadLoadBalancerIntegration
@@ -69,7 +68,7 @@ resources:
       containers:
         - name: api
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/server.ts
       resources:
@@ -80,14 +79,14 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const app = new MultiContainerWorkload({
     containers: [
       {
         name: 'api',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' })
+        packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' })
       }
     ],
     resources: { cpu: 0.5, memory: 1024 }
@@ -99,16 +98,15 @@ export default defineConfig(() => {
 ## Property: `packaging`
 
 - Required: yes
-- Type: `prebuilt-image | custom-dockerfile | external-buildpack | nixpacks | stacktape-image-buildpack`
+- Type: `js-bundle | prebuilt-image | dockerfile | buildpack`
 
 How to build or specify the container image.
 
 Choices:
+- `js-bundle` (`JsBundleCwImagePackaging`) — Builds a container image from a bundled JavaScript or TypeScript entry file.. Properties: `requiresGlibcBinaries?: boolean`, `customDockerBuildCommands?: Array<string>`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `minify?: boolean`, `minifyIdentifiers?: boolean`, `bundleAwsSdk?: boolean`.
 - `prebuilt-image` (`PrebuiltCwImagePackaging`) — Uses a pre-built container image.. Properties: `repositoryCredentialsSecretArn?: string`, `entryPoint?: Array<string>`, `image: string`, `command?: Array<string>`.
-- `custom-dockerfile` (`CustomDockerfileCwImagePackaging`) — Builds a container image from your own Dockerfile.. Properties: `entryPoint?: Array<string>`, `dockerfilePath?: string`, `buildContextPath: string`, `buildArgs?: Array<DockerBuildArg>`, `command?: Array<string>`.
-- `external-buildpack` (`ExternalBuildpackCwImagePackaging`) — Builds a container image using an external buildpack.. Properties: `builder?: string`, `buildpacks?: Array<string>`, `sourceDirectoryPath: string`, `command?: Array<string>`.
-- `nixpacks` (`NixpacksCwImagePackaging`) — Builds a container image using Nixpacks.. Properties: `sourceDirectoryPath: string`, `buildImage?: string`, `providers?: Array<string>`, `startCmd?: string`, `startRunImage?: string`, `startOnlyIncludeFiles?: Array<string>`, `phases?: Array<NixpacksPhase>`.
-- `stacktape-image-buildpack` (`StpBuildpackCwImagePackaging`) — A zero-config buildpack that creates a container image from your source code.. Properties: `languageSpecificConfig?: Es | Py | Java | Go | Ruby | Php | Dotnet`, `requiresGlibcBinaries?: boolean`, `customDockerBuildCommands?: Array<string>`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`.
+- `dockerfile` (`DockerfileCwImagePackaging`) — Builds a container image from your own Dockerfile.. Properties: `entryPoint?: Array<string>`, `dockerfilePath?: string`, `buildContextPath: string`, `buildArgs?: Array<DockerBuildArg>`, `command?: Array<string>`.
+- `buildpack` (`BuildpackCwImagePackaging`) — Builds a container image from a project directory without a Dockerfile.. Properties: `sourceDirectoryPath?: string`, `startCommand?: string`, `buildCommand?: string`, `installCommand?: string`, `packages?: unknown`, `aptPackages?: Array<string>`, `buildEnvironment?: Array<EnvironmentVar>`, `railpackConfig?: unknown`.
 
 ### Example 1 (yaml)
 
@@ -120,7 +118,7 @@ resources:
       containers:
         - name: api
           packaging:
-            type: custom-dockerfile
+            type: dockerfile
             properties:
               buildContextPath: ./api
               dockerfilePath: Dockerfile
@@ -132,14 +130,14 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, CustomDockerfilePackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, defineConfig, DockerfilePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const app = new MultiContainerWorkload({
     containers: [
       {
         name: 'api',
-        packaging: new CustomDockerfilePackaging({ buildContextPath: './api', dockerfilePath: 'Dockerfile' })
+        packaging: new DockerfilePackaging({ buildContextPath: './api', dockerfilePath: 'Dockerfile' })
       }
     ],
     resources: { cpu: 0.5, memory: 1024 }
@@ -167,13 +165,13 @@ resources:
       containers:
         - name: migrations
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/migrate.ts
           essential: false
         - name: api
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/server.ts
           dependsOn:
@@ -187,15 +185,15 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const app = new MultiContainerWorkload({
     containers: [
-      { name: 'migrations', packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/migrate.ts' }), essential: false },
+      { name: 'migrations', packaging: new JsBundleImagePackaging({ entryfilePath: 'src/migrate.ts' }), essential: false },
       {
         name: 'api',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+        packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
         dependsOn: [{ containerName: 'migrations', condition: 'SUCCESS' }]
       }
     ],
@@ -222,7 +220,7 @@ resources:
       containers:
         - name: api
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/server.ts
           environment:
@@ -253,7 +251,7 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, RelationalDatabase, StacktapeImageBuildpackPackaging, $ResourceParam, $Secret, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, RelationalDatabase, $ResourceParam, $Secret, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const appDb = new RelationalDatabase({
@@ -264,7 +262,7 @@ export default defineConfig(() => {
     containers: [
       {
         name: 'api',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+        packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
         environment: {
           NODE_ENV: 'production',
           DATABASE_URL: $ResourceParam('appDb', 'connectionString'),
@@ -296,7 +294,7 @@ resources:
       containers:
         - name: api
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/server.ts
         - name: metrics-sidecar
@@ -313,12 +311,12 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, PrebuiltImagePackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, PrebuiltImagePackaging, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const app = new MultiContainerWorkload({
     containers: [
-      { name: 'api', packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }) },
+      { name: 'api', packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }) },
       {
         name: 'metrics-sidecar',
         packaging: new PrebuiltImagePackaging({ image: 'prom/statsd-exporter:latest' }),
@@ -355,7 +353,7 @@ resources:
       containers:
         - name: web
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/index.ts
           events:
@@ -376,7 +374,7 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, ApplicationLoadBalancer, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, ApplicationLoadBalancer, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const appLb = new ApplicationLoadBalancer({});
@@ -384,7 +382,7 @@ export default defineConfig(() => {
     containers: [
       {
         name: 'web',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/index.ts' }),
+        packaging: new JsBundleImagePackaging({ entryfilePath: 'src/index.ts' }),
         events: [
           {
             type: 'application-load-balancer',
@@ -416,7 +414,7 @@ resources:
       containers:
         - name: api
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/server.ts
           internalHealthCheck:
@@ -433,14 +431,14 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const app = new MultiContainerWorkload({
     containers: [
       {
         name: 'api',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+        packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
         internalHealthCheck: {
           healthCheckCommand: ['CMD-SHELL', 'curl -f http://localhost:3000/health || exit 1'],
           intervalSeconds: 30,
@@ -471,7 +469,7 @@ resources:
       containers:
         - name: web
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/index.ts
           events:
@@ -493,7 +491,7 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, ApplicationLoadBalancer, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, ApplicationLoadBalancer, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const appLb = new ApplicationLoadBalancer({});
@@ -501,7 +499,7 @@ export default defineConfig(() => {
     containers: [
       {
         name: 'web',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/index.ts' }),
+        packaging: new JsBundleImagePackaging({ entryfilePath: 'src/index.ts' }),
         events: [
           { type: 'application-load-balancer', properties: { loadBalancerName: 'appLb', priority: 1, containerPort: 3000 } }
         ],
@@ -531,7 +529,7 @@ resources:
       containers:
         - name: api
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/server.ts
           logging:
@@ -545,14 +543,14 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const app = new MultiContainerWorkload({
     containers: [
       {
         name: 'api',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+        packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
         logging: { retentionDays: 14, disabled: false }
       }
     ],
@@ -589,7 +587,7 @@ resources:
       containers:
         - name: api
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/server.ts
           stopTimeout: 30
@@ -601,14 +599,14 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const app = new MultiContainerWorkload({
     containers: [
       {
         name: 'api',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+        packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
         stopTimeout: 30
       }
     ],
@@ -635,7 +633,7 @@ resources:
       containers:
         - name: api
           packaging:
-            type: stacktape-image-buildpack
+            type: js-bundle
             properties:
               entryfilePath: src/server.ts
           volumeMounts:
@@ -653,7 +651,7 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { MultiContainerWorkload, EfsFilesystem, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+import { MultiContainerWorkload, EfsFilesystem, defineConfig, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const sharedStorage = new EfsFilesystem({});
@@ -661,7 +659,7 @@ export default defineConfig(() => {
     containers: [
       {
         name: 'api',
-        packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
+        packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
         volumeMounts: [
           { type: 'efs', properties: { efsFilesystemName: 'sharedStorage', mountPath: '/data' } }
         ]

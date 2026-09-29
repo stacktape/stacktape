@@ -2,10 +2,10 @@
 
 Application runs in web-service resource and is configured as follows:
 
-- **Packaging** - determines how the Docker container image is built. In this case, we are using
-  `stacktape-image-buildpack`. We only need to configure `entryfilePath`. Stacktape automatically builds the application
-  code with all of its dependencies, builds the Docker image, and pushes it to a pre-created image repository on AWS.
-  You can also use
+- **Packaging** - determines how the Docker container image is built. In this case, we are using `buildpack`. Stacktape
+  detects the Python project from `pyproject.toml` and `uv.lock`, installs its dependencies, builds the Docker image,
+  and pushes it to a pre-created image repository on AWS. `startCommand` runs the Flask app with gunicorn on the port
+  Stacktape provides in `PORT`. You can also use
   [other types of packaging](https://docs.stacktape.com/configuration/packaging/#packaging-web-services).
 - **ConnectTo list** - we are adding database `mainDatabase` into `connectTo` list. By doing this, Stacktape will
   automatically inject relevant environment variables into the container runtime (such as the connection string required
@@ -24,9 +24,9 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: buildpack
         properties:
-          entryfilePath: .\app.py
+          startCommand: gunicorn --bind 0.0.0.0:$PORT app:app
       resources:
         cpu: 0.25
         memory: 512

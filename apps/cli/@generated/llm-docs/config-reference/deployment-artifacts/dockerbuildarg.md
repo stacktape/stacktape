@@ -27,7 +27,7 @@ resources:
    properties:
      container:
        packaging:
-         type: custom-dockerfile
+         type: dockerfile
          properties:
            buildContextPath: ./worker
            buildArgs:
@@ -47,7 +47,7 @@ export default defineConfig(() => {
  const processor = new BatchJob({
    container: {
      packaging: {
-       type: 'custom-dockerfile',
+       type: 'dockerfile',
        properties: {
          buildContextPath: './worker',
          buildArgs: [
@@ -84,7 +84,7 @@ resources:
    properties:
      container:
        packaging:
-         type: custom-dockerfile
+         type: dockerfile
          properties:
            buildContextPath: ./worker
            buildArgs:
@@ -104,7 +104,7 @@ export default defineConfig(() => {
  const processor = new BatchJob({
    container: {
      packaging: {
-       type: 'custom-dockerfile',
+       type: 'dockerfile',
        properties: {
          buildContextPath: './worker',
          buildArgs: [

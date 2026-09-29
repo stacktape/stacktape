@@ -416,9 +416,9 @@ Example (TypeScript):
 import {
   defineConfig,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
   DynamoDbTable,
-  HttpApiGateway
+  HttpApiGateway,
+  JsBundleLambdaPackaging
 } from 'stacktape';
 export default defineConfig(() => {
   const notesTable = new DynamoDbTable({
@@ -426,7 +426,7 @@ export default defineConfig(() => {
   });
 
   const api = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     connectTo: [notesTable],

@@ -31,7 +31,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/main.ts
       resources:
@@ -47,11 +47,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const apiService = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: 'src/main.ts'
     }),
     resources: {
@@ -89,7 +89,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/main.ts
       resources:
@@ -104,11 +104,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const apiService = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: 'src/main.ts'
     }),
     resources: {
@@ -145,7 +145,7 @@ resources:
     type: web-service
     properties:
       packaging:
-        type: stacktape-image-buildpack
+        type: js-bundle
         properties:
           entryfilePath: src/main.ts
       resources:
@@ -162,11 +162,11 @@ resources:
 ### Example 2 (typescript)
 
 ```typescript
-import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
 
 export default defineConfig(() => {
   const apiService = new WebService({
-    packaging: new StacktapeImageBuildpackPackaging({
+    packaging: new JsBundleImagePackaging({
       entryfilePath: 'src/main.ts'
     }),
     resources: {
