@@ -263,9 +263,15 @@ No universal mutation-score requirement applies to every future test. Use these 
 for high-risk replacements. Check healthy runs, repeated clean runs and known failures. The accepted implementation may
 be the existing suite, one candidate's patch, or a reviewed combination; comparison scores refer to original attempts.
 
-The likely routing policy is a smaller model for well-scoped work with mature fixtures, a stronger model for ambiguous
-cross-module behavior, and independent strong review of security, deployment and destructive changes. This remains a
-hypothesis until the pilot and fresh calibration batch support it. Recheck the policy after a model or harness upgrade.
+For the next bounded batch of test assignments, route narrow artifact, process and contract work with mature fixtures to
+**GPT-6 Sol at medium effort** for authoring, and Console/API or browser workflows to **Claude Sonnet 5.5 at medium
+effort**. Require an independent review by **Sol at medium effort** and a fault check through the real boundary before
+accepting authorization, tenant isolation, retention or other high impact changes. Luna may help with discovery or
+supplemental review, but is not a sole approver for these classes. Escalate production IAM, deployment identity,
+destructive behavior, reviewer disagreement or a missed validated fault to the stronger reference before integration. A
+product bug or an incomplete customer contract blocks the slice; preserve its reproducer instead of making the test pass
+around it. These are task class routing decisions from a small pilot, not reliability or cost rankings. Recheck them
+after a model, harness or helper change and before widening scope.
 
 ## Dispatching and integrating slices
 
