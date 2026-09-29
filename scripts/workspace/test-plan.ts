@@ -140,13 +140,24 @@ const RULES: Rule[] = [
       path.startsWith('apps/console/api/src/') || path.startsWith('packages/console-api/') || isConsoleStartupPath(path)
   },
   {
+    id: 'console-browser-isolated',
+    proves:
+      'Issue-state persistence and tenant denial through the real UI, local HTTP router and disposable PostgreSQL.',
+    commands: ['pnpm --filter @stacktape/console-api-app test:db --isolated-browser'],
+    matches: (path) =>
+      path === 'apps/console/ui/e2e/isolated-console.test.ts' ||
+      path === 'apps/console/api/scripts/incident-agent-fixtures.ts' ||
+      path === 'apps/console/api/scripts/run-db-integration.ts' ||
+      path.startsWith('apps/console/ui/src/pages/IssuesPage/')
+  },
+  {
     id: 'console-browser-dev-api',
     proves:
       'Authenticated projects navigation against the dev API. Extend the browser scenario to cover the changed customer flow.',
     commands: ['pnpm test:console:browser:dev-api'],
     matches: (path) =>
       path.startsWith('apps/console/ui/src/') ||
-      path.startsWith('apps/console/ui/e2e/') ||
+      (path.startsWith('apps/console/ui/e2e/') && path !== 'apps/console/ui/e2e/isolated-console.test.ts') ||
       /^apps\/console\/ui\/playwright.*\.ts$/.test(path) ||
       path.startsWith('packages/ui-react/')
   },

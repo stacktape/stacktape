@@ -104,6 +104,18 @@ test('browser scenario and configuration edits require executing the browser lan
   }
 });
 
+test('isolated Console issue journeys select the disposable browser and database lane', () => {
+  for (const path of [
+    'apps/console/ui/e2e/isolated-console.test.ts',
+    'apps/console/ui/src/pages/IssuesPage/IssueDetailPage.tsx',
+    'apps/console/api/scripts/run-db-integration.ts'
+  ]) {
+    const ids = new Set(createTestPlan([path]).map(({ id }) => id));
+    assert.ok(ids.has('console-browser-isolated'));
+    if (path.endsWith('isolated-console.test.ts')) assert.ok(!ids.has('console-browser-dev-api'));
+  }
+});
+
 test('selects semantic synthesis and live AWS evidence for CloudFormation changes', () => {
   const ids = new Set(createTestPlan(['packages/cloudformation/src/template.ts']).map(({ id }) => id));
   assert.ok(ids.has('synthesis'));

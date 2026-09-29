@@ -60,29 +60,45 @@ separate from the scenario's allowed service traffic.
 
 ## Isolated Console application
 
-This is the highest-value missing harness. Current full local mode uses shared dev resources; retain its reservation and
-setup rules until the isolated path exists.
+The first isolated browser journey is available through the private Console database runner. It uses a disposable
+PostgreSQL container, the real Console UI and Fastify router, and locally signed Cognito-shaped tokens. It does not
+replace shared dev for hosted sign-in, callbacks, AWS execution or deployed configuration.
 
-Implement incrementally:
+```sh
+pnpm --filter @stacktape/console-api-app test:db --isolated-browser
+```
+
+The runner owns PostgreSQL and verifies container removal. The test owns a scratch database, API server, Vite process
+and browser; it disposes each after success or failure. Two independently seeded tenant journeys run concurrently. Each
+resolves an issue through the UI, checks the database, reloads, and checks the persisted state. A second signed identity
+is denied through the same HTTP server both before and after its own organization membership check. The local session
+fixture writes Amplify's token keys before page startup, and an assertion checks that the UI sends the accepted bearer
+token. Only the test startup substitutes PostgreSQL's TLS connection options; Prisma, token verification, authorization
+and the production router remain real. The lane has no shared-dev reservation or AWS credential requirement.
+
+Run the command twice to check repeatability. `STP_ISOLATED_BROWSER_FAIL_AFTER_START=1` triggers a deliberate failure
+after all services start, for checking teardown; that invocation must fail while still reporting removal of its owned
+database container. The fixture currently tests one issue flow. Extend it only for cases that need a
+browser/API/database boundary; keep provider and hosted identity qualifications in their existing lanes.
+
+When extending this pilot:
 
 1. Reuse the real migrated PostgreSQL and locally signed-token setup already demonstrated by the incident-agent tests.
    The normal verifier must still check signatures, token use, issuer, audience and expiry. Local issuance qualifies our
    verification and authorization logic, not Cognito's hosted login or federation.
 2. Reuse the production-router HTTP bootstrap in
-   [incident-agent runtime tests](../../apps/console/api/scripts/incident-agent-runtime.test.ts). For reusable startup,
-   replace the database-factory module mock with a narrow connection/configuration seam where needed. Keep the real
-   router and token verifier. Do not add an auth bypass, test-only public endpoint, mutable global table of mocked
-   services or a second implementation of permission checks.
+   [incident-agent runtime tests](../../apps/console/api/scripts/incident-agent-runtime.test.ts). Keep the real router
+   and token verifier. Do not add an auth bypass, test-only public endpoint, mutable global table of mocked services or
+   a second implementation of permission checks.
 3. Start the real UI against that API. Seed an organization, project and restricted identities. The UI uses Amplify's
    Cognito token storage, `fetchAuthSession` for bearer headers, and its own stored email for initial UI state. First
-   prototype a test-owned session fixture compatible with those consumers, using newly issued synthetic ID/access tokens
-   and the configured test pool/client. Verify the actual client sends an accepted request after reload without reaching
-   Cognito; an arbitrary JWT in local storage is insufficient. Keep storage details inside one helper and check it when
-   upgrading Amplify. If a narrow identity adapter is needed, wire it only into the isolated app startup. Expiry/refresh
-   and hosted sign-in/sign-out need separate scenarios; Amplify may refresh expired tokens over the network.
-   [Amplify session behavior](https://docs.amplify.aws/javascript/frontend/auth/manage-user-sessions/).
-4. First prove a small flow such as changing an issue's state, rereading it over HTTP, and seeing the persisted value
-   after browser reload. A second identity from another project/organization must be denied through the same server.
+   session fixture uses newly issued synthetic ID/access tokens and the configured test pool/client. Verify the actual
+   client sends an accepted request after reload without reaching Cognito. Keep storage details inside one helper and
+   check it when upgrading Amplify. If a narrow identity adapter is needed, wire it only into the isolated app startup.
+   Expiry/refresh and hosted sign-in/sign-out need separate scenarios; Amplify may refresh expired tokens over the
+   network. [Amplify session behavior](https://docs.amplify.aws/javascript/frontend/auth/manage-user-sessions/).
+4. Keep the issue flow's state change, database read and persistence after browser reload. A second identity from
+   another project/organization must be denied through the same server.
 5. Run two independent scenarios concurrently and repeat them from clean state. Verify all child processes, containers
    and data are disposed, including after an intentionally failed assertion. Only then expand parallel coverage.
 

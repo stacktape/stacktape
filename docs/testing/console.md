@@ -1,11 +1,12 @@
 # Console testing
 
 Read the [test-selection policy](../testing.md) first. Use only the sections needed for the changed behavior. Run
-`pnpm test:doctor -- --for=console` before a long Console lane; the default doctor checks workspace tools only. The
-[Console development skill](../../.agents/skills/console-development/SKILL.md) owns local startup and recovery; the
-private [Console E2E guide](../../apps/console/e2e/README.md) owns test identities, fixture setup and scenario commands.
-The [isolated application harness](e2e.md#isolated-console-application) is planned; the shared-dev commands below remain
-the current procedure for full browser/API journeys.
+`pnpm test:doctor -- --for=console` before a shared-dev Console lane; it checks the dev AWS account, login and
+parameters. For the isolated browser/database lane, use the default `pnpm test:doctor`, which checks workspace tools
+only. The [Console development skill](../../.agents/skills/console-development/SKILL.md) owns local startup and
+recovery; the private [Console E2E guide](../../apps/console/e2e/README.md) owns test identities, fixture setup and
+scenario commands. The [isolated application pilot](e2e.md#isolated-console-application) covers one browser/API/database
+issue journey; the shared-dev commands below remain the procedure for hosted identity and external integrations.
 
 ## Console API and PostgreSQL
 
@@ -30,9 +31,16 @@ pnpm --filter @stacktape/console-api-app test:db --incident-agent
 
 Pass the flag directly: an extra `--` is forwarded to this script and rejected. Choose the suite whose assertions cover
 the change, extending it when necessary. These suites use the disposable database, not shared dev. The runner currently
-defaults to PostgreSQL 16 while Console config specifies RDS 15.14; matching the production major version is part of the
-[suite migration](strategy.md#replacing-the-existing-tests). `pnpm dev:console` instead exercises the real shared dev
-data plane.
+defaults to a pinned PostgreSQL 15.14 image matching Console's configured RDS major version. Override it only to qualify
+a deliberate database upgrade. `pnpm dev:console` instead exercises the real shared dev data plane.
+
+The isolated issue browser pilot uses the same disposable database runner:
+
+```sh
+pnpm --filter @stacktape/console-api-app test:db --isolated-browser
+```
+
+It starts and stops the real local UI and API itself, so it needs neither dev credentials nor a shared-dev reservation.
 
 After a schema change passes locally, apply its committed migration with `pnpm migrate:console:dev` and test the
 affected Console flow. Production migration remains separately authorized.

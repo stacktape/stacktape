@@ -48,10 +48,10 @@ and snapshots that merely repeat the implementation.
 
 ## Shared dev reservation
 
-An isolated full Console browser/API harness is a [planned improvement](testing/e2e.md#isolated-console-application).
-Today, API/UI journeys use `pnpm dev:console`; UI-only work can use `pnpm dev:console:ui` when deployed dev supports its
-unchanged contract. The source CLI defaults to deployed dev even when a local API is running; select
-[the intended API explicitly](testing/console.md#prove-the-changed-revision).
+An [isolated Console browser/API pilot](testing/e2e.md#isolated-console-application) covers issue-state persistence and
+tenant denial against disposable PostgreSQL. Other API/UI journeys use `pnpm dev:console`; UI-only work can use
+`pnpm dev:console:ui` when deployed dev supports its unchanged contract. The source CLI defaults to deployed dev even
+when a local API is running; select [the intended API explicitly](testing/console.md#prove-the-changed-revision).
 
 [Localhost login](testing/console.md#localhost-login) uses the existing dev test identities and SSM-backed Playwright
 helper. The current shared-dev browser tests authenticate through the real sign-in form.
