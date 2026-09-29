@@ -53,6 +53,12 @@ export type DeployArtifactsRequest = {
   resultPath: string;
   /** `deploymentConfig.previousVersionsToKeep`, for a scenario about retention; the default otherwise. */
   previousVersionsToKeep?: number;
+  /** Isolates an emulator scenario in its own deployment bucket. */
+  stackHash?: string;
+  /** Exercise the manager's real retention deletion after artifact upload. */
+  deleteObsoleteArtifacts?: boolean;
+  /** Route layer PUTs to an uncreated local bucket to test SDK upload failure. */
+  failLayerUploadToBucket?: string;
 };
 
 export type DeployArtifactsResult = {
@@ -132,7 +138,14 @@ const main = async () => {
     throw new Error('The filesystem bucket directory is required.');
   }
   const project = process.cwd();
-  const bucketName = awsResourceNames.deploymentBucket(STACK_HASH);
+  const stackHash = request.stackHash ?? STACK_HASH;
+  const bucketName = awsResourceNames.deploymentBucket(stackHash);
+  if (
+    request.failLayerUploadToBucket &&
+    (!request.localAwsEndpoint || request.failLayerUploadToBucket === bucketName)
+  ) {
+    throw new Error('A failed layer upload needs an uncreated bucket on the local S3 endpoint.');
+  }
   const uploadedKeys: string[] = [];
 
   awsSdkManager.init({
@@ -168,7 +181,11 @@ const main = async () => {
     const uploadFile = s3.uploadFile.bind(s3);
     s3.uploadFile = async (input) => {
       if (input.bucketName !== bucketName) throw new Error(`Unexpected bucket ${input.bucketName}.`);
-      const result = await uploadFile(input);
+      const result = await uploadFile(
+        request.failLayerUploadToBucket && input.s3Key.startsWith('shared-layer-')
+          ? { ...input, bucketName: request.failLayerUploadToBucket }
+          : input
+      );
       uploadedKeys.push(input.s3Key);
       return result;
     };
@@ -256,7 +273,7 @@ const main = async () => {
   globalStateManager.isInitialized = true;
   globalStateManager.targetStack = {
     stackName: STACK_NAME,
-    globallyUniqueStackHash: STACK_HASH,
+    globallyUniqueStackHash: stackHash,
     stage: STAGE,
     projectName: PROJECT_NAME,
     projectId: 'acceptance-project'
@@ -264,7 +281,7 @@ const main = async () => {
   const stackContext: StackContext = {
     accountId: '123456789999',
     command: globalStateManager.command,
-    globallyUniqueStackHash: STACK_HASH,
+    globallyUniqueStackHash: stackHash,
     invocationId: globalStateManager.invocationId,
     projectName: PROJECT_NAME,
     region: REGION,
@@ -285,7 +302,7 @@ const main = async () => {
     calculatedStackOverviewManager.init({ context: stackContext }),
     deploymentArtifactManager.init({
       accountId: '123456789999',
-      globallyUniqueStackHash: STACK_HASH,
+      globallyUniqueStackHash: stackHash,
       stackActionType: stackManager.stackActionType
     }),
     packagingManager.init()
@@ -300,6 +317,7 @@ const main = async () => {
   });
   const uploadStartMs = performance.now();
   await deploymentArtifactManager.uploadAllArtifacts({ useHotswap: false });
+  if (request.deleteObsoleteArtifacts) await deploymentArtifactManager.deleteAllObsoleteArtifacts();
   const uploadEndMs = performance.now();
 
   const resources = Object.entries(templateManager.getTemplate().Resources).map(([logicalName, resource]) => ({
