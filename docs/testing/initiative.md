@@ -66,25 +66,63 @@ The infrastructure owner may make narrowly reviewed startup/configuration seams 
 production behavior and package boundaries. Feature workers should not refactor product code merely to make assertions
 easier or fix product bugs within this initiative's test-only assignments.
 
+### Discover helper needs before a rewrite batch
+
+Every slice needs a runnable test boundary, not necessarily a new helper. Naming and other pure contracts can be ready
+with their existing package command. Before dispatching a batch, inspect its real entrypoints and have bounded discovery
+workers try one representative setup using the available fixtures. Start with the pilot families; do not send all 74
+slices to redesign their test infrastructure independently.
+
+A worker that needs a missing capability returns a compact request in its task handoff:
+
+```text
+Slice and customer behavior:
+Existing helper/command tried, exact failure or repeated setup cost:
+Smallest needed capability, with a concrete proposed test call:
+Real boundary/state it must preserve; setup, observation and cleanup needs:
+Required for this slice or optional convenience; other known consumers:
+```
+
+Distinguish missing infrastructure, unclear product behavior, a product bug, and unfamiliarity with an existing helper.
+Do not solve missing infrastructure by mocking away the boundary under test. The coordinator consolidates requests by
+capability, prioritizing blocked meaningful tests and repeated setup work. One strong-model infrastructure owner builds
+the smallest useful implementation with its first real consumer; a second consumer is needed before inventing a shared
+package or general-purpose abstraction. Workers may continue independent parts of their slice while a request is open.
+
+Qualify each helper through the consumer's real boundary: observe the expected state/bytes, a legitimate denied or
+failed operation where applicable, independent repeated/concurrent runs, and cleanup after failed setup and failed
+assertions. Check that it cannot silently select live endpoints or bypass the behavior it promises to exercise. Record
+the helper's supported scope, focused command and limitations in its owning procedure, with one small working example.
+Keep qualification results in the ignored queue. A helper that starts successfully is not yet proof that its tests are
+meaningful.
+
+Freeze qualified helpers in each batch's task packets. Feature workers propose improvements instead of editing shared
+fixtures independently. The owner integrates accepted requests between batches and reruns affected consumers. If a
+broken helper invalidates a model comparison, repair the baseline and repeat the affected attempts fairly; do not grade
+the model on missing or misleading infrastructure. This feedback loop continues during the migration, so all future
+helpers need not be designed before the first small batch.
+
 ## Model comparison
 
-Start with the user's named candidates: **GPT-6 Luna, GPT-6 Sol and Claude Opus 5.5**. Treat each model, reasoning
-setting and agent harness as one configuration. Use an explicit `medium` setting initially where supported; record the
-actual accepted setting. A higher-effort retry is a separate configuration with its own cost, not a silent repair of the
-original result.
+Start with the user's named candidates: **GPT-6 Luna, GPT-6 Sol, Claude Sonnet 5.5 and Claude Opus 5.5**. Treat each
+model, reasoning setting, speed tier and agent harness as one configuration. Use an explicit `medium` setting initially
+where supported; record the actual accepted setting. A higher-effort retry is a separate configuration with its own
+cost, not a silent repair of the original result. Evaluate author and reviewer roles separately, then compare complete
+workflows; a good author is not automatically a reliable reviewer.
 
-Sol and Luna are exposed by the current subagent tool. Claude Code is installed, but account access to the exact Opus
-identifier must be verified before the pilot. A CLI being present or exiting successfully does not establish that the
-requested model produced a usable patch. Record requested/resolved identifiers when exposed; do not silently substitute
-a model or switch subscription work to billed API requests when a limit is reached.
+Sol and Luna are exposed by the current subagent tool. Claude Code is installed, but account access to the exact Claude
+identifier must be verified before each new configuration. A CLI being present or exiting successfully does not
+establish that the requested model produced a usable patch. Record requested/resolved identifiers when exposed; do not
+silently substitute a model or switch subscription work to billed API requests when a limit is reached.
 
 OpenAI recommends comparing the same inputs and retaining the lightest configuration meeting the quality bar. Anthropic
 documents Opus 5.5 as a long-running coding model. These establish sensible candidates, not a winner for this
 repository. [OpenAI model selection](https://developers.openai.com/api/docs/guides/model-selection),
 [Opus 5.5](https://platform.claude.com/docs/en/models/opus-5-5/overview).
 
-Consider [Sonnet 5.5](https://platform.claude.com/docs/en/models/sonnet-5-5/overview) later if a cheaper Anthropic
-configuration could change the decision. Do not expand the first round into a tournament of every available model.
+Include [Sonnet 5.5](https://www.anthropic.com/claude-sonnet-5-5) in the same frozen author screen, including when it is
+added after earlier candidates finish. Do not give a late entrant earlier reviews, improved test expectations or newer
+helpers without repeating the affected comparison. Avoid a tournament of every available model and pairing.
 
 ### Four representative tasks
 
@@ -97,23 +135,28 @@ These are bounded assignments within catalog slices, not a demand to rewrite the
 | P3 / S33 | Layer upload/reuse and retention around a changed layer, using the qualified MiniStack S3 path.                                       | Whether it follows real SDK/artifact boundaries, asserts bytes/state and preserves useful controlled failure cases.             |
 | P4 / S55 | Issue-state change through browser → HTTP → PostgreSQL, persistence after reload and cross-tenant denial.                             | Whether it understands the product contract, uses restricted identities, and keeps authorization/persistence real.              |
 
-Run P1/P2 on all three candidates: **six authoring attempts**. Advance up to two qualified candidates to P3/P4: four
+Run P1/P2 on all four candidates: **eight authoring attempts**. Advance up to two qualified candidates to P3/P4: four
 more attempts. Repeat a difficult task once with each finalist from a fresh context to detect obvious instability: up to
-**12 initial authoring attempts**, plus independent reviews. If only one qualifies, compare it with a stronger reference
+**14 initial authoring attempts**, plus independent reviews. If only one qualifies, compare it with a stronger reference
 on the hard tasks before broad deployment. This is a practical screen, not statistical proof of reliability. Poor
 results should trigger a diagnosis of scope, fixtures and instructions before spending on more attempts.
 
-Freeze the advancement rule too: choose the lowest-total-cost qualifying configuration and the highest-quality
-qualifying configuration, using review/repair cost and the weaker of its two task scores. If they are the same, advance
-the next cheapest qualifier as well. If the cheaper finalist fails a hard task, give an excluded qualifier that task
-before concluding that the expensive configuration is necessary. These rescue attempts extend the initial screen and
-need an explicit bounded allocation. Retain each model's qualification by task class; success on naming/dialogs alone
-does not qualify it for database authorization or deployment semantics.
+Freeze the advancement rule too: retain the highest-quality qualifying configuration and the most efficient plausible
+alternative, using review/repair effort and the weaker of its two task scores. Prefer measured subscription use; label
+price-based estimates explicitly and do not claim a cheapest configuration when those measurements are unavailable. If
+they are the same, advance the next efficient qualifier as well. If the cheaper finalist fails a hard task, give an
+excluded qualifier that task before concluding that the expensive configuration is necessary. These rescue attempts
+extend the initial screen and need an explicit bounded allocation. Retain each model's qualification by task class;
+success on naming/dialogs alone does not qualify it for database authorization or deployment semantics.
 
 For a fair comparison:
 
 - Give each candidate the same source and helper revisions, task packet, acceptance contract, readable files, browser
   capabilities and permissions. Use independent workspaces/contexts; do not reveal other candidates' patches or reviews.
+- Provide required session context consistently. A coordinator may attach the full business documents, root/local
+  instructions and short policy as a revisioned private packet, avoiding repeated discovery and incomplete `head` reads.
+  Keep private material out of public artifacts. Relevant longer procedures stay on demand. Verify the promised runner,
+  browser, formatter and linter are available before dispatch; a changed packet/tool baseline is a new comparison.
 - Freeze a per-task time/tool/usage envelope before running it. Calibrate the envelope with the baseline and task size;
   do not declare the cheapest model successful merely because an incomplete attempt consumed little.
 - Disable nested delegation in authoring attempts. Otherwise a small model can hide the cost and contribution of a
@@ -130,6 +173,58 @@ For a fair comparison:
 [Codex usage guidance](https://learn.chatgpt.com/docs/pricing) explains that included limits depend on the product and
 workload. Use the actual account's usage display at execution time; do not promise a fixed number of slices per reset.
 
+### Subscription efficiency
+
+Optimize accepted, maintainable slices per available allowance. Keep Codex and Claude consumption separate: they are two
+budgets with different windows, not interchangeable API dollars. Count discovery, authoring, reviews, failed attempts,
+repairs, coordinator work and integration; also record wall time and unresolved defects. Measure cold setup separately
+from steady-state runs, and amortize shared helper work across its actual consumers.
+
+Capture available usage bars and reset times before and after comparable batches. Record other active sessions,
+rounding, delayed updates and resets; a whole-account percentage change is not attributable to one model when other work
+ran concurrently. Preserve raw token counts, cache categories, model/effort/tier and the date of the price table.
+Compute API-equivalent cost as a secondary estimate using those categories, not only output tokens or a model's input
+price. Mark unknown cache-write TTL or unrecognized model pricing instead of trusting a CLI dollar total blindly.
+
+Do not assume an exact subscription-to-API conversion. OpenAI explicitly distinguishes included limits from credit
+prices, and Claude separates its local list-price estimate from plan-usage reporting.
+[Codex pricing](https://learn.chatgpt.com/docs/pricing),
+[Claude usage reporting](https://code.claude.com/docs/en/costs). Use API prices for a sensitivity comparison when exact
+allowance attribution is unavailable, then confirm the proposed workflow against actual subscription usage in the fresh
+calibration batch. A combined workflow can be useful because it shifts work away from the allowance that runs out first,
+even when its API-equivalent total is higher.
+
+### Test reviewers and author/reviewer combinations
+
+The initial proposed combination is **Sonnet 5.5 author → Luna reviewer**. Test its reviewer before granting it approval
+authority. Give fresh reviewer contexts an anonymized mix of actual flawed submissions and acceptable controls,
+including lost regression protection, assertions that never exercise their claimed behavior, and realistic boundary
+failures. Reviewers receive the original contract and source, not earlier grades, author identity or the answer key.
+Freeze expected findings from independently reproduced behavior before running the calibration. Valid new findings
+remain welcome; the key is not a whitelist of possible defects.
+
+Measure material defects caught and missed, unsupported blocking findings, actionable feedback, review effort, and the
+quality of the author's repair. A verbose review, agreement with another model, or a successful test run is not a
+success metric. A missed material defect disqualifies that reviewer configuration as the sole approver for that task
+class until a changed configuration passes fresh calibration. Small samples establish limits, not a universal ranking.
+
+Reuse the same frozen author output to compare reviewers. For a promising pair, fork that output into independent repair
+attempts with only the respective reviewer's feedback and the same repair budget. Freeze both results and have the
+strong evaluator check them against held-back runtime faults and the product contract. The evaluator is the reference
+used to measure the pilot; if it must run on every eventual slice, include that ongoing cost in the workflow. Do not
+report a cheap reviewer as sufficient when a hidden stronger review is doing the acceptance work.
+
+Start with the requested pair and a stronger-review reference. If cheap review misses material issues, compare a
+qualified author with a stronger reviewer, or a cheaper author with stronger review, based on the constrained budget.
+Advance at most two complete workflows to the difficult tasks and fresh repeats. Keep readability within the existing
+maintainability score: direct scenarios, useful names, clear assertions/failures, small justified helpers and ease of
+changing a requirement. Judge anonymized code; provider preference or shorter output alone does not establish quality.
+
+Before broad dispatch, freeze a routing policy by task class, the required reviewer and escalation triggers, and the
+qualified helper version. Authorization, tenant isolation, deployment identity and destructive operations retain strong
+review until that specific delegation policy is qualified. Recheck the policy on 4–6 fresh slices; ongoing samples and
+failed checks can trigger stronger review or a smaller batch without restarting a model tournament for every slice.
+
 ### Grading
 
 First apply mandatory conditions: correct scope, no weakened product contract, no lost unique regression protection,
@@ -139,6 +234,10 @@ fails regardless of its score. A confirmed product bug follows the separate work
 
 Then score each dimension from 0 to 4: absent/wrong, major repair, partial, acceptable, strong. Multiply by its weight.
 The score organizes review; it is not a probability of correctness.
+
+Use concrete acceptance failures before small score differences. Check reviewer consistency against anonymized anchor
+cases; retain the original assessment and explain any rubric correction. A few subjective points are insufficient to
+rank configurations when findings and verification are equivalent.
 
 | Dimension                    | Weight | What earns a strong score                                                                                                            |
 | ---------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------ |
