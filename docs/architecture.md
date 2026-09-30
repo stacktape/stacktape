@@ -118,6 +118,6 @@ The CLI is not strict-TypeScript-clean yet. Its non-strict setting is explicit. 
 own stricter contracts where practical; enabling strict mode for the imported CLI remains a separate migration.
 
 Console's repository-based config generator still uses its older hosted inference pipeline. The v4 `stacktape init` flow
-uses `packages/config-inference` and a local interactive workflow instead. Converging them requires a product decision
-about the Console experience and trust model; sharing files between the two implementations would only hide the
-difference.
+uses `packages/config-inference` and a local interactive workflow instead. The hosted pipeline is being retired rather
+than converged: first deployments start only with `stacktape init`, and Console deploys use the config in the
+repository.

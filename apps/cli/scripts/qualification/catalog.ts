@@ -11,7 +11,9 @@ export const SMOKE_CASE_IDS = [
   'heroku-node-getting-started',
   'docker-fastapi',
   'railway-go-mux',
-  'real-boxyhq-saas-starter'
+  // A real Node application with a worker and Redis that packages end to end; the Next.js SaaS starters cannot
+  // (their builds push a schema or validate the runtime environment), so they stay in the release set as import-only.
+  'railway-fastify-bullmq'
 ] as const;
 
 export type AwsQualificationScenario = {
@@ -97,7 +99,10 @@ const importOnlyCaseIds = new Set([
   'real-formbricks',
   // Its Containerfile's base image pins Debian 11 packages the security archive no longer serves, and its
   // .tool-versions lists conda tools mise cannot install; the web, worker and release detection is the value.
-  'real-forem'
+  'real-forem',
+  // Its build script is `prisma generate && prisma db push && next build`: the build pushes the schema to a live
+  // database, which packaging cannot provide.
+  'real-boxyhq-saas-starter'
 ]);
 
 const fromBuiltInCase = (entry: RealProjectCorpusCase): QualificationCaseManifest => ({

@@ -85,12 +85,14 @@ export const dockerfileProbe: Probe = {
       if (raw === undefined || !/^\s*FROM\s+\S+/im.test(raw)) continue;
       const { port, citation: portCitation } = exposedPort(path, raw);
       const dockerfileCitation = citeFirstMatch(path, raw, /^\s*FROM\s+\S+/im, 'dockerfile');
-      const buildContext = buildContextFor(path, raw, context.files);
+      // Only a Dockerfile that must be built from the repository root overrides the context; otherwise the
+      // service root stands, and a Compose file's declared context still wins during assembly.
+      const buildsFromRepositoryRoot = root !== '.' && buildContextFor(path, raw, context.files) === '.';
 
       services.set(root, {
         name: serviceNameFor(root, context.root),
         path: root,
-        ...(buildContext === root ? {} : { buildRoot: buildContext }),
+        ...(buildsFromRepositoryRoot ? { buildRoot: '.' } : {}),
         language: 'container',
         exposesHttp: port !== undefined,
         ...(port === undefined ? {} : { port }),
