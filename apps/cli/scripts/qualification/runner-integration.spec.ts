@@ -11,11 +11,16 @@ afterEach(async () => {
   await Promise.all(temporaryRoots.splice(0).map((path) => rm(path, { recursive: true, force: true, maxRetries: 3 })));
 });
 
-const runQualification = async (args: string[]) => {
+/**
+ * The product fingerprint is pinned: the real one hashes the working tree, which other gate steps write to while this
+ * test runs, so three consecutive runs would not be guaranteed the same product state.
+ */
+const runQualification = async (args: string[], productFingerprint = 'resume-test') => {
   const result = await runProcess({
     command: process.execPath,
     args: [join(import.meta.dir, 'run-project-qualification.ts'), ...args],
     cwd: join(import.meta.dir, '..', '..', '..', '..'),
+    env: { ...process.env, STACKTAPE_QUALIFICATION_PRODUCT_FINGERPRINT: productFingerprint },
     timeoutMs: 2 * 60_000
   });
   assertProcessSucceeded(result);
@@ -78,12 +83,29 @@ describe('qualification runner', () => {
       `--resume-from=${join(secondOutput, 'qualification-report.json')}`
     ]);
 
+    const afterProductChangeOutput = join(root, 'after-product-change');
+    await runQualification(
+      [
+        `--manifest=${manifestPath}`,
+        '--lanes=import',
+        `--output-dir=${afterProductChangeOutput}`,
+        `--resume-from=${join(thirdOutput, 'qualification-report.json')}`
+      ],
+      'resume-test-changed-product'
+    );
+
     const first = await readReport(firstOutput);
     const second = await readReport(secondOutput);
     const third = await readReport(thirdOutput);
     expect(first.cases[0]).toMatchObject({ status: 'passed', execution: 'executed' });
     expect(second.cases[0]).toMatchObject({ status: 'passed', execution: 'reused' });
     expect(third.cases[0]).toMatchObject({ status: 'passed', execution: 'reused' });
+    // Evidence from another product state is never reused.
+    expect((await readReport(afterProductChangeOutput)).cases[0]).toMatchObject({
+      status: 'passed',
+      execution: 'executed'
+    });
+    expect(first.productFingerprint).toBe('pinned:resume-test');
     expect(second.summary).toMatchObject({ passed: 1, failed: 0, skipped: 0 });
     expect(await Bun.file(join(thirdOutput, 'cases', 'resume-fixture', 'stacktape.yml')).exists()).toBeTrue();
   }, 120_000);

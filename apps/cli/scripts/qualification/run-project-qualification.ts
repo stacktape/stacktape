@@ -848,7 +848,17 @@ const toolVersion = async (command: string, args: string[]) => {
   }
 };
 
+/**
+ * Identifies the product state a result was produced with: the commit plus every uncommitted change. A resumed run
+ * reuses a passing case only when this is unchanged.
+ *
+ * `STACKTAPE_QUALIFICATION_PRODUCT_FINGERPRINT` replaces the computed value. It exists for the runner's own tests,
+ * which run inside a repository other gate steps are writing to; the recorded value carries a `pinned:` prefix so a
+ * report never presents it as a fingerprint of the tree.
+ */
 const calculateProductFingerprint = async (productCommit: string) => {
+  const pinned = process.env.STACKTAPE_QUALIFICATION_PRODUCT_FINGERPRINT;
+  if (pinned) return `pinned:${pinned}`;
   const hash = createHash('sha256').update(productCommit);
   const diff = await runProcess({
     command: 'git',
@@ -867,8 +877,14 @@ const calculateProductFingerprint = async (productCommit: string) => {
   });
   assertProcessSucceeded(untracked);
   for (const projectPath of untracked.stdout.split('\0').filter(Boolean).sort()) {
+    // A file another process removed after the listing is no longer part of the tree.
+    const contents = await readFile(resolve(rootDirectory, projectPath)).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === 'ENOENT') return undefined;
+      throw error;
+    });
+    if (contents === undefined) continue;
     hash.update(projectPath);
-    hash.update(await readFile(resolve(rootDirectory, projectPath)));
+    hash.update(contents);
   }
   return hash.digest('hex');
 };
