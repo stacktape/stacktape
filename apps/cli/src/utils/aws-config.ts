@@ -1,5 +1,4 @@
 import { fsPaths } from 'src/config/runtime-paths';
-import fsExtra from 'fs-extra';
 import uniq from 'lodash/uniq';
 import { adjustIniFileContent, getIniFileContent } from '@utils/fs-utils';
 
@@ -40,29 +39,8 @@ export const getAvailableAwsProfiles = async () => {
   ]);
 };
 
-export const ensureGlobalAwsConfigFiles = () => {
-  return Promise.all([
-    fsExtra.ensureFile(fsPaths.awsConfigFilePath()),
-    fsExtra.ensureFile(fsPaths.awsCredentialsFilePath())
-  ]);
-};
-
 export const loadAwsConfigFileContent = () => {
   return getIniFileContent(fsPaths.awsConfigFilePath());
-};
-
-export const loadAwsCredentialsFileContent = async (): Promise<{
-  [key: string]: { secretAccessKey: string; accessKeyId: string };
-}> => {
-  const creds = await getIniFileContent(fsPaths.awsCredentialsFilePath());
-  const res = {};
-  for (const profile in creds) {
-    res[profile] = {
-      secretAccessKey: creds[profile].aws_secret_access_key,
-      accessKeyId: creds[profile].aws_access_key_id
-    };
-  }
-  return res;
 };
 
 export const listAwsProfiles = async (credentialsFilePath = fsPaths.awsCredentialsFilePath()) => {

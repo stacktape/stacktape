@@ -86,7 +86,6 @@ const ARG_ALIASES: Record<string, string> = {
   config_path: 'configPath',
   disable_auto_rollback: 'disableAutoRollback',
   disable_docker_remote_cache: 'disableDockerRemoteCache',
-  disable_drift_detection: 'disableDriftDetection',
   disable_emulation: 'disableEmulation',
   disable_layer_optimization: 'disableLayerOptimization',
   docker_args: 'dockerArgs',

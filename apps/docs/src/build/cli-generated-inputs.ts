@@ -21,6 +21,9 @@ export const REPO_ROOT = fromRepoRoot('');
  */
 export const CLI_API_REFERENCE_DATA = fromRepoRoot('apps/cli/@generated/schemas/api-reference-data.json');
 
+/** Current CLI options, generated from the same definitions as CLI help and the LLM corpus. */
+export const CLI_COMMAND_REFERENCE_DATA = fromRepoRoot('apps/cli/@generated/schemas/cli-command-reference.json');
+
 /** Deterministic LLM documentation corpus. Produced by `apps/cli`'s `generate`. */
 export const CLI_LLM_DOCS_DIR = fromRepoRoot('apps/cli/@generated/llm-docs');
 

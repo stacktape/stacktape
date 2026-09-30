@@ -74,15 +74,6 @@ const getLocalContainerName = (resourceName: string) => {
   return `stp-${stage}-${resourceName}`;
 };
 
-export const getSupportedLocalResourceTypes = (): LocalResourceType[] => [
-  'postgres',
-  'mysql',
-  'mariadb',
-  'redis',
-  'dynamodb',
-  'opensearch'
-];
-
 const mapEngineToLocalType = (engineType: string): LocalResourceType | null => {
   if (
     ['postgres', 'aurora-postgresql', 'aurora-postgresql-serverless', 'aurora-postgresql-serverless-v2'].includes(

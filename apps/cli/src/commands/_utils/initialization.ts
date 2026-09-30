@@ -627,12 +627,6 @@ export const initializeStackServicesForDevPhase2 = async (stackContext: StackCon
   ]);
 };
 
-export const initializeStackServicesForDev = async () => {
-  const operation = await initializeStackServicesForDevPhase1();
-  await initializeStackServicesForDevPhase2(operation.stackContext);
-  return operation;
-};
-
 export const initializeStackServicesForWorkingWithDeployedStack = async ({
   commandModifiesStack,
   commandRequiresConfig

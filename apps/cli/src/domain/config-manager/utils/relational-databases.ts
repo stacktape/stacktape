@@ -1,35 +1,12 @@
-import type { ResourceLookup } from './resource-lookup';
 import type {
   NormalizedSQLEngine,
   StpRelationalDatabase
 } from '@domain-services/config-manager/resolved-types/relational-databases';
-import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
 import { resolveCloudwatchLogExports } from '@domain-services/config-manager/database-engine';
 import { normalizeEngineType } from '@stacktape/config/relational-database-engines';
 import { CliError } from '@utils/errors';
-import { getPropsOfResourceReferencedInConfig } from './resource-lookup';
 import type { MysqlLoggingOptions, PostgresLoggingOptions } from '@stacktape/config/relational-databases';
 import { configErrors } from '../errors';
-
-export const resolveReferenceToRelationalDatabase = ({
-  activeConfig,
-  referencedFrom,
-  referencedFromType,
-  stpResourceReference
-}: {
-  activeConfig: ResourceLookup;
-  referencedFrom: string;
-  referencedFromType?: StpWorkloadType | 'alarm';
-  stpResourceReference: string;
-}) => {
-  return getPropsOfResourceReferencedInConfig({
-    activeConfig,
-    stpResourceReference,
-    stpResourceType: 'relational-database',
-    referencedFrom,
-    referencedFromType
-  });
-};
 
 const validEngineSpecificLogOptions: {
   [_engineType in NormalizedSQLEngine]: (keyof PostgresLoggingOptions | keyof MysqlLoggingOptions)[];

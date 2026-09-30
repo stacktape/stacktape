@@ -55,10 +55,6 @@ const getSchemaDescription = (schema: z.ZodType): string | undefined => {
   return undefined;
 };
 
-export const getCommandArgs = (cmd: StacktapeCommand) => {
-  return commandDefinitions[cmd].args;
-};
-
 export const getAllowedArgs = (cmd: StacktapeCommand): string[] => {
   return Object.keys(commandDefinitions[cmd].args);
 };
@@ -69,12 +65,6 @@ export const getRequiredArgs = (cmd: StacktapeCommand): readonly string[] => {
 
 export const getCommandDescription = (cmd: StacktapeCommand): string => {
   return commandDefinitions[cmd].description;
-};
-
-export const getArgDescription = (cmd: StacktapeCommand, argName: string): string | undefined => {
-  const argSchema = commandDefinitions[cmd].args[argName];
-  if (!argSchema) return undefined;
-  return getSchemaDescription(argSchema as z.ZodType);
 };
 
 export const getArgInfo = (

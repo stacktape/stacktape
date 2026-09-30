@@ -108,15 +108,3 @@ export const getDevAgentCredentials = async (): Promise<{
     };
   }
 };
-
-/**
- * Check if the dev agent role is configured and available.
- */
-export const isDevAgentRoleAvailable = (): boolean => {
-  return Boolean(roleArn && externalId);
-};
-
-/**
- * Get the dev agent role ARN (for display purposes).
- */
-export const getDevAgentRoleArn = (): string | null => roleArn;

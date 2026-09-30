@@ -3,7 +3,6 @@
  * Periodically checks if containers are healthy and can accept connections.
  * Notifies DevTui and attempts auto-restart on failures.
  */
-
 import type { LocalResourceInstance, LocalResourceType } from './index';
 import { tuiManager } from '@application-services/tui-manager';
 import { execDocker, inspectDockerContainer } from '@utils/docker';
@@ -25,7 +24,6 @@ type MonitoredResource = {
 
 const monitoredResources = new Map<string, MonitoredResource>();
 let monitorInterval: ReturnType<typeof setInterval> | null = null;
-let onHealthChange: ((name: string, status: HealthStatus, error?: string) => void) | null = null;
 
 /**
  * Health check functions for each resource type.
@@ -144,13 +142,11 @@ const handleHealthResult = async (name: string, isHealthy: boolean): Promise<voi
       resource.restartAttempts = 0;
       tuiManager.success(`${name} recovered and is healthy`);
       updateDevTuiStatus(name, 'running');
-      onHealthChange?.(name, 'healthy');
     } else if (resource.status === 'unhealthy') {
       resource.status = 'healthy';
       resource.consecutiveFailures = 0;
       tuiManager.success(`${name} is healthy again`);
       updateDevTuiStatus(name, 'running');
-      onHealthChange?.(name, 'healthy');
     } else if (resource.consecutiveFailures > 0) {
       // Had some failures but recovered before threshold
       resource.consecutiveFailures = 0;
@@ -168,7 +164,6 @@ const handleHealthResult = async (name: string, isHealthy: boolean): Promise<voi
       resource.status = 'unhealthy';
       tuiManager.warn(`${name} is unhealthy: ${errorMsg}`);
       updateDevTuiStatus(name, 'error', errorMsg);
-      onHealthChange?.(name, 'unhealthy', errorMsg);
 
       // Attempt auto-restart if enabled
       if (HEALTH_CONFIG.autoRestart && resource.restartAttempts < HEALTH_CONFIG.maxRestartAttempts) {
@@ -178,7 +173,6 @@ const handleHealthResult = async (name: string, isHealthy: boolean): Promise<voi
         const failMsg = `Failed after ${resource.restartAttempts} restart attempts`;
         tuiManager.warn(`${name} ${failMsg}. Manual intervention required.`);
         updateDevTuiStatus(name, 'error', failMsg);
-        onHealthChange?.(name, 'failed', failMsg);
       }
     }
   }
@@ -212,7 +206,6 @@ const attemptRestart = async (name: string): Promise<void> => {
       resource.consecutiveFailures = 0;
       tuiManager.success(`${name} restarted successfully`);
       updateDevTuiStatus(name, 'running');
-      onHealthChange?.(name, 'healthy');
     } else {
       resource.status = 'unhealthy';
       const errorMsg = 'Restart completed but health check still failing';
@@ -296,16 +289,6 @@ export const stopHealthMonitoring = (): void => {
     monitorInterval = null;
   }
   monitoredResources.clear();
-};
-
-/**
- * Set a callback for health status changes.
- * Useful for updating Lambda env vars when resources recover.
- */
-export const setHealthChangeCallback = (
-  callback: ((name: string, status: HealthStatus, error?: string) => void) | null
-): void => {
-  onHealthChange = callback;
 };
 
 /**

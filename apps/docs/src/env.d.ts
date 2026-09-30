@@ -10,3 +10,10 @@ declare module 'virtual:stacktape/api-reference-data' {
 
   export const apiReferenceDefinitions: ApiReferenceData;
 }
+
+/** Current command metadata from the CLI-owned generator. */
+declare module 'virtual:stacktape/cli-command-reference' {
+  import type { CliCommandArg } from '@/components/Mdx/CliCommandsApiReference';
+
+  export const cliCommandReference: Record<string, CliCommandArg[]>;
+}

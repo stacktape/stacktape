@@ -107,12 +107,6 @@ export const formatClock = (ms: number): string => {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
 
-export const getElapsedTime = (startTime: number | undefined, duration: number | undefined): number => {
-  if (duration !== undefined) return duration;
-  if (startTime === undefined) return 0;
-  return Date.now() - startTime;
-};
-
 /**
  * Every terminal escape sequence, not just SGR colors: CSI with any final byte
  * (cursor movement, erase-line), OSC (hyperlinks, titles) terminated by BEL or

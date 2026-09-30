@@ -51,6 +51,9 @@ For extension work, run `pnpm dev:vscode-extension`, then launch an Extension De
 `apps/vscode-extension` as the extension development path. `pnpm --filter vscode-stacktape test` exercises the bundled
 language server over LSP; `pnpm package:vscode-extension` creates an installable VSIX.
 
+For repeatable tests, prefer the [isolated API/PostgreSQL/browser fixtures](testing/console.md) when they cover the
+changed behavior. The modes below apply when work needs the shared dev data plane.
+
 Use `pnpm dev:console:ui` for UI work against the deployed dev API. Use `pnpm dev:console` for API work or an API/UI
 change: it runs both locally, connects the API to the shared dev database and services, and leaves the deployed dev
 Lambdas handling external webhooks and background work. The command maintains the `console-app-devlocal` support stack
@@ -103,9 +106,9 @@ Run `pnpm dev:cli login` for a human Stacktape session. Use `STACKTAPE_API_KEY` 
 The local `package`, `synth`, and `validate` commands do not need Console authentication.
 
 Full Console dev mode additionally requires Docker and AWS credentials for account `977946299200`. Startup fails closed
-before creating the `devlocal` support stack if the active account differs. The SSM Session Manager helper used for
-database tunneling ships with the source-built Stacktape CLI; a separate global plugin is not required. Inspect
-parameter presence without reading values with `pnpm parameters:check:console:dev` and
+before creating the `devlocal` support stack if the active account differs. The CLI resolves the pinned SSM Session
+Manager helper on first use, downloading and verifying it when it is not already cached. A separate global plugin is not
+required. Inspect parameter presence without reading values with `pnpm parameters:check:console:dev` and
 `pnpm parameters:check:console:devlocal`.
 
 AWS uses the standard credential chain:

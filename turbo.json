@@ -46,6 +46,12 @@
       "dependsOn": ["@stacktape/init-ui#build"],
       "outputs": ["__stacktape-dist/dev/**"]
     },
+    "@stacktape/cli#build": {
+      "description": "Build the npm artifact with the canonical public license",
+      "dependsOn": ["^build", "^generate", "generate"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/LICENSE"],
+      "outputs": ["__release-npm/**"]
+    },
     "@stacktape/docs#build": {
       "description": "Build the documentation site against the CLI's reviewed generated artifacts",
       "dependsOn": ["^build", "^generate", "@stacktape/cli#generate", "@stacktape/cli#generate:monaco"],

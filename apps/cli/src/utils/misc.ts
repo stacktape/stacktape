@@ -34,35 +34,6 @@ export const stringMatchesGlob = (testedString: string, globPattern: string): bo
 
 export const sortObjectKeys = (obj) => Object.fromEntries(Object.entries(obj).sort());
 
-export const splitStringIntoLines = (text: string, lineMaxLength: number, whitespaceLookup = 40) => {
-  const regex = new RegExp(
-    String.raw`\s*(?:(\S{${lineMaxLength}})|([\s\S]{${lineMaxLength - whitespaceLookup},${lineMaxLength}})(?!\S))`,
-    'g'
-  );
-  const replacedLines = text
-    .split('\n')
-    .map((line) => {
-      let replacedLine = line.replace(regex, (_, x, y) => (x ? `${x}\n` : `${y}\n`));
-      replacedLine = replacedLine.endsWith('\n') ? replacedLine.slice(0, -1) : replacedLine;
-      return replacedLine.split('\n');
-    })
-    .flat()
-    .map((line) => line.trim());
-  return replacedLines;
-};
-
-export const whitespacePrefixMultilineText = (text: string, padding: number, skipFirstLine = false) => {
-  return text
-    .split('\n')
-    .map((line, index) => {
-      if (index === 0 && skipFirstLine) {
-        return line;
-      }
-      return `${' '.repeat(padding)}${line}`;
-    })
-    .join('\n');
-};
-
 export const areStringArraysContentsEqual = (arr1: string[], arr2: string[]) => {
   if (arr1?.length !== arr2?.length) {
     return false;
@@ -169,31 +140,6 @@ export const processAllNodesSync = (node: any, processFunction: (...args: any) =
   return processFunction(node);
 };
 
-export const removePropertiesFromObject = (obj: any, propNames: string[]): any => {
-  if (obj !== null && typeof obj === 'object') {
-    for (const key in obj) {
-      if (propNames.includes(key)) {
-        delete obj[key];
-      } else if (typeof obj[key] === 'object') {
-        removePropertiesFromObject(obj[key], propNames);
-      }
-    }
-  }
-  return obj;
-};
-
-export const orderPropertiesOfObjectAccordingToKeys = <T>(
-  unordered: Record<string, T>,
-  compareFn?: (a: string, b: string) => number
-): Record<string, T> => {
-  return Object.keys(unordered)
-    .sort(compareFn)
-    .reduce((obj, key) => {
-      obj[key] = unordered[key];
-      return obj;
-    }, {});
-};
-
 export const traverseToMaximalExtent = (
   objectToTraverse: any,
   pathToProp: string
@@ -223,13 +169,6 @@ export const traverseToMaximalExtent = (
     validPath,
     restPath: restPath.join('.')
   };
-};
-
-export const replaceAll = function (replaceThis: string, withThis: string, inThis: string) {
-  if (withThis) {
-    withThis = withThis.replace(/\$/g, '$$$$');
-  }
-  return inThis.replace(new RegExp(replaceThis.replace(/([/,!\\^${}[\]().*+?|<>\-&])/g, '\\$&'), 'g'), withThis);
 };
 
 export const isAlphanumeric = (str: string) => /^[a-z0-9]+$/i.test(str);
@@ -415,23 +354,6 @@ export const applyAll = (functionsArray: ((...args: any) => any)[], value: any) 
   }
   return res;
 };
-
-export const getFirstAndLastItem = <T>(arr: T[]) => {
-  return { first: arr[0] || null, last: arr[arr.length - 1] || null };
-};
-
-export const groupBy = <T, K extends keyof any>(list: T[], getKey: (item: T) => K) =>
-  list.reduce(
-    (previous, currentItem) => {
-      const group = getKey(currentItem);
-      if (!previous[group]) {
-        previous[group] = [];
-      }
-      previous[group].push(currentItem);
-      return previous;
-    },
-    {} as Record<K, T[]>
-  );
 
 export const chunkArray = <T>(arr: T[], chunkSize: number): T[][] => {
   return arr.reduce((all: T[][], one: T, i) => {

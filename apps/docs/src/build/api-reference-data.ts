@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { CLI_API_REFERENCE_DATA, generatorHint } from './cli-generated-inputs.ts';
+import { CLI_API_REFERENCE_DATA, CLI_COMMAND_REFERENCE_DATA, generatorHint } from './cli-generated-inputs.ts';
 
 /**
  * Just the slice of Vite's plugin surface this file uses. Declared structurally so the app needs no
@@ -14,11 +14,12 @@ type VirtualModulePlugin = {
 };
 
 const API_REFERENCE_DATA_MODULE = 'virtual:stacktape/api-reference-data';
+const COMMAND_REFERENCE_DATA_MODULE = 'virtual:stacktape/cli-command-reference';
 const RESOLVED_ID = `\0${API_REFERENCE_DATA_MODULE}`;
+const COMMAND_RESOLVED_ID = `\0${COMMAND_REFERENCE_DATA_MODULE}`;
 
 /**
- * Expose the CLI's generated API reference to the client bundle as
- * `virtual:stacktape/api-reference-data`.
+ * Expose the CLI's generated resource and command references as data modules.
  *
  * This is a reader, not a generator: `apps/cli`'s generation pipeline owns the schema normalization
  * and emits the finished data, so the site cannot drift from the corpus the CLI ships. The file is
@@ -30,22 +31,51 @@ export const apiReferenceDataPlugin = (): VirtualModulePlugin => ({
   name: 'stacktape-api-reference-data',
   enforce: 'pre',
   resolveId(id) {
-    return id === API_REFERENCE_DATA_MODULE ? RESOLVED_ID : undefined;
+    if (id === API_REFERENCE_DATA_MODULE) return RESOLVED_ID;
+    if (id === COMMAND_REFERENCE_DATA_MODULE) return COMMAND_RESOLVED_ID;
+    return undefined;
   },
   load(id) {
-    if (id !== RESOLVED_ID) return undefined;
+    if (id !== RESOLVED_ID && id !== COMMAND_RESOLVED_ID) return undefined;
+    const artifact = id === RESOLVED_ID ? CLI_API_REFERENCE_DATA : CLI_COMMAND_REFERENCE_DATA;
+    const exportName = id === RESOLVED_ID ? 'apiReferenceDefinitions' : 'cliCommandReference';
 
-    if (!existsSync(CLI_API_REFERENCE_DATA)) {
-      throw new Error(
-        `The API reference needs ${CLI_API_REFERENCE_DATA}, which does not exist. ${generatorHint('generate')}`
-      );
+    if (!existsSync(artifact)) {
+      throw new Error(`The API reference needs ${artifact}, which does not exist. ${generatorHint('generate')}`);
     }
 
-    this.addWatchFile(CLI_API_REFERENCE_DATA);
+    this.addWatchFile(artifact);
     // Re-serialized rather than inlined verbatim so a malformed artifact fails here, at build time,
     // instead of producing a module that throws in the browser.
-    const data: unknown = JSON.parse(readFileSync(CLI_API_REFERENCE_DATA, 'utf8'));
+    const data: unknown = JSON.parse(readFileSync(artifact, 'utf8'));
+    if (id === COMMAND_RESOLVED_ID) {
+      if (!data || typeof data !== 'object' || Array.isArray(data)) {
+        throw new Error(`Invalid CLI command reference in ${artifact}. ${generatorHint('generate')}`);
+      }
+      for (const [command, args] of Object.entries(data)) {
+        if (
+          !Array.isArray(args) ||
+          args.some((value: unknown) => {
+            if (!value || typeof value !== 'object') return true;
+            const arg = value as Record<string, unknown>;
+            return (
+              typeof arg.name !== 'string' ||
+              typeof arg.required !== 'boolean' ||
+              !Array.isArray(arg.allowedTypes) ||
+              arg.allowedTypes.some((allowedType: unknown) => typeof allowedType !== 'string') ||
+              (arg.description !== undefined && typeof arg.description !== 'string') ||
+              (arg.alias !== undefined && typeof arg.alias !== 'string') ||
+              (arg.allowedValues !== undefined &&
+                (!Array.isArray(arg.allowedValues) ||
+                  arg.allowedValues.some((allowedValue: unknown) => typeof allowedValue !== 'string')))
+            );
+          })
+        ) {
+          throw new Error(`Invalid CLI options for ${command} in ${artifact}. ${generatorHint('generate')}`);
+        }
+      }
+    }
 
-    return `export const apiReferenceDefinitions = ${JSON.stringify(data)};`;
+    return `export const ${exportName} = ${JSON.stringify(data)};`;
   }
 });

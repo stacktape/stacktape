@@ -6,14 +6,12 @@ import type {
   GlobalStateConnectedAwsAccount,
   GlobalStateOrganization
 } from '@application-services/global-state-manager/types';
-import type { DriftDetail } from '@domain-services/cloudformation-stack-manager/types';
 import type { StacktapeArgs } from 'src/config/cli/types';
 import type { Script } from '@domain-services/config-manager/resolved-types/resources';
 import type { LoadedAwsCredentials, ValidatedAwsCredentials } from 'src/aws/credentials';
 import { SUPPORTED_AWS_REGIONS, type SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regions';
 import { isAlphanumeric, isSmallAlphanumericDashCase } from '@utils/misc';
 import { CliError } from '@utils/errors';
-import { renderPrettyJson } from '@utils/pretty-json';
 import { cliCommands, type StacktapeCommand } from '../config/cli/commands';
 import { argAliases as cliArgsAliases } from '../config/cli/options';
 import { getAllowedArgs, getArgInfo, getRequiredArgs } from '../config/cli/utils';
@@ -40,24 +38,6 @@ export const validateUniqueness = (
       category: 'CONFIG',
       code: 'CONFIG_DUPLICATE_LOGICAL_NAME',
       message: `Multiple resources resolve to the logical name \`${cfLogicalName}\`: \`${resourceWithSameLogicalName.Type}\` and \`${resourceType}\`.`
-    });
-  }
-};
-
-export const validateStackDrift = (driftInformation: DriftDetail[], command: StacktapeCommand) => {
-  if (command === 'deploy' && driftInformation && driftInformation.length) {
-    throw new CliError({
-      category: 'EXISTING_STACK',
-      code: 'STACK_DRIFT_DETECTED',
-      message: `Your stack has drifted since the last deploy.\n${driftInformation
-        .map(
-          (resource) =>
-            `Resource ${resource.resourceLogicalName} of type ${
-              resource.resourceType
-            } has following differences:\n${renderPrettyJson(resource.differences as any)}`
-        )
-        .join('\n')}`,
-      hints: 'To proceed anyway, use `--disableDriftDetection`.'
     });
   }
 };

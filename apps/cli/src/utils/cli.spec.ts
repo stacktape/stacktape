@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { StacktapeArgs } from 'src/config/cli/types';
 import { getCliInput, transformToCliArgs } from './cli';
+import { validateArgs } from './validator';
 
 const parseCliInput = (...args: string[]) => {
   const originalArgv = process.argv;
@@ -19,7 +20,7 @@ describe('CLI argument serialization', () => {
       stage: 'production',
       region: 'eu-west-1',
       preserveTempFiles: true,
-      disableDriftDetection: false
+      noCache: false
     } satisfies StacktapeArgs;
 
     expect(transformToCliArgs(args)).toEqual(['--stage', 'production', '--region', 'eu-west-1', '--preserveTempFiles']);
@@ -27,6 +28,13 @@ describe('CLI argument serialization', () => {
 });
 
 describe('CLI argument parsing', () => {
+  test.each(['--disableDriftDetection', '--ddd'])('rejects the obsolete drift flag %s', (flag) => {
+    const { options } = parseCliInput('deploy', '--stage', 'dev', '--region', 'eu-west-1', flag);
+    expect(() => validateArgs({ rawArgs: options, command: 'deploy', defaults: {}, fromEnv: {} })).toThrow(
+      'Invalid argument'
+    );
+  });
+
   test('parses repeated package workload selections as an array', () => {
     expect(parseCliInput('package', '--onlyWorkloads', 'api', '--onlyWorkloads', 'worker')).toMatchObject({
       commands: ['package'],

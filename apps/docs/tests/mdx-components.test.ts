@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { APP_ROOT, contentBodiesWithoutCodeFences } from './canonical-content.ts';
+import { CLI_COMMAND_REFERENCE_DATA } from '../src/build/cli-generated-inputs.ts';
 
 /**
  * The corpus and the component registry must agree in both directions.
@@ -51,6 +52,17 @@ const componentsUsedByContent = (): Set<string> => {
   }
   return used;
 };
+
+test('CLI references name a current command and do not embed metadata snapshots', () => {
+  const commands = JSON.parse(readFileSync(CLI_COMMAND_REFERENCE_DATA, 'utf8')) as Record<string, unknown>;
+  for (const body of contentBodiesWithoutCodeFences()) {
+    for (const match of body.matchAll(/<CliCommandsApiReference\b[\s\S]*?\/>/g)) {
+      const command = match[0].match(/^<CliCommandsApiReference\s+command="([^"]+)"\s*\/>$/)?.[1];
+      assert.ok(command, 'CLI references take only a command name; metadata belongs to the CLI generator');
+      assert.ok(Object.hasOwn(commands, command), `CLI reference names unknown command ${command}`);
+    }
+  }
+});
 
 test('every component the corpus uses is registered', () => {
   const registered = new Set([...registeredReactComponents(), ...registeredIslands()]);

@@ -18,9 +18,8 @@
  * account: quotas, credentials, an unset secret. `summariseFailure` decides which of those this is
  * before we spend anything.
  */
-
 import { mergeAgentSubmission } from '@stacktape/config-inference/facts/agent-submission';
-import { checkFactsCompleteness, type ProjectFacts } from '@stacktape/config-inference/facts';
+import { type ProjectFacts } from '@stacktape/config-inference/facts';
 import { verifyFacts, type VerificationFinding } from '@stacktape/config-inference/verify';
 import { composeConfig, type CompositionResult } from '@stacktape/config-inference/compose';
 import versionJson from '@generated/db-engine-versions/versions.json' with { type: 'json' };
@@ -155,7 +154,3 @@ export const runRepairMission = async (options: RunRepairOptions): Promise<Repai
     agent
   };
 };
-
-/** Structural problems in the repaired document, for a caller that wants to report them. */
-export const repairCompleteness = (result: RepairResult): ReturnType<typeof checkFactsCompleteness> =>
-  checkFactsCompleteness(result.facts);

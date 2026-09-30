@@ -45,9 +45,3 @@ export type EnrichedStackResourceInfo = import('@aws-sdk/client-cloudformation')
   rdsInstanceDetail?: import('@aws-sdk/client-rds').DBInstance; // applicable to AWS::RDS::DBInstance
   auroraClusterDetail?: import('@aws-sdk/client-rds').DBCluster; // applicable to AWS::RDS::DBCluster
 };
-
-export type DriftDetail = {
-  resourceLogicalName: string;
-  resourceType: string;
-  differences: import('@aws-sdk/client-cloudformation').PropertyDifference[];
-};

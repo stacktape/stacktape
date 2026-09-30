@@ -20,11 +20,6 @@ import { CliError } from '@utils/errors';
 import { pythonBridge } from '@utils/python-bridge';
 import fsExtra, { lstatSync, readdirSync, readFileSync } from 'fs-extra';
 
-// Bun has native TypeScript support - no registration needed
-export const activateTypescriptResolving = () => {
-  // No-op: Bun's require() handles TypeScript natively
-};
-
 const formatFilePathForError = (filePath: string) => {
   const relativePath = transformToUnixPath(getRelativePath(filePath));
   const isOutsideWorkingTree =
@@ -297,10 +292,6 @@ const getMatchingConfigFiles = () => {
     .filter((item) => {
       return lstatSync(item).isFile() && VALID_CONFIG_PATHS.includes(basename(item));
     });
-};
-
-export const getIsConfigPotentiallyUsable = () => {
-  return Boolean(globalStateManager.args.configPath || getMatchingConfigFiles().length);
 };
 
 export const getConfigPath = (): string => {

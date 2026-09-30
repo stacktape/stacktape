@@ -1,6 +1,4 @@
-import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 import { isIntrinsic, sub, type CloudFormationValue, type Intrinsic } from '@stacktape/cloudformation/intrinsics';
-
 import type { StackResourceSummary } from '@aws-sdk/client-cloudformation';
 import { serialize } from '@utils/misc';
 import type { EnvironmentVar } from '@stacktape/config/shared';
@@ -76,14 +74,4 @@ export const replaceCloudformationRefFunctionsWithCfPhysicalIds = (
     return res;
   }
   return node;
-};
-
-export const getCloudformationReferencedParamOrResource = (
-  referencedParamOrResource: string,
-  cloudformationTemplate: CloudFormationTemplate
-) => {
-  return (
-    cloudformationTemplate.Resources?.[referencedParamOrResource] ||
-    cloudformationTemplate.Parameters?.[referencedParamOrResource]
-  );
 };

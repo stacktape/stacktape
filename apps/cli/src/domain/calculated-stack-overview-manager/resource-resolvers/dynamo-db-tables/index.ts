@@ -20,32 +20,6 @@ export const resolveDynamoDbTable = ({ resource }: { resource: StpDynamoTable })
     cfLogicalName: cfLogicalNames.dynamoGlobalTable(resource.name),
     resource: getDynamoGlobalTableResource({ resource })
   });
-  // if (resource.provisionedThroughput?.readScaling) {
-  //   const metric = 'readScaling';
-  //   calculatedStackOverviewManager.addCfChildResource({
-  //     nameChain: resource.nameChain,
-  //     cfLogicalName: cfLogicalNames.dynamoAutoScalingTarget(resource.name, metric),
-  //     resource: getScalableTargetForDynamoTableProvisionedCapacity({ resource, metric })
-  //   });
-  //   calculatedStackOverviewManager.addCfChildResource({
-  //     nameChain: resource.nameChain,
-  //     cfLogicalName: cfLogicalNames.autoScalingPolicy(resource.name, metric),
-  //     resource: getScalingPolicyForDynamoTableProvisionedCapacity({ resource, metric })
-  //   });
-  // }
-  // if (resource.provisionedThroughput?.writeScaling) {
-  //   const metric = 'writeScaling';
-  //   calculatedStackOverviewManager.addCfChildResource({
-  //     nameChain: resource.nameChain,
-  //     cfLogicalName: cfLogicalNames.dynamoAutoScalingTarget(resource.name, metric),
-  //     resource: getScalableTargetForDynamoTableProvisionedCapacity({ resource, metric })
-  //   });
-  //   calculatedStackOverviewManager.addCfChildResource({
-  //     nameChain: resource.nameChain,
-  //     cfLogicalName: cfLogicalNames.autoScalingPolicy(resource.name, metric),
-  //     resource: getScalingPolicyForDynamoTableProvisionedCapacity({ resource, metric })
-  //   });
-  // }
   calculatedStackOverviewManager.addStacktapeResourceLink({
     linkName: 'metrics',
     nameChain: resource.nameChain,

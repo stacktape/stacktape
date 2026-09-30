@@ -26,10 +26,6 @@ export type TuiDeploymentHeader = {
   subtitle?: string;
 };
 
-/** Actions that mutate a stack and therefore support interactive cancel + rollback. */
-export const actionSupportsCancel = (action?: TuiDeploymentHeader['action']): boolean =>
-  action === 'DEPLOYING' || action === 'DEPLOYING DEV STACK' || action === 'DELETING' || action === 'UPDATING';
-
 export type TuiSelectOption = {
   label: string;
   value: string;

@@ -10,22 +10,6 @@ export const deleteTempFolder = () => {
   );
 };
 
-export const ensureTempFolder = () => {
-  return fsExtra.ensureDir(
-    fsPaths.absoluteTempFolderPath({
-      invocationId: globalStateManager.invocationId
-    })
-  );
-};
-
-export const deleteBuildFolder = () => {
-  return fsExtra.remove(
-    fsPaths.absoluteBuildFolderPath({
-      invocationId: globalStateManager.invocationId
-    })
-  );
-};
-
 export const saveToInitialCfTemplateFile = (contents: any) => {
   return fsExtra.outputFile(
     fsPaths.absoluteInitialCfTemplateFilePath({
@@ -52,10 +36,3 @@ export const saveToStpTemplateFile = (contents: any) => {
     contents
   );
 };
-
-// export const ensureTemplateFiles = () => {
-//   return Promise.all([
-//     fsExtra.ensureFile(fsPaths.absoluteInitialCfTemplateFilePath({ invocationId: globalStateManager.invocationId })),
-//     fsExtra.ensureFile(fsPaths.absoluteCfTemplateFilePath({ invocationId: globalStateManager.invocationId }))
-//   ]);
-// };

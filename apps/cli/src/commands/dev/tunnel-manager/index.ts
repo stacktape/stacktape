@@ -59,7 +59,6 @@ type ParsedTunnelServer = {
 
 const activeTunnels: TunnelInfo[] = [];
 const reconnectingTunnels = new Set<string>();
-let onTunnelReconnect: ((tunnel: TunnelInfo) => void) | null = null;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -533,10 +532,6 @@ const attemptReconnect = async (resourceName: string, localPort: number): Promis
 
         tuiManager.success(`Tunnel for ${resourceName} reconnected at ${tunnel.publicHost}:${tunnel.publicPort}`);
 
-        if (onTunnelReconnect) {
-          onTunnelReconnect(tunnel);
-        }
-
         return;
       } catch {
         if (attempt < TUNNEL_RECONNECT_ATTEMPTS) {
@@ -602,20 +597,6 @@ export const startTunnel = async (resourceName: string, localPort: number): Prom
   throw lastError || new Error(`Failed to start tunnel for ${resourceName} after ${TUNNEL_RETRY_ATTEMPTS} attempts`);
 };
 
-export const setTunnelReconnectCallback = (callback: ((tunnel: TunnelInfo) => void) | null): void => {
-  onTunnelReconnect = callback;
-};
-
-export const stopTunnel = (resourceName: string): boolean => {
-  const index = activeTunnels.findIndex((tunnel) => tunnel.resourceName === resourceName);
-  if (index === -1) return false;
-
-  const tunnel = activeTunnels[index];
-  tunnel.process.kill();
-  activeTunnels.splice(index, 1);
-  return true;
-};
-
 export const stopAllTunnels = async (): Promise<void> => {
   const tunnelsToStop = [...activeTunnels];
   for (const tunnel of tunnelsToStop) {
@@ -626,14 +607,6 @@ export const stopAllTunnels = async (): Promise<void> => {
 
 export const getActiveTunnels = (): TunnelInfo[] => {
   return [...activeTunnels];
-};
-
-export const getTunnelUrl = (tunnel: TunnelInfo): string => {
-  return `${tunnel.publicHost}:${tunnel.publicPort}`;
-};
-
-export const isTunnelAlive = (tunnel: TunnelInfo): boolean => {
-  return tunnel.process.exitCode === null && !tunnel.process.killed;
 };
 
 export const registerTunnelCleanupHook = createCleanupHook('tunnels', async () => {

@@ -10,7 +10,7 @@ node_modules/
 *.vsix
 .vscode-test/
 
-# Local credentials and deployed-stack output (see DEVELOPMENT.md)
+# Local credentials and deployed-stack output (see docs/development.md)
 .env*
 !.env.example
 .stacktape-stack-info/

@@ -257,6 +257,12 @@ const verifyReleaseArtifact = async () => {
     const installedPackagePath = join(fixtureDirectory, 'node_modules', 'stacktape');
     await mkdir(installedPackagePath, { recursive: true });
     await tar.x({ file: tarballPath, cwd: installedPackagePath, strip: 1 });
+    if (
+      (await readFile(join(installedPackagePath, 'LICENSE'), 'utf8')) !==
+      (await readFile(join(import.meta.dir, '../../../LICENSE'), 'utf8'))
+    ) {
+      throw new Error('The packed npm license differs from the repository license.');
+    }
     const packageResult = await verifyNpmPackage({
       packageDir: installedPackagePath,
       requireChecksums: true,

@@ -11,22 +11,6 @@ registerSecureInput();
 
 export type PromptHint = { key: string; label: string };
 
-export const promptHints = (prompt: TuiPrompt): PromptHint[] => {
-  if (prompt.type === 'multiSelect') {
-    return [
-      { key: '↑↓', label: 'choose' },
-      { key: 'space', label: 'toggle' },
-      { key: 'enter', label: 'confirm' },
-      { key: 'esc', label: 'cancel' }
-    ];
-  }
-  return [
-    { key: prompt.type === 'text' ? 'type' : '↑↓', label: prompt.type === 'text' ? 'edit' : 'choose' },
-    { key: 'enter', label: 'confirm' },
-    { key: 'esc', label: 'cancel' }
-  ];
-};
-
 const PromptFrame = (props: { title: string; description?: string; children: unknown }) => {
   const { theme } = useTheme();
   return (

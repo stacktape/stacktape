@@ -2,7 +2,6 @@
  * Utility for creating once-only cleanup hook registrations.
  * Prevents duplicate registrations when modules are imported multiple times.
  */
-
 import { applicationManager } from '@application-services/application-manager';
 
 // Track registered hooks by name to prevent duplicates
@@ -30,21 +29,6 @@ export const createCleanupHook = (hookName: string, cleanupFn: () => Promise<voi
     registeredHooks.add(hookName);
     applicationManager.registerCleanUpHook(cleanupFn);
   };
-};
-
-/**
- * Check if a cleanup hook has been registered.
- * Useful for testing or debugging.
- */
-export const isCleanupHookRegistered = (hookName: string): boolean => {
-  return registeredHooks.has(hookName);
-};
-
-/**
- * Clear all registered hooks. Only use in tests.
- */
-export const clearRegisteredHooks = (): void => {
-  registeredHooks.clear();
 };
 
 /**

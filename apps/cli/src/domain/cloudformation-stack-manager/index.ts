@@ -190,8 +190,6 @@ export class StackManager {
       eventContext: { parentEventType, instanceId }
     }));
 
-    // globalStateManager.args.disableDriftDetection ? [] : awsSdkManager.getStackDriftInformation(stackName),
-
     const stackResources = await awsSdkManager.cloudFormation
       .getResources(stackName)
       .then(this.#filterNonExistentResources)

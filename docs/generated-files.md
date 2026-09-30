@@ -60,6 +60,10 @@ schema byte-for-byte.
 The VS Code extension build copies that canonical schema into `apps/vscode-extension/dist/config-schema.json`. The copy
 is ignored build output and gives the installed extension an offline fallback; it is not another schema owner.
 
+CLI generation also emits `api-reference-data.json` and `cli-command-reference.json` under its schema directory. The
+docs site consumes those artifacts; the shipped LLM corpus uses the same normalized resource and command data. Authored
+MDX names a command rather than embedding an option snapshot that can disagree with the executable CLI.
+
 `apps/cli/.generated/monaco-declarations` is intentionally ignored materialization. Docs and Console request
 `@stacktape/cli#generate:monaco` through Turbo, then consume the four declarations. Console's copied public files and
 Prisma's generated client follow the same materialization rule.

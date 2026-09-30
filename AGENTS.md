@@ -68,9 +68,10 @@ documented in [`apps/cli/scripts/real-aws/README.md`](apps/cli/scripts/real-aws/
 [`docs/testing.md`](docs/testing.md) is the short canonical testing policy. Read only the linked procedures relevant to
 the work; packaging, Console, live-AWS and runtime details are loaded when needed.
 
-For Console work, `pnpm dev:console:ui` is only for UI changes that can use the deployed dev API. Use `pnpm dev:console`
-for every API change, API/UI contract change, or behavioral API test. It runs the UI and API locally against the shared
-dev data plane while deployed dev Lambdas continue to handle webhooks and background work.
+Prefer isolated Console API/PostgreSQL/browser fixtures when they cover the changed behavior. They do not require
+shared-dev access or a reservation. For work that needs the shared dev data plane, `pnpm dev:console:ui` is only for UI
+changes supported by the deployed dev API. Use `pnpm dev:console` when shared-dev testing needs changed API code: it
+runs the UI and API locally while deployed dev Lambdas continue to handle webhooks and background work.
 
 Shared dev deployments, migrations and full local API sessions require a task-owned `console:dev:reservation`, held
 through testing and cleanup. Follow the [reservation procedure](docs/testing/console.md#shared-dev-reservation); do not

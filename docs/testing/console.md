@@ -49,14 +49,17 @@ affected Console flow. Production migration remains separately authorized.
 
 Choose the smallest valid mode:
 
+- Use the [isolated browser/API/PostgreSQL fixture](e2e.md#isolated-console-application) when it covers the changed
+  behavior. It needs no shared-dev credentials or reservation.
 - `pnpm dev:console:ui` serves only the UI at `http://localhost:4000` against the already deployed dev API. Use it only
   when the API contract is unchanged.
 - `pnpm dev:console` serves the changed API at `http://localhost:3000` and UI at `http://localhost:4000`, using the
-  shared dev database, Cognito pool, and AWS services. Use it for every API or API/UI contract change.
+  shared dev database, Cognito pool, and AWS services. Use it when shared-dev testing needs changed API code or a
+  changed API/UI contract.
 - `pnpm deploy:console:dev` updates `console-app-dev`. Use it when GitHub, GitLab, Bitbucket, OAuth, webhooks, queues,
   or background Lambdas must reach the changed code.
 
-Agents may run all three development operations without asking again. They may also let `pnpm dev:console` refresh its
+Agents may run these development operations without asking again. They may also let `pnpm dev:console` refresh its
 minimal `console-app-devlocal` support stack. Production remains prohibited unless the user explicitly requests it.
 
 ## Shared dev reservation
@@ -138,8 +141,8 @@ the deployed dev API, and stops the UI afterward. It refuses to reuse an existin
 STP_CONSOLE_E2E_CREDENTIAL_SOURCE=ssm pnpm test:console:browser:dev-api
 ```
 
-For an API or API/UI contract change, keep the full local mode running in one terminal and execute the browser lane in
-another:
+For shared-dev testing of an API or API/UI contract change, keep full local mode running in one terminal and execute the
+browser lane in another:
 
 ```sh
 pnpm dev:console

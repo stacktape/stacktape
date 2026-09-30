@@ -1,11 +1,8 @@
 import type { AttributeDefinition, KeySchema } from '@stacktape/cloudformation/resources/aws-dynamodb-table';
 import { cfnResource } from '@stacktape/cloudformation/resource';
-import { join, ref, sub } from '@stacktape/cloudformation/intrinsics';
-import type { Subtype } from '@utils/type-helpers';
 import type { StpDynamoTable } from '@domain-services/config-manager/resolved-types/dynamo-db-tables';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
-import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 
 const getAttributeDefinitions = ({ resource }: { resource: StpDynamoTable }) => {
   const attributes: AttributeDefinition[] = [];
@@ -108,63 +105,3 @@ export const getDynamoGlobalTableResource = ({ resource }: { resource: StpDynamo
         }))
       : undefined
   });
-
-export const getDynamoTableResource = ({ resource }: { resource: StpDynamoTable }) =>
-  cfnResource('AWS::DynamoDB::Table', {
-    AttributeDefinitions: getAttributeDefinitions({ resource }),
-    KeySchema: getKeySchema({ resource }),
-    BillingMode: resource.provisionedThroughput ? 'PROVISIONED' : 'PAY_PER_REQUEST',
-    ProvisionedThroughput: resource.provisionedThroughput && {
-      ReadCapacityUnits: resource.provisionedThroughput.readUnits,
-      WriteCapacityUnits: resource.provisionedThroughput.writeUnits
-    },
-    StreamSpecification: resource.streamType && { StreamViewType: resource.streamType },
-    TableName: awsResourceNames.dynamoRegionalTable(resource.name, calculatedStackOverviewManager.context.stackName)
-  });
-
-export const getScalingPolicyForDynamoTableProvisionedCapacity = ({
-  resource,
-  metric
-}: {
-  resource: StpDynamoTable;
-  metric: Subtype<keyof StpDynamoTable['provisionedThroughput'], 'readScaling' | 'writeScaling'>;
-}) => {
-  return cfnResource('AWS::ApplicationAutoScaling::ScalingPolicy', {
-    PolicyName: awsResourceNames.autoScalingPolicy(
-      resource.name,
-      calculatedStackOverviewManager.context.stackName,
-      metric
-    ),
-    PolicyType: 'TargetTrackingScaling',
-    ScalingTargetId: ref(cfLogicalNames.dynamoAutoScalingTarget(resource.name, metric)),
-    TargetTrackingScalingPolicyConfiguration: {
-      TargetValue: resource.provisionedThroughput[metric].keepUtilizationUnder || 90,
-      ScaleInCooldown: 60,
-      ScaleOutCooldown: 60,
-      PredefinedMetricSpecification: {
-        PredefinedMetricType:
-          metric === 'writeScaling' ? 'DynamoDBWriteCapacityUtilization' : 'DynamoDBReadCapacityUtilization'
-      }
-    }
-  });
-};
-
-export const getScalableTargetForDynamoTableProvisionedCapacity = ({
-  resource,
-  metric
-}: {
-  resource: StpDynamoTable;
-  metric: Subtype<keyof StpDynamoTable['provisionedThroughput'], 'readScaling' | 'writeScaling'>;
-}) => {
-  return cfnResource('AWS::ApplicationAutoScaling::ScalableTarget', {
-    ResourceId: join('/', ['table', ref(cfLogicalNames.dynamoGlobalTable(resource.name))]),
-    RoleARN: sub(
-      'arn:aws:iam::${AWS::AccountId}:role/aws-service-role/dynamodb.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_DynamoDBTable'
-    ),
-    MaxCapacity: resource.provisionedThroughput[metric].maxUnits,
-    MinCapacity: resource.provisionedThroughput[metric].minUnits,
-    ScalableDimension:
-      metric === 'writeScaling' ? 'dynamodb:table:WriteCapacityUnits' : 'dynamodb:table:ReadCapacityUnits',
-    ServiceNamespace: 'dynamodb'
-  });
-};

@@ -26,10 +26,6 @@ export const getFileNameWithoutExtension = (filePath: string) => {
   return baseName.slice(0, baseName.lastIndexOf('.'));
 };
 
-export const getFolder = (filePath: string) => {
-  return dirname(filePath);
-};
-
 export const getFileContent = async (filePath: string, encoding = 'utf8') => {
   if (!isAbsolute(filePath)) {
     throw new Error(`Filepath ${filePath} must be absolute.`);

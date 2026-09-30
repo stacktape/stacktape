@@ -5,7 +5,8 @@ which to improve it. [E2E implementation](e2e.md) describes fixtures and tooling
 plan, not a claim that the proposed runners or CI jobs already exist.
 
 For a coordinated repository-wide rewrite, use the [initiative plan](initiative.md) and [behavior slices](slices.md).
-They define dispatch, model comparison and review; ordinary changes need only the relevant policy/procedure.
+They define bounded assignments, integration and independent review; ordinary changes need only the relevant
+policy/procedure.
 
 Configuration and synthesis scenarios should enter through command composition or provide the same explicit contexts:
 the active normalization candidate, immutable stack/deployment context, built-in directive capabilities and artifact

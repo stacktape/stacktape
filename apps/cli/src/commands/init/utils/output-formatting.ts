@@ -1,6 +1,5 @@
 import color from 'picocolors';
 import stripAnsi from 'strip-ansi';
-import type { StacktapeConfig } from '@stacktape/config';
 
 export const TODO_ENV_VAR_PLACEHOLDER = 'TODO_SET_VALUE';
 
@@ -88,45 +87,4 @@ export const appendResourceRows = ({
       : `  ${makeBold(row.name)}${namePad}  ${row.type}`;
     lines.push(line);
   }
-};
-
-export const countUnsetEnvVarsInConfig = (config: StacktapeConfig): number => {
-  let count = 0;
-  const resources = config.resources || {};
-  for (const resource of Object.values(resources)) {
-    const env = (resource as any)?.environment;
-    if (!env || typeof env !== 'object') continue;
-    for (const value of Object.values(env)) {
-      if (value === TODO_ENV_VAR_PLACEHOLDER) {
-        count++;
-      }
-    }
-  }
-  return count;
-};
-
-export const summarizeDeployableUnits = (units: { type: string }[]): string[] => {
-  const labels: Record<string, string> = {
-    'static-website': 'static website',
-    'web-service': 'web service',
-    'worker-service': 'worker service',
-    'lambda-function': 'lambda function',
-    'next-js-app': 'Next.js app',
-    'astro-app': 'Astro app',
-    'nuxt-app': 'Nuxt app',
-    'sveltekit-app': 'SvelteKit app',
-    'solidstart-app': 'SolidStart app',
-    'tanstack-app': 'TanStack app',
-    'remix-app': 'Remix app'
-  };
-
-  const counts = new Map<string, number>();
-  for (const unit of units) {
-    counts.set(unit.type, (counts.get(unit.type) || 0) + 1);
-  }
-
-  return Array.from(counts.entries()).map(([type, count]) => {
-    const label = labels[type] || type;
-    return `${count} ${label}${count > 1 ? 's' : ''}`;
-  });
 };

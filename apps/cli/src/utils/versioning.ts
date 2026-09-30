@@ -1,4 +1,3 @@
-import { DEFAULT_KEEP_PREVIOUS_DEPLOYMENT_ARTIFACTS_COUNT } from '@config';
 import { jsonFetch } from './http-client';
 
 const V1 = 'v000001';
@@ -23,22 +22,6 @@ export const getNextVersionString = (lastVersion: string) => {
 
 export const getHotSwapDeployVersionString = () => {
   return buildStringVersion(1, 0);
-};
-
-export const getMinimumVersionToKeep = (
-  lastVersion: string,
-  versionsToKeep = DEFAULT_KEEP_PREVIOUS_DEPLOYMENT_ARTIFACTS_COUNT
-) => {
-  if (!lastVersion) {
-    return V1;
-  }
-  const numericVersion = getNumericVersion(lastVersion);
-  const minimumNumericVersion = numericVersion - versionsToKeep + 1;
-
-  if (minimumNumericVersion <= 1) {
-    return V1;
-  }
-  return buildStringVersion(getDigitsLength(minimumNumericVersion), minimumNumericVersion);
 };
 export const getStacktapeVersion = (): string => {
   // @ts-expect-error - injected using define

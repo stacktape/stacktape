@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { tuiManager } from '@application-services/tui-manager';
 import { DEFAULT_STARTER_PROJECT_TARGET_DIRECTORY } from '@config';
 import { sortObjectKeys } from '@utils/misc';
-import { copy, pathExists, readJson, readJSON, writeJson } from 'fs-extra';
+import { pathExists, readJson, readJSON, writeJson } from 'fs-extra';
 import sortBy from 'lodash/sortBy';
 
 export const getAvailableStartersMetadata = async ({
@@ -20,14 +20,6 @@ export const getAvailableStartersMetadata = async ({
   // );
   const startersMetadata: StarterProjectMetadata[] = await readJSON(startersMetadataFilePath);
   return sortBy(startersMetadata, ['projectType', 'isWebsite']);
-};
-
-export const copyProject = ({ distPath, projectPath }: { projectPath: string; distPath: string }) => {
-  return copy(projectPath, distPath, {
-    filter: (filePath) => {
-      return !filePath.endsWith('.metadata.json');
-    }
-  });
 };
 
 export const adjustPackageJson = async ({

@@ -10,8 +10,6 @@
  * Recordings are captured from live runs and kept as fixtures, so the cases CI protects are cases
  * that actually happened rather than ones someone imagined.
  */
-
-import { readFile } from 'node:fs/promises';
 import { z } from 'zod';
 import { agentSubmissionSchema } from '@stacktape/config-inference/facts/agent-submission';
 import type { AgentEvent, SessionHooks, SessionOutcome, SessionRunInput } from '../transport';
@@ -71,17 +69,6 @@ export const createReplayRunner =
       ...(recording.errorMessage === undefined ? {} : { errorMessage: recording.errorMessage })
     };
   };
-
-/** Load a recording from disk, failing loudly if it does not match the schema. */
-export const loadRecordedSession = async (path: string): Promise<RecordedSession> => {
-  const parsed = recordedSessionSchema.safeParse(JSON.parse(await readFile(path, 'utf8')));
-  if (!parsed.success) {
-    throw new Error(
-      `Recorded session at ${path} is not valid: ${parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ')}`
-    );
-  }
-  return parsed.data;
-};
 
 /**
  * Capture a live outcome as a recording.

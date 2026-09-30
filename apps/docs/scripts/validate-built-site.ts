@@ -12,7 +12,11 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { extname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CLI_LLM_DOCS_DIR, LLM_DISCOVERY_FILES } from '../src/build/cli-generated-inputs.ts';
+import {
+  CLI_COMMAND_REFERENCE_DATA,
+  CLI_LLM_DOCS_DIR,
+  LLM_DISCOVERY_FILES
+} from '../src/build/cli-generated-inputs.ts';
 import { entryToUrlSlug } from '../src/utils/route-slugs.ts';
 
 const APP_ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -102,10 +106,30 @@ const outputFileForPath = (pathname: string): string | undefined => {
 };
 
 const descriptions = new Map<string, string[]>();
+const cliCommands = JSON.parse(readFileSync(CLI_COMMAND_REFERENCE_DATA, 'utf8')) as Record<
+  string,
+  { name: string; alias?: string }[]
+>;
 
 for (const [filePath, html] of htmlByFile) {
   const shownPath = normalize(relative(OUT_DIR, filePath));
   const isErrorPage = shownPath === ERROR_PAGE;
+  for (const section of html.matchAll(/<section\b[^>]*\bid="api-ref-([^"]+)"[^>]*>([\s\S]*?)<\/section>/g)) {
+    const command = section[1];
+    const args = cliCommands[command];
+    if (!args) {
+      fail(`${shownPath}: unknown CLI reference command ${command}`);
+      continue;
+    }
+    const renderedOptions = captureAll(
+      section[2],
+      /<code\b(?=[^>]*\bclass="[^"]*font-semibold)[^>]*>(--[^<]*)<\/code>/g
+    );
+    const expectedOptions = args.map((arg) => `--${arg.name}${arg.alias ? ` (-${arg.alias})` : ''}`);
+    if (JSON.stringify(renderedOptions) !== JSON.stringify(expectedOptions)) {
+      fail(`${shownPath}: CLI reference for ${command} differs from the current command metadata`);
+    }
+  }
 
   // Astro renders a `redirects` entry as a noindex meta-refresh page. It is not documentation: the only thing
   // to check is that it points at a page this build produced.
@@ -245,6 +269,6 @@ if (errors.length > 0) {
 
 console.info(
   `[site-validation] ${htmlFiles.length} pages (${contentFiles.length} from content/ plus the error page): route set, ` +
-    'metadata, JSON-LD, H1s, image alts, internal links, fragments, local assets, sitemap, robots, and the LLM ' +
+    'metadata, CLI references, JSON-LD, H1s, image alts, internal links, fragments, local assets, sitemap, robots, and the LLM ' +
     'discovery corpus all passed.'
 );

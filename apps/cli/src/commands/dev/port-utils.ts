@@ -2,7 +2,6 @@
  * Port management utilities for dev servers.
  * Handles port conflicts, process cleanup, and port allocation.
  */
-
 import { exec } from 'node:child_process';
 import { createServer } from 'node:net';
 import { DEV_CONFIG } from './dev-config';
@@ -97,22 +96,6 @@ export const killProcess = async (pid: number): Promise<boolean> => {
       resolve(false);
     }
   });
-};
-
-/**
- * Kill any process using a specific port.
- * Returns true if a process was found and killed.
- * Automatically clears the port cache after killing.
- */
-export const killProcessOnPort = async (port: number): Promise<boolean> => {
-  const pid = await findProcessByPort(port);
-  if (pid) {
-    const result = await killProcess(pid);
-    // Clear cache for this port since its status has changed
-    clearPortCache(port);
-    return result;
-  }
-  return false;
 };
 
 /**
@@ -251,48 +234,4 @@ export const getDefaultPort = (framework: string): number => {
     unknown: 3000
   };
   return defaults[framework] || 3000;
-};
-
-/**
- * Ensure a port is available, killing existing process if needed.
- * Returns the port that's now available (same port after killing, or a new one).
- */
-export const ensurePortAvailable = async (
-  port: number,
-  options: { killExisting?: boolean; findAlternative?: boolean } = {}
-): Promise<{ port: number; killedPid?: number }> => {
-  const { killExisting = true, findAlternative = true } = options;
-
-  // Check if port is available and not reserved by a container workload
-  if (!globalReservedPorts.has(port) && (await isPortAvailable(port))) {
-    return { port };
-  }
-
-  // Try to kill the existing process
-  if (killExisting) {
-    const pid = await findProcessByPort(port);
-    if (pid) {
-      const killed = await killProcess(pid);
-      if (killed) {
-        // Wait a bit for the port to be released
-        await new Promise((resolve) => setTimeout(resolve, 500));
-
-        // Check again
-        if (await isPortAvailable(port)) {
-          return { port, killedPid: pid };
-        }
-      }
-    }
-  }
-
-  // Find an alternative port
-  if (findAlternative) {
-    const alternativePort = await findAvailablePort(port + 1);
-    if (alternativePort) {
-      return { port: alternativePort };
-    }
-  }
-
-  // Return the original port even if not available (will fail with clear error)
-  return { port };
 };

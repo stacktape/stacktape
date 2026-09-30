@@ -521,26 +521,4 @@ export class AwsSdkManager {
   #budgets() {
     return this.#applyPlugins(new BudgetsClient(this.#getClientArgs()));
   }
-
-  //   getStackDriftInformation = async (stackName: string): Promise<DriftDetail[]> => {
-  //     let driftInformation: DescribeStackResourceDriftsCommandOutput;
-  //     try {
-  //       driftInformation = await this.#cloudformation().send(
-  //         new DescribeStackResourceDriftsCommand({ StackName: stackName })
-  //       );
-  //     } catch {
-  //       return null;
-  //     }
-  //     const driftedResources = driftInformation.StackResourceDrifts.filter(
-  //       (resource) => resource.StackResourceDriftStatus !== 'IN_SYNC'
-  //     );
-  //     const res: DriftDetail[] = driftedResources.map((resource) => ({
-  //       resourceLogicalName: resource.LogicalResourceId,
-  //       resourceType: resource.ResourceType,
-  //       differences: resource.PropertyDifferences
-  //     }));
-  //     validateStackDrift(res);
-
-  //     return res;
-  //   };
 }

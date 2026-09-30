@@ -127,15 +127,3 @@ export const getDebugAgentCredentials = async (): Promise<{
     };
   }
 };
-
-/**
- * Check if the debug agent role is configured and available.
- */
-export const isDebugAgentRoleAvailable = (): boolean => {
-  return Boolean(roleArn && externalId);
-};
-
-/**
- * Get the debug agent role ARN (for display purposes).
- */
-export const getDebugAgentRoleArn = (): string | null => roleArn;

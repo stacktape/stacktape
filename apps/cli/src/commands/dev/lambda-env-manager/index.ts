@@ -488,14 +488,6 @@ export const restoreLambdaEnvVars = async (): Promise<{ restored: string[]; fail
   return { restored, failed };
 };
 
-export const hasEnvBackups = (): boolean => {
-  return envBackups.length > 0;
-};
-
-export const getBackedUpFunctionNames = (): string[] => {
-  return envBackups.map((b) => b.functionName);
-};
-
 /**
  * Get current environment variables for a Lambda function from AWS.
  * Returns null if the function doesn't exist or region is not configured.

@@ -18,7 +18,7 @@ Change canonical MDX or resource data, then run the CLI generator. Never patch `
 
 Turbo materializes the current checkout's CLI-generated inputs before docs tasks run:
 
-- API reference data and LLM text from CLI `generate`;
+- resource and CLI-command reference data and LLM text from CLI `generate`;
 - Monaco/Twoslash declarations from `generate:monaco`;
 - starter metadata from CLI `generate`;
 - the config schema exported by `@stacktape/config`.
@@ -26,6 +26,9 @@ Turbo materializes the current checkout's CLI-generated inputs before docs tasks
 Missing inputs must fail with the producing command. Do not fall back to a CDN or published package. The docs site reads
 finished API-reference data; it does not own another schema extractor. YAML/TypeScript examples use
 `@stacktape/config-authoring/converter` rather than a copied conversion table.
+
+`CliCommandsApiReference` takes only a command name. Its options come from the current generated command metadata, which
+also supplies the CLI's LLM corpus; do not embed option snapshots in MDX.
 
 The rendered Twoslash component hides diagnostics from readers, so `tests/twoslash-types.test.ts` is the actual type
 correctness gate. The served LLM text must remain byte-identical to the CLI corpus.

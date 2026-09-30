@@ -1374,13 +1374,6 @@ export const rebuildAllWorkloads = async (): Promise<void> => {
 };
 
 /**
- * Get list of registered workload names
- */
-export const getWorkloadNames = (): string[] => {
-  return Array.from(state.workloads.keys());
-};
-
-/**
  * Get environment variables for a specific workload
  */
 export const getWorkloadEnvVars = (name: string): Record<string, string> | null => {

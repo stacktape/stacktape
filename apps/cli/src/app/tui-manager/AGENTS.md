@@ -85,7 +85,7 @@ Never let a presenter and a child process read raw stdin simultaneously.
 ```sh
 bun scripts/tui-demo.ts deploy 1
 bun scripts/tui-preview.ts
-bun test src/app/operation-manager src/app/tui-manager --isolate
+pnpm --filter @stacktape/cli run test:src
 ```
 
 Headless tests cover reducer semantics, replay, prompt controls and narrow layouts. The demo is the real-terminal gate

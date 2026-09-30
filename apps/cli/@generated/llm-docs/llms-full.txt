@@ -3126,14 +3126,6 @@ Forces a fresh build of all compute resources, ignoring cached artifacts from pr
 stacktape deploy --stage dev --region eu-west-1 --noCache
 ```
 
-### `--disableDriftDetection`
-
-By default, Stacktape blocks updates to a stack that has drifted because resources were changed outside CloudFormation. Use `--disableDriftDetection` to skip this check and deploy anyway.
-
-```bash
-stacktape deploy --stage production --region eu-west-1 --disableDriftDetection
-```
-
 ### `--configPath`
 
 Points to a Stacktape configuration file when it is not in the default location (current directory).
@@ -3166,7 +3158,6 @@ Includes sensitive values in deploy output. Handle with care.
 | `--currentWorkingDirectory (-cwd)` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
 | `--disableAutoRollback (-dar)` | no | `boolean` | Disable Auto-Rollback — If `true`, disables automatic rollback on deployment failure. • **With auto-rollback (default):** If a deployment fails, the stack is automatically rolled back to the last known good state. • **Without auto-rollback:** If a deployment fails, the stack remains in the `UPDATE_FAILED` state. You can then either fix the issues and redeploy or manually roll back using the `stacktape rollback` command. | - |
 | `--disableDockerRemoteCache (-drc)` | no | `boolean` | Disable Docker Remote Cache — Disables Docker layer caching using ECR as remote cache storage. By default, remote caching is enabled to speed up Docker builds by reusing layers. Set to `true` to disable remote caching. | - |
-| `--disableDriftDetection (-ddd)` | no | `boolean` | Disable Drift Detection — Disables detection of manual changes (drift) made to the stack outside of CloudFormation (e.g., via the AWS console or CLI). By default, Stacktape blocks updates to a stack that has drifted. | - |
 | `--disableLayerOptimization (-dlo)` | no | `boolean` | Disable Layer Optimization — If `true`, disables the shared Lambda layer optimization. By default, Stacktape extracts shared code into Lambda layers to reduce deployment size. Use this flag to bundle all code directly into each Lambda function. | - |
 | `--dockerArgs (-da)` | no | `array` | Docker Arguments — Additional arguments to pass to the `docker run` or `docker build` commands. | - |
 | `--help (-h)` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
@@ -3220,6 +3211,8 @@ stacktape diff --stage production --region us-east-1
 ## Dev stacks cannot be deployed
 
 Stages created by [`stacktape dev`](/cli/dev) (dev stacks) cannot be updated with `deploy`. If you attempt this, Stacktape rejects the deploy with an error. To deploy a production stack, use a different stage name (e.g., `--stage production`). To remove a dev stack, use [`stacktape delete`](/cli/delete).
+
+Stacktape does not currently check CloudFormation resource drift before deploying. Manual changes to stack resources can affect an update; review the proposed changes with [`diff`](/cli/diff).
 
 ## Related commands
 

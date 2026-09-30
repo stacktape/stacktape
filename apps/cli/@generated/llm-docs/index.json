@@ -15797,7 +15797,6 @@
         "page:/cli/deploy#autoconfirmoperation",
         "page:/cli/deploy#disableautorollback",
         "page:/cli/deploy#nocache",
-        "page:/cli/deploy#disabledriftdetection",
         "page:/cli/deploy#configpath",
         "page:/cli/deploy#disablelayeroptimization",
         "page:/cli/deploy#showsensitivevalues",

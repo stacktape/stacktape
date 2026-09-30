@@ -1,11 +1,12 @@
 import type { ApiProperty, ApiTypeInfo } from '@/utils/api-reference-dto';
+import { cliCommandReference } from 'virtual:stacktape/cli-command-reference';
+import { renderDocsMarkdown } from '@/utils/docs-markdown';
 import { PropertyDescription, PropertyHeading, tokens } from './api-reference/shared';
 
-type CommandArg = {
+export type CliCommandArg = {
   name: string;
   required: boolean;
-  longDescription: string;
-  shortDescription: string;
+  description?: string;
   alias?: string;
   allowedValues?: string[];
   allowedTypes: string[];
@@ -23,30 +24,20 @@ const buildTypeInfo = (allowedTypes?: string[], allowedValues?: string[]): ApiTy
   };
 };
 
-const toProperty = (arg: CommandArg): ApiProperty => ({
-  name: `--${arg.name}${arg.alias ? ` (-${arg.alias})` : ''}`,
-  required: Boolean(arg.required),
-  shortDescription: arg.shortDescription || '',
-  longDescription: arg.longDescription || '',
-  typeInfo: buildTypeInfo(arg.allowedTypes, arg.allowedValues)
-});
+const toProperty = (arg: CliCommandArg): ApiProperty => {
+  const [short = '', ...long] = (arg.description || '').split('---');
+  return {
+    name: `--${arg.name}${arg.alias ? ` (-${arg.alias})` : ''}`,
+    required: arg.required,
+    shortDescription: renderDocsMarkdown(short.trim().replace(/^#{1,6}\s+/, '')),
+    longDescription: renderDocsMarkdown(long.join('---').trim()),
+    typeInfo: buildTypeInfo(arg.allowedTypes, arg.allowedValues)
+  };
+};
 
-const NO_ARGS: CommandArg[] = [];
-
-export function CliCommandsApiReference({
-  command,
-  sortedArgs = NO_ARGS
-}: {
-  command: string;
-  sortedArgs?: CommandArg[];
-}) {
-  // Defensive: a malformed sortedArgs prop (e.g. an array of strings instead of CommandArg objects,
-  // which the docs generation pipeline has accidentally produced) would otherwise crash the
-  // production build's prerender pass.
-  const validArgs = sortedArgs.filter(
-    (arg): arg is CommandArg => arg != null && typeof arg === 'object' && 'name' in arg
-  );
-  const hasMalformedArgs = sortedArgs.length !== validArgs.length;
+export function CliCommandsApiReference({ command }: { command: string }) {
+  const args = cliCommandReference[command];
+  if (!args) throw new Error(`CLI reference command "${command}" was not found. Regenerate CLI artifacts.`);
 
   return (
     <section
@@ -72,8 +63,8 @@ export function CliCommandsApiReference({
         </span>
       </div>
 
-      {validArgs.length > 0 ? (
-        validArgs.map((arg, idx) => {
+      {args.length > 0 ? (
+        args.map((arg, idx) => {
           const property = toProperty(arg);
           return (
             <div
@@ -89,13 +80,6 @@ export function CliCommandsApiReference({
       ) : (
         <p className="stp-typography px-[16px] py-[14px] text-[13.5px]" style={{ color: tokens.mutedText }}>
           No available options.
-        </p>
-      )}
-
-      {hasMalformedArgs && (
-        <p className="stp-typography px-[16px] py-[12px] text-[12.5px] leading-[1.6] text-error">
-          Some options could not be displayed because the sortedArgs payload contained entries that were not in the
-          expected CommandArg shape. Re-generate this page via the docs pipeline to refresh the reference data.
         </p>
       )}
     </section>

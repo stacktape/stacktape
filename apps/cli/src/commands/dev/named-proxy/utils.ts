@@ -1,7 +1,3 @@
-export const isErrnoException = (err: unknown): err is NodeJS.ErrnoException => {
-  return err instanceof Error && 'code' in err && typeof (err as Record<string, unknown>).code === 'string';
-};
-
 export const escapeHtml = (str: string): string => {
   return str
     .replace(/&/g, '&amp;')

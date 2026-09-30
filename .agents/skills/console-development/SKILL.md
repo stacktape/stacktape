@@ -20,10 +20,14 @@ account, organization or existing connections as disposable. For unattended brow
 
 ## Choose the smallest valid mode
 
+- For repeatable behavior covered by an isolated API/PostgreSQL/browser fixture, use the lane in
+  [Console testing](../../../docs/testing/console.md) without shared-dev credentials or a reservation. This skill's full
+  local mode applies when the work needs the shared dev data plane or external services.
 - Use `pnpm dev:console:ui` only for UI changes that the deployed dev API already supports. It serves the UI at
   `http://localhost:4000` and points it at the deployed dev API.
-- Use `pnpm dev:console` for API changes, API/UI contracts, database-backed behavior, permissions, or realistic manual
-  testing. It runs the API at `http://localhost:3000` and the UI at `http://localhost:4000`.
+- Use `pnpm dev:console` when shared-dev or realistic manual testing needs changed API code, API/UI contracts,
+  database-backed behavior or permissions. It runs the API at `http://localhost:3000` and the UI at
+  `http://localhost:4000`.
 - Use `pnpm deploy:console:dev` only when an external system must call changed code, such as an OAuth callback or
   webhook that cannot reach localhost. This changes the real `console-app-dev` stack.
 - Never substitute the production stage or `pnpm deploy:console` for a development test.

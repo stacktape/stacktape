@@ -227,9 +227,3 @@ export const isLambdaAliasProvisionedConcurrencyEvent = (stackEvent: StackEvent)
   stackEvent.ResourceType === 'AWS::Lambda::Alias' &&
   (stackEvent.ResourceStatus === ResourceStatus.CREATE_IN_PROGRESS ||
     stackEvent.ResourceStatus === ResourceStatus.UPDATE_IN_PROGRESS);
-
-export const isLambdaAliasProvisionedConcurrencyFailedEvent = (stackEvent: StackEvent) =>
-  stackEvent.ResourceType === 'AWS::Lambda::Alias' &&
-  (stackEvent.ResourceStatus === ResourceStatus.CREATE_FAILED ||
-    stackEvent.ResourceStatus === ResourceStatus.UPDATE_FAILED) &&
-  stackEvent.ResourceStatusReason?.includes('Provisioned Concurrency');

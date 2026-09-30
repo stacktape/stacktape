@@ -70,7 +70,7 @@ import {
   HttpApiGateway,
   HttpApiIntegration,
   LambdaFunction,
-  StacktapeLambdaBuildpackPackaging
+  JsBundleLambdaPackaging
 } from 'stacktape';
 
 export default defineConfig(({ stage }) => {
@@ -86,12 +86,12 @@ export default defineConfig(({ stage }) => {
   });
 
   const myFunction = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
+    packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/index.ts'
     }),
     events: [
       new HttpApiIntegration({
-        httpApiGatewayName: api.resourceName,
+        httpApiGatewayName: api,
         method: 'GET',
         path: '/'
       })
@@ -154,7 +154,14 @@ resources:
   "resources": {
     "myFunction": {
       "type": "function",
-      "properties": {}
+      "properties": {
+        "packaging": {
+          "type": "js-bundle",
+          "properties": {
+            "entryfilePath": "./src/index.ts"
+          }
+        }
+      }
     }
   }
 }
@@ -183,7 +190,6 @@ Stacktape supports 30+ AWS resource types out of the box:
 **Networking:**
 
 - HTTP API Gateway
-- REST API Gateway
 - Load Balancers
 - Network Load Balancers
 
@@ -228,7 +234,7 @@ stacktape logs:tail --resource myFunction
 Define reusable scripts in your config:
 
 ```typescript
-import { LocalScript } from 'stacktape';
+import { defineConfig, LocalScript } from 'stacktape';
 
 export default defineConfig(() => ({
   scripts: {
@@ -284,7 +290,7 @@ Then, add a bastion resource, so you can perform management tasks.
 ```typescript
 const bastion = new Bastion({});
 
-const migrationScript = new LocalScriptWithBastionTunnelingCommand({
+const migrationScript = new LocalScriptWithBastionTunneling({
   executeCommand: 'prisma migrate',
   connectTo: [mainDatabase]
 });
@@ -336,21 +342,13 @@ export default defineConfig(() => {
 });
 ```
 
-## Pricing
+## Console and local CLI commands
 
-If you don't want to use Stacktape console, you can use Stacktape core **completely free**. We're currently working on a
-build that doesn't require you to be logged in to Stacktape.
+The Console manages connected AWS accounts, projects, deployments, logs, costs and CI/CD integrations. See the
+[available plans](https://stacktape.com/pricing).
 
-Paid versions of Stacktape include:
-
-- CI/CD pipeline (Github, Gitlab, Bitbucket)
-- Web-based console for managing your stack
-- Browse logs, metrics, costs and more
-- Remote session to deployed containers
-- Secrets management
-- Guardrails and alarms
-- Notifications
-- Premium support **with 8 minutes average response time**
+Local `package`, `synth` and `validate` commands use the standard AWS credential chain and do not require a Console
+login. Deployment and other control-plane workflows authenticate through Stacktape.
 
 ## VS Code Extension
 
@@ -365,8 +363,20 @@ If you want to use YAML-based configuration, we recommend installing
 
 We welcome contributions!
 
-For QA, we use our own CI/CD pipeline which is not yet a part of this repository. For the time being, feel free to
-submit a PR, and we'll run it through our pipeline.
+The public repository contains the CLI, documentation, init wizard, website, VS Code extension and reusable packages.
+`apps/console` is an optional private Git submodule. Public contributions can install, test, build and produce release
+artifacts without it.
+
+Use Node 24.15 or newer within the Node 24 release line, pnpm 11.17.0 and Bun 1.4.1:
+
+```sh
+pnpm install --frozen-lockfile
+pnpm check:public
+```
+
+[Public CI](.github/workflows/ci.yml) runs the public gate. Contributors with private Console access also run
+`pnpm check:integrated`. Use the [maintainer documentation](docs/README.md) for architecture, development, testing,
+generated-file ownership and releases.
 
 ## License
 

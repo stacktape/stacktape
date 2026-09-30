@@ -43,7 +43,7 @@ import {
   opensearchAnalyze,
   opensearchCount
 } from '@domain-services/debug-services/db-client';
-import { agentLog, getAgentLogFilePath, initAgentLogger, stopAgentLogger } from './agent-logger';
+import { getAgentLogFilePath, initAgentLogger, stopAgentLogger } from './agent-logger';
 import { getLambdaEnvVars } from './lambda-env-manager';
 import { getRunningLocalInstances, type LocalResourceInstance } from './local-resources';
 import { getHealthStatus, triggerHealthCheck } from './local-resources/health-monitor';
@@ -107,27 +107,6 @@ export const updateAgentState = (updates: Partial<AgentStatus>) => {
 export const updateAgentWorkloadStatus = (name: string, updates: Partial<Omit<WorkloadStatus, 'name'>>) => {
   const workload = agentState.workloads.find((w) => w.name === name);
   if (workload) Object.assign(workload, updates);
-};
-
-export const addAgentWorkload = (workload: WorkloadStatus) => {
-  const existing = agentState.workloads.find((w) => w.name === workload.name);
-  if (!existing) agentState.workloads.push(workload);
-};
-
-export const updateAgentLocalResourceStatus = (name: string, updates: Partial<Omit<LocalResourceStatus, 'name'>>) => {
-  const resource = agentState.localResources.find((r) => r.name === name);
-  if (resource) Object.assign(resource, updates);
-};
-
-export const addAgentLocalResource = (resource: LocalResourceStatus) => {
-  const existing = agentState.localResources.find((r) => r.name === resource.name);
-  if (!existing) agentState.localResources.push(resource);
-};
-
-export const logAgentMessage = (source: string, message: string, level: 'info' | 'warn' | 'error' = 'info') => {
-  agentLog(source, message, level);
-  const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
-  console.info(`[${timestamp}] [${source}] [${level}] ${message}`);
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1388,8 +1367,6 @@ export const stopAgentServer = () => {
   stopAgentLogger();
   agentState = { phase: 'stopped', workloads: [], localResources: [], logFile: null };
 };
-
-export const isAgentMode = (): boolean => httpServer !== null;
 
 export const getAgentPort = (): number | null => agentPort;
 

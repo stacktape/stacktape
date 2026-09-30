@@ -113,28 +113,3 @@ export const deployDevStack = async ({ configFingerprint }: { configFingerprint:
 
   tuiManager.success('Dev stack deployed successfully');
 };
-
-/**
- * Check if the current target stack is a dev stack.
- */
-export const isCurrentStackDevStack = (): boolean => {
-  return deployedStackOverviewManager.getStackMetadata(stackMetadataNames.isDevStack()) === true;
-};
-
-/**
- * Check if a dev stack needs to be deployed.
- * Returns true if:
- * 1. The stack doesn't exist yet
- * 2. The stack exists but is not a dev stack (error case - handled separately)
- */
-export const devStackNeedsDeployment = (): boolean => {
-  // If stack doesn't exist, we need to deploy
-  if (!stackManager.existingStackDetails) {
-    return true;
-  }
-
-  // If stack exists and is a dev stack, check if it needs updating
-  // For now, always return false if stack exists (we'll use the existing stack)
-  // In the future, we could compare config hashes to detect changes
-  return false;
-};

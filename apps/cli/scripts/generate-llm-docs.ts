@@ -702,22 +702,24 @@ const cliCommandReferenceToMarkdown = (command: string, args: any[]): string => 
 
 const generatedCommandSchemaInfo = generateCommandSchemaInfo();
 
-type GeneratedCliArg = {
-  name: string;
-  required?: boolean;
-  [key: string]: unknown;
-};
+type GeneratedCliArg = ReturnType<typeof generateCommandSchemaInfo>[string]['args'][string] & { name: string };
 
-const getGeneratedCliArgs = (command: string): any[] => {
+const getGeneratedCliArgs = (command: string): GeneratedCliArg[] => {
   const info = generatedCommandSchemaInfo[command];
   if (!info) throw new Error(`CLI command "${command}" was not found`);
   return Object.entries(info.args)
-    .map(([name, arg]): GeneratedCliArg => ({ name, ...(arg as Record<string, unknown>) }))
+    .map(([name, arg]): GeneratedCliArg => ({ name, ...arg }))
     .sort(
       (left, right) =>
         Number(Boolean(right.required)) - Number(Boolean(left.required)) || compareLlmDocPaths(left.name, right.name)
     );
 };
+
+const cliCommandReferenceData = Object.fromEntries(
+  Object.keys(generatedCommandSchemaInfo)
+    .sort(compareLlmDocPaths)
+    .map((command) => [command, getGeneratedCliArgs(command)])
+);
 
 const transformComponents = (body: string): string => {
   let result = body;
@@ -752,7 +754,9 @@ const transformComponents = (body: string): string => {
     if (!command) throw new Error(`CliCommandsApiReference is missing command: ${fullMatch.slice(0, 120)}`);
     // MDX pages historically embedded generated option snapshots. Always use the current CLI schema so those
     // snapshots cannot silently make the shipped corpus contradict the command that will actually run.
-    return cliCommandReferenceToMarkdown(command, getGeneratedCliArgs(command));
+    const args = cliCommandReferenceData[command];
+    if (!args) throw new Error(`CLI command "${command}" was not found`);
+    return cliCommandReferenceToMarkdown(command, args);
   });
 
   result = result.replace(/<CodeBlock\b[\s\S]*?tabs=\{(\[[\s\S]*?\])\}\s*\/>/g, (fullMatch, tabsRaw) => {
@@ -1235,6 +1239,11 @@ export const generateLlmDocs = async ({
   // deterministic for a given schema.
   await ensureDir(dirname(apiReferenceDataPath));
   await writeFile(apiReferenceDataPath, `${JSON.stringify(apiReferenceData, null, 2)}\n`, 'utf-8');
+  await writeFile(
+    join(dirname(apiReferenceDataPath), 'cli-command-reference.json'),
+    `${JSON.stringify(cliCommandReferenceData, null, 2)}\n`,
+    'utf-8'
+  );
   resources = JSON.parse(await readFile(RESOURCES_JSON_PATH, 'utf-8')) as any[];
 
   const docsPages = await buildDocsPages();

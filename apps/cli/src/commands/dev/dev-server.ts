@@ -44,7 +44,6 @@ type DevServerCallbacks = {
 };
 
 const runningDevServers: Map<string, ChildProcess> = new Map();
-const runningDevServerFrameworks: Map<string, FrameworkType> = new Map();
 
 const overrideCommandPortArgs = (args: string[], port: number): string[] => {
   const output: string[] = [];
@@ -148,7 +147,6 @@ export const stopDevServer = async (name: string): Promise<void> => {
   if (!proc) return;
   await terminateDevServerProcess(proc);
   runningDevServers.delete(name);
-  runningDevServerFrameworks.delete(name);
   removeNamedProxyRoute(name);
 };
 
@@ -178,7 +176,6 @@ export const startDevServer = async ({
 
   // Detect framework for parsing output
   const framework = config.framework || detectFramework(workingDir);
-  runningDevServerFrameworks.set(name, framework);
 
   // Parse command
   const commandParts = config.command.match(/(?:[^\s"]+|"[^"]*")+/g) || [config.command];
@@ -323,7 +320,6 @@ export const startDevServer = async ({
         currentState = { status: 'error', error: err.message };
         callbacks?.onStateChange?.(currentState);
         runningDevServers.delete(name);
-        runningDevServerFrameworks.delete(name);
         removeNamedProxyRoute(name);
         resolveOnce(currentState);
       });
@@ -334,7 +330,6 @@ export const startDevServer = async ({
           callbacks?.onStateChange?.(currentState);
         }
         runningDevServers.delete(name);
-        runningDevServerFrameworks.delete(name);
         removeNamedProxyRoute(name);
         resolveOnce(currentState);
       });
@@ -355,16 +350,6 @@ export const startDevServer = async ({
   };
 
   return spawnDevServer();
-};
-
-/** Get the detected framework for a running dev server */
-export const getDevServerFramework = (name: string): FrameworkType | undefined => {
-  return runningDevServerFrameworks.get(name);
-};
-
-export const isDevServerRunning = (name: string): boolean => {
-  const proc = runningDevServers.get(name);
-  return proc !== undefined && !proc.killed;
 };
 
 /**
