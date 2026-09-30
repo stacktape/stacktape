@@ -141,7 +141,7 @@ jobs:
       - name: Smoke-test Alpine runtime
         if: matrix.platform == 'alpine'
         run: |
-          # pack, nixpacks and the Session Manager plugin are downloaded on first use. The candidate's own Bun
+          # Railpack and the Session Manager plugin are downloaded on first use. The candidate's own Bun
           # (BUN_BE_BUN) runs the release check that resolves each through the CLI's resolver and runs it on musl.
           (cd apps/cli && bun build scripts/release/verify-external-tools.ts --target bun \
             --outfile "$RUNNER_TEMP/external-tools-check/verify-external-tools.js")
