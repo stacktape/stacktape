@@ -5,8 +5,9 @@ Read the [test-selection policy](../testing.md) first. Use only the sections nee
 parameters. For the isolated browser/database lane, use the default `pnpm test:doctor`, which checks workspace tools
 only. The [Console development skill](../../.agents/skills/console-development/SKILL.md) owns local startup and
 recovery; the private [Console E2E guide](../../apps/console/e2e/README.md) owns test identities, fixture setup and
-scenario commands. The [isolated application pilot](e2e.md#isolated-console-application) covers one browser/API/database
-issue journey; the shared-dev commands below remain the procedure for hosted identity and external integrations.
+scenario commands. The [isolated Console application](e2e.md#isolated-console-application) runs browser/API/database
+journeys without credentials; the shared-dev commands below remain the procedure for hosted identity and external
+integrations.
 
 ## Console API and PostgreSQL
 
@@ -34,7 +35,7 @@ the change, extending it when necessary. These suites use the disposable databas
 defaults to a pinned PostgreSQL 15.14 image matching Console's configured RDS major version. Override it only to qualify
 a deliberate database upgrade. `pnpm dev:console` instead exercises the real shared dev data plane.
 
-The isolated issue browser pilot uses the same disposable database runner:
+The isolated Console browser lane uses the same disposable database runner:
 
 ```sh
 pnpm --filter @stacktape/console-api-app test:db --isolated-browser

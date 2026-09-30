@@ -88,6 +88,10 @@ Updates, including the v3 → v4 upgrade, never delete or replace stateful resou
 A project builds into an artifact that runs in its target runtime. Artifact correctness lives here; J2 owns what AWS
 does with it.
 
+Another agent is improving the packaging tests as of October 2026. Check with the owner before dispatching J3
+assignments or F6, which touch the same helpers, and build on that work instead of starting in parallel. Corpus work
+follows the [hardening workflow](../hardening-work-instructions.md).
+
 | ID   | Outcome and anchors                                                                                                                                                                                                           | Scenario and failures to cover                                                                                                                                                                    | Former   |
 | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
 | J3.1 | **Anchor.** Starters and the project corpus package and run. [Project qualification](../project-qualification.md).                                                                                                            | Run the corpus and all starters; record the pass rate; triage every failure as product bug, fixture problem or unsupported project. Add a small deterministic fixture for each product bug found. | new      |
@@ -182,19 +186,24 @@ a proposed test call.
 
 ## Models and review
 
-- **Author:** Claude Opus 5.5 by default. GPT-6.1 Sol authors when Opus limits are short; calibration showed Sol strong
-  on narrow artifact, process and contract tests.
-- **Reviewer:** the other model, in a fresh context, receiving the assignment, baseline, patch and check results. A
-  different model catches different blind spots.
-- **When to review:** always for priority 1 anchor scenarios, authorization and tenant isolation, secrets, billing,
-  data-loss checks, shared helpers and any test deletion. Otherwise the author's fault check is enough; the coordinator
-  spot-checks about one in four.
-- **Effort:** medium by default; high for shared helpers and authorization.
-- **When limits are short:** author priority 1 first and defer reviews of low-risk work. Do not spend limits on model
-  comparisons; calibration is finished.
+- **Author:** Claude Opus 5.5 at medium effort; high for shared helpers. GPT-6.1 Sol authors when Opus limits are short;
+  calibration showed it strong on narrow artifact, process and contract tests.
+- **Reviewer:** GPT-6.1 Sol reviews every assignment in a fresh context, receiving the assignment, baseline, patch and
+  check results. When Sol also wrote the patch, prefer an Opus review; otherwise use a fresh Sol context one effort
+  level higher.
+- **Review effort by risk:**
 
-The reviewer checks that the scenario proves the customer outcome, that the fault check reached the intended assertion,
-and that removed tests lost no unique protection. Agreement between author and reviewer is not evidence.
+  | Effort | Use for                                                                                                                                     |
+  | ------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+  | Low    | Additive focused tests in a mature lane, pure-rule tables, test-only tooling changes.                                                       |
+  | Medium | The default: anchor scenarios, new process, browser or database tests, and any removal of existing tests.                                   |
+  | High   | Authorization and tenant isolation, secrets, billing, the data-loss check, shared helpers, and a second review after a disputed medium one. |
+
+- **When limits are short:** author priority 1 first; lower review effort before skipping review. Do not spend limits on
+  model comparisons; calibration is finished.
+
+The reviewer checks that the scenario proves the customer outcome, that the author's fault check reached the intended
+assertion, and that removed tests lost no unique protection. Agreement between author and reviewer is not evidence.
 
 ## Coordination
 

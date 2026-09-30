@@ -33,66 +33,22 @@ expected webhook/app installation. It never stores provider tokens. Drive instal
 retry, disconnect/reconnect, and provider-side removal as applicable. Verify the resulting deployment or recorded
 failure, not only the callback page.
 
-## Worked example: security findings spanning CLI and Console
+## Worked example: a feature spanning CLI and Console
 
-Adapt this recipe to the requested feature. It describes how to choose evidence, not an existing complete security E2E
-suite. Read [the security policy](#security-and-guardrails) and the
-[Console fixture guide](../../apps/console/e2e/README.md) first. Include only behavior the feature actually has.
+Take a security finding: the CLI detects an unsafe configuration, reports it through the API, and an authorized user
+acknowledges it in the Console. A nearby safe configuration produces no finding, and users outside the project or
+organization cannot read or change it. First identify the actual path: some rules run entirely during synthesis, others
+inspect AWS or arrive through a scheduled worker. Do not invent an endpoint or worker to follow this example.
 
-### Start with the complete behavior
+1. **Rule:** unsafe and nearby safe inputs through the real rule or resolver; assert the finding and severity.
+2. **CLI to API:** spawn the source CLI against the changed API, as described in
+   [prove the changed revision](console.md#prove-the-changed-revision); check the tRPC result, not only HTTP status.
+3. **Persistence and access:** the real router against disposable PostgreSQL. Assert the stored finding, deduplication
+   on repeated delivery, scoped acknowledgement, and denial for another project and organization. The
+   [isolated Console application](e2e.md#isolated-console-application) seeds independent tenants for this.
+4. **Browser:** find the finding, acknowledge it, reload, and confirm the state persisted.
+5. **External facts:** if production reads AWS state or a deployed worker transforms the finding, add a small owned dev
+   AWS scenario or deploy the changed worker and send a real event. Synthetic input proves rule logic only.
 
-For example: the current CLI detects a particular unsafe configuration, reports a finding through the API, and an
-authorized user can inspect and acknowledge it in Console. A nearby safe configuration produces no finding. A user
-outside the intended project or organization cannot read or change it, including through a direct API request.
-
-Identify the actual path before choosing tests. Some rules run entirely during synthesis; others inspect AWS or arrive
-through a scheduled worker. Those require different evidence. Do not invent a CLI ingestion endpoint, worker or AWS
-fixture merely to follow this example.
-
-### Choose evidence for the actual path
-
-One complete journey can cover several rows below. Add focused tests only for a relevant failure boundary that the
-journey cannot adequately exercise; follow the policy's test-first rule when isolation is needed.
-
-| Changed part                                  | Focused evidence                                                                                                                                                                                             |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| CLI rule or synthesis                         | Unsafe and nearby safe inputs through the real rule/resolver. Assert the finding, severity and relevant synthesized properties; use generated templates without deploying when that is the whole rule.       |
-| CLI command or report format                  | Spawn the source CLI with representative input; assert exit status and semantic output. Check that the actual output is accepted by the consumer. Importing its handler alone does not exercise the command. |
-| API contract and authorization                | Drive the real HTTP/tRPC router and context. Test the authorized identity, a restricted identity, and invalid input. Assert failed procedures contain no finding data.                                       |
-| Persistence, deduplication or acknowledgement | Real PostgreSQL queries/transactions: assert the stored result, retry behavior, scoped updates and persistence after rereading. Extend feature tests; the migration suite alone does not prove these.        |
-| Console interaction                           | Browser scenario for the new section, actual finding details and the relevant action. Assert the API result and reload; include denial or an empty list where it affects the feature.                        |
-
-Use the existing package commands selected by `pnpm test:plan`; do not create parallel test frameworks. If the closest
-existing runner lacks this feature, extend it with a narrowly scoped scenario.
-
-### Example complete journey
-
-For a CLI-to-API-to-Console feature:
-
-1. Reserve shared dev and run the Console doctor. Reuse the labelled project/user fixtures where their permissions fit.
-   Use the documented restricted fixtures; do not increase the test user's privileges to make the test pass.
-2. Apply committed schema changes only through `pnpm migrate:console:dev` after reviewing their effect on existing
-   shared data and respecting any required approval. Then start `pnpm dev:console`.
-3. Run the source CLI against the new local API when the contract changed. Set
-   `STP_CUSTOM_TRPC_API_ENDPOINT=http://localhost:3000` on that CLI process and invoke `pnpm dev:cli <actual-command>`.
-   Keep the explicit project/stage/region and credential mode required by that command. Verify from API requests or logs
-   that the intended server handled the operation; `pnpm dev:cli` alone selects deployed dev.
-4. Submit a uniquely labelled finding using the feature's real entrypoint. Assert its stored identity and data, then
-   find it in the browser. Verify the relevant action after reload. Repeat delivery if deduplication is part of the
-   contract, and check the safe case remains clean.
-5. Prove project denial and cross-organization isolation wherever the changed authorization promises both. The current
-   project-access scenario proves only same-organization access. Cross-organization tests need an actual second
-   restricted tenant/user fixture; record that boundary as blocked if the fixture is unavailable.
-6. Remove only the scenario's findings/resources through their supported cleanup path, verify removal, stop local mode
-   and release the reservation. Keep reusable projects and users.
-
-If production behavior reads AWS state, a synthetic input proves rule logic but not AWS collection or IAM. Add a small,
-owned dev AWS scenario for those facts, following the live-AWS policy. If a deployed worker collects or transforms the
-finding, deploy the changed dev worker and send the real event before claiming that path works. Do not create an
-exploitable public resource or use real secrets as detection fixtures.
-
-### What qualifies the feature
-
-The relevant gate passes, the specific customer journey works through the changed code, its relevant failure case is
-proved, and stored state and cleanup are verified. Name any remaining provider, worker, AWS, tenant or runner boundary
-explicitly. A green generic browser smoke test is not acceptance for a new security section.
+Clean up only what the scenario created, and name any provider, worker, AWS or tenant boundary left unverified. A green
+generic browser smoke test is not acceptance for a new feature.
