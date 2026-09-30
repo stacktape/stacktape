@@ -6,7 +6,7 @@ import { basename, join, posix } from 'node:path';
 import { tuiManager } from '@application-services/tui-manager';
 import { CliError } from '@utils/errors';
 import { exec } from '@utils/exec';
-import { execDocker } from '@utils/docker';
+import { execDocker, redactValues } from '@utils/docker';
 import { describeToolDownload } from '@utils/external-tools';
 import { fsPaths } from 'src/config/runtime-paths';
 import { RAILPACK_FRONTEND_IMAGE, RAILPACK_PLANNER_IMAGE, RAILPACK_VERSION } from 'src/config/railpack';
@@ -159,51 +159,69 @@ const runOnHost = async ({
   );
 };
 
+type PlannerInput = {
+  sourceDirectoryPath: string;
+  outputDirectory: string;
+  variables: Record<string, string>;
+  configFile: string | undefined;
+};
+
+/** Runs the planner for one request; the default picks the host binary or the container by platform. */
+type RunPlanner = (input: PlannerInput) => Promise<{ stdout?: string; stderr?: string }>;
+
+const runPlannerForPlatform: RunPlanner = (input) =>
+  plannerMode() === 'container' ? runInContainer(input) : runOnHost(input);
+
+/** `runRailpackPrepare` with the planner process replaced, which is how its file handling is tested. */
+export const createRailpackPrepare =
+  (runPlanner: RunPlanner): RunRailpackPrepare =>
+  async ({ sourceDirectoryPath, variables, config }) => {
+    const outputDirectory = await mkdtemp(join(tmpdir(), 'stp-railpack-'));
+    const configFile = config === undefined ? undefined : configFileName();
+    const hostConfigPath = configFile === undefined ? undefined : join(sourceDirectoryPath, configFile);
+    try {
+      if (config !== undefined && hostConfigPath !== undefined) {
+        await writeFile(hostConfigPath, JSON.stringify(config, null, 2));
+      }
+      const input = { sourceDirectoryPath, outputDirectory, variables, configFile };
+      let plannerOutput = '';
+      try {
+        const { stdout, stderr } = await runPlanner(input);
+        // A successful command's output is returned as written; build variable values must not reach an error.
+        plannerOutput = redactValues([stdout, stderr].filter(Boolean).join('\n'), Object.values(variables));
+      } catch (error) {
+        // A failed detection still writes the info file with `success: false` and its logs; that is the useful error.
+        const info = await readFile(join(outputDirectory, 'info.json'), 'utf8')
+          .then((contents) => JSON.parse(contents) as { success?: boolean })
+          .catch(() => undefined);
+        if (info && info.success === false) return { plan: undefined, info };
+        const failure = error as { exitCode?: number; message?: string };
+        throw railpackFailure({
+          exitCode: failure.exitCode,
+          message: failure.message ?? String(error),
+          cwd: sourceDirectoryPath
+        });
+      }
+      return await readPreparedFiles(outputDirectory).catch((error: unknown) => {
+        // The planner reported success without leaving its result files; its own output is the only explanation.
+        throw railpackFailure({
+          exitCode: 0,
+          message: `Railpack exited without writing its plan (${error instanceof Error ? error.message : String(error)}).\n${plannerOutput}`,
+          cwd: sourceDirectoryPath
+        });
+      });
+    } finally {
+      if (hostConfigPath !== undefined) await rm(hostConfigPath, { force: true }).catch(() => {});
+      await rm(outputDirectory, { recursive: true, force: true }).catch(() => {});
+    }
+  };
+
 /**
  * Plans a directory with the pinned Railpack release and returns its plan and info files. Build variables reach the
  * planner through its environment only. Railpack's own text output is not shown: the info file carries the same
  * diagnostics, and the packaging layer reports them.
  */
-export const runRailpackPrepare: RunRailpackPrepare = async ({ sourceDirectoryPath, variables, config }) => {
-  const outputDirectory = await mkdtemp(join(tmpdir(), 'stp-railpack-'));
-  const mode = plannerMode();
-  const configFile = config === undefined ? undefined : configFileName();
-  const hostConfigPath = configFile === undefined ? undefined : join(sourceDirectoryPath, configFile);
-  try {
-    if (config !== undefined && hostConfigPath !== undefined) {
-      await writeFile(hostConfigPath, JSON.stringify(config, null, 2));
-    }
-    const input = { sourceDirectoryPath, outputDirectory, variables, configFile };
-    let plannerOutput = '';
-    try {
-      const { stdout, stderr } = await (mode === 'container' ? runInContainer(input) : runOnHost(input));
-      plannerOutput = [stdout, stderr].filter(Boolean).join('\n');
-    } catch (error) {
-      // A failed detection still writes the info file with `success: false` and its logs; that is the useful error.
-      const info = await readFile(join(outputDirectory, 'info.json'), 'utf8')
-        .then((contents) => JSON.parse(contents) as { success?: boolean })
-        .catch(() => undefined);
-      if (info && info.success === false) return { plan: undefined, info };
-      const failure = error as { exitCode?: number; message?: string };
-      throw railpackFailure({
-        exitCode: failure.exitCode,
-        message: failure.message ?? String(error),
-        cwd: sourceDirectoryPath
-      });
-    }
-    return await readPreparedFiles(outputDirectory).catch((error: unknown) => {
-      // The planner reported success without leaving its result files; its own output is the only explanation.
-      throw railpackFailure({
-        exitCode: 0,
-        message: `Railpack exited without writing its plan (${error instanceof Error ? error.message : String(error)}).\n${plannerOutput}`,
-        cwd: sourceDirectoryPath
-      });
-    });
-  } finally {
-    if (hostConfigPath !== undefined) await rm(hostConfigPath, { force: true }).catch(() => {});
-    await rm(outputDirectory, { recursive: true, force: true }).catch(() => {});
-  }
-};
+export const runRailpackPrepare: RunRailpackPrepare = createRailpackPrepare(runPlannerForPlatform);
 
 /** Nothing a plan suggests should be longer than a command line a person would review. */
 const MAX_COMMAND_LENGTH = 300;

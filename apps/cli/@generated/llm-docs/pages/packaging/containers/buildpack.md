@@ -96,6 +96,8 @@ Files matched by `.dockerignore` in the source directory are left out of the bui
 
 If a project uses a layout the detection does not recognize, set `startCommand` and, if needed, `buildCommand`.
 
+Commit the project's lock file. Ruby and Elixir builds fail without `Gemfile.lock` or `mix.lock`, and a Bun build fails when `bun.lock` does not match `package.json`.
+
 ## Properties
 
 Every property overrides one part of the detected build. A project that follows its ecosystem's conventions needs none of them.

@@ -20,6 +20,7 @@ import { runImportQualification } from './import-contract';
 import { buildOfflineQualificationEnvironment, startOfflineAwsServer, type OfflineAwsServer } from './offline-aws';
 import { acquireProject, calculateSourceFingerprint } from './project-source';
 import { assertProcessSucceeded, outputTail, redactOutput, runProcess, type ProcessResult } from './process';
+import { fingerprintProductState, type UntrackedFile } from './product-fingerprint';
 import { writeJsonAtomic, writeQualificationReport } from './report';
 
 type SelectedCase = {
@@ -859,7 +860,6 @@ const toolVersion = async (command: string, args: string[]) => {
 const calculateProductFingerprint = async (productCommit: string) => {
   const pinned = process.env.STACKTAPE_QUALIFICATION_PRODUCT_FINGERPRINT;
   if (pinned) return `pinned:${pinned}`;
-  const hash = createHash('sha256').update(productCommit);
   const diff = await runProcess({
     command: 'git',
     args: ['diff', '--binary', 'HEAD', '--', '.'],
@@ -867,7 +867,6 @@ const calculateProductFingerprint = async (productCommit: string) => {
     timeoutMs: 60_000
   });
   assertProcessSucceeded(diff);
-  hash.update(diff.stdout);
 
   const untracked = await runProcess({
     command: 'git',
@@ -876,17 +875,16 @@ const calculateProductFingerprint = async (productCommit: string) => {
     timeoutMs: 60_000
   });
   assertProcessSucceeded(untracked);
-  for (const projectPath of untracked.stdout.split('\0').filter(Boolean).sort()) {
+  const untrackedFiles: UntrackedFile[] = [];
+  for (const projectPath of untracked.stdout.split('\0').filter(Boolean)) {
     // A file another process removed after the listing is no longer part of the tree.
     const contents = await readFile(resolve(rootDirectory, projectPath)).catch((error: NodeJS.ErrnoException) => {
       if (error.code === 'ENOENT') return undefined;
       throw error;
     });
-    if (contents === undefined) continue;
-    hash.update(projectPath);
-    hash.update(contents);
+    if (contents !== undefined) untrackedFiles.push({ path: projectPath, contents });
   }
-  return hash.digest('hex');
+  return fingerprintProductState({ commit: productCommit, trackedDiff: diff.stdout, untrackedFiles });
 };
 
 const main = async () => {

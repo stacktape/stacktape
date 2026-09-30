@@ -822,9 +822,9 @@ export const buildDockerImage = async ({
 };
 
 /** Replaces every occurrence of each value with a placeholder; empty values are ignored. */
-const redactValues = (text: string | undefined, values: string[]): string | undefined => {
-  if (text === undefined) return undefined;
-  return values.filter(Boolean).reduce((result, value) => result.split(value).join('[redacted]'), text);
+export const redactValues = <T extends string | undefined>(text: T, values: string[]): T => {
+  if (text === undefined) return text;
+  return values.filter(Boolean).reduce<string>((result, value) => result.split(value).join('[redacted]'), text) as T;
 };
 
 export const getDockerBuildxSupportedPlatforms = async (): Promise<string[]> => {
