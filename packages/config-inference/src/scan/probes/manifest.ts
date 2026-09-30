@@ -302,6 +302,25 @@ export const manifestProbe: Probe = {
         ? []
         : [...pnpmWorkspace.matchAll(/^\s*-\s*['"]?([^'"\n]+)['"]?\s*$/gm)].map((match) => match[1]!.trim());
 
+    // Workspace members import each other by package name (`workspace:*`, `*`, or a version), so an install run
+    // from the member's own directory cannot resolve them. Recording the membership lets the composer build such a
+    // member from the repository root.
+    const isMonorepo = workspaceGlobs.length > 0 || pnpmGlobs.length > 0;
+    const memberPackageNames = new Set(
+      manifests.flatMap((manifest) =>
+        manifest.directory !== '.' && manifest.name !== undefined ? [manifest.name] : []
+      )
+    );
+    const workspaceFor = (manifest: ParsedManifest): Pick<ServiceFactInput, 'workspace'> => {
+      if (!isMonorepo || manifest.directory === '.') return {};
+      const internalDependencies = Object.keys(manifest.dependencies)
+        .filter((name) => name !== manifest.name && memberPackageNames.has(name))
+        .toSorted();
+      return {
+        workspace: { ...(manifest.name === undefined ? {} : { packageName: manifest.name }), internalDependencies }
+      };
+    };
+
     const services: ServiceFactInput[] = [];
     const dependencyConsumers = new Map<
       DependencyKind,
@@ -400,6 +419,7 @@ export const manifestProbe: Probe = {
                       : `${manifest.directory}/${staticSite.outputDirectory}`
                 }
               }),
+          ...workspaceFor(manifest),
           environmentVariables: [],
           evidence,
           source: 'probe'

@@ -327,7 +327,7 @@ export const initializeStackOperationLifecycle = async ({
   await operationReporter.finishEvent({ eventType: 'LOAD_METADATA_FROM_AWS', finalMessage: 'AWS metadata loaded' });
 
   await commandLifecycle.registerHooks(configManager.hooks);
-  if (!isRemoteRunnerDeployInvocation()) {
+  if (!isRemoteRunnerDeployInvocation() && configManager.hostNodeDependenciesRequired) {
     await dependencyInstaller.install({
       rootProjectDirPath: globalStateManager.workingDir,
       progressLogger: operationReporter,

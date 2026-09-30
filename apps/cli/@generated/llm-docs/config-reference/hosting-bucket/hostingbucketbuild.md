@@ -20,6 +20,9 @@ type HostingBucketBuild = {
 
 Command to run (e.g., `npm run build`, `vite build`, `npm run dev`).
 
+Runs through the system shell, so `npm ci && npm run build` works as written. When `workingDirectory` has its own
+`package.json`, Stacktape installs its dependencies first.
+
 ### Example 1 (yaml)
 
 ```yaml

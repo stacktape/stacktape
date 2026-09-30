@@ -56,6 +56,34 @@ describe('the standalone Dockerfile probe', () => {
     });
   });
 
+  it('builds from the repository root when the Dockerfile copies files that only exist there', async () => {
+    const repositoryRoot = await makeRepo({
+      'package.json': '{"name":"mastodon","workspaces":["streaming"]}',
+      'yarn.lock': '',
+      'streaming/package.json': '{"name":"@mastodon/streaming"}',
+      'streaming/index.js': '',
+      'streaming/Dockerfile': [
+        'FROM node:24',
+        'COPY package.json yarn.lock /opt/mastodon/',
+        'COPY ./streaming /opt/mastodon/streaming',
+        'EXPOSE 4000',
+        'CMD ["node", "streaming/index.js"]',
+        ''
+      ].join('\n')
+    });
+    const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [dockerfileProbe] });
+
+    expect(facts.services[0]).toMatchObject({ path: 'streaming', buildRoot: '.', dockerfile: 'streaming/Dockerfile' });
+    expect(composeConfig({ facts }).config.resources.streaming).toMatchObject({
+      properties: {
+        packaging: {
+          type: 'dockerfile',
+          properties: { buildContextPath: '.', dockerfilePath: 'streaming/Dockerfile' }
+        }
+      }
+    });
+  });
+
   it('treats a Dockerfile with no exposed port as a worker', async () => {
     const repositoryRoot = await makeRepo({
       'requirements.txt': 'celery==5\nredis==5\n',

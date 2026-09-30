@@ -416,6 +416,27 @@ describe('assembleCandidateFacts', () => {
     expect(facts.dependencies[0]?.consumedBy).toEqual([]);
   });
 
+  it('records which workspace packages a member imports, whatever specifier it uses', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({ name: 'monorepo', private: true, workspaces: ['packages/*', 'shared/*'] }),
+      'packages/api/package.json': JSON.stringify({
+        name: '@acme/api',
+        scripts: { start: 'node index.js' },
+        dependencies: { express: '^5.0.0', '@acme/db': '*', '@acme/ui': 'workspace:*' }
+      }),
+      'shared/db/package.json': JSON.stringify({ name: '@acme/db', private: true }),
+      'shared/ui/package.json': JSON.stringify({ name: '@acme/ui', private: true })
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+
+    expect(facts.services.find((entry) => entry.name === 'api')?.workspace).toEqual({
+      packageName: '@acme/api',
+      internalDependencies: ['@acme/db', '@acme/ui'],
+      buildsFromRoot: false
+    });
+  });
+
   it('does not turn a workspace root start orchestrator into a service', async () => {
     const repoRoot = await makeRepo({
       'package.json': JSON.stringify({

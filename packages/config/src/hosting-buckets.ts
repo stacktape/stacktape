@@ -724,6 +724,9 @@ export interface HostingBucketBuild {
    *
    * ---
    *
+   * Runs through the system shell, so `npm ci && npm run build` works as written. When `workingDirectory` has its own
+   * `package.json`, Stacktape installs its dependencies first.
+   *
    * **Example (YAML):**
    *
    * ```yaml

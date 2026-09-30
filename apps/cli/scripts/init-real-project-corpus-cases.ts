@@ -72,7 +72,8 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
       existingDeployments: ['render'],
       requiredConfig: [
         'type: buildpack',
-        'app.main:app --host 0.0.0.0 --port $PORT',
+        // The Blueprint's own production start command, not a FastAPI guess.
+        'startCommand: bash scripts/start.sh',
         'uploadDirectoryPath: frontend/dist',
         'executeCommand: alembic upgrade head',
         "$Secret('render-full-stack-fastapi-mainDatabase.password')"
@@ -769,7 +770,8 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
       serviceCount: 1,
       httpServiceCount: 0,
       existingDeployments: ['aws-sam'],
-      requiredConfig: ['scheduleRate: rate(5 minute)', 'entryfilePath: src/main.go'],
+      // The template writes `rate(5 minute)`, which EventBridge rules reject; the importer normalizes it.
+      requiredConfig: ['scheduleRate: rate(5 minutes)', 'entryfilePath: src/main.go'],
       forbiddenGapPatterns: ['no event that invokes|cannot translate that trigger'],
       forbidCurrentlyHostedDependencies: true
     }

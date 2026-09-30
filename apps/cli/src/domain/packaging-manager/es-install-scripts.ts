@@ -34,6 +34,18 @@ export const getEsInstallScript = (packageManager: SupportedEsPackageManager, in
   return installScripts[packageManager][installType === 'CI' ? 'ciInstall' : 'normalInstall'];
 };
 
+/**
+ * Yarn 2 and later ("Berry") rejects the classic flags outright (`Unsupported option name "--ignore-platform"`).
+ * Its lockfile opens with a `__metadata:` block, and a project may also declare it in `packageManager`.
+ */
+const isYarnBerry = ({
+  packageManagerDeclaration,
+  lockfile
+}: {
+  packageManagerDeclaration: string | undefined;
+  lockfile: string | undefined;
+}) => /^yarn@(?:[2-9]|\d{2,})\./.test(packageManagerDeclaration ?? '') || /^__metadata:/m.test(lockfile ?? '');
+
 const pnpmVersionForLockfile = (lockfile: string | undefined) => {
   const version = lockfile?.match(/^lockfileVersion:\s*['"]?([^'"\s]+)['"]?\s*$/m)?.[1];
   if (version === '6.0' || version === '6') return '8.15.9';
@@ -58,6 +70,9 @@ export const getProjectDependencyInstallScript = ({
   lockfile?: string;
 }) => {
   const installScript = getEsInstallScript(packageManager, installType);
+  if (packageManager === 'yarn' && installType === 'CI' && isYarnBerry({ packageManagerDeclaration, lockfile })) {
+    return ['yarn', 'install', '--immutable'];
+  }
   if (packageManager !== 'pnpm') return installScript;
 
   const version = declaredPnpmVersion(packageManagerDeclaration) ?? pnpmVersionForLockfile(lockfile);

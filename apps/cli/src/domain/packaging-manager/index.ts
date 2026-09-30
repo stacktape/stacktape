@@ -15,7 +15,7 @@ import type { DockerBuildOutputArchitecture, PackagingOutput } from '@stacktape/
 import { packagingMessages } from '@stacktape/packaging/runtime-contracts';
 import type { LambdaEntrypoint } from '@stacktape/packaging/split-bundler/types';
 import { existsSync } from 'node:fs';
-import { isAbsolute, join } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
@@ -549,15 +549,18 @@ export class PackagingManager {
       isLambda: true,
       nodeTarget: nodeVersion,
       installDependencies: async () => {
-        await dependencyInstaller.install({
-          rootProjectDirPath: globalStateManager.workingDir,
-          progressLogger: {
-            eventContext: {},
-            startEvent: async () => {},
-            updateEvent: async () => {},
-            finishEvent: async () => {}
-          }
-        });
+        // Each entry file resolves against its own package; the installer joins repeated roots.
+        for (const rootProjectDirPath of new Set(entrypoints.map(({ entryfilePath }) => dirname(entryfilePath)))) {
+          await dependencyInstaller.install({
+            rootProjectDirPath,
+            progressLogger: {
+              eventContext: {},
+              startEvent: async () => {},
+              updateEvent: async () => {},
+              finishEvent: async () => {}
+            }
+          });
+        }
       },
       createPackagingError: ({ message, hint, cause }) =>
         createCliPackagingError({ type: 'PACKAGING', message, hint, cause })
@@ -939,8 +942,19 @@ export class PackagingManager {
       : configManager.hostingBuckets
           .filter(({ name, build }) => build && shouldPackageWorkload(name))
           .map(({ name, build }) => {
-            return () =>
-              buildHostingBucket({
+            return async () => {
+              // A frontend in its own directory (`frontend/`, with its own lockfile) has dependencies the root
+              // install never touched; the build command expects them to be there.
+              const buildDirectory = build!.workingDirectory
+                ? resolve(globalStateManager.workingDir, build!.workingDirectory)
+                : globalStateManager.workingDir;
+              if (buildDirectory !== resolve(globalStateManager.workingDir)) {
+                await dependencyInstaller.install({
+                  rootProjectDirPath: buildDirectory,
+                  progressLogger: operationReporter
+                });
+              }
+              return buildHostingBucket({
                 name,
                 cwd: globalStateManager.workingDir,
                 build: build!,
@@ -952,6 +966,7 @@ export class PackagingManager {
                   parentEventType: 'PACKAGE_ARTIFACTS'
                 })
               });
+            };
           });
 
     // Container packaging jobs (skip in dev mode, filter by onlyWorkloads)

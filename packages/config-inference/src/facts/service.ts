@@ -280,6 +280,11 @@ export const serviceShape = {
   functionTriggers: z.array(functionTriggerSchema).default([]),
   /** Repository-relative path to a Dockerfile, when the service ships one. */
   dockerfile: repositoryPathSchema.optional(),
+  /**
+   * A prebuilt image the service runs from, when the deployment manifest declares one instead of a build (a Render
+   * `image` service, for example). Nothing in the repository is built for it.
+   */
+  containerImage: z.string().min(1).optional(),
   healthCheckPath: z.string().min(1).optional(),
 
   /**

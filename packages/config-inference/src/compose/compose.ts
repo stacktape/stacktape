@@ -24,6 +24,7 @@ import { resolveEngineVersion, type EngineVersionCatalogue } from './engine-vers
 import { generatedDatabasePasswordSecretReference, secretNameFor, wiringFor } from './env-wiring';
 import { composeMigrationHooks } from './migrations';
 import { monorepoPackaging } from './monorepo';
+import { normalizeScheduleExpression } from './schedule';
 import { MODE_PREFERENCES, MODE_PROFILES, type InfrastructureMode } from './modes';
 import {
   defaultDeploymentPreferences,
@@ -215,6 +216,10 @@ const pythonStartCommand = (service: ServiceFact): string | undefined => {
 
 const packagingFor = (service: ServiceFact, packageManager: PackageManager | undefined): Record<string, unknown> => {
   const buildRoot = service.buildRoot ?? service.path;
+  if (service.containerImage !== undefined) {
+    // The manifest runs a published image; there is no source to build.
+    return { type: 'prebuilt-image', properties: { image: service.containerImage } };
+  }
   if (service.dockerfile !== undefined) {
     // Their Dockerfile is the most faithful description of how this runs that exists. Use it.
     return {
@@ -1084,7 +1089,7 @@ const buildServiceResource = ({
       if (trigger.type === 'schedule') {
         events.push({
           type: 'schedule',
-          properties: { scheduleRate: trigger.rate }
+          properties: { scheduleRate: normalizeScheduleExpression(trigger.rate) }
         });
         continue;
       }
@@ -1170,7 +1175,7 @@ const buildServiceResource = ({
               events: [
                 {
                   type: 'schedule',
-                  properties: { scheduleRate: service.schedule }
+                  properties: { scheduleRate: normalizeScheduleExpression(service.schedule) }
                 }
               ]
             }),

@@ -289,6 +289,7 @@ const readRenderManifest = (
     const isStatic = runtime === 'static';
     const staticPath = asString(service.staticPublishPath);
     const dockerfile = asString(service.dockerfilePath);
+    const containerImage = runtime === 'image' && isRecord(service.image) ? asString(service.image.url) : undefined;
 
     services.push({
       name: factName(renderName),
@@ -317,6 +318,7 @@ const readRenderManifest = (
             startCommand: asString(service.startCommand) ?? asString(service.dockerCommand)
           }),
       ...(dockerfile === undefined ? {} : { dockerfile: renderPath(dockerfile) }),
+      ...(containerImage === undefined ? {} : { containerImage }),
       ...(asString(service.healthCheckPath) === undefined
         ? {}
         : { healthCheckPath: asString(service.healthCheckPath) }),

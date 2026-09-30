@@ -1164,6 +1164,17 @@ describe('pinning the declared runtime version', () => {
     expect(versionOf('22.1')).toBe(22);
   });
 
+  it('runs a published image as is', () => {
+    const { config } = composeConfig({
+      facts: facts({ services: [service({ containerImage: 'docker.io/langgenius/dify-api:1.14.2' })] })
+    });
+
+    expect(config.resources.web?.properties.packaging).toEqual({
+      type: 'prebuilt-image',
+      properties: { image: 'docker.io/langgenius/dify-api:1.14.2' }
+    });
+  });
+
   it('leaves the Python version to the project files and states the start command', () => {
     const packagingFor = (overrides: Partial<ServiceFactInput>) =>
       composeConfig({
