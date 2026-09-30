@@ -1,3 +1,4 @@
+import { resolveAllResources } from '@domain-services/calculated-stack-overview-manager/synthesize';
 import { initializeDiffOperation } from '../_utils/initialization';
 import { isAgentMode } from '../_utils/agent-mode';
 import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
@@ -131,7 +132,7 @@ export const commandDiff = async () => {
   await ensureMissingSsmParamsCreated();
 
   const packagedWorkloads = await packaging.packageAllWorkloads({ commandCanUseCache: true });
-  await calculatedStackOverview.resolveAllResources();
+  await resolveAllResources();
   await calculatedStackOverview.populateStackMetadata();
   await prepareTemplateForDeploy();
 

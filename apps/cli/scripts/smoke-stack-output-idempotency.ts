@@ -1,3 +1,4 @@
+import { resolveAllResources } from '@domain-services/calculated-stack-overview-manager/synthesize';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { prepareTemplateForDeploy } from '@domain-services/template-manager/finalize';
 import { initializeStackOperationLifecycle } from '../src/commands/_utils/initialization';
@@ -10,7 +11,7 @@ const main = async () => {
     requiresSubscription: false
   });
 
-  await calculatedStackOverviewManager.resolveAllResources();
+  await resolveAllResources();
   await calculatedStackOverviewManager.populateStackMetadata();
 
   await prepareTemplateForDeploy();

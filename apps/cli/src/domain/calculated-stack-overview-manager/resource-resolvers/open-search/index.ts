@@ -4,7 +4,7 @@ import { calculatedStackOverviewManager } from '@domain-services/calculated-stac
 import { configManager } from '@domain-services/config-manager';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import type { OpenSearchLogConfiguration } from '@stacktape/config/open-search';
-import { filterResourcesForDevMode } from '../../../../commands/dev/dev-resource-filter';
+import { filterResourcesForDevMode } from '@domain-services/config-manager/dev-mode';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';
 import { getOpenSearchDomainLogGroup, getOpenSearchDomainResource, getOpenSearchDomainSecurityGroup } from './utils';
 
@@ -27,7 +27,7 @@ export const resolveOpenSearchLoggingDefaults = (logging: OpenSearchLogConfigura
 });
 
 export const resolveOpenSearchDomains = () => {
-  const openSearchDomains = filterResourcesForDevMode(configManager.openSearchDomains);
+  const openSearchDomains = filterResourcesForDevMode(configManager.openSearchDomains, configManager.deploymentContext);
   openSearchDomains.forEach((openSearchDomain) => {
     const cfLogicalName = cfLogicalNames.openSearchDomain(openSearchDomain.name);
 

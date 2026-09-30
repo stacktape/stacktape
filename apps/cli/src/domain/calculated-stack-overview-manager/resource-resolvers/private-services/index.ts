@@ -2,7 +2,7 @@ import { getAtt, join } from '@stacktape/cloudformation/intrinsics';
 
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
-import { filterResourcesForDevMode } from '../../../../commands/dev/dev-resource-filter';
+import { filterResourcesForDevMode } from '@domain-services/config-manager/dev-mode';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getSimpleServiceDefaultContainerName } from '@stacktape/naming/workload-names';
 import { resolveApplicationLoadBalancer } from '../application-load-balancers';
@@ -10,7 +10,7 @@ import { resolveContainerWorkload } from '../multi-container-workloads';
 import type { ContainerWorkloadServiceConnectIntegration } from '@stacktape/config/events';
 
 export const resolvePrivateServices = async () => {
-  const privateServices = filterResourcesForDevMode(configManager.privateServices);
+  const privateServices = filterResourcesForDevMode(configManager.privateServices, configManager.deploymentContext);
   if (privateServices.length) {
     // resolve web service container workloads
     privateServices.forEach(({ nameChain, _nestedResources: { containerWorkload, loadBalancer } }) => {

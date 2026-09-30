@@ -1,3 +1,6 @@
+import { packagingManager } from '@domain-services/packaging-manager';
+import { resetDomainServiceInitialization } from '@utils/decorators';
+import { resolveAllResources } from '@domain-services/calculated-stack-overview-manager/synthesize';
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 import { describe, expect, test } from 'bun:test';
 import { join } from 'node:path';
@@ -186,7 +189,7 @@ const finalizeInOneInvocation = async ({
       primaryRegions: ['eu-west-1'],
       defaultRegion: 'eu-west-1'
     };
-    globalStateManager.initializedDomainServices = [];
+    resetDomainServiceInitialization();
     globalStateManager.isInitialized = true;
     globalStateManager.targetStack = {
       stackName: `characterization-${stage}`,
@@ -215,6 +218,7 @@ const finalizeInOneInvocation = async ({
       openSearchInstanceTypes: configManager.allUsedOpenSearchVersionsAndInstanceTypes
     });
 
+    deploymentArtifactManager.setPackagingSource(packagingManager);
     deploymentArtifactManager.deploymentBucketName = 'stp-deployment-bucket-xxxxxxxx';
     deploymentArtifactManager.repositoryName = 'xxxxxxxx-stp-container-repository';
     deploymentArtifactManager.repositoryUrl =
@@ -229,7 +233,7 @@ const finalizeInOneInvocation = async ({
       templateManager.init({ stackDetails: undefined, stackName: stackContext.stackName }),
       calculatedStackOverviewManager.init({ context: stackContext })
     ]);
-    await calculatedStackOverviewManager.resolveAllResources();
+    await resolveAllResources();
 
     // Registered the way every artifact-dependent override is: it reads the current artifact state when it runs, and
     // it appends to an array — the shape that makes a repeated pass duplicate content (Convex does this to

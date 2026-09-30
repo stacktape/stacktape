@@ -1,4 +1,5 @@
-import { getPropsOfResourceReferencedInConfig } from './resource-references';
+import { configManager } from '@domain-services/config-manager';
+import { getPropsOfResourceReferencedInConfig } from './resource-lookup';
 
 export const resolveReferenceToUserPool = ({
   referencedFrom,
@@ -10,6 +11,7 @@ export const resolveReferenceToUserPool = ({
   stpResourceReference: string | undefined;
 }) => {
   return getPropsOfResourceReferencedInConfig({
+    activeConfig: configManager,
     stpResourceReference,
     stpResourceType: 'user-auth-pool',
     referencedFrom,

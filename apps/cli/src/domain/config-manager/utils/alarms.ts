@@ -7,20 +7,22 @@ import type { StpResource, StpResourceType } from '@domain-services/config-manag
 import type { AlarmDefinition } from '@stacktape/config/alarms';
 import { getStpNameForAlarm } from '@stacktape/naming/alarm-names';
 import isEqual from 'lodash/isEqual';
-import { configManager } from '../index';
+import type { ConfigManager } from '../index';
 import { configErrors } from '../errors';
 
 export const resolveReferenceToAlarm = ({
+  activeConfig,
   stpAlarmReference,
   referencedFromType,
   referencedFrom
 }: {
+  activeConfig: ConfigManager;
   stpAlarmReference: string;
   referencedFromType?: StpResourceType;
   referencedFrom: string;
 }) => {
   const stpAlarmReferenceSplit = stpAlarmReference.split('.');
-  const alarm = configManager.allAlarms.find(({ nameChain }) => isEqual(stpAlarmReferenceSplit, nameChain));
+  const alarm = activeConfig.allAlarms.find(({ nameChain }) => isEqual(stpAlarmReferenceSplit, nameChain));
 
   if (!alarm) {
     throw configErrors.alarmReferenceNotFound({

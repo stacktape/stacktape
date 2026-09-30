@@ -6,7 +6,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { stpErrors } from '@errors';
 import { isEmailValid } from '@utils/validation';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import compose from '@utils/basic-compose-shim';
+import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { getAllParentDomains } from '@utils/domains';
 

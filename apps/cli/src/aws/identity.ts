@@ -1,3 +1,8 @@
+import type { GetCallerIdentityResponse } from '@aws-sdk/client-sts';
+import type { createAwsLoggingPlugin } from './client-instrumentation';
+import { cacheAwsIdentity, readCachedAwsIdentity } from './identity-cache';
+import { startTiming } from '@utils/timings';
+import { retryPlugin } from './client-middleware';
 import type { HttpRequest } from '@smithy/protocol-http';
 import { Sha256 } from '@aws-crypto/sha256-browser';
 import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
@@ -100,4 +105,46 @@ export const getSignedGetCallerIdentityRequest = async ({
   });
   const signedRequest = (await signer.sign(rawRequest as HttpRequest)) as unknown as SignedRequest;
   return signedRequest;
+};
+
+export const getAwsCredentialsIdentity = async ({
+  credentials,
+  region,
+  getErrorHandler,
+  loggingPlugin
+}: {
+  credentials: Credentials;
+  region: string;
+  getErrorHandler: (message: string) => (error: Error) => never;
+  loggingPlugin: ReturnType<typeof createAwsLoggingPlugin>;
+}): Promise<GetCallerIdentityResponse> => {
+  const endTiming = startTiming('aws:identity');
+  const cached = credentials.accessKeyId ? await readCachedAwsIdentity(credentials.accessKeyId) : null;
+  if (cached) {
+    endTiming({ source: 'cache', account: cached.account });
+    return { Account: cached.account, Arn: cached.arn, UserId: cached.userId };
+  }
+  const errHandler = getErrorHandler(
+    `Unable to get identity for credentials (access key id: ${credentials.accessKeyId}).`
+  );
+  const tempStsCli = new STSClient({
+    credentials,
+    region,
+    requestHandler: createFetchHandler()
+  });
+  tempStsCli.middlewareStack.use(loggingPlugin);
+  tempStsCli.middlewareStack.use(retryPlugin);
+  const identity = await tempStsCli.send(new GetCallerIdentityCommand({})).catch((error: Error) => {
+    endTiming({ source: 'sts', outcome: 'error' });
+    return errHandler(error);
+  });
+  endTiming({ source: 'sts', account: identity.Account });
+  if (credentials.accessKeyId && identity.Account && identity.Arn && identity.UserId) {
+    await cacheAwsIdentity(credentials.accessKeyId, {
+      account: identity.Account,
+      arn: identity.Arn,
+      userId: identity.UserId
+    });
+  }
+  return identity;
 };

@@ -1,5 +1,6 @@
+import { configManager } from '@domain-services/config-manager';
 import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
-import { getPropsOfResourceReferencedInConfig } from './resource-references';
+import { getPropsOfResourceReferencedInConfig } from './resource-lookup';
 
 export const resolveReferenceToEventBus = ({
   referencedFrom,
@@ -11,6 +12,7 @@ export const resolveReferenceToEventBus = ({
   stpResourceReference: string | undefined;
 }) => {
   return getPropsOfResourceReferencedInConfig({
+    activeConfig: configManager,
     stpResourceReference,
     stpResourceType: 'event-bus',
     referencedFrom,

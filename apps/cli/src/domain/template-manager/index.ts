@@ -8,7 +8,7 @@ import { StackStatus } from '@aws-sdk/client-cloudformation';
 import { getExportedStackOutputName } from '@stacktape/naming/stack-output-names';
 import { serialize } from '@utils/misc';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import compose from '@utils/basic-compose-shim';
+import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { CliError } from '@utils/errors';
 import { validateStackOutput, validateUniqueness } from '@utils/validator';

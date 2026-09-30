@@ -5,7 +5,7 @@ import { calculatedStackOverviewManager } from '@domain-services/calculated-stac
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { templateManager } from '@domain-services/template-manager';
-import { filterResourcesForDevMode } from '../../../../commands/dev/dev-resource-filter';
+import { filterResourcesForDevMode } from '@domain-services/config-manager/dev-mode';
 import { cfEvaluatedLinks } from '@domain-services/calculated-stack-overview-manager/cloudformation-links';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { resourceReferencableParams } from '@domain-services/config-manager/resource-reference-parameters';
@@ -20,7 +20,7 @@ import {
 } from './utils';
 
 export const resolveRedisClusters = async () => {
-  const redisClusters = filterResourcesForDevMode(configManager.redisClusters);
+  const redisClusters = filterResourcesForDevMode(configManager.redisClusters, configManager.deploymentContext);
   redisClusters.forEach((resource) => {
     const isSharded = resource.enableSharding;
 

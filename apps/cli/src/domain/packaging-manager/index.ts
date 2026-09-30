@@ -69,13 +69,12 @@ import { getFileExtension } from '@utils/fs-utils';
 import { runRailpackPrepare } from '@domain-services/packaging-manager/railpack-command';
 import { RAILPACK_FRONTEND_IMAGE } from 'src/config/railpack';
 import { archiveItem } from './timed-archive';
-import compose from '@utils/basic-compose-shim';
+import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { markTiming, startTiming, timeAsync } from '@utils/timings';
 import { rename } from 'fs-extra';
 import objectHash from 'object-hash';
 import { resolveEnvironmentDirectives } from 'src/commands/dev/utils';
-import { isDevCommand } from '../../commands/dev/dev-resource-filter';
 import type { BatchJobResources } from '@stacktape/config/batch-jobs';
 import type {
   BatchJobContainerPackaging,
@@ -932,7 +931,7 @@ export class PackagingManager {
     });
 
     // In dev mode, skip container and hosting bucket builds (they run locally)
-    const skipContainersAndHosting = isDevCommand();
+    const skipContainersAndHosting = configManager.deploymentContext.command === 'dev';
 
     // Hosting bucket builds (skip in dev mode, filter by onlyWorkloads)
     const hostingBucketBuildJobs = skipContainersAndHosting

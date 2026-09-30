@@ -1,11 +1,11 @@
+import type { ResourceLookup } from './resource-lookup';
 import { getAtt, ref, sub } from '@stacktape/cloudformation/intrinsics';
 import type { HelperLambdaName } from '@config';
 import type { HelperLambdaPackaging } from '@domain-services/packaging-manager/types';
 import type { StpLambdaFunction } from '@domain-services/config-manager/resolved-types/functions';
 import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
 import type { StackContext } from '@domain-services/stack-context';
-import { isDevCommand, shouldDeployResourceInDevMode } from '../../../commands/dev/dev-mode-utils';
-import { globalStateManager } from '@application-services/global-state-manager';
+import { shouldDeployResourceInDevMode } from '@domain-services/config-manager/dev-mode';
 import { IS_DEV } from '../../../config/random';
 import { STACKTAPE_TRPC_API_ENDPOINT } from '../../../config/params';
 import { sesManager } from '@domain-services/ses-manager';
@@ -24,7 +24,7 @@ import { getDefaultRuntimeForExtension } from '@domain-services/config-manager/r
 
 import { kebabCase } from 'change-case';
 import type { ConfigManager } from '../index';
-import { getPropsOfResourceReferencedInConfig } from './resource-references';
+import { getPropsOfResourceReferencedInConfig } from './resource-lookup';
 import type { LambdaPackaging } from '@stacktape/config/deployment-artifacts';
 import type { LambdaRuntime } from '@stacktape/config/primitives';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
@@ -139,7 +139,7 @@ export const getStacktapeServiceLambdaCustomResourceInducedStatements = ({
       shouldDeployResourceInDevMode(
         resource.type,
         Boolean(
-          globalStateManager.args.remoteResources?.includes(resource.name) ||
+          activeConfig.deploymentContext.remoteResourceNames.has(resource.name) ||
           ('dev' in resource && resource.dev && 'remote' in resource.dev && resource.dev.remote)
         )
       )
@@ -454,9 +454,9 @@ export const getStacktapeServiceLambdaCustomResourceInducedStatements = ({
     }
   ];
 
-  const remoteResourceNames = new Set(globalStateManager.args.remoteResources || []);
+  const remoteResourceNames = activeConfig.deploymentContext.remoteResourceNames;
   const hasDeployedKafkaCluster = activeConfig.kafkaClusters.some(
-    ({ dev, name }) => !isDevCommand() || dev?.remote || remoteResourceNames.has(name)
+    ({ dev, name }) => activeConfig.deploymentContext.command !== 'dev' || dev?.remote || remoteResourceNames.has(name)
   );
   const kafkaBootstrapBrokers = hasDeployedKafkaCluster
     ? [
@@ -858,15 +858,18 @@ export const getLambdaRuntime = ({
 };
 
 export const resolveReferenceToLambdaFunction = ({
+  activeConfig,
   referencedFrom,
   referencedFromType,
   stpResourceReference
 }: {
+  activeConfig: ResourceLookup;
   referencedFrom: string;
   referencedFromType?: StpWorkloadType | 'alarm';
   stpResourceReference: string;
 }) => {
   return getPropsOfResourceReferencedInConfig({
+    activeConfig,
     stpResourceReference,
     stpResourceType: 'function',
     referencedFrom,

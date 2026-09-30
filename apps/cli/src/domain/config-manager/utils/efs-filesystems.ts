@@ -4,7 +4,7 @@ import type { StpContainerWorkload } from '@domain-services/config-manager/resol
 import type { StpResource, StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { configManager } from '..';
-import { getPropsOfResourceReferencedInConfig } from './resource-references';
+import { getPropsOfResourceReferencedInConfig } from './resource-lookup';
 
 export const resolveReferenceToEfsFilesystem = ({
   stpResourceReference,
@@ -16,6 +16,7 @@ export const resolveReferenceToEfsFilesystem = ({
   referencedFrom: string;
 }): StpEfsFilesystem => {
   return getPropsOfResourceReferencedInConfig({
+    activeConfig: configManager,
     stpResourceReference,
     stpResourceType: 'efs-filesystem',
     referencedFrom,

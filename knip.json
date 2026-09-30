@@ -1,6 +1,4 @@
 {
-  "entry": ["scripts/workspace/*.ts", ".agents/skills/load/scripts/load-context.ts"],
-  "ignoreFiles": ["scripts/workspace/*.ts", ".agents/skills/load/scripts/load-context.ts"],
   "workspaces": {
     "apps/cli": {
       "entry": [
@@ -12,15 +10,27 @@
         "scripts/**/*.mjs",
         "tests/**/*.spec.ts",
         "**/*.spec.ts",
-        "**/*.test.ts"
+        "**/*.test.ts",
+        "src/packaging-assets/**/index.ts",
+        "**/*.fixture.ts",
+        "src/commands/mcp/__fixtures__/*.ts",
+        "**/*.test.tsx"
       ],
       "project": ["**/*.{ts,tsx,js}"],
-      "ignore": ["@generated/**", "starter-projects/**", "_test-stacks/**", "__release-npm/**"]
+      "ignore": [
+        "@generated/**",
+        "starter-projects/**",
+        "_test-stacks/**",
+        "__release-npm/**",
+        "tests/characterization/fixtures/**"
+      ],
+      "ignoreDependencies": ["source-map-support", "@types/adm-zip"]
     },
     "apps/docs": {
       "entry": ["astro.config.mjs", "src/pages/**/*.astro", "src/content.config.ts", "scripts/*.ts", "tests/*.test.ts"],
       "project": ["src/**/*.{ts,tsx,astro}", "scripts/*.ts", "tests/*.ts"],
-      "ignore": ["content/**", "dist/**", "public/**"]
+      "ignore": ["content/**", "dist/**", "public/**"],
+      "ignoreDependencies": ["@docsearch/css", "tailwindcss"]
     },
     "apps/website": {
       "entry": ["astro.config.mjs", "src/pages/**/*.astro"],
@@ -29,7 +39,8 @@
     "apps/init-ui": {
       "entry": ["index.html", "src/main.tsx", "vite.config.ts", "**/*.spec.ts"],
       "project": ["src/**/*.{ts,tsx}", "vite.config.ts"],
-      "ignore": ["dist/**"]
+      "ignore": ["dist/**"],
+      "ignoreDependencies": ["@stacktape/design-tokens", "tailwindcss"]
     },
     "apps/vscode-extension": {
       "entry": ["src/extension/index.ts", "src/language-server/server.ts", "scripts/*.ts", "src/**/*.test.ts"],
@@ -45,29 +56,88 @@
         "prisma/prisma.config.ts",
         "scripts/**/*.ts",
         "stacktape.ts",
-        "**/*.test.ts"
+        "**/*.test.ts",
+        "src/lambdas/slack-app/worker.ts"
       ],
       "project": ["**/*.ts"],
-      "ignore": ["@generated/**", "dist/**"]
+      "ignore": ["@generated/**", "dist/**"],
+      "ignoreDependencies": ["@prisma/client", "react", "react-dom", "@octokit/types"]
     },
     "apps/console/ui": {
-      "entry": ["src/main.tsx", "src/**/*.test.{ts,tsx}", "vite.config.ts", "scripts/**/*.ts"],
+      "entry": [
+        "src/main.tsx",
+        "src/**/*.test.{ts,tsx}",
+        "vite.config.ts",
+        "scripts/**/*.ts",
+        "playwright*.config.ts",
+        "e2e/*fixture.tsx",
+        "src/dev/auth-review/main.tsx"
+      ],
       "project": ["**/*.{ts,tsx}"],
       "ignore": ["dist/**", "public/**"]
     },
     "packages/*": {
-      "entry": ["src/**/*.{ts,tsx}", "scripts/**/*.ts"]
+      "entry": ["scripts/**/*.ts", "**/*.acceptance.ts", "**/*.test.{ts,tsx}", "**/*.spec.{ts,tsx}"]
     },
     "packages/ui-react": {
-      "entry": ["src/**/*.{ts,tsx}", "scripts/**/*.ts"],
-      "project": ["**/*.{ts,tsx}", "!e2e/**!"],
-      "vite": false
+      "entry": [
+        "scripts/**/*.ts",
+        "**/*.acceptance.ts",
+        "**/*.test.{ts,tsx}",
+        "**/*.spec.{ts,tsx}",
+        "e2e/gallery/main.tsx",
+        "src/alert/Alert.tsx",
+        "src/badge/Badge.tsx",
+        "src/button/Button.tsx",
+        "src/checkbox/Checkbox.tsx",
+        "src/config-editor/ConfigEditor.tsx",
+        "src/dialog/Dialog.tsx",
+        "src/framework-icon/FrameworkIcon.tsx",
+        "src/grid-list/GridList.tsx",
+        "src/icon-button/IconButton.tsx",
+        "src/isometric-diagram/IsometricDiagram.tsx",
+        "src/linear-loader/LinearLoader.tsx",
+        "src/link/Link.tsx",
+        "src/monaco-editor/MonacoEditor.tsx",
+        "src/progress/Progress.tsx",
+        "src/radio-group/RadioGroup.tsx",
+        "src/resource-icon/ResourceIcon.tsx",
+        "src/section-loader/SectionLoader.tsx",
+        "src/select/Select.tsx",
+        "src/selection-card/SelectionCard.tsx",
+        "src/spinner/Spinner.tsx",
+        "src/switch/Switch.tsx",
+        "src/tabs/Tabs.tsx",
+        "src/text-field/TextField.tsx",
+        "src/tooltip/Tooltip.tsx"
+      ],
+      "project": ["src/**/*.{ts,tsx}", "scripts/**/*.ts", "e2e/**/*.{ts,tsx}", "vite*.ts", "playwright*.ts"],
+      "vite": false,
+      "ignoreDependencies": ["monaco-editor-core"]
     },
     "packages/config": {
-      "entry": ["src/**/*.{ts,tsx}", "tests/*.acceptance.ts"]
+      "entry": ["scripts/**/*.ts", "**/*.acceptance.ts", "**/*.test.{ts,tsx}", "**/*.spec.{ts,tsx}"]
     },
     "packages/cloudformation": {
-      "entry": ["src/**/*.ts", "scripts/**/*.ts", "tests/*.acceptance.ts"]
+      "entry": ["scripts/**/*.ts", "**/*.acceptance.ts", "**/*.test.{ts,tsx}", "**/*.spec.{ts,tsx}"]
+    },
+    "apps/console/bitbucket-forge": {
+      "entry": ["src/main.ts", "vite.config.ts", "playwright*.ts", "e2e/**/*.ts"],
+      "ignore": ["dist/**"],
+      "ignoreDependencies": ["react"]
+    },
+    ".": {
+      "entry": [
+        "scripts/workspace/*.ts",
+        ".agents/skills/load/scripts/load-context.ts",
+        "dependency-cruiser.config.cjs"
+      ],
+      "project": [
+        "scripts/workspace/*.ts",
+        ".agents/skills/load/scripts/load-context.ts",
+        "dependency-cruiser.config.cjs"
+      ],
+      "ignoreDependencies": ["lint-staged"]
     }
   }
 }

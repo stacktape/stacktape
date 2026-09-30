@@ -6,7 +6,10 @@ import type { StpBucket } from '../resolved-types/buckets';
 import type { ResourcePropsFromConfig } from '@domain-services/stack-info/types';
 import { resolveConnectToList } from './resource-references';
 
-const configContaining = (resource: StpResource): Pick<ConfigManager, 'findResourceInConfig'> => ({
+const configContaining = (
+  resource: StpResource
+): Pick<ConfigManager, 'findResourceInConfig' | 'deploymentContext'> => ({
+  deploymentContext: { command: 'synth', remoteResourceNames: new Set<string>() },
   findResourceInConfig: () => ({
     resource,
     fullyResolved: true,

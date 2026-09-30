@@ -4,7 +4,7 @@ import { configManager } from '@domain-services/config-manager';
 import { resolveReferencesToMountedEfsFilesystems } from '@domain-services/config-manager/utils/efs-filesystems';
 import { resolveConnectToList } from '@domain-services/config-manager/utils/resource-references';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { isDevCommand, LOCALLY_RUN_RESOURCE_TYPES } from '../../../../commands/dev/dev-mode-utils';
+import { LOCALLY_RUN_RESOURCE_TYPES } from '@domain-services/config-manager/dev-mode';
 import { getEcsTaskRole } from './utils';
 
 /**
@@ -15,7 +15,7 @@ import { getEcsTaskRole } from './utils';
  * This resolver creates ONLY the IAM roles for container workloads that would normally be excluded in dev mode.
  */
 export const resolveDevContainerWorkloadRoles = () => {
-  if (!isDevCommand()) {
+  if (!(calculatedStackOverviewManager.context.command === 'dev')) {
     return;
   }
 
@@ -38,6 +38,7 @@ const resolveDevContainerWorkloadRole = ({ definition }: { definition: StpContai
 
   // Resolve connectTo to get the required IAM statements
   const { accessToResourcesRequiringRoleChanges, accessToAwsServices } = resolveConnectToList({
+    activeConfig: configManager,
     stpResourceNameOfReferencer: definition.name,
     stpResourceTypeOfReferencer: definition.type,
     connectTo: definition.connectTo

@@ -7,6 +7,13 @@ plan, not a claim that the proposed runners or CI jobs already exist.
 For a coordinated repository-wide rewrite, use the [initiative plan](initiative.md) and [behavior slices](slices.md).
 They define dispatch, model comparison and review; ordinary changes need only the relevant policy/procedure.
 
+Configuration and synthesis scenarios should enter through command composition or provide the same explicit contexts:
+the active normalization candidate, immutable stack/deployment context, built-in directive capabilities and artifact
+packaging source. Import the synthesis workflow separately from its resource accumulator. Exercise repeated instances,
+initialization failure/retry and cancellation through real services where those affect the outcome; do not restore a
+class-name initialization flag on global CLI state. Console proxy scenarios can supply a real Lambda SDK client with a
+loopback endpoint and synthetic credentials while retaining Prisma delegate behavior and the wire protocol.
+
 ## The intended balance
 
 Optimize for useful failures caught per minute of development and maintenance. Prefer broad tests through real

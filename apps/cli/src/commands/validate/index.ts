@@ -1,3 +1,4 @@
+import { resolveAllResources } from '@domain-services/calculated-stack-overview-manager/synthesize';
 import type { PackageWorkloadOutput } from '@domain-services/packaging-manager/types';
 import { stringifyToYaml } from '@utils/yaml';
 import fsExtra from 'fs-extra';
@@ -7,7 +8,6 @@ import { assessAndPrintSecurityPosture } from '../_utils/security-posture-output
 export const commandValidate = async () => {
   const {
     args: { outFile, thorough, withPackage },
-    calculatedStackOverview,
     config,
     finalizeTemplate,
     packaging,
@@ -27,7 +27,7 @@ export const commandValidate = async () => {
     });
   }
 
-  await calculatedStackOverview.resolveAllResources();
+  await resolveAllResources();
   await finalizeTemplate();
 
   const synthesizedTemplate = template.getTemplate();

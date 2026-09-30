@@ -1,3 +1,4 @@
+import { configManager } from '@domain-services/config-manager';
 import type { AnyCloudFormationResource } from '@stacktape/cloudformation/resource';
 import { cfnResource } from '@stacktape/cloudformation/resource';
 import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
@@ -90,6 +91,7 @@ export const getNetworkLoadBalancerListeners = (
       });
     }
     const integration = getAllIntegrationsForNetworkLoadBalancerListener({
+      activeConfig: configManager,
       stpLoadBalancerName: loadBalancerName,
       listenerPort: listenerConfig.port
     })[0];

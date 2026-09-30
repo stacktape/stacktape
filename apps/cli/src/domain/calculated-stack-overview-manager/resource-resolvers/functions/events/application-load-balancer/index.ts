@@ -1,3 +1,4 @@
+import { configManager } from '@domain-services/config-manager';
 import { cfnResource } from '@stacktape/cloudformation/resource';
 import type { LambdaTargetDetails } from '@domain-services/config-manager/resolved-types/application-load-balancers';
 import type {
@@ -21,7 +22,13 @@ export const resolveApplicationLoadBalancerEvents = ({
   const { name, events, nameChain } = lambdaFunction;
   (events || []).forEach((event: ApplicationLoadBalancerIntegration) => {
     if (event.type === 'application-load-balancer') {
-      const resolvedLbReference = resolveReferenceToApplicationLoadBalancer(event.properties, name);
+      const resolvedLbReference = resolveReferenceToApplicationLoadBalancer(
+        event.properties,
+        name,
+        undefined,
+        true,
+        configManager
+      );
       calculatedStackOverviewManager.addCfChildResource({
         cfLogicalName: cfLogicalNames.listenerRule(
           resolvedLbReference.listenerPort,

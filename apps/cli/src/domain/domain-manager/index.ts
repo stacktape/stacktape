@@ -25,7 +25,7 @@ import { jsonFetch } from '@utils/json-fetch';
 import { areStringArraysContentsEqual } from '@utils/misc';
 import { shortHash } from '@stacktape/naming/short-hash';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import compose from '@utils/basic-compose-shim';
+import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { certificateCoversDomain, getApexDomain, normalizeDomainName } from '@utils/domains';
 import { validateDomain } from '@utils/validator';

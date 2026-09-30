@@ -93,27 +93,44 @@ export type CliSample = {
 
 type ProcessListing = { pid: number; command: string }[];
 
-/** Whether a process is the CLI's telemetry sender, by its arguments. One that has already gone counts as ended. */
-const isTelemetrySender = (pid: number) => {
+/** A listing can outlive its process; Linux also keeps exited processes as zombies until they are reaped. */
+const processStatus = (pid: number): 'sender' | 'other' | 'ended' => {
   try {
-    return readFileSync(`/proc/${pid}/cmdline`, 'utf8').split('\0').includes(TELEMETRY_SENDER_ARGUMENT);
+    const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+    const state = stat.slice(stat.lastIndexOf(')') + 2)[0];
+    if (state === 'Z' || state === 'X') return 'ended';
+    const args = readFileSync(`/proc/${pid}/cmdline`, 'utf8').split('\0');
+    if (args.includes(TELEMETRY_SENDER_ARGUMENT)) return 'sender';
+    // It may have exited between the stat and cmdline reads.
+    if (args.every((argument) => !argument)) {
+      const latest = readFileSync(`/proc/${pid}/stat`, 'utf8');
+      if (['Z', 'X'].includes(latest.slice(latest.lastIndexOf(')') + 2)[0]!)) return 'ended';
+    }
+    return 'other';
   } catch {
-    return !existsSync(`/proc/${pid}`);
+    return existsSync(`/proc/${pid}`) ? 'other' : 'ended';
   }
 };
 
 /** What is left once every telemetry sender has ended or `waitMs` has passed; any other process ends the wait at once. */
 const waitForTelemetrySenders = async (find: () => ProcessListing, waitMs: number) => {
   const startedAt = performance.now();
-  let found = find();
+  const findLive = () =>
+    find()
+      .map((process) => ({ process, status: processStatus(process.pid) }))
+      .filter(({ status }) => status !== 'ended');
+  let found = findLive();
   let sawSender = false;
-  while (found.length > 0 && found.every(({ pid }) => isTelemetrySender(pid))) {
+  while (found.length > 0 && found.every(({ status }) => status === 'sender')) {
     sawSender = true;
     if (performance.now() - startedAt >= waitMs) break;
     await Bun.sleep(10);
-    found = find();
+    found = findLive();
   }
-  return { escaped: found, waitedMs: sawSender ? Math.round(performance.now() - startedAt) : null };
+  return {
+    escaped: found.map(({ process }) => process),
+    waitedMs: sawSender ? Math.round(performance.now() - startedAt) : null
+  };
 };
 
 /** The fixture's clock now, less the time since the exit was seen on the shared monotonic clock. */

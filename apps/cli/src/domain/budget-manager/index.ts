@@ -6,7 +6,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { tagNames } from '@stacktape/naming/tag-names';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import compose from '@utils/basic-compose-shim';
+import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 
 export class BudgetManager {

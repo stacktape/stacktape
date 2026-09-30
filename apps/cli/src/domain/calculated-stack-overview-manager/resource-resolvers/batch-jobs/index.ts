@@ -149,6 +149,7 @@ export const resolveBatchJobs = async () => {
         accessToAtlasMongoClusterResources,
         accessToAwsServices
       } = resolveConnectToList({
+        activeConfig: configManager,
         stpResourceNameOfReferencer: name,
         stpResourceTypeOfReferencer: definition.type,
         connectTo: definition.connectTo

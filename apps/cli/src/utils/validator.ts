@@ -1,3 +1,4 @@
+import type { getAwsCredentialsIdentity } from 'src/aws/identity';
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 import type { AnyCloudFormationResource } from '@stacktape/cloudformation/resource';
 import type {
@@ -8,7 +9,6 @@ import type {
 import type { DriftDetail } from '@domain-services/cloudformation-stack-manager/types';
 import type { StacktapeArgs } from 'src/config/cli/types';
 import type { Script } from '@domain-services/config-manager/resolved-types/resources';
-import { globalStateManager } from '@application-services/global-state-manager';
 import type { LoadedAwsCredentials, ValidatedAwsCredentials } from 'src/aws/credentials';
 import { SUPPORTED_AWS_REGIONS, type SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regions';
 import { isAlphanumeric, isSmallAlphanumericDashCase } from '@utils/misc';
@@ -44,8 +44,8 @@ export const validateUniqueness = (
   }
 };
 
-export const validateStackDrift = (driftInformation: DriftDetail[]) => {
-  if (globalStateManager.command === 'deploy' && driftInformation && driftInformation.length) {
+export const validateStackDrift = (driftInformation: DriftDetail[], command: StacktapeCommand) => {
+  if (command === 'deploy' && driftInformation && driftInformation.length) {
     throw new CliError({
       category: 'EXISTING_STACK',
       code: 'STACK_DRIFT_DETECTED',
@@ -400,15 +400,17 @@ export const validateAwsAccountUsability = ({
 export const validateCredentialsWithRespectToAccount = async ({
   targetAccount,
   credentials,
-  profile
+  profile,
+  identityContext
 }: {
   targetAccount: GlobalStateConnectedAwsAccount;
+  identityContext: Omit<Parameters<typeof getAwsCredentialsIdentity>[0], 'credentials'>;
   credentials: LoadedAwsCredentials;
   profile?: string;
 }): Promise<ValidatedAwsCredentials> => {
   // Imported on use: this module loads with every command, and the STS client is only needed here.
-  const { getAwsCredentialsIdentity } = await import('./aws-sdk-manager/utils');
-  const identity = await getAwsCredentialsIdentity({ credentials });
+  const { getAwsCredentialsIdentity } = await import('src/aws/identity');
+  const identity = await getAwsCredentialsIdentity({ credentials, ...identityContext });
   if (identity.Account !== targetAccount.awsAccountId) {
     throw new CliError({
       category: 'AWS_ACCOUNT',

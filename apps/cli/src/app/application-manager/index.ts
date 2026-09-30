@@ -1,3 +1,4 @@
+import { pendingOperations } from '../command-lifecycle/pending-operations';
 import type { CleanupHookFunction } from './types';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager, UserCancelledError } from '@application-services/tui-manager';
@@ -34,10 +35,6 @@ export const normalizeCliError = (value: unknown): HandledError => {
 export class ApplicationManager {
   cleanUpHooks: CleanupHookFunction[] = [];
   isInitialized = false;
-  pendingCancellablePromises: {
-    [id: string]: { promise?: Promise<any>; rejectFn: (...args: any[]) => any; name: string };
-  } = {};
-
   isErrored: boolean;
   // by SIGINT, etc.
   isInterrupted = false;
@@ -222,9 +219,7 @@ export class ApplicationManager {
   };
 
   private cancelPendingPromises = (err: Error) => {
-    Object.values(this.pendingCancellablePromises).forEach(({ rejectFn }) => {
-      rejectFn(err);
-    });
+    pendingOperations.cancelAll(err);
   };
 
   private handleUnhandledError = async ({

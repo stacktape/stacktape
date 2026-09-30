@@ -16,11 +16,10 @@ import {
 } from '@domain-services/config-manager/utils/synthetic-tests';
 import { configErrors } from '@domain-services/config-manager/errors';
 import { templateManager } from '@domain-services/template-manager';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { tagNames } from '@stacktape/naming/tag-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { isDevCommand } from '../../../../commands/dev/dev-mode-utils';
+
 import { transformToUnixPath } from '@utils/fs-utils';
 import { processAllNodes } from '@utils/misc';
 import { transformIntoCloudformationSubstitutedString } from '@utils/cloudformation';
@@ -35,7 +34,7 @@ import { addSharedAlarmNotificationPermission } from '../_utils/alarms';
 const bundleSyntheticScript = async (test: StpSyntheticTest): Promise<string> => {
   const scriptPath = isAbsolute(test.test.properties.scriptPath)
     ? test.test.properties.scriptPath
-    : join(globalStateManager.workingDir, test.test.properties.scriptPath);
+    : join(calculatedStackOverviewManager.context.workingDir, test.test.properties.scriptPath);
   if (!existsSync(scriptPath)) {
     throw configErrors.syntheticTestScriptInvalid({
       testName: test.name,
@@ -219,7 +218,7 @@ const getAlarmNotificationRule = ({ test, canaryName }: { test: StpSyntheticTest
 export const resolveSyntheticTests = async () => {
   const { syntheticTests } = configManager;
   // Dev stacks are short-lived working copies; a scheduled canary there only burns runs.
-  if (!syntheticTests.length || isDevCommand()) {
+  if (!syntheticTests.length || calculatedStackOverviewManager.context.command === 'dev') {
     return;
   }
   const { stackName, globallyUniqueStackHash } = calculatedStackOverviewManager.context;

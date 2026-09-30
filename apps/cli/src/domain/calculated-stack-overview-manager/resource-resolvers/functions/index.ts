@@ -14,7 +14,7 @@ import { configManager } from '@domain-services/config-manager';
 import { resolveReferencesToMountedEfsFilesystems } from '@domain-services/config-manager/utils/efs-filesystems';
 import { getLambdaRuntime, getLambdaTracingRoleStatements } from '@domain-services/config-manager/utils/lambdas';
 import { tuiManager } from '@application-services/tui-manager';
-import { isDevCommand } from '../../../../commands/dev/dev-mode-utils';
+
 import { resolveConnectToList } from '@domain-services/config-manager/utils/resource-references';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { domainManager } from '@domain-services/domain-manager';
@@ -181,6 +181,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     accessToAtlasMongoClusterResources,
     accessToAwsServices
   } = resolveConnectToList({
+    activeConfig: configManager,
     stpResourceNameOfReferencer: name,
     stpResourceTypeOfReferencer: lambdaProps.configParentResourceType,
     connectTo: effectiveConnectTo
@@ -203,9 +204,10 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
 
   // Tracing instrumentation is skipped in dev mode together with the Transaction Search enablement
   // custom resource; without that account-level setting the layer's span export would only error.
-  const tracedFunction = isDevCommand()
-    ? undefined
-    : configManager.lambdaTracingInstrumentations.find(({ name: tracedName }) => tracedName === name);
+  const tracedFunction =
+    calculatedStackOverviewManager.context.command === 'dev'
+      ? undefined
+      : configManager.lambdaTracingInstrumentations.find(({ name: tracedName }) => tracedName === name);
   if (tracedFunction?.skippedReason) {
     tuiManager.warn(`Tracing skipped for function \`${name}\`: ${tracedFunction.skippedReason}.`);
   }

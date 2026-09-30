@@ -1,3 +1,4 @@
+import { configManager } from '@domain-services/config-manager';
 import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
 import { cfnResource } from '@stacktape/cloudformation/resource';
 import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
@@ -35,6 +36,7 @@ export const resolveHttpApiEvents = ({
       const { authorizer, method, path, httpApiGatewayName, payloadFormat } = event.properties;
       referencedHttpApiGateways.add(httpApiGatewayName);
       const httpApiGatewayInfo = resolveReferenceToHttpApiGateway({
+        activeConfig: configManager,
         stpResourceReference: httpApiGatewayName,
         referencedFromType: configParentResourceType as StpWorkloadType,
         referencedFrom: name
@@ -78,6 +80,7 @@ export const resolveHttpApiEvents = ({
         });
         if (authorizer.type === 'lambda') {
           const authorizerLambdaProps = resolveReferenceToLambdaFunction({
+            activeConfig: configManager,
             stpResourceReference: authorizer.properties.functionName,
             referencedFrom: name,
             referencedFromType: 'multi-container-workload'
@@ -115,6 +118,7 @@ export const resolveHttpApiEvents = ({
   const lambdaEndpointArn = aliasLogicalName ? ref(aliasLogicalName) : getAtt(cfLogicalName, 'Arn');
   Array.from(referencedHttpApiGateways).forEach((stpHttpApiGatewayReference) => {
     const httpApiGatewayInfo = resolveReferenceToHttpApiGateway({
+      activeConfig: configManager,
       stpResourceReference: stpHttpApiGatewayReference,
       referencedFromType: configParentResourceType as StpWorkloadType,
       referencedFrom: name

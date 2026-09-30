@@ -1,3 +1,4 @@
+import { resetDomainServiceInitialization } from '@utils/decorators';
 /**
  * One packaging run, through the CLI's own `packageAllWorkloads`, for the Docker preparation acceptance.
  *
@@ -225,7 +226,7 @@ const main = async () => {
     primaryRegions: [REGION],
     defaultRegion: REGION
   };
-  globalStateManager.initializedDomainServices = [];
+  resetDomainServiceInitialization();
   globalStateManager.isInitialized = true;
   globalStateManager.targetStack = {
     stackName: STACK_NAME,
@@ -254,6 +255,7 @@ const main = async () => {
       openSearchInstanceTypes: configManager.allUsedOpenSearchVersionsAndInstanceTypes
     });
     await deploymentArtifactManager.init({
+      packagingSource: packagingManager,
       accountId: ACCOUNT_ID,
       globallyUniqueStackHash: STACK_HASH,
       stackActionType: stackManager.stackActionType

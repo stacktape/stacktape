@@ -16,8 +16,9 @@ import { UNKNOWN_CLOUDFORMATION_PRIVATE_TYPE_VERSION_IDENTIFIER } from 'src/conf
 import { wait } from '@utils/misc';
 import { parseYaml } from '@utils/yaml';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import { loggingPlugin } from '@utils/aws-sdk-manager/utils';
-import compose from '@utils/basic-compose-shim';
+import { createAwsLoggingPlugin } from 'src/aws/client-instrumentation';
+import { tuiManager } from '@application-services/tui-manager';
+import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { pRateLimit } from 'p-ratelimit';
 
@@ -56,7 +57,9 @@ export class CloudformationRegistryManager {
       credentials: globalStateManager.credentials,
       requestHandler: createFetchHandler()
     });
-    privateTypePackagesS3Client.middlewareStack.use(loggingPlugin);
+    privateTypePackagesS3Client.middlewareStack.use(
+      createAwsLoggingPlugin({ printer: tuiManager, isDebug: () => globalStateManager.logLevel === 'debug' })
+    );
     privateTypePackagesS3Client.middlewareStack.use(retryPlugin);
 
     return privateTypePackagesS3Client;

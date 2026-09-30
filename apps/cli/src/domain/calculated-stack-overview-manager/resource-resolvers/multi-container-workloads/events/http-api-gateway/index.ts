@@ -1,3 +1,4 @@
+import { configManager } from '@domain-services/config-manager';
 import { cfnResource } from '@stacktape/cloudformation/resource';
 import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpHttpApiGateway } from '@domain-services/config-manager/resolved-types/http-api-gateways';
@@ -28,6 +29,7 @@ export const resolveHttpApiEvents = (definition: StpContainerWorkload) => {
       const { authorizer, method, path, httpApiGatewayName, payloadFormat } = event.properties;
       referencedHttpApiGateways.add(httpApiGatewayName);
       const httpApiGatewayInfo = resolveReferenceToHttpApiGateway({
+        activeConfig: configManager,
         stpResourceReference: httpApiGatewayName,
         referencedFromType: definition.configParentResourceType as StpWorkloadType,
         referencedFrom: definition.name
@@ -85,6 +87,7 @@ export const resolveHttpApiEvents = (definition: StpContainerWorkload) => {
         });
         if (authorizer.type === 'lambda') {
           const authorizerLambdaProps = resolveReferenceToLambdaFunction({
+            activeConfig: configManager,
             stpResourceReference: authorizer.properties.functionName,
             referencedFrom: definition.name
           });
@@ -120,6 +123,7 @@ export const resolveHttpApiEvents = (definition: StpContainerWorkload) => {
   // there will be at most one integration per gateway for the given workload, because each compute resource can only have one port as targeted port
   Array.from(referencedHttpApiGateways).forEach((stpHttpApiGatewayReference) => {
     const httpApiGatewayInfo = resolveReferenceToHttpApiGateway({
+      activeConfig: configManager,
       stpResourceReference: stpHttpApiGatewayReference,
       referencedFromType: definition.type,
       referencedFrom: definition.name

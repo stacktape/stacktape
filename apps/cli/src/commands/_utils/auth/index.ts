@@ -7,7 +7,6 @@ import {
   authenticateWithGoogle,
   resendConfirmationCode
 } from './cognito-client';
-import { globalStateManager } from '@application-services/global-state-manager';
 
 export type AuthResult = {
   success: boolean;
@@ -15,8 +14,8 @@ export type AuthResult = {
   error?: string;
 };
 
-export const runAuthFlow = async (): Promise<AuthResult> => {
-  if (globalStateManager.command !== 'login') {
+export const runAuthFlow = async ({ command }: { command: string }): Promise<AuthResult> => {
+  if (command !== 'login') {
     tuiManager.info(tuiManager.makeBold('Authentication required'));
   }
 

@@ -14,7 +14,7 @@ import merge from 'lodash/merge';
 import set from 'lodash/set';
 import type { ResourceOverrides } from '@stacktape/config/shared';
 import { CliError, getUserCodeStackTrace } from '@utils/errors';
-import { shouldExcludeResourceInDevMode } from '../../commands/dev/dev-resource-filter';
+import { shouldExcludeResourceInDevMode } from '@domain-services/config-manager/dev-mode';
 import { templateManager } from '.';
 import { validateImmutableLogGroupClasses, validateInfrequentAccessSubscriptions } from './log-group-class';
 
@@ -64,7 +64,7 @@ const applyResourceOverrides = () => {
     }
     // An override still describes the normal remote resource when dev mode intentionally keeps that resource local.
     // The same resource is validated normally as soon as it is selected for remote use.
-    if (shouldExcludeResourceInDevMode(resource.name, resource.type)) {
+    if (shouldExcludeResourceInDevMode(resource.name, resource.type, configManager.deploymentContext)) {
       return;
     }
 

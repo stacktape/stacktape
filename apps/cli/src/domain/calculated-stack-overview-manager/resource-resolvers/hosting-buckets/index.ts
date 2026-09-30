@@ -1,10 +1,10 @@
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
-import { filterResourcesForDevMode } from '../../../../commands/dev/dev-resource-filter';
+import { filterResourcesForDevMode } from '@domain-services/config-manager/dev-mode';
 import { resolveBucket } from '../buckets';
 
 export const resolveHostingBuckets = async () => {
-  const hostingBuckets = filterResourcesForDevMode(configManager.hostingBuckets);
+  const hostingBuckets = filterResourcesForDevMode(configManager.hostingBuckets, configManager.deploymentContext);
   hostingBuckets.forEach(({ nameChain, _nestedResources: { bucket } }) => {
     resolveBucket({ definition: bucket });
 

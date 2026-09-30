@@ -5,7 +5,7 @@ import { calculatedStackOverviewManager } from '@domain-services/calculated-stac
 import { configManager } from '@domain-services/config-manager';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { transformIntoCloudformationSubstitutedString } from '@utils/cloudformation';
-import { filterResourcesForDevMode } from '../../../../commands/dev/dev-resource-filter';
+import { filterResourcesForDevMode } from '@domain-services/config-manager/dev-mode';
 import { resolveFunction } from '../functions';
 import { getEventBusRuleLambdaPermission } from '../functions/events/utils';
 
@@ -37,7 +37,7 @@ const getScheduledTaggingEventBridgeRule = () => {
         ]
       : [],
     tagNetworkInterfaceWithSecurityGroup: [
-      ...filterResourcesForDevMode(configManager.databases).map(({ name }) => {
+      ...filterResourcesForDevMode(configManager.databases, configManager.deploymentContext).map(({ name }) => {
         return {
           securityGroupId: ref(cfLogicalNames.dbSecurityGroup(name)),
           attributionCfResourceLogicalName: cfLogicalNames.dbSubnetGroup(name)

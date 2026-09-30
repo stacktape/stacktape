@@ -98,7 +98,7 @@ export const getAtlasMongoProjectIpAccessList = () => {
   const securityGroupsToAllowAccess = Array.from(
     new Set(
       configManager.atlasMongoClusters
-        .map(({ nameChain }) => getConnectToReferencesForResource({ nameChain }))
+        .map(({ nameChain }) => getConnectToReferencesForResource({ activeConfig: configManager, nameChain }))
         .flat()
         .map(({ scopingCfLogicalNameOfSecurityGroup }) => scopingCfLogicalNameOfSecurityGroup)
     )

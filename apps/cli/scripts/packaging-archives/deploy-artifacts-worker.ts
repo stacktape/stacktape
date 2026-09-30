@@ -1,3 +1,4 @@
+import { resetDomainServiceInitialization } from '@utils/decorators';
 /**
  * One deployment's packaging and artifact upload, run through the CLI's own deploy code, for the production cache
  * scenario of the Lambda archive acceptance.
@@ -269,7 +270,7 @@ const main = async () => {
     primaryRegions: [REGION],
     defaultRegion: REGION
   };
-  globalStateManager.initializedDomainServices = [];
+  resetDomainServiceInitialization();
   globalStateManager.isInitialized = true;
   globalStateManager.targetStack = {
     stackName: STACK_NAME,
@@ -301,6 +302,7 @@ const main = async () => {
     templateManager.init({ stackDetails: stackManager.existingStackDetails, stackName: STACK_NAME }),
     calculatedStackOverviewManager.init({ context: stackContext }),
     deploymentArtifactManager.init({
+      packagingSource: packagingManager,
       accountId: '123456789999',
       globallyUniqueStackHash: stackHash,
       stackActionType: stackManager.stackActionType

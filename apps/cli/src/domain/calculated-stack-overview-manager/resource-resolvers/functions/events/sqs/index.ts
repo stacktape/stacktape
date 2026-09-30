@@ -1,3 +1,4 @@
+import { configManager } from '@domain-services/config-manager';
 import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
 import { cfnResource } from '@stacktape/cloudformation/resource';
 import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
@@ -43,6 +44,7 @@ export const resolveSqsEvents = ({
       }
       if (event.properties.sqsQueueName) {
         resolveReferenceToSqsQueue({
+          activeConfig: configManager,
           stpResourceReference: event.properties.sqsQueueName,
           referencedFrom: name,
           referencedFromType: configParentResourceType

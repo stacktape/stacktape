@@ -1,5 +1,6 @@
+import { configManager } from '@domain-services/config-manager';
 import type { StpCdnAttachableResourceType } from '@domain-services/config-manager/resolved-types/resources';
-import { getPropsOfResourceReferencedInConfig } from './resource-references';
+import { getPropsOfResourceReferencedInConfig } from './resource-lookup';
 import { configErrors } from '../errors';
 
 export const resolveReferenceToFirewall = ({
@@ -14,6 +15,7 @@ export const resolveReferenceToFirewall = ({
   cdn?: boolean;
 }) => {
   const firewall = getPropsOfResourceReferencedInConfig({
+    activeConfig: configManager,
     stpResourceReference,
     stpResourceType: 'web-app-firewall',
     referencedFrom,

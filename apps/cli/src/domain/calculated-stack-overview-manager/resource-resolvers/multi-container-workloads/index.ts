@@ -14,7 +14,7 @@ import { resolveReferencesToMountedEfsFilesystems } from '@domain-services/confi
 import { resolveConnectToList } from '@domain-services/config-manager/utils/resource-references';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { templateManager, type TemplateManager } from '@domain-services/template-manager';
-import { filterResourcesForDevMode } from '../../../../commands/dev/dev-resource-filter';
+import { filterResourcesForDevMode } from '@domain-services/config-manager/dev-mode';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfEvaluatedLinks } from '@domain-services/calculated-stack-overview-manager/cloudformation-links';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
@@ -65,10 +65,12 @@ import {
 } from '@domain-services/config-manager/utils/container-tracing';
 import { tuiManager } from '@application-services/tui-manager';
 import { CliError } from '@utils/errors';
-import { isDevCommand } from '../../../../commands/dev/dev-mode-utils';
 
 export const resolveContainerWorkloads = () => {
-  const containerWorkloads = filterResourcesForDevMode(configManager.containerWorkloads);
+  const containerWorkloads = filterResourcesForDevMode(
+    configManager.containerWorkloads,
+    configManager.deploymentContext
+  );
   if (containerWorkloads.length) {
     containerWorkloads.forEach((definition) => resolveContainerWorkload({ definition }));
   }
@@ -99,7 +101,7 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
   const { nameChain } = definition;
   const workloadTracing = getWorkloadTracing(definition);
   if (
-    !isDevCommand() &&
+    !(calculatedStackOverviewManager.context.command === 'dev') &&
     definition.resources.instanceTypes &&
     configManager.tracedContainerWorkloads.some(({ name }) => name === definition.name)
   ) {
@@ -446,6 +448,7 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
   resolveNetworkLoadBalancerEvents({ definition });
   const { accessToResourcesRequiringRoleChanges, accessToAtlasMongoClusterResources, accessToAwsServices } =
     resolveConnectToList({
+      activeConfig: configManager,
       stpResourceNameOfReferencer: definition.name,
       stpResourceTypeOfReferencer: definition.type,
       connectTo: definition.connectTo

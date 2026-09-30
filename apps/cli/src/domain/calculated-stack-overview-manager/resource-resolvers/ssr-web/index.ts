@@ -10,7 +10,7 @@ import { templateManager } from '@domain-services/template-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { fsPaths } from 'src/config/runtime-paths';
-import { filterResourcesForDevMode } from '../../../../commands/dev/dev-resource-filter';
+import { filterResourcesForDevMode } from '@domain-services/config-manager/dev-mode';
 import { resolveBucket } from '../buckets';
 import { resolveFunction } from '../functions';
 import {
@@ -70,31 +70,31 @@ const resolveSsrWeb = (ssrWeb: SsrWebResource, resourceType: SsrWebResourceType)
 };
 
 export const resolveAstroWebs = async () => {
-  const astroWebs = filterResourcesForDevMode(configManager.astroWebs);
+  const astroWebs = filterResourcesForDevMode(configManager.astroWebs, configManager.deploymentContext);
   astroWebs.forEach((astroWeb) => resolveSsrWeb(astroWeb, 'astro-web'));
 };
 
 export const resolveNuxtWebs = async () => {
-  const nuxtWebs = filterResourcesForDevMode(configManager.nuxtWebs);
+  const nuxtWebs = filterResourcesForDevMode(configManager.nuxtWebs, configManager.deploymentContext);
   nuxtWebs.forEach((nuxtWeb) => resolveSsrWeb(nuxtWeb, 'nuxt-web'));
 };
 
 export const resolveSvelteKitWebs = async () => {
-  const sveltekitWebs = filterResourcesForDevMode(configManager.sveltekitWebs);
+  const sveltekitWebs = filterResourcesForDevMode(configManager.sveltekitWebs, configManager.deploymentContext);
   sveltekitWebs.forEach((sveltekitWeb) => resolveSsrWeb(sveltekitWeb, 'sveltekit-web'));
 };
 
 export const resolveSolidStartWebs = async () => {
-  const solidstartWebs = filterResourcesForDevMode(configManager.solidstartWebs);
+  const solidstartWebs = filterResourcesForDevMode(configManager.solidstartWebs, configManager.deploymentContext);
   solidstartWebs.forEach((solidstartWeb) => resolveSsrWeb(solidstartWeb, 'solidstart-web'));
 };
 
 export const resolveTanStackWebs = async () => {
-  const tanstackWebs = filterResourcesForDevMode(configManager.tanstackWebs);
+  const tanstackWebs = filterResourcesForDevMode(configManager.tanstackWebs, configManager.deploymentContext);
   tanstackWebs.forEach((tanstackWeb) => resolveSsrWeb(tanstackWeb, 'tanstack-web'));
 };
 
 export const resolveRemixWebs = async () => {
-  const remixWebs = filterResourcesForDevMode(configManager.remixWebs);
+  const remixWebs = filterResourcesForDevMode(configManager.remixWebs, configManager.deploymentContext);
   remixWebs.forEach((remixWeb) => resolveSsrWeb(remixWeb, 'remix-web'));
 };

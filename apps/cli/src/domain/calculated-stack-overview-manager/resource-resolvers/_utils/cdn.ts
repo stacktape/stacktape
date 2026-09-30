@@ -547,6 +547,7 @@ const buildBucketOrigin = ({
   forwardingOptions: CdnForwardingOptions | undefined;
 }): Origin => {
   const { name: bucketStpName } = resolveReferenceToBucket({
+    activeConfig: configManager,
     stpResourceReference: stpBucketReference,
     referencedFrom: stpResourceNameOfReferencer
   });
@@ -592,6 +593,7 @@ const buildHttpApiOrigin = ({
   // we do not need to save result
   // we are only checking if referenced http api gateway really exists
   const { name: httpApiGatewayStpName } = resolveReferenceToHttpApiGateway({
+    activeConfig: configManager,
     stpResourceReference: stpHttpApiGatewayReference,
     referencedFrom: stpResourceNameOfReferencer
   });
@@ -628,6 +630,7 @@ const buildLambdaFunctionOrigin = ({
   // we do not need to save result
   // we are only checking if referenced http api gateway really exists
   const { name: stpFunctionName } = resolveReferenceToLambdaFunction({
+    activeConfig: configManager,
     stpResourceReference: stpFunctionReference,
     referencedFrom: stpResourceNameOfReferencer
   });
@@ -696,7 +699,10 @@ const buildLoadBalancerOrigin = ({
 }): Origin => {
   const resolvedReference = resolveReferenceToApplicationLoadBalancer(
     targetLoadBalancerReference,
-    stpResourceNameOfReferencer
+    stpResourceNameOfReferencer,
+    undefined,
+    true,
+    configManager
   );
   const lbOriginProps = determineLoadBalancerOriginProperties(resolvedReference, explicitOriginDomainName);
 
@@ -1285,6 +1291,7 @@ const buildBucketCacheBehaviour = ({
   cacheBehaviourIndex: number;
 }) => {
   const { name: stpBucketName } = resolveReferenceToBucket({
+    activeConfig: configManager,
     stpResourceReference: stpTargetBucketReference,
     referencedFrom: stpResourceName
   });
@@ -1325,6 +1332,7 @@ const buildHttpApiGatewayCacheBehaviour = ({
   cacheBehaviourIndex: number;
 }) => {
   const { name: stpHttpApiGatewayName } = resolveReferenceToHttpApiGateway({
+    activeConfig: configManager,
     stpResourceReference: stpHttpApiGatewayReference,
     referencedFrom: stpResourceName
   });
@@ -1362,6 +1370,7 @@ const buildLambdaFunctionCacheBehaviour = ({
   cacheBehaviourIndex: number;
 }) => {
   const { name: stpLambdaFunctionName } = resolveReferenceToLambdaFunction({
+    activeConfig: configManager,
     stpResourceReference: stpLambdaFunctionReference,
     referencedFrom: stpResourceName
   });
@@ -1399,7 +1408,13 @@ const buildLoadBalancerCacheBehaviour = ({
   targetLoadBalancerReference: ApplicationLoadBalancerIntegrationProps;
   cacheBehaviourIndex: number;
 }) => {
-  const resolvedLbReference = resolveReferenceToApplicationLoadBalancer(targetLoadBalancerReference, stpResourceName);
+  const resolvedLbReference = resolveReferenceToApplicationLoadBalancer(
+    targetLoadBalancerReference,
+    stpResourceName,
+    undefined,
+    true,
+    configManager
+  );
 
   const { cloudfrontFunctions, edgeLambdaFunctions } = getCustomEdgeFunctionsAssociations({
     stpResourceName,

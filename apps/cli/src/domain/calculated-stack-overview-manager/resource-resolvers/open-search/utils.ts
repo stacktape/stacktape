@@ -1,3 +1,4 @@
+import { configManager } from '@domain-services/config-manager';
 import type { ClusterConfig, DomainProperties } from '@stacktape/cloudformation/resources/aws-opensearchservice-domain';
 import type { Ingress } from '@stacktape/cloudformation/resources/aws-ec2-securitygroup';
 import { cfnResource } from '@stacktape/cloudformation/resource';
@@ -160,7 +161,7 @@ export const getOpenSearchDomainSecurityGroup = ({ resource }: { resource: StpOp
     resource.accessibility.accessibilityMode === 'vpc'
       ? [{ CidrIp: vpcManager.getVpcCidr(), FromPort: 443, ToPort: 443, IpProtocol: 'tcp' }]
       : resource.accessibility.accessibilityMode === 'scoping-workloads-in-vpc'
-        ? getConnectToReferencesForResource({ nameChain: resource.nameChain }).map(
+        ? getConnectToReferencesForResource({ activeConfig: configManager, nameChain: resource.nameChain }).map(
             ({ scopingCfLogicalNameOfSecurityGroup }) => ({
               SourceSecurityGroupId: ref(scopingCfLogicalNameOfSecurityGroup),
               FromPort: 443,

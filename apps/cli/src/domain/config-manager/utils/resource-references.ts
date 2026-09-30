@@ -1,3 +1,4 @@
+import type { ConfigManager } from '../index';
 import type { StpMongoDbAtlasCluster } from '@domain-services/config-manager/resolved-types/mongo-db-atlas-clusters';
 import type {
   StpResource,
@@ -8,48 +9,27 @@ import type {
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { CliError } from '@utils/errors';
 import {
-  isDevCommand,
   isResourceTypeExcludedInDevMode,
   isResourceTypeLocallyEmulatable,
   isResourceTypeRemoteOnlyInDevMode
-} from '../../../commands/dev/dev-mode-utils';
-import { configManager as runtimeConfigManager } from '../index';
-import { getRemoteResourceNames } from '../../../commands/dev/local-resources';
-import { getPropsOfResourceReferencedInConfig as getReferencedResource, type ResourceLookup } from './resource-lookup';
+} from '@domain-services/config-manager/dev-mode';
 
-export const getPropsOfResourceReferencedInConfig = <T extends StpResourceType>({
-  activeConfig = runtimeConfigManager,
-  stpResourceReference,
-  stpResourceType,
-  referencedFrom,
-  referencedFromType
-}: {
-  activeConfig?: ResourceLookup;
-  stpResourceReference: string;
-  stpResourceType?: T;
-  referencedFrom: string;
-  referencedFromType?: StpResourceType | 'alarm';
-}) =>
-  getReferencedResource<T>({
-    activeConfig,
-    stpResourceReference,
-    stpResourceType,
-    referencedFrom,
-    referencedFromType
-  });
+import { getPropsOfResourceReferencedInConfig } from './resource-lookup';
 
 export const getConnectToReferencesForResource = ({
+  activeConfig,
   nameChain
 }: {
+  activeConfig: ConfigManager;
   nameChain: string | string[];
 }): { scopingResource: StpResource; scopingCfLogicalNameOfSecurityGroup?: string }[] => {
   const resourceReferenceableName = typeof nameChain === 'string' ? nameChain : nameChain.join('.');
   const result: { scopingResource: StpResource; scopingCfLogicalNameOfSecurityGroup?: string }[] = [];
   [
-    ...runtimeConfigManager.allLambdasToUpload,
-    ...runtimeConfigManager.allContainerWorkloads,
-    ...runtimeConfigManager.batchJobs,
-    ...runtimeConfigManager.agentCoreRuntimes
+    ...activeConfig.allLambdasToUpload,
+    ...activeConfig.allContainerWorkloads,
+    ...activeConfig.batchJobs,
+    ...activeConfig.agentCoreRuntimes
   ].forEach((scopingResource) => {
     const { name, connectTo, type } = scopingResource;
     if (connectTo) {
@@ -73,13 +53,13 @@ export const resolveConnectToList = ({
   stpResourceTypeOfReferencer,
   connectTo,
   checkingDefaults,
-  activeConfig = runtimeConfigManager
+  activeConfig
 }: {
   stpResourceNameOfReferencer: string;
   stpResourceTypeOfReferencer?: StpResourceType;
   connectTo: string[];
   checkingDefaults?: boolean;
-  activeConfig?: ResourceLookup;
+  activeConfig: Pick<ConfigManager, 'findResourceInConfig' | 'deploymentContext'>;
 }): {
   accessToResourcesRequiringRoleChanges: StpResourceScopableByConnectToAffectingRole[];
   accessToAwsServices: never[];
@@ -106,7 +86,7 @@ export const resolveConnectToList = ({
 
     // In dev mode, skip resources that are excluded from the CloudFormation template
     // (locally emulated or locally run resources don't have CF resources created)
-    if (isDevCommand()) {
+    if (activeConfig.deploymentContext.command === 'dev') {
       if (isResourceTypeExcludedInDevMode(resource.type)) {
         // Locally run resources (containers, frontends) - skip entirely
         return;
@@ -117,7 +97,7 @@ export const resolveConnectToList = ({
         return;
       }
       if (isResourceTypeRemoteOnlyInDevMode(resource.type)) {
-        const isRemote = getRemoteResourceNames().has(resource.name);
+        const isRemote = activeConfig.deploymentContext.remoteResourceNames.has(resource.name);
         if (!isRemote) return;
       }
     }

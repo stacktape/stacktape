@@ -1,3 +1,4 @@
+import { configManager } from '@domain-services/config-manager';
 import { cfnResource } from '@stacktape/cloudformation/resource';
 import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type {
@@ -30,6 +31,7 @@ export const resolveSnsEvents = ({
       }
       if (snsTopicName) {
         const topic = resolveReferenceToSnsTopic({
+          activeConfig: configManager,
           stpResourceReference: snsTopicName,
           referencedFrom: name,
           referencedFromType: configParentResourceType
@@ -59,6 +61,7 @@ export const resolveSnsEvents = ({
 
       if (onDeliveryFailure?.sqsQueueName) {
         resolveReferenceToSqsQueue({
+          activeConfig: configManager,
           referencedFrom: name,
           stpResourceReference: onDeliveryFailure?.sqsQueueName,
           referencedFromType: lambdaFunction.configParentResourceType

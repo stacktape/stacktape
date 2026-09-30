@@ -10,8 +10,8 @@ import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { consoleLinks } from '@stacktape/naming/console-links';
 import { CliError } from '@utils/errors';
 import { getConnectToReferencesForResource } from '@domain-services/config-manager/utils/resource-references';
-import { filterResourcesForDevMode } from '../../../../commands/dev/dev-resource-filter';
-import { shouldExcludeResourceInDevMode } from '../../../../commands/dev/dev-resource-filter';
+import { filterResourcesForDevMode } from '@domain-services/config-manager/dev-mode';
+import { shouldExcludeResourceInDevMode } from '@domain-services/config-manager/dev-mode';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';
 
 export const getKafkaCluster = ({ resource }: { resource: StpKafkaCluster }) =>
@@ -31,7 +31,10 @@ export const getKafkaCluster = ({ resource }: { resource: StpKafkaCluster }) =>
 
 export const getKafkaClusterSecurityGroup = ({
   resource,
-  connectToReferences = getConnectToReferencesForResource({ nameChain: resource.nameChain })
+  connectToReferences = getConnectToReferencesForResource({
+    activeConfig: configManager,
+    nameChain: resource.nameChain
+  })
 }: {
   resource: StpKafkaCluster;
   connectToReferences?: ReturnType<typeof getConnectToReferencesForResource>;
@@ -44,7 +47,10 @@ export const getKafkaClusterSecurityGroup = ({
     ),
     SecurityGroupIngress: [
       ...connectToReferences
-        .filter(({ scopingResource }) => !shouldExcludeResourceInDevMode(scopingResource.name, scopingResource.type))
+        .filter(
+          ({ scopingResource }) =>
+            !shouldExcludeResourceInDevMode(scopingResource.name, scopingResource.type, configManager.deploymentContext)
+        )
         .filter(({ scopingCfLogicalNameOfSecurityGroup }) => scopingCfLogicalNameOfSecurityGroup)
         .map(({ scopingCfLogicalNameOfSecurityGroup }) => ({
           SourceSecurityGroupId: ref(scopingCfLogicalNameOfSecurityGroup!),
@@ -117,7 +123,7 @@ export const resolveKafkaCluster = ({ resource }: { resource: StpKafkaCluster })
 };
 
 export const resolveKafkaClusters = () => {
-  const clusters = filterResourcesForDevMode(configManager.kafkaClusters);
+  const clusters = filterResourcesForDevMode(configManager.kafkaClusters, configManager.deploymentContext);
   if (clusters.length && !MSK_SERVERLESS_REGIONS.includes(calculatedStackOverviewManager.context.region as never)) {
     throw new CliError({
       category: 'CONFIG_VALIDATION',

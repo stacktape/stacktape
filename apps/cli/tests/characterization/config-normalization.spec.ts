@@ -512,7 +512,11 @@ describe('load balancer listener normalization', () => {
   test('supplies the default HTTP redirect and HTTPS listeners when none were authored', () => {
     const listeners = withSingletonConfig(
       { lb: { type: 'application-load-balancer' } },
-      () => transformLoadBalancerToListenerForm({ definition: configManager.applicationLoadBalancers[0] }).listeners
+      () =>
+        transformLoadBalancerToListenerForm({
+          activeConfig: configManager,
+          definition: configManager.applicationLoadBalancers[0]
+        }).listeners
     );
 
     expect(listeners).toEqual([
@@ -531,6 +535,7 @@ describe('load balancer listener normalization', () => {
       () => {
         const loadBalancer = configManager.applicationLoadBalancers[0];
         const listenerForm: StpApplicationLoadBalancer = transformLoadBalancerToListenerForm({
+          activeConfig: configManager,
           definition: loadBalancer
         });
         return { definition: loadBalancer, transformed: listenerForm };
@@ -544,7 +549,11 @@ describe('load balancer listener normalization', () => {
   test('does not add a test listener when no workload requires one', () => {
     const listeners = withSingletonConfig(
       { lb: { type: 'application-load-balancer' } },
-      () => transformLoadBalancerToListenerForm({ definition: configManager.applicationLoadBalancers[0] }).listeners
+      () =>
+        transformLoadBalancerToListenerForm({
+          activeConfig: configManager,
+          definition: configManager.applicationLoadBalancers[0]
+        }).listeners
     );
 
     expect(listeners.map(({ port }) => port)).not.toContain(DEFAULT_TEST_LISTENER_PORT);
@@ -574,7 +583,11 @@ describe('load balancer listener normalization', () => {
           }
         }
       },
-      () => transformLoadBalancerToListenerForm({ definition: configManager.applicationLoadBalancers[0] }).listeners
+      () =>
+        transformLoadBalancerToListenerForm({
+          activeConfig: configManager,
+          definition: configManager.applicationLoadBalancers[0]
+        }).listeners
     );
 
     expect(listeners.map(({ port }) => port)).toEqual([80, 443, DEFAULT_TEST_LISTENER_PORT]);
@@ -609,7 +622,11 @@ describe('load balancer listener normalization', () => {
             }
           }
         },
-        () => transformLoadBalancerToListenerForm({ definition: configManager.applicationLoadBalancers[0] })
+        () =>
+          transformLoadBalancerToListenerForm({
+            activeConfig: configManager,
+            definition: configManager.applicationLoadBalancers[0]
+          })
       );
 
     expect(runTransform).toThrow();

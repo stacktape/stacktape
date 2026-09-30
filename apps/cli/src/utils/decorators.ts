@@ -1,137 +1,55 @@
-import { applicationManager } from '@application-services/application-manager';
-import { globalStateManager, type DomainServiceName } from '@application-services/global-state-manager';
-import { isPromise } from '@utils/misc';
-import { generateUuid } from './uuid';
+import { pendingOperations } from '@application-services/command-lifecycle/pending-operations';
+import { isPromise } from './misc';
 
-export const skipInitIfInitialized = <T extends { init: (...args: any[]) => Promise<any> }>(instance: T): T => {
-  const originalInit = instance.init;
-  const className = instance.constructor.name as DomainServiceName;
-  let pendingInitialization: Promise<any> | undefined;
+let serviceInitializations = new WeakMap<object, Promise<unknown>>();
 
-  instance.init = (...args: any[]) => {
-    if (globalStateManager.initializedDomainServices.includes(className)) {
-      return Promise.resolve();
-    }
+/** Begin a new invocation when reusing CLI service instances in the same process. */
+export const resetDomainServiceInitialization = () => {
+  serviceInitializations = new WeakMap();
+};
 
-    if (pendingInitialization) {
-      return pendingInitialization;
-    }
+export const skipInitIfInitialized = <T extends { init: (...args: never[]) => Promise<unknown>; reset?: () => void }>(
+  instance: T
+): T => {
+  const originalInit = instance.init as (...args: Parameters<T['init']>) => ReturnType<T['init']>;
+  instance.init = ((...args: Parameters<T['init']>) => {
+    const registry = serviceInitializations;
+    const pendingInitialization = registry.get(instance);
+    if (pendingInitialization) return pendingInitialization;
 
-    let initialization: Promise<any>;
+    let initialization: Promise<unknown>;
     try {
       initialization = originalInit(...args);
     } catch (error) {
       return Promise.reject(error);
     }
-
-    pendingInitialization = initialization.then((result) => {
-      globalStateManager.markDomainServiceAsInitialized(className);
-      return result;
+    registry.set(instance, initialization);
+    void initialization.catch(() => {
+      if (registry.get(instance) === initialization) registry.delete(instance);
     });
+    return initialization;
+  }) as T['init'];
 
-    const clearPendingInitialization = () => {
-      pendingInitialization = undefined;
+  if (instance.reset) {
+    const originalReset = instance.reset;
+    instance.reset = () => {
+      serviceInitializations.delete(instance);
+      originalReset();
     };
-    pendingInitialization.then(clearPendingInitialization, clearPendingInitialization);
-
-    return pendingInitialization;
-  };
-
+  }
   return instance;
 };
 
-/**
- * @description this helps us cancel all pending actions of all domain services, if one of them fails
- */
+/** Reject tracked results when the command fails; observe the underlying operation until it settles. */
 export const cancelablePublicMethods = <T>(instance: T): T => {
   for (const propertyName of Object.getOwnPropertyNames(instance)) {
     const propertyValue = instance[propertyName];
     if (typeof propertyValue === 'function') {
-      instance[propertyName] = (...args: any[]) => {
+      instance[propertyName] = (...args: unknown[]) => {
         const returnedValue = propertyValue(...args);
-        if (isPromise(returnedValue)) {
-          const promiseId = generateUuid();
-          const cancelablePromise = new Promise((resolve, reject) => {
-            applicationManager.pendingCancellablePromises[promiseId] = {
-              rejectFn: reject,
-              name: `${instance.constructor.name}.${propertyName}`
-            };
-            returnedValue.then(
-              (result) => {
-                delete applicationManager.pendingCancellablePromises[promiseId];
-                resolve(result);
-              },
-              (error) => {
-                delete applicationManager.pendingCancellablePromises[promiseId];
-                reject(error);
-              }
-            );
-          });
-          applicationManager.pendingCancellablePromises[promiseId].promise = cancelablePromise;
-          return cancelablePromise;
-        }
-        return returnedValue;
+        return isPromise(returnedValue) ? pendingOperations.track(returnedValue) : returnedValue;
       };
     }
   }
   return instance;
 };
-
-// export const cancellablePublicMethods = () => (targetClass) => {
-//   const descriptors = getPrototypeDescriptors(targetClass);
-//   for (const key in descriptors) {
-//     const originalDescriptor: PropertyDescriptor = Object.getOwnPropertyDescriptor(targetClass.prototype, key);
-//     if (
-//       !key.startsWith('#') &&
-//       key !== 'constructor' &&
-//       originalDescriptor.get &&
-//       typeof originalDescriptor.get === 'function'
-//     ) {
-//       Object.defineProperty(targetClass.prototype, key, {
-//         ...originalDescriptor.value,
-//         value(...args: any[]) {
-//           const returnedValue = originalDescriptor.value.apply(targetClass, args);
-//           if (isPromise(returnedValue)) {
-//             const cancelablePromise = cancelable(returnedValue);
-//             promisesToCancel.push(cancelablePromise);
-//             return cancelablePromise;
-//           }
-//           return returnedValue;
-//         }
-//       });
-//     }
-//   }
-
-//   return targetClass;
-// };
-
-// export function cancellablePublicMethods<T>(someParam: string) {
-//   return function (target: new (...params: any[]) => T) {
-//     for (const key of Object.getOwnPropertyNames(target.prototype)) {
-//       // maybe blacklist constructor here
-//       let descriptor = Object.getOwnPropertyDescriptor(target.prototype, key);
-//       if (descriptor) {
-//         descriptor = someDecorator(someParam)(key, descriptor);
-//         Object.defineProperty(target.prototype, key, descriptor);
-//       }
-//     }
-//   };
-// }
-
-// function someDecorator(someParam: string): (methodName: string, descriptor: PropertyDescriptor) => PropertyDescriptor {
-//   return (methodName: string, descriptor: PropertyDescriptor): PropertyDescriptor => {
-//     const method = descriptor.value;
-//     // eslint-disable-next-line no-param-reassign
-//     descriptor.value = function (...args: any[]) {
-//       const returnedValue = method.apply(this, args);
-//       console.warn(`Here for descriptor ${methodName} with param ${someParam}`);
-//       if (isPromise(returnedValue)) {
-//         const cancelablePromise = cancelable(returnedValue);
-//         promisesToCancel.push(cancelablePromise);
-//         return cancelablePromise;
-//       }
-//       return returnedValue;
-//     };
-//     return descriptor;
-//   };
-// }

@@ -29,7 +29,6 @@
     "astro": "catalog:",
     "change-case": "^5.4.4",
     "clsx": "^2.0.0",
-    "cookie": "2.0.1",
     "html-entities": "2.6.0",
     "marked": "16.4.2",
     "nanostores": "1.2.0",

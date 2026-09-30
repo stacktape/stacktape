@@ -1,7 +1,7 @@
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { isDevCommand } from '../../../../commands/dev/dev-mode-utils';
+
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';
 
@@ -17,7 +17,7 @@ export const resolveTracingInfrastructure = async () => {
   // single span.
   const anyInstrumented =
     configManager.instrumentedLambdaFunctions.length > 0 || configManager.instrumentedContainerWorkloads.length > 0;
-  if (!anyInstrumented || isDevCommand()) {
+  if (!anyInstrumented || calculatedStackOverviewManager.context.command === 'dev') {
     return;
   }
   calculatedStackOverviewManager.addCfChildResource({

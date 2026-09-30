@@ -1,3 +1,8 @@
+import {
+  recordSecurityReport,
+  deleteUndeployedStage
+} from '@application-services/stacktape-trpc-api-manager/operation-recording';
+import { resolveAllResources } from '@domain-services/calculated-stack-overview-manager/synthesize';
 import { createHash } from 'node:crypto';
 import { CliError, type ExpectedError } from '@utils/errors';
 import type { PackageWorkloadOutput } from '@domain-services/packaging-manager/types';
@@ -381,7 +386,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     await Promise.all([
       stack.refetchStackDetails(stackContext.stackName),
       budget.loadBudgets(),
-      stacktapeApi.deleteUndeployedStage()
+      deleteUndeployedStage()
     ]);
     await deployedStackOverview.refreshStackInfoMap({
       stackDetails: stack.existingStackDetails,
@@ -487,7 +492,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
       tui
     });
     try {
-      const receipt = await stacktapeApi.recordSecurityReport({
+      const receipt = await recordSecurityReport({
         findings: securityAssessment.findings,
         exposure: securityAssessment.exposure,
         ...(securityInventory ? { inventory: securityInventory } : {})
@@ -526,7 +531,7 @@ export const prepareArtifactsForStackDeployment = async ({
   cfTemplateDiff: TemplateDiff;
 }> => {
   const packagedWorkloads = await packaging.packageAllWorkloads({ commandCanUseCache: true });
-  await calculatedStackOverview.resolveAllResources();
+  await resolveAllResources();
   if (obfuscatedNamesStateHolder.usingObfuscateNames) {
     tui.warn(
       'Project + stage name exceeds the AWS length limit, so some AWS resource names will be shortened with hashes. Everything works the same; only the names in the AWS console look less readable.'

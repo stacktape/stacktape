@@ -1,3 +1,4 @@
+import { resolveAllResources } from '@domain-services/calculated-stack-overview-manager/synthesize';
 import type { ExpectedError } from '@utils/errors';
 import { applicationManager } from '@application-services/application-manager';
 import { operationReporter } from '@application-services/operation-manager';
@@ -45,7 +46,7 @@ export const deployDevStack = async ({ configFingerprint }: { configFingerprint:
   await packagingManager.packageAllWorkloads({ commandCanUseCache: true });
 
   // Resolve resources (the config-manager should filter based on dev mode)
-  await calculatedStackOverviewManager.resolveAllResources();
+  await resolveAllResources();
 
   if (obfuscatedNamesStateHolder.usingObfuscateNames) {
     tuiManager.warn(

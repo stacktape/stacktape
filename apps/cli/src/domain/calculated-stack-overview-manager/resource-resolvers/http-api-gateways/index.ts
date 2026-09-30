@@ -115,7 +115,7 @@ export const resolveHttpApiGateway = (definition: StpHttpApiGateway) => {
   if (definition.configParentResourceType === 'http-api-gateway') {
     const integrationsOutput: StacktapeResourceOutput<'http-api-gateway'> = {
       integrations: transformIntegrationsForResourceOutput({
-        gatewayIntegrations: getAllIntegrationsForHttpApiGateway({ resource: definition }),
+        gatewayIntegrations: getAllIntegrationsForHttpApiGateway({ activeConfig: configManager, resource: definition }),
         resource: definition
       })
     };

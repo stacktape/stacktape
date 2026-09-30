@@ -23,6 +23,7 @@ export const resolveSqsQueues = async () => {
 export const resolveSqsQueue = ({ resource }: { resource: StpSqsQueue }) => {
   if (resource.redrivePolicy?.targetSqsQueueName) {
     resolveReferenceToSqsQueue({
+      activeConfig: configManager,
       referencedFrom: resource.name,
       stpResourceReference: resource.redrivePolicy?.targetSqsQueueName,
       referencedFromType: 'sqs-queue'
@@ -92,7 +93,7 @@ export const resolveSqsQueue = ({ resource }: { resource: StpSqsQueue }) => {
     paramValue: getAtt(cfLogicalNames.sqsQueue(resource.name), 'QueueName')
   });
 
-  const queuePolicyStatements = getAllQueuePolicyStatements({ resource });
+  const queuePolicyStatements = getAllQueuePolicyStatements({ activeConfig: configManager, resource });
   if (queuePolicyStatements.length) {
     calculatedStackOverviewManager.addCfChildResource({
       cfLogicalName: cfLogicalNames.sqsQueuePolicy(resource.name),

@@ -1,3 +1,4 @@
+import { createAwsErrorHandler, createAwsLoggingPlugin } from 'src/aws/client-instrumentation';
 import type {
   ConfigurableCliArgsDefaults,
   ConfigurableOtherDefaults,
@@ -56,20 +57,6 @@ import { consumeRunnerCredentials } from './runner-credentials';
 const CREDENTIAL_REFRESH_LEAD_TIME_MS = 5 * 60 * 1000;
 const CREDENTIAL_REFRESH_RETRY_DELAY_MS = 30 * 1000;
 
-export type DomainServiceName =
-  | 'ConfigManager'
-  | 'DeploymentArtifactManager'
-  | 'DomainManager'
-  | 'PackagingManager'
-  | 'StackManager'
-  | 'TemplateManager'
-  | 'DeployedStackOverviewManager'
-  | 'CalculatedStackOverviewManager'
-  | 'BudgetManager'
-  | 'CloudformationRegistryManager'
-  | 'SesManager'
-  | 'ThirdPartyProviderManager';
-
 export class GlobalStateManager {
   isInitialized = false;
   persistedState: PersistedState;
@@ -79,7 +66,6 @@ export class GlobalStateManager {
   rawCommands: StacktapeCommand[];
   rawArgs: StacktapeArgs;
   presetConfig?: StacktapeConfig;
-  initializedDomainServices: DomainServiceName[] = [];
   additionalArgs: Record<string, string | boolean>;
   systemId: string;
   operationStart: Date;
@@ -202,7 +188,7 @@ export class GlobalStateManager {
       if (process.stdout.isTTY) {
         // Run interactive auth flow (sign up, login, or Google OAuth)
         const { runAuthFlow } = await import('../../commands/_utils/auth');
-        const authResult = await runAuthFlow();
+        const authResult = await runAuthFlow({ command: this.command });
         if (!authResult.success || !authResult.apiKey) {
           throw stpErrors.e501({ operation: this.command });
         }
@@ -306,10 +292,6 @@ export class GlobalStateManager {
     return this.connectedAwsAccounts[0];
   }
 
-  markDomainServiceAsInitialized = (domainServiceName: DomainServiceName) => {
-    this.initializedDomainServices.push(domainServiceName);
-  };
-
   reloadPersistedState = async () => {
     this.persistedState = await loadPersistedState();
   };
@@ -353,11 +335,19 @@ export class GlobalStateManager {
     // startup.
     const [{ defaultProvider }, { getAwsCredentialsIdentity }] = await Promise.all([
       import('@aws-sdk/credential-provider-node'),
-      import('@utils/aws-sdk-manager/utils')
+      import('src/aws/identity')
     ]);
     const credentialsProvider = defaultProvider(selectedProfile ? { profile: selectedProfile } : {});
     const credentials = await timeAsync('credentials:provider-chain', () => credentialsProvider());
-    const identity = await getAwsCredentialsIdentity({ credentials });
+    const identity = await getAwsCredentialsIdentity({
+      credentials,
+      region: this.region,
+      getErrorHandler: createAwsErrorHandler({
+        credentials: () => this.credentials,
+        profile: () => this.awsProfileName
+      }),
+      loggingPlugin: createAwsLoggingPlugin({ printer: tuiManager, isDebug: () => this.logLevel === 'debug' })
+    });
     if (!identity.Account || !identity.Arn) {
       throw new Error('AWS STS returned an incomplete caller identity.');
     }
@@ -486,6 +476,14 @@ export class GlobalStateManager {
 
     const validatedCredentials = await validateCredentialsWithRespectToAccount({
       credentials: creds,
+      identityContext: {
+        region: this.region,
+        getErrorHandler: createAwsErrorHandler({
+          credentials: () => this.credentials,
+          profile: () => this.awsProfileName
+        }),
+        loggingPlugin: createAwsLoggingPlugin({ printer: tuiManager, isDebug: () => this.logLevel === 'debug' })
+      },
       targetAccount: this.targetAwsAccount,
       profile: this.awsProfileName
     });

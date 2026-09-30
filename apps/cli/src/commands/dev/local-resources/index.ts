@@ -137,49 +137,6 @@ export const getLocalEmulateableResources = (): {
 };
 
 /**
- * Get resource names that should use remote (deployed) AWS resources instead of local emulation.
- * This is determined by:
- * 1. The --remoteResources CLI flag
- * 2. The dev.remote: true config property on the resource
- */
-export const getRemoteResourceNames = (): Set<string> => {
-  const remoteNames = new Set<string>();
-
-  // From CLI flag --remoteResources
-  const cliRemoteResources = globalStateManager.args.remoteResources || [];
-  cliRemoteResources.forEach((name) => remoteNames.add(name));
-
-  // From config dev.remote: true
-  for (const db of configManager.databases || []) {
-    if ((db as any).dev?.remote) {
-      remoteNames.add(db.name);
-    }
-  }
-  for (const redis of configManager.redisClusters || []) {
-    if ((redis as any).dev?.remote) {
-      remoteNames.add(redis.name);
-    }
-  }
-  for (const dynamoTable of configManager.dynamoDbTables || []) {
-    if ((dynamoTable as any).dev?.remote) {
-      remoteNames.add(dynamoTable.name);
-    }
-  }
-  for (const openSearchDomain of configManager.openSearchDomains || []) {
-    if ((openSearchDomain as any).dev?.remote) {
-      remoteNames.add(openSearchDomain.name);
-    }
-  }
-  for (const kafkaCluster of configManager.kafkaClusters || []) {
-    if (kafkaCluster.dev?.remote) {
-      remoteNames.add(kafkaCluster.name);
-    }
-  }
-
-  return remoteNames;
-};
-
-/**
  * Categorize connectTo resources into local (emulated) and deployed (remote).
  *
  * In the new dev mode:
@@ -198,7 +155,7 @@ export const categorizeConnectToResources = ({
   const deployed: string[] = [];
   const emulateableResources = getLocalEmulateableResources();
   const emulateableNames = new Set(emulateableResources.map((r) => r.name));
-  const remoteResourceNames = getRemoteResourceNames();
+  const remoteResourceNames = configManager.deploymentContext.remoteResourceNames;
 
   for (const resourceName of connectTo || []) {
     const isEmulatable = emulateableNames.has(resourceName);

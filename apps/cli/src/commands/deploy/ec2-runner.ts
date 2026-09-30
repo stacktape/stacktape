@@ -1,10 +1,10 @@
+import { resolveAllResources } from '@domain-services/calculated-stack-overview-manager/synthesize';
 import type { FilteredLogEvent } from '@aws-sdk/client-cloudwatch-logs';
 import { commandLifecycle } from '@application-services/command-lifecycle';
 import { operationReporter } from '@application-services/operation-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { budgetManager } from '@domain-services/budget-manager';
-import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
@@ -32,7 +32,7 @@ export const deployWithEc2Runner = async () => {
   configManager.validateGuardrails({ hasConfig: true });
   await ensureMissingSecretsCreated();
   await ensureMissingSsmParamsCreated();
-  await calculatedStackOverviewManager.resolveAllResources();
+  await resolveAllResources();
 
   const cfTemplateDiff = templateManager.getOldTemplateDiff();
   const { abort } = await potentiallyPromptBeforeOperation({ cfTemplateDiff });

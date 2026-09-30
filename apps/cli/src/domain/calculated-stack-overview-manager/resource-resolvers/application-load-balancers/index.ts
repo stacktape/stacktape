@@ -53,7 +53,7 @@ export const resolveApplicationLoadBalancers = async () => {
 
 export const resolveApplicationLoadBalancer = ({ definition }: { definition: StpApplicationLoadBalancer }) => {
   const { stackName } = calculatedStackOverviewManager.context;
-  const finalDefinition = transformLoadBalancerToListenerForm({ definition });
+  const finalDefinition = transformLoadBalancerToListenerForm({ activeConfig: configManager, definition });
 
   resolveAlarmsForResource({ resource: definition });
 
@@ -98,6 +98,7 @@ export const resolveApplicationLoadBalancer = ({ definition }: { definition: Stp
       .map(({ port }) => {
         return transformIntegrationsForResourceOutput({
           albIntegrations: getAllIntegrationsForApplicationLoadBalancerListener({
+            activeConfig: configManager,
             stpLoadBalancerName: name,
             listenerPort: port
           }),

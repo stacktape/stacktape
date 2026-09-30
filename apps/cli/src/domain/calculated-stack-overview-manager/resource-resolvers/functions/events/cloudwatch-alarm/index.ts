@@ -1,3 +1,4 @@
+import { configManager } from '@domain-services/config-manager';
 import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
 import { cfnResource } from '@stacktape/cloudformation/resource';
 import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
@@ -63,6 +64,7 @@ const getEventBusEventRule = ({
 }) => {
   // this resolving is just for checking that referenced alarm exists
   resolveReferenceToAlarm({
+    activeConfig: configManager,
     stpAlarmReference: eventDetails.alarmName,
     referencedFrom: workloadName,
     referencedFromType: configParentResourceType as StpWorkloadType

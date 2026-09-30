@@ -1,10 +1,12 @@
+import { resolveCloudwatchLogExports } from '@domain-services/config-manager/database-engine';
+import { resolveDatabasePort } from '@domain-services/config-manager/database-engine';
 import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
 import { getAtt, join, ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpRelationalDatabase } from '@domain-services/config-manager/resolved-types/relational-databases';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { templateManager } from '@domain-services/template-manager';
-import { filterResourcesForDevMode } from '../../../../commands/dev/dev-resource-filter';
+import { filterResourcesForDevMode } from '@domain-services/config-manager/dev-mode';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfEvaluatedLinks } from '@domain-services/calculated-stack-overview-manager/cloudformation-links';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
@@ -28,14 +30,12 @@ import {
   getJdbcDatabaseConnectionString,
   isAuroraCluster,
   replicaEnabledEngineTypes,
-  resolveCloudwatchLogExports,
-  resolveDatabasePort,
   validateEngineVersion
 } from './utils';
 import type { RdsEngine } from '@stacktape/config/relational-databases';
 
 export const resolveDatabases = async () => {
-  const databases = filterResourcesForDevMode(configManager.databases);
+  const databases = filterResourcesForDevMode(configManager.databases, configManager.deploymentContext);
   databases.forEach((definition) => {
     validateEngineVersion({ resource: definition });
     resolveAlarmsForResource({ resource: definition });

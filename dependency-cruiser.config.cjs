@@ -1,18 +1,60 @@
 /**
- * `pnpm check:architecture` runs with `--ignore-known`, which reads
- * `.dependency-cruiser-known-violations.json`. Regenerate that file with
- * `pnpm check:architecture:update-known > .dependency-cruiser-known-violations.json` only to record a
- * cycle that was deliberately accepted, and never to make a new one pass quietly.
- *
+ * The workspace runner resolves each application's own aliases and checks runtime and declaration imports.
  * @type {import('dependency-cruiser').IConfiguration}
  */
 module.exports = {
   forbidden: [
     {
-      // The imported Stacktape CLI and Console both arrived with import cycles, hand-written as well as in
-      // vendored language-service code. Breaking them means restructuring the applications, so the ones
-      // that already existed are recorded in `.dependency-cruiser-known-violations.json` and the check runs
-      // with `--ignore-known`: those exact cycles stay quiet, and any new one fails.
+      name: 'workspace-imports-resolve',
+      severity: 'error',
+      from: {},
+      to: {
+        couldNotResolve: true,
+        path: '^(@stacktape/|@domain-services/|@application-services/|@utils/|@config$|@cli-config$|@errors$|@generated/|@/|src/)'
+      }
+    },
+    {
+      name: 'init-ui-does-not-import-other-apps',
+      severity: 'error',
+      from: { path: '^apps/init-ui/' },
+      to: { path: '^apps/(?!init-ui/)' }
+    },
+    {
+      name: 'console-ui-uses-explicit-api-contracts',
+      severity: 'error',
+      from: { path: '^apps/console/ui/src/' },
+      to: {
+        path: '^apps/console/api/',
+        pathNot:
+          '^apps/console/api/((dist/)?src/(console-router|controllers/stacks|services/config-gen/ai-config-generator|utils/(aws|cloudformation)|integrations/git/repository-url|organizations/personal-organization|aws/(region|browser-capabilities)|product-config)|(dist/)?@generated/prisma/(client|enums))\\.(d\\.)?ts$'
+      }
+    },
+    {
+      name: 'console-ui-imports-cli-catalogs-only',
+      severity: 'error',
+      from: { path: '^apps/console/ui/src/' },
+      to: {
+        path: '^apps/cli/',
+        pathNot:
+          '^apps/cli/(@generated/(aws-price/prices|db-engine-versions/versions|cloudformation-resource-types)|starter-projects-metadata)\\.json$'
+      }
+    },
+    {
+      name: 'console-ui-does-not-import-api-runtime',
+      severity: 'error',
+      from: { path: '^apps/console/ui/src/' },
+      to: {
+        path: '^apps/console/api/',
+        pathNot: '^apps/console/api/src/(integrations/git/repository-url|organizations/personal-organization)\\.ts$'
+      }
+    },
+    {
+      name: 'normalization-does-not-import-command-implementations',
+      severity: 'error',
+      from: { path: '^apps/cli/src/domain/(config-manager|calculated-stack-overview-manager|template-manager)/' },
+      to: { path: '^apps/cli/src/commands/' }
+    },
+    {
       name: 'no-cycles',
       severity: 'error',
       from: {},
@@ -66,7 +108,7 @@ module.exports = {
       name: 'docs-does-not-import-other-apps',
       severity: 'error',
       from: { path: '^apps/docs/' },
-      to: { path: '^apps/(?!docs/)' }
+      to: { path: '^apps/(?!docs/)', pathNot: '^apps/cli/starter-projects-metadata\\.json$' }
     },
     {
       name: 'website-does-not-import-other-apps',
@@ -82,19 +124,12 @@ module.exports = {
     }
   ],
   options: {
-    doNotFollow: { path: 'node_modules' },
-    exclude: {
-      /**
-       * Build output, fixtures, and committed generator output. The generated artifacts are
-       * excluded because applications consume them as data: `apps/docs` reads the CLI's config
-       * schema, LLM corpus, and starter-project metadata without importing CLI implementation, and
-       * the `does-not-import-other-apps` rules exist to stop the latter, not the former.
-       */
-      path:
-        '^apps/(cli/(@generated|generated|starter-projects|_test-stacks|__release|__release-npm|__stacktape-dist|__cli-dist|__dist|\\.stacktape)/|cli/starter-projects-metadata\\.json$' +
-        '|docs/dist/|init-ui/dist/|vscode-extension/dist/|console/(api/(@generated|dist)|ui/(dist|public))/)'
-    },
-    includeOnly: '^(apps|packages)/',
-    tsConfig: { fileName: 'tsconfig.base.json' }
+    // Keep dependency edges to generated data and external modules, without traversing their implementation.
+    // The runner separately discovers authored source, so these directories never become scan roots.
+    doNotFollow: { path: 'node_modules|(^|/)(@generated|generated|dist|fixtures|public)/' },
+    enhancedResolveOptions: {
+      exportsFields: ['exports'],
+      conditionNames: ['import', 'require', 'node', 'default']
+    }
   }
 };

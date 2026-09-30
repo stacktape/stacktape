@@ -36,7 +36,7 @@ beforeAll(async () => {
   } as ValidatedAwsCredentials;
   logDirectory = await mkdtemp(join(tmpdir(), 'stacktape-agent-aws-sdk-'));
   const port = await findFreePort();
-  await startAgentServer(port, logDirectory);
+  await startAgentServer(port, logDirectory, () => null);
   agentUrl = `http://127.0.0.1:${port}`;
 });
 

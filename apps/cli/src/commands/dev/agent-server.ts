@@ -47,7 +47,7 @@ import { agentLog, getAgentLogFilePath, initAgentLogger, stopAgentLogger } from 
 import { getLambdaEnvVars } from './lambda-env-manager';
 import { getRunningLocalInstances, type LocalResourceInstance } from './local-resources';
 import { getHealthStatus, triggerHealthCheck } from './local-resources/health-monitor';
-import { getWorkloadEnvVars } from './parallel-runner';
+let getWorkloadEnvVars: (name: string) => Record<string, string> | null;
 
 export type WorkloadStatus = {
   name: string;
@@ -1348,7 +1348,12 @@ export const buildStartupMessage = (params: {
   return lines.join('\n');
 };
 
-export const startAgentServer = async (port: number, logDir: string): Promise<void> => {
+export const startAgentServer = async (
+  port: number,
+  logDir: string,
+  workloadEnvironment: (name: string) => Record<string, string> | null
+): Promise<void> => {
+  getWorkloadEnvVars = workloadEnvironment;
   agentPort = port;
   startTime = Date.now();
 

@@ -1,3 +1,8 @@
+import {
+  recordStackOperationStart as reportStackOperationStart,
+  recordStackOperationEnd,
+  recordStackOperationProgress
+} from '@application-services/stacktape-trpc-api-manager/operation-recording';
 import type { StacktapeRecordedCommand } from '@config';
 import { applicationManager } from '@application-services/application-manager';
 import { commandLifecycle } from '@application-services/command-lifecycle';
@@ -28,7 +33,7 @@ import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { dependencyInstaller } from '@domain-services/packaging-manager/dependency-installer';
 import { settleAllBeforeThrowing } from '@utils/misc';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import { getErrorHandler, loggingPlugin } from '@utils/aws-sdk-manager/utils';
+import { createAwsErrorHandler, createAwsLoggingPlugin } from 'src/aws/client-instrumentation';
 import { logCollectorStream } from '@utils/log-collector';
 import { ensureAwsAccountConnected } from './aws-connection-preflight';
 import { assertCommandPermissions, assertScopedProjectAccess } from './permission-guards';
@@ -70,6 +75,12 @@ export const getConfigResolverContext = (stackContext?: StackContext): ConfigRes
   return {
     authoringParams,
     builtInDirectives: {
+      runtime: {
+        calculatedStackOverviewManager,
+        deployedStackOverviewManager,
+        stackManager,
+        templateManager
+      },
       accountId: stackContext?.accountId || globalStateManager.targetAwsAccount.awsAccountId,
       additionalArgs: { ...(globalStateManager.additionalArgs || {}) },
       awsProfile: globalStateManager.awsProfileName,
@@ -302,6 +313,7 @@ export const initializeStackOperationLifecycle = async ({
     calculatedStackOverviewManager.init({ context: stackContext }),
     cloudfrontManager.init(),
     deploymentArtifactManager.init({
+      packagingSource: packagingManager,
       accountId: globalStateManager.targetAwsAccount.awsAccountId,
       globallyUniqueStackHash: globalStateManager.targetStack.globallyUniqueStackHash,
       stackActionType: stackManager.stackActionType,
@@ -518,6 +530,7 @@ export const initializeStackServicesForHotSwapDeploy = async () => {
     calculatedStackOverviewManager.init({ context: stackContext }),
     packagingManager.init(),
     deploymentArtifactManager.init({
+      packagingSource: packagingManager,
       globallyUniqueStackHash: stackContext.globallyUniqueStackHash,
       accountId: stackContext.accountId,
       stackActionType: 'deployment-script:run'
@@ -606,6 +619,7 @@ export const initializeStackServicesForDevPhase2 = async (stackContext: StackCon
       stackResources: stackManager.existingStackResources
     }),
     deploymentArtifactManager.init({
+      packagingSource: packagingManager,
       accountId: stackContext.accountId,
       globallyUniqueStackHash: stackContext.globallyUniqueStackHash,
       stackActionType: stackManager.stackActionType
@@ -678,6 +692,7 @@ export const initializeStackServicesForWorkingWithDeployedStack = async ({
   }
 
   await deploymentArtifactManager.init({
+    packagingSource: packagingManager,
     accountId: globalStateManager.targetAwsAccount.awsAccountId,
     globallyUniqueStackHash: globalStateManager.targetStack.globallyUniqueStackHash,
     stackActionType: stackManager.stackActionType
@@ -777,11 +792,11 @@ export const recordStackOperationStart = async () => {
   const command = globalStateManager.command;
   const isCommandToBeRecorded = RECORDED_STACKTAPE_COMMANDS.includes(command as StacktapeRecordedCommand);
   if (isCommandToBeRecorded) {
-    await stacktapeTrpcApiManager.recordStackOperationStart();
+    await reportStackOperationStart();
     if (!isRemoteRunnerDeployInvocation()) {
       // stack operation end
       applicationManager.registerCleanUpHook(async ({ success, interrupted, err }) => {
-        await stacktapeTrpcApiManager.recordStackOperationEnd({
+        await recordStackOperationEnd({
           stackName: globalStateManager.targetStack?.stackName,
           success,
           interrupted,
@@ -813,7 +828,7 @@ export const startStackOperationRecording = async ({
   const logStreamName = globalStateManager.getStackOperationLogStreamName({ stackName });
 
   if (isCommandToBeRecorded) {
-    await stacktapeTrpcApiManager.recordStackOperationProgress({ stackName, projectName, logStreamName });
+    await recordStackOperationProgress({ stackName, projectName, logStreamName });
   }
 
   if (shouldCollectLogs) {
@@ -830,3 +845,12 @@ const isEc2RunnerDeployInvocation = () =>
   globalStateManager.command === 'deploy' && globalStateManager.args.runner === 'ec2';
 
 const isRemoteRunnerDeployInvocation = isEc2RunnerDeployInvocation;
+
+const getErrorHandler = createAwsErrorHandler({
+  credentials: () => globalStateManager.credentials,
+  profile: () => globalStateManager.awsProfileName
+});
+const loggingPlugin = createAwsLoggingPlugin({
+  printer: tuiManager,
+  isDebug: () => globalStateManager.logLevel === 'debug'
+});

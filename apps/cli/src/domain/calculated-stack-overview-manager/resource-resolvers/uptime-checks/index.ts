@@ -7,7 +7,7 @@ import { deploymentArtifactManager } from '@domain-services/deployment-artifact-
 import { templateManager } from '@domain-services/template-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { isDevCommand } from '../../../../commands/dev/dev-mode-utils';
+
 import { NOT_YET_KNOWN_IDENTIFIER, PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
 import { STACKTAPE_TRPC_API_ENDPOINT } from 'src/config/params';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';
@@ -43,7 +43,7 @@ export const buildUptimeCheckManifestEntry = ({
 export const resolveUptimeChecks = async () => {
   const { uptimeChecks } = configManager;
   // Dev stacks are ephemeral working copies; probing them from three regions would only produce noise.
-  if (!uptimeChecks.length || isDevCommand()) {
+  if (!uptimeChecks.length || calculatedStackOverviewManager.context.command === 'dev') {
     return;
   }
   const { stackName, projectName, stage, globallyUniqueStackHash } = calculatedStackOverviewManager.context;

@@ -1,3 +1,4 @@
+import { configManager } from '@domain-services/config-manager';
 import type { ContainerWorkloadTargetDetails } from '@domain-services/config-manager/resolved-types/application-load-balancers';
 import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
@@ -19,7 +20,9 @@ export const resolveApplicationLoadBalancerEvents = ({ definition }: { definitio
         const resolvedLbReference = resolveReferenceToApplicationLoadBalancer(
           event.properties,
           definition.name,
-          definition.type
+          definition.type,
+          true,
+          configManager
         );
         calculatedStackOverviewManager.addCfChildResource({
           cfLogicalName: cfLogicalNames.listenerRule(
@@ -39,7 +42,10 @@ export const resolveApplicationLoadBalancerEvents = ({ definition }: { definitio
             }
             resolveReferenceToApplicationLoadBalancer(
               { ...event.properties, listenerPort: definition.deployment.testListenerPort },
-              definition.name
+              definition.name,
+              undefined,
+              true,
+              configManager
             );
           }
           const testListenerPort = definition.deployment.testListenerPort || DEFAULT_TEST_LISTENER_PORT;

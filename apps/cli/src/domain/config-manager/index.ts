@@ -43,12 +43,11 @@ import type { FinalTransform, ResourceTransform as CfResourceTransform } from '@
 import type { DefaultedResource, ResourceDefinitionOf, StacktapeResourceType } from './normalized-resource';
 import { isAbsolute, join } from 'node:path';
 import { operationReporter } from '@application-services/operation-manager';
-import { getRemoteResourceNames } from '../../commands/dev/local-resources';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import {
   getLambdaLogResourceArnsForPermissions,
   getLogGroupPolicyDocumentStatements
-} from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/role-helpers';
+} from 'src/aws/logging-permissions';
 import { isTransferAccelerationEnabledInRegion } from 'src/aws/buckets';
 import { isS3NativeUploadHeader } from 'src/aws/s3-upload-options';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
@@ -60,7 +59,7 @@ import { getStpNameForResource } from '@stacktape/naming/stacktape-resource-name
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
 import { processAllNodesSync, traverseToMaximalExtent } from '@utils/misc';
 import { isAuroraEngine } from 'src/aws/rds-engines';
-import compose from '@utils/basic-compose-shim';
+import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { getDirectiveParams, getIsDirective } from '@utils/directives';
 import { getApexDomain } from '@utils/domains';
@@ -94,10 +93,9 @@ import { buildNextjsWebNestedResources } from './utils/nextjs-webs';
 import { buildSsrWebNestedResources } from './utils/ssr-webs';
 import { runInitialValidations, validateConfigStructure, validateGuardrails } from './utils/validation';
 import {
-  isDevCommand,
   isResourceTypeExcludedInDevMode,
   selectWorkloadsDeployedInDevMode
-} from '../../commands/dev/dev-mode-utils';
+} from '@domain-services/config-manager/dev-mode';
 import type { StacktapeConfig } from '@stacktape/config';
 import type { ApplicationLoadBalancerAlarm, HttpApiGatewayAlarm } from '@stacktape/config/alarms';
 import type { ApplicationLoadBalancerListener } from '@stacktape/config/application-load-balancers';
@@ -157,6 +155,7 @@ export class ConfigManager {
   #helperLambdaDetails: HelperLambdaDetails | undefined;
   #securityScanning: SecurityScanningContext = {};
   #discoveredConfig: DiscoveredConfig | undefined;
+  #cliRemoteResourceNames: readonly string[] = [];
 
   private get stackContext(): StackContext {
     if (!this.#stackContext) {
@@ -223,6 +222,7 @@ export class ConfigManager {
     const candidate = new ConfigManager();
     candidate.setStackContext(context.stack);
     candidate.#helperLambdaDetails = context.helperLambdaDetails;
+    candidate.#cliRemoteResourceNames = [...(context.resolver.builtInDirectives.cliArgs.remoteResources ?? [])];
     candidate.#securityScanning = context.securityScanning ?? {};
     // Reuse what discovery loaded rather than loading the configuration again, so a TypeScript config and its
     // transform side channel are produced by exactly one execution of the user's module.
@@ -288,6 +288,7 @@ export class ConfigManager {
     this.#stackContext = candidate.#stackContext;
     this.#helperLambdaDetails = candidate.#helperLambdaDetails;
     this.#securityScanning = candidate.#securityScanning;
+    this.#cliRemoteResourceNames = candidate.#cliRemoteResourceNames;
   };
 
   reset = () => {
@@ -304,6 +305,7 @@ export class ConfigManager {
     this.#stackContext = undefined;
     this.#helperLambdaDetails = undefined;
     this.#securityScanning = {};
+    this.#cliRemoteResourceNames = [];
     this.#discoveredConfig = undefined;
   };
 
@@ -903,8 +905,25 @@ export class ConfigManager {
     return this.getResourcesFromConfig('kafka-cluster');
   }
 
+  get deploymentContext() {
+    const remoteResourceNames = new Set(this.#cliRemoteResourceNames);
+    for (const resource of [
+      ...this.databases,
+      ...this.redisClusters,
+      ...this.dynamoDbTables,
+      ...this.openSearchDomains,
+      ...this.kafkaClusters
+    ]) {
+      if ('dev' in resource && resource.dev?.remote) remoteResourceNames.add(resource.name);
+    }
+    return { command: this.stackContext.command, remoteResourceNames };
+  }
+
   get kafkaClustersWithLambdaEvents() {
-    const remoteNames = isDevCommand() ? getRemoteResourceNames() : new Set(this.kafkaClusters.map(({ name }) => name));
+    const remoteNames =
+      this.deploymentContext.command === 'dev'
+        ? this.deploymentContext.remoteResourceNames
+        : new Set(this.kafkaClusters.map(({ name }) => name));
     const used = new Set<string>();
     [
       ...this.functions,
@@ -1649,12 +1668,14 @@ export class ConfigManager {
 
   get allBuckets() {
     // In dev mode, filter out buckets from hosting-bucket and nextjs-web since they are excluded
-    const filteredHostingBuckets = isDevCommand()
-      ? this.hostingBuckets.filter((hb) => !isResourceTypeExcludedInDevMode(hb.type))
-      : this.hostingBuckets;
-    const filteredNextjsWebs = isDevCommand()
-      ? this.nextjsWebs.filter((nw) => !isResourceTypeExcludedInDevMode(nw.type))
-      : this.nextjsWebs;
+    const filteredHostingBuckets =
+      this.deploymentContext.command === 'dev'
+        ? this.hostingBuckets.filter((hb) => !isResourceTypeExcludedInDevMode(hb.type))
+        : this.hostingBuckets;
+    const filteredNextjsWebs =
+      this.deploymentContext.command === 'dev'
+        ? this.nextjsWebs.filter((nw) => !isResourceTypeExcludedInDevMode(nw.type))
+        : this.nextjsWebs;
     const allSsrWebs = [
       ...this.astroWebs,
       ...this.nuxtWebs,
@@ -1663,9 +1684,10 @@ export class ConfigManager {
       ...this.tanstackWebs,
       ...this.remixWebs
     ];
-    const filteredSsrWebs = isDevCommand()
-      ? allSsrWebs.filter((sw) => !isResourceTypeExcludedInDevMode(sw.type))
-      : allSsrWebs;
+    const filteredSsrWebs =
+      this.deploymentContext.command === 'dev'
+        ? allSsrWebs.filter((sw) => !isResourceTypeExcludedInDevMode(sw.type))
+        : allSsrWebs;
     return [
       ...this.buckets,
       ...filteredHostingBuckets.map(({ _nestedResources: { bucket } }) => bucket),
@@ -2184,7 +2206,9 @@ export class ConfigManager {
    * the VPC, which a dev stack creates only when a deployed resource needs it.
    */
   get deployedContainerWorkloads() {
-    return isDevCommand() ? selectWorkloadsDeployedInDevMode(this.allContainerWorkloads) : this.allContainerWorkloads;
+    return this.deploymentContext.command === 'dev'
+      ? selectWorkloadsDeployedInDevMode(this.allContainerWorkloads)
+      : this.allContainerWorkloads;
   }
 
   get httpApiGatewayContainerWorkloadsAssociations() {
@@ -2274,7 +2298,7 @@ export class ConfigManager {
           // the service lambda must not carry the unused account-level permissions there either.
           tracingEnabled:
             (this.instrumentedLambdaFunctions.length > 0 || this.instrumentedContainerWorkloads.length > 0) &&
-            !isDevCommand(),
+            this.deploymentContext.command !== 'dev',
           region: this.stackContext.region
         })
       ]

@@ -130,6 +130,7 @@ export const prepareEventBusIntegration = ({
   let failureQueue: StpSqsQueue | undefined;
   if (eventDetails.onDeliveryFailure?.sqsQueueName) {
     failureQueue = resolveReferenceToSqsQueue({
+      activeConfig: configManager,
       referencedFrom: referencerName,
       referencedFromType: referencerType,
       stpResourceReference: eventDetails.onDeliveryFailure.sqsQueueName

@@ -8,14 +8,12 @@ import type {
 } from '@domain-services/config-manager/resolved-types/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
-import { getPropsOfResourceReferencedInConfig } from '@domain-services/config-manager/utils/resource-references';
+import { getPropsOfResourceReferencedInConfig } from '@domain-services/config-manager/utils/resource-lookup';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import type { KafkaTopicIntegration, KafkaTopicIntegrationProps } from '@stacktape/config/events';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
 import { CliError } from '@utils/errors';
 import { createHash } from 'node:crypto';
-import { isDevCommand } from '../../../../../../commands/dev/dev-mode-utils';
-import { getRemoteResourceNames } from '../../../../../../commands/dev/local-resources';
 
 const fail = (code: string, message: string, hints?: string): never => {
   throw new CliError({ category: 'CONFIG_VALIDATION', code, message, hints });
@@ -268,12 +266,17 @@ export const resolveKafkaTopicEvents = ({
 
     if ('kafkaClusterName' in details && details.kafkaClusterName) {
       const cluster = getPropsOfResourceReferencedInConfig({
+        activeConfig: configManager,
         stpResourceReference: details.kafkaClusterName,
         stpResourceType: 'kafka-cluster',
         referencedFrom: name,
         referencedFromType: lambdaFunction.configParentResourceType
       });
-      if (isDevCommand() && !getRemoteResourceNames().has(details.kafkaClusterName)) return;
+      if (
+        calculatedStackOverviewManager.context.command === 'dev' &&
+        !configManager.deploymentContext.remoteResourceNames.has(details.kafkaClusterName)
+      )
+        return;
       validateNativeKafkaTriggerVpc({ reusedVpc: !!configManager.reuseVpcConfig });
       const clusterArn = ref(cfLogicalNames.kafkaServerlessCluster(cluster.name));
       managedClusterArns.set(details.kafkaClusterName, clusterArn);
@@ -376,6 +379,7 @@ export const getEventSourceMapping = ({
 
   if ('kafkaClusterName' in eventDetails && eventDetails.kafkaClusterName) {
     const cluster = getPropsOfResourceReferencedInConfig({
+      activeConfig: configManager,
       stpResourceReference: eventDetails.kafkaClusterName,
       stpResourceType: 'kafka-cluster',
       referencedFrom: 'kafka event'

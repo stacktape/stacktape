@@ -1,3 +1,6 @@
+import { packagingManager } from '@domain-services/packaging-manager';
+import { resetDomainServiceInitialization } from '@utils/decorators';
+import { resolveAllResources } from '@domain-services/calculated-stack-overview-manager/synthesize';
 import http from 'node:http';
 import https from 'node:https';
 import { applicationManager } from '@application-services/application-manager';
@@ -80,7 +83,7 @@ export const synthesizeFixture = async ({
       primaryRegions: ['eu-west-1'],
       defaultRegion: 'eu-west-1'
     };
-    globalStateManager.initializedDomainServices = [];
+    resetDomainServiceInitialization();
     globalStateManager.isInitialized = true;
     globalStateManager.targetStack = {
       stackName: 'characterization-baseline',
@@ -109,6 +112,7 @@ export const synthesizeFixture = async ({
       openSearchInstanceTypes: configManager.allUsedOpenSearchVersionsAndInstanceTypes
     });
 
+    deploymentArtifactManager.setPackagingSource(packagingManager);
     deploymentArtifactManager.deploymentBucketName = 'stp-deployment-bucket-xxxxxxxx';
     deploymentArtifactManager.repositoryName = 'xxxxxxxx-stp-container-repository';
     deploymentArtifactManager.repositoryUrl =
@@ -126,7 +130,7 @@ export const synthesizeFixture = async ({
         context: stackContext
       })
     ]);
-    await calculatedStackOverviewManager.resolveAllResources();
+    await resolveAllResources();
     beforeFinalize?.();
     await finalizeTemplate();
     return templateManager.getTemplate();

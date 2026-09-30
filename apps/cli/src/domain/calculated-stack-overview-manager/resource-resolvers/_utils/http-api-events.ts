@@ -87,6 +87,7 @@ export const getHttpApiRoute = ({
 }) => {
   const { path, method, authorizer } = eventDetails;
   const httpApiGatewayInfo = resolveReferenceToHttpApiGateway({
+    activeConfig: configManager,
     stpResourceReference: eventDetails.httpApiGatewayName,
     referencedFrom: workloadName
   });

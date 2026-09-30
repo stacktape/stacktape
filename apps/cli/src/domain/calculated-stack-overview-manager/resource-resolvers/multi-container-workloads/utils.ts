@@ -44,7 +44,7 @@ import {
 import { resolveReferenceToHttpApiGateway } from '@domain-services/config-manager/utils/http-api-gateways';
 import { resolveReferenceToLambdaFunction } from '@domain-services/config-manager/utils/lambdas';
 import { tuiManager } from '@application-services/tui-manager';
-import { isDevCommand } from '../../../../commands/dev/dev-mode-utils';
+
 import { resolveReferenceToNetworkLoadBalancer } from '@domain-services/config-manager/utils/network-load-balancers';
 import { ec2Manager } from '@domain-services/ec2-manager';
 import { packagingManager } from '@domain-services/packaging-manager';
@@ -308,7 +308,7 @@ const getEfsVolumeName = (efsFilesystemName: string, rootDirectory?: string): st
  * bridge-mode warning is emitted once, in the resolver entry point.
  */
 export const getWorkloadTracing = (workload: StpContainerWorkload) => {
-  if (isDevCommand() || workload.resources.instanceTypes) {
+  if (calculatedStackOverviewManager.context.command === 'dev' || workload.resources.instanceTypes) {
     return undefined;
   }
   return configManager.tracedContainerWorkloads.find(({ name }) => name === workload.name)?.effectiveTracing;
@@ -739,6 +739,7 @@ const getEcsServiceSecurityGroupIngress = ({
       httpProps1.httpApiGatewayName === httpProps2.httpApiGatewayName
   ).forEach(({ properties: { httpApiGatewayName, containerPort } }: ContainerWorkloadHttpApiIntegration) => {
     const httpApiGatewayInfo = resolveReferenceToHttpApiGateway({
+      activeConfig: configManager,
       referencedFrom: workload.name,
       stpResourceReference: httpApiGatewayName
     });
@@ -857,7 +858,9 @@ export const getFormattedListenerRulesLogicalNames = ({ workload }: { workload: 
       const resolvedListenerReference = resolveReferenceToApplicationLoadBalancer(
         properties,
         workload.name,
-        workload.type
+        workload.type,
+        true,
+        configManager
       );
       return cfLogicalNames.listenerRule(
         resolvedListenerReference.listenerPort,
@@ -1058,6 +1061,7 @@ export const getEcsService = ({ workload, blueGreen }: { workload: StpContainerW
                     workload.deployment.afterTrafficShiftFunction &&
                     ref(
                       resolveReferenceToLambdaFunction({
+                        activeConfig: configManager,
                         stpResourceReference: workload.deployment.afterTrafficShiftFunction,
                         referencedFrom: workload.name,
                         referencedFromType: 'multi-container-workload'
@@ -1067,6 +1071,7 @@ export const getEcsService = ({ workload, blueGreen }: { workload: StpContainerW
                     workload.deployment.beforeAllowTrafficFunction &&
                     ref(
                       resolveReferenceToLambdaFunction({
+                        activeConfig: configManager,
                         stpResourceReference: workload.deployment.beforeAllowTrafficFunction,
                         referencedFrom: workload.name,
                         referencedFromType: 'multi-container-workload'
@@ -1119,7 +1124,13 @@ export const getCodeDeployDeploymentGroup = ({ workload }: { workload: StpContai
       const lbEvent = events.find(
         (event) => event.type === 'application-load-balancer'
       ) as ContainerWorkloadLoadBalancerIntegration;
-      lbReference = resolveReferenceToApplicationLoadBalancer(lbEvent.properties, workload.name, workload.type);
+      lbReference = resolveReferenceToApplicationLoadBalancer(
+        lbEvent.properties,
+        workload.name,
+        workload.type,
+        true,
+        configManager
+      );
     }
     return lbReference;
   });
@@ -1360,12 +1371,15 @@ export const getTargetsForContainerWorkload = ({
         ? resolveReferenceToApplicationLoadBalancer(
             lbReference.properties as ContainerWorkloadLoadBalancerIntegrationProps,
             workloadName,
-            'multi-container-workload'
+            'multi-container-workload',
+            true,
+            configManager
           )
         : resolveReferenceToNetworkLoadBalancer(
             lbReference.properties as ContainerWorkloadNetworkLoadBalancerIntegrationProps,
             workloadName,
-            'multi-container-workload'
+            'multi-container-workload',
+            configManager
           ))
     }))
     .forEach(

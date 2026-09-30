@@ -1,7 +1,7 @@
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { templateManager } from '@domain-services/template-manager';
-import { filterResourcesForDevMode } from '../../../../commands/dev/dev-resource-filter';
+import { filterResourcesForDevMode } from '@domain-services/config-manager/dev-mode';
 
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 
@@ -20,7 +20,7 @@ import {
 } from './utils';
 
 export const resolveNextjsWebs = async () => {
-  const nextjsWebs = filterResourcesForDevMode(configManager.nextjsWebs);
+  const nextjsWebs = filterResourcesForDevMode(configManager.nextjsWebs, configManager.deploymentContext);
   nextjsWebs.forEach((nextjsWeb) => {
     const {
       _nestedResources: {

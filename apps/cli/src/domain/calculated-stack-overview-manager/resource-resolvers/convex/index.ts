@@ -8,7 +8,7 @@ import { domainManager } from '@domain-services/domain-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { pascalCase } from 'change-case';
-import { filterResourcesForDevMode } from '../../../../commands/dev/dev-resource-filter';
+import { filterResourcesForDevMode } from '@domain-services/config-manager/dev-mode';
 import type { StackContext } from '@domain-services/stack-context';
 
 const getConvexRuntimeSecretLogicalName = (convexName: string) => `${pascalCase(convexName)}RuntimeSecret`;
@@ -28,7 +28,7 @@ const getConvexRuntimeSecretLogicalName = (convexName: string) => `${pascalCase(
  *      that include one with "cluster url already contains db name").
  */
 export const resolveConvexes = async ({ context }: { context: StackContext }) => {
-  const convexes = filterResourcesForDevMode(configManager.convexes);
+  const convexes = filterResourcesForDevMode(configManager.convexes, configManager.deploymentContext);
 
   convexes.forEach((convex) => {
     const { nameChain, customDomains } = convex;

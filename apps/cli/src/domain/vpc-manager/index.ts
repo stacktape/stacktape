@@ -5,7 +5,7 @@ import { operationReporter } from '@application-services/operation-manager';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getStackName } from '@stacktape/naming/stacks';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import compose from '@utils/basic-compose-shim';
+import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import type { VpcReuseConfig } from '@stacktape/config/shared';
 import { CliError } from '@utils/errors';

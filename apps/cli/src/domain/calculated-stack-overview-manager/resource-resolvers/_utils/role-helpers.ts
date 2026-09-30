@@ -690,45 +690,6 @@ export const getPoliciesForRoles = ({
   return policies;
 };
 
-export const getLogGroupPolicyDocumentStatements = (logGroupRef: any[], withCreateLogGroup: boolean) => [
-  {
-    Effect: 'Allow',
-    Action: ['logs:PutLogEvents', 'logs:DescribeLogGroups', 'logs:DescribeLogStreams', 'logs:CreateLogStream'].concat(
-      withCreateLogGroup ? ['logs:CreateLogGroup'] : []
-    ),
-    Resource: logGroupRef
-  }
-];
-
-export const getLambdaLogResourceArnsForPermissions = ({
-  lambdaResourceName,
-  edgeLambda
-}: {
-  lambdaResourceName: string;
-  edgeLambda?: boolean;
-}) => {
-  return [
-    {
-      'Fn::Sub': `arn:\${AWS::Partition}:logs:*:\${AWS::AccountId}:log-group:${awsResourceNames.lambdaLogGroup({
-        lambdaAwsResourceName: lambdaResourceName,
-        edgeLambda
-      })}`
-    },
-    {
-      'Fn::Sub': `arn:\${AWS::Partition}:logs:*:\${AWS::AccountId}:log-group:${awsResourceNames.lambdaLogGroup({
-        lambdaAwsResourceName: lambdaResourceName,
-        edgeLambda
-      })}:*`
-    },
-    {
-      'Fn::Sub': `arn:\${AWS::Partition}:logs:*:\${AWS::AccountId}:log-group:${awsResourceNames.lambdaLogGroup({
-        lambdaAwsResourceName: lambdaResourceName,
-        edgeLambda
-      })}:*:*`
-    }
-  ];
-};
-
 // Function to create IAM policy statements for accessing mounted EFS filesystems
 const getPolicyForMountedEfsFilesystems = (mountedEfsFilesystems: StpEfsFilesystem[]): Policy => {
   const efsArns = mountedEfsFilesystems.map(

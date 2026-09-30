@@ -3,9 +3,9 @@ import type {
   StpResolvedNetworkLoadBalancerReference
 } from '@domain-services/config-manager/resolved-types/network-load-balancer';
 import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
-import { configManager as runtimeConfigManager, type ConfigManager } from '@domain-services/config-manager';
+import type { ConfigManager } from '@domain-services/config-manager';
 import { CliError } from '@utils/errors';
-import { getPropsOfResourceReferencedInConfig } from './resource-references';
+import { getPropsOfResourceReferencedInConfig } from './resource-lookup';
 import type { ContainerWorkloadNetworkLoadBalancerIntegrationProps } from '@stacktape/config/events';
 import { configErrors } from '../errors';
 
@@ -73,8 +73,8 @@ export const validateNetworkLoadBalancerConfig = ({
 export const resolveReferenceToNetworkLoadBalancer = (
   lbReference: ContainerWorkloadNetworkLoadBalancerIntegrationProps,
   referencedFrom: string,
-  referencedFromType?: StpWorkloadType | 'alarm',
-  activeConfig: ConfigManager = runtimeConfigManager
+  referencedFromType: StpWorkloadType | 'alarm' | undefined,
+  activeConfig: ConfigManager
   // resolveListenerInfo = true
 ): StpResolvedNetworkLoadBalancerReference => {
   const referencedLoadBalancer = getPropsOfResourceReferencedInConfig({
@@ -111,11 +111,11 @@ export const resolveReferenceToNetworkLoadBalancer = (
 };
 
 export const getAllIntegrationsForNetworkLoadBalancerListener = ({
-  activeConfig = runtimeConfigManager,
+  activeConfig,
   stpLoadBalancerName,
   listenerPort
 }: {
-  activeConfig?: ConfigManager;
+  activeConfig: ConfigManager;
   stpLoadBalancerName: string;
   listenerPort: number;
 }): (ContainerWorkloadNetworkLoadBalancerIntegrationProps & { workloadName: string })[] => {

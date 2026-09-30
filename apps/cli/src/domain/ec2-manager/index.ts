@@ -5,7 +5,7 @@ import type {
 } from '@aws-sdk/client-opensearch';
 import { operationReporter } from '@application-services/operation-manager';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import compose from '@utils/basic-compose-shim';
+import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 
 export class EC2Manager {

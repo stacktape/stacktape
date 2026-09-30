@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import {
   getLambdaLogResourceArnsForPermissions,
   getLogGroupPolicyDocumentStatements
-} from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/role-helpers';
+} from 'src/aws/logging-permissions';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { fsPaths } from 'src/config/runtime-paths';

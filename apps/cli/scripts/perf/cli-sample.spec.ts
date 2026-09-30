@@ -127,6 +127,26 @@ describe.skipIf(process.platform !== 'linux')('runCliSample', () => {
     return isRunning(pid) ? [{ pid, command: 'bun' }] : [];
   };
 
+  test('does not report an already exited process from a stale listing as an escape', async () => {
+    const pidFile = join(root, 'finished-sender.pid');
+    const sample = await runCliSample({
+      cmd: [
+        'sh',
+        '-c',
+        `setsid sh -c 'echo $$ > ${pidFile}; exec ${process.execPath} -e "await Bun.sleep(0)" __telemetry-sender' > /dev/null 2>&1 & wait; ${fakeCli(0)[2]}`
+      ],
+      cwd: root,
+      env,
+      timeoutMs: 10_000,
+      timingsFile: join(root, 'finished-sender.json'),
+      findEscapedProcesses: () => [{ pid: Number(readFileSync(pidFile, 'utf8').trim()), command: 'bun' }],
+      telemetrySenderWaitMs: 50
+    });
+    expect(sample.invalidReasons).toEqual([]);
+    expect(sample.escapedProcesses).toEqual([]);
+    expect(sample.telemetrySenderWaitMs).toBeNull();
+  });
+
   test('waits for a telemetry sender that ends by itself and records how long', async () => {
     const pidFile = join(root, 'sender.pid');
     const sample = await runCliSample({

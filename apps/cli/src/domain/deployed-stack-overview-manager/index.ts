@@ -15,7 +15,6 @@ import type { ResourceDifference, TemplateDiff } from '@aws-cdk/cloudformation-d
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { HELPER_LAMBDA_NAMES } from '@config';
-import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { stpErrors } from '@errors';
 import { deployedResourceNotFoundError } from './errors';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
@@ -27,7 +26,7 @@ import { getStpNameForResource } from '@stacktape/naming/stacktape-resource-name
 import { injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
 import { traverseResourcesInMap } from '@utils/stack-info-map';
-import compose from '@utils/basic-compose-shim';
+import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { memoizeGetters } from '@utils/memoize-getters';
 import { locallyResolveSensitiveValue } from '@utils/stack-info-map-sensitive-values';
@@ -39,6 +38,7 @@ import { getResourceInfoLines, getResourceTypeSpecificInfoLines } from './printi
 
 @memoizeGetters
 export class DeployedStackOverviewManager {
+  #stackResources: EnrichedStackResourceInfo[] = [];
   stackInfoMap: StackInfoMap;
   workloadsCurrentlyUsingHotSwapDeploy: string[] = [];
 
@@ -51,6 +51,7 @@ export class DeployedStackOverviewManager {
     stackResources: EnrichedStackResourceInfo[];
     budgetInfo?: BudgetInfo;
   }) => {
+    this.#stackResources = stackResources;
     if (stackDetails?.stackOutput?.[outputNames.stackInfoMap()]) {
       this.stackInfoMap = await this.#getStackInfoMapOfDeployedStack({ stackDetails, budgetInfo });
       this.workloadsCurrentlyUsingHotSwapDeploy = this.#getWorkloadsCurrentlyUsingHotSwapDeploy({ stackResources });
@@ -68,6 +69,7 @@ export class DeployedStackOverviewManager {
   }) => {
     this.stackInfoMap = await this.#getStackInfoMapOfDeployedStack({ stackDetails, budgetInfo });
     this.workloadsCurrentlyUsingHotSwapDeploy = this.#getWorkloadsCurrentlyUsingHotSwapDeploy({ stackResources });
+    this.#stackResources = stackResources;
   };
 
   get deployedWorkloadsWithEcsTaskDefinition() {
@@ -382,7 +384,7 @@ export class DeployedStackOverviewManager {
         stackName: globalStateManager.targetStack.stackName
       });
     }
-    const bastionInstanceId = stackManager.existingStackResources
+    const bastionInstanceId = this.#stackResources
       .find(
         ({ LogicalResourceId }) =>
           LogicalResourceId === cfLogicalNames.bastionEc2AutoscalingGroup(bastionResourceStpName)

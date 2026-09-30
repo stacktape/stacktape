@@ -4,8 +4,8 @@ import type {
 } from '@domain-services/config-manager/resolved-types/application-load-balancers';
 import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
 import { CliError } from '@utils/errors';
-import { configManager as runtimeConfigManager, type ConfigManager } from '../index';
-import { getPropsOfResourceReferencedInConfig } from './resource-references';
+import type { ConfigManager } from '../index';
+import { getPropsOfResourceReferencedInConfig } from './resource-lookup';
 import type { ApplicationLoadBalancerListener } from '@stacktape/config/application-load-balancers';
 import { configErrors } from '../errors';
 import type {
@@ -18,9 +18,9 @@ export const DEFAULT_TEST_LISTENER_PORT = 8080;
 export const resolveReferenceToApplicationLoadBalancer = (
   lbReference: ApplicationLoadBalancerIntegrationProps | ContainerWorkloadLoadBalancerIntegrationProps,
   referencedFrom: string,
-  referencedFromType?: StpWorkloadType | 'alarm',
+  referencedFromType: StpWorkloadType | 'alarm' | undefined,
   resolveListenerInfo = true,
-  activeConfig: ConfigManager = runtimeConfigManager
+  activeConfig: ConfigManager
 ): StpResolvedLoadBalancerReference => {
   const referencedLoadBalancer = getPropsOfResourceReferencedInConfig({
     activeConfig,
@@ -84,11 +84,11 @@ export const resolveReferenceToApplicationLoadBalancer = (
 };
 
 export const getAllIntegrationsForApplicationLoadBalancerListener = ({
-  activeConfig = runtimeConfigManager,
+  activeConfig,
   stpLoadBalancerName,
   listenerPort
 }: {
-  activeConfig?: ConfigManager;
+  activeConfig: ConfigManager;
   stpLoadBalancerName: string;
   listenerPort: number;
 }): (ApplicationLoadBalancerIntegrationProps & { workloadName: string })[] => {
@@ -168,10 +168,10 @@ const hasAuthoredListeners = (
 ): definition is ApplicationLoadBalancerWithListeners => Boolean(definition.listeners?.length);
 
 export const transformLoadBalancerToListenerForm = ({
-  activeConfig = runtimeConfigManager,
+  activeConfig,
   definition
 }: {
-  activeConfig?: ConfigManager;
+  activeConfig: ConfigManager;
   definition: StpApplicationLoadBalancer;
 }): ApplicationLoadBalancerWithListeners => {
   // Resolved unconditionally: the traversal reports invalid load balancer references even for a definition that

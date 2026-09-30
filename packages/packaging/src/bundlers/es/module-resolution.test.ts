@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { isNodeBuiltinImport } from './module-specifier';
+import { isNodeBuiltinImport } from '../../es/import-classification';
 
 test('distinguishes Node builtin subpaths from trailing-slash package imports', () => {
   expect(isNodeBuiltinImport('fs/promises')).toBe(true);

@@ -2,21 +2,24 @@ import { getAtt } from '@stacktape/cloudformation/intrinsics';
 import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import type { StpSqsQueue } from '@domain-services/config-manager/resolved-types/sqs-queues';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { configManager } from '../index';
-import { getPropsOfResourceReferencedInConfig } from './resource-references';
+import type { ConfigManager } from '../index';
+import { getPropsOfResourceReferencedInConfig } from './resource-lookup';
 import type { SqsQueueEventBusIntegration, SqsQueuePolicyStatement } from '@stacktape/config/sqs-queues';
 import { configErrors } from '../errors';
 
 export const resolveReferenceToSqsQueue = ({
+  activeConfig,
   referencedFrom,
   referencedFromType,
   stpResourceReference
 }: {
+  activeConfig: ConfigManager;
   referencedFrom: string;
   referencedFromType?: StpResourceType | 'alarm';
   stpResourceReference: string | undefined;
 }) => {
   return getPropsOfResourceReferencedInConfig({
+    activeConfig: activeConfig,
     stpResourceReference,
     stpResourceType: 'sqs-queue',
     referencedFrom,
@@ -41,14 +44,20 @@ export const validateSqsQueueConfig = ({ resource }: { resource: StpSqsQueue }) 
   }
 };
 
-export const getAllQueuePolicyStatements = ({ resource }: { resource: StpSqsQueue }) => {
+export const getAllQueuePolicyStatements = ({
+  activeConfig,
+  resource
+}: {
+  activeConfig: ConfigManager;
+  resource: StpSqsQueue;
+}) => {
   const result: (SqsQueuePolicyStatement & { Resource: any })[] = [
     ...(resource.policyStatements || []).map((statement) => ({
       ...statement,
       Resource: [getAtt(cfLogicalNames.sqsQueue(resource.name), 'Arn') as unknown as string]
     }))
   ];
-  configManager.allLambdasTriggerableUsingEvents.forEach(({ events, name: lambdaStpName }) => {
+  activeConfig.allLambdasTriggerableUsingEvents.forEach(({ events, name: lambdaStpName }) => {
     if (events) {
       events.forEach((event, index) => {
         if (

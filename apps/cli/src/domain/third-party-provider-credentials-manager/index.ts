@@ -11,7 +11,7 @@ import {
   UPSTASH_PROVIDER_DEFAULT_CREDENTIALS_ID
 } from 'src/config/constants';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import compose from '@utils/basic-compose-shim';
+import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import type { MongoDbAtlasProvider, UpstashProvider } from '@stacktape/config/providers';
 

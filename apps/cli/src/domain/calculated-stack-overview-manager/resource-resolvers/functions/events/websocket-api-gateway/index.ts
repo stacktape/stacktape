@@ -192,6 +192,7 @@ const resolveLambdaAuthorizer = ({
   routeHandlerNameChain: string[];
 }) => {
   const authorizerLambda = resolveReferenceToLambdaFunction({
+    activeConfig: configManager,
     stpResourceReference: authorizer.properties.functionName,
     referencedFrom: gatewayName,
     referencedFromType: 'function'

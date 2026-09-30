@@ -49,7 +49,7 @@ import { outputNames } from '@stacktape/naming/stack-output-names';
 import { tagNames } from '@stacktape/naming/tag-names';
 import { wait } from '@utils/misc';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import compose from '@utils/basic-compose-shim';
+import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { ExpectedError } from '@utils/errors';
 import { getAwsSynchronizedTime } from '@utils/time';
@@ -325,6 +325,7 @@ export class StackManager {
         }
         // if we got here, it means we are referencing alarm name defined in alarms section
         const alarmFromConfig = resolveReferenceToAlarm({
+          activeConfig: configManager,
           stpAlarmReference: alarmNameOrArn,
           referencedFrom: 'deployment configuration'
         });

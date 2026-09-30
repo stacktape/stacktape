@@ -1,5 +1,4 @@
 import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
-import { globalStateManager } from '@application-services/global-state-manager';
 
 /** Resource types that are emulated locally and should not be deployed to the dev stack unless selected as remote. */
 export const LOCAL_EMULATED_RESOURCE_TYPES: StpResourceType[] = [
@@ -28,11 +27,6 @@ export const LOCALLY_RUN_RESOURCE_TYPES: StpResourceType[] = [
   'remix-web'
 ];
 
-/** Check if the current command is 'dev' */
-export const isDevCommand = (): boolean => {
-  return globalStateManager.command === 'dev';
-};
-
 /** Check if a resource type should be completely excluded from the dev stack template */
 export const isResourceTypeExcludedInDevMode = (resourceType: StpResourceType): boolean => {
   return LOCALLY_RUN_RESOURCE_TYPES.includes(resourceType);
@@ -60,3 +54,19 @@ export const selectWorkloadsDeployedInDevMode = <T extends { configParentResourc
   workloads: T[]
 ): T[] =>
   workloads.filter(({ configParentResourceType }) => !isResourceTypeExcludedInDevMode(configParentResourceType));
+
+export type DevDeploymentContext = Readonly<{ command: string; remoteResourceNames: ReadonlySet<string> }>;
+
+export const shouldExcludeResourceInDevMode = (
+  name: string,
+  type: StpResourceType,
+  context: DevDeploymentContext
+): boolean => context.command === 'dev' && !shouldDeployResourceInDevMode(type, context.remoteResourceNames.has(name));
+
+export const filterResourcesForDevMode = <T extends { name: string; type: StpResourceType }>(
+  resources: T[],
+  context: DevDeploymentContext
+): T[] =>
+  context.command === 'dev'
+    ? resources.filter((resource) => !shouldExcludeResourceInDevMode(resource.name, resource.type, context))
+    : resources;

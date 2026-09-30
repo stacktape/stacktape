@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { selectWorkloadsDeployedInDevMode } from './dev-mode-utils';
+import { selectWorkloadsDeployedInDevMode } from '@domain-services/config-manager/dev-mode';
 
 describe('container workloads deployed by a dev stack', () => {
   test('a workload follows the resource that owns it', () => {

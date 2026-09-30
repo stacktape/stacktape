@@ -1,3 +1,4 @@
+import { settleResourceResolvers } from '@domain-services/calculated-stack-overview-manager/resolver-lifecycle';
 import { synthesizeFixture, withCredentiallessSynthesisBoundary } from './synthesis-fixture';
 import http from 'node:http';
 import https from 'node:https';
@@ -10,10 +11,7 @@ import { isIntrinsic, type CloudFormationValue } from '@stacktape/cloudformation
 import { beforeAll, describe, expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
-import {
-  calculatedStackOverviewManager,
-  settleResourceResolvers
-} from '@domain-services/calculated-stack-overview-manager';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import type { StackContext } from '@domain-services/stack-context';
 import {
   hasEnabledCdn,

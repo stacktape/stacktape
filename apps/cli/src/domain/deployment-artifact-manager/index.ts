@@ -17,7 +17,7 @@ import {
 } from '@config';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
-import { packagingManager } from '@domain-services/packaging-manager';
+import type { PackagingManager } from '@domain-services/packaging-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { fsPaths } from 'src/config/runtime-paths';
 import {
@@ -36,7 +36,7 @@ import { processConcurrently } from '@utils/misc';
 import { outputNames } from '@stacktape/naming/stack-output-names';
 import { parseYaml, stringifyToYaml } from '@utils/yaml';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import compose from '@utils/basic-compose-shim';
+import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { ExpectedError } from '@utils/errors';
 import { getHotSwapDeployVersionString } from '@utils/versioning';
@@ -45,7 +45,24 @@ import { selectObsoleteArtifacts, type StoredArtifact } from './retention';
 import type { DirectoryUpload } from '@stacktape/config/buckets';
 import type { LambdaPackaging } from '@stacktape/config/deployment-artifacts';
 
+type ArtifactPackagingSource = Pick<
+  PackagingManager,
+  'getPackagingOutputForJob' | 'getPendingSharedLayer' | 'getLayerArtifacts' | 'publishSharedLayer'
+>;
+
 export class DeploymentArtifactManager {
+  #packagingSource: ArtifactPackagingSource | undefined;
+
+  setPackagingSource = (packagingSource: ArtifactPackagingSource) => {
+    this.#packagingSource = packagingSource;
+  };
+
+  private get packagingSource() {
+    if (!this.#packagingSource)
+      throw new Error('Deployment artifact manager was used before its packaging source was configured.');
+    return this.#packagingSource;
+  }
+
   successfullyUploadedImages: { tag: string; name: string }[] = [];
   successfullyCreatedObjects: { s3Key: string; name: string }[] = [];
   maximumParallelArtifactUploads: number;
@@ -111,15 +128,18 @@ export class DeploymentArtifactManager {
   init = async ({
     globallyUniqueStackHash,
     accountId,
+    packagingSource,
     stackActionType,
     parentEventType
   }: {
     globallyUniqueStackHash: string;
     accountId: string;
+    packagingSource: ArtifactPackagingSource;
     stackActionType?: StackActionType;
     /** Optional parent event for grouping (e.g., LOAD_METADATA_FROM_AWS) */
     parentEventType?: LoggableEventType;
   }) => {
+    this.setPackagingSource(packagingSource);
     this.deploymentBucketName = awsResourceNames.deploymentBucket(globallyUniqueStackHash);
     this.repositoryName = awsResourceNames.deploymentEcrRepo(globallyUniqueStackHash);
     this.repositoryUrl = getEcrRepositoryUrl(accountId, globalStateManager.region, this.repositoryName);
@@ -187,7 +207,7 @@ export class DeploymentArtifactManager {
   };
 
   getImageUploadInfoForJob = ({ jobName, hotSwapDeploy }: { jobName: string; hotSwapDeploy?: boolean }) => {
-    const packagingOutput = packagingManager.getPackagingOutputForJob(jobName);
+    const packagingOutput = this.packagingSource.getPackagingOutputForJob(jobName);
     if (!packagingOutput) {
       return null;
     }
@@ -219,7 +239,7 @@ export class DeploymentArtifactManager {
   };
 
   #getUserLambdaS3UploadInfo = ({ name, hotSwapDeploy }: { name: string; hotSwapDeploy?: boolean }) => {
-    const packagingOutput = packagingManager.getPackagingOutputForJob(name);
+    const packagingOutput = this.packagingSource.getPackagingOutputForJob(name);
     if (!packagingOutput) {
       return { artifactName: name, artifactPath: null, digest: null, s3Key: null, alreadyUploaded: null };
     }
@@ -472,7 +492,7 @@ export class DeploymentArtifactManager {
     });
 
     // Publish shared Lambda layer if one was built
-    if (packagingManager.getPendingSharedLayer()) {
+    if (this.packagingSource.getPendingSharedLayer()) {
       jobs.push(() => this.uploadSharedLayer());
     }
 
@@ -762,12 +782,12 @@ export class DeploymentArtifactManager {
 
   uploadSharedLayer = async () => {
     // Skip if no pending layers
-    const pendingLayer = packagingManager.getPendingSharedLayer();
+    const pendingLayer = this.packagingSource.getPendingSharedLayer();
     if (!pendingLayer) {
       return;
     }
 
-    const layerArtifacts = packagingManager.getLayerArtifacts();
+    const layerArtifacts = this.packagingSource.getLayerArtifacts();
     if (layerArtifacts.length === 0) {
       return;
     }
@@ -808,7 +828,7 @@ export class DeploymentArtifactManager {
 
     try {
       // Zip only the layers that need uploading
-      await packagingManager.publishSharedLayer(layersToUpload);
+      await this.packagingSource.publishSharedLayer(layersToUpload);
 
       // Upload each layer to S3 using the S3 key computed during packaging
       for (const layer of layersToUpload) {

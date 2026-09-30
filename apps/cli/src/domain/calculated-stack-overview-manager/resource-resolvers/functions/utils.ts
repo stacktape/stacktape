@@ -20,11 +20,11 @@ import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getCloudFormationLogRetentionDays } from '@utils/cloudformation';
 import { getAssumeRolePolicyDocumentForFunctionRole } from 'src/aws/iam';
+import { getPoliciesForRoles } from '../_utils/role-helpers';
 import {
   getLambdaLogResourceArnsForPermissions,
-  getLogGroupPolicyDocumentStatements,
-  getPoliciesForRoles
-} from '../_utils/role-helpers';
+  getLogGroupPolicyDocumentStatements
+} from 'src/aws/logging-permissions';
 import type { ApplicationLoadBalancerIntegration } from '@stacktape/config/events';
 import type { CloudWatchLogGroupOptions } from '@stacktape/config/log-forwarding';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
@@ -196,6 +196,7 @@ export const getLambdaAliasResource = ({
           lambdaProps.deployment.afterTrafficShiftFunction &&
           ref(
             resolveReferenceToLambdaFunction({
+              activeConfig: configManager,
               stpResourceReference: lambdaProps.deployment.afterTrafficShiftFunction,
               referencedFrom: lambdaProps.name,
               referencedFromType: 'function'
@@ -205,6 +206,7 @@ export const getLambdaAliasResource = ({
           lambdaProps.deployment.beforeAllowTrafficFunction &&
           ref(
             resolveReferenceToLambdaFunction({
+              activeConfig: configManager,
               stpResourceReference: lambdaProps.deployment.beforeAllowTrafficFunction,
               referencedFrom: lambdaProps.name,
               referencedFromType: 'function'
@@ -275,7 +277,9 @@ export const getTargetsForLambdaWorkloadEvents = ({
       const resolvedLbReference = resolveReferenceToApplicationLoadBalancer(
         event.properties,
         name,
-        configParentResourceType as 'batch-job' | 'function'
+        configParentResourceType as 'batch-job' | 'function',
+        true,
+        configManager
       );
       const targetGroupIdentifier = getTargetGroupIdentifier(resolvedLbReference.loadBalancer.name, name);
       if (targets[targetGroupIdentifier]) {

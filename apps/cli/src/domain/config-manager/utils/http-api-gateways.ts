@@ -1,17 +1,17 @@
 import type { StpHttpApiGateway } from '@domain-services/config-manager/resolved-types/http-api-gateways';
 import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
-import { configManager as runtimeConfigManager, type ConfigManager } from '../index.js';
-import { getPropsOfResourceReferencedInConfig } from './resource-references';
+import type { ConfigManager } from '../index.js';
+import { getPropsOfResourceReferencedInConfig } from './resource-lookup';
 import type { HttpApiIntegration } from '@stacktape/config/events';
 import { configErrors } from '../errors';
 
 export const resolveReferenceToHttpApiGateway = ({
-  activeConfig = runtimeConfigManager,
+  activeConfig,
   referencedFrom,
   referencedFromType,
   stpResourceReference
 }: {
-  activeConfig?: ConfigManager;
+  activeConfig: ConfigManager;
   referencedFrom: string;
   referencedFromType?: StpWorkloadType | 'alarm';
   stpResourceReference: string;
@@ -26,7 +26,7 @@ export const resolveReferenceToHttpApiGateway = ({
   });
   // } catch (err) {
   //   if ((err as StacktapeError).isExpected) {
-  //     const resource = configManager.webServices
+  //     const resource = activeConfig.webServices
   //       .filter(({ _nestedResources: { httpApiGateway } }) => httpApiGateway)
   //       .find(({ name }) => name === stpResourceName)._nestedResources.httpApiGateway;
   //     if (!resource) {
@@ -42,10 +42,16 @@ export const resolveReferenceToHttpApiGateway = ({
   // }
 };
 
-export const getDefaultHttpApiCorsAllowedMethods = ({ resource }: { resource: StpHttpApiGateway }): string[] => {
+export const getDefaultHttpApiCorsAllowedMethods = ({
+  activeConfig,
+  resource
+}: {
+  activeConfig: ConfigManager;
+  resource: StpHttpApiGateway;
+}): string[] => {
   const methods = new Set<string>();
 
-  getAllIntegrationsForHttpApiGateway({ resource }).forEach((event) => {
+  getAllIntegrationsForHttpApiGateway({ activeConfig: activeConfig, resource }).forEach((event) => {
     methods.add(event.properties.method);
   });
 
@@ -53,10 +59,10 @@ export const getDefaultHttpApiCorsAllowedMethods = ({ resource }: { resource: St
 };
 
 export const getAllIntegrationsForHttpApiGateway = ({
-  activeConfig = runtimeConfigManager,
+  activeConfig,
   resource
 }: {
-  activeConfig?: ConfigManager;
+  activeConfig: ConfigManager;
   resource: StpHttpApiGateway;
 }): (HttpApiIntegration & { workloadName: string })[] => {
   const result: (HttpApiIntegration & { workloadName: string })[] = [];

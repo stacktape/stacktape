@@ -1,17 +1,12 @@
+import { resolveAllResources } from '@domain-services/calculated-stack-overview-manager/synthesize';
 import { stringifyToYaml } from '@utils/yaml';
 import fsExtra from 'fs-extra';
 import { initializeSynthOperation } from '../_utils/initialization';
 
 export const commandSynth = async () => {
-  const {
-    args,
-    calculatedStackOverview,
-    finalizeTemplate,
-    template: templateManager,
-    tui
-  } = await initializeSynthOperation();
+  const { args, finalizeTemplate, template: templateManager, tui } = await initializeSynthOperation();
 
-  await calculatedStackOverview.resolveAllResources();
+  await resolveAllResources();
 
   await finalizeTemplate();
 

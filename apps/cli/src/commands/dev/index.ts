@@ -40,13 +40,9 @@ import { initDevAgentCredentials } from './dev-agent-credentials';
 import { registerDevServerCleanupHook } from './dev-server';
 import { deployDevStack } from './dev-stack-deployer';
 import { devStackConfigNeedsUpdate, getDevStackConfigFingerprint } from './dev-stack-config-fingerprint';
-import {
-  getLocalEmulateableResources,
-  getRemoteResourceNames,
-  registerLocalResourceCleanupHook
-} from './local-resources';
+import { getLocalEmulateableResources, registerLocalResourceCleanupHook } from './local-resources';
 import { registerHealthMonitorCleanupHook } from './local-resources/health-monitor';
-import { rebuildAllWorkloads, rebuildWorkload, runParallelWorkloads } from './parallel-runner';
+import { rebuildAllWorkloads, rebuildWorkload, runParallelWorkloads, getWorkloadEnvVars } from './parallel-runner';
 import { findAvailablePort } from './port-utils';
 import { registerLambdaEnvCleanupHook } from './lambda-env-manager';
 import { getActiveTunnels, registerTunnelCleanupHook } from './tunnel-manager';
@@ -426,7 +422,11 @@ export const commandDev = async () => {
 
     registerAgentCleanupHook();
     setRebuildFunctions(rebuildWorkload, rebuildAllWorkloads);
-    await startAgentServer(agentPort, localStatePaths.devAgentDirectory({ workingDirectory: stackContext.workingDir }));
+    await startAgentServer(
+      agentPort,
+      localStatePaths.devAgentDirectory({ workingDirectory: stackContext.workingDir }),
+      getWorkloadEnvVars
+    );
 
     // A first run deploys the dev stack, which can far outlast any fixed readiness deadline. The
     // daemon therefore emits a liveness heartbeat until AGENT_READY, and the parent treats its
@@ -456,7 +456,7 @@ export const commandDev = async () => {
 
   const allWorkloads = getDevCompatibleResources();
   const allEmulateableResources = getLocalEmulateableResources();
-  const remoteResourceNames = getRemoteResourceNames();
+  const remoteResourceNames = configManager.deploymentContext.remoteResourceNames;
 
   // Validate that we have something to run
   if (allWorkloads.length === 0 && allEmulateableResources.length === 0) {

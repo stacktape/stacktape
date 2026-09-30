@@ -61,6 +61,7 @@ const resolveAgentCoreRuntimes = () => {
       accessToAtlasMongoClusterResources,
       accessToAwsServices
     } = resolveConnectToList({
+      activeConfig: configManager,
       stpResourceNameOfReferencer: name,
       stpResourceTypeOfReferencer: runtime.type,
       connectTo: runtime.connectTo
@@ -575,6 +576,7 @@ const getGatewayToolLambdaArn = (tool: AgentCoreGatewayTool, gateway: StpAgentCo
   }
   return getAtt(
     resolveReferenceToLambdaFunction({
+      activeConfig: configManager,
       stpResourceReference: tool.function,
       referencedFrom: gateway.name,
       referencedFromType: gateway.type as any

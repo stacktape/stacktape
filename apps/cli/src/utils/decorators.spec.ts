@@ -1,7 +1,6 @@
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { applicationManager } from '@application-services/application-manager';
-import { globalStateManager } from '@application-services/global-state-manager';
-import { cancelablePublicMethods, skipInitIfInitialized } from './decorators';
+import { describe, expect, test } from 'bun:test';
+import { pendingOperations } from '@application-services/command-lifecycle/pending-operations';
+import { cancelablePublicMethods, resetDomainServiceInitialization, skipInitIfInitialized } from './decorators';
 
 const deferred = <T>() => {
   let resolve: (value: T) => void;
@@ -14,17 +13,23 @@ const deferred = <T>() => {
 };
 
 describe('skipInitIfInitialized', () => {
-  let previousInitializedDomainServices: typeof globalStateManager.initializedDomainServices;
-
-  beforeEach(() => {
-    previousInitializedDomainServices = globalStateManager.initializedDomainServices;
-    globalStateManager.initializedDomainServices = [];
+  test('initializes separate instances of the same service independently', async () => {
+    class Service {
+      initCalls = 0;
+      init = async () => {
+        this.initCalls++;
+      };
+    }
+    const first = skipInitIfInitialized(new Service());
+    const second = skipInitIfInitialized(new Service());
+    await first.init();
+    await second.init();
+    expect(first.initCalls).toBe(1);
+    expect(second.initCalls).toBe(1);
+    resetDomainServiceInitialization();
+    await first.init();
+    expect(first.initCalls).toBe(2);
   });
-
-  afterEach(() => {
-    globalStateManager.initializedDomainServices = previousInitializedDomainServices;
-  });
-
   test('joins concurrent initialization and publishes success only after it finishes', async () => {
     const firstAttempt = deferred<string>();
     class ConcurrentService {
@@ -41,14 +46,12 @@ describe('skipInitIfInitialized', () => {
     const secondResult = service.init();
 
     expect(service.initCalls).toBe(1);
-    expect(globalStateManager.initializedDomainServices).not.toContain('ConcurrentService');
 
     firstAttempt.resolve('ready');
     expect(await firstResult).toBe('ready');
     expect(await secondResult).toBe('ready');
-    expect(globalStateManager.initializedDomainServices as string[]).toEqual(['ConcurrentService']);
 
-    expect(await service.init()).toBeUndefined();
+    expect(await service.init()).toBe('ready');
     expect(service.initCalls).toBe(1);
   });
 
@@ -67,11 +70,9 @@ describe('skipInitIfInitialized', () => {
     const service = skipInitIfInitialized(new RetryableService());
 
     await expect(service.init()).rejects.toThrow('first attempt failed');
-    expect(globalStateManager.initializedDomainServices).not.toContain('RetryableService');
 
     await expect(service.init()).resolves.toBe('ready');
     expect(service.initCalls).toBe(2);
-    expect(globalStateManager.initializedDomainServices as string[]).toEqual(['RetryableService']);
   });
 
   test('allows retry after an implementation throws before returning a promise', async () => {
@@ -95,17 +96,18 @@ describe('skipInitIfInitialized', () => {
 });
 
 describe('cancelablePublicMethods', () => {
-  let previousPendingPromises: typeof applicationManager.pendingCancellablePromises;
-
-  beforeEach(() => {
-    previousPendingPromises = applicationManager.pendingCancellablePromises;
-    applicationManager.pendingCancellablePromises = {};
+  test('cancels pending results and still observes their later failures', async () => {
+    const operation = deferred<string>();
+    const service = cancelablePublicMethods({ run: () => operation.promise });
+    const result = service.run();
+    pendingOperations.cancelAll(new Error('interrupted'));
+    await expect(result).rejects.toThrow('interrupted');
+    expect(pendingOperations.size).toBe(0);
+    operation.reject(new Error('late underlying failure'));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(pendingOperations.size).toBe(0);
   });
-
-  afterEach(() => {
-    applicationManager.pendingCancellablePromises = previousPendingPromises;
-  });
-
   test('removes a fulfilled operation from the pending registry', async () => {
     class Service {
       run = () => Promise.resolve('done');
@@ -113,10 +115,10 @@ describe('cancelablePublicMethods', () => {
     const service = cancelablePublicMethods(new Service());
 
     const result = service.run();
-    expect(Object.keys(applicationManager.pendingCancellablePromises)).toHaveLength(1);
+    expect(Array.from({ length: pendingOperations.size })).toHaveLength(1);
 
     await expect(result).resolves.toBe('done');
-    expect(applicationManager.pendingCancellablePromises).toEqual({});
+    expect(pendingOperations.size).toBe(0);
   });
 
   test('removes a rejected operation from the pending registry', async () => {
@@ -126,9 +128,9 @@ describe('cancelablePublicMethods', () => {
     const service = cancelablePublicMethods(new Service());
 
     const result = service.run();
-    expect(Object.keys(applicationManager.pendingCancellablePromises)).toHaveLength(1);
+    expect(Array.from({ length: pendingOperations.size })).toHaveLength(1);
 
     await expect(result).rejects.toThrow('operation failed');
-    expect(applicationManager.pendingCancellablePromises).toEqual({});
+    expect(pendingOperations.size).toBe(0);
   });
 });

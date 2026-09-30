@@ -1,3 +1,8 @@
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
+import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
+import { stackManager } from '@domain-services/cloudformation-stack-manager';
+import { templateManager } from '@domain-services/template-manager';
+import { resetDomainServiceInitialization } from '@utils/decorators';
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { cp, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -47,6 +52,7 @@ const fixtureAuthoringParams: GetConfigParams = {
 const fixtureResolverContext = {
   authoringParams: fixtureAuthoringParams,
   builtInDirectives: {
+    runtime: { calculatedStackOverviewManager, deployedStackOverviewManager, stackManager, templateManager },
     accountId: '123456789999',
     additionalArgs: {},
     awsProfile: '',
@@ -195,6 +201,7 @@ const getInitContext = ({
     resolver: {
       authoringParams,
       builtInDirectives: {
+        runtime: { calculatedStackOverviewManager, deployedStackOverviewManager, stackManager, templateManager },
         accountId,
         additionalArgs: {},
         awsProfile: '',
@@ -753,7 +760,6 @@ export default defineConfig(() => ({ projectName, resources: {} }));
 
   test('executes the production config-loading sequence once while retaining executable transforms', async () => {
     const previousPresetConfig = globalStateManager.presetConfig;
-    const previousInitializedDomainServices = globalStateManager.initializedDomainServices;
     const previousLocalTargetAwsAccount = globalStateManager.localTargetAwsAccount;
     const previousTargetStack = globalStateManager.targetStack;
     try {
@@ -779,7 +785,7 @@ export default defineConfig(() => ({ projectName, resources: {} }));
         defaultRegion: 'eu-west-1'
       };
       globalStateManager.presetConfig = null;
-      globalStateManager.initializedDomainServices = [];
+      resetDomainServiceInitialization();
 
       await configManager.loadRawConfigOnly({ context: getConfigResolverContext() });
       expect(configManager.configResolver.rawConfig.projectName).toBe('execution-config-project');
@@ -808,7 +814,6 @@ export default defineConfig(() => ({ projectName, resources: {} }));
     } finally {
       configManager.reset();
       globalStateManager.presetConfig = previousPresetConfig;
-      globalStateManager.initializedDomainServices = previousInitializedDomainServices;
       globalStateManager.localTargetAwsAccount = previousLocalTargetAwsAccount;
       globalStateManager.targetStack = previousTargetStack;
     }

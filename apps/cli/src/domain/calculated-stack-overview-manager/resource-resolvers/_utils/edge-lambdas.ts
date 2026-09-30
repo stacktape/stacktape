@@ -1,3 +1,4 @@
+import { configManager } from '@domain-services/config-manager';
 import type { StpServiceCustomResourceProperties } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
 import type {
   StpEdgeLambdaFunction,
@@ -56,6 +57,7 @@ const getEdgeLambdaCustomResourceProperties = (lambdaProps: StpEdgeLambdaFunctio
     accessToResourcesPotentiallyRequiringSecurityGroupCreation,
     accessToAwsServices
   } = resolveConnectToList({
+    activeConfig: configManager,
     connectTo: lambdaProps.connectTo,
     stpResourceNameOfReferencer: lambdaProps.name,
     stpResourceTypeOfReferencer: lambdaProps.configParentResourceType

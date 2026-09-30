@@ -184,7 +184,7 @@ const getDefaultCorsConfiguration = ({ resource }: { resource: StpHttpApiGateway
       'X-Amz-Security-Token',
       'X-Amz-User-Agent'
     ],
-    AllowMethods: getDefaultHttpApiCorsAllowedMethods({ resource })
+    AllowMethods: getDefaultHttpApiCorsAllowedMethods({ activeConfig: configManager, resource })
   };
 };
 
