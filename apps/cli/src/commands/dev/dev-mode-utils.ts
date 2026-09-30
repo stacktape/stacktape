@@ -50,3 +50,13 @@ export const isResourceTypeRemoteOnlyInDevMode = (resourceType: StpResourceType)
 export const shouldDeployResourceInDevMode = (resourceType: StpResourceType, remote: boolean): boolean =>
   !isResourceTypeExcludedInDevMode(resourceType) &&
   (!(isResourceTypeLocallyEmulatable(resourceType) || isResourceTypeRemoteOnlyInDevMode(resourceType)) || remote);
+
+/**
+ * The container workloads a dev stack still deploys. A workload follows the resource that owns it: the workload of a
+ * web, private or worker service runs locally with its parent, while the workloads Convex synthesizes are deployed
+ * with it.
+ */
+export const selectWorkloadsDeployedInDevMode = <T extends { configParentResourceType: StpResourceType }>(
+  workloads: T[]
+): T[] =>
+  workloads.filter(({ configParentResourceType }) => !isResourceTypeExcludedInDevMode(configParentResourceType));

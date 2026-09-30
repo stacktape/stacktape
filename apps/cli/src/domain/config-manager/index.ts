@@ -93,7 +93,11 @@ import { MAX_UPTIME_CHECKS_PER_STACK, resolveUptimeCheckRegions, validateUptimeC
 import { buildNextjsWebNestedResources } from './utils/nextjs-webs';
 import { buildSsrWebNestedResources } from './utils/ssr-webs';
 import { runInitialValidations, validateConfigStructure, validateGuardrails } from './utils/validation';
-import { isDevCommand, isResourceTypeExcludedInDevMode } from '../../commands/dev/dev-mode-utils';
+import {
+  isDevCommand,
+  isResourceTypeExcludedInDevMode,
+  selectWorkloadsDeployedInDevMode
+} from '../../commands/dev/dev-mode-utils';
 import type { StacktapeConfig } from '@stacktape/config';
 import type { ApplicationLoadBalancerAlarm, HttpApiGatewayAlarm } from '@stacktape/config/alarms';
 import type { ApplicationLoadBalancerListener } from '@stacktape/config/application-load-balancers';
@@ -2173,9 +2177,19 @@ export class ConfigManager {
     return this.allContainerWorkloads.filter(({ usePrivateSubnetsWithNAT }) => usePrivateSubnetsWithNAT);
   }
 
+  /**
+   * The container workloads the current command puts in the template. `dev` runs the user's services locally, so
+   * only the workloads of a resource it still deploys (Convex) remain. Shared resources that exist for deployed
+   * workloads (the HTTP API VPC link, the service discovery namespace) must be derived from this list: they reference
+   * the VPC, which a dev stack creates only when a deployed resource needs it.
+   */
+  get deployedContainerWorkloads() {
+    return isDevCommand() ? selectWorkloadsDeployedInDevMode(this.allContainerWorkloads) : this.allContainerWorkloads;
+  }
+
   get httpApiGatewayContainerWorkloadsAssociations() {
     const result: { [stpHttpApiGatewayName: string]: ContainerWorkloadHttpApiIntegrationProps[] } = {};
-    this.allContainerWorkloads
+    this.deployedContainerWorkloads
       .map(({ containers }) =>
         containers.map(({ events }) => (events || []).filter(({ type }) => type === 'http-api-gateway'))
       )
@@ -2599,7 +2613,7 @@ export class ConfigManager {
   get isServiceDiscoveryPrivateNamespaceRequired() {
     return (
       Object.keys(this.httpApiGatewayContainerWorkloadsAssociations).length ||
-      Object.keys(this.serviceConnectContainerWorkloadsAssociations).length
+      this.deployedContainerWorkloads.some(({ name }) => this.serviceConnectContainerWorkloadsAssociations[name])
     );
   }
 
