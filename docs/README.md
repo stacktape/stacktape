@@ -9,9 +9,9 @@ links. Private Console links are checked when the submodule is initialized.
 | Repository boundaries and ownership                                  | [Architecture](architecture.md)                                                                                |
 | Local tools, applications and development commands                   | [Development](development.md)                                                                                  |
 | Choosing tests for the current change                                | [Short testing policy](testing.md)                                                                             |
-| Suite design, application/workload coverage and replacing tests      | [Testing strategy](testing/strategy.md)                                                                        |
-| Coordinating the repository-wide testing overhaul                    | [QA initiative](testing/initiative.md) and [behavior slices](testing/slices.md)                                |
-| Repeatable E2E fixtures, browser tools and execution speed           | [E2E implementation](testing/e2e.md)                                                                           |
+| Target coverage per application, workload and environment            | [Testing strategy](testing/strategy.md)                                                                        |
+| Coordinating the repository-wide testing overhaul                    | [Testing overhaul plan](testing/overhaul.md)                                                                   |
+| Existing test helpers, helpers to build and browser conventions      | [Test helpers and E2E conventions](testing/e2e.md)                                                             |
 | Packaging, runtime artifacts and the MiniStack S3 pilot              | [Packaging acceptance](../apps/cli/scripts/packaging-archives/README.md)                                       |
 | Console API, database, browser and shared dev reservation            | [Console testing](testing/console.md)                                                                          |
 | Live AWS authorization, ownership, cost and cleanup                  | [Live AWS testing](testing/live-aws.md)                                                                        |

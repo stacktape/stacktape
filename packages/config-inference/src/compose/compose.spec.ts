@@ -1164,6 +1164,53 @@ describe('pinning the declared runtime version', () => {
     expect(versionOf('22.1')).toBe(22);
   });
 
+  it('starts a Procfile worker from the Dockerfile its web process already builds', () => {
+    const { config } = composeConfig({
+      facts: facts({
+        services: [
+          service({ name: 'web', dockerfile: 'docker/Dockerfile' }),
+          service({
+            name: 'worker',
+            exposesHttp: false,
+            port: undefined,
+            processType: 'worker',
+            startCommand: 'bundle exec rails ip_lookup:setup && bundle exec sidekiq -C config/sidekiq.yml'
+          }),
+          service({
+            name: 'scheduler',
+            exposesHttp: false,
+            port: undefined,
+            processType: 'scheduler',
+            startCommand: 'bundle exec clockwork'
+          })
+        ]
+      })
+    });
+
+    expect(config.resources.worker?.properties.packaging).toEqual({
+      type: 'dockerfile',
+      properties: {
+        buildContextPath: '.',
+        dockerfilePath: 'docker/Dockerfile',
+        command: ['sh', '-c', 'bundle exec rails ip_lookup:setup && bundle exec sidekiq -C config/sidekiq.yml']
+      }
+    });
+    expect(config.resources.scheduler?.properties.packaging).toMatchObject({
+      properties: { command: ['bundle', 'exec', 'clockwork'] }
+    });
+  });
+
+  it('pins the JDK a Java build declares', () => {
+    const { config } = composeConfig({
+      facts: facts({ services: [service({ language: 'java', runtimeVersion: '17', startCommand: undefined })] })
+    });
+
+    expect(config.resources.web?.properties.packaging).toEqual({
+      type: 'buildpack',
+      properties: { sourceDirectoryPath: '.', packages: { java: '17' } }
+    });
+  });
+
   it('runs a published image as is', () => {
     const { config } = composeConfig({
       facts: facts({ services: [service({ containerImage: 'docker.io/langgenius/dify-api:1.14.2' })] })

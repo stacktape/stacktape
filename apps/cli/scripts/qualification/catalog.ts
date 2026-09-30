@@ -86,7 +86,18 @@ const stressCases = [...REAL_PROJECT_PLATFORM_STRESS_CASES, ...REAL_PROJECT_APPL
 const importOnlyCaseIds = new Set([
   // This pinned Vercel starter still exercises importer evidence, but Next 14 is outside the
   // supported @opennextjs/aws 3.10 packaging range.
-  'vercel-next-postgres-auth'
+  'vercel-next-postgres-auth',
+  // Nine Aspire services share Directory.Packages.props and project references at the solution root, which the
+  // buildpack's single-project .NET build cannot see (documented; a Dockerfile is the supported path). The import
+  // lane still proves the nine-service detection.
+  'dotnet-eshop',
+  // Both validate their environment inside `next build` (Umami's next.config, Formbricks' t3-env schema), so the
+  // build needs the real DATABASE_URL and friends before the stack that provides them exists.
+  'real-umami',
+  'real-formbricks',
+  // Its Containerfile's base image pins Debian 11 packages the security archive no longer serves, and its
+  // .tool-versions lists conda tools mise cannot install; the web, worker and release detection is the value.
+  'real-forem'
 ]);
 
 const fromBuiltInCase = (entry: RealProjectCorpusCase): QualificationCaseManifest => ({

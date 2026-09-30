@@ -63,12 +63,13 @@ describe('project dependency install command', () => {
   test("runs npm without its informational audit and update check, and changes no other manager's command", () => {
     expect(
       getProjectDependencyInstallScript({ packageManager: 'npm', installType: 'CI', lockfile: 'not relevant' })
-    ).toEqual(['npm', 'ci', '--no-audit', '--no-update-notifier']);
+    ).toEqual(['npm', 'ci', '--no-audit', '--no-update-notifier', '--engine-strict=false']);
     expect(getProjectDependencyInstallScript({ packageManager: 'npm', installType: 'normal' })).toEqual([
       'npm',
       'install',
       '--no-audit',
-      '--no-update-notifier'
+      '--no-update-notifier',
+      '--engine-strict=false'
     ]);
     expect(getProjectDependencyInstallScript({ packageManager: 'bun', installType: 'CI' })).toEqual([
       'bun',

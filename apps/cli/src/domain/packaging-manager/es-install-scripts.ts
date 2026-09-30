@@ -6,11 +6,16 @@ import type { SupportedEsPackageManager } from '@stacktape/packaging/runtime-con
  * (https://docs.npmjs.com/using-npm/config/: `audit`, `update-notifier`).
  */
 const NPM_INFORMATIONAL_OPT_OUTS = ['--no-audit', '--no-update-notifier'];
+/**
+ * This machine only bundles the code; the runtime that runs it is chosen in the Stacktape configuration. A project's
+ * `engines.node` with `engine-strict=true` in its `.npmrc` must not stop the bundle on a newer local Node.
+ */
+const NPM_HOST_BUNDLER_OPTIONS = ['--engine-strict=false'];
 
 const installScripts: { [_pm in SupportedEsPackageManager]: { ciInstall: string[]; normalInstall: string[] } } = {
   npm: {
-    ciInstall: ['npm', 'ci', ...NPM_INFORMATIONAL_OPT_OUTS],
-    normalInstall: ['npm', 'install', ...NPM_INFORMATIONAL_OPT_OUTS]
+    ciInstall: ['npm', 'ci', ...NPM_INFORMATIONAL_OPT_OUTS, ...NPM_HOST_BUNDLER_OPTIONS],
+    normalInstall: ['npm', 'install', ...NPM_INFORMATIONAL_OPT_OUTS, ...NPM_HOST_BUNDLER_OPTIONS]
   },
   yarn: {
     ciInstall: ['yarn', 'install', '--frozen-lockfile', '--ignore-platform', '--ignore-engines'],

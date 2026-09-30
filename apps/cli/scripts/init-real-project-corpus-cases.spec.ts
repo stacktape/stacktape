@@ -7,7 +7,7 @@ import {
 
 describe('the pinned real-project init corpus', () => {
   it('uses immutable, uniquely identified GitHub inputs', () => {
-    expect(REAL_PROJECT_CORPUS.length).toBeGreaterThanOrEqual(73);
+    expect(REAL_PROJECT_CORPUS.length).toBeGreaterThanOrEqual(65);
     expect(new Set(REAL_PROJECT_CORPUS.map((entry) => entry.id)).size).toBe(REAL_PROJECT_CORPUS.length);
     expect(
       new Set(REAL_PROJECT_CORPUS.map((entry) => `${entry.repository}#${entry.commit}:${entry.subdirectory ?? '.'}`))

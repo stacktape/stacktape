@@ -93,6 +93,37 @@ describe('dependency lists in other languages', () => {
     ).toEqual(['postgres', 'redis']);
   });
 
+  it('records the Java release a Gradle toolchain or Maven property pins', async () => {
+    root = await makeRepo({
+      'build.gradle': [
+        "plugins { id 'org.springframework.boot' version '3.4.0' }",
+        'java {',
+        '  toolchain {',
+        '    languageVersion = JavaLanguageVersion.of(17)',
+        '  }',
+        '}',
+        "dependencies { implementation 'org.springframework.boot:spring-boot-starter-web' }",
+        ''
+      ].join('\n')
+    });
+    const gradle = await assembleCandidateFacts({ root, probes: PROBES });
+    expect(gradle.facts.services[0]).toMatchObject({ language: 'java', runtimeVersion: '17' });
+
+    root = await makeRepo({
+      'pom.xml': [
+        '<project>',
+        '  <parent><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-parent</artifactId></parent>',
+        '  <artifactId>petclinic</artifactId>',
+        '  <properties><java.version>21</java.version></properties>',
+        '  <dependencies><dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId></dependency></dependencies>',
+        '</project>',
+        ''
+      ].join('\n')
+    });
+    const maven = await assembleCandidateFacts({ root, probes: PROBES });
+    expect(maven.facts.services[0]).toMatchObject({ language: 'java', runtimeVersion: '21' });
+  });
+
   it('reads go.mod and ignores indirect requirements', async () => {
     expect(
       await kindsIn({

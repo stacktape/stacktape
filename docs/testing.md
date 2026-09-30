@@ -1,63 +1,68 @@
 # Testing Stacktape changes
 
-Read this once when choosing tests. Open linked procedures only for the work at hand. The
-[testing strategy](testing/strategy.md) owns suite design and migration; the [E2E guide](testing/e2e.md) owns reusable
-fixtures, browser tooling and performance.
+Read this once when choosing tests, then open only the linked procedures you need. The [strategy](testing/strategy.md)
+explains target coverage, the [E2E guide](testing/e2e.md) lists helpers and conventions, and the
+[overhaul plan](testing/overhaul.md) coordinates the repository-wide testing work.
 
-## Choose by what can break
+## Test end to end first
 
-Prefer a repeatable scenario through real cooperating code that proves the customer outcome. For a complex feature, one
-well-chosen E2E scenario can be its only behavioral test; add tests for important failures it cannot exercise. E2E does
-not always mean a browser or an AWS deployment: a CLI producing an artifact that runs correctly is also a complete
-journey.
+Prove the change with a repeatable scenario that drives the product the way a customer does and observes the outcome
+they care about. For most features, one well-chosen end-to-end scenario is the main test. E2E does not always mean a
+browser or an AWS deployment: a CLI building an artifact that runs correctly is a complete journey.
 
-Use focused tests for self-contained rules with meaningful input variations, such as naming, pricing, parsing and
-redaction. For isolated changes, describe realistic failures and write the failing cases before changing the
-implementation. For a bug, reproduce the failure before fixing it when practical. Do not add a test for every function
-or duplicate the same assertion at every layer. An artificial input can protect a real compatibility rule; check what a
-test detects before deleting it.
+Most recently fixed defects were found by building real projects and running live scenarios, not by focused tests.
+Before testing an area, read its fix history (`git log -i --grep=fix -- <paths>`) and cover those failures first. For a
+bug, reproduce it with a failing test before fixing it when practical.
 
-| What changed                                                           | Test at this boundary                                                                                                                                                                                    |
-| ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Naming, pricing, parsing, redaction or another pure contract           | Table-driven inputs and independent expected results. Preserve replacement-sensitive names and hashes.                                                                                                   |
-| Types, schemas, generated data or public exports                       | Compile a real consumer; exercise serialization/validation where it exists; run the owner's `generate:check`. Type-only changes do not need a deployment.                                                |
-| Config inference, authoring or synthesis                               | Representative project/config through the real pipeline; assert meaningful resources, references and permissions. Validate CloudFormation with `cfn-lint`.                                               |
-| CLI command or local process                                           | Spawn the current CLI; verify exit status and the resulting files, output or operation. Include cancellation when relevant.                                                                              |
-| Packaging, helper Lambda or installer                                  | Build the actual artifact and execute it in its target runtime. [Packaging procedures](../apps/cli/scripts/packaging-archives/README.md).                                                                |
-| API, database or background workflow                                   | Real router/services and disposable PostgreSQL; observe committed state and relevant denial, transaction or retry behavior. [Available Console lanes](testing/console.md).                               |
-| Browser interaction                                                    | Playwright against the actual component/page or application. Use the real API when the change crosses it; verify persistence after reload. [Browser fixtures](testing/e2e.md#browser-tests).             |
-| AWS SDK interaction                                                    | Real SDK against pinned MiniStack for the specific supported operations; assert effects, not successful responses alone. [S3 lane](../apps/cli/scripts/packaging-archives/README.md#ministack-s3-pilot). |
-| AWS permissions, deployment lifecycle, networking or provider delivery | A guarded scenario against the real service. Emulation does not establish these contracts. [Live AWS](testing/live-aws.md).                                                                              |
-| Documentation or presentation                                          | Validate links/build output; inspect changed interactions or layout in a browser when needed.                                                                                                            |
+Add focused tests for rules with many meaningful inputs or a compatibility promise: naming, pricing, parsing, redaction.
+Do not add a test for every function or repeat one assertion at every layer. Check what an existing test catches before
+deleting it.
 
-Tests may cross packages; keep the scenario with the application or capability that owns the outcome. A browser test
-with a mocked API proves browser behavior, not the API or database. Keep external substitutes at explicit boundaries; do
-not mock away the behavior under test. Avoid mock-call choreography, source-string assertions about runtime behavior,
-and snapshots that merely repeat the implementation.
+| What changed                                                           | Test at this boundary                                                                                                                                                                         |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Naming, pricing, parsing, redaction or another pure rule               | Table-driven inputs with independently known results. Preserve replacement-sensitive names and hashes.                                                                                        |
+| Types, schemas, generated data or public exports                       | Compile a real consumer; exercise validation; run the owner's `generate:check`. Type-only changes need no deployment.                                                                         |
+| Config inference, authoring or synthesis                               | A representative project or config through the real pipeline; assert resources, references and permissions; `cfn-lint`. Check that updates do not destroy or replace stateful resources.      |
+| CLI command or local process                                           | Spawn the current CLI; verify exit status and the resulting files, output or operation. Include cancellation when relevant.                                                                   |
+| Packaging, helper Lambda or installer                                  | Build the actual artifact and execute it in its target runtime; run the affected corpus projects. [Packaging procedures](../apps/cli/scripts/packaging-archives/README.md).                   |
+| API, database or background workflow                                   | Real router and services with disposable PostgreSQL; observe committed state, denial, transactions and retries. [Console lanes](testing/console.md).                                          |
+| Browser interaction                                                    | Playwright against the real component or application. Use the real API when the change crosses it; verify persistence after reload. [Browser tests](testing/e2e.md#browser-tests).            |
+| AWS SDK interaction                                                    | The real SDK against pinned MiniStack for the operations used; assert effects, not just successful responses. [S3 lane](../apps/cli/scripts/packaging-archives/README.md#ministack-s3-pilot). |
+| AWS permissions, deployment lifecycle, networking or provider delivery | A guarded scenario against the real service; emulation cannot establish these. [Live AWS](testing/live-aws.md).                                                                               |
+| Documentation or presentation                                          | Validate links and build output; inspect changed interactions or layout in a browser when needed.                                                                                             |
+
+Tests may cross packages; put the scenario with the application or capability that owns the outcome. A browser test with
+a substituted API proves browser behavior, not the API. Substitute only external dependencies, at explicit boundaries.
+Avoid mock-call choreography, source-string assertions about runtime behavior, and snapshots that repeat the
+implementation.
 
 ## Run efficiently
 
-- Run `pnpm test:plan`; inspect what its suggested commands actually cover. It is a path-based hint, not an exhaustive
-  test list. Run `pnpm test:doctor` before a long lane (`-- --for=console` for shared-dev Console work).
-- Extend an existing scenario and its fixtures before inventing a runner. Select the changed behavior and its important
-  failure case. Use [the workspace matrix](testing/strategy.md#coverage-by-owner) for application-specific gaps.
-- Run `pnpm check:public`, or `pnpm check:integrated` with Console initialized, before handoff. These gates do not
-  include every browser, database, Docker or live test; run the relevant additional lane.
-- Reuse valid results while relevant code, artifacts and environment match. Ordinary test output is sufficient; no
-  separate evidence report is required. Report what you tested and important behavior you could not verify.
+- Run `pnpm test:plan` (or `-- --since=<ref>`) and run the lanes it suggests. It matches paths; check what each lane
+  covers. Run `pnpm test:doctor` before a long lane (`-- --for=console` for shared-dev Console work).
+- Heavy lanes (packaging, corpus, Console database and browser, MiniStack) are not in per-PR CI. When `test:plan`
+  selects one for your change, you run it. All of them run before each release.
+- Extend an existing scenario and its helpers before writing new setup code.
+  [Existing helpers](testing/e2e.md#helpers-that-exist).
+- Run `pnpm check:public`, or `pnpm check:integrated` with Console initialized, before handoff.
+- Reuse earlier results while code, artifacts and environment are unchanged. Report what you tested and what you could
+  not verify; no separate evidence report is needed.
 
-## Shared dev reservation
+## Console
 
-An [isolated Console browser/API pilot](testing/e2e.md#isolated-console-application) covers issue-state persistence and
-tenant denial against disposable PostgreSQL. Other API/UI journeys use `pnpm dev:console`; UI-only work can use
-`pnpm dev:console:ui` when deployed dev supports its unchanged contract. The source CLI defaults to deployed dev even
-when a local API is running; select [the intended API explicitly](testing/console.md#prove-the-changed-revision).
+The [isolated Console application](testing/e2e.md#isolated-console-application) runs the real UI, API and disposable
+PostgreSQL with no credentials; prefer it when it covers the change. Other API and UI journeys use `pnpm dev:console`;
+UI-only work can use `pnpm dev:console:ui` when deployed dev supports its unchanged contract. The source CLI defaults to
+deployed dev even when a local API is running; select
+[the intended API explicitly](testing/console.md#prove-the-changed-revision).
 
-[Localhost login](testing/console.md#localhost-login) uses the existing dev test identities and SSM-backed Playwright
-helper. The current shared-dev browser tests authenticate through the real sign-in form.
+[Localhost login](testing/console.md#localhost-login) uses the existing dev test identities and the SSM-backed
+Playwright helper.
 
-Follow the [reservation procedure](testing/console.md#shared-dev-reservation) before shared-dev mutation or tests that
-need a stable dev revision. The hosting account also contains production and is not disposable.
+### Shared dev reservation
+
+Follow the [reservation procedure](testing/console.md#shared-dev-reservation) before mutating shared dev or running
+tests that need a stable dev revision. The hosting account also contains production and is not disposable.
 
 ## Live AWS
 

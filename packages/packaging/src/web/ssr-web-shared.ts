@@ -591,9 +591,10 @@ export const createSsrWebArtifacts = async ({
           }
         }
       } catch (error) {
+        // The CLI prints the message, not the cause: without the cause's text the user sees only the resource name.
         throw createPackagingError({
           type: 'PACKAGING',
-          message: `Error when packaging ${resourceType} "${resourceName}".`,
+          message: `Error when packaging ${resourceType} "${resourceName}".\n${error instanceof Error ? error.message : String(error)}`,
           cause: error
         });
       }

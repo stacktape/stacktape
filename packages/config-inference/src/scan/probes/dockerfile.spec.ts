@@ -84,6 +84,16 @@ describe('the standalone Dockerfile probe', () => {
     });
   });
 
+  it('reads a Containerfile like a Dockerfile', async () => {
+    const repositoryRoot = await makeRepo({
+      Gemfile: 'source "https://rubygems.org"\ngem "rails"\n',
+      Containerfile: 'FROM ruby:3.4\nEXPOSE 3000\nCMD ["bundle", "exec", "puma"]\n'
+    });
+    const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [dockerfileProbe] });
+
+    expect(facts.services[0]).toMatchObject({ path: '.', exposesHttp: true, dockerfile: 'Containerfile' });
+  });
+
   it('treats a Dockerfile with no exposed port as a worker', async () => {
     const repositoryRoot = await makeRepo({
       'requirements.txt': 'celery==5\nredis==5\n',
