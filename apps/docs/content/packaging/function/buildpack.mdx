@@ -170,7 +170,7 @@ export default defineConfig(() => {
 
 ## Java
 
-Stacktape builds Java functions with Gradle. Set `java.useMaven: true` to build with Maven instead. `java.packageManagerFile` points to the `build.gradle` or `pom.xml` build file.
+Stacktape builds a Java function with Maven when the project's nearest build file is a `pom.xml`, and with Gradle otherwise. Set `java.useMaven` to choose explicitly. `java.packageManagerFile` points to the `build.gradle` or `pom.xml` build file.
 
 <CodeBlock
   intellisense

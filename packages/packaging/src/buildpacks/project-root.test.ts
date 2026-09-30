@@ -7,7 +7,8 @@ import {
   findGoProjectRoots,
   findJavaProjectRoots,
   findNearestProjectRoot,
-  resolveExplicitProjectRoot
+  resolveExplicitProjectRoot,
+  usesMaven
 } from './project-root';
 
 const roots: string[] = [];
@@ -18,6 +19,32 @@ afterEach(async () => {
 });
 
 describe('buildpack project roots', () => {
+  test('a Java project is built with Maven when its nearest build file is a pom.xml', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'stacktape-project-root-java-tool-'));
+    roots.push(root);
+    const entry = (project: string) => join(root, project, 'src', 'main', 'java', 'Handler.java');
+    await Promise.all(
+      ['maven', 'gradle', 'both', 'none', join('nested', 'module')].map((project) =>
+        mkdir(join(root, project, 'src', 'main', 'java'), { recursive: true })
+      )
+    );
+    await Promise.all([
+      writeFile(join(root, 'maven', 'pom.xml'), '<project/>'),
+      writeFile(join(root, 'gradle', 'build.gradle.kts'), ''),
+      writeFile(join(root, 'both', 'pom.xml'), '<project/>'),
+      writeFile(join(root, 'both', 'build.gradle'), ''),
+      // The module's own pom.xml wins over a Gradle file further up.
+      writeFile(join(root, 'nested', 'build.gradle'), ''),
+      writeFile(join(root, 'nested', 'module', 'pom.xml'), '<project/>')
+    ]);
+
+    expect(usesMaven({ cwd: root, entryfilePath: entry('maven') })).toBe(true);
+    expect(usesMaven({ cwd: root, entryfilePath: entry('gradle') })).toBe(false);
+    expect(usesMaven({ cwd: root, entryfilePath: entry('both') })).toBe(false);
+    expect(usesMaven({ cwd: root, entryfilePath: entry('none') })).toBe(false);
+    expect(usesMaven({ cwd: root, entryfilePath: entry(join('nested', 'module')) })).toBe(true);
+  });
+
   test('uses the nearest ancestor language manifest', async () => {
     const root = await mkdtemp(join(tmpdir(), 'stacktape-project-root-'));
     roots.push(root);

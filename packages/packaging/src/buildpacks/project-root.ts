@@ -159,6 +159,19 @@ const pomIncludesModule = ({ pomPath, moduleRoot }: { pomPath: string; moduleRoo
   );
 };
 
+const GRADLE_BUILD_FILES = ['build.gradle', 'build.gradle.kts'];
+
+/**
+ * Whether the project that owns an entrypoint is built with Maven: its nearest build file is a `pom.xml`. A directory
+ * holding both build files, or none up to `cwd`, stays with Gradle, the documented default.
+ */
+export const usesMaven = ({ cwd, entryfilePath }: { cwd: string; entryfilePath: string }): boolean => {
+  const projectRoot = findNearestProjectRoot({ cwd, entryfilePath, markerFiles: ['pom.xml', ...GRADLE_BUILD_FILES] });
+  return (
+    existsSync(join(projectRoot, 'pom.xml')) && !GRADLE_BUILD_FILES.some((file) => existsSync(join(projectRoot, file)))
+  );
+};
+
 /** Selects a Java reactor/settings root while keeping the entrypoint's module as the artifact target. */
 export const findJavaProjectRoots = ({
   cwd,
@@ -174,7 +187,7 @@ export const findJavaProjectRoots = ({
   const moduleRoot = findNearestProjectRoot({
     cwd,
     entryfilePath,
-    markerFiles: useMaven ? ['pom.xml'] : ['build.gradle', 'build.gradle.kts']
+    markerFiles: useMaven ? ['pom.xml'] : GRADLE_BUILD_FILES
   });
   if (explicitProjectFile) {
     return { buildRoot: resolveExplicitProjectRoot({ cwd, projectFile: explicitProjectFile }), moduleRoot };

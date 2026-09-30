@@ -14,14 +14,21 @@ export const buildGeneratedDockerImage = async ({
   dockerfileContents,
   buildContextPath,
   buildDockerImage,
+  buildFileDirectoryPath,
   ...buildOptions
 }: Parameters<BuildDockerImage>[0] & {
   dockerfileContents: string;
   buildDockerImage: BuildDockerImage;
+  /**
+   * Where the generated file is written; the directory above the context by default. A caller whose context is the
+   * customer's own source directory passes a directory Stacktape owns, so nothing is written into (or above) the
+   * project.
+   */
+  buildFileDirectoryPath?: string | undefined;
 }) => {
   const { filePath } = await createTemporaryBuildFile({
     contents: dockerfileContents,
-    directoryPath: dirname(buildContextPath),
+    directoryPath: buildFileDirectoryPath ?? dirname(buildContextPath),
     prefix: 'stp-image-',
     suffix: '.Dockerfile'
   });

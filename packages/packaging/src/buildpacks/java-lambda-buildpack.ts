@@ -5,7 +5,7 @@ import { DEFAULT_JAVA_VERSION } from '../bundlers/constants';
 import { buildJavaArtifact } from '../bundlers/java';
 import { createLambdaZipArtifact } from '../artifact/lambda-artifact';
 import type { JavaBuildpackConfig, SupportedJavaVersion } from '@stacktape/config/deployment-artifacts';
-import { findJavaProjectRoots } from './project-root';
+import { findJavaProjectRoots, usesMaven } from './project-root';
 
 export const buildJavaLambda = async ({
   progressLogger,
@@ -23,7 +23,9 @@ export const buildJavaLambda = async ({
     javaVersion?: SupportedJavaVersion | undefined;
   }): Promise<PackagingOutput> => {
   const useMaven =
-    languageSpecificConfig?.useMaven ?? languageSpecificConfig?.packageManagerFile?.endsWith('pom.xml') ?? false;
+    languageSpecificConfig?.useMaven ??
+    languageSpecificConfig?.packageManagerFile?.endsWith('pom.xml') ??
+    usesMaven({ cwd, entryfilePath });
   const { buildRoot: rootSourcePath } = findJavaProjectRoots({
     cwd,
     entryfilePath,

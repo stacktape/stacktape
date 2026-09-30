@@ -22264,6 +22264,16 @@ In [dev mode](/local-development/dev-mode-overview) (`stacktape dev`), a `buildp
 
 Railpack does not support its Windows binary. On Windows, Stacktape runs the Railpack planner inside Docker instead.
 
+### Monorepos and files outside the source directory
+
+Only the files in `sourceDirectoryPath` are sent to the build. A service cannot build from its own directory when it needs something above it: a sibling workspace package, a lockfile at the workspace root, or, in .NET, a shared `Directory.Packages.props` or a referenced project in another directory.
+
+For npm, pnpm, Yarn and Bun workspaces, set `sourceDirectoryPath` to the workspace root and point `buildCommand` and `startCommand` at the service. For a .NET solution with several projects, use [`dockerfile`](/packaging/containers/dockerfile) packaging: the .NET detection expects one `.csproj` file in `sourceDirectoryPath`.
+
+### Java version
+
+Java services are built and run with JDK 21 unless you choose another version. A Gradle build that pins a toolchain, for example `languageVersion = 17`, fails with a different JDK. Set the same version in `packages`, for example `java: '17'`.
+
 ## Full control with a Dockerfile
 
 When detection and overrides are not enough, write a Dockerfile and use [`dockerfile`](/packaging/containers/dockerfile) packaging. You choose the base image, the build stages and the entrypoint.
@@ -23451,7 +23461,7 @@ export default defineConfig(() => {
 
 ## Java
 
-Stacktape builds Java functions with Gradle. Set `java.useMaven: true` to build with Maven instead. `java.packageManagerFile` points to the `build.gradle` or `pom.xml` build file.
+Stacktape builds a Java function with Maven when the project's nearest build file is a `pom.xml`, and with Gradle otherwise. Set `java.useMaven` to choose explicitly. `java.packageManagerFile` points to the `build.gradle` or `pom.xml` build file.
 
 
 Example (TypeScript):
@@ -73176,7 +73186,7 @@ export default defineConfig(() => {
 
 Specifies whether to use Maven instead of Gradle.
 
-By default, Stacktape uses Gradle to build Java projects.
+By default, Stacktape uses Maven when the project's nearest build file is a `pom.xml`, and Gradle otherwise.
 
 ### Example 1 (yaml)
 

@@ -793,7 +793,10 @@ export const buildDockerImage = async ({
     imageTag,
     ...(cacheFromRef ? ['--cache-from', `type=registry,ref=${cacheFromRef}`] : []),
     ...(cacheToRef ? ['--cache-to', `type=registry,ref=${cacheToRef},image-manifest=true,mode=max`] : []),
-    ...(dockerfilePath ? ['-f', join(buildContextPath, dockerfilePath)] : []),
+    // A generated build file may live on another Windows drive than the context; `relative` is absolute then.
+    ...(dockerfilePath
+      ? ['-f', isAbsolute(dockerfilePath) ? dockerfilePath : join(buildContextPath, dockerfilePath)]
+      : []),
     ...buildArgsPassthrough.flags,
     ...secretsPassthrough.flags,
     contextPath

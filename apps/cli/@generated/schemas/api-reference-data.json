@@ -32040,7 +32040,7 @@
         "name": "useMaven",
         "required": false,
         "shortDescription": "<p> Specifies whether to use Maven instead of Gradle.</p>",
-        "longDescription": "<p>By default, Stacktape uses Gradle to build Java projects.</p>",
+        "longDescription": "<p>By default, Stacktape uses Maven when the project&#39;s nearest build file is a <code>pom.xml</code>, and Gradle otherwise.</p>",
         "typeInfo": {
           "kind": "primitive",
           "types": [

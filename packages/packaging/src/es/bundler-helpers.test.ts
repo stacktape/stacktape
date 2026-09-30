@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createModuleResolver, determineIfAlias, ensureDefaultExport } from './bundler-helpers';
+import { createModuleResolver, determineIfAlias, ensureDefaultExport, getInfoFromPackageJson } from './bundler-helpers';
 
 const tempDirs: string[] = [];
 
@@ -193,4 +193,36 @@ describe('Lambda ESM default handler compatibility', () => {
       'const e=()=>1; export { e as handler, e as default };'
     );
   });
+});
+
+describe('installed package description', () => {
+  test('packages that depend on each other in a cycle are described once', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'stacktape-dependency-cycle-'));
+    tempDirs.push(root);
+    const nodeModules = join(root, 'node_modules');
+    // discord.js and @discordjs/builders have this shape: a dependency whose peer dependency is its own consumer.
+    await writePackage(join(nodeModules, 'client'), {
+      name: 'client',
+      version: '1.0.0',
+      dependencies: { builders: '1.0.0' }
+    });
+    await writePackage(join(nodeModules, 'builders'), {
+      name: 'builders',
+      version: '1.0.0',
+      peerDependencies: { client: '1.0.0' },
+      peerDependenciesMeta: { client: { optional: true } }
+    });
+
+    const info = await getInfoFromPackageJson({
+      directoryPath: join(nodeModules, 'client'),
+      parentModule: null,
+      dependencyType: 'root'
+    });
+
+    const builders = info?.dependencies[0];
+    expect(builders?.name).toBe('builders');
+    expect(builders?.optionalPeerDependencies.map(({ name, dependencies }) => ({ name, dependencies }))).toEqual([
+      { name: 'client', dependencies: [] }
+    ]);
+  }, 5_000);
 });

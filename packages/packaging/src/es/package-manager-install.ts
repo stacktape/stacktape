@@ -11,10 +11,9 @@ const dependencySpecs = (dependencies: Dependency[], prefix = ''): string =>
 const getLifecyclePolicyCommand = (dependencies: Dependency[], packageManager: SupportedEsPackageManager): string => {
   const dependencyNames = dependencies.map(({ name }) => name);
   if (packageManager === 'pnpm') {
-    const workspacePolicyLines = [
-      'onlyBuiltDependencies:',
-      ...dependencyNames.map((name) => `  - ${JSON.stringify(name)}`)
-    ];
+    // pnpm 11 reads `allowBuilds`; it ignores the older `onlyBuiltDependencies` list and then fails `pnpm add` with
+    // ERR_PNPM_IGNORED_BUILDS whenever the install directory already has a package.json (every ESM image).
+    const workspacePolicyLines = ['allowBuilds:', ...dependencyNames.map((name) => `  ${JSON.stringify(name)}: true`)];
     return `RUN printf '%s\\n' ${workspacePolicyLines.map((line) => `'${line}'`).join(' ')} > pnpm-workspace.yaml\n`;
   }
   if (packageManager === 'bun') {

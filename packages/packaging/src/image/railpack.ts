@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { tmpdir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import { pathExists } from 'fs-extra';
 import objectHash from 'object-hash';
@@ -294,6 +295,8 @@ export const buildUsingRailpack = async ({
   await progressLogger.startEvent({ eventType: 'BUILD_IMAGE', description: 'Building docker image with Railpack' });
   const { size, dockerOutput, duration, created } = await buildGeneratedDockerImage({
     dockerfileContents: JSON.stringify(plan),
+    // The context is the customer's source directory: the plan file stays out of their project tree.
+    buildFileDirectoryPath: tmpdir(),
     buildDockerImage,
     imageTag: name,
     buildContextPath: absoluteSourceDirectoryPath,

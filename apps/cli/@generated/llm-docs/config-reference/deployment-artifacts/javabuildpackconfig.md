@@ -67,7 +67,7 @@ export default defineConfig(() => {
 
 Specifies whether to use Maven instead of Gradle.
 
-By default, Stacktape uses Gradle to build Java projects.
+By default, Stacktape uses Maven when the project's nearest build file is a `pom.xml`, and Gradle otherwise.
 
 ### Example 1 (yaml)
 

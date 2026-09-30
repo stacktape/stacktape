@@ -19153,6 +19153,8 @@
         "page:/packaging/containers/buildpack#django-migrations",
         "page:/packaging/containers/buildpack#dev-mode",
         "page:/packaging/containers/buildpack#windows",
+        "page:/packaging/containers/buildpack#monorepos-and-files-outside-the-source-directory",
+        "page:/packaging/containers/buildpack#java-version",
         "page:/packaging/containers/buildpack#full-control-with-a-dockerfile",
         "page:/packaging/containers/buildpack#faq",
         "page:/packaging/containers/buildpack#do-i-need-railpack-installed",

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import type { BuildDockerImage, PackagingProgressLogger, RunRailpackPrepare } from '../runtime-contracts';
 import {
   applyStacktapePlanPolicy,
@@ -215,8 +215,11 @@ describe('railpack image build', () => {
     });
     expect(dockerBuild!.secrets).toEqual({ VITE_API_URL: 'https://api.example.com' });
     expect(dockerBuild!.buildContextPath).toBe(join(root, 'api'));
-    // The plan is the "Dockerfile"; it stays outside the context so it never ends up in the image.
-    expect(dockerBuild!.dockerfilePath).toMatch(/^\.\.\/stp-image-.*\.Dockerfile$/);
+    // The plan is the "Dockerfile". It is written to the temporary directory: outside the context, so it never ends
+    // up in the image, and outside the customer's project, so a failed build leaves nothing behind there.
+    const planFilePath = resolve(dockerBuild!.buildContextPath, dockerBuild!.dockerfilePath!);
+    expect(dirname(planFilePath)).toBe(resolve(tmpdir()));
+    expect(basename(planFilePath)).toMatch(/^stp-image-.*\.Dockerfile$/);
   });
 
   test('reuses the image only while source, plan, frontend and build variable values are unchanged', async () => {

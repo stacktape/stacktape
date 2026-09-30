@@ -174,8 +174,10 @@ export const runRailpackPrepare: RunRailpackPrepare = async ({ sourceDirectoryPa
       await writeFile(hostConfigPath, JSON.stringify(config, null, 2));
     }
     const input = { sourceDirectoryPath, outputDirectory, variables, configFile };
+    let plannerOutput = '';
     try {
-      await (mode === 'container' ? runInContainer(input) : runOnHost(input));
+      const { stdout, stderr } = await (mode === 'container' ? runInContainer(input) : runOnHost(input));
+      plannerOutput = [stdout, stderr].filter(Boolean).join('\n');
     } catch (error) {
       // A failed detection still writes the info file with `success: false` and its logs; that is the useful error.
       const info = await readFile(join(outputDirectory, 'info.json'), 'utf8')
@@ -189,7 +191,14 @@ export const runRailpackPrepare: RunRailpackPrepare = async ({ sourceDirectoryPa
         cwd: sourceDirectoryPath
       });
     }
-    return readPreparedFiles(outputDirectory);
+    return await readPreparedFiles(outputDirectory).catch((error: unknown) => {
+      // The planner reported success without leaving its result files; its own output is the only explanation.
+      throw railpackFailure({
+        exitCode: 0,
+        message: `Railpack exited without writing its plan (${error instanceof Error ? error.message : String(error)}).\n${plannerOutput}`,
+        cwd: sourceDirectoryPath
+      });
+    });
   } finally {
     if (hostConfigPath !== undefined) await rm(hostConfigPath, { force: true }).catch(() => {});
     await rm(outputDirectory, { recursive: true, force: true }).catch(() => {});

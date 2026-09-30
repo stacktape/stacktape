@@ -34,6 +34,7 @@ type PackageJson = {
 };
 
 const packageInfoCache = new Map<string, PackageJsonDepsInfo | null>();
+const NO_ANCESTORS: ReadonlySet<string> = new Set();
 
 const isDirectory = (path: string): boolean => {
   try {
@@ -78,17 +79,25 @@ export const getInfoFromPackageJson = async ({
   parentModule,
   dependencyType,
   parentModulePath,
-  checkDeps = true
+  checkDeps = true,
+  ancestorDirectoryPaths = NO_ANCESTORS
 }: {
   directoryPath: string;
   parentModule: string | null;
   parentModulePath?: string | null | undefined;
   dependencyType: ResolvedPackageDependency['dependencyType'];
   checkDeps?: boolean | undefined;
+  /** The packages whose dependencies are being read on the way to this one; set by the recursion itself. */
+  ancestorDirectoryPaths?: ReadonlySet<string> | undefined;
 }): Promise<PackageJsonDepsInfo | null> => {
   if (packageInfoCache.has(directoryPath)) {
     return packageInfoCache.get(directoryPath) ?? null;
   }
+  // Installed packages may depend on each other in a cycle (discord.js and @discordjs/builders do through peer
+  // dependencies). The package closing the cycle is already being described further up, so it is reported here
+  // without its own dependencies instead of being walked again without end.
+  const closesCycle = ancestorDirectoryPaths.has(directoryPath);
+  const descendantAncestors = new Set(ancestorDirectoryPaths).add(directoryPath);
 
   // This package's dependency graph contains a cycle, but its source can be bundled statically.
   if (directoryPath.endsWith('es-abstract')) {
@@ -125,10 +134,25 @@ export const getInfoFromPackageJson = async ({
             parentModule: packageJson.name,
             dependencyType: type,
             parentModulePath: directoryPath,
-            checkDeps: recurse
+            checkDeps: recurse,
+            ancestorDirectoryPaths: descendantAncestors
           })
         : null;
     };
+    if (closesCycle) {
+      return {
+        name: packageJson.name,
+        version: packageJson.version,
+        path: directoryPath,
+        hasBinary: hasBinary(packageJson),
+        dependencyType,
+        parentModule,
+        ...(parentModulePath ? { parentModulePath } : {}),
+        dependencies: [],
+        peerDependencies: [],
+        optionalPeerDependencies: []
+      };
+    }
 
     const result: PackageJsonDepsInfo = {
       name: packageJson.name,
