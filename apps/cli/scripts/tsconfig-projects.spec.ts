@@ -44,7 +44,6 @@ describe('TypeScript project ownership', () => {
 
     expect(workspaceTurboConfig.tasks['@stacktape/console-ui#dev'].dependsOn).toEqual([
       'generate',
-      'generate:monaco',
       '@stacktape/ui-react#build'
     ]);
     expect(workspaceTurboConfig.tasks['@stacktape/init-ui#build:watch'].dependsOn).toEqual([
