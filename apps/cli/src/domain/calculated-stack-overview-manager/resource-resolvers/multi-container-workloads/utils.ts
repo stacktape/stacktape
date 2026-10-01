@@ -796,7 +796,7 @@ export const getEcsServiceSecurityGroup = ({ workload }: { workload: StpContaine
     SecurityGroupIngress: getEcsServiceSecurityGroupIngress({ workload, workloadName: workload.name })
   });
 
-export const getFormattedLoadBalancers = ({ workload }: { workload: StpContainerWorkload }): LoadBalancer[] => {
+const getFormattedLoadBalancers = ({ workload }: { workload: StpContainerWorkload }): LoadBalancer[] => {
   const formattedLbs: LoadBalancer[] = [];
   getTargetsForContainerWorkload({ workloadName: workload.name, containers: workload.containers }).forEach(
     ({ loadBalancerName, targetContainerName, targetContainerPort }) => {
@@ -832,7 +832,7 @@ export const getFormattedLoadBalancers = ({ workload }: { workload: StpContainer
   return formattedLbs;
 };
 
-export const getFormattedListenersLogicalNames = ({
+const getFormattedListenersLogicalNames = ({
   workload,
   workloadName
 }: {
@@ -850,7 +850,7 @@ export const getFormattedListenersLogicalNames = ({
   return arns;
 };
 
-export const getFormattedListenerRulesLogicalNames = ({ workload }: { workload: StpContainerWorkload }) => {
+const getFormattedListenerRulesLogicalNames = ({ workload }: { workload: StpContainerWorkload }) => {
   return workload.containers
     .map(({ events }) => (events || []).filter(({ type }) => type === 'application-load-balancer'))
     .flat()

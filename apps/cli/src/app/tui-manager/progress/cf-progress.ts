@@ -1,6 +1,6 @@
 import { stripAnsi } from '../format/text';
 
-export const stripDeployMessageAnsi = (message?: string) => {
+const stripDeployMessageAnsi = (message?: string) => {
   if (!message) return message;
   return stripAnsi(message);
 };

@@ -271,7 +271,7 @@ function transformTransformsToLogicalNames(resourceName: string, resourceType: s
   });
 }
 
-export type ConfigCliArgs = Readonly<Record<string, unknown>>;
+type ConfigCliArgs = Readonly<Record<string, unknown>>;
 
 export type ResourceTransform = (
   properties: Record<string, unknown>
@@ -281,7 +281,7 @@ export type { CloudFormationTemplate };
 
 export type FinalTransform = <Template extends CloudFormationTemplate>(template: Template) => Template;
 
-export type AuthoringResourceCustomization = {
+type AuthoringResourceCustomization = {
   overrides?: Record<string, Record<string, unknown>>;
   transforms?: Record<string, ResourceTransform>;
 };
@@ -302,7 +302,7 @@ type AuthoringSecrets = Record<string, string>;
  * Property names whose string values identify another resource in the same Stacktape config.
  * `'*'` means that any resource can be referenced; otherwise the tuple is the accepted resource type.
  */
-export const RESOURCE_REFERENCE_TARGETS = {
+const RESOURCE_REFERENCE_TARGETS = {
   afterTrafficShiftFunction: ['function'],
   assumeRoleOfResource: '*',
   bastionResource: ['bastion'],
@@ -744,7 +744,7 @@ const transformScriptDefinitions = (scripts: any, resourceNames: ResourceNames):
   return result;
 };
 
-export const transformValue = (value: any, resourceNames: ResourceNames = new Map()): any => {
+const transformValue = (value: any, resourceNames: ResourceNames = new Map()): any => {
   if (value === null || value === undefined) {
     return value;
   }

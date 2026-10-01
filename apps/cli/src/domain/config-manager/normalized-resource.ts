@@ -35,7 +35,7 @@ type AuthoredPropertiesOf<TResourceType extends StacktapeResourceType> = NonNull
  * optional, because any of them may be absent. Only a resource whose definition demands its bag can carry the authored
  * requiredness through unchanged.
  */
-export type ResourcePropertiesOf<TResourceType extends StacktapeResourceType> =
+type ResourcePropertiesOf<TResourceType extends StacktapeResourceType> =
   ResourceDefinitionOf<TResourceType> extends { properties: unknown }
     ? AuthoredPropertiesOf<TResourceType>
     : Partial<AuthoredPropertiesOf<TResourceType>>;
@@ -67,7 +67,7 @@ export type NormalizedResource<
  * The defaults `mergeStacktapeDefaults` fills for one resource type, read back off the table rather than restated
  * beside it. Most resource types declare none, and their entry reads `{}`.
  */
-export type ResourceDefaultsOf<TResourceType extends StacktapeResourceType> = (typeof RESOURCE_DEFAULTS)[TResourceType];
+type ResourceDefaultsOf<TResourceType extends StacktapeResourceType> = (typeof RESOURCE_DEFAULTS)[TResourceType];
 
 /**
  * A normalized resource after `mergeStacktapeDefaults` has run over it.

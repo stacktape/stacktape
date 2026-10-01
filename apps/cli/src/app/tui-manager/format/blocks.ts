@@ -9,7 +9,7 @@ type CommandHeaderLike = {
   region: string;
 };
 
-export const COMMAND_HEADER_BOX_MIN_WIDTH = 54;
+const COMMAND_HEADER_BOX_MIN_WIDTH = 54;
 
 export const commandNameForHeaderAction = (action: string): string => {
   if (action === 'DEPLOYING' || action === 'DEPLOYING DEV STACK') return 'deploy';
@@ -33,11 +33,8 @@ export const formatCommandHeaderProgressMessage = ({
   region
 }: TuiDeploymentHeader): string => `${action}: ${projectName} -> ${stageName} (${region})`;
 
-export const formatCommandHeaderTarget = ({
-  projectName,
-  stageName,
-  region
-}: Omit<CommandHeaderLike, 'action'>): string => `${projectName} -> ${stageName} (${region})`;
+const formatCommandHeaderTarget = ({ projectName, stageName, region }: Omit<CommandHeaderLike, 'action'>): string =>
+  `${projectName} -> ${stageName} (${region})`;
 
 export const formatSectionHeaderLine = (title: string): string => `--- ${title} ---`;
 

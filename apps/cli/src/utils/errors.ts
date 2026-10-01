@@ -100,8 +100,6 @@ export class CliError extends Error {
   }
 }
 
-export type StacktapeError = CliError;
-
 const isBundledStacktapeInternalFrame = (fileName: string) => {
   const normalizedFileName = fileName.replaceAll('\\', '/').replace(/^[./]+/, '');
   const bundledInternalPrefixes = ['src/', 'scripts/', 'helper-lambdas/', '@generated/'];
@@ -176,7 +174,7 @@ export const getReturnableError = (error: HandledError): Error => {
   return res;
 };
 
-export const getPrettyStacktrace = (
+const getPrettyStacktrace = (
   error: Error,
   colorizeOwnCode?: (msg: string) => string,
   colorizeDependencyCode?: (msg: string) => string
@@ -365,37 +363,6 @@ export const getErrorFromString = (
   }
 
   return `\n${format.message ? format.message(message) : message}${prettyStacktrace}`;
-};
-
-export const parseContainerError = (errorString: string): { message: string; stackTrace?: string } => {
-  let [message, ...stackArray] = errorString.split('    at');
-
-  // Stacktape-built image
-  if (message.includes('/app/index.js:')) {
-    message = message.split('\n\n')[1] || message;
-  }
-
-  // Clean up the message
-  message = message.trim();
-
-  if (stackArray.length === 0) {
-    return { message };
-  }
-
-  const stack = stackArray.filter(Boolean).join('    at');
-  const error = new Error(message);
-  error.stack = `${message}\n    at${stack}`;
-
-  const prettyStacktrace = getPrettyStacktrace(
-    error as any,
-    (msg) => msg,
-    (msg) => msg
-  );
-
-  return {
-    message,
-    stackTrace: prettyStacktrace || undefined
-  };
 };
 
 // export const handleStderrData = (data, killProcessFn) => {

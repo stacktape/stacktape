@@ -191,7 +191,6 @@ export type StpResource = (
 };
 export type StpWorkloadType = StacktapeWorkloadDefinition['type'] | Convex['type'] | AgentCoreRuntime['type'];
 export type StpResourceType = StpResource['type'];
-export type Tracing = 'Active' | 'PassThrough';
 export type EcsServiceScheduledMaintenanceRuleInput = {
   ecsServiceArn: string | Intrinsic;
   asgName: string | Intrinsic;
@@ -210,7 +209,7 @@ export type CustomTaggingScheduledRuleInput = {
     extraTags?: { Key: string; Value: string }[];
   }[];
 };
-export type StpWorkloadDefinition =
+type StpWorkloadDefinition =
   | StpLambdaFunction
   | StpContainerWorkload
   | StpBatchJob
@@ -222,10 +221,6 @@ export type StpCdnCompatibleResource = StpBucket | StpApplicationLoadBalancer | 
 export type StpCdnAttachableResourceType = Subtype<
   StpResourceType,
   'bucket' | 'application-load-balancer' | 'http-api-gateway' | 'function' // | 'web-service' | 'hosting-bucket'
->;
-export type DevModeCapableResourceType = Subtype<
-  StpResourceType,
-  'batch-job' | 'multi-container-workload' | 'function'
 >;
 export type StpCdnOriginTargetableByRouteRewrite = StpCdnAttachableResourceType | 'custom-origin';
 export type StpDomainAttachableResourceType =
@@ -265,9 +260,6 @@ export type StpResourceScopableByConnectToAffectingSecurityGroup =
   | Subtype<StpResource, StpRelationalDatabase>
   | Subtype<StpResource, StpRedisCluster>
   | Subtype<StpResource, StpKafkaCluster>;
-export type StpResourceScopableByConnectTo =
-  | StpResourceScopableByConnectToAffectingSecurityGroup
-  | StpResourceScopableByConnectToAffectingRole;
 export type Script = StacktapeConfig['scripts'][string] & { scriptName: string };
 export interface TunnelTargetInfo {
   /**
@@ -305,28 +297,6 @@ export type ResolvedRemoteTarget = {
   additionalStringToSubstitute?: string;
   affectedReferencableParams?: StacktapeResourceReferenceableParam[];
 };
-export interface CfStackPolicyStatement {
-  /**
-   * #### Whether to allow or deny the specified update actions.
-   */
-  Effect?: 'Allow' | 'Deny';
-  /**
-   * #### Update actions to allow or deny on the specified resources.
-   */
-  Action?: ('Update:Modify' | 'Update:Replace' | 'Update:Delete' | 'Update:*')[];
-  /**
-   * #### Conditions under which this policy statement applies.
-   */
-  Condition?: any;
-  /**
-   * #### Logical resource IDs this policy applies to. Use `"*"` for all resources.
-   */
-  Resource: string[];
-  /**
-   * #### Must be `"*"` (applies to all callers). Required by CloudFormation.
-   */
-  Principal: '*';
-}
 export type StacktapeResourceReferenceableParam =
   | ApplicationLoadBalancerReferenceableParam
   | BatchJobReferencableParam

@@ -134,7 +134,7 @@ export type OperationHeader = {
   subtitle?: string;
 };
 
-export type OperationSelectOption = { label: string; value: string; description?: string };
+type OperationSelectOption = { label: string; value: string; description?: string };
 
 type PromptBase = { id: string; message: string };
 export type OperationPromptRequest =

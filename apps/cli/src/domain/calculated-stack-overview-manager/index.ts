@@ -25,7 +25,7 @@ import get from 'lodash/get';
 import type { StackContext } from '@domain-services/stack-context';
 import { getSharedResourceStackName } from '@stacktape/naming/shared-stacks';
 
-export class CalculatedStackOverviewManager {
+class CalculatedStackOverviewManager {
   stackInfoMap: StackInfoMap = { metadata: {}, resources: {}, customOutputs: {} };
   #context: StackContext | undefined;
 

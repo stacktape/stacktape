@@ -108,7 +108,7 @@ export const FOOTER_STATUS = 'system status';
 
 /* ── The example project ───────────────────────────────────────────────────────────────────── */
 
-export const PROJECT = {
+const PROJECT = {
   name: 'acme-project',
   stage: 'production',
   region: 'eu-west-1',
@@ -292,7 +292,7 @@ const full = (url: { host: string; path: string }, scheme = 'https') => `${schem
 
 export const CWD = '~/acme-project';
 export const EXIT_COMMAND = 'exit';
-export const DEPLOY_COMMAND = 'stacktape deploy --stage production';
+const DEPLOY_COMMAND = 'stacktape deploy --stage production';
 
 /**
  * What the session runs and prints in each block, before the window for it opens. The commands are

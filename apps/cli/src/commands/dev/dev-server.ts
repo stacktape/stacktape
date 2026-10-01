@@ -14,7 +14,6 @@ import { extractPortFromCommand, findAvailablePort, getDefaultPort, isPortAvaila
 const { readyTimeoutMs: DEV_SERVER_READY_TIMEOUT_MS, readyDelayMs: DEV_SERVER_READY_DELAY_MS } = DEV_CONFIG.devServer;
 
 // Re-export for convenience
-export { detectFramework, type FrameworkType };
 
 type DevServerConfig = {
   command: string;
@@ -142,7 +141,7 @@ export const formatDevServerStatus = (state: DevServerState): string => {
 };
 
 /** Stop a dev server and all package-manager/framework descendants. */
-export const stopDevServer = async (name: string): Promise<void> => {
+const stopDevServer = async (name: string): Promise<void> => {
   const proc = runningDevServers.get(name);
   if (!proc) return;
   await terminateDevServerProcess(proc);

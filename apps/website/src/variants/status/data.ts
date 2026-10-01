@@ -101,7 +101,7 @@ export const FOOTER_NOTES = ['© 2026 Stacktape', 'Open-source CLI (MIT)', 'Made
 
 /* ── The example project ───────────────────────────────────────────────────────────────────── */
 
-export const PROJECT = {
+const PROJECT = {
   name: 'acme-project',
   stage: 'production',
   region: 'eu-west-1',
@@ -191,7 +191,7 @@ export type Component = {
 };
 
 /** The incident happened on Wed 3 Sep 2026; today is 10 Sep, so it sits seven ticks from the right. */
-export const INCIDENT_DAY = 82;
+const INCIDENT_DAY = 82;
 
 export const COMPONENTS: readonly [Component, Component, Component, Component, Component, Component, Component] = [
   {

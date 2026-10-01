@@ -4,13 +4,13 @@ import type { SupportedEsPackageManager } from '../runtime-contracts';
 import type { JsBundleImageRuntime } from '@stacktape/config/deployment-artifacts';
 
 /** Deno publishes no major tag; this exact release is bumped deliberately, like the cargo-lambda image. */
-export const DENO_IMAGE_VERSION = '2.9.7';
+const DENO_IMAGE_VERSION = '2.9.7';
 
 /**
  * The official images of the non-Node JavaScript runtimes. Debian based, so native dependencies build against glibc
  * and the same `tini` install applies. Bun's major tag moves with the runtime's minor version, as Node's does.
  */
-export const JS_RUNTIME_IMAGES: Record<Exclude<JsBundleImageRuntime, 'node'>, { build: string; run: string }> = {
+const JS_RUNTIME_IMAGES: Record<Exclude<JsBundleImageRuntime, 'node'>, { build: string; run: string }> = {
   bun: { build: 'docker.io/oven/bun:1', run: 'docker.io/oven/bun:1-slim' },
   deno: {
     build: `docker.io/denoland/deno:debian-${DENO_IMAGE_VERSION}`,

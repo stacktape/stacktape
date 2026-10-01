@@ -43,7 +43,7 @@ const isPrivateCidr = (cidrBlock: string): boolean => {
   return false;
 };
 
-export class VpcManager {
+class VpcManager {
   name = this.constructor.name;
   #vpc: Vpc | null = null;
   #publicSubnets: SubnetDetails[] = [];

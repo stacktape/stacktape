@@ -129,7 +129,7 @@ export const getAuroraDbClusterParameterGroup = ({
   });
 };
 
-export const getDbMasterUserName = ({ resource }: { resource: StpRelationalDatabase }) =>
+const getDbMasterUserName = ({ resource }: { resource: StpRelationalDatabase }) =>
   resource?.credentials?.masterUserName || 'db_master_user';
 
 export const getAuroraDbCluster = ({

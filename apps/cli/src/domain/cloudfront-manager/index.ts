@@ -8,7 +8,7 @@ import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 
-export class CloudfrontManager {
+class CloudfrontManager {
   init = async () => {
     //
   };

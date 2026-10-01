@@ -7,7 +7,7 @@ export type StacktapeOperationInvocationContext = {
 
 export const OPERATION_INVOCATION_COMMAND_ARGS_KEY = '__stacktapeInvocation';
 
-export const OPERATION_INVOCATION_ENV = {
+const OPERATION_INVOCATION_ENV = {
   initiator: 'STP_OPERATION_INITIATOR',
   interface: 'STP_OPERATION_INTERFACE',
   client: 'STP_OPERATION_CLIENT',

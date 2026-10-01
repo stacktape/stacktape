@@ -38,7 +38,7 @@ const LINUX_64: TrivyAsset = {
 };
 
 /** Checksums from `trivy_0.74.0_checksums.txt` of the v0.74.0 release (2026-08-14). Trivy's Linux builds are static. */
-export const TRIVY_RELEASE: TrivyRelease = {
+const TRIVY_RELEASE: TrivyRelease = {
   version: TRIVY_VERSION,
   baseUrl: `https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}`,
   assets: {

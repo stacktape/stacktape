@@ -1,6 +1,5 @@
 import type {
   CloudFormationProgressDetail,
-  CloudFormationResourceProgress,
   DeploymentPhase,
   OperationActivity,
   OperationCancellation,
@@ -9,9 +8,8 @@ import type {
   OperationState,
   OperationSummary
 } from '@application-services/operation-manager';
-import { getPhaseOrder, PHASE_NAMES as OPERATION_PHASE_NAMES } from '@application-services/operation-manager/reducer';
+import { PHASE_NAMES as OPERATION_PHASE_NAMES } from '@application-services/operation-manager/reducer';
 
-export type CfResourceInProgress = CloudFormationResourceProgress;
 export type CfProgressData = CloudFormationProgressDetail;
 
 export type TuiEvent = Omit<OperationActivity, 'detail' | 'outputLines' | 'phase'> & {
@@ -54,8 +52,6 @@ export type TuiState = Omit<
 
 export type PhasePreset = OperationPhasePreset;
 
-export const MAX_DOCUMENT_WIDTH = 100;
-
 export const sessionElapsedMs = (
   state: Pick<TuiState, 'startTime' | 'inputPausedMs' | 'inputPausedSince' | 'activePrompt'>,
   now: number
@@ -65,13 +61,5 @@ export const sessionElapsedMs = (
 };
 
 export const PHASE_NAMES = OPERATION_PHASE_NAMES;
-export const PHASE_ORDER = getPhaseOrder('deploy');
-export const DELETE_PHASE_ORDER = getPhaseOrder('delete');
-export const DELETE_PHASE_NAMES: Partial<Record<DeploymentPhase, string>> = { DEPLOY: 'Delete' };
-
-/** Legacy exports retained until downstream demo tooling is migrated. */
-export const PHASE_FOOTER_HEIGHT = 13;
-export const SIMPLE_FOOTER_HEIGHT = 9;
-
 export const eventId = (eventType: string, instanceId?: string) =>
   instanceId ? `${eventType}-${instanceId}` : eventType;

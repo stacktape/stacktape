@@ -22,7 +22,7 @@ export type ApiUnionBranch = {
   properties: ApiProperty[];
 };
 
-export type ApiPropertyExample = { lang: string; code: string };
+type ApiPropertyExample = { lang: string; code: string };
 
 export type ApiProperty = {
   name: string;
@@ -37,7 +37,7 @@ export type ApiProperty = {
   examples?: ApiPropertyExample[];
 };
 
-export type ApiDefinition = {
+type ApiDefinition = {
   definitionName: string;
   shortDescription?: string;
   properties: ApiProperty[];

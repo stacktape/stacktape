@@ -50,7 +50,7 @@ type ArtifactPackagingSource = Pick<
   'getPackagingOutputForJob' | 'getPendingSharedLayer' | 'getLayerArtifacts' | 'publishSharedLayer'
 >;
 
-export class DeploymentArtifactManager {
+class DeploymentArtifactManager {
   #packagingSource: ArtifactPackagingSource | undefined;
 
   setPackagingSource = (packagingSource: ArtifactPackagingSource) => {

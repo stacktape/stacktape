@@ -6,7 +6,7 @@ import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { configManager } from '..';
 import { getPropsOfResourceReferencedInConfig } from './resource-lookup';
 
-export const resolveReferenceToEfsFilesystem = ({
+const resolveReferenceToEfsFilesystem = ({
   stpResourceReference,
   referencedFromType,
   referencedFrom

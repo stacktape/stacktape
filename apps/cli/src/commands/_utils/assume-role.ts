@@ -7,7 +7,7 @@ import { awsSdkManager } from '@utils/aws-sdk-manager';
 export const SESSION_DURATION_SECONDS = 3600;
 export const DEV_SESSION_DURATION_SECONDS = 3600; // 1 hour (matches default IAM role MaxSessionDuration)
 
-export const addCallerToAssumeRolePolicy = async ({ roleName }: { roleName: string }) => {
+const addCallerToAssumeRolePolicy = async ({ roleName }: { roleName: string }) => {
   const callerIdentityArn = globalStateManager.credentials.identity.arn.includes(':assumed-role')
     ? getRoleArnFromSessionArn(globalStateManager.credentials.identity.arn)
     : globalStateManager.credentials.identity.arn;

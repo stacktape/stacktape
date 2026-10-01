@@ -2,7 +2,6 @@
  * Port management utilities for dev servers.
  * Handles port conflicts, process cleanup, and port allocation.
  */
-import { exec } from 'node:child_process';
 import { createServer } from 'node:net';
 import { DEV_CONFIG } from './dev-config';
 
@@ -31,72 +30,6 @@ export const isPortReserved = (port: number): boolean => globalReservedPorts.has
 
 /** How long to cache port availability results (ms) */
 const PORT_CACHE_TTL_MS = DEV_CONFIG.devServer?.portCacheTtlMs ?? 1000;
-
-/**
- * Find the process ID using a specific port.
- * Returns null if no process is found or on error.
- */
-export const findProcessByPort = async (port: number): Promise<number | null> => {
-  return new Promise((resolve) => {
-    const isWindows = process.platform === 'win32';
-
-    if (isWindows) {
-      // Windows: use netstat
-      exec(`netstat -ano | findstr :${port} | findstr LISTENING`, { timeout: 5000 }, (error, stdout) => {
-        if (error || !stdout.trim()) {
-          resolve(null);
-          return;
-        }
-        // Parse: "  TCP    0.0.0.0:3000    0.0.0.0:0    LISTENING    12345"
-        const lines = stdout.trim().split('\n');
-        for (const line of lines) {
-          const parts = line.trim().split(/\s+/);
-          const pid = parseInt(parts[parts.length - 1], 10);
-          if (!isNaN(pid) && pid > 0) {
-            resolve(pid);
-            return;
-          }
-        }
-        resolve(null);
-      });
-    } else {
-      // Unix: use lsof
-      exec(`lsof -ti:${port} -sTCP:LISTEN 2>/dev/null`, { timeout: 5000 }, (error, stdout) => {
-        if (error || !stdout.trim()) {
-          resolve(null);
-          return;
-        }
-        const pid = parseInt(stdout.trim().split('\n')[0], 10);
-        resolve(isNaN(pid) ? null : pid);
-      });
-    }
-  });
-};
-
-/**
- * Kill a process by PID. On Windows, also kills child processes.
- */
-export const killProcess = async (pid: number): Promise<boolean> => {
-  return new Promise((resolve) => {
-    const isWindows = process.platform === 'win32';
-
-    try {
-      if (isWindows) {
-        // Windows: /T kills child processes, /F forces termination
-        exec(`taskkill /PID ${pid} /T /F`, { timeout: 5000 }, (error) => {
-          resolve(!error);
-        });
-      } else {
-        // Unix: kill the process group to include children
-        exec(`kill -9 -${pid} 2>/dev/null || kill -9 ${pid}`, { timeout: 5000 }, (error) => {
-          resolve(!error);
-        });
-      }
-    } catch {
-      resolve(false);
-    }
-  });
-};
 
 /**
  * Check if a port is available (with caching).

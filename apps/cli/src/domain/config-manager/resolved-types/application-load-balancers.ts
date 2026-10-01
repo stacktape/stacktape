@@ -50,9 +50,6 @@ export type LambdaTargetDetails = {
   lambdaEndpointArn: Intrinsic | string;
   loadBalancerName: string;
 };
-export type AggregatedTargetsDetails = {
-  [targetIdentifier: string]: ContainerWorkloadTargetDetails | LambdaTargetDetails;
-};
 export type ApplicationLoadBalancerReferenceableParam =
   | 'domain'
   | 'customDomains'

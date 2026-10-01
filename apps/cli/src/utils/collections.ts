@@ -1,4 +1,4 @@
-export class LinkedList<T> {
+class LinkedList<T> {
   private _head: LinkedListItem<T>;
   private _tail: LinkedListItem<T>;
   private _length: number;
@@ -222,7 +222,7 @@ export class LinkedList<T> {
   }
 }
 
-export class LinkedListItem<T> {
+class LinkedListItem<T> {
   value: T;
   next: LinkedListItem<T>;
   prev: LinkedListItem<T>;

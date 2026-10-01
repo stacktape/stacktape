@@ -20,10 +20,10 @@ import type { DefaultedResource } from '../normalized-resource';
 
 // Default pinned Convex images. Bump deliberately after testing Convex's
 // self-hosted migration path against a real Stacktape deployment.
-export const DEFAULT_CONVEX_BACKEND_IMAGE =
+const DEFAULT_CONVEX_BACKEND_IMAGE =
   'ghcr.io/get-convex/convex-backend@sha256:122da352b12b216a017a1fb45c6a467f41a5b746158b47aecd1fe12f9f74edb0';
 
-export const DEFAULT_CONVEX_DASHBOARD_IMAGE =
+const DEFAULT_CONVEX_DASHBOARD_IMAGE =
   'ghcr.io/get-convex/convex-dashboard@sha256:26bd4a89b097c5dd89e78d194a6b79c5c1b8cb1d02801b9946a9eb7b716e18dd';
 
 export const getConvexSecretName = ({

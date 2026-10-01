@@ -45,7 +45,7 @@ const severityFromMessageType = (type: ProgressMessage['type']): string => {
   }
 };
 
-export class NotificationManager {
+class NotificationManager {
   isInitialized: boolean;
   #hasConsoleApiAccess = false;
   /**

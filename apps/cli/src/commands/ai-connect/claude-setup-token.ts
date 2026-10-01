@@ -25,7 +25,7 @@ const TERMINAL_SEQUENCES = new RegExp(
   'gu'
 );
 
-export const CLAUDE_INSTALL_HINT =
+const CLAUDE_INSTALL_HINT =
   'Install the Claude Code CLI first: `npm install -g @anthropic-ai/claude-code`, or see https://code.claude.com/docs/en/setup.';
 
 export const findClaudeBinary = () => {

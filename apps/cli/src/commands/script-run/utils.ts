@@ -290,7 +290,7 @@ const getLocalScriptExecutionFn = ({
   };
 };
 
-export const getScriptCwd = (script: LocalScript | LocalScriptWithBastionTunneling) => {
+const getScriptCwd = (script: LocalScript | LocalScriptWithBastionTunneling) => {
   return script.properties.cwd
     ? resolve(globalStateManager.workingDir, script.properties.cwd)
     : globalStateManager.workingDir;

@@ -78,7 +78,7 @@ const PROBES = [
  * explicit destination so it is never the harder path, and the format of a citation is shown rather
  * than described, because a model copies a shape far more reliably than it follows a rule.
  */
-export const GREENFIELD_SYSTEM_PROMPT = `You are examining a software repository so it can be deployed. Your job is to describe what the repository IS — not what infrastructure it should get. Someone else decides that.
+const GREENFIELD_SYSTEM_PROMPT = `You are examining a software repository so it can be deployed. Your job is to describe what the repository IS — not what infrastructure it should get. Someone else decides that.
 
 Start by calling get_project_brief. It contains everything already established by static analysis: package manager, workspace layout, detected services, their build and start commands, backing services, and open questions. Treat it as a draft to review, not as a starting point to redo. Most of it is already correct.
 
@@ -116,8 +116,6 @@ Do not report anything you cannot point at. No inferring a Redis cache because t
 
 Finish by calling submit_facts. That call IS your answer — anything you write as chat text is discarded. If submit_facts rejects your submission it will tell you exactly what is wrong; fix it and call it again.`;
 
-export const GREENFIELD_USER_PROMPT = 'Analyse this repository and submit your findings. Call get_project_brief first.';
-
 /**
  * The open items the deterministic half could not settle — the agent's entire job.
  *
@@ -125,7 +123,7 @@ export const GREENFIELD_USER_PROMPT = 'Analyse this repository and submit your f
  * nothing and a session that spends every turn where the eval said the value is. Empty means the
  * agent is not needed at all, and the honest move is to spend zero of the user's tokens saying so.
  */
-export const materialGaps = (facts: ProjectFacts): string[] => {
+const materialGaps = (facts: ProjectFacts): string[] => {
   const gaps: string[] = [];
   for (const issue of checkFactsCompleteness(facts)) {
     if (issue.severity === 'blocking') gaps.push(issue.message);
@@ -164,7 +162,7 @@ export const materialGaps = (facts: ProjectFacts): string[] => {
 };
 
 /** The user prompt for a targeted session: the gap list, and nothing else to wander into. */
-export const targetedUserPrompt = (gaps: readonly string[]): string =>
+const targetedUserPrompt = (gaps: readonly string[]): string =>
   [
     'Call get_project_brief first. The static scan has already resolved most of this repository — do not re-verify or restate what the draft already says.',
     'Spend your turns on ONLY these open items:',

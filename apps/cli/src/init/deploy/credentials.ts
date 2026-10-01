@@ -32,7 +32,7 @@ export type AwsIdentity =
     };
 
 /** The region a deploy would default to, taken from the environment the way every AWS tool does. */
-export const defaultRegion = (env: NodeJS.ProcessEnv = process.env): string | undefined =>
+const defaultRegion = (env: NodeJS.ProcessEnv = process.env): string | undefined =>
   env.AWS_REGION ?? env.AWS_DEFAULT_REGION;
 
 /**

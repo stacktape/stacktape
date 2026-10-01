@@ -41,7 +41,7 @@ export const ANNOUNCEMENT = {
   href: '/blog/stacktape-v4'
 } as const;
 
-export const HEADLINE_LINES = ['AWS DevOps,', 'fully automated.'] as const;
+const HEADLINE_LINES = ['AWS DevOps,', 'fully automated.'] as const;
 export const HEADLINE = HEADLINE_LINES.join(' ');
 export const SUBHEADLINE =
   'Stacktape reads your repository, designs the infrastructure like a senior DevOps team would, deploys it to your own AWS account and makes sure your app runs flawlessly forever after. It keeps you in the loop for any decision that requires human attention.';
@@ -127,7 +127,7 @@ export const FOOTER_STATUS = 'System status';
 
 /* ── The example project ───────────────────────────────────────────────────────────────────── */
 
-export const PROJECT = {
+const PROJECT = {
   name: 'acme-project',
   stage: 'production',
   region: 'eu-west-1',

@@ -21,7 +21,7 @@ export const brand = {
 } as const;
 
 /** Dark theme (default). All values are hex strings for OpenTUI `fg` props. */
-export const darkTheme = {
+const darkTheme = {
   // Semantic status
   pending: brand.dim,
   running: brand.accent,
@@ -49,10 +49,10 @@ export const darkTheme = {
   announce: brand.accent
 } as const;
 
-export type Theme = { -readonly [K in keyof typeof darkTheme]: string };
+type Theme = { -readonly [K in keyof typeof darkTheme]: string };
 
 /** Light theme — darker, higher-contrast brand variants for light terminals. */
-export const lightTheme: Theme = {
+const lightTheme: Theme = {
   pending: '#6b7280',
   running: '#1a9c9c',
   success: '#0d9058',
@@ -88,7 +88,7 @@ const [themeMode, setThemeModeSignal] = createSignal<ThemeMode>('dark');
 
 export const setDetectedThemeMode = (mode: ThemeMode) => setThemeModeSignal(mode);
 
-export const getMessageColors = (theme: Theme): Record<string, string> => ({
+const getMessageColors = (theme: Theme): Record<string, string> => ({
   info: theme.text,
   warn: theme.warning,
   error: theme.error,

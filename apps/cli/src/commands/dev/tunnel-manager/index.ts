@@ -597,7 +597,7 @@ export const startTunnel = async (resourceName: string, localPort: number): Prom
   throw lastError || new Error(`Failed to start tunnel for ${resourceName} after ${TUNNEL_RETRY_ATTEMPTS} attempts`);
 };
 
-export const stopAllTunnels = async (): Promise<void> => {
+const stopAllTunnels = async (): Promise<void> => {
   const tunnelsToStop = [...activeTunnels];
   for (const tunnel of tunnelsToStop) {
     tunnel.process.kill();

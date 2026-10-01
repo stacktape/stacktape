@@ -12,7 +12,7 @@ import { NOT_YET_KNOWN_IDENTIFIER, PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/c
 import { STACKTAPE_TRPC_API_ENDPOINT } from 'src/config/params';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';
 
-export const buildUptimeCheckManifestEntry = ({
+const buildUptimeCheckManifestEntry = ({
   check,
   projectName,
   stage,

@@ -12,7 +12,7 @@ import { spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
 
 /** The sender's only argument; the perf harness recognizes the process by it (`scripts/perf/cli-sample.ts`). */
-export const TELEMETRY_SENDER_ARGUMENT = '__telemetry-sender';
+const TELEMETRY_SENDER_ARGUMENT = '__telemetry-sender';
 const TELEMETRY_REQUEST_ENV = 'STP_TELEMETRY_REQUEST';
 const SEND_TIMEOUT_MS = 5000;
 

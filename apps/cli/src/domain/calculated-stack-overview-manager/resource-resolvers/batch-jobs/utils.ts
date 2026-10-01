@@ -189,7 +189,7 @@ export const getIncreasedDiskSizeLaunchTemplate = () =>
 /**
  * generates Compute Resource Config for compute environment
  */
-export const getBatchComputeResourcesConfig = (spot: boolean, gpu: boolean) => {
+const getBatchComputeResourcesConfig = (spot: boolean, gpu: boolean) => {
   const tagObject = {};
   stackManager.getTags().forEach(({ Key, Value }) => {
     tagObject[Key] = Value;
@@ -240,7 +240,7 @@ export const getBatchJobQueue = ({ spot, gpu }: { spot: boolean; gpu: boolean })
     ]
   });
 
-export const getBatchJobDefinitionContainerProperties = ({
+const getBatchJobDefinitionContainerProperties = ({
   name,
   workload
 }: {
@@ -320,7 +320,7 @@ const buildStateName = ({ instanceKind, index }: { instanceKind: BatchJobInstanc
   return `${instanceKind}${index}`;
 };
 
-export const getBatchStateMachineDefinitionString = (
+const getBatchStateMachineDefinitionString = (
   name: string,
   workload: StpBatchJob,
   stackName: string,

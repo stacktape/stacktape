@@ -227,4 +227,4 @@ const buildProjectScanResult = (snapshot: ProjectScanSnapshot, maxFiles: number)
   };
 };
 
-export type { ConfigCandidate, PackageJsonSummary, ProjectScanResult };
+export type { ProjectScanResult };

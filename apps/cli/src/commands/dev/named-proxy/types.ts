@@ -5,7 +5,7 @@ export type RouteInfo = {
   port: number;
 };
 
-export type ProxyTlsOptions = {
+type ProxyTlsOptions = {
   cert: Buffer;
   key: Buffer;
   SNICallback?: (servername: string, cb: (err: Error | null, ctx?: SecureContext) => void) => void;

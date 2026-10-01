@@ -109,11 +109,11 @@ export const getCallablePythonFunc = (filePath: string, functionName = 'main') =
   };
 };
 
-export const loadFromPython = async (filePath: string, handler: string) => {
+const loadFromPython = async (filePath: string, handler: string) => {
   return getCallablePythonFunc(filePath, handler)();
 };
 
-export const loadFromJson = (filePath: string) => {
+const loadFromJson = (filePath: string) => {
   return fsExtra.readJson(filePath);
 };
 
@@ -135,15 +135,15 @@ export const loadFromJavascript = ({ filePath, exportName }: { filePath: string;
   return Promise.resolve(getJavascriptExport({ filePath, cache: true, exportName }));
 };
 
-export const loadFromIni = getIniFileContent;
+const loadFromIni = getIniFileContent;
 
-export const loadFromDotenv = async (filePath: string) => {
+const loadFromDotenv = async (filePath: string) => {
   const fileContent = await getFileContent(filePath);
 
   return parseDotenv(fileContent);
 };
 
-export const loadFromYaml = async (filePath: string) => {
+const loadFromYaml = async (filePath: string) => {
   const fileContent = await getFileContent(filePath);
   return parseYaml(fileContent);
 };
@@ -203,7 +203,7 @@ export const loadRawFileContent = async ({ workingDir, filePath }: { filePath: s
   return getFileContent(absoluteFilePath);
 };
 
-export const isFile = (filePath: string) => {
+const isFile = (filePath: string) => {
   try {
     return lstatSync(filePath).isFile();
   } catch {

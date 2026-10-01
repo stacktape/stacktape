@@ -7,4 +7,3 @@ export type StpSqsQueue = SqsQueue['properties'] & {
   configParentResourceType: SqsQueue['type'] | NextjsWeb['type'];
   nameChain: string[];
 };
-export type SqsQueueReferencableParam = 'arn' | 'name' | 'url';

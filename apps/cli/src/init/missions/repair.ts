@@ -40,7 +40,7 @@ import type { AgentRunner } from './greenfield';
  * saying so plainly produces a better answer than letting it discover the constraint by having its
  * submission rejected.
  */
-export const REPAIR_SYSTEM_PROMPT = `A deployment of this repository just failed. You are going to work out what we got wrong ABOUT THE REPOSITORY, so it can be deployed again.
+const REPAIR_SYSTEM_PROMPT = `A deployment of this repository just failed. You are going to work out what we got wrong ABOUT THE REPOSITORY, so it can be deployed again.
 
 Read the failure carefully, then go and look at the code. A failed deploy is evidence: it proves that something we believed about this project is not true. Your job is to find that thing.
 

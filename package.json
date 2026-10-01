@@ -20,6 +20,8 @@
     "console:dev:reservation": "node scripts/workspace/console-dev-reservation.ts",
     "deploy:console": "pnpm dev:cli deploy --region eu-west-1 --stage production --configPath ../console/api/stacktape.ts --hotSwap --projectName console-app --awsAccount stacktape-dev",
     "deploy:console:dev": "pnpm console:dev:reservation check && pnpm dev:cli deploy --region eu-west-1 --stage dev --configPath ../console/api/stacktape.ts --hotSwap --projectName console-app --awsAccount stacktape-dev",
+    "deploy:website": "pnpm dev:cli deploy --stage production --region eu-west-1 --configPath ../website/stacktape.yml --hotSwap --projectName web --awsAccount stacktape-dev",
+    "deploy:website:preview": "pnpm dev:cli deploy --stage preview --region eu-west-1 --configPath ../website/stacktape.yml --hotSwap --projectName web --awsAccount stacktape-dev",
     "deploy:web": "pnpm --filter @stacktape/website run deploy",
     "deploy:web:preview": "pnpm --filter @stacktape/website run deploy:preview",
     "dev:cli": "turbo run build:dev-artifacts --filter=@stacktape/cli && pnpm --filter @stacktape/cli run dev",

@@ -26,4 +26,3 @@ export type StpHelperEdgeLambdaFunction = Omit<StpEdgeLambdaFunction, 'packaging
     | 'python3.9'
     | 'python3.8';
 };
-export type EdgeLambdaFunctionReferencableParam = 'arn';

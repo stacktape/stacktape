@@ -7,7 +7,7 @@ const hasExtensionRegex = /(.+)\.[a-z0-9]+$/i;
 
 let s3Client: S3;
 
-export const handler: CloudFrontRequestHandler = async (event) => {
+const handler: CloudFrontRequestHandler = async (event) => {
   const request = event.Records[0].cf.request;
   const url: string = removeTrailingSlash(request.uri);
 

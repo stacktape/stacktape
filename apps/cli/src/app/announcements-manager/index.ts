@@ -72,7 +72,7 @@ const writeCachedNotices = async (notices: Notices) => {
  * stale, refreshes them in the background while the command runs. `printNotices` shows the newest notices already
  * known, and `stop` abandons a refresh that has not finished, so no request outlives the command.
  */
-export class AnnouncementsManager {
+class AnnouncementsManager {
   #notices: Notices = {};
   #refresh = new AbortController();
   #cacheWrites = Promise.resolve();

@@ -34,7 +34,7 @@ export const getCauseString = ({ alarmDetail }: { alarmDetail: AlarmNotification
   return `${monitoredMetric}${comparisonSymbol ? ` ${comparisonSymbol} ${threshold}${unit}` : ''} `;
 };
 
-export const getThresholdValue = ({ alarm }: { alarm: AlarmDefinition }) => {
+const getThresholdValue = ({ alarm }: { alarm: AlarmDefinition }) => {
   switch (alarm.trigger.type) {
     case 'lambda-error-rate':
     case 'database-cpu-utilization':

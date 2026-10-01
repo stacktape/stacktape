@@ -16,7 +16,7 @@ type PromptInput = OperationPromptRequest extends infer Prompt
   : never;
 
 /** Keeps non-serializable prompt resolvers and cancellation callbacks out of operation state. */
-export class InteractionCoordinator {
+class InteractionCoordinator {
   private promptSequence = 0;
   private pendingPrompts = new Map<string, PendingPrompt>();
   private cancellationHandler: (() => void) | undefined;

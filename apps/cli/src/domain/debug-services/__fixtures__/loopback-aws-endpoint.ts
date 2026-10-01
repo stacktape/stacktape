@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
-export type RecordedAwsRequest = { method: string; path: string; target?: string };
+type RecordedAwsRequest = { method: string; path: string; target?: string };
 
 /**
  * A local stand-in for AWS. While it runs, every SDK client created in this process sends here through the standard

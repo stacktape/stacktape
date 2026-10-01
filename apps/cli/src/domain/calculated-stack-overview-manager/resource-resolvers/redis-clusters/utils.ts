@@ -154,6 +154,6 @@ export const getLogGroupResource = ({
   });
 };
 
-export const getRedisPort = ({ resource }: { resource: StpRedisCluster }) => {
+const getRedisPort = ({ resource }: { resource: StpRedisCluster }) => {
   return resource.port || 6379;
 };

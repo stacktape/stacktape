@@ -22,11 +22,11 @@ export const configPath = z.string().describe(`#### Config File Path
 ---
 The path to your Stacktape configuration file, relative to the current working directory.`);
 
-export const profile = z.string().describe(`#### AWS Profile
+const profile = z.string().describe(`#### AWS Profile
 ---
 The AWS profile to use for the command. You can manage profiles using the \`aws-profile:*\` commands and set a default profile with \`defaults:configure\`.`);
 
-export const help = z.string().describe(`#### Show Help
+const help = z.string().describe(`#### Show Help
 ---
 If provided, the command will not execute and will instead print help information.`);
 
@@ -80,7 +80,7 @@ export const resourceName = z.string().describe(`#### Resource Name
 ---
 The name of the resource as defined in your Stacktape configuration.`);
 
-export const currentWorkingDirectory = z.string().describe(`#### Current Working Directory
+const currentWorkingDirectory = z.string().describe(`#### Current Working Directory
 ---
 The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file.`);
 
@@ -164,7 +164,7 @@ Controls the CLI output format:
 - \`tty\`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected.
 If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl.`);
 
-export const ui = z.enum(['auto', 'stream', 'dashboard']).describe(`#### Terminal UI
+const ui = z.enum(['auto', 'stream', 'dashboard']).describe(`#### Terminal UI
 ---
 Controls the interactive presentation when output format is \`tty\`:
 - \`auto\`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases.
@@ -320,10 +320,6 @@ Which installed coding agent analyses the project. The agent reads your code usi
 - **auto** (default): use the best agent found on this machine.
 - **claude-code** / **codex**: use that agent specifically, and fail if it is not installed.
 - **none**: skip the agent entirely and rely on static analysis alone. Faster and free, but finds less.`);
-
-export const acceptDefaults = z.boolean().describe(`#### Accept Defaults
----
-If \`true\`, answers every question \`init\` would ask with its recommended value instead of stopping. Intended for automation. Take care with it: the questions exist because a wrong guess produces infrastructure that deploys and then does not work.`);
 
 export const newVersion = z.string().describe(`#### New Version
 ---

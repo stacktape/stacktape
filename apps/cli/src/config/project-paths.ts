@@ -1,12 +1,10 @@
 import { join } from 'node:path';
 
 const DIST_FOLDER_NAME = '__stacktape-dist';
-const SOURCE_FOLDER_NAME = 'src';
 export const BRIDGE_FILES_FOLDER_NAME = 'bridge-files';
 export const HELPER_LAMBDAS_FOLDER_NAME = 'helper-lambdas';
 const JSON_SCHEMAS_FOLDER_NAME = 'schemas';
 const SOURCE_MAP_INSTALL_FILENAME = 'source-map-install.js';
-const CLI_RELEASE_FOLDER_NAME = '__release';
 const SDK_RELEASE_FOLDER_NAME = '__release-npm';
 export const STARTER_PROJECTS_METADATA_FOLDER_NAME = 'starter-projects-metadata.json';
 
@@ -17,10 +15,9 @@ export const CLI_BUILD_DIST_FOLDER_PATH = join(process.cwd(), '__cli-dist', 'sta
 /** The built `init` wizard interface, which a release copies in beside the binary as `init-ui/`. */
 export const INIT_WIZARD_BUNDLE_SOURCE_PATH = join(process.cwd(), '..', 'init-ui', 'dist');
 export const DIST_PACKAGE_FOLDER_PATH = join(process.cwd(), '__dist');
-export const CLI_RELEASE_FOLDER_PATH = join(process.cwd(), CLI_RELEASE_FOLDER_NAME);
 export const NPM_RELEASE_FOLDER_PATH = join(process.cwd(), SDK_RELEASE_FOLDER_NAME);
 export const PUBLISH_STARTER_PROJECTS_DIR_PATH = join(process.cwd(), '__publish-starters-repo-dir');
-export const SOURCE_FOLDER_PATH = join(process.cwd(), 'src');
+const SOURCE_FOLDER_PATH = join(process.cwd(), 'src');
 export const NPM_PACKAGE_JSON_SOURCE_PATH = join(process.cwd(), 'scripts', 'release', 'npm-package', 'package.json');
 export const SOURCE_MAP_INSTALL_DIST_PATH = join(DIST_FOLDER_PATH, SOURCE_MAP_INSTALL_FILENAME);
 /** Self-contained OTel runtime that packaging bundles into traced Lambda functions. */
@@ -36,8 +33,6 @@ export const LAMBDA_TRACING_RUNTIME_SOURCE_PATH = join(
 export const STARTER_PROJECTS_SOURCE_PATH = join(process.cwd(), 'starter-projects');
 export const GENERATED_STARTER_PROJECTS_DIR_PATH = join(process.cwd(), '__starter-projects');
 export const SOURCE_MAP_INSTALL_FILE_NAME = 'source-map-install.js';
-export const BRIDGE_FILES_SOURCE_FOLDER_PATH = join(SOURCE_FOLDER_NAME, 'utils', BRIDGE_FILES_FOLDER_NAME);
-export const HELPER_LAMBDAS_DIST_FOLDER_PATH = join(DIST_FOLDER_PATH, HELPER_LAMBDAS_FOLDER_NAME);
 export const HELPER_LAMBDAS_SOURCE_FOLDER_PATH = join(process.cwd(), HELPER_LAMBDAS_FOLDER_NAME);
 export const GENERATED_FILES_FOLDER_PATH = join(process.cwd(), '@generated');
 export const JSON_SCHEMAS_FOLDER_PATH = join(process.cwd(), '@generated', JSON_SCHEMAS_FOLDER_NAME);

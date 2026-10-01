@@ -25,7 +25,7 @@ const isSlackAppChannel = (value: unknown): value is SlackAppChannelObject => {
 };
 
 /** Every `slack-app` channel object reachable from the loaded config, in place (the objects are mutated later). */
-export const collectSlackAppChannels = (root: unknown): SlackAppChannelObject[] => {
+const collectSlackAppChannels = (root: unknown): SlackAppChannelObject[] => {
   const found: SlackAppChannelObject[] = [];
   const seen = new Set<object>();
   const walk = (value: unknown) => {

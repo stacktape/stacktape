@@ -35,26 +35,6 @@ export type PackageWorkloadOutput = {
   resolvedModules?: string[];
 };
 
-export type PackageWorkloadInput = {
-  /**
-   * #### Workload Name
-   *
-   * ---
-   *
-   * The name of the parent resource this workload belongs to (e.g., `web-service`, `worker-service`).
-   */
-  workloadName: string;
-  /**
-   * #### Job Name
-   *
-   * ---
-   *
-   * The name of the specific job (e.g., a container or function) within the resource. This is important for resources that can have multiple jobs, like a `multi-container-workload`.
-   */
-  jobName: string;
-  packaging: ContainerWorkloadContainerPackaging | BatchJobContainerPackaging | LambdaPackaging | HelperLambdaPackaging;
-};
-
 export type HelperLambdaPackaging = {
   type: 'helper-lambda';
   properties: HelperLambdaData;
@@ -71,8 +51,6 @@ export type EnrichedCwContainerProps = ContainerWorkloadContainer & {
   jobName: string;
   resources: ContainerWorkloadResourcesConfig;
 };
-
-export type EnrichedWebServiceContainerProps = EnrichedCwContainerProps;
 
 export type EnrichedBjContainerProps = BatchJobContainer & {
   workloadName: string;

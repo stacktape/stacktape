@@ -107,7 +107,7 @@ export const initUsingStarterProject = async () => {
   displayResult({ targetDirectory, absoluteProjectPath, projectToUse, costEstimation, configFormat });
 };
 
-export const downloadStarterFromGithub = async ({
+const downloadStarterFromGithub = async ({
   githubLink,
   targetDirectory
 }: {

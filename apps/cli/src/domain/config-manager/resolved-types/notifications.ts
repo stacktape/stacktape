@@ -1,6 +1,6 @@
 import type { EmailIntegration, MsTeamsIntegration, SlackIntegration } from '@stacktape/config/user-integrations';
 
-export type DeploymentNotificationUserIntegration = MsTeamsIntegration | SlackIntegration | EmailIntegration;
+type DeploymentNotificationUserIntegration = MsTeamsIntegration | SlackIntegration | EmailIntegration;
 export interface DeploymentNotificationDefinition {
   integration: DeploymentNotificationUserIntegration;
   /**

@@ -26,7 +26,7 @@ export const resolveWebsocketApiGateways = () => {
   configManager.websocketApiGateways.forEach(resolveWebsocketApiGateway);
 };
 
-export const resolveWebsocketApiGateway = (resource: StpWebSocketApiGateway) => {
+const resolveWebsocketApiGateway = (resource: StpWebSocketApiGateway) => {
   const { name, nameChain } = resource;
   const integrations = getAllIntegrationsForWebsocketApiGateway({ activeConfig: configManager, resource });
   const routeLogicalNames = integrations.flatMap(({ properties }) => {

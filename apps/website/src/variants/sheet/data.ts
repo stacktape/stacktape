@@ -147,15 +147,15 @@ export const SECTIONS: readonly Section[] = [
 
 /* ── The example project ───────────────────────────────────────────────────────────────────── */
 
-export const PROJECT = {
+const PROJECT = {
   name: 'acme-project',
   stage: 'production',
   region: 'eu-west-1',
   urls: { web: 'https://acme.com', api: 'https://api.acme.com', preview: 'https://pr-128.preview.acme.com' }
 } as const;
 
-export const CONSOLE_HOST = 'console.stacktape.com';
-export const CONSOLE_PATH = `${CONSOLE_HOST}/projects/${PROJECT.name}/${PROJECT.stage}`;
+const CONSOLE_HOST = 'console.stacktape.com';
+const CONSOLE_PATH = `${CONSOLE_HOST}/projects/${PROJECT.name}/${PROJECT.stage}`;
 
 export type ResourceKind = 'compute' | 'database' | 'security' | 'network';
 

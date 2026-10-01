@@ -75,7 +75,7 @@ export const validateKafkaConsumerGroupUniqueness = ({
   });
 };
 
-export const validatePackagingProps = ({
+const validatePackagingProps = ({
   packaging,
   workloadName,
   containerName,
@@ -283,7 +283,7 @@ export const validateConfigStructure = async ({
   }
 };
 
-export const validateResourceNameUniqueness = ({ configManager }: { configManager: ConfigManager }) => {
+const validateResourceNameUniqueness = ({ configManager }: { configManager: ConfigManager }) => {
   const resourceNames = configManager.allConfigResources.map(({ name }) => name);
   const duplicates = getUniqueDuplicates(resourceNames);
   if (duplicates.length) {
@@ -295,7 +295,7 @@ export const validateResourceNameUniqueness = ({ configManager }: { configManage
   }
 };
 
-export const validateResourceNames = ({ configManager }: { configManager: ConfigManager }) => {
+const validateResourceNames = ({ configManager }: { configManager: ConfigManager }) => {
   configManager.allConfigResources.forEach(({ name }) => {
     if (!isAlphanumeric(name)) {
       throw new CliError({
@@ -686,7 +686,7 @@ const validateBastionReferences = ({ configManager }: { configManager: ConfigMan
     });
 };
 
-export const validateReuseVpcConfig = ({ configManager }: { configManager: ConfigManager }) => {
+const validateReuseVpcConfig = ({ configManager }: { configManager: ConfigManager }) => {
   const reuseVpc = configManager.config?.stackConfig?.vpc?.reuseVpc;
 
   if (!reuseVpc) {

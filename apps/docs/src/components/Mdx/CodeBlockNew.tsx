@@ -945,5 +945,3 @@ export function CodeBlockNew({ tabs, lang, intellisense = false, stacktapeConfig
     </div>
   );
 }
-
-export { CodeBlockNew as CodeBlock, MdxCodeBlockNew as MdxCodeBlock };

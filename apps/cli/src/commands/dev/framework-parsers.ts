@@ -34,7 +34,7 @@ export type ParsedOutput = {
 /**
  * Strips ANSI escape codes from a string.
  */
-export const stripAnsi = (str: string): string => {
+const stripAnsi = (str: string): string => {
   // eslint-disable-next-line no-control-regex
   return str.replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, '');
 };
@@ -852,7 +852,7 @@ const frameworkParsers: Record<FrameworkType, (line: string, cleanLine: string) 
 /**
  * Parse dev server output line using framework-specific parser.
  */
-export const parseDevServerLine = (line: string, framework: FrameworkType): ParsedOutput => {
+const parseDevServerLine = (line: string, framework: FrameworkType): ParsedOutput => {
   const cleanLine = stripAnsi(line).toLowerCase();
   const parser = frameworkParsers[framework] || parseGenericOutput;
 

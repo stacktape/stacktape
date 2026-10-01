@@ -36,7 +36,7 @@ export const resolveReferenceToAppSyncApi = ({
     referencedFromType
   });
 
-export const getAllIntegrationsForAppSyncApi = ({
+const getAllIntegrationsForAppSyncApi = ({
   activeConfig,
   resource
 }: {

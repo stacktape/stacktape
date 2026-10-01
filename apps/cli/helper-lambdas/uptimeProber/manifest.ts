@@ -24,7 +24,7 @@ export type UptimeCheckManifestEntry = {
   assertions?: UptimeCheckAssertion[];
 };
 
-export const UPTIME_MANIFEST_VERSION = 1 as const;
+const UPTIME_MANIFEST_VERSION = 1 as const;
 
 /** The checks one probe region runs for this stack. A check appears only under its assigned regions. */
 export type UptimeRegionAssignment = {

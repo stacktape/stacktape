@@ -397,7 +397,7 @@ export type ResolvedNode =
       breadcrumb: BreadcrumbItem[];
     };
 
-export type BreadcrumbItem =
+type BreadcrumbItem =
   | { kind: 'property'; name: string; path: SelectionPath }
   | { kind: 'branch'; label: string; isDiscriminated: boolean; path: SelectionPath };
 

@@ -27,5 +27,3 @@ export type RecentCommandSuggestion = {
   occurredAt: number | null;
   userName?: string | null;
 };
-
-export type LauncherSuggestion = CommandSuggestion | RecentCommandSuggestion;

@@ -42,13 +42,7 @@ import {
 import type { TuiDeploymentHeader, TuiEventStatus, TuiLink, TuiMessageType, TuiSelectOption } from './types';
 
 export { UserCancelledError };
-export type { ErrorDisplayData } from './format/errors';
 export type { Spinner } from './spinner';
-export { MultiSpinner } from './spinner';
-export { tuiState } from './progress/state';
-
-export type { TuiEvent, TuiPhase, TuiState, TuiSummary } from './progress/types';
-export type { TuiDeploymentHeader, TuiLink, TuiSelectOption } from './types';
 
 /**
  * The CLI presentation facade. Every part of the application talks to the

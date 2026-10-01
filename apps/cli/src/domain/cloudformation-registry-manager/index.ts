@@ -22,7 +22,7 @@ import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { pRateLimit } from 'p-ratelimit';
 
-export class CloudformationRegistryManager {
+class CloudformationRegistryManager {
   stacktapeInfrastructureModulesStatus: {
     [_infrastructureModuleType in StpCfInfrastructureModuleType]?: {
       currentlyUsedPrivateCloudformationTypes: {

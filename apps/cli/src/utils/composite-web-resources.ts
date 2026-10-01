@@ -2,7 +2,7 @@
  * Resource types that represent composite web resources with nested Lambda + S3 + CDN.
  * These resources use the parent's name for CloudFront distribution naming.
  */
-export const COMPOSITE_WEB_RESOURCE_TYPES = [
+const COMPOSITE_WEB_RESOURCE_TYPES = [
   'nextjs-web',
   'astro-web',
   'nuxt-web',

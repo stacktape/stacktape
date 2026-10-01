@@ -1,7 +1,7 @@
 import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 
 /** Resource types that are emulated locally and should not be deployed to the dev stack unless selected as remote. */
-export const LOCAL_EMULATED_RESOURCE_TYPES: StpResourceType[] = [
+const LOCAL_EMULATED_RESOURCE_TYPES: StpResourceType[] = [
   'relational-database',
   'redis-cluster',
   'dynamo-db-table',
@@ -9,7 +9,7 @@ export const LOCAL_EMULATED_RESOURCE_TYPES: StpResourceType[] = [
 ];
 
 /** Costly cloud-only resources excluded from dev stacks unless explicitly marked `dev.remote: true`. */
-export const REMOTE_ONLY_RESOURCE_TYPES: StpResourceType[] = ['kafka-cluster'];
+const REMOTE_ONLY_RESOURCE_TYPES: StpResourceType[] = ['kafka-cluster'];
 
 /** Resource types that run locally (containers, frontends) - entirely skipped in dev stack */
 export const LOCALLY_RUN_RESOURCE_TYPES: StpResourceType[] = [

@@ -70,7 +70,7 @@ const KNOWN_RUNNERS: ReadonlySet<string> = new Set([
   'dbmate'
 ]);
 
-export const isRunnableMigrationCommand = (command: string): boolean => {
+const isRunnableMigrationCommand = (command: string): boolean => {
   if (!COMMAND_SHAPE.test(command)) return false;
   const first = command.split(' ')[0];
   return first !== undefined && KNOWN_RUNNERS.has(first);

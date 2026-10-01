@@ -441,7 +441,7 @@ export const updateLambdaEnvVarsWithTunnels = async ({
   return { updated, failed };
 };
 
-export const restoreLambdaEnvVars = async (): Promise<{ restored: string[]; failed: string[] }> => {
+const restoreLambdaEnvVars = async (): Promise<{ restored: string[]; failed: string[] }> => {
   const restored: string[] = [];
   const failed: string[] = [];
 

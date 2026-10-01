@@ -59,7 +59,7 @@ export type WorkloadStatus = {
   size?: string;
 };
 
-export type LocalResourceStatus = {
+type LocalResourceStatus = {
   name: string;
   type: string;
   status: 'pending' | 'starting' | 'running' | 'error' | 'stopped';
@@ -67,7 +67,7 @@ export type LocalResourceStatus = {
   error?: string;
 };
 
-export type AgentPhase = 'starting' | 'ready' | 'rebuilding' | 'stopping' | 'stopped';
+type AgentPhase = 'starting' | 'ready' | 'rebuilding' | 'stopping' | 'stopped';
 
 export type AgentStatus = {
   phase: AgentPhase;

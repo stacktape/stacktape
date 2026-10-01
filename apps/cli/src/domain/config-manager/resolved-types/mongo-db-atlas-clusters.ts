@@ -7,7 +7,6 @@ export type StpMongoDbAtlasCluster = MongoDbAtlasCluster['properties'] & {
   configParentResourceType: MongoDbAtlasCluster['type'];
   nameChain: string[];
 };
-export type StpAtlasMongoSharedTierClusterInstanceSize = Subtype<MongoDbAtlasClusterProps['clusterTier'], 'M2' | 'M5'>;
 export type StpAtlasMongoGeneralTierClusterInstanceSize = Subtype<
   MongoDbAtlasClusterProps['clusterTier'],
   | 'M10'

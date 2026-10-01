@@ -19,10 +19,10 @@ import { CLI_COMMAND_REFERENCE_DATA } from '../src/build/cli-generated-inputs.ts
 const REGISTRY_FILE = join(APP_ROOT, 'src/components/mdx-react-components.tsx');
 const PAGE_FILE = join(APP_ROOT, 'src/pages/[...slug].astro');
 
-/** Top-level keys of `export const reactMdxComponents = { ... }`. */
+/** Top-level keys of `const reactMdxComponents = { ... }`. */
 const registeredReactComponents = (): string[] => {
   const source = readFileSync(REGISTRY_FILE, 'utf8');
-  const start = source.indexOf('export const reactMdxComponents = {');
+  const start = source.indexOf('const reactMdxComponents = {');
   assert.notEqual(start, -1, 'could not find the reactMdxComponents object literal');
   const body = source.slice(source.indexOf('{', start) + 1, source.indexOf('\n};', start));
 

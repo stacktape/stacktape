@@ -58,7 +58,7 @@ export type SessionHooks = {
   onEvent: (event: AgentEvent) => void;
 };
 
-export type AgentStopReason =
+type AgentStopReason =
   | 'complete'
   /** The CLI hit its own turn ceiling. Not a failure: what was submitted may still be usable. */
   | 'max-turns'
@@ -73,12 +73,6 @@ export type SessionOutcome = {
   usage: TokenUsage;
   stopReason: AgentStopReason;
   errorMessage?: string;
-};
-
-export type AgentTransport = {
-  id: AgentProviderId;
-  mode: 'session' | 'loop';
-  run: (input: SessionRunInput, hooks: SessionHooks) => Promise<SessionOutcome>;
 };
 
 /**

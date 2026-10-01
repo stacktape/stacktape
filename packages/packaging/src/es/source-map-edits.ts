@@ -60,7 +60,7 @@ export const applyTextEdits = (code: string, edits: TextEdit[]): string => {
  * starts. A segment inside replaced text (which only ever describes the replaced specifier) moves to the start of the
  * replacement, and is dropped there when a segment already starts at that column.
  */
-export const shiftSourceMap = <Map extends SourceMapJson>(map: Map, code: string, edits: TextEdit[]): Map => {
+const shiftSourceMap = <Map extends SourceMapJson>(map: Map, code: string, edits: TextEdit[]): Map => {
   if (edits.length === 0 || typeof map.mappings !== 'string') return map;
   const lines = decode(map.mappings);
   const editsByLine = new Map<number, { start: number; end: number; delta: number }[]>();
@@ -112,7 +112,7 @@ export const shiftSourceMap = <Map extends SourceMapJson>(map: Map, code: string
  * expressed relative to `toDirectory`, the folder the source-map format resolves it from. URL sources and absent
  * ones are kept.
  */
-export const rebaseSources = <Map extends SourceMapJson>(map: Map, fromDirectory: string, toDirectory: string): Map => {
+const rebaseSources = <Map extends SourceMapJson>(map: Map, fromDirectory: string, toDirectory: string): Map => {
   const { sources } = map;
   if (!Array.isArray(sources) || (fromDirectory === toDirectory && !map.sourceRoot)) return map;
   const { sourceRoot, ...rest } = map;

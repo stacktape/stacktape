@@ -14,7 +14,7 @@ export const resolveKinesisStreams = async () => {
   });
 };
 
-export const resolveKinesisStream = ({ resource }: { resource: StpKinesisStream }) => {
+const resolveKinesisStream = ({ resource }: { resource: StpKinesisStream }) => {
   const streamAwsName = awsResourceNames.kinesisStream(resource.name, calculatedStackOverviewManager.context.stackName);
   const capacityMode = resource.capacityMode || 'ON_DEMAND';
 

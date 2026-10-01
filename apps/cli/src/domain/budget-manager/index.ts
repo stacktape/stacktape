@@ -9,7 +9,7 @@ import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 
-export class BudgetManager {
+class BudgetManager {
   tagsUsedInRegion: string[] = [];
   tagsUsableInCostExploring: { error?: CostExplorerTagsError; tags: string[] };
   budgets: Budget[] = [];

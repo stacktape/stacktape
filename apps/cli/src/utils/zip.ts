@@ -16,7 +16,7 @@ import { applyArchivePolicy } from './zip-central-directory';
  */
 type NativeZipTool = 'zip' | '7z';
 
-export type ArchiveBackend = NativeZipTool | 'archiver';
+type ArchiveBackend = NativeZipTool | 'archiver';
 
 export type ArchiveResult = {
   path: string;

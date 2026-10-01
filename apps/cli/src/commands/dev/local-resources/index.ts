@@ -339,7 +339,7 @@ export const startLocalResources = async (resourceNames: string[]): Promise<Loca
   return successfulResults;
 };
 
-export const stopLocalResources = async (): Promise<void> => {
+const stopLocalResources = async (): Promise<void> => {
   if (localResourceInstances.length === 0) return;
 
   const stopPromises = localResourceInstances.map(async (instance) => {

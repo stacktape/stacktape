@@ -30,7 +30,7 @@ const installScripts: { [_pm in SupportedEsPackageManager]: { ciInstall: string[
   }
 };
 
-export const getEsInstallScript = (packageManager: SupportedEsPackageManager, installType: 'normal' | 'CI') => {
+const getEsInstallScript = (packageManager: SupportedEsPackageManager, installType: 'normal' | 'CI') => {
   return installScripts[packageManager][installType === 'CI' ? 'ciInstall' : 'normalInstall'];
 };
 

@@ -11,7 +11,7 @@ export type ToolOutput = {
 
 export const MCP_TOOL_RESULT_SCHEMA_VERSION = 'stacktape.mcp.tool-result.v1' as const;
 
-export type McpToolResultEnvelope = ToolOutput & {
+type McpToolResultEnvelope = ToolOutput & {
   schemaVersion: typeof MCP_TOOL_RESULT_SCHEMA_VERSION;
 };
 

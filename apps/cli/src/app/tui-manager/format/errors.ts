@@ -48,7 +48,7 @@ const ERROR_TYPE_LABELS: Record<string, string> = {
   UNSUPPORTED_RESOURCE: 'Unsupported Resource'
 };
 
-export const getErrorLabel = (errorType: string): string => {
+const getErrorLabel = (errorType: string): string => {
   return ERROR_TYPE_LABELS[errorType] || `${errorType.replace(/_/g, ' ')} Error`;
 };
 
@@ -164,7 +164,7 @@ const cleanErrorMessage = (message: string): string => {
   return cleaned;
 };
 
-export const parseErrorMessage = (message: string): { resource?: string; context?: string; error: string } => {
+const parseErrorMessage = (message: string): { resource?: string; context?: string; error: string } => {
   const cleaned = cleanErrorMessage(message);
 
   const partOfMatch = cleaned.match(/^Resource\s+(\S+)\s+\(part of\s+([^)]+)\):\s*([\s\S]+)$/);

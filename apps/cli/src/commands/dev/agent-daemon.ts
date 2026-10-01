@@ -43,7 +43,7 @@ const getLockFilePath = (projectName?: string, stage?: string): string => {
   return join(getLockDir(), `${safeName}.json`);
 };
 
-export const readAgentLockFile = (projectName?: string, stage?: string): AgentLockFile | null => {
+const readAgentLockFile = (projectName?: string, stage?: string): AgentLockFile | null => {
   const lockPath = getLockFilePath(projectName, stage);
   if (!existsSync(lockPath)) return null;
 
@@ -58,7 +58,7 @@ export const readAgentLockFile = (projectName?: string, stage?: string): AgentLo
 /**
  * Read all agent lock files in the lock directory.
  */
-export const readAllAgentLockFiles = (): AgentLockFile[] => {
+const readAllAgentLockFiles = (): AgentLockFile[] => {
   const lockDir = getLockDir();
   if (!existsSync(lockDir)) return [];
 
@@ -106,7 +106,7 @@ export const deleteAgentLockFile = (projectName?: string, stage?: string): void 
 /**
  * Check if a process with the given PID is still running.
  */
-export const isProcessRunning = (pid: number): boolean => {
+const isProcessRunning = (pid: number): boolean => {
   try {
     process.kill(pid, 0);
     return true;
@@ -234,7 +234,7 @@ export type DaemonSpawnResult = {
   readyPayload?: AgentReadyPayload;
 };
 
-export type AgentReadyPayload = {
+type AgentReadyPayload = {
   port: number;
   projectName: string;
   stage?: string;

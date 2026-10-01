@@ -20,14 +20,6 @@ export const getStaticAssetCachePathPatterns = async (assetsDirectoryPath: strin
 };
 
 /**
- * Common type for SSR web resources that need host header rewrite
- */
-export type SsrWebResourceBase = {
-  name: string;
-  nameChain: string[];
-};
-
-/**
  * Creates a CloudFront Function that rewrites the Host header to x-forwarded-host.
  * This is required for SSR frameworks to properly detect the request host.
  */
@@ -131,7 +123,7 @@ export const getStaticAssetsCacheBehaviorTemplateOverride =
  * SSR Web resource types that use the same infrastructure pattern:
  * Lambda (server) + S3 (static) + CloudFront CDN
  */
-export const SSR_WEB_RESOURCE_TYPES = [
+const SSR_WEB_RESOURCE_TYPES = [
   'astro-web',
   'nuxt-web',
   'sveltekit-web',

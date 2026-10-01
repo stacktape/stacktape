@@ -32,7 +32,7 @@ export const normalizeCliError = (value: unknown): HandledError => {
   return error;
 };
 
-export class ApplicationManager {
+class ApplicationManager {
   cleanUpHooks: CleanupHookFunction[] = [];
   isInitialized = false;
   isErrored: boolean;

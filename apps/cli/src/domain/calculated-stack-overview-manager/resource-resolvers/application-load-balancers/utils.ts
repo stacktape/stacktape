@@ -56,7 +56,7 @@ export const getLoadBalancerSecurityGroup = (
       .flat()
   });
 
-export const getDefaultActionForListener = (listenerConfig: ApplicationLoadBalancerListener): Action[] => {
+const getDefaultActionForListener = (listenerConfig: ApplicationLoadBalancerListener): Action[] => {
   if (!listenerConfig.defaultAction) {
     return [
       {

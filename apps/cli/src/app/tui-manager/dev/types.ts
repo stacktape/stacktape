@@ -45,7 +45,7 @@ export type SetupStep = {
   detail?: string;
 };
 
-export type LogLevel = 'info' | 'warn' | 'error' | 'debug';
+type LogLevel = 'info' | 'warn' | 'error' | 'debug';
 
 export type LogEntry = {
   id: string;

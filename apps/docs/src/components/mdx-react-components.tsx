@@ -34,7 +34,7 @@ import { Tab } from '@/components/Mdx/Tabs';
  * `pnpm --filter @stacktape/docs run test` asserts both directions, so an unresolved component
  * cannot ship as a silently dropped block and an unused one cannot linger.
  */
-export const reactMdxComponents = {
+const reactMdxComponents = {
   table: Table,
   img: MdxImage,
   PreviousNext,

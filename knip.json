@@ -7,7 +7,6 @@
         "scripts/release/npm-package/bin/stacktape.js",
         "helper-lambdas/*/index.ts",
         "scripts/**/*.ts",
-        "scripts/**/*.mjs",
         "tests/**/*.spec.ts",
         "**/*.spec.ts",
         "**/*.test.ts",
@@ -17,35 +16,24 @@
         "**/*.test.tsx"
       ],
       "project": ["**/*.{ts,tsx,js}"],
-      "ignore": [
-        "@generated/**",
-        "starter-projects/**",
-        "_test-stacks/**",
-        "__release-npm/**",
-        "tests/characterization/fixtures/**"
-      ],
+      "ignore": ["starter-projects/**", "_test-stacks/**", "tests/characterization/fixtures/**"],
       "ignoreDependencies": ["source-map-support", "@types/adm-zip"]
     },
     "apps/docs": {
-      "entry": ["astro.config.mjs", "src/pages/**/*.astro", "src/content.config.ts", "scripts/*.ts", "tests/*.test.ts"],
-      "project": ["src/**/*.{ts,tsx,astro}", "scripts/*.ts", "tests/*.ts"],
-      "ignore": ["content/**", "dist/**", "public/**"],
-      "ignoreDependencies": ["@docsearch/css", "tailwindcss"]
+      "entry": ["src/pages/**/*.astro", "scripts/*.ts", "tests/*.test.ts", "content/**/*.mdx"],
+      "project": ["src/**/*.{ts,tsx,astro,css}", "content/**/*.mdx", "scripts/*.ts", "tests/*.ts"]
     },
     "apps/website": {
-      "entry": ["astro.config.mjs", "src/pages/**/*.astro"],
+      "entry": ["src/pages/**/*.astro"],
       "project": ["src/**/*.{ts,tsx,astro,css}"]
     },
     "apps/init-ui": {
-      "entry": ["index.html", "src/main.tsx", "vite.config.ts", "**/*.spec.ts"],
-      "project": ["src/**/*.{ts,tsx}", "vite.config.ts"],
-      "ignore": ["dist/**"],
-      "ignoreDependencies": ["@stacktape/design-tokens", "tailwindcss"]
+      "entry": ["index.html", "**/*.spec.ts"],
+      "project": ["src/**/*.{ts,tsx,css}"]
     },
     "apps/vscode-extension": {
       "entry": ["src/extension/index.ts", "src/language-server/server.ts", "scripts/*.ts", "src/**/*.test.ts"],
-      "project": ["src/**/*.ts", "scripts/*.ts"],
-      "ignore": ["dist/**"]
+      "project": ["src/**/*.ts", "scripts/*.ts"]
     },
     "apps/console/api": {
       "entry": [
@@ -59,22 +47,18 @@
         "**/*.test.ts",
         "src/lambdas/slack-app/worker.ts"
       ],
-      "project": ["**/*.ts"],
-      "ignore": ["@generated/**", "dist/**"],
+      "project": ["**/*.{ts,prisma}"],
       "ignoreDependencies": ["@prisma/client", "react", "react-dom", "@octokit/types"]
     },
     "apps/console/ui": {
       "entry": [
-        "src/main.tsx",
         "src/**/*.test.{ts,tsx}",
-        "vite.config.ts",
         "scripts/**/*.ts",
         "playwright*.config.ts",
         "e2e/*fixture.tsx",
         "src/dev/auth-review/main.tsx"
       ],
-      "project": ["**/*.{ts,tsx}"],
-      "ignore": ["dist/**", "public/**"]
+      "project": ["**/*.{ts,tsx}"]
     },
     "packages/*": {
       "entry": ["scripts/**/*.ts", "**/*.acceptance.ts", "**/*.test.{ts,tsx}", "**/*.spec.{ts,tsx}"]
@@ -82,7 +66,6 @@
     "packages/ui-react": {
       "entry": [
         "scripts/**/*.ts",
-        "**/*.acceptance.ts",
         "**/*.test.{ts,tsx}",
         "**/*.spec.{ts,tsx}",
         "e2e/gallery/main.tsx",
@@ -109,21 +92,16 @@
         "src/switch/Switch.tsx",
         "src/tabs/Tabs.tsx",
         "src/text-field/TextField.tsx",
-        "src/tooltip/Tooltip.tsx"
+        "src/tooltip/Tooltip.tsx",
+        "src/isometric-diagram/fixtures.ts",
+        "src/resource-icon/catalog.ts"
       ],
       "project": ["src/**/*.{ts,tsx}", "scripts/**/*.ts", "e2e/**/*.{ts,tsx}", "vite*.ts", "playwright*.ts"],
       "vite": false,
       "ignoreDependencies": ["monaco-editor-core"]
     },
-    "packages/config": {
-      "entry": ["scripts/**/*.ts", "**/*.acceptance.ts", "**/*.test.{ts,tsx}", "**/*.spec.{ts,tsx}"]
-    },
-    "packages/cloudformation": {
-      "entry": ["scripts/**/*.ts", "**/*.acceptance.ts", "**/*.test.{ts,tsx}", "**/*.spec.{ts,tsx}"]
-    },
     "apps/console/bitbucket-forge": {
-      "entry": ["src/main.ts", "vite.config.ts", "playwright*.ts", "e2e/**/*.ts"],
-      "ignore": ["dist/**"],
+      "entry": ["playwright*.ts", "e2e/**/*.ts"],
       "ignoreDependencies": ["react"]
     },
     ".": {
@@ -132,12 +110,9 @@
         ".agents/skills/load/scripts/load-context.ts",
         "dependency-cruiser.config.cjs"
       ],
-      "project": [
-        "scripts/workspace/*.ts",
-        ".agents/skills/load/scripts/load-context.ts",
-        "dependency-cruiser.config.cjs"
-      ],
+      "project": ["scripts/workspace/*.ts"],
       "ignoreDependencies": ["lint-staged"]
     }
-  }
+  },
+  "ignoreBinaries": ["forge", "openssl", "packer", "taskkill.exe", "update-ca-certificates", "where.exe", "wsl"]
 }

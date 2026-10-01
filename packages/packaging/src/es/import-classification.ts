@@ -28,7 +28,7 @@ export const getModuleName = (importPath: string): string => {
 export const isNodeBuiltinImport = (specifier: string): boolean => isBuiltin(specifier);
 
 /** Every name in a dependency's transitive `dependencies` tree. */
-export const getExternalDeps = (depsInfo: PackageJsonDepsInfo, depsList: Set<string>): Set<string> => {
+const getExternalDeps = (depsInfo: PackageJsonDepsInfo, depsList: Set<string>): Set<string> => {
   for (const dep of depsInfo.dependencies) {
     depsList.add(dep.name);
     getExternalDeps(dep, depsList);

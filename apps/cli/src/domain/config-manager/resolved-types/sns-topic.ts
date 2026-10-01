@@ -6,4 +6,3 @@ export type StpSnsTopic = SnsTopic['properties'] & {
   configParentResourceType: SnsTopic['type'];
   nameChain: string[];
 };
-export type SnsTopicReferencableParam = 'arn' | 'name';

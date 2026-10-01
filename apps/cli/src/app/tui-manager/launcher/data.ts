@@ -36,7 +36,7 @@ export const getLauncherRequiredArgs = (command: StacktapeCommand): string[] => 
 
 const commandSet = new Set<StacktapeCommand>(cliCommands);
 
-export const launcherCommands = (): StacktapeCommand[] =>
+const launcherCommands = (): StacktapeCommand[] =>
   cliCommands.filter((command) => !HIDDEN_LAUNCHER_COMMANDS.has(command));
 
 export const commandSuggestions = (): CommandSuggestion[] => {

@@ -189,7 +189,7 @@ const filterApplicableParams = (params: DbParameterSet, engine: DbEngine): DbPar
   return filtered;
 };
 
-export const fetchAwsDefaultParameters = async (parameterGroupFamily: string): Promise<DbParameterSet> => {
+const fetchAwsDefaultParameters = async (parameterGroupFamily: string): Promise<DbParameterSet> => {
   const params: DbParameterSet = {};
 
   try {

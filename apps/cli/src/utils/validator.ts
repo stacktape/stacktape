@@ -249,7 +249,7 @@ const validateStage = (stage: string) => {
   }
 };
 
-export const validateRegion = (region: string) => {
+const validateRegion = (region: string) => {
   const hint =
     'Use `--region`, set `AWS_DEFAULT_REGION`, or configure a global default with `stacktape defaults:configure`.';
   if (region === null || region === undefined) {

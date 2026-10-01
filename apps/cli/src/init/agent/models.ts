@@ -26,7 +26,7 @@ const PROVIDER_DEFAULT: SelectableModel = {
   description: 'Whatever the agent is already configured to use. The safe choice.'
 };
 
-export const MODELS_BY_PROVIDER: Readonly<Record<string, readonly SelectableModel[]>> = {
+const MODELS_BY_PROVIDER: Readonly<Record<string, readonly SelectableModel[]>> = {
   'claude-code': [
     PROVIDER_DEFAULT,
     {

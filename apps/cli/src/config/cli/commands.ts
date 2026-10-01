@@ -1086,7 +1086,7 @@ Shows error message, type, function name, project/stage, occurrence count, and s
 
 // ============ Derived Types ============
 
-export type CommandDefinitions = typeof commandDefinitions;
+type CommandDefinitions = typeof commandDefinitions;
 export type StacktapeCommand = keyof CommandDefinitions;
 
 // ============ Command Arrays ============

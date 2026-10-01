@@ -6,7 +6,7 @@ import findFreePorts from 'find-free-ports';
 import { DEV_CONFIG } from '../dev-config';
 
 export const DEFAULT_LOCAL_HOST = 'localhost';
-export const DEFAULT_PASSWORD = DEV_CONFIG.localResources.defaultPassword;
+const DEFAULT_PASSWORD = DEV_CONFIG.localResources.defaultPassword;
 export const DEFAULT_PORTS = DEV_CONFIG.localResources.ports;
 
 /**

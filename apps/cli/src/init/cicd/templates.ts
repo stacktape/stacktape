@@ -190,9 +190,3 @@ const BUILDERS: Record<GitHost, (inputs: PipelineInputs) => PipelineTemplate> = 
 };
 
 export const pipelineFor = (host: GitHost, inputs: PipelineInputs): PipelineTemplate => BUILDERS[host](inputs);
-
-export const HOST_LABELS: Record<GitHost, string> = {
-  github: 'GitHub Actions',
-  gitlab: 'GitLab CI/CD',
-  bitbucket: 'Bitbucket Pipelines'
-};

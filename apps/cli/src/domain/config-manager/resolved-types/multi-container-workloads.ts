@@ -1,11 +1,4 @@
 import type { Convex } from '@stacktape/config/convex';
-import type {
-  ContainerWorkloadHttpApiIntegration,
-  ContainerWorkloadInternalIntegration,
-  ContainerWorkloadLoadBalancerIntegration,
-  ContainerWorkloadNetworkLoadBalancerIntegration,
-  ContainerWorkloadServiceConnectIntegration
-} from '@stacktape/config/events';
 import type { ContainerWorkload, ContainerWorkloadScaling } from '@stacktape/config/multi-container-workloads';
 import type { PrivateService } from '@stacktape/config/private-services';
 import type { WebService } from '@stacktape/config/web-services';
@@ -33,10 +26,6 @@ export type StpContainerWorkload = ContainerWorkload['properties'] & {
     | Convex['type'];
   nameChain: string[];
 };
-export interface LoadBalancerAvailabilityCheck {
-  httpPath?: string;
-  intervalSeconds?: number;
-}
 export interface ECSBlueGreenService {
   Type: 'Stacktape::ECSBlueGreenV1::Service';
   Properties: {
@@ -52,9 +41,3 @@ export interface ECSBlueGreenService {
   DependsOn: string[];
 }
 export type ContainerWorkloadReferencableParam = 'logGroupArn';
-export type ContainerWorkloadEvent =
-  | ContainerWorkloadLoadBalancerIntegration
-  | ContainerWorkloadHttpApiIntegration
-  | ContainerWorkloadInternalIntegration
-  | ContainerWorkloadServiceConnectIntegration
-  | ContainerWorkloadNetworkLoadBalancerIntegration;

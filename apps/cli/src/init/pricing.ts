@@ -39,7 +39,7 @@ export type PriceEstimate = {
  * Prices differ by region, so quoting a number without saying where it applies would be the same
  * class of mistake as the invented figures this replaced. This one is stated in the interface.
  */
-export const DEFAULT_PRICING_REGION = 'eu-west-1';
+const DEFAULT_PRICING_REGION = 'eu-west-1';
 
 /**
  * Price a configuration, or return nothing.
@@ -70,7 +70,7 @@ export const estimateMonthlyCost = async (
 };
 
 /** `$23/mo`, or `$23.40/mo` when the cents matter. Rounded the way a person would read it. */
-export const formatMonthly = (amount: number): string => {
+const formatMonthly = (amount: number): string => {
   if (amount >= 10) return `$${Math.round(amount)}/mo`;
   return `$${amount.toFixed(2).replace(/\.00$/, '')}/mo`;
 };

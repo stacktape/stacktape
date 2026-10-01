@@ -10,7 +10,7 @@ import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { getAllParentDomains } from '@utils/domains';
 
-export class SesManager {
+class SesManager {
   #identities: { [identityName: string]: IdentityVerificationAttributes } = {};
   #sesAccountInfo: GetAccountCommandOutput;
   init = async ({ identities }: { identities: string[] }) => {

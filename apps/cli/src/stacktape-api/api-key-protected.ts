@@ -111,7 +111,6 @@ export type {
   ListOrganizationsResponse,
   OrganizationActivityParams,
   OrganizationActivityResponse,
-  OrganizationSummary,
   ProjectsWithStagesResponse,
   RecentStackOperationsParams,
   RecentStackOperationsResponse,

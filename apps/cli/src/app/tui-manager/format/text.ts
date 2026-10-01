@@ -28,7 +28,7 @@ export const bold = (text: string | number): string => {
   return kleur.bold(text);
 };
 
-export const underline = (text: string): string => {
+const underline = (text: string): string => {
   if (!stylingEnabled) return text;
   return kleur.underline(text);
 };

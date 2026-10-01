@@ -457,4 +457,4 @@ export const runStacktapeCommandJsonl = async ({
   };
 };
 
-export type { JsonlEventEvent, JsonlLogEvent, JsonlOutputEvent, JsonlResultEvent, RunStacktapeResult };
+export type { JsonlEventEvent, RunStacktapeResult };

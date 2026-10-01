@@ -50,14 +50,14 @@ export const isGlobalAlarmEligibleForStack = ({
   );
 };
 
-export const isAlarmEligibleForResource = ({ alarm, resource }: { alarm: AlarmDefinition; resource: StpResource }) => {
+const isAlarmEligibleForResource = ({ alarm, resource }: { alarm: AlarmDefinition; resource: StpResource }) => {
   return (
     !((resource as StpAlarmEnabledResource).disabledGlobalAlarms || []).includes(alarm.name) &&
     resourceTypesForAlarmType[alarm.trigger.type].includes(resource.type as StpAlarmEnabledResource['type'])
   );
 };
 
-export const resourceTypesForAlarmType: {
+const resourceTypesForAlarmType: {
   [_alarmType in AlarmTriggerType]: StpAlarmEnabledResource['type'][];
 } = {
   'application-load-balancer-error-rate': ['application-load-balancer'],

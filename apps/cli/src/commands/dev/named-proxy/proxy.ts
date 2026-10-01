@@ -6,7 +6,7 @@ import { createServer as createNetServer, connect as netConnect } from 'node:net
 import { createServer as createTlsServer } from 'node:tls';
 import { escapeHtml, formatUrl } from './utils';
 
-export const PORTLESS_HEADER = 'X-Portless';
+const PORTLESS_HEADER = 'X-Portless';
 
 const HOP_BY_HOP_HEADERS = new Set(['connection', 'keep-alive', 'proxy-connection', 'transfer-encoding', 'upgrade']);
 

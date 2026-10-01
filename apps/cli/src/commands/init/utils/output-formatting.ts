@@ -1,8 +1,6 @@
 import color from 'picocolors';
 import stripAnsi from 'strip-ansi';
 
-export const TODO_ENV_VAR_PLACEHOLDER = 'TODO_SET_VALUE';
-
 export const formatPrice = (price: number): string => {
   if (price < 0.01) return color.green('<$0.01');
   if (price < 1) return color.green(`$${price.toFixed(2)}`);

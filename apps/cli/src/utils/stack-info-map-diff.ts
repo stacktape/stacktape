@@ -15,7 +15,7 @@ import { serialize } from '@utils/misc';
 import { getCloudformationChildResources } from '@utils/stack-info-map';
 import { getAllReferencableParams } from '@utils/referenceable-types';
 
-export const calculateComplexResourceMap = ({
+const calculateComplexResourceMap = ({
   calculatedResourceMap,
   deployedResourceMap,
   cfTemplateDiff,

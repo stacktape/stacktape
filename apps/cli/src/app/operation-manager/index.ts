@@ -100,8 +100,4 @@ if (isTimingEnabled()) {
 }
 export const operationReporter = new OperationProgressReporter(operationSession);
 export type * from './types';
-export { createInitialOperationState, getPhaseOrder, reduceOperationState, replayOperationRecords } from './reducer';
-export { OperationJournal } from './journal';
-export { OperationReporter } from './reporter';
-export { OperationProgressReporter } from './progress-reporter';
-export { OperationStore } from './store';
+export { getPhaseOrder } from './reducer';

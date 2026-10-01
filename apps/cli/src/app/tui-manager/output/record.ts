@@ -1,6 +1,6 @@
 import type { JsonlEventDetail, JsonlEventStatus, JsonlLevel } from './jsonl-types';
 
-export type OutputLogRecord = {
+type OutputLogRecord = {
   type: 'log';
   level: JsonlLevel;
   source: string;
@@ -8,7 +8,7 @@ export type OutputLogRecord = {
   data?: Record<string, unknown>;
 };
 
-export type OutputEventRecord = {
+type OutputEventRecord = {
   type: 'event';
   phase: string;
   eventType: string;
@@ -20,13 +20,13 @@ export type OutputEventRecord = {
   detail?: JsonlEventDetail;
 };
 
-export type OutputProgressRecord = {
+type OutputProgressRecord = {
   type: 'progress';
   phase: string;
   message: string;
 };
 
-export type OutputLinesRecord = {
+type OutputLinesRecord = {
   type: 'output';
   stream?: 'stdout' | 'stderr';
   eventType?: string;
@@ -36,7 +36,7 @@ export type OutputLinesRecord = {
   lines: string[];
 };
 
-export type OutputResultRecord = {
+type OutputResultRecord = {
   type: 'result';
   ok: boolean;
   code: string;

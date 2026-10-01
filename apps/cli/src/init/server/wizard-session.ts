@@ -14,7 +14,6 @@
 
 import { composeConfig, type CompositionResult } from '@stacktape/config-inference/compose';
 import versionJson from '@generated/db-engine-versions/versions.json' with { type: 'json' };
-import type { Assumption } from '@stacktape/config-inference/compose/assumptions';
 import type { InfrastructureMode } from '@stacktape/config-inference/compose/modes';
 import type {
   DeploymentPreferenceChange,
@@ -39,15 +38,6 @@ import {
   type WizardState,
   type WizardVerification
 } from './wizard-server';
-
-/**
- * A decision as the page renders it.
- *
- * Note what is absent: any text the agent wrote. The kind, the value chosen and its alternatives
- * travel; the wording is the interface's to supply. An agent that reads untrusted files must never
- * be able to put words in front of the user.
- */
-export type WizardDecision = Assumption;
 
 /** How often the page hears about a running deploy. Fast enough to feel live, slow enough to be cheap. */
 const PROGRESS_PUBLISH_INTERVAL_MS = 200;

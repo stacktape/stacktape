@@ -226,5 +226,3 @@ export function TableOfContents({ tableOfContents: rawToc }: { tableOfContents: 
     </div>
   );
 }
-
-export default TableOfContents;

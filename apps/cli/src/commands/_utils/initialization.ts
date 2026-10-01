@@ -125,7 +125,7 @@ export const loadTargetStackContext = async ({ skipRawConfig = false }: { skipRa
   );
 };
 
-export const loadLocalTargetStackContext = async () => {
+const loadLocalTargetStackContext = async () => {
   detectConfigPath();
   await configManager.loadRawConfigOnly({ context: getConfigResolverContext() });
   await timeAsync('context:target-stack', () =>
@@ -135,7 +135,7 @@ export const loadLocalTargetStackContext = async () => {
   );
 };
 
-export const loadLocalAwsContext = async () => {
+const loadLocalAwsContext = async () => {
   const credentialsProvider = await globalStateManager.loadLocalAwsCredentials();
   const endSdkInit = startTiming('context:aws-sdk-init');
   awsSdkManager.init({
@@ -781,7 +781,7 @@ export const loadUserCredentials = async () => {
   });
 };
 
-export const recordStackOperationStart = async () => {
+const recordStackOperationStart = async () => {
   const command = globalStateManager.command;
   const isCommandToBeRecorded = RECORDED_STACKTAPE_COMMANDS.includes(command as StacktapeRecordedCommand);
   if (isCommandToBeRecorded) {
@@ -802,13 +802,7 @@ export const recordStackOperationStart = async () => {
   }
 };
 
-export const startStackOperationRecording = async ({
-  stackName,
-  projectName
-}: {
-  stackName: string;
-  projectName: string;
-}) => {
+const startStackOperationRecording = async ({ stackName, projectName }: { stackName: string; projectName: string }) => {
   // for recorded stacktape commands we are sending logs into cloudwatch
   // we are also recording the start and end of operation through Stacktape API
   const command = globalStateManager.command;

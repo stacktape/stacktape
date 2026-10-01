@@ -73,7 +73,7 @@ export const getKafkaClusterSelfIngress = ({ resource }: { resource: StpKafkaClu
   });
 };
 
-export const resolveKafkaCluster = ({ resource }: { resource: StpKafkaCluster }) => {
+const resolveKafkaCluster = ({ resource }: { resource: StpKafkaCluster }) => {
   const clusterLogicalName = cfLogicalNames.kafkaServerlessCluster(resource.name);
   const securityGroupLogicalName = cfLogicalNames.kafkaClusterSecurityGroup(resource.name);
   const brokersLogicalName = cfLogicalNames.kafkaBootstrapBrokers(resource.name);

@@ -3,9 +3,9 @@ import { getInstallationScript } from '@utils/bin-executable';
 import { realpath } from 'fs-extra';
 import { localStatePaths } from 'src/config/local-state-paths';
 
-export type PackageManager = 'npm' | 'bun' | 'pnpm';
+type PackageManager = 'npm' | 'bun' | 'pnpm';
 
-export type InstallationType = 'native' | 'package-global' | 'package-local' | 'unknown';
+type InstallationType = 'native' | 'package-global' | 'package-local' | 'unknown';
 
 export type InstallationDetection = {
   installationType: InstallationType;

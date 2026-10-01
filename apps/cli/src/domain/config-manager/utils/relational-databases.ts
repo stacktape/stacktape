@@ -113,7 +113,7 @@ const isDayTimeStringValid = (dayTimeString: string): boolean => {
   return true;
 };
 
-export const isValidDayTimeStringRange = (rangeString: string): boolean => {
+const isValidDayTimeStringRange = (rangeString: string): boolean => {
   const parts = rangeString.split('-');
   if (parts.length !== 2) {
     return false; // Must have exactly two parts separated by a hyphen

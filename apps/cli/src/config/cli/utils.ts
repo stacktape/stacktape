@@ -102,7 +102,7 @@ export const getCommandInfo = (cmd: StacktapeCommand) => {
   };
 };
 
-export const buildCommandSchema = (cmd: StacktapeCommand) => {
+const buildCommandSchema = (cmd: StacktapeCommand) => {
   return z.object(commandDefinitions[cmd].args as ArgsShape);
 };
 
@@ -136,11 +136,3 @@ export const generateCommandSchemaInfo = () => {
 
   return result;
 };
-
-export const allowedArgs: Record<StacktapeCommand, string[]> = Object.fromEntries(
-  cliCommands.map((cmd) => [cmd, getAllowedArgs(cmd)])
-) as Record<StacktapeCommand, string[]>;
-
-export const requiredArgs: Record<StacktapeCommand, readonly string[]> = Object.fromEntries(
-  cliCommands.map((cmd) => [cmd, getRequiredArgs(cmd)])
-) as Record<StacktapeCommand, readonly string[]>;

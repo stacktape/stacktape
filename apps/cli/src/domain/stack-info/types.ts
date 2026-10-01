@@ -55,13 +55,6 @@ import type { StpWebService } from '@domain-services/config-manager/resolved-typ
 import type { StpWorkerService } from '@domain-services/config-manager/resolved-types/worker-services';
 import type { StpStateMachine } from '@stacktape/config/state-machines';
 
-export type ResourceWithPhysicalId = {
-  nameChain: string[];
-  parentType: StackInfoMapResource['resourceType'];
-  resourcePhysicalId: string;
-  cfType: import('@stacktape/cloudformation/resource').KnownCloudFormationResourceType | SupportedPrivateCfResourceType;
-};
-
 export type CfChildResourceOverview = import('@stacktape/stack-info/contracts').CloudformationChildResourceOverview<
   import('@aws-cdk/cloudformation-diff').ResourceImpact,
   import('@stacktape/cloudformation/resource').KnownCloudFormationResourceType | SupportedPrivateCfResourceType

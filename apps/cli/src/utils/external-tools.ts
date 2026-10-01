@@ -39,7 +39,7 @@ export type ExternalToolAsset = {
   executable: string;
 };
 
-export type ExternalToolRelease = {
+type ExternalToolRelease = {
   version: string;
   /** No asset means the tool is not downloaded on that platform (the Session Manager plugin stays bundled on Windows). */
   assets: Partial<Record<SupportedPlatform, ExternalToolAsset>>;
@@ -67,7 +67,7 @@ export const describeToolDownload = ({
 export const EXTERNAL_TOOL_MANIFEST = manifestJson as ExternalToolManifest;
 
 /** The cache key's platform part: operating system, architecture and libc. */
-export const EXTERNAL_TOOL_PLATFORM_KEYS: Record<SupportedPlatform, string> = {
+const EXTERNAL_TOOL_PLATFORM_KEYS: Record<SupportedPlatform, string> = {
   linux: 'linux-x64-glibc',
   alpine: 'linux-x64-musl',
   'linux-arm': 'linux-arm64-glibc',

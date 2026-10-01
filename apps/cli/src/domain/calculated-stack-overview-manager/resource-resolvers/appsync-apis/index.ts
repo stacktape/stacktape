@@ -27,7 +27,7 @@ export const resolveAppSyncApis = () => {
   configManager.appsyncApis.forEach(resolveAppSyncApi);
 };
 
-export const resolveAppSyncApi = (resource: StpAppSyncApi) => {
+const resolveAppSyncApi = (resource: StpAppSyncApi) => {
   const apiLogicalName = cfLogicalNames.appsyncApi(resource.name);
   const apiId = getAtt(apiLogicalName, 'ApiId');
   const apiArn = getAtt(apiLogicalName, 'Arn');

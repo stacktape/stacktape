@@ -389,7 +389,7 @@ export const getStatementsForAccessingKafkaCluster = (
   ];
 };
 
-export const getStatementsForAccessingAppSyncApi = (
+const getStatementsForAccessingAppSyncApi = (
   resource: StpAppSyncApi,
   statementProps: StatementProps
 ): StpIamRoleStatement[] => [
@@ -538,7 +538,7 @@ export const getStatementsForAccessingEmailSender = (
   ];
 };
 
-export const getPolicyForCustomIamRoleStatements = (statements: StpIamRoleStatement[]) => {
+const getPolicyForCustomIamRoleStatements = (statements: StpIamRoleStatement[]) => {
   return {
     PolicyName: 'custom-iam-role-statements',
     PolicyDocument: {

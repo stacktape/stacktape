@@ -9,7 +9,7 @@
 
 export type JsonlLevel = 'info' | 'warn' | 'error';
 
-export type JsonlStackAction = 'create' | 'update' | 'delete' | 'rollback';
+type JsonlStackAction = 'create' | 'update' | 'delete' | 'rollback';
 
 /** Lifecycle status of a tracked operation. */
 export type JsonlEventStatus = 'started' | 'running' | 'completed';
@@ -26,7 +26,7 @@ export type JsonlEventStatus = 'started' | 'running' | 'completed';
 export type JsonlEventDetail = JsonlCloudFormationDetail;
 
 /** CloudFormation stack operation progress. */
-export type JsonlCloudFormationDetail = {
+type JsonlCloudFormationDetail = {
   kind: 'cloudformation-progress';
   stackAction: JsonlStackAction;
   status?: 'active' | 'cleanup';
@@ -65,7 +65,7 @@ export type JsonlCloudFormationDetail = {
  * When a payload exceeds the size guard or is unserializable, the emitter
  * replaces it with a truncation marker so consumers know data was present.
  */
-export type JsonlTruncatedData = {
+type JsonlTruncatedData = {
   truncated: true;
   reason: 'data_too_large' | 'data_unserializable';
   keys?: string[];

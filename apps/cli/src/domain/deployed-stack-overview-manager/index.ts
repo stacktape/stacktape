@@ -37,7 +37,7 @@ import { analyzeCustomResourceChange, analyzeLambdaFunctionChange, analyzeTaskDe
 import { getResourceInfoLines, getResourceTypeSpecificInfoLines } from './printing-utils';
 
 @memoizeGetters
-export class DeployedStackOverviewManager {
+class DeployedStackOverviewManager {
   #stackResources: EnrichedStackResourceInfo[] = [];
   stackInfoMap: StackInfoMap;
   workloadsCurrentlyUsingHotSwapDeploy: string[] = [];

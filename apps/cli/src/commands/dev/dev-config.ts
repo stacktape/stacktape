@@ -78,5 +78,3 @@ export const DEV_CONFIG = {
     readyDelayMs: 300
   }
 } as const;
-
-export type DevConfig = typeof DEV_CONFIG;

@@ -9,10 +9,8 @@ import { STACKTAPE_TRPC_API_ENDPOINT } from 'src/config/params';
 import { createTypedTrpcClient } from './client';
 
 export type {
-  CostBreakdownItem,
   ExchangeTokenForApiKeyInput,
   ExchangeTokenForApiKeyResponse,
-  ResourcePricingInfo,
   StackPriceEstimationInput,
   StackPriceEstimationResponse
 } from '@stacktape/console-api/anonymous';

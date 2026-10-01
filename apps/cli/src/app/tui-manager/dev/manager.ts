@@ -19,8 +19,6 @@ import { formatDuration, normalizeLogLines, resetWorkloadColors } from './utils'
 import { devTuiState } from './state';
 import { agentLog } from 'src/commands/dev/agent-logger';
 
-export type { Hook, HookStatus, LocalResource, LogEntry, RebuildStep, ResourceStatus, Workload, WorkloadType };
-
 type RebuildHandler = (workloadName: string | null) => Promise<void>;
 type ReadyHandler = () => void;
 type DevPhase = 'startup' | 'running' | 'rebuilding';

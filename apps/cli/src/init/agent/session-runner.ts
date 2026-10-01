@@ -41,7 +41,7 @@ import { buildCodexArgs, combineCodexPrompt, parseCodexStream } from './transpor
  * so the command that starts a child copy is not a constant. Mirrors the resolution the existing
  * MCP runner uses rather than inventing a second answer.
  */
-export const resolveInitMcpCommand = (): { command: string; args: string[] } => {
+const resolveInitMcpCommand = (): { command: string; args: string[] } => {
   const override = process.env.STACKTAPE_INIT_MCP_COMMAND;
   if (override) {
     // Arguments travel as JSON rather than as a space-separated string: a Windows path with a space

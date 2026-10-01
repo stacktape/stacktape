@@ -3,8 +3,8 @@ import type { ResourceImpact } from '@aws-cdk/cloudformation-diff';
 import { createHash } from 'node:crypto';
 import { getStacktapeVersion } from '@utils/versioning';
 
-export const CHANGE_PLAN_SCHEMA_VERSION = 'stacktape.change-plan.v1' as const;
-export const DANGER_RULES_VERSION = 1 as const;
+const CHANGE_PLAN_SCHEMA_VERSION = 'stacktape.change-plan.v1' as const;
+const DANGER_RULES_VERSION = 1 as const;
 
 export const getChangePlanProducerVersion = () => {
   try {

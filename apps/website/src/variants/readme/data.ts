@@ -16,11 +16,11 @@ export const ANNOUNCEMENT = {
   href: '/blog/stacktape-v4'
 } as const;
 
-export const HEADLINE_LINES = ['AWS DevOps,', 'fully automated.'] as const;
+const HEADLINE_LINES = ['AWS DevOps,', 'fully automated.'] as const;
 export const HEADLINE = HEADLINE_LINES.join(' ');
 export const SUBHEADLINE =
   'Stacktape reads your repository, designs the infrastructure like a senior DevOps team would, deploys it to your own AWS account and makes sure your app runs flawlessly forever after. It keeps you in the loop for any decision that requires human attention.';
-export const TRUST_LINE = 'Open-source CLI (MIT) · Your AWS account · Your config, in your repository';
+const TRUST_LINE = 'Open-source CLI (MIT) · Your AWS account · Your config, in your repository';
 export const CLOSING = {
   title: 'See what Stacktape makes of your app',
   text: "Run it in your repository. Review the infrastructure, the decisions and the estimated AWS cost. You'll have a configuration you can keep before you decide to deploy."
@@ -90,7 +90,7 @@ export const FOOTER_LINKS = [
 
 /* ── The example project ───────────────────────────────────────────────────────────────────── */
 
-export const PROJECT = {
+const PROJECT = {
   name: 'acme-project',
   stage: 'production',
   region: 'eu-west-1',
@@ -260,35 +260,6 @@ export const URLS = {
 } as const;
 
 /* ── The cover composite ───────────────────────────────────────────────────────────────────── */
-
-export const COVER = {
-  nav: ['Overview', 'Deployments', 'Monitoring', 'Guardrails', 'Costs'] as const,
-  current: 'Overview',
-  status: { badge: 'Live', version: 'v42', region: PROJECT.region, deployed: 'deployed 12 min ago' },
-  tileState: 'healthy',
-  kpis: [
-    { label: 'Deployments 30d', value: '48' },
-    { label: 'Error rate', value: '0.02 %' },
-    { label: 'AWS cost MTD', value: '$112.90' }
-  ],
-  terminal: {
-    phases: [
-      { name: 'Initialize', state: 'done' },
-      { name: 'Package', state: 'done' },
-      { name: 'Deploy', state: 'active', note: '91 %' },
-      { name: 'Outputs', state: 'todo' }
-    ],
-    progress: 91,
-    rows: [
-      { name: 'web', state: 'created' },
-      { name: 'apiService', state: 'created' },
-      { name: 'worker', state: 'created' },
-      { name: 'cache', state: 'created' },
-      { name: 'mainDatabase', state: 'creating…' },
-      { name: 'firewall', state: 'creating…' }
-    ]
-  }
-} as const;
 
 /* ── 01 · the config editor ────────────────────────────────────────────────────────────────── */
 
@@ -539,7 +510,7 @@ export const EDITOR = {
 
 /* ── 02 · the build ────────────────────────────────────────────────────────────────────────── */
 
-export type BuildLane = {
+type BuildLane = {
   name: string;
   kind: string;
   /** Widths are percentages of the shared, unlabelled axis. */

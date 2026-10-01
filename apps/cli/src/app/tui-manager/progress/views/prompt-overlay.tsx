@@ -9,8 +9,6 @@ import { registerSecureInput } from './secure-input';
 
 registerSecureInput();
 
-export type PromptHint = { key: string; label: string };
-
 const PromptFrame = (props: { title: string; description?: string; children: unknown }) => {
   const { theme } = useTheme();
   return (

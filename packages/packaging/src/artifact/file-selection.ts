@@ -4,7 +4,7 @@ import { copy, remove, stat } from 'fs-extra';
 import { getHashFromMultipleFiles, getMatchingFilesByGlob } from '../fs/files';
 
 /** Local repository state that must never become part of a deployment artifact. */
-export const DEFAULT_ARTIFACT_EXCLUDE_GLOBS = [
+const DEFAULT_ARTIFACT_EXCLUDE_GLOBS = [
   '**/.git',
   '**/.git/**',
   '**/.stacktape',

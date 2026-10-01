@@ -45,7 +45,7 @@ const iconRegistry: Record<string, IconType> = {
   arrow: LuArrowRight
 };
 
-export const Icon = ({ name, size = 22, color }: { name?: string; size?: number; color?: string }) => {
+const Icon = ({ name, size = 22, color }: { name?: string; size?: number; color?: string }) => {
   const Component = (name && iconRegistry[name]) || LuSparkles;
   return <Component size={size} color={color || colors.stacktapeGreen} />;
 };

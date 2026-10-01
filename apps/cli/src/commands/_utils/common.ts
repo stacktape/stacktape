@@ -84,7 +84,7 @@ export const potentiallyPromptBeforeOperation = async ({
   return { abort: false };
 };
 
-export const isPromptBeforeOperationNeeded = ({
+const isPromptBeforeOperationNeeded = ({
   possiblyImpactedResources,
   operation
 }: {
@@ -175,7 +175,7 @@ export const writeEnvironmentDotenvFile = async () => {
   );
 };
 
-export const injectEnvScriptToHtml = async ({
+const injectEnvScriptToHtml = async ({
   htmlFilePath,
   environmentToInject
 }: {

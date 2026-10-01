@@ -6,7 +6,6 @@ import type { FSWatcher } from 'chokidar';
 import type { Stats } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import { applicationManager } from '@application-services/application-manager';
-import { devTuiManager } from 'src/app/tui-manager/dev/manager';
 import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
@@ -55,7 +54,7 @@ export const clearCredentialExpiryTimer = (workloadName: string) => {
  * Clear all credential expiry timers.
  * Called during cleanup.
  */
-export const clearCredentialExpiryTimers = () => {
+const clearCredentialExpiryTimers = () => {
   for (const timer of credentialExpiryTimers.values()) {
     clearTimeout(timer);
   }
@@ -104,36 +103,6 @@ export class SourceCodeWatcher {
     this.addFilesToWatch(filesToWatch);
   };
 }
-
-export const hookToRestartStdinInput = (onRestart: AnyFunction) => {
-  if (devTuiManager.running) {
-    return;
-  }
-  applicationManager.setUsesStdinWatch();
-  if (process.stdin.isTTY) {
-    process.stdin.setRawMode(true);
-    process.stdin.resume();
-  }
-  // process.stdin.pause();
-  // process.stdin.resume();
-  process.stdin.removeAllListeners();
-  process.stdin.on('data', async (data) => {
-    if (applicationManager.isInterrupted) {
-      return;
-    }
-    const str = data.toString().trim().toLowerCase();
-    const char = data.toString().charCodeAt(0);
-    if (char === 3) {
-      await applicationManager.handleExitSignal('SIGINT');
-      return;
-    }
-    if (str === 'rs') {
-      await onRestart();
-    } else if (char === 12) {
-      console.clear();
-    }
-  });
-};
 
 export const resolveEnvironmentDirectives = async (environment: Record<string, any>): Promise<Record<string, any>> => {
   return configManager.resolveDirectives({ itemToResolve: environment, useLocalResolve: true, resolveRuntime: true });
@@ -299,7 +268,7 @@ export const getWorkloadEnvironmentVars = async (jobDetails: {
 };
 
 // @todo take from config
-export const getContainerStopWaitTime = () => 2;
+const getContainerStopWaitTime = () => 2;
 
 export const resolveRunningContainersWithSamePort = async ({
   ports,

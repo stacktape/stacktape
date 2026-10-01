@@ -395,7 +395,7 @@ function RequiredPill() {
   );
 }
 
-export function TypeBadge({ typeInfo, compact = false }: { typeInfo: ApiTypeInfo; compact?: boolean }) {
+function TypeBadge({ typeInfo, compact = false }: { typeInfo: ApiTypeInfo; compact?: boolean }) {
   const text = getReadableTypeSummary(typeInfo);
   const isRef = unwrapToReferenceName(typeInfo) !== null;
   const isUnion = unwrapToUnion(typeInfo) !== null;

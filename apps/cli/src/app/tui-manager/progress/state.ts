@@ -39,7 +39,7 @@ const toTuiEvent = (state: OperationState, activity: OperationActivity): TuiEven
   };
 };
 
-export const toTuiState = (state: OperationState): TuiState => ({
+const toTuiState = (state: OperationState): TuiState => ({
   sessionId: state.sessionId,
   startTime: state.startTime,
   inputPausedMs: state.inputPausedMs,

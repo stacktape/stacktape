@@ -27,7 +27,7 @@ export type ServiceLambdaResolver<T> = (
   lambdaContext?: import('aws-lambda').Context
 ) => Promise<ServiceLambdaResolverReturnValue>;
 
-export type ServiceLambdaResolverReturnValue = {
+type ServiceLambdaResolverReturnValue = {
   data: { [dataKey: string]: string };
   physicalResourceId?: string;
   // chainInvocation is a optional property
@@ -54,16 +54,16 @@ export type StpServiceCustomResourceEdgeFunctionProps = {
   preprocessedRolePolicies: import('@stacktape/cloudformation/resources/aws-iam-role').Policy[];
 } & (StpEdgeLambdaFunction | StpHelperEdgeLambdaFunction);
 
-export type StpServiceCustomResourceAcceptVpcPeeringProps = {
+type StpServiceCustomResourceAcceptVpcPeeringProps = {
   vpcPeeringConnectionId: string;
 };
 
-export type StpServiceCustomResourceDatabaseDeletionProtectionProps = {
+type StpServiceCustomResourceDatabaseDeletionProtectionProps = {
   clusterId?: string;
   instanceId?: string;
 };
 
-export type StpServiceCustomResourceScriptFunctionProps = {
+type StpServiceCustomResourceScriptFunctionProps = {
   functionName: string | Intrinsic;
   triggerType: StpDeploymentScript['trigger'];
   parameters?: Record<string, any>;
@@ -74,7 +74,7 @@ export type StpServiceCustomResourceSensitiveDataProps = {
   value: OutputValue;
 };
 
-export type StpServiceCustomResourcePublishLambdaVersionProps = {
+type StpServiceCustomResourcePublishLambdaVersionProps = {
   functionName: string | Intrinsic;
 };
 
@@ -84,23 +84,23 @@ export type StpServiceCustomResourceFirewallProps = WebAppFirewallProps & {
 
 export type StpServiceCustomResourceOpenSearchProps = OpenSearchDomainProps & { name: string };
 
-export type StpServiceCustomResourceForceDeleteAsgProps = {
+type StpServiceCustomResourceForceDeleteAsgProps = {
   asgName: string | Intrinsic;
 };
 
-export type StpServiceCustomResourceDisableEcsManagedTerminationProtectionProps = {
+type StpServiceCustomResourceDisableEcsManagedTerminationProtectionProps = {
   capacityProviderName: string | Intrinsic;
 };
 
-export type StpServiceCustomResourceDeregisterTargetsProps = {
+type StpServiceCustomResourceDeregisterTargetsProps = {
   targetGroupArns: (string | Intrinsic)[];
 };
 
-export type StpServiceCustomResourceDefaultDomainCertProps = { certDomainSuffix: string; version: number };
+type StpServiceCustomResourceDefaultDomainCertProps = { certDomainSuffix: string; version: number };
 
-export type StpServiceCustomResourceEdgeLambdaBucketProps = { globallyUniqueStackHash: string };
+type StpServiceCustomResourceEdgeLambdaBucketProps = { globallyUniqueStackHash: string };
 
-export type StpServiceCustomResourceDefaultDomainProps = {
+type StpServiceCustomResourceDefaultDomainProps = {
   domainName: string;
   targetInfo: {
     hostedZoneId: string | Intrinsic;
@@ -109,24 +109,24 @@ export type StpServiceCustomResourceDefaultDomainProps = {
   version: number;
 };
 
-export type StpServiceCustomResourceAssetReplacerProps = {
+type StpServiceCustomResourceAssetReplacerProps = {
   bucketName: string | Intrinsic;
   zipFileS3Key: string;
   replacements: { includeFilesPattern: string; searchString: string; replaceString: string }[];
 };
 
-export type StpServiceCustomResourceUserPoolDetailsProps = {
+type StpServiceCustomResourceUserPoolDetailsProps = {
   userPoolId: string | Intrinsic;
   userPoolClientId: string | Intrinsic;
 };
 
-export type StpServiceCustomResourceSsmParameterRetrieveProps = {
+type StpServiceCustomResourceSsmParameterRetrieveProps = {
   parameterName: string;
   region: string;
   parseAsJson?: boolean;
 };
 
-export type StpServiceCustomResourceKafkaBootstrapBrokersProps = {
+type StpServiceCustomResourceKafkaBootstrapBrokersProps = {
   clusterArn: string | Intrinsic;
 };
 
@@ -139,7 +139,7 @@ export type StpServiceCustomResourceUptimeMonitoringProps = {
   stackName: string;
 };
 
-export type StpServiceCustomResourceTransactionSearchProps = {
+type StpServiceCustomResourceTransactionSearchProps = {
   /** Bumped only when the enablement behavior itself changes; forces the resolver to re-run. */
   version: number;
 };
@@ -169,8 +169,3 @@ export type StpServiceCustomResourceProperties = {
   uptimeMonitoring?: StpServiceCustomResourceUptimeMonitoringProps;
   transactionSearch?: StpServiceCustomResourceTransactionSearchProps;
 };
-
-export type StpServiceSharedCustomResourceProperties = Omit<
-  StpServiceCustomResourceProperties,
-  'setDatabaseDeletionProtection' | 'scriptFunction'
->;

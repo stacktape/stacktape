@@ -5,12 +5,10 @@ import type { StacktapeConfig } from '@stacktape/config';
 
 export type FlowLayer = 'external' | 'edge' | 'ingress' | 'compute' | 'integration' | 'data';
 
-export const FLOW_LAYER_ORDER: FlowLayer[] = ['external', 'edge', 'ingress', 'compute', 'integration', 'data'];
-
 // Subnet placement within VPC (or null for non-VPC resources). Stacktape creates only
 // two subnet tiers: public (always, 3 AZs) and private (only when a container service
 // sets usePrivateSubnetsWithNAT). There is no isolated/data tier.
-export type SubnetType = 'public' | 'private' | null;
+type SubnetType = 'public' | 'private' | null;
 
 export type EdgeSemantic = 'request' | 'event' | 'dependency' | 'egress';
 

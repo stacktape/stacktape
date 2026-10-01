@@ -283,7 +283,7 @@ export const startHealthMonitoring = (instances: LocalResourceInstance[]): void 
 /**
  * Stop health monitoring.
  */
-export const stopHealthMonitoring = (): void => {
+const stopHealthMonitoring = (): void => {
   if (monitorInterval) {
     clearInterval(monitorInterval);
     monitorInterval = null;

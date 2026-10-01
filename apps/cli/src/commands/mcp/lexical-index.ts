@@ -858,14 +858,5 @@ const formatAnswer = (results: SearchResult[], mode: 'answer' | 'reference' | 's
 
 // ─── Exports ─────────────────────────────────────────────────────────────────
 
-export type { DocKind, DocsResponse, IndexedDoc, LexicalIndex, QueryOptions, SearchResult, SerializedLexicalIndex };
-export {
-  buildIndex,
-  buildIndexFromChunks,
-  expandQuery,
-  formatAnswer,
-  LEXICAL_INDEX_FILE_NAME,
-  search,
-  serializeLexicalIndex,
-  tokenize
-};
+export type { DocKind, LexicalIndex };
+export { buildIndex, buildIndexFromChunks, formatAnswer, LEXICAL_INDEX_FILE_NAME, search, serializeLexicalIndex };

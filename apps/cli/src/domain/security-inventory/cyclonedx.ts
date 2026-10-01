@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
  * the artifact it was read from, so a later deployment that did not rebuild an image can carry its packages over.
  */
 
-export type CycloneDxProperty = { name: string; value: string };
+type CycloneDxProperty = { name: string; value: string };
 
 export type CycloneDxComponent = {
   type?: string;
@@ -37,7 +37,7 @@ export const STACKTAPE_COMPONENT_PROPERTY = {
 } as const;
 
 /** Where a component was read: lockfiles in the source tree, a rebuilt image, or an earlier inventory of an unchanged image. */
-export type InventorySource = 'filesystem' | 'image' | 'carried-over';
+type InventorySource = 'filesystem' | 'image' | 'carried-over';
 
 /** The project-wide part (lockfiles) has no workload; image parts belong to the workload whose image they describe. */
 export type InventoryPart = {
@@ -47,7 +47,7 @@ export type InventoryPart = {
   document: CycloneDxDocument;
 };
 
-export type InventoryWorkloadSummary = {
+type InventoryWorkloadSummary = {
   name: string;
   source: InventorySource;
   componentCount: number;

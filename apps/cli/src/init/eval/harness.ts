@@ -22,7 +22,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runGreenfieldMission, type AgentRunner, type GreenfieldResult } from '../missions/greenfield';
 
-export type EvalExpectation = {
+type EvalExpectation = {
   /** Resource names and their Stacktape type, as the composer should emit them. */
   resources?: Record<string, string>;
   /** Dependency kinds the analysis must find, in any order. */
@@ -63,7 +63,7 @@ export type EvalCase = {
   expect: EvalExpectation;
 };
 
-export type EvalFailure = {
+type EvalFailure = {
   /** Which stage lost the point, so a failure names its own cause. */
   stage: 'facts' | 'verification' | 'composition';
   detail: string;
@@ -91,7 +91,7 @@ const writeFixture = async (files: Record<string, string>): Promise<string> => {
   return root;
 };
 
-export const scoreResult = (evalCase: EvalCase, result: GreenfieldResult): EvalScore => {
+const scoreResult = (evalCase: EvalCase, result: GreenfieldResult): EvalScore => {
   const failures: EvalFailure[] = [];
   const { expect: expected } = evalCase;
 

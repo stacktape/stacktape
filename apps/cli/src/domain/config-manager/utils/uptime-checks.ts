@@ -21,7 +21,7 @@ type ResolvedUptimeCheck = StpUptimeCheck & {
  */
 const DEFAULT_DISTANT_REGION_CANDIDATES: SupportedAWSRegion[] = ['us-east-1', 'eu-west-1', 'ap-southeast-1'];
 
-export const MAX_UPTIME_CHECK_REGIONS = 5;
+const MAX_UPTIME_CHECK_REGIONS = 5;
 /** Mirrors the Console sync contract's per-stack cap; validated before synthesis so deploys fail early. */
 export const MAX_UPTIME_CHECKS_PER_STACK = 100;
 
@@ -52,7 +52,7 @@ export const computeUptimeCheckRevision = (check: ResolvedUptimeCheck) => {
 };
 
 /** Config channel vocabulary (`ms-teams`, `email`, `console-channel`) to the Console wire vocabulary. */
-export const translateNotificationChannelsForConsole = (channels: NotificationChannel[] | undefined) =>
+const translateNotificationChannelsForConsole = (channels: NotificationChannel[] | undefined) =>
   (channels || []).map((channel) => {
     if (channel.type === 'console-channel') {
       return { name: channel.properties.channelName, type: 'console-channel' as const, properties: {} };

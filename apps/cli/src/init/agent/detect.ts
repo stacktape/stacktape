@@ -20,7 +20,7 @@ import { spawn } from 'node:child_process';
 import { extname } from 'node:path';
 import type { AgentProviderId } from './transport';
 
-export type AgentCapabilities = {
+type AgentCapabilities = {
   /** Every built-in tool can be switched off, so our tools are genuinely the only ones. */
   canDisableBuiltInTools: boolean;
   /** The CLI enforces a maximum number of turns; otherwise budgets are wall-clock only. */

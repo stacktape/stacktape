@@ -48,7 +48,7 @@ export const getDsqlCluster = ({
 
 export const getDsqlEndpoint = (clusterLogicalName: string) => getAtt(clusterLogicalName, 'Endpoint');
 
-export const resolveDsqlDatabase = ({ resource }: { resource: StpDsqlDatabase }) => {
+const resolveDsqlDatabase = ({ resource }: { resource: StpDsqlDatabase }) => {
   const clusterLogicalName = cfLogicalNames.dsqlCluster(resource.name);
   const clusterId = ref(clusterLogicalName);
 

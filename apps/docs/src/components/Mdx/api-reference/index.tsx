@@ -407,5 +407,3 @@ export function ApiReference({ definitionName }: SharedRenderProps) {
     </VariantShell>
   );
 }
-
-export default ApiReference;

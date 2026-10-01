@@ -138,7 +138,7 @@ type StackProgressUpdate = {
   detail?: CloudFormationProgressDetail;
 };
 
-export class StackManager {
+class StackManager {
   callerIdentity: AwsCallerIdentity;
   existingStackDetails: StackDetails;
   existingStackResources: EnrichedStackResourceInfo[] = [];

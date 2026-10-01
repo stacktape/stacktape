@@ -271,7 +271,7 @@ export const resolveBatchJobs = async () => {
   }
 };
 
-export const getJobDefinitionTemplateOverrideFns = ({
+const getJobDefinitionTemplateOverrideFns = ({
   resource,
   hotSwapDeploy
 }: {

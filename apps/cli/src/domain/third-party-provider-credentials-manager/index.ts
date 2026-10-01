@@ -15,7 +15,7 @@ import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import type { MongoDbAtlasProvider, UpstashProvider } from '@stacktape/config/providers';
 
-export class ThirdPartyProviderManager {
+class ThirdPartyProviderManager {
   init = async ({
     requireAtlasCredentialsParameter,
     requireUpstashCredentialsParameter

@@ -67,7 +67,7 @@ export const promptTargetDirectory = async (): Promise<string> => {
   return targetDirectory === '' ? DEFAULT_STARTER_PROJECT_TARGET_DIRECTORY : targetDirectory;
 };
 
-export const addTsConfig = async ({
+const addTsConfig = async ({
   metadata,
   absoluteProjectPath
 }: {

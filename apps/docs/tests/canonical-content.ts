@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 /** Shared reader for the canonical corpus, used by the route and MDX-component tests. */
 
 export const APP_ROOT = fileURLToPath(new URL('..', import.meta.url));
-export const CONTENT_DIR = resolve(APP_ROOT, 'content');
+const CONTENT_DIR = resolve(APP_ROOT, 'content');
 
 const walk = (directory: string): string[] =>
   readdirSync(directory).flatMap((name) => {

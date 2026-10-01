@@ -8,7 +8,7 @@ type SecureInputOptions = InputRenderableOptions & {
 };
 
 /** Native OpenTUI editor behavior whose plaintext never reaches the render buffer. */
-export class SecureInputRenderable extends InputRenderable {
+class SecureInputRenderable extends InputRenderable {
   constructor(context: RenderContext, options: SecureInputOptions) {
     super(context, options);
   }

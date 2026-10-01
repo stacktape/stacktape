@@ -45,7 +45,7 @@ export const resolveEffectiveTracing = ({
   };
 };
 
-export const OTEL_WRAPPER_SCRIPT = '/opt/otel-instrument';
+const OTEL_WRAPPER_SCRIPT = '/opt/otel-instrument';
 
 /**
  * Runtimes the AWS-managed OpenTelemetry layers support, per
@@ -85,7 +85,7 @@ export type LambdaTracingInstrumentation = {
 /** Keys of OTEL_RESOURCE_ATTRIBUTES that Stacktape owns; user-supplied values for them are dropped. */
 const RESERVED_RESOURCE_ATTRIBUTE_KEYS = ['stacktape.project', 'stacktape.stage', 'deployment.environment.name'];
 
-export const mergeResourceAttributes = ({
+const mergeResourceAttributes = ({
   userValue,
   stacktapeAttributes
 }: {
