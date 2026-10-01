@@ -74,7 +74,8 @@
         "src/dev/auth-review/main.tsx"
       ],
       "project": ["**/*.{ts,tsx}"],
-      "ignore": ["dist/**", "public/**"]
+      "ignore": ["dist/**", "public/**"],
+      "ignoreDependencies": ["@stacktape/cli"]
     },
     "packages/*": {
       "entry": ["scripts/**/*.ts", "**/*.acceptance.ts", "**/*.test.{ts,tsx}", "**/*.spec.{ts,tsx}"]
