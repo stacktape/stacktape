@@ -5,34 +5,6 @@ import { defineConfig } from 'astro/config';
 
 const posthogSourceMapsEnabled = Boolean(process.env.POSTHOG_API_KEY && process.env.POSTHOG_PROJECT_ID);
 
-/**
- * Makes the isometric diagram's icon packs load under Astro's bundler.
- *
- * `@isoflow/isopacks` ships CommonJS whose `module.exports` is a synthetic namespace carrying
- * `__esModule` and a `default`. Bundlers that honour that flag hand a default import the icon table;
- * the rolldown-based Vite that Astro 7 uses hands it the namespace instead, and
- * `packages/ui-react/.../resource-icon/isopack.js` — which does `awsIsopack.icons` — then throws
- * "icons is not iterable" the moment the diagram island hydrates. Console and the init wizard build
- * on plain Vite and never see it, which is why the package itself is not wrong.
- *
- * So the unwrap happens here, at the consumer that has the problem, in the one file that has it. The
- * `?? pack` fallback means this keeps working under either interop, and it silently stops applying
- * if `@stacktape/ui-react` ever unwraps the packs itself.
- */
-const isopackInterop = {
-  name: 'stacktape-website:isopack-interop',
-  enforce: 'pre',
-  transform(code, id) {
-    if (!id.includes('resource-icon/isopack')) return null;
-
-    const patched = code
-      .replaceAll('awsIsopack.icons', '(awsIsopack.default ?? awsIsopack).icons')
-      .replaceAll('isoflowIsopack.icons', '(isoflowIsopack.default ?? isoflowIsopack).icons');
-
-    return patched === code ? null : { code: patched, map: null };
-  }
-};
-
 export default defineConfig({
   site: 'https://stacktape.com',
   // The README concept became the homepage; the address it was reviewed under keeps working.
@@ -40,7 +12,6 @@ export default defineConfig({
   integrations: [react()],
   vite: {
     plugins: [
-      isopackInterop,
       tailwindcss(),
       ...(posthogSourceMapsEnabled
         ? [
@@ -73,7 +44,7 @@ export default defineConfig({
     // And the diagram's icon packs are not pinned either, tempting as it is: they belong to
     // `@stacktape/ui-react` rather than to this app, so under pnpm they are not resolvable from this
     // package root and naming them only produces "Failed to resolve dependency" warnings. Vite finds
-    // them through the island's own import, and `isopackInterop` above is what makes them work
-    // whether they arrive pre-bundled or not.
+    // them through the island's own import, and `@stacktape/ui-react` unwraps them whether they
+    // arrive pre-bundled or not.
   }
 });
