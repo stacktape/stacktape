@@ -45,6 +45,25 @@ describe('the lambda-source probe', () => {
     expect(entrypoints).toEqual(['functions/ingest.py', 'functions/resize.ts', 'functions/thumbnail.js']);
   });
 
+  it('recognizes a top-level entry file that wraps an HTTP app for Lambda, and only then', async () => {
+    const repo = await makeRepo({
+      'src/index.ts': [
+        "import { Hono } from 'hono';",
+        "import { handle } from '@hono/aws-lambda';",
+        'const app = new Hono();',
+        'export const handler = handle(app);',
+        ''
+      ].join('\n'),
+      // A plain module exporting `handler` at the top level is not a function.
+      'api/src/index.ts': 'export const handler = (request: unknown) => request;\n'
+    });
+    root = repo.root;
+
+    const output = await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files));
+
+    expect((output.services ?? []).map((service) => service.functionEntrypoint)).toEqual(['src/index.ts']);
+  });
+
   it('leaves ordinary modules under a handlers directory alone', async () => {
     const repo = await makeRepo({
       // A standard Express layout: route modules exporting a router, not a Lambda handler.

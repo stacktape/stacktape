@@ -46,6 +46,7 @@ const languageFor = (path: string): string => {
   if (path.endsWith('.rb')) return 'ruby';
   if (path.endsWith('.java')) return 'java';
   if (path.endsWith('.rs')) return 'rust';
+  if (path.endsWith('.cs')) return 'dotnet';
   return 'unknown';
 };
 
@@ -64,6 +65,15 @@ const entrypointFor = (
   const handlerSeparator = handlerValue.lastIndexOf('.');
   const modulePath = normalize(handlerSeparator > 0 ? handlerValue.slice(0, handlerSeparator) : handlerValue);
   const runtime = typeof runtimeValue === 'string' ? runtimeValue : '';
+  if (runtime.startsWith('dotnet')) {
+    // `Assembly::Namespace.Class::Method`: the class file carries the handler.
+    const typeName = handlerValue.split('::')[1]?.trim();
+    const className = typeName?.split('.').at(-1);
+    if (className === undefined || className === '') return undefined;
+    const matches = files.filter((file) => file === `${codeUri}/${className}.cs` || file.endsWith(`/${className}.cs`));
+    const scoped = matches.filter((file) => file.startsWith(`${codeUri}/`) || codeUri === '.');
+    return scoped.length === 1 ? scoped[0] : matches.length === 1 ? matches[0] : undefined;
+  }
   if (runtime.startsWith('java') || handlerValue.includes('::')) {
     const className = handlerValue.split('::')[0]?.trim();
     if (className === undefined || className === '') return undefined;
@@ -288,6 +298,10 @@ export const awsSamProbe: Probe = {
                 /(?:export\s+(?:const|async\s+function|function)\s+\w+|def\s+\w+\s*\(|(?:module\.)?exports(?:\.\w+)?\s*=|class\s+\w+)/,
                 'functionEntrypoint'
               );
+        const handler = properties.Handler ?? globals.Handler;
+        const runtimeName = String(properties.Runtime ?? globals.Runtime ?? '');
+        // .NET's handler names the method; every other runtime's handler is implied by the entry file.
+        const functionHandler = runtimeName.startsWith('dotnet') && typeof handler === 'string' ? handler : undefined;
         const functionTriggers = triggersFor(properties.Events, dependencyNames);
         const environmentVariables = environmentVariablesFor({
           file: templatePath,
@@ -323,6 +337,7 @@ export const awsSamProbe: Probe = {
           exposesHttp: false,
           executionModel: 'per-request',
           functionEntrypoint: entrypoint,
+          ...(functionHandler === undefined ? {} : { functionHandler }),
           functionTriggers,
           environmentVariables,
           evidence: [sourceCitation, ...samEvidence].filter((citation) => citation !== undefined),

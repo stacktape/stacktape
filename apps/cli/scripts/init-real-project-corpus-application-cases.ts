@@ -3,6 +3,21 @@ import type { RealProjectCorpusCase } from './init-real-project-corpus-cases';
 /** Pinned production applications and substantial starters representative of Stacktape's target customers. */
 const ALL_REAL_PROJECT_APPLICATION_CASES = [
   {
+    id: 'hono-aws-lambda-starter',
+    repository: 'https://github.com/honojs/starter.git',
+    commit: 'd6d809a16ba28942deab56bd6feb9a4e51c88c2b',
+    subdirectory: 'templates/aws-lambda',
+    source: 'official-starter',
+    exercises: ['hono', 'aws-lambda', 'js-bundle', 'lambda-wrapped-app', 'official-starter'],
+    expect: {
+      resourceTypes: { function: 1 },
+      serviceCount: 1,
+      httpServiceCount: 0,
+      requiredConfig: ['type: function', 'type: js-bundle', 'entryfilePath: src/index.ts'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
     id: 'hono-deno-starter',
     repository: 'https://github.com/honojs/starter.git',
     commit: 'd6d809a16ba28942deab56bd6feb9a4e51c88c2b',
@@ -812,6 +827,7 @@ const RELEASE_CASE_IDS = new Set([
   'django-djangox',
   'hono-bun-starter',
   'rails-campfire',
+  'hono-aws-lambda-starter',
   'hono-deno-starter',
   'flask-celery-example',
   'gofiber-hello-world',

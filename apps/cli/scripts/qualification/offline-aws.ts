@@ -141,6 +141,21 @@ export const startOfflineAwsServer = async (): Promise<OfflineAwsServer> => {
         response.end(JSON.stringify(emptyRead));
         return;
       }
+      // Validating an open-search-domain reads the instance type's storage limits; every real type supports EBS gp3.
+      if (request.method === 'GET' && /^\/2021-01-01\/opensearch\/instanceTypeLimits\//.test(request.url ?? '')) {
+        response.writeHead(200, { 'content-type': 'application/json' });
+        response.end(
+          JSON.stringify({
+            LimitsByRole: {
+              data: {
+                StorageTypes: [{ StorageTypeName: 'ebs', StorageSubTypeName: 'gp3', StorageTypeLimits: [] }],
+                InstanceLimits: { InstanceCountLimits: { MinimumInstanceCount: 1, MaximumInstanceCount: 80 } }
+              }
+            }
+          })
+        );
+        return;
+      }
       const parameterName = requestedParameterName(request, body);
       if (parameterName !== undefined && THIRD_PARTY_CREDENTIALS_PARAMETER.test(parameterName)) {
         response.writeHead(200, { 'content-type': 'application/x-amz-json-1.1' });

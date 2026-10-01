@@ -6,6 +6,7 @@ import { composeConfig } from '../compose/compose';
 import { assembleCandidateFacts } from './assemble';
 import { environmentProbe } from './probes/environment';
 import { dockerfileProbe } from './probes/dockerfile';
+import { lambdaSourceProbe } from './probes/lambda-source';
 import { languageManifestProbe } from './probes/language-manifests';
 import { manifestProbe } from './probes/manifest';
 import { staticSiteProbe } from './probes/static-site';
@@ -456,6 +457,39 @@ describe('assembleCandidateFacts', () => {
     expect(
       (await assembleCandidateFacts({ root: startersRoot, probes: PROBES })).facts.services.map(({ name }) => name)
     ).toEqual(['api-starter']);
+  });
+
+  it('does not deploy a package whose start script only runs a development server', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({ name: 'whiteboard', private: true, workspaces: ['app', 'dev-docs'] }),
+      'app/package.json': JSON.stringify({
+        name: 'whiteboard-app',
+        scripts: { start: 'yarn && vite', build: 'vite build' },
+        dependencies: { react: '^19.0.0' }
+      }),
+      'dev-docs/package.json': JSON.stringify({
+        name: 'docs',
+        scripts: { start: 'docusaurus start', build: 'docusaurus build' },
+        dependencies: { '@docusaurus/core': '^3.0.0' }
+      })
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+
+    expect(facts.services).toEqual([]);
+  });
+
+  it('keeps a Lambda-wrapped HTTP app a function rather than a server', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({ name: 'api', dependencies: { hono: '^4.0.0', '@hono/aws-lambda': '^1.0.0' } }),
+      'src/index.ts': "import { handle } from '@hono/aws-lambda';\nexport const handler = handle(app);\n"
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: [manifestProbe, lambdaSourceProbe] });
+
+    expect(facts.services.map(({ functionEntrypoint, exposesHttp }) => ({ functionEntrypoint, exposesHttp }))).toEqual([
+      { functionEntrypoint: 'src/index.ts', exposesHttp: false }
+    ]);
   });
 
   it('treats React Router framework mode as an HTTP service', async () => {

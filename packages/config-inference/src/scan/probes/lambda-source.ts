@@ -15,6 +15,12 @@ import { citeFirstMatch, readText, type Probe, type ProbeContext, type ProbeOutp
 const HANDLER_PATTERN =
   /(?:export\s+(?:const\s+handler|async\s+function\s+handler|function\s+handler)|def\s+(?:lambda_handler|handler)\s*\(|(?:module\.)?exports\.handler\s*=)/;
 
+/** Entry files a single-function project keeps at its top level. */
+const ENTRY_FILE = /^(?:src\/)?(?:index|handler|lambda|main|app)\.(?:[cm]?js|tsx?|py)$/;
+/** Lambda-specific imports and types: the file was written to run as a function. */
+const LAMBDA_SIGNAL =
+  /aws-lambda|serverless-http|serverless-express|APIGatewayProxy|LambdaFunctionURL|lambda_handler|\bawslambda\b/;
+
 const languageFor = (path: string): string =>
   path.endsWith('.py') ? 'python' : path.endsWith('.ts') || path.endsWith('.tsx') ? 'typescript' : 'javascript';
 
@@ -50,13 +56,18 @@ export const lambdaSourceProbe: Probe = {
     if (context.files.includes('cdk.json')) return {};
 
     const candidates = context.files.filter(
-      (path) => /(?:^|\/)(?:functions?|lambdas?|handlers?)(?:\/|$)/i.test(path) && /\.(?:[cm]?js|tsx?|py)$/.test(path)
+      (path) =>
+        /\.(?:[cm]?js|tsx?|py)$/.test(path) &&
+        (/(?:^|\/)(?:functions?|lambdas?|handlers?)(?:\/|$)/i.test(path) || ENTRY_FILE.test(path))
     );
     const services: ServiceFactInput[] = [];
     for (const path of candidates) {
       // oxlint-disable-next-line no-await-in-loop -- each candidate is small and reads are policy controlled.
       const raw = await readText(context, path);
       if (raw === undefined || !HANDLER_PATTERN.test(raw)) continue;
+      // An entry file outside a handlers directory counts only when it names Lambda itself: a Hono or Express app
+      // wrapped for Lambda exports `handler` from `src/index.ts`, and so does plenty of code that is not a function.
+      if (!/(?:^|\/)(?:functions?|lambdas?|handlers?)(?:\/|$)/i.test(path) && !LAMBDA_SIGNAL.test(raw)) continue;
       const citation = citeFirstMatch(path, raw, HANDLER_PATTERN, 'functionEntrypoint');
       services.push({
         name: nameFor(path),

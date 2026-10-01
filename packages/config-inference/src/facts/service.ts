@@ -282,6 +282,11 @@ export const serviceShape = {
   containerEntrypoint: containerEntrypointSchema.optional(),
   /** Source file exporting a Lambda-compatible handler. Its presence proves this is per-invocation compute. */
   functionEntrypoint: repositoryPathSchema.optional(),
+  /**
+   * The handler as the platform names it, when the entry file alone does not identify it. A .NET function is
+   * `Assembly::Namespace.Class::Method`; nothing in `LambdaEntryPoint.cs` says which method the runtime calls.
+   */
+  functionHandler: z.string().min(1).optional(),
   /** Repository-declared events that invoke `functionEntrypoint`. */
   functionTriggers: z.array(functionTriggerSchema).default([]),
   /** Repository-relative path to a Dockerfile, when the service ships one. */

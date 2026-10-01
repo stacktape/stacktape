@@ -1128,7 +1128,8 @@ const buildServiceResource = ({
             type: 'http-api-gateway',
             properties: {
               httpApiGatewayName,
-              method: trigger.method.toUpperCase(),
+              // SAM and Serverless spell the catch-all `ANY`; the HTTP API gateway event takes `*`.
+              method: /^(?:any|\*)$/i.test(trigger.method) ? '*' : trigger.method.toUpperCase(),
               path: trigger.path
             }
           });
@@ -1174,7 +1175,10 @@ const buildServiceResource = ({
       properties: {
         packaging: {
           type: JS_ENTRY_FILE.test(service.functionEntrypoint ?? '') ? 'js-bundle' : 'buildpack',
-          properties: { entryfilePath: service.functionEntrypoint }
+          properties: {
+            entryfilePath: service.functionEntrypoint,
+            ...(service.functionHandler === undefined ? {} : { handlerFunction: service.functionHandler })
+          }
         },
         ...(events.length === 0 ? {} : { events }),
         ...(requiresVpc ? { joinDefaultVpc: true } : {}),

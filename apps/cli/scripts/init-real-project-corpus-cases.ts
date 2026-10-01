@@ -901,6 +901,27 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
       forbidCurrentlyHostedDependencies: true
     }
   },
+  {
+    id: 'sam-http-api-lambda-dotnet',
+    repository: 'https://github.com/aws-samples/serverless-patterns.git',
+    commit: 'c407694899b1bfa4575b76e106e259e44d0a15fb',
+    subdirectory: 'apigw-http-api-lambda-dotnet-sam',
+    source: 'official-example',
+    exercises: ['aws-sam', 'lambda', 'dotnet', 'aspnet', 'handler-string'],
+    expect: {
+      resourceTypes: { 'http-api-gateway': 1, function: 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      existingDeployments: ['aws-sam'],
+      requiredConfig: [
+        'type: buildpack',
+        'entryfilePath: HttpApi/LambdaEntryPoint.cs',
+        'handlerFunction: HttpApi::HttpApi.LambdaEntryPoint::FunctionHandlerAsync',
+        'method: "*"'
+      ],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
   ...REAL_PROJECT_PLATFORM_CASES,
   ...REAL_PROJECT_APPLICATION_CASES
 ] as const;

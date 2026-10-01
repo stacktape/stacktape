@@ -218,6 +218,7 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
   buildRoot: existing.buildRoot ?? incoming.buildRoot,
   containerEntrypoint: existing.containerEntrypoint ?? incoming.containerEntrypoint,
   functionEntrypoint: existing.functionEntrypoint ?? incoming.functionEntrypoint,
+  functionHandler: existing.functionHandler ?? incoming.functionHandler,
   functionTriggers: [
     ...new Map(
       [...(existing.functionTriggers ?? []), ...(incoming.functionTriggers ?? [])].map((trigger) => [
@@ -455,6 +456,13 @@ const mergeServices = (
       service.processType !== undefined && service.dockerfile !== undefined ? [service.dockerfile] : []
     )
   );
+  // A package whose entry file is a Lambda handler (a Hono app wrapped with `handle(app)`) is a function; the HTTP
+  // framework in its manifest does not also make it a server.
+  const functionPaths = new Set(
+    merged.flatMap((service) => (service.functionEntrypoint === undefined ? [] : [service.path]))
+  );
+  const ownsFunction = (path: string) =>
+    functionPaths.has(path) || functionPaths.has(path === '.' ? 'src' : `${path}/src`);
   const services = merged.filter(
     (service) =>
       !(
@@ -464,6 +472,15 @@ const mergeServices = (
         service.startCommand === undefined &&
         service.containerEntrypoint === undefined &&
         service.functionEntrypoint === undefined
+      ) &&
+      !(
+        service.processType === undefined &&
+        service.functionEntrypoint === undefined &&
+        service.dockerfile === undefined &&
+        service.startCommand === undefined &&
+        service.containerEntrypoint === undefined &&
+        service.servesStaticAssets === undefined &&
+        ownsFunction(service.path)
       )
   );
 

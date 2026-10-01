@@ -128,6 +128,9 @@ const writtenForBun = (manifest: ParsedManifest): boolean =>
     /^bun (?:run )?(?:--\S+ )*\S+\.[cm]?[jt]sx?\b/.test(manifest.scripts[script] ?? '')
   );
 
+const DEV_SERVER_START =
+  /(?:^|&&|;|\s)(?:vite(?:\s+(?:dev|serve))?|docusaurus\s+start|next\s+dev|nuxt\s+dev|astro\s+dev|remix\s+dev|react-scripts\s+start|ng\s+serve|gatsby\s+develop|webpack(?:-dev-server|\s+serve)|parcel(?:\s+serve)?|storybook(?:\s+dev)?)(?:\s|$)/;
+
 const staticSiteFor = (
   manifest: ParsedManifest,
   files: readonly string[]
@@ -360,7 +363,9 @@ export const manifestProbe: Probe = {
     const migrations: MigrationFact[] = [];
 
     for (const manifest of manifests) {
-      const hasStart = typeof manifest.scripts.start === 'string';
+      // `start` that launches a development server (`vite`, `docusaurus start`) describes local work, not a
+      // deployment; such a package is a static site when it builds one, and nothing otherwise.
+      const hasStart = typeof manifest.scripts.start === 'string' && !DEV_SERVER_START.test(manifest.scripts.start);
       const hasBuild = typeof manifest.scripts.build === 'string';
       const frameworkEntry = FRAMEWORK_NAMES.find((entry) => manifest.dependencies[entry.package] !== undefined);
       // Astro renders to static files unless a server adapter is installed; without one there is no server to run.

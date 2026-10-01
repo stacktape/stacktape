@@ -2,6 +2,7 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'bun:test';
+import { composeConfig } from '../../compose/compose';
 import { assembleCandidateFacts } from '../assemble';
 import { awsSamProbe } from './aws-sam';
 
@@ -146,6 +147,45 @@ describe('the AWS SAM probe', () => {
       hostingEvidence: 'deployment-manifest'
     });
     expect(JSON.stringify(facts)).not.toContain('hidden-value-that-must-not-travel');
+  });
+
+  it('resolves a .NET handler to the class file that carries it', async () => {
+    const repositoryRoot = await makeRepo({
+      'HttpApi/HttpApi.csproj': '<Project Sdk="Microsoft.NET.Sdk.Web" />',
+      'HttpApi/LambdaEntryPoint.cs': 'public class LambdaEntryPoint {}\n',
+      'template.yaml': [
+        'Transform: AWS::Serverless-2016-10-31',
+        'Resources:',
+        '  HttpApiFunction:',
+        '    Type: AWS::Serverless::Function',
+        '    Properties:',
+        '      Handler: HttpApi::HttpApi.LambdaEntryPoint::FunctionHandlerAsync',
+        '      Runtime: dotnet8',
+        '      CodeUri: HttpApi/',
+        '      Events:',
+        '        Root:',
+        '          Type: HttpApi',
+        '          Properties:',
+        '            Path: /{proxy+}',
+        '            Method: ANY',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [awsSamProbe] });
+
+    expect(facts.services[0]).toMatchObject({
+      language: 'dotnet',
+      functionEntrypoint: 'HttpApi/LambdaEntryPoint.cs',
+      functionHandler: 'HttpApi::HttpApi.LambdaEntryPoint::FunctionHandlerAsync'
+    });
+    // `ANY` is the catch-all; the generated HTTP API event spells it `*`.
+    expect(composeConfig({ facts }).config.resources.httpApi).toMatchObject({
+      properties: {
+        packaging: { properties: { handlerFunction: 'HttpApi::HttpApi.LambdaEntryPoint::FunctionHandlerAsync' } },
+        events: [{ properties: { method: '*', path: '/{proxy+}' } }]
+      }
+    });
   });
 
   it('finds a Rust function whose bootstrap handler comes from Globals', async () => {

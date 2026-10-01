@@ -116,6 +116,13 @@ describe('offline AWS qualification guard', () => {
         });
         expect(server.unexpectedRequests).toEqual([expect.stringContaining('GetSecretValue:wrong-secret')]);
         await expect(parameters.send(new GetParameterCommand({ Name: '/app/prod/token' }))).rejects.toThrow();
+        // An open-search-domain validates its instance type's storage support before packaging.
+        const limits = await fetch(
+          `${server.endpoint}/2021-01-01/opensearch/instanceTypeLimits/OpenSearch_2.17/m4.large.search`
+        );
+        expect(limits.status).toBe(200);
+        const limitsBody = (await limits.json()) as { LimitsByRole: { data: { StorageTypes: unknown[] } } };
+        expect(limitsBody.LimitsByRole.data.StorageTypes[0]).toMatchObject({ StorageSubTypeName: 'gp3' });
         expect(server.unexpectedRequests).toEqual([
           expect.stringContaining('GetSecretValue:wrong-secret'),
           expect.stringContaining('GetParameter')
