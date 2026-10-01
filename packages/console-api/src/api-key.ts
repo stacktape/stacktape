@@ -127,7 +127,9 @@ export const createGitDeploymentConfigFromCliInputSchema = z.object({
   configSource: z.enum(['GIT_REPOSITORY', 'STACKTAPE_DATABASE']),
   deployOnGitEvent: z.enum(['PUSHED_TO_BRANCH', 'PULL_REQUEST_OPENED']),
   configPath: z.string().nullable(),
-  templateId: z.string().nullable()
+  templateId: z.string().nullable(),
+  /** Links the selected repository to a project that has none yet, such as one created by a CLI deploy. */
+  provider: z.enum(['GITHUB', 'GITLAB', 'BITBUCKET']).optional()
 });
 
 export const reportEventInputSchema = z.object({

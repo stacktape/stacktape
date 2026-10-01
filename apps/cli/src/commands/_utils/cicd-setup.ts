@@ -3,7 +3,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { openBrowser } from './browser';
-import { detectGitInfo, type GitProvider } from '../init/utils/git-detection';
+import { detectGitInfo, getPathInRepository, type GitProvider } from '../init/utils/git-detection';
 
 /** Non-null git provider type for internal use */
 type NonNullGitProvider = Exclude<GitProvider, null>;
@@ -200,8 +200,9 @@ export const promptCiCdSetupAfterDeploy = async (): Promise<void> => {
       stage: globalStateManager.targetStack.stage,
       configSource: 'GIT_REPOSITORY',
       deployOnGitEvent: 'PUSHED_TO_BRANCH',
-      configPath: null,
-      templateId: null
+      configPath: getPathInRepository(gitInfo.rootDirectory, globalStateManager.configPath),
+      templateId: null,
+      provider: gitInfo.provider.toUpperCase() as 'GITHUB' | 'GITLAB' | 'BITBUCKET'
     });
 
     await operationReporter.finishEvent({

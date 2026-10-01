@@ -1,4 +1,5 @@
 import { execSync } from 'node:child_process';
+import { isAbsolute, relative, sep } from 'node:path';
 
 export type GitProvider = 'github' | 'gitlab' | 'bitbucket' | null;
 
@@ -8,6 +9,7 @@ export type GitInfo = {
   branch: string | null;
   owner: string | null;
   repository: string | null;
+  rootDirectory: string | null;
 };
 
 /**
@@ -19,7 +21,8 @@ export const detectGitInfo = (cwd: string = process.cwd()): GitInfo => {
     remoteUrl: null,
     branch: null,
     owner: null,
-    repository: null
+    repository: null,
+    rootDirectory: null
   };
 
   try {
@@ -44,6 +47,18 @@ export const detectGitInfo = (cwd: string = process.cwd()): GitInfo => {
     result.repository = parsed.repository;
   }
 
+  try {
+    result.rootDirectory = execSync('git rev-parse --show-toplevel', {
+      cwd,
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe']
+    })
+      .toString()
+      .trim();
+  } catch {
+    // Ignore
+  }
+
   // Get current branch
   try {
     result.branch = execSync('git rev-parse --abbrev-ref HEAD', {
@@ -58,6 +73,24 @@ export const detectGitInfo = (cwd: string = process.cwd()): GitInfo => {
   }
 
   return result;
+};
+
+/**
+ * A file's path relative to the repository root, with `/` separators, as a runner checkout sees it. Null when either
+ * path is unknown or the file lies outside the repository.
+ */
+export const getPathInRepository = (repositoryRoot: string | null, filePath: string | null): string | null => {
+  if (!repositoryRoot || !filePath) return null;
+  const pathInRepository = relative(repositoryRoot, filePath);
+  if (
+    !pathInRepository ||
+    pathInRepository === '..' ||
+    pathInRepository.startsWith(`..${sep}`) ||
+    isAbsolute(pathInRepository)
+  ) {
+    return null;
+  }
+  return pathInRepository.split(sep).join('/');
 };
 
 /**

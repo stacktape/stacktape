@@ -120,3 +120,24 @@ test('CLI Git deployment setup requires the provider stable repository identity'
     true
   );
 });
+
+test('CLI Git deployment setup may name the provider, so a project without a repository can be linked', () => {
+  const input = {
+    organizationId: 'org-1',
+    projectId: 'project-1',
+    gitProviderInstallationId: 'connection-1',
+    gitProviderRepositoryId: 'repo-42',
+    awsAccountConnectionId: 'aws-1',
+    branch: 'main',
+    targetRegion: 'eu-west-1',
+    stage: 'production',
+    configSource: 'GIT_REPOSITORY' as const,
+    deployOnGitEvent: 'PUSHED_TO_BRANCH' as const,
+    configPath: 'services/api/stacktape.ts',
+    templateId: null
+  };
+  // Older CLIs omit the provider; the Console then accepts only projects that already have a repository.
+  assert.equal(createGitDeploymentConfigFromCliInputSchema.safeParse(input).success, true);
+  assert.equal(createGitDeploymentConfigFromCliInputSchema.safeParse({ ...input, provider: 'GITLAB' }).success, true);
+  assert.equal(createGitDeploymentConfigFromCliInputSchema.safeParse({ ...input, provider: 'GITEA' }).success, false);
+});
