@@ -83,19 +83,14 @@
       "description": "Materialize the canonical Stacktape schema for the Console editor",
       "outputs": ["public/config-schema.json"]
     },
-    "@stacktape/console-ui#generate:monaco": {
-      "description": "Materialize CLI-generated Stacktape declarations for Console Monaco",
-      "dependsOn": ["@stacktape/cli#generate:monaco"],
-      "outputs": ["public/stacktape/**"]
-    },
     "@stacktape/console-ui#build": {
       "description": "Build the Console UI after its editor inputs and workspace UI are ready",
-      "dependsOn": ["^build", "^generate", "generate", "generate:monaco"],
+      "dependsOn": ["^build", "^generate", "generate"],
       "outputs": ["dist/**"]
     },
     "@stacktape/console-ui#dev": {
       "description": "Serve the Console UI after its editor inputs and initial workspace UI build are ready",
-      "dependsOn": ["generate", "generate:monaco", "@stacktape/ui-react#build"],
+      "dependsOn": ["generate", "@stacktape/ui-react#build"],
       "with": ["@stacktape/ui-react#dev"],
       "cache": false,
       "persistent": true
