@@ -3,6 +3,35 @@ import type { RealProjectCorpusCase } from './init-real-project-corpus-cases';
 /** Pinned production applications and substantial starters representative of Stacktape's target customers. */
 const ALL_REAL_PROJECT_APPLICATION_CASES = [
   {
+    id: 'next-mdx-blog',
+    repository: 'https://github.com/leerob/next-mdx-blog.git',
+    commit: 'fd03371e3c90481a8447904e1b548e4c0327b7db',
+    source: 'real-application',
+    exercises: ['nextjs', 'opennext', 'mdx', 'postgres', 'self-contained-build'],
+    expect: {
+      resourceTypes: { 'relational-database': 1, 'nextjs-web': 1 },
+      dependencyKinds: { postgres: 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: nextjs-web'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'deno-saaskit',
+    repository: 'https://github.com/denoland/saaskit.git',
+    commit: 'bc8043e85a1e8ba8d097ce21af3b7b49e7dfc5ad',
+    source: 'real-application',
+    exercises: ['deno', 'fresh', 'docker'],
+    expect: {
+      resourceTypes: { 'web-service': 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: dockerfile'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
     id: 'symfony-demo',
     repository: 'https://github.com/symfony/demo.git',
     commit: '8d2e2ef75c3e18df173d8bf2379a14abb58c4c31',
@@ -707,6 +736,8 @@ const RELEASE_CASE_IDS = new Set([
   'django-djangox',
   'hono-bun-starter',
   'rails-campfire',
+  'next-mdx-blog',
+  'deno-saaskit',
   'symfony-demo',
   'flask-tutorial',
   'spring-rest-guide',

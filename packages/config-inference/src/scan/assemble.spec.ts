@@ -427,6 +427,37 @@ describe('assembleCandidateFacts', () => {
     ).toBeUndefined();
   });
 
+  it("does not deploy a monorepo's example packages", async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({ name: 'whiteboard', private: true, workspaces: ['app', 'examples/*'] }),
+      'app/package.json': JSON.stringify({
+        name: 'whiteboard-app',
+        scripts: { start: 'node server.js' },
+        dependencies: { express: '^5.0.0' }
+      }),
+      'examples/with-nextjs/package.json': JSON.stringify({
+        name: 'with-nextjs',
+        scripts: { build: 'next build', start: 'next start' },
+        dependencies: { next: '^16.0.0' }
+      })
+    });
+    expect(
+      (await assembleCandidateFacts({ root: repoRoot, probes: PROBES })).facts.services.map(({ name }) => name)
+    ).toEqual(['whiteboard-app']);
+
+    // A repository that holds nothing but starters still offers them.
+    const startersRoot = await makeRepo({
+      'templates/api/package.json': JSON.stringify({
+        name: 'api-starter',
+        scripts: { start: 'node index.js' },
+        dependencies: { hono: '^4.0.0' }
+      })
+    });
+    expect(
+      (await assembleCandidateFacts({ root: startersRoot, probes: PROBES })).facts.services.map(({ name }) => name)
+    ).toEqual(['api-starter']);
+  });
+
   it('treats React Router framework mode as an HTTP service', async () => {
     const repoRoot = await makeRepo({
       'package.json': JSON.stringify({

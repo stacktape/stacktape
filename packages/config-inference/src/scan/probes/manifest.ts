@@ -127,6 +127,8 @@ const writtenForBun = (manifest: ParsedManifest): boolean =>
     /^bun (?:run )?(?:--\S+ )*\S+\.[cm]?[jt]sx?\b/.test(manifest.scripts[script] ?? '')
   );
 
+const SAMPLE_DIRECTORY = /(?:^|\/)(?:examples?|samples?|demos?|fixtures?|__fixtures__|templates?|playgrounds?)\//i;
+
 const staticSiteFor = (
   manifest: ParsedManifest,
   files: readonly string[]
@@ -302,7 +304,11 @@ const prismaDatasourceKind = async (
 export const manifestProbe: Probe = {
   name: 'manifest',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
-    const manifestPaths = context.files.filter((file) => file === 'package.json' || file.endsWith('/package.json'));
+    const allManifestPaths = context.files.filter((file) => file === 'package.json' || file.endsWith('/package.json'));
+    // A monorepo's `examples/`, `templates/` and fixture packages show how to use the project; they are not what
+    // the repository deploys. They count only when nothing else is there (a repository of starters).
+    const ownManifestPaths = allManifestPaths.filter((file) => !SAMPLE_DIRECTORY.test(file));
+    const manifestPaths = ownManifestPaths.length > 0 ? ownManifestPaths : allManifestPaths;
     if (manifestPaths.length === 0) {
       return {};
     }
