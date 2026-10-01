@@ -54,6 +54,8 @@ export const lambdaSourceProbe: Probe = {
     if (context.files.includes('sst.config.ts') || context.files.includes('sst.config.js')) return {};
     // And to CDK, whose stacks name their entry files and event sources.
     if (context.files.includes('cdk.json')) return {};
+    // And to Terraform, whose `aws_lambda_function` resources name their handlers.
+    if (context.files.some((path) => /(?:^|\/)[^/]+\.tf$/.test(path))) return {};
 
     const candidates = context.files.filter(
       (path) =>

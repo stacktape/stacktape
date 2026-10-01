@@ -64,6 +64,16 @@ describe('the lambda-source probe', () => {
     expect((output.services ?? []).map((service) => service.functionEntrypoint)).toEqual(['src/index.ts']);
   });
 
+  it('defers to a Terraform configuration that declares the functions', async () => {
+    const repo = await makeRepo({
+      'main.tf': 'resource "aws_lambda_function" "api" { handler = "app.lambda_handler" }\n',
+      'src/app.py': 'def lambda_handler(event, context):\n    return {"statusCode": 200}\n'
+    });
+    root = repo.root;
+
+    expect(await lambdaSourceProbe.run(createProbeContext(repo.root, repo.files))).toEqual({});
+  });
+
   it('leaves ordinary modules under a handlers directory alone', async () => {
     const repo = await makeRepo({
       // A standard Express layout: route modules exporting a router, not a Lambda handler.
