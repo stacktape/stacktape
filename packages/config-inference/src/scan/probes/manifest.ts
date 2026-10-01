@@ -15,6 +15,7 @@ import { defaultDependencyName, type DependencyFact, type DependencyKind } from 
 import type { MigrationFact, PackageManager } from '../../facts/project-facts';
 import type { ServiceFactInput } from '../../facts/service';
 import { citeFirstMatchOnly, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
+import { withoutSampleDirectories } from '../service-root';
 
 /**
  * Declared dependencies that imply a backing service.
@@ -126,8 +127,6 @@ const writtenForBun = (manifest: ParsedManifest): boolean =>
   ['start', 'dev'].some((script) =>
     /^bun (?:run )?(?:--\S+ )*\S+\.[cm]?[jt]sx?\b/.test(manifest.scripts[script] ?? '')
   );
-
-const SAMPLE_DIRECTORY = /(?:^|\/)(?:examples?|samples?|demos?|fixtures?|__fixtures__|templates?|playgrounds?)\//i;
 
 const staticSiteFor = (
   manifest: ParsedManifest,
@@ -304,11 +303,10 @@ const prismaDatasourceKind = async (
 export const manifestProbe: Probe = {
   name: 'manifest',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
-    const allManifestPaths = context.files.filter((file) => file === 'package.json' || file.endsWith('/package.json'));
-    // A monorepo's `examples/`, `templates/` and fixture packages show how to use the project; they are not what
-    // the repository deploys. They count only when nothing else is there (a repository of starters).
-    const ownManifestPaths = allManifestPaths.filter((file) => !SAMPLE_DIRECTORY.test(file));
-    const manifestPaths = ownManifestPaths.length > 0 ? ownManifestPaths : allManifestPaths;
+    // A monorepo's example and template packages are not what the repository deploys.
+    const manifestPaths = withoutSampleDirectories(
+      context.files.filter((file) => file === 'package.json' || file.endsWith('/package.json'))
+    );
     if (manifestPaths.length === 0) {
       return {};
     }

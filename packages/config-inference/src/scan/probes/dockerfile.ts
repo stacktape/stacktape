@@ -5,7 +5,7 @@ import type { Citation } from '../../facts/citation';
 import type { ServiceFactInput } from '../../facts/service';
 import { citeFirstMatch, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 import { languageOf } from '../language';
-import { nearestManifestRoot } from '../service-root';
+import { nearestManifestRoot, withoutSampleDirectories } from '../service-root';
 
 const serviceRootFor = (dockerfile: string, files: readonly string[]): string => {
   return nearestManifestRoot(dockerfile, files) ?? posix.dirname(dockerfile);
@@ -64,18 +64,18 @@ const exposedPort = (path: string, raw: string): { port?: number; citation?: Cit
 export const dockerfileProbe: Probe = {
   name: 'dockerfile',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
-    const candidates = context.files
-      .filter(
+    const candidates = withoutSampleDirectories(
+      context.files.filter(
         // `Containerfile` is the Podman/OCI name for the same file; Forem ships one with a `Dockerfile` symlink.
         (path) =>
           /^(?:Dockerfile|Containerfile)(?:\.[^/]+)?$/i.test(posix.basename(path)) &&
           !DEVELOPMENT_ONLY_DIRECTORY.test(path)
       )
-      .toSorted((left, right) => {
-        const leftExact = /^(?:dockerfile|containerfile)$/.test(posix.basename(left).toLowerCase());
-        const rightExact = /^(?:dockerfile|containerfile)$/.test(posix.basename(right).toLowerCase());
-        return leftExact === rightExact ? left.localeCompare(right) : leftExact ? -1 : 1;
-      });
+    ).toSorted((left, right) => {
+      const leftExact = /^(?:dockerfile|containerfile)$/.test(posix.basename(left).toLowerCase());
+      const rightExact = /^(?:dockerfile|containerfile)$/.test(posix.basename(right).toLowerCase());
+      return leftExact === rightExact ? left.localeCompare(right) : leftExact ? -1 : 1;
+    });
     const services = new Map<string, ServiceFactInput>();
 
     for (const path of candidates) {

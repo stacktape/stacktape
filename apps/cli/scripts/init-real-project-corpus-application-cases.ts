@@ -3,6 +3,35 @@ import type { RealProjectCorpusCase } from './init-real-project-corpus-cases';
 /** Pinned production applications and substantial starters representative of Stacktape's target customers. */
 const ALL_REAL_PROJECT_APPLICATION_CASES = [
   {
+    id: 'wagtail-bakerydemo',
+    repository: 'https://github.com/wagtail/bakerydemo.git',
+    commit: 'c8f8255593c0efcfab5fef2fb19d60895227748a',
+    source: 'real-application',
+    exercises: ['django', 'wagtail', 'python', 'docker', 'postgres', 'redis'],
+    expect: {
+      resourceTypes: { 'relational-database': 1, 'redis-cluster': 1, bastion: 1, 'web-service': 1 },
+      dependencyKinds: { postgres: 1, redis: 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: dockerfile', "$ResourceParam('mainDatabase', 'connectionString')"],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'real-lobsters',
+    repository: 'https://github.com/lobsters/lobsters.git',
+    commit: '52f7961c4a98ed4c466d6dfce3ff9131ea460f3c',
+    source: 'real-application',
+    exercises: ['rails', 'ruby', 'docker', 'sqlite'],
+    expect: {
+      resourceTypes: { 'web-service': 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: dockerfile'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
     id: 'next-mdx-blog',
     repository: 'https://github.com/leerob/next-mdx-blog.git',
     commit: 'fd03371e3c90481a8447904e1b548e4c0327b7db',
@@ -736,6 +765,8 @@ const RELEASE_CASE_IDS = new Set([
   'django-djangox',
   'hono-bun-starter',
   'rails-campfire',
+  'wagtail-bakerydemo',
+  'real-lobsters',
   'next-mdx-blog',
   'deno-saaskit',
   'symfony-demo',
