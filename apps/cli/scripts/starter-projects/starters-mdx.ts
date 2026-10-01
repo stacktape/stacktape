@@ -23,9 +23,6 @@ export const addReadme = async ({
   metadata: StarterProjectMetadata;
   mode: 'github' | 'app';
 }) => {
-  const deployInConsoleLink =
-    'https://console.stacktape.com/create-new-project/git-project-using-console?name=my-stacktape-app&repositoryType=public&repositoryUrl=';
-
   let sectionNumber = 0;
   const genProjectSection = `To initialize the project, use
 
@@ -35,9 +32,6 @@ stacktape init --starterId ${starterProjectId}
 
   const res = `
 # ${name}
-
-> [!TIP]
-> To deploy this project using **GUI-based flow**, navigate to [console](${deployInConsoleLink}https://github.com/stacktape/starter-${starterProjectId})
 
 ${mdxDescription.trim()}
 - This project includes a pre-configured [stacktape.yml configuration](stacktape.yml).

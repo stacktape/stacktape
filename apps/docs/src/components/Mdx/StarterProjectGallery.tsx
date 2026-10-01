@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { BiLogoGithub } from 'react-icons/bi';
-import { LuArrowUpRight, LuPackage, LuSearch, LuX } from 'react-icons/lu';
+import { LuPackage, LuSearch, LuX } from 'react-icons/lu';
 import clsx from 'clsx';
 import { colors } from '@/styles/variables';
 import { publicStarterProjects, type StarterProject } from '@/utils/starter-projects';
@@ -118,7 +118,10 @@ function StarterCard({ project }: { project: Project }) {
         ))}
       </div>
 
-      <div className="flex gap-[10px] mt-auto justify-end">
+      <div className="flex gap-[10px] mt-auto items-center justify-end">
+        <code className="mr-auto text-[0.8rem] break-all">
+          npx stacktape init --starterId {project.starterProjectId}
+        </code>
         <Button
           icon={<BiLogoGithub size={18} />}
           iconPosition="end"
@@ -127,15 +130,6 @@ function StarterCard({ project }: { project: Project }) {
           href={project.githubLink}
         >
           GitHub
-        </Button>
-        <Button
-          icon={<LuArrowUpRight size={18} />}
-          iconPosition="end"
-          variant="primary"
-          width="fit-content"
-          href={`https://console.stacktape.com/create-new-project/git-project-using-console?name=my-stacktape-app&repositoryType=public&repositoryUrl=${project.githubLink}`}
-        >
-          Deploy
         </Button>
       </div>
     </div>
