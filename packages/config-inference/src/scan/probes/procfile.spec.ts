@@ -69,6 +69,25 @@ describe('the Procfile probe', () => {
     });
   });
 
+  it('does not deploy a Procfile line that only starts a datastore', async () => {
+    root = await makeRepo({
+      Gemfile: 'source "https://rubygems.org"\ngem "rails"\ngem "resque"\n',
+      Procfile: [
+        'web: bundle exec thrust bin/start-app',
+        'redis: redis-server config/redis.conf',
+        'workers: FORK_PER_JOB=false bundle exec resque-pool',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+
+    expect(facts.services.map((service) => service.startCommand).toSorted()).toEqual([
+      'bundle exec resque-pool',
+      'bundle exec thrust bin/start-app'
+    ]);
+  });
+
   it('composes the worker as a worker, not a second web service', async () => {
     root = await makeRepo({
       'requirements.txt': 'Django==5.0\n',

@@ -1235,6 +1235,17 @@ describe('pinning the declared runtime version', () => {
     });
   });
 
+  it('runs a server written for Bun with Bun', () => {
+    const { config } = composeConfig({
+      facts: facts({ services: [service({ containerEntrypoint: 'src/index.ts', javascriptRuntime: 'bun' })] })
+    });
+
+    expect(config.resources.web?.properties.packaging).toEqual({
+      type: 'js-bundle',
+      properties: { entryfilePath: 'src/index.ts', runtime: 'bun' }
+    });
+  });
+
   it('runs a published image as is', () => {
     const { config } = composeConfig({
       facts: facts({ services: [service({ containerImage: 'docker.io/langgenius/dify-api:1.14.2' })] })

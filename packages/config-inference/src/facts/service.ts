@@ -230,6 +230,11 @@ export const serviceShape = {
   language: z.string().min(1),
   /** Declared runtime version, e.g. `22` or `3.12`. Decides buildpack and runtime selection. */
   runtimeVersion: z.string().min(1).optional(),
+  /**
+   * The JavaScript runtime the code is written for, when it is not Node.js. A Bun server (`export default app`,
+   * `Bun.serve`) starts nothing under Node, so the container must run it with Bun.
+   */
+  javascriptRuntime: z.enum(['bun']).optional(),
   framework: z.string().min(1).optional(),
 
   // ── Observations the composer classifies from ────────────────────────────────────────────────

@@ -3,6 +3,37 @@ import type { RealProjectCorpusCase } from './init-real-project-corpus-cases';
 /** Pinned production applications and substantial starters representative of Stacktape's target customers. */
 const ALL_REAL_PROJECT_APPLICATION_CASES = [
   {
+    id: 'rails-campfire',
+    repository: 'https://github.com/basecamp/once-campfire.git',
+    commit: '90b330024dec3e757c79b6a7e6568f93da8e3148',
+    source: 'real-application',
+    exercises: ['rails', 'ruby', 'docker', 'procfile', 'redis', 'resque', 'datastore-process'],
+    expect: {
+      resourceTypes: { 'redis-cluster': 1, 'web-service': 1, 'worker-service': 1 },
+      dependencyKinds: { redis: 1 },
+      serviceCount: 2,
+      httpServiceCount: 1,
+      requiredConfig: ['type: dockerfile', 'type: worker-service', 'resque-pool'],
+      forbiddenConfig: ['redis-server'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'hono-bun-starter',
+    repository: 'https://github.com/honojs/starter.git',
+    commit: 'd6d809a16ba28942deab56bd6feb9a4e51c88c2b',
+    subdirectory: 'templates/bun',
+    source: 'real-application',
+    exercises: ['hono', 'bun', 'js-bundle', 'bun-runtime', 'official-starter'],
+    expect: {
+      resourceTypes: { 'web-service': 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: js-bundle', 'runtime: bun'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
     id: 'astro-astrowind',
     repository: 'https://github.com/onwidget/astrowind.git',
     commit: '14e1a691f80548dcc36370847b1a02c0d0b12821',
@@ -629,6 +660,8 @@ const RELEASE_CASE_IDS = new Set([
   'fastify-demo',
   'gin-realworld',
   'django-djangox',
+  'hono-bun-starter',
+  'rails-campfire',
   'astro-astrowind',
   'real-memos',
   'fastapi-full-stack',

@@ -210,6 +210,7 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
       ? undefined
       : (existing.port ?? incoming.port),
   processType: existing.processType ?? incoming.processType,
+  javascriptRuntime: existing.javascriptRuntime ?? incoming.javascriptRuntime,
   framework: existing.framework ?? incoming.framework,
   runtimeVersion: existing.runtimeVersion ?? incoming.runtimeVersion,
   buildCommand: existing.buildCommand ?? incoming.buildCommand,

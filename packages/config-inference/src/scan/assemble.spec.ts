@@ -401,6 +401,46 @@ describe('assembleCandidateFacts', () => {
     expect(facts.services[0]?.startCommand).toBeUndefined();
   });
 
+  it('tells a server written for Bun from a project that only installs with Bun', async () => {
+    const bunServer = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'api',
+        scripts: { dev: 'bun run --hot src/index.ts' },
+        dependencies: { hono: '^4.0.0' },
+        devDependencies: { '@types/bun': 'latest' }
+      })
+    });
+    expect(
+      (await assembleCandidateFacts({ root: bunServer, probes: PROBES })).facts.services[0]?.javascriptRuntime
+    ).toBe('bun');
+
+    const nodeServer = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'api',
+        scripts: { start: 'node dist/index.js', build: 'bun run build:js' },
+        dependencies: { hono: '^4.0.0' }
+      }),
+      'bun.lock': '{}'
+    });
+    expect(
+      (await assembleCandidateFacts({ root: nodeServer, probes: PROBES })).facts.services[0]?.javascriptRuntime
+    ).toBeUndefined();
+  });
+
+  it('treats React Router framework mode as an HTTP service', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'storefront',
+        scripts: { build: 'react-router build', start: 'react-router-serve ./build/server/index.js' },
+        dependencies: { '@react-router/node': '^7.0.0', '@react-router/serve': '^7.0.0', react: '^19.0.0' }
+      })
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+
+    expect(facts.services[0]).toMatchObject({ exposesHttp: true, startCommand: 'npm run start' });
+  });
+
   it('keeps a Go server and its same-named React client as two services', async () => {
     const repoRoot = await makeRepo({
       'go.mod': 'module github.com/acme/notes\n\ngo 1.24\n\nrequire github.com/labstack/echo/v4 v4.13.0\n',

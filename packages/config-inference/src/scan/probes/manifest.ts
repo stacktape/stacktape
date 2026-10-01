@@ -63,6 +63,8 @@ const DEPENDENCY_SIGNALS: ReadonlyArray<{
 /** Dependencies that prove the package serves HTTP. */
 const HTTP_FRAMEWORKS: ReadonlySet<string> = new Set([
   '@hapi/hapi',
+  // React Router 7 in framework mode, Remix's successor: `react-router-serve` is its HTTP server.
+  '@react-router/serve',
   '@nestjs/platform-express',
   '@nestjs/platform-fastify',
   'astro',
@@ -108,6 +110,17 @@ const ASTRO_SERVER_ADAPTERS = [
   '@astrojs/cloudflare',
   '@astrojs/deno'
 ];
+
+/**
+ * Bun's own types, or a script that runs a source file with `bun`, mean the server is written for Bun. Using Bun
+ * only as the package manager (`bun install`, `bun run build`) does not.
+ */
+const writtenForBun = (manifest: ParsedManifest): boolean =>
+  manifest.dependencies['@types/bun'] !== undefined ||
+  manifest.dependencies['bun-types'] !== undefined ||
+  ['start', 'dev'].some((script) =>
+    /^bun (?:run )?(?:--\S+ )*\S+\.[cm]?[jt]sx?\b/.test(manifest.scripts[script] ?? '')
+  );
 
 const staticSiteFor = (
   manifest: ParsedManifest,
@@ -418,6 +431,7 @@ export const manifestProbe: Probe = {
           path: manifest.directory,
           language: 'javascript',
           ...(nodeEngine ? { runtimeVersion: nodeEngine } : {}),
+          ...(writtenForBun(manifest) ? { javascriptRuntime: 'bun' as const } : {}),
           ...(frameworkEntry
             ? { framework: frameworkEntry.name }
             : staticSite

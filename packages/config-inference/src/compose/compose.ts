@@ -262,7 +262,12 @@ const packagingFor = (
     // A known JavaScript entry file: Stacktape bundles it, which is smaller and faster than a project build.
     return {
       type: 'js-bundle',
-      properties: { entryfilePath: service.containerEntrypoint, ...runtimeVersionConfig(service) }
+      properties: {
+        entryfilePath: service.containerEntrypoint,
+        ...(service.javascriptRuntime === undefined
+          ? runtimeVersionConfig(service)
+          : { runtime: service.javascriptRuntime })
+      }
     };
   }
   // A workspace member that imports internal packages must be installed and built from the root,
