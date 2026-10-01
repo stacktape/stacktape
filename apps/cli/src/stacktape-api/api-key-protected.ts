@@ -58,9 +58,7 @@ import type {
   StackDetailsParams,
   StackDetailsResponse,
   SyncUptimeChecksParams,
-  SyncUptimeChecksResponse,
-  TemplateParams,
-  TemplateResponse
+  SyncUptimeChecksResponse
 } from '@stacktape/console-api/api-key';
 import type { RecordSecurityReportParams, RecordSecurityReportResponse } from '@stacktape/console-api/security';
 import { STACKTAPE_TRPC_API_ENDPOINT } from 'src/config/params';
@@ -124,9 +122,7 @@ export type {
   StackDetailsParams,
   StackDetailsResponse,
   SyncUptimeChecksParams,
-  SyncUptimeChecksResponse,
-  TemplateParams,
-  TemplateResponse
+  SyncUptimeChecksResponse
 } from '@stacktape/console-api/api-key';
 
 const createTrpcApiKeyProtectedClient = ({ apiKey }: { apiKey: string }) => {
@@ -219,10 +215,6 @@ export class ApiKeyProtectedClient {
 
   awsAccountCredentials = async (args: AwsAccountCredentialsParams): Promise<AwsAccountCredentialsResponse> => {
     return this.#request('awsAccountCredentials', () => this.#ensureInitialized().awsAccountCredentials.query(args));
-  };
-
-  template = async (args: TemplateParams): Promise<TemplateResponse> => {
-    return this.#request('template', () => this.#ensureInitialized().template.query(args));
   };
 
   canDeploy = async (): Promise<CanDeployResponse> => {

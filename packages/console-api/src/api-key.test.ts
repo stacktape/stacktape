@@ -109,10 +109,8 @@ test('CLI Git deployment setup requires the provider stable repository identity'
     branch: 'main',
     targetRegion: 'eu-west-1',
     stage: 'production',
-    configSource: 'GIT_REPOSITORY' as const,
     deployOnGitEvent: 'PUSHED_TO_BRANCH' as const,
-    configPath: null,
-    templateId: null
+    configPath: null
   };
   assert.equal(createGitDeploymentConfigFromCliInputSchema.safeParse(input).success, false);
   assert.equal(
@@ -131,10 +129,8 @@ test('CLI Git deployment setup may name the provider, so a project without a rep
     branch: 'main',
     targetRegion: 'eu-west-1',
     stage: 'production',
-    configSource: 'GIT_REPOSITORY' as const,
     deployOnGitEvent: 'PUSHED_TO_BRANCH' as const,
-    configPath: 'services/api/stacktape.ts',
-    templateId: null
+    configPath: 'services/api/stacktape.ts'
   };
   // Older CLIs omit the provider; the Console then accepts only projects that already have a repository.
   assert.equal(createGitDeploymentConfigFromCliInputSchema.safeParse(input).success, true);

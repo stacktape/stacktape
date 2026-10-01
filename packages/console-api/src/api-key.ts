@@ -46,8 +46,7 @@ export const createDeploymentTokenFromCliInputSchema = z.object({
   projectName: z.string(),
   accountConnectionId: z.string(),
   awsAccountId: z.string(),
-  invocationId: z.string().trim().min(1),
-  templateId: z.string().trim().min(1).optional().nullable()
+  invocationId: z.string().trim().min(1)
 });
 
 export const exchangeGithubActionsTokenInputSchema = z.object({ nonce: z.uuid() });
@@ -66,7 +65,6 @@ export const ec2DeployFromCliInputSchema = z.object({
   gitCommit: z.string(),
   gitCommitMessage: z.string().optional().nullable(),
   configPath: z.string().optional().nullable(),
-  templateId: z.string().optional().nullable(),
   hotSwap: z.boolean().optional()
 });
 
@@ -124,10 +122,8 @@ export const createGitDeploymentConfigFromCliInputSchema = z.object({
   branch: z.string(),
   targetRegion: z.string(),
   stage: z.string(),
-  configSource: z.enum(['GIT_REPOSITORY', 'STACKTAPE_DATABASE']),
   deployOnGitEvent: z.enum(['PUSHED_TO_BRANCH', 'PULL_REQUEST_OPENED']),
   configPath: z.string().nullable(),
-  templateId: z.string().nullable(),
   /** Links the selected repository to a project that has none yet, such as one created by a CLI deploy. */
   provider: z.enum(['GITHUB', 'GITLAB', 'BITBUCKET']).optional()
 });
@@ -158,10 +154,6 @@ export const awsAccountCredentialsInputSchema = z.object({
   awsAccountName: z.string()
 });
 
-export const templateInputSchema = z.object({
-  templateId: z.string()
-});
-
 export const defaultDomainsInfoInputSchema = z.object({
   stackName: z.string(),
   region: z.string(),
@@ -171,7 +163,6 @@ export const defaultDomainsInfoInputSchema = z.object({
 export const createProjectFromCliInputSchema = z.object({
   name: z.string().trim().min(1),
   gitUrl: z.string().optional().nullable(),
-  templateId: z.string().optional().nullable(),
   configPath: z.string().optional().nullable(),
   region: z.string().optional().nullable()
 });
@@ -306,7 +297,6 @@ export type CreateGitDeploymentConfigFromCliInput = z.input<typeof createGitDepl
 export type ReportEventParams = z.input<typeof reportEventInputSchema>;
 export type SyncUptimeChecksParams = z.input<typeof syncUptimeChecksInputSchema>;
 export type AwsAccountCredentialsParams = z.input<typeof awsAccountCredentialsInputSchema>;
-export type TemplateParams = z.input<typeof templateInputSchema>;
 export type DefaultDomainsInfoParams = z.input<typeof defaultDomainsInfoInputSchema>;
 export type CreateProjectParams = z.input<typeof createProjectFromCliInputSchema>;
 export type DeleteUndeployedStageParams = z.input<typeof deleteUndeployedStageFromCliInputSchema>;
@@ -455,7 +445,6 @@ export type CurrentUserAndOrgDataResponse = {
     organizationId: string;
     name: string;
     configPath: string | null;
-    templateId: string | null;
     defaultRegion: string | null;
     [otherProperties: string]: unknown;
   }>;
@@ -494,16 +483,6 @@ export type AwsAccountCredentialsResponse = {
     expiration?: string;
     [otherProperties: string]: unknown;
   };
-};
-
-export type TemplateResponse = {
-  id: string;
-  name: string;
-  /** The stored Stacktape configuration, as it was uploaded. */
-  content: string;
-  /** Null for the templates Stacktape itself publishes, which belong to no organization. */
-  organizationId: string | null;
-  [otherProperties: string]: unknown;
 };
 
 export type CanDeployResponse = {
@@ -551,7 +530,6 @@ export type CreateProjectResponse = {
   name: string;
   gitUrl?: string | null;
   organizationId: string;
-  templateId?: string | null;
   configPath?: string | null;
   [otherProperties: string]: unknown;
 };
@@ -704,9 +682,6 @@ export type ApiKeyTrpcClient = {
   };
   awsAccountCredentials: {
     query: (args: AwsAccountCredentialsParams) => Promise<AwsAccountCredentialsResponse>;
-  };
-  template: {
-    query: (args: TemplateParams) => Promise<TemplateResponse>;
   };
   canDeploy: {
     query: () => Promise<CanDeployResponse>;

@@ -198,10 +198,8 @@ export const promptCiCdSetupAfterDeploy = async (): Promise<void> => {
       branch: gitInfo.branch,
       targetRegion: globalStateManager.region,
       stage: globalStateManager.targetStack.stage,
-      configSource: 'GIT_REPOSITORY',
       deployOnGitEvent: 'PUSHED_TO_BRANCH',
       configPath: getPathInRepository(gitInfo.rootDirectory, globalStateManager.configPath),
-      templateId: null,
       provider: gitInfo.provider.toUpperCase() as 'GITHUB' | 'GITLAB' | 'BITBUCKET'
     });
 
