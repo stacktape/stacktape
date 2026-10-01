@@ -208,7 +208,7 @@ describe('split bundler end-to-end regressions', () => {
     );
     await writeFile(
       join(frameworkRoot, 'index.js'),
-      "let optional = 'absent';\ntry { optional = require('optional-integration'); } catch {}\nmodule.exports = { optional };"
+      "let optional = 'absent';\ntry { optional = require('optional-integration'); } catch {}\nmodule.exports = { optional, later: () => import('optional-esm-integration').catch(() => 'absent too') };"
     );
     await writeFile(
       join(root, 'a.ts'),

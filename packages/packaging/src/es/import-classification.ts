@@ -246,12 +246,12 @@ export const classifyResolvedModule = async ({
   }
 
   if (!modulePath) {
-    // A dependency that `require()`s a package nobody installed is probing for an optional integration: NestJS
+    // A dependency that `require()`s or `import()`s a package nobody installed is probing for an optional integration: NestJS
     // asks for `@nestjs/microservices`, `ws` for `bufferutil`, inside a try/catch. Node answers that with a runtime
     // MODULE_NOT_FOUND the library handles; failing the whole bundle instead breaks every such framework. The
     // project's own code gets no such leniency: a missing import there is a real error.
     const fromDependency = importer !== undefined && /[\\/]node_modules[\\/]/.test(importer);
-    if (fromDependency && isRequireImportKind(importKind)) {
+    if (fromDependency && (isRequireImportKind(importKind) || importKind === 'dynamic-import')) {
       return {
         outcome: 'external',
         note: 'OPTIONAL_NOT_INSTALLED',

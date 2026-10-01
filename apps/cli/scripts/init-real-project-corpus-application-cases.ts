@@ -3,6 +3,151 @@ import type { RealProjectCorpusCase } from './init-real-project-corpus-cases';
 /** Pinned production applications and substantial starters representative of Stacktape's target customers. */
 const ALL_REAL_PROJECT_APPLICATION_CASES = [
   {
+    id: 'astro-astrowind',
+    repository: 'https://github.com/onwidget/astrowind.git',
+    commit: '14e1a691f80548dcc36370847b1a02c0d0b12821',
+    source: 'real-application',
+    exercises: ['astro', 'static-site', 'hosting-bucket'],
+    expect: {
+      resourceTypes: { 'hosting-bucket': 1 },
+      serviceCount: 1,
+      httpServiceCount: 0,
+      requiredConfig: ['type: hosting-bucket', 'uploadDirectoryPath: dist'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'real-memos',
+    repository: 'https://github.com/usememos/memos.git',
+    commit: 'a80576a6def3c241c7c73e07448c8d2d8cd582bd',
+    source: 'real-application',
+    exercises: ['go', 'echo', 'react', 'docker', 'postgres', 'object-storage', 'same-name-services'],
+    expect: {
+      resourceTypes: { 'relational-database': 1, bucket: 1, bastion: 1, 'hosting-bucket': 1, 'web-service': 1 },
+      dependencyKinds: { postgres: 1, 'object-storage': 1 },
+      serviceCount: 2,
+      httpServiceCount: 1,
+      requiredConfig: ['type: dockerfile', 'dockerfilePath: scripts/Dockerfile', 'type: hosting-bucket'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'fastapi-full-stack',
+    repository: 'https://github.com/fastapi/full-stack-fastapi-template.git',
+    commit: 'cb740b656d7a0a6c5e12c7bf8e50343ec94ee9c7',
+    source: 'real-application',
+    exercises: ['fastapi', 'python', 'react', 'docker-compose', 'postgres', 'bun-workspace'],
+    expect: {
+      resourceTypes: { 'relational-database': 1, bastion: 1, 'hosting-bucket': 1, 'web-service': 1 },
+      dependencyKinds: { postgres: 1 },
+      serviceCount: 2,
+      httpServiceCount: 1,
+      requiredConfig: ['type: dockerfile', 'workingDirectory: frontend'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'nestjs-typescript-starter',
+    repository: 'https://github.com/nestjs/typescript-starter.git',
+    commit: 'a122dea65cd0610ee205d7765ed46f9d73629141',
+    source: 'real-application',
+    exercises: ['nestjs', 'typescript', 'js-bundle', 'optional-dependencies', 'official-starter'],
+    expect: {
+      resourceTypes: { 'web-service': 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: js-bundle', 'entryfilePath: src/main.ts'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'express-api-starter-ts',
+    repository: 'https://github.com/w3cj/express-api-starter-ts.git',
+    commit: 'c46ad4526400e0ae6640fdaa94d037aa7573600c',
+    source: 'real-application',
+    exercises: ['express', 'typescript', 'pnpm', 'js-bundle'],
+    expect: {
+      resourceTypes: { 'web-service': 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: js-bundle'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'nuxt-landing',
+    repository: 'https://github.com/nuxt-ui-templates/landing.git',
+    commit: 'd732ce91cbbe73763985732555c088401cb0e3a7',
+    source: 'real-application',
+    exercises: ['nuxt', 'ssr', 'official-template'],
+    expect: {
+      resourceTypes: { 'nuxt-web': 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: nuxt-web'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'hono-nodejs-starter',
+    repository: 'https://github.com/honojs/starter.git',
+    commit: 'd6d809a16ba28942deab56bd6feb9a4e51c88c2b',
+    subdirectory: 'templates/nodejs',
+    source: 'real-application',
+    exercises: ['hono', 'node', 'buildpack', 'official-starter'],
+    expect: {
+      resourceTypes: { 'web-service': 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: buildpack'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'fastify-demo',
+    repository: 'https://github.com/fastify/demo.git',
+    commit: '5cd560125b3c2f0d42192bc7f493e8e3b9e75e52',
+    source: 'real-application',
+    exercises: ['fastify', 'typescript', 'mysql', 'js-bundle'],
+    expect: {
+      resourceTypes: { 'relational-database': 1, bastion: 1, 'web-service': 1 },
+      dependencyKinds: { mysql: 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: js-bundle', "$ResourceParam('mainDatabase'"],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'gin-realworld',
+    repository: 'https://github.com/gothinkster/golang-gin-realworld-example-app.git',
+    commit: '626c372d259472148d93303f74aa9b9a1cdcef24',
+    source: 'real-application',
+    exercises: ['go', 'gin', 'buildpack', 'realworld'],
+    expect: {
+      resourceTypes: { 'web-service': 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: buildpack'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'django-djangox',
+    repository: 'https://github.com/wsvincent/djangox.git',
+    commit: '14c0374eaab52dc49898229ffe9a3e8f0e0e51c2',
+    source: 'real-application',
+    exercises: ['django', 'python', 'postgres', 'docker'],
+    expect: {
+      resourceTypes: { 'relational-database': 1, bastion: 1, 'web-service': 1 },
+      dependencyKinds: { postgres: 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: dockerfile', "$ResourceParam('mainDatabase', 'connectionString')"],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
     id: 'real-documenso',
     repository: 'https://github.com/documenso/documenso.git',
     commit: '779de01fe8fb8c242da867b6c1fa38c70e448c3a',
@@ -478,7 +623,17 @@ const RELEASE_CASE_IDS = new Set([
   'zero-to-production-rust',
   'real-lemmy',
   'spring-petclinic',
-  'dotnet-eshop'
+  'dotnet-eshop',
+  'nuxt-landing',
+  'hono-nodejs-starter',
+  'fastify-demo',
+  'gin-realworld',
+  'django-djangox',
+  'astro-astrowind',
+  'real-memos',
+  'fastapi-full-stack',
+  'nestjs-typescript-starter',
+  'express-api-starter-ts'
 ]);
 
 /** Customer-shaped applications whose exact inferred topology is reviewed and release-blocking. */

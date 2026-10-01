@@ -406,6 +406,14 @@ const withInstallLock = async ({
   }
 };
 
+/**
+ * pnpm 11 exits with ERR_PNPM_IGNORED_BUILDS when a dependency has a build script the project has not approved
+ * (esbuild is the usual one). Skipping those scripts is still what happens; only the failing exit is turned off,
+ * because this machine bundles the code and native builds for the artifact run in Docker. Older pnpm and the other
+ * package managers ignore the variable.
+ */
+const HOST_INSTALL_ENVIRONMENT = { pnpm_config_strict_dep_builds: 'false' };
+
 class DependencyInstaller {
   pendingInstalls: Record<string, Promise<Result | void>> = {};
 
@@ -496,6 +504,7 @@ class DependencyInstaller {
           installFn: async () =>
             exec(installScript[0], installScript.slice(1), {
               inheritEnvVarsExcept: [],
+              env: HOST_INSTALL_ENVIRONMENT,
               disableStderr: true,
               disableStdout: true,
               cwd: installDir
