@@ -3,6 +3,37 @@ import type { RealProjectCorpusCase } from './init-real-project-corpus-cases';
 /** Pinned production applications and substantial starters representative of Stacktape's target customers. */
 const ALL_REAL_PROJECT_APPLICATION_CASES = [
   {
+    id: 'hono-deno-starter',
+    repository: 'https://github.com/honojs/starter.git',
+    commit: 'd6d809a16ba28942deab56bd6feb9a4e51c88c2b',
+    subdirectory: 'templates/deno',
+    source: 'real-application',
+    exercises: ['hono', 'deno', 'js-bundle', 'deno-runtime', 'official-starter'],
+    expect: {
+      resourceTypes: { 'web-service': 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: js-bundle', 'runtime: deno'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'flask-celery-example',
+    repository: 'https://github.com/pallets/flask.git',
+    commit: 'd73fa1cdcbd8b1465c151db8924ba58b1dd14e35',
+    subdirectory: 'examples/celery',
+    source: 'real-application',
+    exercises: ['python', 'flask', 'celery', 'redis', 'buildpack', 'subdirectory'],
+    expect: {
+      resourceTypes: { 'redis-cluster': 1, 'web-service': 1 },
+      dependencyKinds: { redis: 1, amqp: 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: buildpack', 'type: redis-cluster'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
     id: 'gofiber-hello-world',
     repository: 'https://github.com/gofiber/recipes.git',
     commit: '62c94cc38a06275126db8d8172262b73372f3a08',
@@ -781,6 +812,8 @@ const RELEASE_CASE_IDS = new Set([
   'django-djangox',
   'hono-bun-starter',
   'rails-campfire',
+  'hono-deno-starter',
+  'flask-celery-example',
   'gofiber-hello-world',
   'wagtail-bakerydemo',
   'real-lobsters',

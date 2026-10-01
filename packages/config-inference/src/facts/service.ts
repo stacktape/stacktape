@@ -232,9 +232,10 @@ export const serviceShape = {
   runtimeVersion: z.string().min(1).optional(),
   /**
    * The JavaScript runtime the code is written for, when it is not Node.js. A Bun server (`export default app`,
-   * `Bun.serve`) starts nothing under Node, so the container must run it with Bun.
+   * `Bun.serve`) or a Deno one (`Deno.serve`) starts nothing under Node, so the container must run it with its own
+   * runtime.
    */
-  javascriptRuntime: z.enum(['bun']).optional(),
+  javascriptRuntime: z.enum(['bun', 'deno']).optional(),
   framework: z.string().min(1).optional(),
 
   // ── Observations the composer classifies from ────────────────────────────────────────────────
