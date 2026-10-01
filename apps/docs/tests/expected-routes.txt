@@ -204,9 +204,7 @@
 /stacktape-console/console-overview
 /stacktape-console/organizations-projects-and-stages
 /stacktape-console/team-and-access-control
-/stacktape-console/visual-config-editor
 /using-with-ai/agent-mode-in-dev
 /using-with-ai/ai-coding-assistant-integrations
-/using-with-ai/config-generation-from-repository
 /using-with-ai/mcp-server-setup
 /using-with-ai/overview
