@@ -161,6 +161,7 @@ const ALL_REAL_PROJECT_APPLICATION_CASES = [
       resourceTypes: { 'hosting-bucket': 1 },
       serviceCount: 1,
       httpServiceCount: 0,
+      existingDeployments: ['cloudflare-workers', 'netlify', 'vercel'],
       requiredConfig: ['type: hosting-bucket', 'uploadDirectoryPath: dist'],
       forbidCurrentlyHostedDependencies: true
     }
@@ -292,7 +293,7 @@ const ALL_REAL_PROJECT_APPLICATION_CASES = [
       dependencyKinds: { postgres: 1 },
       serviceCount: 1,
       httpServiceCount: 1,
-      requiredConfig: ['type: dockerfile', "$ResourceParam('mainDatabase', 'connectionString')"],
+      requiredConfig: ['type: dockerfile', '- mainDatabase'],
       forbidCurrentlyHostedDependencies: true
     }
   },
