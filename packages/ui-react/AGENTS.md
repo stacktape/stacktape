@@ -16,8 +16,8 @@ feature styles with large lazy dependencies may ship a separate stylesheet besid
 - `resource-icon` owns the product-wide resource-to-icon/category/diagram mapping. `framework-icon` owns reusable
   framework artwork. The isometric diagram consumes the same catalog through its heavy, private isopack resolver; do not
   put product icon meaning back under `isometric-diagram` or reproduce the mapping in an application.
-- `config-editor` is the reusable editor frame: view navigation, panels, overlays, fullscreen layout, and shared
-  document state. A host controller supplies compilation, persistence, pricing, Monaco language behavior, and actions.
+- `config-editor` is the editor frame: view navigation, panels, overlays and fullscreen layout. The host supplies the
+  panels' content, Monaco behavior and actions.
 - `isometric-diagram` is an independent component that accepts a parsed `StacktapeConfig`. It does not belong to or
   import ConfigEditor. Keep its icon-heavy entry point lazy in applications.
 - `monaco-editor` is the small lifecycle-safe base for Monaco models and editor instances. It has no Stacktape language
@@ -43,5 +43,5 @@ pnpm --filter @stacktape/ui-react run test
 pnpm --filter @stacktape/ui-react run build
 ```
 
-For non-obvious editor synchronization rules, read `src/config-editor/AGENTS.md`. For the diagram's semantic and visual
-invariants, read `src/isometric-diagram/AGENTS.md`.
+For the editor frame's boundaries, read `src/config-editor/AGENTS.md`. For the diagram's semantic and visual invariants,
+read `src/isometric-diagram/AGENTS.md`.

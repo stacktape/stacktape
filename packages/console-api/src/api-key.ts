@@ -162,7 +162,6 @@ export const defaultDomainsInfoInputSchema = z.object({
 
 export const createProjectFromCliInputSchema = z.object({
   name: z.string().trim().min(1),
-  gitUrl: z.string().optional().nullable(),
   configPath: z.string().optional().nullable(),
   region: z.string().optional().nullable()
 });

@@ -26,18 +26,6 @@
       "default": "./dist/config-editor/ConfigEditor.js"
     },
     "./config-editor.css": "./src/config-editor/config-editor.css",
-    "./config-editor/capabilities": {
-      "types": "./dist/config-editor/capabilities.d.ts",
-      "default": "./dist/config-editor/capabilities.js"
-    },
-    "./config-editor/document": {
-      "types": "./dist/config-editor/document.d.ts",
-      "default": "./dist/config-editor/document.js"
-    },
-    "./config-editor/paths": {
-      "types": "./dist/config-editor/paths.d.ts",
-      "default": "./dist/config-editor/paths.js"
-    },
     "./dialog": {
       "types": "./dist/dialog/Dialog.d.ts",
       "default": "./dist/dialog/Dialog.js"
