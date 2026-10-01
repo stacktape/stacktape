@@ -3,6 +3,51 @@ import type { RealProjectCorpusCase } from './init-real-project-corpus-cases';
 /** Pinned production applications and substantial starters representative of Stacktape's target customers. */
 const ALL_REAL_PROJECT_APPLICATION_CASES = [
   {
+    id: 'symfony-demo',
+    repository: 'https://github.com/symfony/demo.git',
+    commit: '8d2e2ef75c3e18df173d8bf2379a14abb58c4c31',
+    source: 'real-application',
+    exercises: ['php', 'symfony', 'buildpack', 'sqlite'],
+    expect: {
+      resourceTypes: { 'web-service': 1 },
+      dependencyKinds: { sqlite: 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: buildpack'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'flask-tutorial',
+    repository: 'https://github.com/pallets/flask.git',
+    commit: 'd73fa1cdcbd8b1465c151db8924ba58b1dd14e35',
+    subdirectory: 'examples/tutorial',
+    source: 'real-application',
+    exercises: ['python', 'flask', 'buildpack', 'subdirectory'],
+    expect: {
+      resourceTypes: { 'web-service': 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: buildpack'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'spring-rest-guide',
+    repository: 'https://github.com/spring-guides/gs-rest-service.git',
+    commit: '3f4cef01152596c19bc4d37939409358812b1421',
+    subdirectory: 'complete',
+    source: 'real-application',
+    exercises: ['java', 'spring-boot', 'buildpack', 'subdirectory'],
+    expect: {
+      resourceTypes: { 'web-service': 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: buildpack'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
     id: 'rails-campfire',
     repository: 'https://github.com/basecamp/once-campfire.git',
     commit: '90b330024dec3e757c79b6a7e6568f93da8e3148',
@@ -662,6 +707,9 @@ const RELEASE_CASE_IDS = new Set([
   'django-djangox',
   'hono-bun-starter',
   'rails-campfire',
+  'symfony-demo',
+  'flask-tutorial',
+  'spring-rest-guide',
   'astro-astrowind',
   'real-memos',
   'fastapi-full-stack',

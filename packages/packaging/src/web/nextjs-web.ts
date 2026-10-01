@@ -9,7 +9,7 @@ import type {
 import type { NextjsWeb } from '@stacktape/config/nextjs-web';
 import { join } from 'node:path';
 import { dirExists, isFileAccessible } from '../fs/files';
-import { serializeEnvironment } from '../runtime-helpers';
+import { hostBuildEnvironment } from '../runtime-helpers';
 import { EDGE_LAMBDA_ENV_ASSET_REPLACER_PLACEHOLDER } from './constants';
 import { copy, emptyDir, move, outputFile, readJson, readdir, remove, writeFile } from 'fs-extra';
 import kleur from 'kleur';
@@ -78,7 +78,7 @@ export const createNextjsWebArtifacts = async ({
   executeProcess,
   loadModuleExport
 }: NextjsWebBundlingProps) => {
-  const copyEnv = serializeEnvironment(process.env);
+  const copyEnv = hostBuildEnvironment(process.env);
   const absoluteAppDirectory = join(cwd, resource.appDirectory || '.');
   environmentVars.forEach((env) => {
     copyEnv[env.name] = String(env.value);

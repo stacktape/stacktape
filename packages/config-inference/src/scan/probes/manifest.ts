@@ -82,6 +82,8 @@ const HTTP_FRAMEWORKS: ReadonlySet<string> = new Set([
   'sveltekit',
   '@sveltejs/kit',
   '@solidjs/start',
+  '@tanstack/react-start',
+  '@tanstack/solid-start',
   '@tanstack/start'
 ]);
 
@@ -93,6 +95,9 @@ const FRAMEWORK_NAMES: ReadonlyArray<{ package: string; name: string }> = [
   { package: 'astro', name: 'astro' },
   { package: '@remix-run/node', name: 'remix' },
   { package: '@solidjs/start', name: 'solid-start' },
+  // The package was `@tanstack/start` until 2025; current projects depend on the framework-specific one.
+  { package: '@tanstack/react-start', name: 'tanstack-start' },
+  { package: '@tanstack/solid-start', name: 'tanstack-start' },
   { package: '@tanstack/start', name: 'tanstack-start' },
   { package: '@nestjs/core', name: 'nestjs' },
   { package: 'express', name: 'express' },
