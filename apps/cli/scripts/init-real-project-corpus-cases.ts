@@ -869,6 +869,38 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
       forbidCurrentlyHostedDependencies: true
     }
   },
+  {
+    id: 'sam-http-api-lambda-rust',
+    repository: 'https://github.com/aws-samples/serverless-patterns.git',
+    commit: 'c407694899b1bfa4575b76e106e259e44d0a15fb',
+    subdirectory: 'apigw-http-api-lambda-rust',
+    source: 'official-example',
+    exercises: ['aws-sam', 'lambda', 'rust', 'cargo-lambda', 'globals-handler'],
+    expect: {
+      resourceTypes: { function: 1 },
+      serviceCount: 1,
+      httpServiceCount: 0,
+      existingDeployments: ['aws-sam'],
+      requiredConfig: ['type: buildpack', 'entryfilePath: src/bin/'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'sam-alb-lambda-rust',
+    repository: 'https://github.com/aws-samples/serverless-patterns.git',
+    commit: 'c407694899b1bfa4575b76e106e259e44d0a15fb',
+    subdirectory: 'alb-lambda-rust',
+    source: 'official-example',
+    exercises: ['aws-sam', 'lambda', 'rust', 'cargo-lambda', 'globals-handler'],
+    expect: {
+      resourceTypes: { function: 1 },
+      serviceCount: 1,
+      httpServiceCount: 0,
+      existingDeployments: ['aws-sam'],
+      requiredConfig: ['type: buildpack', 'entryfilePath: src/bin/'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
   ...REAL_PROJECT_PLATFORM_CASES,
   ...REAL_PROJECT_APPLICATION_CASES
 ] as const;

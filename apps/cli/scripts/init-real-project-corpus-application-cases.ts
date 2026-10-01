@@ -3,6 +3,21 @@ import type { RealProjectCorpusCase } from './init-real-project-corpus-cases';
 /** Pinned production applications and substantial starters representative of Stacktape's target customers. */
 const ALL_REAL_PROJECT_APPLICATION_CASES = [
   {
+    id: 'gofiber-hello-world',
+    repository: 'https://github.com/gofiber/recipes.git',
+    commit: '62c94cc38a06275126db8d8172262b73372f3a08',
+    subdirectory: 'hello-world',
+    source: 'real-application',
+    exercises: ['go', 'fiber', 'buildpack', 'subdirectory'],
+    expect: {
+      resourceTypes: { 'web-service': 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: buildpack'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
     id: 'wagtail-bakerydemo',
     repository: 'https://github.com/wagtail/bakerydemo.git',
     commit: 'c8f8255593c0efcfab5fef2fb19d60895227748a',
@@ -765,6 +780,7 @@ const RELEASE_CASE_IDS = new Set([
   'django-djangox',
   'hono-bun-starter',
   'rails-campfire',
+  'gofiber-hello-world',
   'wagtail-bakerydemo',
   'real-lobsters',
   'next-mdx-blog',

@@ -45,6 +45,7 @@ const languageFor = (path: string): string => {
   if (path.endsWith('.go')) return 'go';
   if (path.endsWith('.rb')) return 'ruby';
   if (path.endsWith('.java')) return 'java';
+  if (path.endsWith('.rs')) return 'rust';
   return 'unknown';
 };
 
@@ -74,6 +75,17 @@ const entrypointFor = (
     if (scoped.length === 1) return scoped[0];
     if (matches.length === 1) return matches[0];
     return undefined;
+  }
+  // A Rust function is a `bootstrap` binary built by cargo-lambda: the handler names no file, so the crate's own
+  // binary target is the entry point (`src/main.rs`, or the single file under `src/bin`).
+  if (handlerValue === 'bootstrap' && files.includes(normalize(posix.join(codeUri, 'Cargo.toml')))) {
+    const mainFile = normalize(posix.join(codeUri, 'src/main.rs'));
+    if (files.includes(mainFile)) return mainFile;
+    const binaryPrefix = `${normalize(posix.join(codeUri, 'src/bin'))}/`;
+    const binaries = files.filter(
+      (file) => file.startsWith(binaryPrefix) && /^(?:[^/]+\.rs|[^/]+\/main\.rs)$/.test(file.slice(binaryPrefix.length))
+    );
+    return binaries.length === 1 ? binaries[0] : undefined;
   }
   const extensions = runtime.startsWith('python') ? ['py'] : ['ts', 'tsx', 'js', 'mjs', 'cjs', 'py', 'go', 'rb'];
   const baseCandidates = [
@@ -259,7 +271,8 @@ export const awsSamProbe: Probe = {
           context.files,
           templateDirectory,
           properties.CodeUri ?? globals.CodeUri,
-          properties.Handler,
+          // `Globals.Function` supplies whatever a function leaves out; Rust templates put `Handler: bootstrap` there.
+          properties.Handler ?? globals.Handler,
           properties.Runtime ?? globals.Runtime
         );
         if (entrypoint === undefined) continue;
