@@ -89,7 +89,6 @@ export const deployWithEc2Runner = async () => {
     gitCommit: gitInfo.commit,
     gitCommitMessage,
     configPath,
-    templateId: args.templateId || null,
     hotSwap: Boolean(args.hotSwap)
   });
   await operationReporter.finishEvent({ eventType: 'START_DEPLOYMENT' });

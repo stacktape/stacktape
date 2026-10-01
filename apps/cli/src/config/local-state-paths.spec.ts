@@ -52,9 +52,6 @@ describe('Stacktape-owned local state paths', () => {
     process.env.STACKTAPE_DEV_PROXY_STATE_DIR = proxyOverride;
 
     expect(localStatePaths.devProxyDirectory()).toBe(proxyOverride);
-    expect(localStatePaths.downloadedTemplateFile({ workingDirectory, id: 'template-id' })).toBe(
-      join(workingDirectory, '.stacktape-template-template-id.stp.ts')
-    );
     expect(localStatePaths.starterArchiveFile({ targetDirectory: workingDirectory, id: 123 })).toBe(
       join(workingDirectory, '.stacktape-starter-123.zip')
     );

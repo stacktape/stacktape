@@ -18,7 +18,7 @@ import { getHomeDir } from '@utils/misc';
  * - Runtime coordination: dev-agent logs and lock files, plus dependency-install hashes and locks.
  * - Invocation-temporary: `invocationDirectory`; normal commands remove it unless temporary files are preserved,
  *   while `package` deliberately leaves its artifacts for the caller.
- * - Operation-temporary: `downloadedTemplateFile` and `starterArchiveFile`; their owners remove them after use.
+ * - Operation-temporary: `starterArchiveFile`; its owner removes it after use.
  *
  * This module does not own paths explicitly chosen by the user (`synth` output, stack-info output, `.env`, initialized
  * projects), third-party configuration edited by `mcp-add`, standard AWS files, installed package-manager caches, or
@@ -85,9 +85,6 @@ export const localStatePaths = {
   },
   dependencyInstallLockFile({ installDirectory }: { installDirectory: string }) {
     return join(installDirectory, '.stacktape-install.lock');
-  },
-  downloadedTemplateFile({ workingDirectory, id }: { workingDirectory: string; id: string }) {
-    return join(workingDirectory, `.stacktape-template-${id}.stp.ts`);
   },
   starterArchiveFile({ targetDirectory, id }: { targetDirectory: string; id: string | number }) {
     return join(targetDirectory, `.stacktape-starter-${id}.zip`);

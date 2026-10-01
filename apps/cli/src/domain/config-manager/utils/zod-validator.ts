@@ -545,12 +545,10 @@ const formatErrorGroup = (key: string, errors: FormattedError[], configPath: str
 
 export const validateConfigWithZod = ({
   config,
-  configPath,
-  templateId
+  configPath
 }: {
   config: unknown;
   configPath: string;
-  templateId?: string;
 }): { valid: true } | { valid: false; errorMessage: string } => {
   const result = stacktapeConfigSchema.safeParse(config);
 
@@ -583,9 +581,7 @@ export const validateConfigWithZod = ({
   const groupedErrors = groupErrorsByResource(formattedErrors);
 
   // Build error message
-  const configLocation = templateId
-    ? `https://console.stacktape.com/template-editor?templateId=${templateId}`
-    : inlineCode(configPath);
+  const configLocation = inlineCode(configPath);
 
   const configType = isYamlConfig ? '' : ' (TypeScript)';
   const baseMessage = `Config${configType} at ${configLocation} is invalid.\n\n`;

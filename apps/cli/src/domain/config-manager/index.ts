@@ -137,7 +137,7 @@ type ResourceWithEnabledCdn = StpCdnCompatibleResource & { cdn: NonNullable<StpC
 type DiscoveredConfig = {
   finalTransform: FinalTransform | null;
   rawConfig: StacktapeConfig;
-  source: Pick<ConfigResolverContext, 'configPath' | 'presetConfig' | 'templateId' | 'workingDir'>;
+  source: Pick<ConfigResolverContext, 'configPath' | 'presetConfig' | 'workingDir'>;
   transforms: { [logicalName: string]: CfResourceTransform };
 };
 
@@ -193,7 +193,6 @@ export class ConfigManager {
         source: {
           configPath: context.configPath,
           presetConfig: context.presetConfig,
-          templateId: context.templateId,
           workingDir: context.workingDir
         },
         transforms: this.configResolver.transforms
@@ -202,19 +201,19 @@ export class ConfigManager {
   };
 
   init = async ({ configRequired = true, context }: { configRequired: boolean; context: ConfigManagerInitContext }) => {
-    const { configPath, presetConfig, templateId } = context.resolver;
+    const { configPath, presetConfig } = context.resolver;
     await operationReporter.startEvent({
       eventType: 'LOAD_CONFIG_FILE',
       description: 'Loading configuration',
       phase: 'INITIALIZE'
     });
-    if (!templateId && !presetConfig && !configPath && configRequired) {
+    if (!presetConfig && !configPath && configRequired) {
       throw configErrors.configFileMissing();
     }
 
     // Preserve the legacy optional-config behavior: a preset config is only consumed when the command requires
     // configuration. For optional commands, a preset takes precedence over (and suppresses) local-path discovery.
-    const shouldLoadConfig = configRequired || Boolean(templateId || (!presetConfig && configPath));
+    const shouldLoadConfig = configRequired || Boolean(!presetConfig && configPath);
 
     // Initialization is staged on a plain candidate manager and published only once every validation passed. A
     // configuration that fails validation therefore leaves this manager exactly as project-name discovery left it,
@@ -248,7 +247,7 @@ export class ConfigManager {
       candidate.config = candidate.configResolver.resolvedConfig;
       candidate.rawConfig = candidate.configResolver.rawConfig;
       const endValidate = startTiming('config:validate');
-      await validateConfigStructure({ config: candidate.config, configPath, templateId });
+      await validateConfigStructure({ config: candidate.config, configPath });
       runInitialValidations({ configManager: candidate, stackContext: candidate.stackContext });
       endValidate();
     }
@@ -269,7 +268,6 @@ export class ConfigManager {
     return source &&
       source.configPath === context.configPath &&
       source.presetConfig === context.presetConfig &&
-      source.templateId === context.templateId &&
       source.workingDir === context.workingDir
       ? discoveredConfig
       : undefined;

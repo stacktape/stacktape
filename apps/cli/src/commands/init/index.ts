@@ -4,15 +4,9 @@ import { tuiManager } from '@application-services/tui-manager';
 import { runInit } from 'src/init/run-init';
 import { openBrowser } from '../_utils/browser';
 import { isAgentMode } from '../_utils/agent-mode';
-import { initUsingExistingConfig } from './using-existing-config';
 import { initUsingStarterProject } from './using-starter-project';
 
 export const commandInit = async () => {
-  // Handle --templateId flag (legacy mode - fetch template from console)
-  if (globalStateManager.args.templateId) {
-    return initUsingExistingConfig();
-  }
-
   // Handle --starterId flag (starter project mode)
   if (globalStateManager.args.starterId || globalStateManager.args.starterProject) {
     return initUsingStarterProject();

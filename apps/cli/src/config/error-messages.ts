@@ -624,12 +624,6 @@ If you want to disable local emulation, use the ${prettyOption('disableEmulation
       message: `Starter project ${projectId} does not exist.`
     };
   },
-  e509({ templateId }: { templateId: string }): ReturnedError {
-    return {
-      type: 'INPUT',
-      message: `Can't find template with ID ${templateId}.`
-    };
-  },
   e1005({ firewallName }: { firewallName: string }): ReturnedError {
     return {
       type: 'CONFIG_VALIDATION',

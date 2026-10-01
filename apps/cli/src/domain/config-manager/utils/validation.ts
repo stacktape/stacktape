@@ -265,17 +265,15 @@ export const validateAwsCdkConstructProps = ({
 
 export const validateConfigStructure = async ({
   config,
-  configPath,
-  templateId
+  configPath
 }: {
   config: StacktapeConfig;
   configPath: string;
-  templateId: string;
 }) => {
   // The generated validator is large to evaluate, so it is loaded here, when a configuration is validated, rather than
   // at startup by every command. Use Zod validator for better error messages (especially for discriminated unions)
   const { validateConfigWithZod } = await import('./zod-validator');
-  const zodResult = validateConfigWithZod({ config, configPath, templateId });
+  const zodResult = validateConfigWithZod({ config, configPath });
   if (!zodResult.valid && 'errorMessage' in zodResult) {
     throw new CliError({
       category: 'CONFIG_VALIDATION',

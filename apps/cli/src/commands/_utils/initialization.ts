@@ -93,7 +93,6 @@ export const getConfigResolverContext = (stackContext?: StackContext): ConfigRes
     },
     configPath: globalStateManager.configPath,
     presetConfig: globalStateManager.presetConfig,
-    templateId: args.templateId,
     workingDir: stackContext?.workingDir || globalStateManager.workingDir
   };
 };

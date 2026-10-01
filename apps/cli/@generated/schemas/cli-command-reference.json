@@ -648,15 +648,6 @@
       ]
     },
     {
-      "name": "templateId",
-      "description": "#### Template ID\n---\nThe ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates).",
-      "required": false,
-      "alias": "ti",
-      "allowedTypes": [
-        "string"
-      ]
-    },
-    {
       "name": "ui",
       "description": "#### Terminal UI\n---\nControls the interactive presentation when output format is `tty`:\n- `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases.\n- `stream`: Keeps native terminal scrollback visible and only redraws currently active work.\n- `dashboard`: Uses the fullscreen interactive dashboard for the whole command.\nPress Ctrl+T during a command to switch views and pin that choice for the rest of the run.",
       "required": false,
@@ -827,15 +818,6 @@
       "description": "#### Project Name\n---\nThe name of the Stacktape project for this operation.",
       "required": false,
       "alias": "prj",
-      "allowedTypes": [
-        "string"
-      ]
-    },
-    {
-      "name": "templateId",
-      "description": "#### Template ID\n---\nThe ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates).",
-      "required": false,
-      "alias": "ti",
       "allowedTypes": [
         "string"
       ]
@@ -1037,15 +1019,6 @@
       "description": "#### Stage\n---\nThe stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults:configure` command. The maximum length is 12 characters.",
       "required": false,
       "alias": "s",
-      "allowedTypes": [
-        "string"
-      ]
-    },
-    {
-      "name": "templateId",
-      "description": "#### Template ID\n---\nThe ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates).",
-      "required": false,
-      "alias": "ti",
       "allowedTypes": [
         "string"
       ]
@@ -1320,15 +1293,6 @@
       ]
     },
     {
-      "name": "templateId",
-      "description": "#### Template ID\n---\nThe ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates).",
-      "required": false,
-      "alias": "ti",
-      "allowedTypes": [
-        "string"
-      ]
-    },
-    {
       "name": "ui",
       "description": "#### Terminal UI\n---\nControls the interactive presentation when output format is `tty`:\n- `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases.\n- `stream`: Keeps native terminal scrollback visible and only redraws currently active work.\n- `dashboard`: Uses the fullscreen interactive dashboard for the whole command.\nPress Ctrl+T during a command to switch views and pin that choice for the rest of the run.",
       "required": false,
@@ -1513,15 +1477,6 @@
       ]
     },
     {
-      "name": "templateId",
-      "description": "#### Template ID\n---\nThe ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates).",
-      "required": false,
-      "alias": "ti",
-      "allowedTypes": [
-        "string"
-      ]
-    },
-    {
       "name": "ui",
       "description": "#### Terminal UI\n---\nControls the interactive presentation when output format is `tty`:\n- `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases.\n- `stream`: Keeps native terminal scrollback visible and only redraws currently active work.\n- `dashboard`: Uses the fullscreen interactive dashboard for the whole command.\nPress Ctrl+T during a command to switch views and pin that choice for the rest of the run.",
       "required": false,
@@ -1697,15 +1652,6 @@
       ]
     },
     {
-      "name": "templateId",
-      "description": "#### Template ID\n---\nThe ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates).",
-      "required": false,
-      "alias": "ti",
-      "allowedTypes": [
-        "string"
-      ]
-    },
-    {
       "name": "ui",
       "description": "#### Terminal UI\n---\nControls the interactive presentation when output format is `tty`:\n- `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases.\n- `stream`: Keeps native terminal scrollback visible and only redraws currently active work.\n- `dashboard`: Uses the fullscreen interactive dashboard for the whole command.\nPress Ctrl+T during a command to switch views and pin that choice for the rest of the run.",
       "required": false,
@@ -1860,15 +1806,6 @@
       "description": "#### Stage\n---\nThe stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults:configure` command. The maximum length is 12 characters.",
       "required": false,
       "alias": "s",
-      "allowedTypes": [
-        "string"
-      ]
-    },
-    {
-      "name": "templateId",
-      "description": "#### Template ID\n---\nThe ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates).",
-      "required": false,
-      "alias": "ti",
       "allowedTypes": [
         "string"
       ]
@@ -2115,15 +2052,6 @@
       ]
     },
     {
-      "name": "templateId",
-      "description": "#### Template ID\n---\nThe ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates).",
-      "required": false,
-      "alias": "ti",
-      "allowedTypes": [
-        "string"
-      ]
-    },
-    {
       "name": "ui",
       "description": "#### Terminal UI\n---\nControls the interactive presentation when output format is `tty`:\n- `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases.\n- `stream`: Keeps native terminal scrollback visible and only redraws currently active work.\n- `dashboard`: Uses the fullscreen interactive dashboard for the whole command.\nPress Ctrl+T during a command to switch views and pin that choice for the rest of the run.",
       "required": false,
@@ -2276,15 +2204,6 @@
       "description": "#### Project Name\n---\nThe name of the Stacktape project for this operation.",
       "required": false,
       "alias": "prj",
-      "allowedTypes": [
-        "string"
-      ]
-    },
-    {
-      "name": "templateId",
-      "description": "#### Template ID\n---\nThe ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates).",
-      "required": false,
-      "alias": "ti",
       "allowedTypes": [
         "string"
       ]
@@ -2523,15 +2442,6 @@
       "alias": "sr",
       "allowedTypes": [
         "array"
-      ]
-    },
-    {
-      "name": "templateId",
-      "description": "#### Template ID\n---\nThe ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates).",
-      "required": false,
-      "alias": "ti",
-      "allowedTypes": [
-        "string"
       ]
     },
     {
@@ -2793,15 +2703,6 @@
       "description": "#### Project Name\n---\nThe name of the Stacktape project for this operation.",
       "required": false,
       "alias": "prj",
-      "allowedTypes": [
-        "string"
-      ]
-    },
-    {
-      "name": "templateId",
-      "description": "#### Template ID\n---\nThe ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates).",
-      "required": false,
-      "alias": "ti",
       "allowedTypes": [
         "string"
       ]
@@ -3722,15 +3623,6 @@
       "allowedTypes": [
         "boolean"
       ]
-    },
-    {
-      "name": "templateId",
-      "description": "#### Template ID\n---\nThe ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates).",
-      "required": false,
-      "alias": "ti",
-      "allowedTypes": [
-        "string"
-      ]
     }
   ],
   "issues:ignore": [
@@ -4329,15 +4221,6 @@
       "alias": "st",
       "allowedTypes": [
         "number",
-        "string"
-      ]
-    },
-    {
-      "name": "templateId",
-      "description": "#### Template ID\n---\nThe ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates).",
-      "required": false,
-      "alias": "ti",
-      "allowedTypes": [
         "string"
       ]
     },
@@ -5348,15 +5231,6 @@
       ]
     },
     {
-      "name": "templateId",
-      "description": "#### Template ID\n---\nThe ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates).",
-      "required": false,
-      "alias": "ti",
-      "allowedTypes": [
-        "string"
-      ]
-    },
-    {
       "name": "ui",
       "description": "#### Terminal UI\n---\nControls the interactive presentation when output format is `tty`:\n- `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases.\n- `stream`: Keeps native terminal scrollback visible and only redraws currently active work.\n- `dashboard`: Uses the fullscreen interactive dashboard for the whole command.\nPress Ctrl+T during a command to switch views and pin that choice for the rest of the run.",
       "required": false,
@@ -5551,15 +5425,6 @@
       "description": "#### Logs Query\n---\nCloudWatch Logs Insights query string. Example: \"fields @timestamp, @message | filter @message like /ERROR/ | limit 50\"",
       "required": false,
       "alias": "q",
-      "allowedTypes": [
-        "string"
-      ]
-    },
-    {
-      "name": "templateId",
-      "description": "#### Template ID\n---\nThe ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates).",
-      "required": false,
-      "alias": "ti",
       "allowedTypes": [
         "string"
       ]
@@ -5772,15 +5637,6 @@
       ]
     },
     {
-      "name": "templateId",
-      "description": "#### Template ID\n---\nThe ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates).",
-      "required": false,
-      "alias": "ti",
-      "allowedTypes": [
-        "string"
-      ]
-    },
-    {
       "name": "ui",
       "description": "#### Terminal UI\n---\nControls the interactive presentation when output format is `tty`:\n- `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases.\n- `stream`: Keeps native terminal scrollback visible and only redraws currently active work.\n- `dashboard`: Uses the fullscreen interactive dashboard for the whole command.\nPress Ctrl+T during a command to switch views and pin that choice for the rest of the run.",
       "required": false,
@@ -5959,15 +5815,6 @@
       "description": "#### Project Name\n---\nThe name of the Stacktape project for this operation.",
       "required": false,
       "alias": "prj",
-      "allowedTypes": [
-        "string"
-      ]
-    },
-    {
-      "name": "templateId",
-      "description": "#### Template ID\n---\nThe ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates).",
-      "required": false,
-      "alias": "ti",
       "allowedTypes": [
         "string"
       ]
@@ -6156,15 +6003,6 @@
       ]
     },
     {
-      "name": "templateId",
-      "description": "#### Template ID\n---\nThe ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates).",
-      "required": false,
-      "alias": "ti",
-      "allowedTypes": [
-        "string"
-      ]
-    },
-    {
       "name": "ui",
       "description": "#### Terminal UI\n---\nControls the interactive presentation when output format is `tty`:\n- `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases.\n- `stream`: Keeps native terminal scrollback visible and only redraws currently active work.\n- `dashboard`: Uses the fullscreen interactive dashboard for the whole command.\nPress Ctrl+T during a command to switch views and pin that choice for the rest of the run.",
       "required": false,
@@ -6337,15 +6175,6 @@
         "sa-east-1",
         "af-south-1",
         "eu-south-1"
-      ]
-    },
-    {
-      "name": "templateId",
-      "description": "#### Template ID\n---\nThe ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates).",
-      "required": false,
-      "alias": "ti",
-      "allowedTypes": [
-        "string"
       ]
     },
     {

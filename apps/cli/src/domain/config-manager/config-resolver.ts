@@ -8,14 +8,9 @@ import {
 } from '@stacktape/config-authoring/tooling';
 import type { DirectiveParam } from '@utils/directives';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { randomUUID } from 'node:crypto';
-import { open, rm, type FileHandle } from 'node:fs/promises';
-import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
-import { localStatePaths } from 'src/config/local-state-paths';
 import { supportedCodeConfigLanguages } from '@config';
 import { getFileExtension } from '@utils/fs-utils';
 import { isNonNullObject, processAllNodes, serialize, traverseToMaximalExtent } from '@utils/misc';
-import { parseYaml } from '@utils/yaml';
 import { Stack } from '@utils/collections';
 import {
   getDirectiveName,
@@ -191,7 +186,6 @@ export type ConfigResolverContext = Readonly<{
   builtInDirectives: BuiltInDirectiveContext;
   configPath?: string;
   presetConfig?: StacktapeConfig;
-  templateId?: string;
   workingDir: string;
 }>;
 
@@ -304,57 +298,12 @@ export class ConfigResolver {
   };
 
   getRawConfig = async () => {
-    const { authoringParams, configPath, presetConfig, templateId, workingDir } = this.context;
+    const { authoringParams, configPath, presetConfig, workingDir } = this.context;
     this.transforms = {};
     this.finalTransform = null;
 
     if (presetConfig) {
       return presetConfig;
-    }
-
-    if (templateId) {
-      const downloadedTemplate = await stacktapeTrpcApiManager.apiClient.template({
-        templateId
-      });
-
-      // Try parsing as YAML first
-      let yamlParseError: Error | null = null;
-      try {
-        return parseYaml(downloadedTemplate.content);
-      } catch (err) {
-        yamlParseError = err;
-      }
-
-      const tempConfigPath = localStatePaths.downloadedTemplateFile({ workingDirectory: workingDir, id: randomUUID() });
-
-      let typescriptParseError: Error | null = null;
-      let tempConfigFile: FileHandle | undefined;
-      let ownsTempConfig = false;
-      try {
-        tempConfigFile = await open(tempConfigPath, 'wx');
-        ownsTempConfig = true;
-        await tempConfigFile.writeFile(downloadedTemplate.content);
-        await tempConfigFile.close();
-        tempConfigFile = undefined;
-        const compiledConfig = await this.loadTypescriptConfig({ filePath: tempConfigPath, authoringParams });
-        return this.useCompiledTypescriptConfig(compiledConfig);
-      } catch (err) {
-        typescriptParseError = err;
-      } finally {
-        await tempConfigFile?.close().catch(() => undefined);
-        if (ownsTempConfig) {
-          await rm(tempConfigPath, { force: true });
-        }
-      }
-
-      // Both failed - throw the more relevant error
-      if (typescriptParseError) {
-        throw typescriptParseError;
-      }
-      if (yamlParseError) {
-        throw yamlParseError;
-      }
-      return null;
     }
 
     if (!configPath) {

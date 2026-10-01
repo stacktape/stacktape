@@ -7,7 +7,7 @@ export const printInitPreflight = ({
   mode
 }: {
   projectName: string;
-  mode: 'ai-analysis' | 'starter-template' | 'template-import';
+  mode: 'ai-analysis' | 'starter-template';
 }) => {
   if (mode === 'starter-template') {
     tuiManager.intro(`Initializing project - ${tuiManager.makeBold(projectName)}`);
@@ -20,25 +20,6 @@ export const printInitPreflight = ({
         '  1) Download starter files',
         '  2) Choose config format',
         '  3) Estimate costs and show next steps',
-        '',
-        tuiManager.makeBold('Notes:'),
-        '  - This mode does not use AI project analysis',
-        '  - Init does not deploy infrastructure'
-      ]
-    });
-    return;
-  }
-
-  if (mode === 'template-import') {
-    tuiManager.intro(`Initializing project - ${tuiManager.makeBold(projectName)}`);
-    tuiManager.printBox({
-      title: `Initialize ${projectName}`,
-      lines: [
-        'Stacktape will fetch an existing template and save it as local config.',
-        '',
-        tuiManager.makeBold('Flow:'),
-        '  1) Resolve template from Stacktape console',
-        '  2) Save stacktape.ts or stacktape.yml locally',
         '',
         tuiManager.makeBold('Notes:'),
         '  - This mode does not use AI project analysis',

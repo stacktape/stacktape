@@ -73,7 +73,6 @@ import {
   starterId,
   starterProject,
   startTime,
-  templateId,
   universalArgs,
   watch,
   withPackage,
@@ -477,8 +476,7 @@ By default, runs an interactive wizard that:
 5. Offers to deploy immediately
 
 Alternative modes:
-- **Starter project:** Use \`--starterProject\` or \`--starterId\` to initialize from a pre-configured template.
-- **Template:** Use \`--templateId\` to fetch a template from the Stacktape console.`,
+- **Starter project:** Use \`--starterProject\` or \`--starterId\` to initialize from a pre-configured template.`,
     args: {
       logLevel: logLevel.optional(),
       agent: agent.optional(),
@@ -486,7 +484,6 @@ Alternative modes:
       starterId: starterId.optional(),
       starterProject: starterProject.optional(),
       projectDirectory: projectDirectory.optional(),
-      templateId: templateId.optional(),
       initializeProjectTo: initializeProjectTo.optional(),
       configFormat: configFormat.optional(),
       headless: headless.optional(),

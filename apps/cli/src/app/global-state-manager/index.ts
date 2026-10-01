@@ -646,7 +646,6 @@ export class GlobalStateManager {
       const projectInfo = await stacktapeTrpcApiManager.apiClient.createProject({
         name: chosenProjectName,
         configPath: this.args.configPath,
-        templateId: this.args.templateId,
         // gitUrl: (await gitInfoManager.gitInfo).gitUrl,
         region: this.region
       });
