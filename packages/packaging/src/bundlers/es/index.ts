@@ -322,7 +322,9 @@ export const buildEsCode = async ({
               ignoredModules: IGNORED_MODULES,
               modulePath,
               moduleName,
-              shouldIgnoreAllDeps
+              shouldIgnoreAllDeps,
+              importer: args.importer,
+              importKind: args.kind
             });
             allDependenciesToInstallInDocker.push(...verdict.dependenciesToInstallInDocker);
 

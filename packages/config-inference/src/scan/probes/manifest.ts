@@ -100,6 +100,15 @@ const FRAMEWORK_NAMES: ReadonlyArray<{ package: string; name: string }> = [
 ];
 
 /** Build-only browser frameworks that produce a directory for `hosting-bucket`. */
+/** Installing one of these is what turns an Astro project into a server; `@astrojs/node` is the one Stacktape runs. */
+const ASTRO_SERVER_ADAPTERS = [
+  '@astrojs/node',
+  '@astrojs/vercel',
+  '@astrojs/netlify',
+  '@astrojs/cloudflare',
+  '@astrojs/deno'
+];
+
 const staticSiteFor = (
   manifest: ParsedManifest,
   files: readonly string[]
@@ -332,11 +341,22 @@ export const manifestProbe: Probe = {
       const hasStart = typeof manifest.scripts.start === 'string';
       const hasBuild = typeof manifest.scripts.build === 'string';
       const frameworkEntry = FRAMEWORK_NAMES.find((entry) => manifest.dependencies[entry.package] !== undefined);
-      const exposesHttp = Object.keys(manifest.dependencies).some((name) => HTTP_FRAMEWORKS.has(name));
+      // Astro renders to static files unless a server adapter is installed; without one there is no server to run.
+      const astroStatic =
+        manifest.dependencies.astro !== undefined &&
+        !ASTRO_SERVER_ADAPTERS.some((adapter) => manifest.dependencies[adapter] !== undefined);
+      const exposesHttp = !astroStatic && Object.keys(manifest.dependencies).some((name) => HTTP_FRAMEWORKS.has(name));
       // A Vite/CRA/Angular/Gatsby development server is not a production service. Its build output
       // is uploaded to static hosting; treating `ng serve` or `gatsby develop` as a worker is both
       // expensive and non-functional.
-      const staticSite = exposesHttp || !hasBuild ? undefined : staticSiteFor(manifest, context.files);
+      const staticSite:
+        | { framework: 'angular' | 'astro' | 'gatsby' | 'react' | 'vite' | 'vue'; outputDirectory: string }
+        | undefined =
+        astroStatic && hasBuild
+          ? { framework: 'astro', outputDirectory: 'dist' }
+          : exposesHttp || !hasBuild
+            ? undefined
+            : staticSiteFor(manifest, context.files);
       const manifestPrefix = manifest.directory === '.' ? '' : `${manifest.directory}/`;
       const hasHandlerLayout = context.files.some(
         (file) =>

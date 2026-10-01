@@ -1083,7 +1083,10 @@ const buildServiceResource = ({
   };
 
   if (resourceType === 'hosting-bucket') {
-    const buildRoot = service.buildRoot ?? service.path;
+    // A build root comes from a deployment descriptor (a Docker context, a Render root directory) and belongs to that
+    // descriptor's command. The package's own `<manager> run build` script only exists in the package directory.
+    const ownBuildScript = /^(?:npm|pnpm|yarn|bun) run build$/.test(service.buildCommand ?? '');
+    const buildRoot = ownBuildScript ? service.path : (service.buildRoot ?? service.path);
     const contentType =
       service.framework === 'gatsby'
         ? 'gatsby-static-website'

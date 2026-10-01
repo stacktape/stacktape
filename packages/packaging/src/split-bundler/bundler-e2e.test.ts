@@ -195,6 +195,69 @@ describe('split bundler end-to-end regressions', () => {
     expect(execution.stdout.trim()).toBe('derived');
   });
 
+  test("leaves a dependency's require() of an uninstalled optional package to fail at run time", async () => {
+    // NestJS probes for `@nestjs/microservices`, `ws` for `bufferutil`: a require() inside a try/catch for a package
+    // most projects never install. Node raises MODULE_NOT_FOUND there and the library carries on.
+    const root = await createRoot();
+    const frameworkRoot = join(root, 'node_modules', 'framework');
+    await mkdir(frameworkRoot, { recursive: true });
+    await writeFile(join(root, 'package.json'), JSON.stringify({ name: 'fixture', private: true }));
+    await writeFile(
+      join(frameworkRoot, 'package.json'),
+      JSON.stringify({ name: 'framework', version: '1.0.0', main: 'index.js' })
+    );
+    await writeFile(
+      join(frameworkRoot, 'index.js'),
+      "let optional = 'absent';\ntry { optional = require('optional-integration'); } catch {}\nmodule.exports = { optional };"
+    );
+    await writeFile(
+      join(root, 'a.ts'),
+      "import framework from 'framework'; export const handler = () => framework.optional;"
+    );
+
+    await buildSplitBundle({
+      entrypoints: [
+        { name: 'a', jobName: 'a', entryfilePath: join(root, 'a.ts'), distFolderPath: join(root, 'dist', 'a') }
+      ],
+      sharedOutdir: join(root, 'shared'),
+      cwd: root,
+      minify: false,
+      sourceMaps: 'disabled',
+      sourceMapBannerType: 'disabled',
+      installDependencies: async () => {},
+      createPackagingError
+    });
+
+    const entryUrl = pathToFileURL(join(root, 'dist', 'a', 'index.js')).href;
+    const execution = spawnSync(
+      process.env.npm_node_execpath || 'node',
+      ['--input-type=module', '--eval', `import { handler } from ${JSON.stringify(entryUrl)}; console.log(handler());`],
+      { cwd: root, encoding: 'utf8', timeout: 10_000 }
+    );
+    expect(execution.status, execution.stderr).toBe(0);
+    expect(execution.stdout.trim()).toBe('absent');
+
+    // The project's own missing import is still an error.
+    await writeFile(
+      join(root, 'b.ts'),
+      "import missing from 'not-installed-anywhere'; export const handler = () => missing;"
+    );
+    await expect(
+      buildSplitBundle({
+        entrypoints: [
+          { name: 'b', jobName: 'b', entryfilePath: join(root, 'b.ts'), distFolderPath: join(root, 'dist', 'b') }
+        ],
+        sharedOutdir: join(root, 'shared-b'),
+        cwd: root,
+        minify: false,
+        sourceMaps: 'disabled',
+        sourceMapBannerType: 'disabled',
+        installDependencies: async () => {},
+        createPackagingError
+      })
+    ).rejects.toThrow('not-installed-anywhere');
+  });
+
   test('reports installation, setup, Bun and post-processing time as separate phases', async () => {
     const root = await createRoot();
     const sourceRoot = join(root, 'src');

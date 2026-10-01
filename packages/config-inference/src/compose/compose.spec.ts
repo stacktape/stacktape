@@ -1211,6 +1211,30 @@ describe('pinning the declared runtime version', () => {
     });
   });
 
+  it("runs a static site's own build script in its package directory, not in a Docker build context", () => {
+    const { config } = composeConfig({
+      facts: facts({
+        services: [
+          service({
+            name: 'frontend',
+            path: 'frontend',
+            buildRoot: '.',
+            exposesHttp: false,
+            port: undefined,
+            startCommand: undefined,
+            buildCommand: 'bun run build',
+            servesStaticAssets: { path: 'frontend/dist' }
+          })
+        ]
+      })
+    });
+
+    expect(config.resources.frontend?.properties.build).toEqual({
+      command: 'bun run build',
+      workingDirectory: 'frontend'
+    });
+  });
+
   it('runs a published image as is', () => {
     const { config } = composeConfig({
       facts: facts({ services: [service({ containerImage: 'docker.io/langgenius/dify-api:1.14.2' })] })

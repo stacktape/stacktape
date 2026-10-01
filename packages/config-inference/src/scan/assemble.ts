@@ -129,6 +129,26 @@ const mergeDependencies = (outputs: readonly ProbeOutput[]): DependencyFact[] =>
 const serviceKey = (service: ServiceFactInput): string =>
   service.processType === undefined ? service.path : `${service.path}::${service.processType}`;
 
+const languageFamily = (language: string | undefined): string | undefined =>
+  language === undefined || language === 'unknown' || language === 'container'
+    ? undefined
+    : language === 'typescript'
+      ? 'javascript'
+      : language;
+
+/**
+ * Two descriptions of one service agree on its language. A Go server at the repository root and the React client
+ * in `web/` that shares its package name (memos) are two services, and merging them by name loses the server.
+ */
+const languagesConflict = (
+  left: Pick<ServiceFactInput, 'language'>,
+  right: Pick<ServiceFactInput, 'language'>
+): boolean => {
+  const leftFamily = languageFamily(left.language);
+  const rightFamily = languageFamily(right.language);
+  return leftFamily !== undefined && rightFamily !== undefined && leftFamily !== rightFamily;
+};
+
 const normalizedServiceName = (service: Pick<ServiceFactInput, 'name'>): string =>
   service.name.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
 
@@ -241,7 +261,8 @@ const genericMergeTarget = (
   );
   if (exactCommandMatches.length === 1) return exactCommandMatches[0];
   const exactNameMatches = entries.filter(
-    ([, service]) => normalizedServiceName(service) === normalizedServiceName(incoming)
+    ([, service]) =>
+      normalizedServiceName(service) === normalizedServiceName(incoming) && !languagesConflict(service, incoming)
   );
   if (exactNameMatches.length === 1) return exactNameMatches[0];
   const candidates = entries.filter(
@@ -296,12 +317,14 @@ const genericMergeTarget = (
       comesFromAnotherDescription &&
       existingName.length >= 3 &&
       existingName === incomingName &&
+      !languagesConflict(service, incoming) &&
       (service.path === '.' || incoming.path === '.')
     ) {
       return true;
     }
     return (
       Math.min(existingName.length, incomingName.length) >= 4 &&
+      !languagesConflict(service, incoming) &&
       (service.servesStaticAssets !== undefined || incoming.servesStaticAssets !== undefined) &&
       (existingName.endsWith(incomingName) || incomingName.endsWith(existingName))
     );

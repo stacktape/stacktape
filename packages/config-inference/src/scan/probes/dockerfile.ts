@@ -4,6 +4,7 @@ import { posix } from 'node:path';
 import type { Citation } from '../../facts/citation';
 import type { ServiceFactInput } from '../../facts/service';
 import { citeFirstMatch, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
+import { languageOf } from '../language';
 import { nearestManifestRoot } from '../service-root';
 
 const serviceRootFor = (dockerfile: string, files: readonly string[]): string => {
@@ -93,7 +94,9 @@ export const dockerfileProbe: Probe = {
         name: serviceNameFor(root, context.root),
         path: root,
         ...(buildsFromRepositoryRoot ? { buildRoot: '.' } : {}),
-        language: 'container',
+        // The source markers beside the Dockerfile say what it builds; that keeps a Go server at the root apart from
+        // a same-named JavaScript client in a child directory.
+        language: languageOf(context.files, root) ?? 'container',
         exposesHttp: port !== undefined,
         ...(port === undefined ? {} : { port }),
         executionModel: 'long-running',
