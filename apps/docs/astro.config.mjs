@@ -39,7 +39,9 @@ export default defineConfig({
     '/packaging/containers/external-buildpack/': '/packaging/containers/buildpack/',
     '/packaging/containers/custom-dockerfile/': '/packaging/containers/dockerfile/',
     '/packaging/containers/stacktape-buildpack/': '/packaging/containers/js-bundle/',
-    '/packaging/function/stacktape-buildpack/': '/packaging/function/js-bundle/'
+    '/packaging/function/stacktape-buildpack/': '/packaging/function/js-bundle/',
+    '/stacktape-console/visual-config-editor/': '/stacktape-console/console-overview/',
+    '/using-with-ai/config-generation-from-repository/': '/cli/init/'
   },
   prefetch: {
     prefetchAll: true,

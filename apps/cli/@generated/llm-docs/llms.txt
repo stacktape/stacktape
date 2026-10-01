@@ -223,10 +223,8 @@ Use the concise index below to locate the canonical documentation page for a tas
 - [Console Overview](/stacktape-console/console-overview) - source: apps/docs/content/stacktape-console/console-overview.mdx
 - [Organizations, Projects, and Stages](/stacktape-console/organizations-projects-and-stages) - source: apps/docs/content/stacktape-console/organizations-projects-and-stages.mdx
 - [Team and Access Control](/stacktape-console/team-and-access-control) - source: apps/docs/content/stacktape-console/team-and-access-control.mdx
-- [Visual Config Editor](/stacktape-console/visual-config-editor) - source: apps/docs/content/stacktape-console/visual-config-editor.mdx
 - [Agent Mode in Dev](/using-with-ai/agent-mode-in-dev) - source: apps/docs/content/using-with-ai/agent-mode-in-dev.mdx
 - [AI Coding Assistant Integrations](/using-with-ai/ai-coding-assistant-integrations) - source: apps/docs/content/using-with-ai/ai-coding-assistant-integrations.mdx
-- [AI Config Generation](/using-with-ai/config-generation-from-repository) - source: apps/docs/content/using-with-ai/config-generation-from-repository.mdx
 - [MCP Server Setup](/using-with-ai/mcp-server-setup) - source: apps/docs/content/using-with-ai/mcp-server-setup.mdx
 - [Using Stacktape with AI](/using-with-ai/overview) - source: apps/docs/content/using-with-ai/overview.mdx
 

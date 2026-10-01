@@ -107,7 +107,7 @@ For the full HTTP API reference and usage, see [Agent mode in dev](/using-with-a
 
 An AI coding assistant can use Stacktape documentation and project context to help draft or edit a `stacktape.ts` configuration file based on your requirements. The [`stacktape init`](/cli/init) command is an interactive setup command that must be run in the user's own terminal — it is classified as `interactive` and rejected by the MCP server's `stacktape_cli` tool.
 
-For details on generating config from an existing codebase, see [Config generation from repository](/using-with-ai/config-generation-from-repository).
+To generate a config from an existing codebase, run [`stacktape init`](/cli/init) in the repository: it reads the code, proposes the infrastructure and writes the config after you review it.
 
 ## Coding assistant setup
 

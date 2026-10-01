@@ -14893,13 +14893,13 @@ Your deployments are now automated. The final step covers production hardening �
 Source: `apps/docs/content/getting-started/configure-your-stack.mdx`
 Route: `/getting-started/configure-your-stack`
 
-A `stacktape.ts` file defines your AWS infrastructure — APIs, functions, databases, containers — using typed TypeScript classes. Stacktape reads this file when you deploy, run dev mode, or manage resources, and creates the corresponding AWS resources in your account. Create one from scratch, bootstrap from a starter, or let the Console's AI analyze your repository.
+A `stacktape.ts` file defines your AWS infrastructure — APIs, functions, databases, containers — using typed TypeScript classes. Stacktape reads this file when you deploy, run dev mode, or manage resources, and creates the corresponding AWS resources in your account. Create one from scratch, bootstrap from a starter, or let `stacktape init` analyze your repository.
 
 
 > **Info:** Already have a `stacktape.ts`? Skip to [using dev mode](/getting-started/use-the-dev-mode) or [deploying your first stage](/getting-started/deploy-your-first-stage).
 
 
-> **Tip:** **Recommended starting path:** Run `stacktape init` to initialize a new project from a starter template. If you already have a codebase, try [AI config generation](/using-with-ai/config-generation-from-repository) in the Console. Either way, understanding the config format below will help you customize what you get.
+> **Tip:** **Recommended starting path:** Run `stacktape init` in your repository. It reads the code and proposes the infrastructure, or starts a new project from a starter template. Either way, understanding the config format below will help you customize what you get.
 
 
 ## Install the package
@@ -15046,35 +15046,15 @@ See [configuration files](/configuration/configuration-files) for the complete c
 
 ## Quick-start with stacktape init
 
-[`stacktape init`](/cli/init) initializes a new project from a starter template:
+[`stacktape init`](/cli/init) reads an existing repository and writes a config for it, after you review the
+proposed infrastructure in its wizard. In an empty directory, it starts a new project from a starter template:
 
 ```bash
 npx stacktape@latest init
 ```
 
-This is the fastest path from zero to a working project.
-
-## Console alternatives
-
-The [Stacktape Console](/stacktape-console/console-overview) offers two additional paths for creating your config.
-
-### AI config generation
-
-Choose a public or private Git repository and branch in the Console to start AI config generation for your project. This is the fastest path when you have an existing codebase and want Stacktape to determine the right infrastructure. See [AI config generation](/using-with-ai/config-generation-from-repository) for the full walkthrough.
-
-
-> Screenshot: AI config generation in the Stacktape Console — select a repository and branch, then review the generated config Caption: Select a repository and branch to start AI config generation for your codebase.
-
-
-### Config editor
-
-When a selected template is editable, the Console config editor lets you modify and save config changes. Templates created for a Console stage are opened read-only and link to the stage configuration page for edits. See the [visual config editor](/stacktape-console/visual-config-editor) for details.
-
-
-> Screenshot: The Stacktape Console config editor Caption: Select a saved template and edit config content in the Console config editor.
-
-
-Both Console paths work well for exploration and getting started. For production workflows, prefer keeping `stacktape.ts` in version control alongside your application code so infrastructure changes can be reviewed with code changes.
+This is the fastest path from zero to a working project. Keep the config it writes in version control, so
+infrastructure changes are reviewed with code changes.
 
 ## Beyond resources
 
@@ -47053,7 +47033,7 @@ From the Console you can:
 - Manage sensitive values in AWS Secrets Manager and configuration values in AWS Systems Manager Parameter Store
 - Set [guardrails](/guardrails/overview) that enforce deployment policies across the organization
 - Connect [AWS accounts](/stacktape-console/connecting-your-aws-account) and [custom domains](/resources/networking/custom-domains)
-- Edit Stacktape configuration with the [visual config editor](/stacktape-console/visual-config-editor)
+- See each stage's deployed configuration and an architecture diagram drawn from it
 - Manage [team members](/stacktape-console/team-and-access-control) with role-based access control
 
 The Console complements the [Stacktape CLI](/cli/deploy). The documented deploy path is [`stacktape deploy`](/cli/deploy), and [Git provider connections](/ci-cd-and-gitops/gitops-with-console) can enable automatic deployments from repositories. The Activity page tracks recorded CLI operations — deploys, deletes, scripts, bucket syncs, and other commands. To view logs from your workloads, use [`stacktape logs`](/cli/logs) from the CLI.
@@ -47064,13 +47044,13 @@ The Console sidebar organizes features into four groups. Some sidebar items are 
 
 | Group | Pages | What it covers |
 |---|---|---|
-| **Top-level** | Overview, Config editor | Default dashboard and the [visual config editor](/stacktape-console/visual-config-editor) |
+| **Top-level** | Overview | Default dashboard |
 | **Organization** | Projects, Activity, Users, Costs | Project and stage management, deployment history, [team access](/stacktape-console/team-and-access-control), [cost tracking](/managing-costs/dashboards) |
 | **Monitoring** | Channels, Notifications, Alarms, Budgets, Issues | [Alert channels](/observability/alert-channels), [notification rules](/observability/notifications), [alarm rules](/observability/alarms), [budget alerts](/managing-costs/budgets), [runtime issues](/observability/issues) |
 | **Configuration** | Guardrails, Secrets, SSM Params, AWS Accounts, Domains | [Guardrails](/guardrails/overview), [secrets](/configuration/secrets), SSM parameters, [AWS account connections](/stacktape-console/connecting-your-aws-account), [custom domains](/resources/networking/custom-domains) |
 
 
-> **Info:** The Config editor is hidden for users with the **Viewer** role. Other navigation items are hidden based on specific permissions — for example, the Users page requires `members:view` and the Costs page requires `org:view-billing`. See [Team and access control](/stacktape-console/team-and-access-control) for role details.
+> **Info:** Navigation items are hidden based on specific permissions — for example, the Users page requires `members:view` and the Costs page requires `org:view-billing`. See [Team and access control](/stacktape-console/team-and-access-control) for role details.
 
 
 ## The Overview route
@@ -47127,7 +47107,6 @@ The Console uses role-based access control. Sidebar items are hidden when the cu
 
 | Navigation item | Required permission |
 |---|---|
-| Config editor | Hidden for Viewer role |
 | Users | `members:view` |
 | Costs | `org:view-billing` |
 | Issues | `issues:view` |
@@ -47166,7 +47145,6 @@ Some sidebar items are permission-gated. If you don't see a section (for example
 
 - [Connecting your AWS account](/stacktape-console/connecting-your-aws-account) — required before any deployment
 - [Organizations, projects, and stages](/stacktape-console/organizations-projects-and-stages) — how the Console organizes your work
-- [Visual config editor](/stacktape-console/visual-config-editor) — interactive editor with IntelliSense
 - [API keys](/stacktape-console/api-keys) — authenticate from the CLI and CI/CD
 - [Team and access control](/stacktape-console/team-and-access-control) — invite users and manage roles
 - [Billing and subscription](/stacktape-console/billing-and-subscription) — subscription details
@@ -47177,7 +47155,7 @@ Some sidebar items are permission-gated. If you don't see a section (for example
 
 ### Do I need the Console to use Stacktape?
 
-No. [API keys](/stacktape-console/api-keys) let you authenticate with Stacktape from the CLI or CI/CD pipelines, and `stacktape deploy` does the actual deploying. The Console is the management layer on top — it adds team access, cost visibility, alarms, budgets, issues, guardrails, and the visual config editor. Most teams use both: the CLI (directly or via GitOps) for deploying, and the Console for visibility and operational control.
+No. [API keys](/stacktape-console/api-keys) let you authenticate with Stacktape from the CLI or CI/CD pipelines, and `stacktape deploy` does the actual deploying. The Console is the management layer on top — it adds team access, cost visibility, alarms, budgets, issues, and guardrails. Most teams use both: the CLI (directly or via GitOps) for deploying, and the Console for visibility and operational control.
 
 ### Does Stacktape deploy into my own AWS account?
 
@@ -47251,9 +47229,9 @@ To deploy a stage, you need a Stacktape configuration that describes which resou
 
 ### Step 1 — Create a project
 
-In the Console, navigate to **Projects** and click **Create new project**. The menu includes an option to create an empty project. For Git-based automatic deployments, see [GitOps with Console](/ci-cd-and-gitops/gitops-with-console).
+Projects start in the CLI. Run [`stacktape init`](/cli/init) in your repository; the first deploy creates the project, and it appears in the Console. **New project** in the Console shows these commands and opens the project once its first deployment starts.
 
-You can also create a project from the CLI with [`stacktape project:create`](/cli/project-create).
+You can also create an empty project with [`stacktape project:create`](/cli/project-create).
 
 ### Step 2 — Create a stage
 
@@ -47355,7 +47333,7 @@ Cost data comes from AWS Cost and Usage Reports, which are generated daily and m
 
 ### Git repository not connected
 
-If a project was created without linking a Git repository, the project card shows "Git repository not connected" instead of a Git URL. When a project has a connected Git repository, the project settings dropdown includes a **Configure Git deployments** option. When no Git repository is connected, the Console routes to `/projects/{project}/create-new-stage-using-cli/{stage}` for the stage setup flow.
+A project created by a CLI deploy has no repository until you connect one. Its page shows "Git repository not connected" with a **Connect** button, which lists the repositories of your connected Git providers. Accepting the CLI's offer to deploy on push after a deploy connects the repository as well. Once connected, the project settings dropdown includes **Configure Git deployments**. Without a repository, new stages are deployed from the CLI.
 
 ## FAQ
 
@@ -47530,144 +47508,6 @@ If the **Invite new member** button is disabled, it is one of three reasons, eac
 ### How do I choose the right role for a team member?
 
 Assign the least-privileged role that lets the member do their job. A member's role determines which of the four permission gates they hold — `members:invite`, `members:remove`, `members:update-role`, and `api-keys:revoke-all` — and an Admin can never edit, remove, or revoke keys for an Owner regardless of permissions. To change a role, click the edit (pencil) button for the member and pick a new role in the update form.
-
----
-
-# Visual Config Editor
-
-Source: `apps/docs/content/stacktape-console/visual-config-editor.mdx`
-Route: `/stacktape-console/visual-config-editor`
-
-The Stacktape Console includes a browser-based config editor for selecting, editing, and saving Stacktape configuration templates. It provides hover documentation and autocompletion shortcuts for Stacktape configuration properties, includes a preset menu, and can start AI config generation from a Git repository — so you can build infrastructure configurations without leaving the browser.
-
-
-> Screenshot: Stacktape Console's visual config editor showing a Stacktape configuration with autocompletion suggestions for resource properties Caption: The config editor provides hover documentation and autocompletion for Stacktape configuration properties.
-
-
-## When to use the config editor
-
-The config editor is most valuable in three scenarios:
-
-- **Getting started with Stacktape** — the editor includes a preset menu and can start AI config generation from a Git repository, so you can get started without writing a config from scratch. You get hover docs and a CloudFormation preview without installing anything locally.
-- **Prototyping infrastructure changes** — iterate on config changes in the browser. The CloudFormation template and tree views let you inspect the compiled CloudFormation resources generated from your Stacktape config.
-- **Working in the Console** — manage named configuration templates for the selected organization directly in the Console.
-
-## When NOT to use the config editor
-
-For mature projects where the Stacktape config lives in version control, most teams edit `stacktape.ts` directly in their IDE (VS Code, Cursor, or similar). A local [TypeScript config](/configuration/configuration-files) gives you variables, conditionals, loops, and IDE refactoring tools. The config editor is a tool for working with Console-managed templates, not a replacement for source-controlled configuration.
-
-## Editor views
-
-The config editor provides three views, each showing a different representation of your configuration.
-
-### Editor
-
-The main editing view where you write and modify your Stacktape config. Hover over any property to see its documentation. Trigger autocompletion with `Ctrl+Space` on Windows/Linux or `Cmd+Space` on Mac.
-
-The editor also exposes a preset menu for starting from a ready-made configuration.
-
-### CloudFormation template
-
-A read-only view showing your Stacktape config statically compiled into an AWS CloudFormation template. Use this to inspect the compiled CloudFormation resources generated from your configuration. The template is statically compiled and is not 100% accurate because some information is known only during deployment.
-
-### Tree view
-
-A hierarchical tree view of the compiled CloudFormation resources. Like the CloudFormation template view, this representation is not 100% accurate because some information is known only during deployment. The tree view is useful for navigating large configurations and understanding the relationships between compiled resources without reading raw CloudFormation JSON.
-
-## Templates
-
-The config editor page includes a template selector for choosing which saved template to load into the editor. Selecting a template loads its content into the editor, where you can modify and save it. Saving updates that template for the selected organization.
-
-
-> **Info:** Templates marked as created in the Console for a new stage are read-only in the config editor. The editor displays: "This config can only be edited on the stage configuration page" with a link to that page.
-
-
-## AI config generation
-
-The config editor can start AI config generation from a selected public or private Git repository and branch. See [AI config generation](/using-with-ai/config-generation-from-repository) for details on how the repository analysis works.
-
-### Starting a generation
-
-Open the AI generation dialog in the editor. To start AI config generation, choose a repository type, provide or select a repository, choose a branch, then start generation:
-
-1. **Choose repository type** — **Private** or **Public**.
-   - **Private**: select a repository from your connected Git provider installations. The repository dropdown lists all repositories accessible through your connected providers. If no repositories appear, the dropdown shows "No repositories available" (when you have installations but none match) or "You need to connect a Git provider first" (when no providers are connected). The editor provides a "Connect new Git provider" link to set up a [Git provider integration](/ci-cd-and-gitops/gitops-with-console).
-   - **Public**: paste a public Git repository URL into the "Repository URL" field.
-2. **Select a branch**. The editor auto-selects the default branch when available. You can choose a different branch from the dropdown.
-3. **Start generation**. The start control is disabled until both a repository and branch are selected. The configured disabled text is: "Please select Git repository and branch to generate config from." The editor passes a cleanup callback that deletes the temporary AI-generation project.
-
-The editor starts AI config generation for the selected repository and branch. See [AI config generation](/using-with-ai/config-generation-from-repository) for details on the generation process and reviewing the result.
-
-
-> **Warning:** AI-generated configs are a starting point, not a finished product. Always review the generated resources, packaging paths, and environment variables before deploying.
-
-
-## Common tasks
-
-### Saving changes
-
-When you modify the config, save your changes to persist them to the current template. Saving updates the template content for the selected organization.
-
-### Using the config in a project
-
-When moving to a local project, create a `stacktape.ts` file (recommended) or `stacktape.yaml` in your project, then run [`stacktape deploy`](/cli/deploy) to deploy your stack, or set up [GitOps](/ci-cd-and-gitops/gitops-with-console) for automatic deployments on push. Use [`stacktape init`](/cli/init) when you're starting a new local project.
-
-## Troubleshooting
-
-### Autocompletion not appearing
-
-Trigger autocompletion with `Ctrl+Space` on Windows/Linux or `Cmd+Space` on Mac.
-
-### CloudFormation preview shows approximate values
-
-The CloudFormation template view is a static compilation. It is not 100% accurate because some information is known only during deployment. This is expected behavior — the actual deployed template resolves all values at deploy time.
-
-### Config linked to a stage is read-only
-
-Templates marked as created in the Console for a new stage are read-only in the config editor. The editor links to the stage's configuration page where you can make edits.
-
-### AI generation button is disabled
-
-The generation button requires both a repository and a branch to be selected before you can start. For private repositories, you also need at least one connected Git provider installation. If the repository dropdown shows "No repositories available" or "You need to connect a Git provider first", use the "Connect new Git provider" link in the editor to set up a [Git provider integration](/ci-cd-and-gitops/gitops-with-console).
-
-### No repositories available for AI generation
-
-For private repository generation, the editor pulls repositories from your connected Git provider installations. If the dropdown is empty despite having installations, check that the installation has access to the repository you need. The editor shows how many Git provider installations you have and provides a link to connect additional providers.
-
-## Related features
-
-- [Configuration files](/configuration/configuration-files) — TypeScript and YAML config formats and the `defineConfig` pattern.
-- [AI config generation](/using-with-ai/config-generation-from-repository) — Deep dive into how the AI generator analyzes your repository.
-- [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) — Auto-deploy configs when you push to your repository.
-- [Organizations, projects, and stages](/stacktape-console/organizations-projects-and-stages) — How projects and stages relate to configs.
-- [Secrets](/configuration/secrets) — Reference secrets in your config with the `$Secret()` directive.
-- [Connecting resources](/configuration/connecting-resources) — Use `connectTo` to wire resources together.
-
-## FAQ
-
-### Should I use the visual config editor or my local IDE?
-
-Both work well at different stages. The config editor is convenient when you want to draft a config in the Console — for example, when starting from a preset or generating one from a Git repository. Once your project's config lives in version control, most teams edit `stacktape.ts` directly in their IDE using the [TypeScript config](/configuration/configuration-files) format, which gives you variables, conditionals, loops, and IDE refactoring tools.
-
-### Can I generate a config from a private repository?
-
-Yes. Choose the **Private** repository type in the AI generation dialog. The dropdown lists repositories from your connected Git provider installations. If no repositories appear, you need to connect a Git provider first — the editor provides a "Connect new Git provider" link to set up a [Git provider integration](/ci-cd-and-gitops/gitops-with-console).
-
-### What is the difference between templates and config files?
-
-Templates are named Stacktape configurations stored in the Console and edited in the visual config editor. A local project config file is either `stacktape.ts` or `stacktape.yaml`, used by the [CLI](/cli/deploy) for deployments. [GitOps](/ci-cd-and-gitops/gitops-with-console) is another deployment option that works from your repository. To move from a template to a deployable project, use the template content in a Stacktape config file in your project.
-
-### Is the CloudFormation preview the exact template that gets deployed?
-
-The CloudFormation preview is a static approximation. It shows what AWS resources Stacktape creates from your configuration, but it is not 100% accurate because some information is known only during deployment. The preview is useful for understanding your stack's structure before deployment, but the exact template used during deployment resolves all dynamic values.
-
-### Can I edit a stage-linked config in the editor?
-
-No — templates marked as created in the Console for a new stage are read-only in the config editor. The editor links to the stage's configuration page where you can make edits. See [organizations, projects, and stages](/stacktape-console/organizations-projects-and-stages) for more on how stages relate to configs.
-
-### What happens if AI config generation fails?
-
-If initialization fails, the Console shows "Failed to initialize AI config generation." The generation runs in a temporary Console project that is cleaned up automatically afterward, so a failed attempt leaves nothing behind — review your repository and branch selections and try again. See [AI config generation](/using-with-ai/config-generation-from-repository) for how the analysis works.
 
 ---
 
@@ -48435,120 +48275,6 @@ The MCP integration lets your AI assistant run Stacktape's MCP server as a local
 
 ---
 
-# AI Config Generation
-
-Source: `apps/docs/content/using-with-ai/config-generation-from-repository.mdx`
-Route: `/using-with-ai/config-generation-from-repository`
-
-> **Info:** The Console's AI config generator is in active development. The workflow described below reflects the current implementation, but details may change as the feature evolves.
-
-
-The Stacktape Console includes an AI config generator that creates a starting Stacktape configuration from an existing Git repository. Select a repository and branch, run the generator, and then save the resulting configuration to a template in the [visual config editor](/stacktape-console/visual-config-editor) for review and editing.
-
-
-> **Info:** This page covers the Console's AI config generator. Stacktape also integrates with AI coding assistants through the [MCP server](/using-with-ai/mcp-server-setup) and supports [Claude Code, Cursor, Windsurf, and other tools](/using-with-ai/ai-coding-assistant-integrations). See the [AI workflows overview](/using-with-ai/overview) for a comparison of all AI-assisted paths.
-
-
-## When to use
-
-AI Config Generation gives you a starting Stacktape config from an existing codebase, so you can review and edit instead of writing one from scratch. Use it when:
-
-- **You have an existing project** and want Stacktape to infer the right resources rather than writing a config from scratch.
-- **You're evaluating Stacktape** and want to see what a real config looks like for your codebase, not for a generic starter project.
-- **You want a first config draft from an existing repository** — run the generator, then review the generated resources and wiring yourself rather than writing everything from scratch.
-
-## When NOT to use
-
-AI Config Generation is not the right fit for every project. Skip it when the overhead of reviewing a generated config outweighs writing one directly.
-
-- **Starting from scratch** — if you don't have a codebase yet, use [`stacktape init`](/cli/init) to scaffold from a starter project instead. Starters come with both code and a matching config.
-- **Simple single-function projects** — writing a config for one Lambda function takes less time than running the generator. See the [configuration guide](/getting-started/configure-your-stack).
-- **You need full control from the start** — the generator produces a starting point. If you already know your exact infrastructure requirements, writing the config directly gives you precise control without a review step.
-
-## How it works
-
-When you start generation, the Console processes the selected repository and branch through its AI generation pipeline. Input controls are disabled while the pipeline is running. When generation completes, you can review the result and save it to the selected template in the config editor.
-
-## Using the generator
-
-AI Config Generation runs inside the Config Editor page in the [Stacktape Console](/stacktape-console/console-overview). You select a template, choose a repository type (public or private), provide a repository and branch, then start the generation run. The steps below walk through each part of this flow.
-
-### Open the generation modal
-
-Navigate to the **Config Editor** page in the [Stacktape Console](/stacktape-console/console-overview). After selecting a template, the Config Editor receives AI generation controls. The generator flow asks for a repository type, repository, and branch before it starts.
-
-### Select a repository type
-
-Inside the generation interface, choose whether to generate from a **public** or **private** repository using the toggle at the top.
-
-**Public repositories** — enter the full Git URL directly into the "Repository URL" field (e.g., `https://github.com/your-org/your-repo`). No Git provider connection is needed.
-
-**Private repositories** — select from repositories available through your connected Git provider installations. If no providers are connected, the dropdown shows "You need to connect a Git provider first." Click **Connect new Git provider** in the Console to set up a [Git provider integration](/ci-cd-and-gitops/gitops-with-console). Once a Git provider is connected, repositories available to Stacktape appear in the dropdown. If none are available, the dropdown shows "No repositories available."
-
-### Select a branch
-
-Pick the branch you want to generate from using the **Branch** dropdown. When the branch list contains a default branch, the Console auto-selects it. Choose a feature branch if it contains infrastructure changes you want reflected in the generated config. The dropdown shows "Please select a git repository first" until a repository is provided.
-
-### Start generation
-
-Start the generation process. The start control is disabled until both a repository and a branch are selected — the tooltip reads "Please select Git repository and branch to generate config from." Once generation starts, all input controls (repository type, URL, branch) are disabled while the pipeline runs.
-
-### Review and save
-
-When generation finishes, you can edit the resulting configuration in the config editor and save it to the selected template. Templates created for a new stage may be read-only in the Config Editor — if so, edit the config from the stage configuration page instead.
-
-
-> **Info:** Treat generated output as a draft. Before deploying, review resource choices and add any project-specific settings such as secrets, domains, and sizing.
-
-
-## After generation
-
-The items below are general Stacktape deployment best practices — they are not specific to the AI generator, but they apply to any generated config you plan to deploy:
-
-1. **Review resource types** — confirm each resource maps to the correct Stacktape resource type. For example, verify that an API is a [Lambda function](/resources/compute/lambda-function) vs. a [web service](/resources/compute/web-service), or that a frontend uses the right SSR resource ([Next.js](/resources/frontend/nextjs), [Nuxt](/resources/frontend/nuxt), [Astro](/resources/frontend/astro), etc.).
-
-2. **Add secrets** — use [`$Secret()`](/configuration/directives) directives to reference secrets stored in the [Stacktape Console](/configuration/secrets). Never hard-code sensitive values in the config.
-
-3. **Configure custom domains** — add [custom domains](/resources/networking/custom-domains) for production-facing services.
-
-4. **Adjust resource sizing** — review memory, CPU, timeout, and scaling settings for each resource. Defaults may not match your workload requirements.
-
-5. **Set up CI/CD** — connect [GitOps](/ci-cd-and-gitops/gitops-with-console) for automated deployments on push and PR previews.
-
-6. **Production hardening** — add alarms, budgets, and guardrails. See [Going to production](/getting-started/going-to-production) for the full checklist.
-
-## Tips for better results
-
-Before running generation, make sure the selected branch contains the application code and build files you expect Stacktape to inspect. A clean, up-to-date branch gives the generator the best starting point — stale or incomplete code on the branch can lead to a config that doesn't reflect your project's current state.
-
-## FAQ
-
-### How is this different from `stacktape init`?
-
-[`stacktape init`](/cli/init) scaffolds a new project from a predefined starter template — it creates boilerplate code and a matching config. AI Config Generation analyzes an **existing** codebase and produces a config tailored to what's already in the repository. Use `init` when starting fresh; use AI Config Generation when you already have code to deploy.
-
-### Do I need to connect a Git provider for public repositories?
-
-No. For public repositories, paste the Git URL directly into the URL input field. A Git provider connection is only required for private repositories where authentication is needed to clone the code.
-
-### Why can't I edit the generated config in the editor?
-
-You can normally edit the generated config in the [visual config editor](/stacktape-console/visual-config-editor) and save it to the selected template. However, templates created for a new stage may be read-only in the Config Editor — in that case, edit the config from the stage configuration page instead.
-
-### What if generation fails?
-
-If initialization fails, the Console shows "Failed to initialize AI config generation." Check that the repository URL, selected repository, and branch are correct, then try again.
-
-### Is my repository data safe?
-
-The generation pipeline runs on Stacktape's infrastructure, and private repositories require access through a connected Git provider. Do not commit secrets or production credentials to the repository. For current details about data handling and retention, consult Stacktape's privacy terms or contact support; this page does not make a retention guarantee.
-
-### Does the generator produce a production-ready config?
-
-No. Treat any generated config as a starting point: review resource choices, secrets, domains, sizing, alarms, budgets, and CI/CD before deploying. See [Going to production](/getting-started/going-to-production) for the complete production-readiness checklist.
-
----
-
 # MCP Server Setup
 
 Source: `apps/docs/content/using-with-ai/mcp-server-setup.mdx`
@@ -49088,7 +48814,7 @@ For the full HTTP API reference and usage, see [Agent mode in dev](/using-with-a
 
 An AI coding assistant can use Stacktape documentation and project context to help draft or edit a `stacktape.ts` configuration file based on your requirements. The [`stacktape init`](/cli/init) command is an interactive setup command that must be run in the user's own terminal — it is classified as `interactive` and rejected by the MCP server's `stacktape_cli` tool.
 
-For details on generating config from an existing codebase, see [Config generation from repository](/using-with-ai/config-generation-from-repository).
+To generate a config from an existing codebase, run [`stacktape init`](/cli/init) in the repository: it reads the code, proposes the infrastructure and writes the config after you review it.
 
 ## Coding assistant setup
 

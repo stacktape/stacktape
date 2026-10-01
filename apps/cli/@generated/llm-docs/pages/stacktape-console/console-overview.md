@@ -14,7 +14,7 @@ From the Console you can:
 - Manage sensitive values in AWS Secrets Manager and configuration values in AWS Systems Manager Parameter Store
 - Set [guardrails](/guardrails/overview) that enforce deployment policies across the organization
 - Connect [AWS accounts](/stacktape-console/connecting-your-aws-account) and [custom domains](/resources/networking/custom-domains)
-- Edit Stacktape configuration with the [visual config editor](/stacktape-console/visual-config-editor)
+- See each stage's deployed configuration and an architecture diagram drawn from it
 - Manage [team members](/stacktape-console/team-and-access-control) with role-based access control
 
 The Console complements the [Stacktape CLI](/cli/deploy). The documented deploy path is [`stacktape deploy`](/cli/deploy), and [Git provider connections](/ci-cd-and-gitops/gitops-with-console) can enable automatic deployments from repositories. The Activity page tracks recorded CLI operations — deploys, deletes, scripts, bucket syncs, and other commands. To view logs from your workloads, use [`stacktape logs`](/cli/logs) from the CLI.
@@ -25,13 +25,13 @@ The Console sidebar organizes features into four groups. Some sidebar items are 
 
 | Group | Pages | What it covers |
 |---|---|---|
-| **Top-level** | Overview, Config editor | Default dashboard and the [visual config editor](/stacktape-console/visual-config-editor) |
+| **Top-level** | Overview | Default dashboard |
 | **Organization** | Projects, Activity, Users, Costs | Project and stage management, deployment history, [team access](/stacktape-console/team-and-access-control), [cost tracking](/managing-costs/dashboards) |
 | **Monitoring** | Channels, Notifications, Alarms, Budgets, Issues | [Alert channels](/observability/alert-channels), [notification rules](/observability/notifications), [alarm rules](/observability/alarms), [budget alerts](/managing-costs/budgets), [runtime issues](/observability/issues) |
 | **Configuration** | Guardrails, Secrets, SSM Params, AWS Accounts, Domains | [Guardrails](/guardrails/overview), [secrets](/configuration/secrets), SSM parameters, [AWS account connections](/stacktape-console/connecting-your-aws-account), [custom domains](/resources/networking/custom-domains) |
 
 
-> **Info:** The Config editor is hidden for users with the **Viewer** role. Other navigation items are hidden based on specific permissions — for example, the Users page requires `members:view` and the Costs page requires `org:view-billing`. See [Team and access control](/stacktape-console/team-and-access-control) for role details.
+> **Info:** Navigation items are hidden based on specific permissions — for example, the Users page requires `members:view` and the Costs page requires `org:view-billing`. See [Team and access control](/stacktape-console/team-and-access-control) for role details.
 
 
 ## The Overview route
@@ -88,7 +88,6 @@ The Console uses role-based access control. Sidebar items are hidden when the cu
 
 | Navigation item | Required permission |
 |---|---|
-| Config editor | Hidden for Viewer role |
 | Users | `members:view` |
 | Costs | `org:view-billing` |
 | Issues | `issues:view` |
@@ -127,7 +126,6 @@ Some sidebar items are permission-gated. If you don't see a section (for example
 
 - [Connecting your AWS account](/stacktape-console/connecting-your-aws-account) — required before any deployment
 - [Organizations, projects, and stages](/stacktape-console/organizations-projects-and-stages) — how the Console organizes your work
-- [Visual config editor](/stacktape-console/visual-config-editor) — interactive editor with IntelliSense
 - [API keys](/stacktape-console/api-keys) — authenticate from the CLI and CI/CD
 - [Team and access control](/stacktape-console/team-and-access-control) — invite users and manage roles
 - [Billing and subscription](/stacktape-console/billing-and-subscription) — subscription details
@@ -138,7 +136,7 @@ Some sidebar items are permission-gated. If you don't see a section (for example
 
 ### Do I need the Console to use Stacktape?
 
-No. [API keys](/stacktape-console/api-keys) let you authenticate with Stacktape from the CLI or CI/CD pipelines, and `stacktape deploy` does the actual deploying. The Console is the management layer on top — it adds team access, cost visibility, alarms, budgets, issues, guardrails, and the visual config editor. Most teams use both: the CLI (directly or via GitOps) for deploying, and the Console for visibility and operational control.
+No. [API keys](/stacktape-console/api-keys) let you authenticate with Stacktape from the CLI or CI/CD pipelines, and `stacktape deploy` does the actual deploying. The Console is the management layer on top — it adds team access, cost visibility, alarms, budgets, issues, and guardrails. Most teams use both: the CLI (directly or via GitOps) for deploying, and the Console for visibility and operational control.
 
 ### Does Stacktape deploy into my own AWS account?
 

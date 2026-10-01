@@ -45,9 +45,9 @@ To deploy a stage, you need a Stacktape configuration that describes which resou
 
 ### Step 1 — Create a project
 
-In the Console, navigate to **Projects** and click **Create new project**. The menu includes an option to create an empty project. For Git-based automatic deployments, see [GitOps with Console](/ci-cd-and-gitops/gitops-with-console).
+Projects start in the CLI. Run [`stacktape init`](/cli/init) in your repository; the first deploy creates the project, and it appears in the Console. **New project** in the Console shows these commands and opens the project once its first deployment starts.
 
-You can also create a project from the CLI with [`stacktape project:create`](/cli/project-create).
+You can also create an empty project with [`stacktape project:create`](/cli/project-create).
 
 ### Step 2 — Create a stage
 
@@ -149,7 +149,7 @@ Cost data comes from AWS Cost and Usage Reports, which are generated daily and m
 
 ### Git repository not connected
 
-If a project was created without linking a Git repository, the project card shows "Git repository not connected" instead of a Git URL. When a project has a connected Git repository, the project settings dropdown includes a **Configure Git deployments** option. When no Git repository is connected, the Console routes to `/projects/{project}/create-new-stage-using-cli/{stage}` for the stage setup flow.
+A project created by a CLI deploy has no repository until you connect one. Its page shows "Git repository not connected" with a **Connect** button, which lists the repositories of your connected Git providers. Accepting the CLI's offer to deploy on push after a deploy connects the repository as well. Once connected, the project settings dropdown includes **Configure Git deployments**. Without a repository, new stages are deployed from the CLI.
 
 ## FAQ
 

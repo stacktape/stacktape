@@ -17905,9 +17905,6 @@
         "page:/getting-started/configure-your-stack#adapt-config-per-stage",
         "page:/getting-started/configure-your-stack#context-properties",
         "page:/getting-started/configure-your-stack#quick-start-with-stacktape-init",
-        "page:/getting-started/configure-your-stack#console-alternatives",
-        "page:/getting-started/configure-your-stack#ai-config-generation",
-        "page:/getting-started/configure-your-stack#config-editor",
         "page:/getting-started/configure-your-stack#beyond-resources",
         "page:/getting-started/configure-your-stack#next-step"
       ]
@@ -22429,48 +22426,6 @@
       ]
     },
     {
-      "id": "page:/stacktape-console/visual-config-editor",
-      "title": "Visual Config Editor",
-      "route": "/stacktape-console/visual-config-editor",
-      "sourcePath": "apps/docs/content/stacktape-console/visual-config-editor.mdx",
-      "outputPath": "pages/stacktape-console/visual-config-editor.md",
-      "docKind": "docs-page",
-      "definitionNames": [],
-      "tags": [
-        "stacktape-console",
-        "visual-config-editor"
-      ],
-      "chunks": [
-        "page:/stacktape-console/visual-config-editor#visual-config-editor",
-        "page:/stacktape-console/visual-config-editor#when-to-use-the-config-editor",
-        "page:/stacktape-console/visual-config-editor#when-not-to-use-the-config-editor",
-        "page:/stacktape-console/visual-config-editor#editor-views",
-        "page:/stacktape-console/visual-config-editor#editor",
-        "page:/stacktape-console/visual-config-editor#cloudformation-template",
-        "page:/stacktape-console/visual-config-editor#tree-view",
-        "page:/stacktape-console/visual-config-editor#templates",
-        "page:/stacktape-console/visual-config-editor#ai-config-generation",
-        "page:/stacktape-console/visual-config-editor#starting-a-generation",
-        "page:/stacktape-console/visual-config-editor#common-tasks",
-        "page:/stacktape-console/visual-config-editor#saving-changes",
-        "page:/stacktape-console/visual-config-editor#using-the-config-in-a-project",
-        "page:/stacktape-console/visual-config-editor#troubleshooting",
-        "page:/stacktape-console/visual-config-editor#autocompletion-not-appearing",
-        "page:/stacktape-console/visual-config-editor#cloudformation-preview-shows-approximate-values",
-        "page:/stacktape-console/visual-config-editor#config-linked-to-a-stage-is-read-only",
-        "page:/stacktape-console/visual-config-editor#ai-generation-button-is-disabled",
-        "page:/stacktape-console/visual-config-editor#no-repositories-available-for-ai-generation",
-        "page:/stacktape-console/visual-config-editor#related-features",
-        "page:/stacktape-console/visual-config-editor#faq",
-        "page:/stacktape-console/visual-config-editor#should-i-use-the-visual-config-editor-or-my-local-ide",
-        "page:/stacktape-console/visual-config-editor#can-i-generate-a-config-from-a-private-repository",
-        "page:/stacktape-console/visual-config-editor#what-is-the-difference-between-templates-and-config-files",
-        "page:/stacktape-console/visual-config-editor#is-the-cloudformation-preview-the-exact-template-that-gets-deployed",
-        "page:/stacktape-console/visual-config-editor#can-i-edit-a-stage-linked-config-in-the-editor",
-        "page:/stacktape-console/visual-config-editor#what-happens-if-ai-config-generation-fails"
-      ]
-    },
-    {
       "id": "page:/using-with-ai/agent-mode-in-dev",
       "title": "Agent Mode in Dev",
       "route": "/using-with-ai/agent-mode-in-dev",
@@ -22558,40 +22513,6 @@
         "page:/using-with-ai/ai-coding-assistant-integrations#my-assistant-isn-t-using-stacktape-context-what-s-wrong",
         "page:/using-with-ai/ai-coding-assistant-integrations#how-do-i-remove-the-mcp-configuration",
         "page:/using-with-ai/ai-coding-assistant-integrations#how-does-mcp-compare-to-using-the-stacktape-cli-directly"
-      ]
-    },
-    {
-      "id": "page:/using-with-ai/config-generation-from-repository",
-      "title": "AI Config Generation",
-      "route": "/using-with-ai/config-generation-from-repository",
-      "sourcePath": "apps/docs/content/using-with-ai/config-generation-from-repository.mdx",
-      "outputPath": "pages/using-with-ai/config-generation-from-repository.md",
-      "docKind": "docs-page",
-      "definitionNames": [],
-      "tags": [
-        "using-with-ai",
-        "config-generation-from-repository"
-      ],
-      "chunks": [
-        "page:/using-with-ai/config-generation-from-repository#ai-config-generation",
-        "page:/using-with-ai/config-generation-from-repository#when-to-use",
-        "page:/using-with-ai/config-generation-from-repository#when-not-to-use",
-        "page:/using-with-ai/config-generation-from-repository#how-it-works",
-        "page:/using-with-ai/config-generation-from-repository#using-the-generator",
-        "page:/using-with-ai/config-generation-from-repository#open-the-generation-modal",
-        "page:/using-with-ai/config-generation-from-repository#select-a-repository-type",
-        "page:/using-with-ai/config-generation-from-repository#select-a-branch",
-        "page:/using-with-ai/config-generation-from-repository#start-generation",
-        "page:/using-with-ai/config-generation-from-repository#review-and-save",
-        "page:/using-with-ai/config-generation-from-repository#after-generation",
-        "page:/using-with-ai/config-generation-from-repository#tips-for-better-results",
-        "page:/using-with-ai/config-generation-from-repository#faq",
-        "page:/using-with-ai/config-generation-from-repository#how-is-this-different-from-stacktape-init",
-        "page:/using-with-ai/config-generation-from-repository#do-i-need-to-connect-a-git-provider-for-public-repositories",
-        "page:/using-with-ai/config-generation-from-repository#why-can-t-i-edit-the-generated-config-in-the-editor",
-        "page:/using-with-ai/config-generation-from-repository#what-if-generation-fails",
-        "page:/using-with-ai/config-generation-from-repository#is-my-repository-data-safe",
-        "page:/using-with-ai/config-generation-from-repository#does-the-generator-produce-a-production-ready-config"
       ]
     },
     {

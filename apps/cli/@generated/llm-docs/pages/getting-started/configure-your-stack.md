@@ -1,12 +1,12 @@
 # Configure Your Stack
 
-A `stacktape.ts` file defines your AWS infrastructure — APIs, functions, databases, containers — using typed TypeScript classes. Stacktape reads this file when you deploy, run dev mode, or manage resources, and creates the corresponding AWS resources in your account. Create one from scratch, bootstrap from a starter, or let the Console's AI analyze your repository.
+A `stacktape.ts` file defines your AWS infrastructure — APIs, functions, databases, containers — using typed TypeScript classes. Stacktape reads this file when you deploy, run dev mode, or manage resources, and creates the corresponding AWS resources in your account. Create one from scratch, bootstrap from a starter, or let `stacktape init` analyze your repository.
 
 
 > **Info:** Already have a `stacktape.ts`? Skip to [using dev mode](/getting-started/use-the-dev-mode) or [deploying your first stage](/getting-started/deploy-your-first-stage).
 
 
-> **Tip:** **Recommended starting path:** Run `stacktape init` to initialize a new project from a starter template. If you already have a codebase, try [AI config generation](/using-with-ai/config-generation-from-repository) in the Console. Either way, understanding the config format below will help you customize what you get.
+> **Tip:** **Recommended starting path:** Run `stacktape init` in your repository. It reads the code and proposes the infrastructure, or starts a new project from a starter template. Either way, understanding the config format below will help you customize what you get.
 
 
 ## Install the package
@@ -153,35 +153,15 @@ See [configuration files](/configuration/configuration-files) for the complete c
 
 ## Quick-start with stacktape init
 
-[`stacktape init`](/cli/init) initializes a new project from a starter template:
+[`stacktape init`](/cli/init) reads an existing repository and writes a config for it, after you review the
+proposed infrastructure in its wizard. In an empty directory, it starts a new project from a starter template:
 
 ```bash
 npx stacktape@latest init
 ```
 
-This is the fastest path from zero to a working project.
-
-## Console alternatives
-
-The [Stacktape Console](/stacktape-console/console-overview) offers two additional paths for creating your config.
-
-### AI config generation
-
-Choose a public or private Git repository and branch in the Console to start AI config generation for your project. This is the fastest path when you have an existing codebase and want Stacktape to determine the right infrastructure. See [AI config generation](/using-with-ai/config-generation-from-repository) for the full walkthrough.
-
-
-> Screenshot: AI config generation in the Stacktape Console — select a repository and branch, then review the generated config Caption: Select a repository and branch to start AI config generation for your codebase.
-
-
-### Config editor
-
-When a selected template is editable, the Console config editor lets you modify and save config changes. Templates created for a Console stage are opened read-only and link to the stage configuration page for edits. See the [visual config editor](/stacktape-console/visual-config-editor) for details.
-
-
-> Screenshot: The Stacktape Console config editor Caption: Select a saved template and edit config content in the Console config editor.
-
-
-Both Console paths work well for exploration and getting started. For production workflows, prefer keeping `stacktape.ts` in version control alongside your application code so infrastructure changes can be reviewed with code changes.
+This is the fastest path from zero to a working project. Keep the config it writes in version control, so
+infrastructure changes are reviewed with code changes.
 
 ## Beyond resources
 
