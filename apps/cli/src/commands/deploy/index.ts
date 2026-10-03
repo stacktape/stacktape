@@ -221,6 +221,9 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   // Console delivers to, before the template is built. Fails with every unresolvable name at once.
   await resolveSlackAppChannels({ rawConfig: config.config, apiClient: stacktapeApi.apiClient });
 
+  // The stack action type is derived from the current stack details, which the post-deploy refetch replaces.
+  const isFirstDeployment = stack.stackActionType === 'create';
+
   progress.setPhase('BUILD_AND_PACKAGE');
   const [{ packagedWorkloads, cfTemplateDiff: initialCfTemplateDiff }] = await Promise.all([
     prepareArtifactsForStackDeployment({
@@ -480,7 +483,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   });
 
   // Prompt for CI/CD setup after successful deploy (only for new stacks in TTY mode)
-  if (stack.stackActionType === 'create') {
+  if (isFirstDeployment) {
     lifecycle.addFinalAction(() => promptCiCdSetupAfterDeploy());
   }
 
