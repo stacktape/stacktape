@@ -225,6 +225,7 @@ export function App() {
                   void run('pipeline', () => session.pipeline(stage, region), 'The pipeline could not be written.')
                 }
                 onRecheck={() => void run('recheck', () => session.recheck(), 'Could not re-check the sign-ins.')}
+                onSignIn={(request) => session.signIn(request)}
                 onVerify={() => void run('verify', () => session.verify(), 'The local try-out could not be started.')}
                 state={state}
               />

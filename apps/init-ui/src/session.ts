@@ -65,6 +65,30 @@ export type WizardAgentOption = {
   recommended?: boolean;
 };
 
+/** What went wrong at the current sign-in step. `code` selects the way out the panel offers. */
+export type WizardSignInError = { code: string; message: string };
+
+/**
+ * Where signing in to Stacktape from this page has got to, one step at a time.
+ *
+ * Held by the CLI, so a reload lands on the same step. It never contains a password, a code, a
+ * token or the API key: those stay in the CLI's memory.
+ */
+export type WizardSignIn =
+  | { step: 'signed-out'; error?: WizardSignInError }
+  /** A Google tab is open. The address is here so the tab can be opened again. */
+  | { step: 'google-pending'; authorizationUrl: string }
+  | { step: 'needs-code'; email: string; error?: WizardSignInError }
+  | { step: 'needs-mfa'; email: string; error?: WizardSignInError }
+  | { step: 'needs-organization'; organizations: Array<{ id: string; name: string }>; error?: WizardSignInError };
+
+/** One step of signing in, as sent to the CLI. The route names the step; the rest is its body. */
+export type SignInRequest =
+  | { route: 'google' | 'cancel' | 'code/resend' }
+  | { route: 'email'; intent: 'sign-up' | 'sign-in'; email: string; password: string }
+  | { route: 'code' | 'mfa'; code: string }
+  | { route: 'organization'; organizationId: string };
+
 export type WizardState = {
   /** Server-assigned, increasing on every update. See `publish` below for what it is for. */
   revision?: number;
@@ -87,8 +111,13 @@ export type WizardState = {
   awsIdentity?:
     | { available: true; accountId: string; arn: string; region?: string }
     | { available: false; reason: 'no-credentials' | 'rejected'; detail: string };
-  /** Deploying needs a signed-in Stacktape account; generating never does. Absent while checking. */
-  stacktapeAccount?: { signedIn: boolean; detail: string };
+  /**
+   * Deploying needs a signed-in Stacktape account; generating never does. Absent while checking.
+   * `email` and `organization` are present when the account check could name them.
+   */
+  stacktapeAccount?: { signedIn: boolean; detail: string; email?: string; organization?: string };
+  /** The sign-in step to render while signed out. Absent when this CLI cannot sign in from the page. */
+  signIn?: WizardSignIn;
   /** The git host this project pushes to, when it is one we generate a pipeline for. */
   gitHost?: 'github' | 'gitlab' | 'bitbucket';
   /** The deployment pipeline, once one has been written. */
@@ -237,6 +266,8 @@ export type Session = {
   pipeline: (stage: string, region: string) => Promise<WizardState>;
   /** Re-check AWS credentials and the Stacktape sign-in, after the user fixed one in a terminal. */
   recheck: () => Promise<WizardState>;
+  /** Take one step of signing in to Stacktape. What it led to is in the returned state's `signIn`. */
+  signIn: (request: SignInRequest) => Promise<WizardState>;
   answer: (questionId: string, value: string) => Promise<WizardState>;
   /** Calls back on every server-pushed update and connection transition. */
   subscribe: (
@@ -387,6 +418,19 @@ export const connect = async (): Promise<Session> => {
         throw new SessionError('Could not re-check the sign-ins.');
       }
       publish((await checked.json()) as WizardState);
+      return current;
+    },
+    signIn: async ({ route, ...body }) => {
+      const stepped = await fetch(`/api/sign-in/${route}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
+        body: JSON.stringify(body)
+      });
+      if (!stepped.ok) {
+        const problem = (await stepped.json().catch(() => ({}))) as { error?: string };
+        throw new SessionError(problem.error ?? 'That sign-in step could not be sent.');
+      }
+      publish((await stepped.json()) as WizardState);
       return current;
     },
     answer: async (questionId, value) => {

@@ -31,6 +31,7 @@ import {
   sessionCookie,
   type SessionSecrets
 } from './security';
+import { parseSignInAction, type WizardSignIn, type WizardSignInAction } from './wizard-sign-in';
 
 /**
  * One way of reading the project, offered on the first screen.
@@ -146,8 +147,18 @@ export type WizardState = {
   configFile?: { path: string; filename: string; format: 'yaml' | 'typescript'; existingPath?: string };
   /** Who this machine is to AWS, resolved before the deploy step offers a button. */
   awsIdentity?: WizardAwsIdentity;
-  /** Deploying needs a signed-in Stacktape account; generating never does. Absent while checking. */
-  stacktapeAccount?: { signedIn: boolean; detail: string };
+  /**
+   * Deploying needs a signed-in Stacktape account; generating never does. Absent while checking.
+   *
+   * `email` and `organization` are who the account check found, when it said: enough for the page
+   * to confirm which account a deploy will run as.
+   */
+  stacktapeAccount?: { signedIn: boolean; detail: string; email?: string; organization?: string };
+  /**
+   * Where signing in from this page has got to. Absent when the session cannot sign anyone in, which
+   * leaves the terminal as the only way.
+   */
+  signIn?: WizardSignIn;
   /** The git host this project pushes to, when it is one we generate a pipeline for. */
   gitHost?: 'github' | 'gitlab' | 'bitbucket';
   /** The deployment pipeline, once one has been asked for. */
@@ -226,6 +237,13 @@ export type WizardServerHooks = {
    * then come back" ends with a button rather than with reloading the page and hoping.
    */
   onRecheck: () => Promise<WizardState> | WizardState;
+  /**
+   * Called for every step of signing in from the page: starting Google, submitting an email and
+   * password, a code, an organization, or cancelling.
+   *
+   * Publishes for itself, like `onDeploy`: Google answers minutes after the request that started it.
+   */
+  onSignIn: (action: WizardSignInAction) => Promise<void> | void;
 };
 
 const json = (response: ServerResponse, status: number, body: unknown, extraHeaders: Record<string, string> = {}) => {
@@ -599,6 +617,31 @@ export const startWizardServer = async ({
         }
         try {
           json(response, 200, await hooks.onRecheck());
+        } catch (error) {
+          json(response, 400, { error: error instanceof Error ? error.message : 'Bad request.' });
+        }
+        return;
+      }
+
+      // Signing in to Stacktape from the page. One prefix for every step, so the CSRF gate cannot be
+      // forgotten on one of them; the route names the step and the body is read against that step's
+      // exact shape. A password or a code arrives here and goes no further than the sign-in flow: it
+      // is never logged, never echoed, and never part of the state this replies with.
+      if (url.pathname.startsWith('/api/sign-in/') && request.method === 'POST') {
+        if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
+          json(response, 403, { error: 'Missing or invalid CSRF token.' });
+          return;
+        }
+        try {
+          const text = await readBody(request);
+          const body: unknown = text.trim() === '' ? {} : JSON.parse(text);
+          const action = parseSignInAction(url.pathname.slice('/api/sign-in/'.length), body);
+          if (action === undefined) {
+            json(response, 400, { error: 'That is not a supported sign-in request.' });
+            return;
+          }
+          await hooks.onSignIn(action);
+          json(response, 200, state);
         } catch (error) {
           json(response, 400, { error: error instanceof Error ? error.message : 'Bad request.' });
         }

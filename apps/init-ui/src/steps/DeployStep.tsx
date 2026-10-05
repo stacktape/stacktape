@@ -7,8 +7,10 @@ import { CopyableCommand } from '../components/CopyableCommand';
 import { DeployProgress } from '../components/DeployProgress';
 import { PipelineCard } from '../components/PipelineCard';
 import { RegionPicker } from '../components/RegionPicker';
+import { SignInPanel } from '../components/SignInPanel';
 import { stackCommand } from '../deploy-commands';
-import type { WizardState } from '../session';
+import type { SignInRequest, WizardState } from '../session';
+import { organizationLabel } from '../sign-in';
 
 /**
  * The last step: put it on AWS.
@@ -44,6 +46,7 @@ export function DeployStep({
   onDeploy,
   onPipeline,
   onRecheck,
+  onSignIn,
   onVerify,
   onDismissVerification,
   isBusy
@@ -57,6 +60,8 @@ export function DeployStep({
   onPipeline: (stage: string, region: string) => void;
   /** Re-checks AWS credentials and the Stacktape sign-in, for after a terminal detour. */
   onRecheck: () => void;
+  /** Takes one step of signing in to Stacktape from this page. Resolves with the state it led to. */
+  onSignIn: (request: SignInRequest) => Promise<WizardState>;
   /** Consents to trying the composed services on this machine. The click is the consent. */
   onVerify: () => void;
   /** Sets a failed try-out aside: results stay visible, the deploy button comes back. */
@@ -80,7 +85,8 @@ export function DeployStep({
     (entry) => entry.status === 'inconclusive' || entry.status === 'skipped'
   );
   const compositionBlocks = state.composition?.deployable !== true;
-  const signInBlocks = state.stacktapeAccount?.signedIn !== true;
+  const account = state.stacktapeAccount;
+  const signInBlocks = account?.signedIn !== true;
   const [stage, setStage] = useState('dev');
   const [region, setRegion] = useState(
     identity !== undefined && identity.available && identity.region !== undefined ? identity.region : 'eu-west-1'
@@ -309,24 +315,6 @@ export function DeployStep({
             </Button>
           </Alert>
         )}
-        {state.stacktapeAccount === undefined && (
-          <div className="mt-4 flex items-center gap-3 text-[var(--stp-text-muted)]">
-            <Spinner />
-            <span>Checking the Stacktape sign-in on this machine…</span>
-          </div>
-        )}
-        {state.stacktapeAccount?.signedIn === false && (
-          <Alert className="mt-4" tone="warning" title="One more sign-in before deploying">
-            <p className="m-0 mb-3">
-              Deploying goes through Stacktape, and this machine is not signed in to it. Run{' '}
-              <span className="wizard-code">stacktape login</span> in a terminal — the file you just saved is unaffected
-              either way.
-            </p>
-            <Button isLoading={isBusy === 'recheck'} onClick={onRecheck} variant="secondary">
-              I’ve signed in — check again
-            </Button>
-          </Alert>
-        )}
         <div className="mt-5 flex flex-wrap items-end gap-5">
           <RegionPicker onChange={setRegion} value={region} />
           <label className="flex flex-col gap-1.5">
@@ -342,6 +330,50 @@ export function DeployStep({
             </span>
           </label>
         </div>
+      </section>
+
+      <section>
+        {account === undefined && (
+          <>
+            <h3 className="wizard-section-heading">Stacktape account</h3>
+            <div className="flex items-center gap-3 text-[var(--stp-text-muted)]">
+              <Spinner />
+              <span>Checking the Stacktape sign-in on this machine…</span>
+            </div>
+          </>
+        )}
+        {account?.signedIn === true && (
+          <>
+            <h3 className="wizard-section-heading">Stacktape account</h3>
+            <output className="block text-[var(--stp-text-muted)]">
+              <span className="text-[var(--stp-color-brand)]">✓</span>{' '}
+              {account.email === undefined ? (
+                'Signed in to Stacktape on this machine'
+              ) : (
+                <>
+                  Signed in as{' '}
+                  <span className="text-[var(--stp-text-primary)] [overflow-wrap:anywhere]">{account.email}</span>
+                </>
+              )}
+              {account.organization !== undefined && <> · {organizationLabel(account.organization)}</>}
+            </output>
+          </>
+        )}
+        {account?.signedIn === false && (
+          <>
+            <h3 className="wizard-section-heading">Sign in to deploy</h3>
+            <p className="wizard-lede mb-4">
+              Deploying goes through Stacktape, so it needs an account. A free one is enough, and the file you just
+              saved is unaffected either way.
+            </p>
+            <SignInPanel
+              isRechecking={isBusy === 'recheck'}
+              onRecheck={onRecheck}
+              onSignIn={onSignIn}
+              signIn={state.signIn}
+            />
+          </>
+        )}
       </section>
 
       <section>

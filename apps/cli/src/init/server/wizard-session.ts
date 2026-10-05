@@ -29,6 +29,7 @@ import type { DeployTargetExpectation, DeployTargetObservation } from '../deploy
 import { estimateMonthlyCost, type PriceEstimate } from '../pricing';
 import { renderTypeScript, renderYaml } from '../write-config';
 import type { PreflightResult } from '../preflight/preflight';
+import { createWizardSignIn, type WizardSignInDependencies, type WizardSignInFlow } from './wizard-sign-in';
 import {
   startWizardServer,
   type WizardAgentOption,
@@ -112,6 +113,7 @@ export const startWizardSession = async ({
   repair,
   awsIdentity,
   stacktapeAccount,
+  signIn,
   gitHost,
   writePipeline,
   mode: initialMode,
@@ -208,7 +210,14 @@ export const startWizardSession = async ({
   /** Resolves who this machine is to AWS. Awaited lazily, so a slow answer never delays the page. */
   awsIdentity?: () => Promise<WizardAwsIdentity>;
   /** Whether this machine is signed in to Stacktape, which deploying requires and generating does not. */
-  stacktapeAccount?: () => Promise<{ signedIn: boolean; detail: string }>;
+  stacktapeAccount?: () => Promise<NonNullable<WizardState['stacktapeAccount']>>;
+  /**
+   * How to sign in to Stacktape without leaving the page.
+   *
+   * Absent when the caller cannot — the page then says to use `stacktape login` in a terminal, and
+   * the recheck notices when that has been done.
+   */
+  signIn?: WizardSignInDependencies;
   /** The git host this project pushes to, when it is one we generate a pipeline for. */
   gitHost?: 'github' | 'gitlab' | 'bitbucket';
   /** How much infrastructure to compose for. Chosen on the first screen, before anything is read. */
@@ -287,7 +296,9 @@ export const startWizardSession = async ({
   let running = false;
   let configFile: WizardState['configFile'];
   let identity: WizardAwsIdentity | undefined;
-  let account: { signedIn: boolean; detail: string } | undefined;
+  let account: WizardState['stacktapeAccount'];
+  /** Set once the server exists. Its step is published; what it holds to authenticate never is. */
+  let signInFlow: WizardSignInFlow | undefined;
   let deployment: WizardDeployment | undefined;
   let deployTarget: WizardState['deployTarget'];
   let checkingDeployTarget = false;
@@ -434,6 +445,8 @@ export const startWizardSession = async ({
     ...(configFile === undefined ? {} : { configFile }),
     ...(identity === undefined ? {} : { awsIdentity: identity }),
     ...(account === undefined ? {} : { stacktapeAccount: account }),
+    // Only while signed out: once the account check passes there is no step left to render.
+    ...(signInFlow === undefined || account?.signedIn === true ? {} : { signIn: signInFlow.state() }),
     ...(deployment === undefined ? {} : { deployment }),
     ...(deployTarget === undefined ? {} : { deployTarget }),
     ...(verification === undefined ? {} : { verification }),
@@ -505,8 +518,27 @@ export const startWizardSession = async ({
     } catch {
       account = { signedIn: false, detail: 'Could not check the Stacktape account.' };
     }
+    // Signed in — from this page, or in a terminal while it was open. Either way an attempt still
+    // in progress here has nothing left to do, and what it was holding is dropped.
+    if (account.signedIn) signInFlow?.reset();
     publish(buildState());
   };
+
+  if (signIn !== undefined) {
+    signInFlow = createWizardSignIn({
+      dependencies: signIn,
+      onChange: () => publish(buildState()),
+      confirmAccount: async () => {
+        // Cleared first, as a recheck does: the page shows "checking" rather than the old answer.
+        // The deploy target goes too, because a different account can mean a different AWS account.
+        account = undefined;
+        deployTarget = undefined;
+        publish(buildState());
+        await resolveAccount();
+        return account ?? { signedIn: false, detail: 'The account could not be checked.' };
+      }
+    });
+  }
 
   const server = await startWizardServer({
     initialState: buildState(),
@@ -897,6 +929,13 @@ export const startWizardSession = async ({
         deployTarget = undefined;
         publish(buildState());
       },
+      onSignIn: async (action) => {
+        // Nothing to sign in with, or nothing to sign in to. Answered by doing nothing, like a
+        // deploy with no file: the state the page gets back says where things actually stand.
+        if (signInFlow === undefined || account?.signedIn === true) return;
+        await signInFlow.handle(action);
+        publish(buildState());
+      },
       onVerify: () => startVerification(true),
       onVerifyDismiss: () => {
         // Keeps the results on screen while removing their hold on the deploy button: the user has
@@ -941,10 +980,17 @@ export const startWizardSession = async ({
     adoptComposition(composition);
   }
 
+  // However the session ends — Ctrl+C or the idle timer — a sign-in still in progress ends with it:
+  // the Google listener stops, and a password or token held for the next step is forgotten.
+  void server.whenClosed.then(() => signInFlow?.reset());
+
   return {
     server,
     currentFacts: () => facts,
-    close: () => server.close()
+    close: async () => {
+      signInFlow?.reset();
+      await server.close();
+    }
   };
 };
 

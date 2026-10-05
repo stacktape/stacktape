@@ -39,7 +39,8 @@ describe('init canary wizard client', () => {
         onVerify: () => undefined,
         onVerifyDismiss: () => initialState(),
         onPipeline: () => undefined,
-        onRecheck: () => initialState()
+        onRecheck: () => initialState(),
+        onSignIn: () => undefined
       }
     });
 
@@ -72,7 +73,8 @@ describe('init canary wizard client', () => {
         onVerify: () => undefined,
         onVerifyDismiss: () => initialState(),
         onPipeline: () => undefined,
-        onRecheck: () => initialState()
+        onRecheck: () => initialState(),
+        onSignIn: () => undefined
       }
     });
     const controller = new AbortController();

@@ -1,5 +1,5 @@
 import { tuiManager } from '@application-services/tui-manager';
-import { publicApiClient } from '@stacktape-api/public';
+import { startApiKeyExchange } from './api-key-exchange';
 import {
   signUpWithEmail,
   confirmSignUp,
@@ -72,7 +72,7 @@ const runEmailSignUp = async (): Promise<AuthResult> => {
   const name = await tuiManager.promptText({ message: 'Your name' });
   const email = await tuiManager.promptText({ message: 'Email address' });
   const password = await tuiManager.promptText({
-    message: 'Password (min 8 chars, include a number)',
+    message: 'Password (min 8 characters)',
     isPassword: true
   });
 
@@ -151,43 +151,20 @@ const runEmailLoginWithEmail = async (email: string): Promise<AuthResult> => {
 };
 
 const getApiKeyFromByExchangingIdToken = async (idToken: string): Promise<AuthResult> => {
-  const organizationResult = await publicApiClient.exchangeTokenForApiKey({ idToken, listOrganizationsOnly: true });
+  const exchange = await startApiKeyExchange(idToken);
 
-  // Compatibility with Console versions that ignore listOrganizationsOnly and
-  // return the legacy one-key-per-organization response immediately.
-  if (organizationResult.success && organizationResult.apiKeys?.length && !organizationResult.organizations?.length) {
-    const apiKey =
-      organizationResult.apiKeys.length > 1
-        ? await tuiManager.promptSelect({
-            message: 'Select the organization you want to use.',
-            options: organizationResult.apiKeys.map((key) => ({ label: key.organizationName, value: key.id }))
-          })
-        : organizationResult.apiKeys[0].id;
-    return { success: true, apiKey };
+  if (exchange.status === 'failed') {
+    return { success: false, error: exchange.error };
+  }
+  if (exchange.status === 'ready') {
+    return { success: true, apiKey: exchange.apiKey };
   }
 
-  if (!organizationResult.success || !organizationResult.organizations?.length) {
-    return { success: false, error: organizationResult.error || 'Authentication failed. No organization found.' };
-  }
-
-  const organizationId =
-    organizationResult.organizations.length > 1
-      ? await tuiManager.promptSelect({
-          message: 'Select the organization you want to use.',
-          options: organizationResult.organizations.map((organization) => ({
-            label: organization.name,
-            value: organization.id
-          }))
-        })
-      : organizationResult.organizations[0].id;
-
-  const exchangeResult = await publicApiClient.exchangeTokenForApiKey({ idToken, organizationId });
-
-  if (!exchangeResult.success || !exchangeResult.apiKeys[0]) {
-    return { success: false, error: exchangeResult.error || 'Authentication failed. No API key found.' };
-  }
-
-  return { success: true, apiKey: exchangeResult.apiKeys[0].id };
+  const chosen = await tuiManager.promptSelect({
+    message: 'Select the organization you want to use.',
+    options: exchange.options.map((option) => ({ label: option.name, value: option.id }))
+  });
+  return exchange.complete(chosen);
 };
 
 const authenticateAndGetApiKey = async (email: string, password: string): Promise<AuthResult> => {
