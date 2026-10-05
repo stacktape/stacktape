@@ -615,6 +615,27 @@ a:hover .rm-arrow {
   color: var(--rm-muted);
 }
 
+/* The way in through the Console, as a sentence under the command. */
+.rm-account-line {
+  margin-top: 4px;
+  font-size: 15px;
+  color: var(--rm-muted);
+}
+
+/* Shown on a phone instead, where neither the command nor an account is of use yet. */
+.rm-send {
+  display: none;
+}
+
+.rm-send__action {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--rm-brand);
+  cursor: pointer;
+}
+
 /* ── The fenced code block: the call to action ───────────────────────────────────────────────── */
 
 .rm-code {
@@ -2751,6 +2772,17 @@ a:hover .rm-arrow {
 @media (max-width: 639px) {
   .rm-root {
     --rm-gutter: 16px;
+  }
+
+  .rm-account-line {
+    display: none;
+  }
+
+  .rm-send {
+    display: block;
+    margin-top: 6px;
+    font-size: 15px;
+    color: var(--rm-muted);
   }
 
   .rm-layout {
