@@ -32,10 +32,16 @@ const readString = (container: unknown, key: string): string | undefined => {
   return typeof value === 'string' && value !== '' ? value : undefined;
 };
 
-/** The identity inside a successful `info:whoami` result, read defensively: it crossed a process. */
-const identityFrom = (data: unknown): { email?: string; organization?: string } => {
+/**
+ * The identity inside a successful `info:whoami` result, read defensively: it crossed a process.
+ *
+ * A command's return value arrives under `result` in the event's data, not at its top level.
+ */
+export const identityFrom = (data: unknown): { email?: string; organization?: string } => {
   if (typeof data !== 'object' || data === null) return {};
-  const { user, organization } = data as { user?: unknown; organization?: unknown };
+  const { result } = data as { result?: unknown };
+  if (typeof result !== 'object' || result === null) return {};
+  const { user, organization } = result as { user?: unknown; organization?: unknown };
   const email = readString(user, 'email');
   const organizationName = readString(organization, 'name');
   return {
