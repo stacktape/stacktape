@@ -13,7 +13,7 @@
 
 import { afterEach, beforeAll, describe, expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
-import { readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { validateConfigYaml } from '../code-generation/validate-config-string';
@@ -200,6 +200,43 @@ describe('stacktape init in the terminal: existing repository to a running artif
       const response = await requestRunningImage({ jobName, container });
       expect(response.status, response.logs).toBe(200);
       expect(JSON.parse(response.body)).toEqual({ service: 'orders', paymentsConfigured: false });
+    },
+    8 * 60_000
+  );
+
+  test(
+    'a TypeScript config written by init loads, packages and runs like the YAML one',
+    async () => {
+      const sandbox = await sandboxFor({ files: ordersApi, projectDirectoryName: 'orders' });
+      // A developer's checkout has node_modules. That also keeps Bun from silently auto-installing whatever
+      // `stacktape` version npm calls latest when the config imports it.
+      await mkdir(join(sandbox.project, 'node_modules'));
+
+      const init = await runSourceInit({
+        sandbox,
+        args: ['--codingAgent', 'claude-code', '--configFormat', 'typescript'],
+        agent: ordersAgentTranscript(`orders-${sandbox.id}`)
+      });
+      expect(init.exitCode, init.output).toBe(0);
+      expect(init.output).toContain(`Wrote ${join(sandbox.project, 'stacktape.ts')}`);
+      expect(existsSync(join(sandbox.project, 'stacktape.yml'))).toBe(false);
+      const configText = await readFile(join(sandbox.project, 'stacktape.ts'), 'utf8');
+      expect(configText).toContain('defineConfig');
+
+      const packaged = await packageOffline({
+        sandbox,
+        configFile: 'stacktape.ts',
+        projectName: `j1-orders-${sandbox.id}`
+      });
+      builtJobs.push(...packaged.packagedWorkloads.map((workload) => workload.jobName));
+      const jobName = packaged.packagedWorkloads[0]!.jobName;
+      const container = containerDefinitionFor(packaged.template, jobName);
+      expect(container.Environment).toContainEqual({
+        Name: 'PAYMENTS_API_TOKEN',
+        Value: expect.stringMatching(/^\{\{resolve:secretsmanager:payments_api_token:/)
+      });
+      const response = await requestRunningImage({ jobName, container });
+      expect(response.status, response.logs).toBe(200);
     },
     8 * 60_000
   );
