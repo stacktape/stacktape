@@ -308,10 +308,14 @@ describe.serial('AWS SDK client construction', () => {
     // Exercise the configured deadline without waiting fifteen minutes. Other fetch timers retain their behavior.
     const originalTimeout = globalThis.setTimeout;
     const deadlines: number[] = [];
-    const clock = spyOn(globalThis, 'setTimeout').mockImplementation((callback, delay, ...args) => {
-      deadlines.push(delay);
-      return originalTimeout(callback, delay === 900_000 ? 40 : delay, ...args);
-    });
+    const compressedTimeout = Object.assign(
+      (callback: Parameters<typeof setTimeout>[0], delay?: number, ...args: unknown[]) => {
+        if (delay !== undefined) deadlines.push(delay);
+        return originalTimeout(callback, delay === 900_000 ? 40 : delay, ...args);
+      },
+      { __promisify__: originalTimeout.__promisify__ }
+    );
+    const clock = spyOn(globalThis, 'setTimeout').mockImplementation(compressedTimeout);
     const server = createServer(); // Accept the request but never send response headers.
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     try {
