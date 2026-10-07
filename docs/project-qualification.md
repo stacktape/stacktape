@@ -56,6 +56,9 @@ pnpm qualify:projects -- --preset=release --lanes=import,package --allow-host-pr
 # Execute packaged synthetic artifacts in their target Docker runtimes.
 pnpm qualify:projects -- --lanes=runtime
 
+# Package every starter project offline with the source CLI, as a customer's first deploy does (no import lane).
+pnpm --filter @stacktape/cli run qualify:starters -- --shard=1/2
+
 # Split a large corpus across ten workers.
 pnpm qualify:projects -- --preset=all --lanes=import,package --allow-host-project-code --shard=3/10
 
@@ -63,6 +66,12 @@ pnpm qualify:projects -- --preset=all --lanes=import,package --allow-host-projec
 # Stacktape working-tree fingerprint match a previous passing result.
 pnpm qualify:projects -- --preset=all --lanes=import,package --allow-host-project-code --resume-from=.stacktape/qualification/<previous-run>/qualification-report.json
 ```
+
+The package lane and the starter lane build the source CLI's dev artifacts (helper Lambdas) once per run when a fresh
+checkout has none. The starter lane materializes each starter as `stacktape init` writes it, replaces the placeholder
+values, and runs `validate --withPackage` through the same offline guard; it writes the same report layout, accepts
+`--starter`, `--shard`, `--max-cases`, `--output-dir`, `--keep-workdirs` and `--fail-fast`, and skips folders without
+`.project/_metadata.yml`.
 
 Use `--max-cases=<count>` to bound an exploratory run. Use `--fail-fast` when one failure should stop later projects.
 `--output-dir` and `--cache-root` are resolved from the directory in which the user invoked pnpm, including on Windows.
