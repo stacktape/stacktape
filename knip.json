@@ -13,10 +13,17 @@
         "src/packaging-assets/**/index.ts",
         "**/*.fixture.ts",
         "src/commands/mcp/__fixtures__/*.ts",
-        "**/*.test.tsx"
+        "**/*.test.tsx",
+        "tests/data-safety/regenerate-baselines.ts"
       ],
       "project": ["**/*.{ts,tsx,js}"],
-      "ignore": ["starter-projects/**", "_test-stacks/**", "tests/characterization/fixtures/**"],
+      "ignore": [
+        "starter-projects/**",
+        "_test-stacks/**",
+        "tests/characterization/fixtures/**",
+        "tests/**/fixtures/**",
+        "tests/data-safety/baselines/**"
+      ],
       "ignoreDependencies": ["source-map-support", "@types/adm-zip"]
     },
     "apps/docs": {

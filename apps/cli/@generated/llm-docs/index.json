@@ -18007,6 +18007,7 @@
       ],
       "chunks": [
         "page:/getting-started/upgrading-from-v3#upgrading-from-v3",
+        "page:/getting-started/upgrading-from-v3#deployed-stacks",
         "page:/getting-started/upgrading-from-v3#packaging",
         "page:/getting-started/upgrading-from-v3#javascript-and-typescript-lambda-functions",
         "page:/getting-started/upgrading-from-v3#python-java-go-ruby-and-net-lambda-functions",
