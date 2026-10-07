@@ -1,5 +1,5 @@
 import type { TuiManager } from '@application-services/tui-manager';
-import type { MetricDataQuery, MetricDataResult, StateValue } from '@aws-sdk/client-cloudwatch';
+import type { MetricAlarm, MetricDataQuery, MetricDataResult, StateValue } from '@aws-sdk/client-cloudwatch';
 import { DescribeAlarmsCommand, GetMetricDataCommand, type CloudWatchClient } from '@aws-sdk/client-cloudwatch';
 import type { FilteredLogEvent, InputLogEvent, OrderBy } from '@aws-sdk/client-cloudwatch-logs';
 import {
@@ -263,16 +263,23 @@ export class AwsObservability {
 
   describeAlarms = async ({ alarmNamePrefix, stateValue }: { alarmNamePrefix?: string; stateValue?: StateValue }) => {
     const handleError = this.#getErrorHandler('Failed to describe CloudWatch alarms.');
-    const response = await this.#createCloudWatchClient()
-      .send(
-        new DescribeAlarmsCommand({
-          MaxRecords: 100,
-          ...(alarmNamePrefix ? { AlarmNamePrefix: alarmNamePrefix } : {}),
-          ...(stateValue ? { StateValue: stateValue } : {})
-        })
-      )
-      .catch(handleError);
-    return response.MetricAlarms || [];
+    const alarms: MetricAlarm[] = [];
+    let nextToken: string | undefined;
+    do {
+      const response = await this.#createCloudWatchClient()
+        .send(
+          new DescribeAlarmsCommand({
+            MaxRecords: 100,
+            ...(alarmNamePrefix ? { AlarmNamePrefix: alarmNamePrefix } : {}),
+            ...(stateValue ? { StateValue: stateValue } : {}),
+            ...(nextToken ? { NextToken: nextToken } : {})
+          })
+        )
+        .catch(handleError);
+      alarms.push(...(response.MetricAlarms || []));
+      nextToken = response.NextToken;
+    } while (nextToken);
+    return alarms;
   };
 
   getMetricData = async ({
@@ -285,9 +292,30 @@ export class AwsObservability {
     endTime: Date;
   }): Promise<MetricDataResult[]> => {
     const handleError = this.#getErrorHandler('Failed to get CloudWatch metric data.');
-    const response = await this.#createCloudWatchClient()
-      .send(new GetMetricDataCommand({ EndTime: endTime, MetricDataQueries: metricQueries, StartTime: startTime }))
-      .catch(handleError);
-    return response.MetricDataResults || [];
+    const results: MetricDataResult[] = [];
+    let nextToken: string | undefined;
+    do {
+      const response = await this.#createCloudWatchClient()
+        .send(
+          new GetMetricDataCommand({
+            EndTime: endTime,
+            MetricDataQueries: metricQueries,
+            StartTime: startTime,
+            ...(nextToken ? { NextToken: nextToken } : {})
+          })
+        )
+        .catch(handleError);
+      for (const page of response.MetricDataResults || []) {
+        const existing = page.Id ? results.find(({ Id }) => Id === page.Id) : undefined;
+        if (existing) {
+          existing.Timestamps = [...(existing.Timestamps || []), ...(page.Timestamps || [])];
+          existing.Values = [...(existing.Values || []), ...(page.Values || [])];
+          existing.Messages = [...(existing.Messages || []), ...(page.Messages || [])];
+          existing.StatusCode = page.StatusCode;
+        } else results.push(page);
+      }
+      nextToken = response.NextToken;
+    } while (nextToken);
+    return results;
   };
 }
