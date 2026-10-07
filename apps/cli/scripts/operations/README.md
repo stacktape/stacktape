@@ -13,3 +13,15 @@ execute helper Lambdas receive an empty startup artifact inventory.
 Fixtures terminate their own CLI processes and tracked scripts, close sockets, and remove temporary files after failure
 as well as success. The source bundle lives in an owned temporary directory under this worktree's `node_modules` so its
 native OpenTUI modules resolve from the installed dependencies.
+
+Run `pnpm --filter @stacktape/cli test:operations:db` for the explicit Docker query lane. It starts PostgreSQL 15.14,
+Redis 7.4.5, DynamoDB Local at a pinned digest, and OpenSearch 2.19.3 sequentially. Each container binds a random
+loopback port, has a unique `stacktape-j9-query-*` name, and is removed and checked absent in `finally`. It needs Docker
+and `openssl`. Set `J9_QUERY_SERVICES=sql,redis,dynamodb,opensearch` to select services. This lane is separate from the
+normal test command; it exercises actual database results and independent data-state checks. SQL uses PostgreSQL TLS;
+OpenSearch uses an owned trusted TLS proxy. These scenarios establish local query behavior, not AWS IAM enforcement.
+
+Session scenarios place a compiled substitute plugin in the supported `STACKTAPE_TOOLS_DIR` cache. SDK requests,
+resource resolution, CLI input, session lifecycle and subprocess cleanup remain real. The plugin records its input in
+the disposable working directory. Session scenarios currently omit Windows, whose plugin is bundled outside this cache
+boundary.

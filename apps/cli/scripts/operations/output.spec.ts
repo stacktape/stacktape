@@ -22,6 +22,10 @@ test('redirected help is readable and early failures preserve the JSONL result c
     expect(help.stdout).toContain('query:sql');
     expect(help.stdout).toBe(stripAnsi(help.stdout));
     expect(help.stderr).toBe('');
+    const prompt = await fixture.run(['aws-profile:create']);
+    expect(prompt.exitCode).toBe(1);
+    expect(prompt.stdout + prompt.stderr).toContain('cannot be answered in non-interactive mode');
+    expect(await Bun.file(join(fixture.home, '.aws/credentials')).exists()).toBe(false);
     const failure = await fixture.run(['script:run', '--outputFormat', 'jsonl']);
     expect(failure.exitCode).toBe(1);
     expect(failure.stderr).toBe('');

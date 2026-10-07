@@ -31,7 +31,7 @@ export const buildOperationsCli = async () => {
   }
 };
 
-export const createOperationsFixture = async (cliPath: string) => {
+export const createOperationsFixture = async (cliPath: string, extraEnvironment: Record<string, string> = {}) => {
   const directory = await mkdtemp(join(tmpdir(), 'stacktape-j9-'));
   const aws = await startLoopbackAws();
   const api = await startLoopbackConsole({ identity: developerIdentity({ projectName: 'j9-operations' }) });
@@ -56,7 +56,8 @@ export const createOperationsFixture = async (cliPath: string) => {
     STACKTAPE_API_KEY: LOOPBACK_API_KEY,
     STP_CUSTOM_TRPC_API_ENDPOINT: api.endpoint,
     AWS_EC2_METADATA_DISABLED: 'true',
-    J9_AWS_ENDPOINT: aws.endpoint
+    J9_AWS_ENDPOINT: aws.endpoint,
+    ...extraEnvironment
   };
   const start = (args: string[], { tty = false }: { tty?: boolean } = {}) => {
     let stdout = '';

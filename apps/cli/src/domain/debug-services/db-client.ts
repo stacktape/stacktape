@@ -271,7 +271,8 @@ export const postgresQuery = async (conn: PostgresConnectionOpts, opts: SqlQuery
     const sqlLower = opts.sql.toLowerCase();
     const hasLimit = /\blimit\s+\d+/i.test(opts.sql);
     const isSelect = sqlLower.trimStart().startsWith('select');
-    const sql = isSelect && !hasLimit ? `${opts.sql} LIMIT ${limit + 1}` : opts.sql;
+    // A terminal semicolon ends the statement. Remove it before adding our row bound.
+    const sql = isSelect && !hasLimit ? `${opts.sql.trim().replace(/;+$/, '')} LIMIT ${limit + 1}` : opts.sql;
 
     if (opts.readOnly) await client.query('BEGIN READ ONLY');
 
@@ -665,7 +666,8 @@ export const mysqlQuery = async (conn: MysqlConnectionOpts, opts: SqlQueryOpts):
     const sqlLower = opts.sql.toLowerCase();
     const hasLimit = /\blimit\s+\d+/i.test(opts.sql);
     const isSelect = sqlLower.trimStart().startsWith('select');
-    const sql = isSelect && !hasLimit ? `${opts.sql} LIMIT ${limit + 1}` : opts.sql;
+    // A terminal semicolon ends the statement. Remove it before adding our row bound.
+    const sql = isSelect && !hasLimit ? `${opts.sql.trim().replace(/;+$/, '')} LIMIT ${limit + 1}` : opts.sql;
 
     if (opts.readOnly) {
       await connection.query('SET TRANSACTION READ ONLY');
