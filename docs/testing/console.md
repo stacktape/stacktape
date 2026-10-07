@@ -24,12 +24,16 @@ in a `finally` block. The default selection covers migration/adoption only. Feat
 ```sh
 pnpm --filter @stacktape/console-api-app test:db --issues
 pnpm --filter @stacktape/console-api-app test:db --incidents
+pnpm --filter @stacktape/console-api-app test:db --incident-journey
 pnpm --filter @stacktape/console-api-app test:db --security
 pnpm --filter @stacktape/console-api-app test:db --gitlab
 pnpm --filter @stacktape/console-api-app test:db --runner
 pnpm --filter @stacktape/console-api-app test:db --incident-agent
 pnpm --filter @stacktape/console-api-app test:db --sign-up
 ```
+
+The `--incident-journey` suite extends issue and incident coverage through the production HTTP router, signed loopback
+webhook delivery and authenticated incident actions. It needs `openssl` for its temporary HTTPS certificate.
 
 Pass the flag directly: an extra `--` is forwarded to this script and rejected. Choose the suite whose assertions cover
 the change, extending it when necessary. These suites use the disposable database, not shared dev. The runner currently
