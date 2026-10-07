@@ -51,6 +51,12 @@ and the untouched project built from another directory must reproduce the first 
 the shipped source maps and Bun's `debugId` encode the build directory (see the J3 handoff). `--keep` leaves the fixture
 and the CLI's build directories. It needs Docker and `unzip`, not AWS.
 
+The lane splits across hosts: `--export <dir>` runs the build phase only (the CLI packages, digests are compared) and
+copies the first and edited builds' ZIPs and assembled `/opt` into the directory with a manifest, on any host the CLI
+supports, Windows included; `--import <dir>` runs the Lambda runtime checks on that directory on Linux. A Windows
+packaging job is the export phase on a Windows runner with the directory uploaded as an artifact, and the import phase
+on a Linux runner that downloads it.
+
 ## SSR starters in the Lambda runtime
 
 `pnpm --filter @stacktape/cli run test:ssr-web` materializes each SSR starter (Astro, Nuxt, SolidStart, SvelteKit,
