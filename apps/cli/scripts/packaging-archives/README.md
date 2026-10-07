@@ -91,9 +91,10 @@ request; the synthetic executable answers `railpack prepare` by writing `plan.js
 and `--info-out` paths, and a build variable must reach it through the environment, never the command line. A checksum
 mismatch must leave no executable, and a refused download must name the URL, the checksum and the path to place the file
 offline. A process killed mid-download must leave nothing usable before the retry succeeds, and two concurrent first
-uses must download once. It needs Linux or macOS, not Docker, AWS or the internet. The real upstream assets are checked
-by `scripts/pin-external-tools.ts` whenever a version changes, and by the release artifact check, which downloads each
-one on first use.
+uses must download once. Checksum-valid corrupt tar, zip and Debian payloads must leave no usable executable, and a
+healthy retry must recover. Warm and preseeded tools must still execute after the download server stops. It needs Linux
+or macOS, not Docker, AWS or the internet. The real upstream assets are checked by `scripts/pin-external-tools.ts`
+whenever a version changes, and by the release artifact check, which downloads each one on first use.
 
 ## Packaging performance
 
@@ -129,3 +130,12 @@ the emulator's supported behavior before accepting a passing test as evidence. M
 CloudFront resources, and no CloudFormation stack policy enforcement. Keep the existing disposable-AWS acceptance for
 behavior owned by those services. An emulator test should replace a handwritten fixture only when it preserves or
 improves the assertion; it is not an extra test to add to every feature.
+
+## Supplied release candidates
+
+`pnpm --filter @stacktape/cli test:release-artifact -- --candidate-dir <absolute-directory> --version <exact-version>`
+installs the actual npm tarball, verifies its native archive and packaged checksum manifest, and invokes the binary,
+launcher and installed `stacktape`/`stp` aliases. Supply `stacktape-<version>.tgz`, `SHA256SUMS` and this host's
+archive; this mode never rebuilds artifacts. npm resolves the package's dependencies; first-use tools are checked
+against their real upstream downloads. The no-argument lane still builds a source fixture. Run supplied candidates on
+each native target as part of [release qualification](../../../../docs/releasing.md#qualify-a-release-candidate).

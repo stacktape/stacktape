@@ -23,7 +23,7 @@ artifacts from another build. Record both Git SHAs, artifact hashes, tool versio
 record. A missing prerequisite or failed lane blocks qualification. Publication still requires the owner's
 authorization.
 
-The offline/service lanes below run sequentially. Docker, PostgreSQL, MiniStack and the pinned corpus need their normal
+The local/service lanes below run sequentially. Docker, PostgreSQL, MiniStack and the pinned corpus need their normal
 prerequisites ([packaging](../apps/cli/scripts/packaging-archives/README.md), [Console](testing/console.md),
 [corpus](project-qualification.md)). The corpus executes reviewed project code on this host. Split its full run with
 `--shard=1/N` through `--shard=N/N` when necessary; every shard must pass on the same revision. Run each command

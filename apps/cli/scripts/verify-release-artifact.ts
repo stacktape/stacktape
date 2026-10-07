@@ -1,8 +1,9 @@
 import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
-import { copyFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { delimiter, join } from 'node:path';
+import { delimiter, join, resolve } from 'node:path';
+import { parseArgs } from 'node:util';
 import { brotliDecompressSync } from 'node:zlib';
 import { DIST_PACKAGE_FOLDER_PATH, NPM_RELEASE_FOLDER_PATH } from 'src/config/project-paths';
 import { getPlatform } from '@utils/bin-executable';
@@ -11,6 +12,7 @@ import stripAnsi from 'strip-ansi';
 import * as tar from 'tar';
 import { generateReleaseChecksums, verifyReleaseChecksum } from './release/checksums';
 import { pnpmPack } from './release/pnpm-pack';
+import { assertInstalledCliVersion } from './release/verify-published-release';
 import { verifyExternalTools } from './release/verify-external-tools';
 import { verifyHelperLambdaArtifacts } from './verify-helper-lambda-artifacts';
 import { verifyNpmPackage } from './verify-npm-package';
@@ -80,11 +82,13 @@ const parseJsonArtifact = async (filePath: string) => JSON.parse(await readFile(
 export const verifyNativeInstallation = async ({
   archivePath,
   installedPackagePath,
-  fixtureDirectory
+  fixtureDirectory,
+  version = RELEASE_VERSION
 }: {
   archivePath: string;
   installedPackagePath: string;
   fixtureDirectory: string;
+  version?: string;
 }) => {
   const platform = getPlatform();
   const { binaryName, launcherPlatformKey } = PLATFORM_RELEASE_DETAILS[platform];
@@ -138,8 +142,8 @@ export const verifyNativeInstallation = async ({
   const releaseData = (await parseJsonArtifact(join(binDirectory, 'release-data.json'))) as {
     version?: string;
   };
-  if (releaseData.version !== RELEASE_VERSION) {
-    throw new Error(`Native release version mismatch: expected ${RELEASE_VERSION}, received ${releaseData.version}.`);
+  if (releaseData.version !== version) {
+    throw new Error(`Native release version mismatch: expected ${version}, received ${releaseData.version}.`);
   }
 
   if ((await stat(join(binDirectory, 'source-map-install.js'))).size === 0) {
@@ -173,12 +177,14 @@ export const verifyNativeInstallation = async ({
   await writeFile(
     join(binDirectory, '.stacktape-install.json'),
     JSON.stringify({
-      version: RELEASE_VERSION,
+      version,
       platformKey: launcherPlatformKey,
       helperLambdas: REQUIRED_HELPER_LAMBDA_PREFIXES,
       installedAt: new Date(0).toISOString()
     })
   );
+
+  assertInstalledCliVersion(run({ command: join(binDirectory, binaryName), args: ['--version'] }), version);
 
   const launcherPath = join(binDirectory, 'stacktape.js');
   const workspaceNodeModules = join(process.cwd(), 'node_modules');
@@ -202,8 +208,20 @@ globalThis.fetch = reject;
     args: [...launcherArgs, '--version'],
     env: { NODE_PATH: nodePath }
   });
-  if (!versionOutput.includes(`Stacktape version: ${RELEASE_VERSION}`)) {
+  if (!versionOutput.includes(`Stacktape version: ${version}`)) {
     throw new Error(`Installed npm launcher returned the wrong version:\n${versionOutput}`);
+  }
+  // Invoke both package-manager-created aliases, as an installed customer does.
+  // NODE_OPTIONS keeps archive downloads forbidden after the local cache is populated.
+  const aliasEnv = { NODE_PATH: nodePath, NODE_OPTIONS: `--require=${networkGuardPath}` };
+  const aliasDirectory = join(fixtureDirectory, 'node_modules', '.bin');
+  if (process.platform !== 'win32') {
+    for (const alias of ['stacktape', 'stp']) {
+      assertInstalledCliVersion(
+        run({ command: join(aliasDirectory, alias), args: ['--version'], env: aliasEnv }),
+        version
+      );
+    }
   }
   const helpOutput = run({ command: 'node', args: [...launcherArgs, '--help'], env: { NODE_PATH: nodePath } });
   for (const expected of ['Available commands:', 'deploy', 'delete', 'package', 'CLI Documentation']) {
@@ -214,49 +232,76 @@ globalThis.fetch = reject;
 };
 
 const verifyReleaseArtifact = async () => {
-  const fixtureDirectory = await mkdtemp(join(tmpdir(), 'stacktape-release-artifact-'));
+  const { values } = parseArgs({
+    args: process.argv.slice(2).filter((argument) => argument !== '--'),
+    options: { 'candidate-dir': { type: 'string' }, version: { type: 'string' } },
+    strict: true
+  });
+  if (Boolean(values['candidate-dir']) !== Boolean(values.version)) {
+    throw new Error('Supply --candidate-dir and --version together, or neither to build a source fixture.');
+  }
+  const candidateDirectory = values['candidate-dir'] ? resolve(values['candidate-dir']) : undefined;
+  const version = values.version ?? RELEASE_VERSION;
+  const distributionDirectory = candidateDirectory ?? DIST_PACKAGE_FOLDER_PATH;
+  const fixtureDirectory = await mkdtemp(join(tmpdir(), 'stacktape-j13-release-artifact-'));
   const generatedLlmDocsIndexPath = join(process.cwd(), '@generated', 'llm-docs', 'index.json');
   const generatedLlmDocsIndexSnapshotPath = join(fixtureDirectory, 'llm-docs-index.snapshot');
   const generatedLlmDocsIndexExisted = existsSync(generatedLlmDocsIndexPath);
   const platform = getPlatform();
   const { archiveName } = PLATFORM_RELEASE_DETAILS[platform];
-  const archivePath = join(DIST_PACKAGE_FOLDER_PATH, archiveName);
+  const archivePath = join(distributionDirectory, archiveName);
 
   try {
-    if (generatedLlmDocsIndexExisted) {
+    if (!candidateDirectory && generatedLlmDocsIndexExisted) {
       await copyFile(generatedLlmDocsIndexPath, generatedLlmDocsIndexSnapshotPath);
     }
-    run({
-      command: 'bun',
-      args: ['scripts/build-dist-package.ts', '--platform', platform, '--version', RELEASE_VERSION]
-    });
-    const checksumsPath = await generateReleaseChecksums({ directory: DIST_PACKAGE_FOLDER_PATH });
+    if (!candidateDirectory)
+      run({
+        command: 'bun',
+        args: ['scripts/build-dist-package.ts', '--platform', platform, '--version', version]
+      });
+    const checksumsPath = candidateDirectory
+      ? join(candidateDirectory, 'SHA256SUMS')
+      : await generateReleaseChecksums({ directory: distributionDirectory });
     await verifyReleaseChecksum({ filePath: archivePath, manifestPath: checksumsPath });
-    const build = Bun.spawnSync({
-      cmd: [
-        'bun',
-        'run',
-        'build:npm',
-        '--version',
-        RELEASE_VERSION,
-        '--require-checksums',
-        '--checksums-path',
-        checksumsPath
-      ],
-      cwd: process.cwd(),
-      stdout: 'inherit',
-      stderr: 'inherit',
-      env: { ...process.env, ...OFFLINE_PACKAGE_MANAGER_ENV }
-    });
-    if (build.exitCode !== 0) {
-      throw new Error(`Release npm build failed with exit code ${build.exitCode}.`);
+    if (!candidateDirectory) {
+      const build = Bun.spawnSync({
+        cmd: [
+          'bun',
+          'run',
+          'build:npm',
+          '--version',
+          version,
+          '--require-checksums',
+          '--checksums-path',
+          checksumsPath
+        ],
+        cwd: process.cwd(),
+        stdout: 'inherit',
+        stderr: 'inherit',
+        env: { ...process.env, ...OFFLINE_PACKAGE_MANAGER_ENV }
+      });
+      if (build.exitCode !== 0) {
+        throw new Error(`Release npm build failed with exit code ${build.exitCode}.`);
+      }
     }
-
-    const { filename } = await pnpmPack({ packageDir: NPM_RELEASE_FOLDER_PATH, destination: fixtureDirectory });
-    const tarballPath = filename;
+    const tarballPath = candidateDirectory
+      ? join(candidateDirectory, `stacktape-${version}.tgz`)
+      : (await pnpmPack({ packageDir: NPM_RELEASE_FOLDER_PATH, destination: fixtureDirectory })).filename;
     const installedPackagePath = join(fixtureDirectory, 'node_modules', 'stacktape');
-    await mkdir(installedPackagePath, { recursive: true });
-    await tar.x({ file: tarballPath, cwd: installedPackagePath, strip: 1 });
+    await writeFile(join(fixtureDirectory, 'package.json'), JSON.stringify({ private: true }));
+    // Real installation resolves the package's declared dependencies and creates its bin aliases.
+    // Downloads here are npm dependencies; archive acquisition remains guarded below.
+    run({
+      command: 'npm',
+      args: ['install', '--ignore-scripts', '--no-audit', '--no-fund', '--prefix', fixtureDirectory, tarballPath],
+      cwd: fixtureDirectory,
+      env: {
+        NPM_CONFIG_OFFLINE: 'false',
+        PNPM_CONFIG_OFFLINE: 'false',
+        npm_config_cache: join(fixtureDirectory, 'npm-cache')
+      }
+    });
     if (
       (await readFile(join(installedPackagePath, 'LICENSE'), 'utf8')) !==
       (await readFile(join(import.meta.dir, '../../../LICENSE'), 'utf8'))
@@ -266,11 +311,14 @@ const verifyReleaseArtifact = async () => {
     const packageResult = await verifyNpmPackage({
       packageDir: installedPackagePath,
       requireChecksums: true,
-      expectedVersion: RELEASE_VERSION
+      expectedVersion: version
     });
     const require = createRequire(import.meta.url);
     const launcher = require(join(installedPackagePath, 'bin', 'stacktape.js')) as PackagedLauncher;
     const packagedManifestPath = join(installedPackagePath, 'SHA256SUMS');
+    if ((await readFile(packagedManifestPath, 'utf8')) !== (await readFile(checksumsPath, 'utf8'))) {
+      throw new Error('The installed npm package does not contain the candidate checksum manifest.');
+    }
 
     await launcher.verifyFileChecksum({
       filePath: archivePath,
@@ -295,13 +343,15 @@ const verifyReleaseArtifact = async () => {
       throw new Error('The packed npm launcher accepted a tampered release archive.');
     }
 
-    await verifyNativeInstallation({ archivePath, installedPackagePath, fixtureDirectory });
+    await verifyNativeInstallation({ archivePath, installedPackagePath, fixtureDirectory, version });
 
     console.info(
       `Verified ${platform} release artifact stacktape@${packageResult.version}: ${packageResult.fileCount} packed npm files, native archive checksum and contents, first-use tool downloads, launcher version/help, tampering rejected.`
     );
   } finally {
-    if (generatedLlmDocsIndexExisted) {
+    if (candidateDirectory) {
+      // Supplied-artifact verification never writes workspace generation outputs.
+    } else if (generatedLlmDocsIndexExisted) {
       await copyFile(generatedLlmDocsIndexSnapshotPath, generatedLlmDocsIndexPath);
     } else {
       await rm(generatedLlmDocsIndexPath, { force: true });
