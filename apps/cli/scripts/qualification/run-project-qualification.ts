@@ -3,7 +3,6 @@ import { copyFile, cp, mkdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { parseCliJsonl } from '../verify-source-cli-aws-readonly';
 import { AWS_QUALIFICATION_SCENARIOS, BUILT_IN_CASES, casesForPreset } from './catalog';
 import {
   QUALIFICATION_REPORT_VERSION,
@@ -17,11 +16,12 @@ import {
   type StepStatus
 } from './contracts';
 import { runImportQualification } from './import-contract';
-import { buildOfflineQualificationEnvironment, startOfflineAwsServer, type OfflineAwsServer } from './offline-aws';
+import { startOfflineAwsServer, type OfflineAwsServer } from './offline-aws';
 import { acquireProject, calculateSourceFingerprint } from './project-source';
-import { assertProcessSucceeded, outputTail, redactOutput, runProcess, type ProcessResult } from './process';
+import { assertProcessSucceeded, outputTail, runProcess, type ProcessResult } from './process';
 import { fingerprintProductState, type UntrackedFile } from './product-fingerprint';
 import { writeJsonAtomic, writeQualificationReport } from './report';
+import { ensureDevCliArtifacts, errorText, isRecord, packageWithSourceCli } from './source-cli-packaging';
 
 type SelectedCase = {
   entry: QualificationCaseManifest;
@@ -44,15 +44,8 @@ type ParsedOptions = {
 };
 
 const rootDirectory = resolve(import.meta.dir, '..', '..', '..', '..');
-const cliDirectory = resolve(import.meta.dir, '..', '..');
 const invocationDirectory = resolve(process.env.INIT_CWD ?? process.cwd());
 const defaultCacheRoot = join(tmpdir(), 'stacktape-project-qualification-cache');
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  value !== null && typeof value === 'object' && !Array.isArray(value);
-
-const errorText = (error: unknown) =>
-  outputTail(redactOutput(error instanceof Error ? (error.stack ?? error.message) : String(error)), 12_000);
 
 const safeProjectName = (id: string) => {
   if (id.length <= 40) return id;
@@ -325,141 +318,6 @@ const reproductionCommand = (selected: SelectedCase, lanes: string) =>
     selected.manifestPath === undefined ? '' : ` --manifest=${JSON.stringify(selected.manifestPath)}`
   }`;
 
-const packageProject = async ({
-  entry,
-  projectName,
-  projectRoot,
-  configPath,
-  templatePath,
-  offlineServer
-}: {
-  entry: QualificationCaseManifest;
-  projectName: string;
-  projectRoot: string;
-  configPath: string;
-  templatePath: string;
-  offlineServer: OfflineAwsServer;
-}) => {
-  const invocationId = `qualification-${entry.id}-${randomBytes(4).toString('hex')}`;
-  const isolatedHome = join(dirname(projectRoot), 'isolated-home');
-  await Promise.all([
-    mkdir(join(isolatedHome, 'tmp'), { recursive: true }),
-    mkdir(join(isolatedHome, 'appdata'), { recursive: true }),
-    mkdir(join(isolatedHome, 'localappdata'), { recursive: true }),
-    mkdir(join(isolatedHome, '.config'), { recursive: true }),
-    mkdir(join(isolatedHome, '.cache'), { recursive: true }),
-    mkdir(join(isolatedHome, '.docker'), { recursive: true })
-  ]);
-  const environment = buildOfflineQualificationEnvironment({
-    endpoint: offlineServer.endpoint,
-    invocationId,
-    homeDirectory: isolatedHome
-  });
-  const configText = await readFile(configPath, 'utf8');
-  offlineServer.registerSecretReferences(
-    [...configText.matchAll(/\$Secret\(['"]([^'"]+)['"]\)/g)]
-      .map((match) => match[1])
-      .filter((reference): reference is string => reference !== undefined)
-  );
-  const initialUnexpectedRequests = offlineServer.unexpectedRequests.length;
-  const args = [
-    'run',
-    join(cliDirectory, 'scripts', 'dev.ts'),
-    'validate',
-    '--withPackage',
-    '--configPath',
-    configPath,
-    '--currentWorkingDirectory',
-    projectRoot,
-    '--projectName',
-    projectName,
-    '--stage',
-    'qualification',
-    '--region',
-    'eu-west-1',
-    '--agent',
-    '--outFile',
-    templatePath
-  ];
-  const processResult = await runProcess({
-    command: process.execPath,
-    args,
-    cwd: cliDirectory,
-    env: environment,
-    timeoutMs: 45 * 60_000
-  });
-  const blockedRequests = offlineServer.unexpectedRequests.slice(initialUnexpectedRequests);
-  if (processResult.timedOut) throw new Error('Source CLI packaging exceeded 45 minutes.');
-  if (processResult.stdoutTruncated) {
-    throw new Error('Source CLI JSONL exceeded the 32 MiB qualification capture limit.');
-  }
-  let parsed: ReturnType<typeof parseCliJsonl>;
-  try {
-    parsed = parseCliJsonl(processResult.stdout, 'validate --withPackage');
-  } catch (error) {
-    throw new Error(
-      `Source CLI packaging exited with ${String(processResult.exitCode)} without a valid result contract.\n${errorText(error)}\n${outputTail(
-        `${processResult.stdout}\n${processResult.stderr}`,
-        12_000
-      )}`
-    );
-  }
-  if (processResult.exitCode !== 0 || !parsed.result.ok || parsed.result.code !== 'OK') {
-    throw new Error(
-      `Source CLI packaging failed (${String(processResult.exitCode)}): ${parsed.result.code}: ${parsed.result.message}\n${outputTail(
-        `${processResult.stdout}\n${processResult.stderr}`,
-        12_000
-      )}`
-    );
-  }
-  if (blockedRequests.length > 0) {
-    throw new Error(`Packaging attempted blocked network calls: ${blockedRequests.join(', ')}.`);
-  }
-
-  const commandResult = isRecord(parsed.result.data) ? parsed.result.data.result : undefined;
-  const structuredResult = isRecord(commandResult) ? commandResult : undefined;
-  const structuredChecks =
-    structuredResult !== undefined && isRecord(structuredResult.checked) ? structuredResult.checked : undefined;
-  const hasStructuredContract = structuredResult?.valid === true && structuredChecks !== undefined;
-  const packagingCompleted = parsed.events.some(
-    (event) => event.type === 'event' && event.eventType === 'PACKAGE_ARTIFACTS' && event.status === 'completed'
-  );
-  const templateText = await readFile(templatePath, 'utf8');
-  if (!hasStructuredContract && (!packagingCompleted || templateText.trim().length === 0)) {
-    throw new Error(
-      'Validate returned neither its structured success contract nor completed packaging and a template.'
-    );
-  }
-  if (hasStructuredContract && (structuredChecks?.packaging !== true || structuredChecks.template !== true)) {
-    throw new Error('Validate did not check both packaging and the synthesized template.');
-  }
-  const workloads =
-    hasStructuredContract && Array.isArray(structuredResult.packagedWorkloads)
-      ? structuredResult.packagedWorkloads
-      : [];
-  return {
-    processResult,
-    details: {
-      validationContract: hasStructuredContract ? 'structured-result' : 'completed-events-and-template',
-      checked: hasStructuredContract
-        ? structuredChecks
-        : { config: true, resources: true, template: true, packaging: true, cloudformation: false },
-      packagedWorkloads: workloads.map((workload) =>
-        isRecord(workload)
-          ? {
-              jobName: workload.jobName,
-              digest: workload.digest,
-              skipped: workload.skipped,
-              size: workload.size
-            }
-          : workload
-      ),
-      blockedNetworkRequests: blockedRequests,
-      templatePath
-    }
-  };
-};
-
 const runCase = async ({
   selected,
   options,
@@ -669,8 +527,8 @@ const runCase = async ({
         let caseOfflineServer: OfflineAwsServer | undefined;
         try {
           caseOfflineServer = await startOfflineAwsServer();
-          const packaged = await packageProject({
-            entry,
+          const packaged = await packageWithSourceCli({
+            label: entry.id,
             projectName,
             projectRoot: acquired.projectRoot,
             configPath,
@@ -916,6 +774,7 @@ const main = async () => {
   const executionFingerprint = createHash('sha256').update(JSON.stringify(environment)).digest('hex');
   const resumable = await loadResumableCases(options.resumeFrom);
   const caseResults: QualificationCaseResult[] = [];
+  if (options.lanes.includes('package') && options.cases.length > 0) await ensureDevCliArtifacts();
   process.stderr.write(
     `Qualification run: ${options.cases.length} project(s), lanes ${options.lanes.join(', ')}\nResults: ${options.outputDirectory}\n`
   );
