@@ -22,6 +22,7 @@ PostgreSQL container, creates scratch databases, runs the real migration-adoptio
 in a `finally` block. The default selection covers migration/adoption only. Feature suites are available explicitly:
 
 ```sh
+pnpm --filter @stacktape/console-api-app test:db --billing
 pnpm --filter @stacktape/console-api-app test:db --issues
 pnpm --filter @stacktape/console-api-app test:db --incidents
 pnpm --filter @stacktape/console-api-app test:db --security
@@ -35,6 +36,10 @@ Pass the flag directly: an extra `--` is forwarded to this script and rejected. 
 the change, extending it when necessary. These suites use the disposable database, not shared dev. The runner currently
 defaults to a pinned PostgreSQL 15.14 image matching Console's configured RDS major version. Override it only to qualify
 a deliberate database upgrade. `pnpm dev:console` instead exercises the real shared dev data plane.
+
+The billing suite sends Paddle Classic form events through the real webhook and reads plan restrictions and receipts
+through the production HTTP router. It exercises production billing with synthetic credentials and loopback Paddle, AWS
+and telemetry providers. It never contacts Paddle or creates real charges.
 
 The isolated Console browser lane uses the same disposable database runner:
 
