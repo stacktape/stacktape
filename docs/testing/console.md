@@ -27,9 +27,14 @@ pnpm --filter @stacktape/console-api-app test:db --incidents
 pnpm --filter @stacktape/console-api-app test:db --security
 pnpm --filter @stacktape/console-api-app test:db --gitlab
 pnpm --filter @stacktape/console-api-app test:db --runner
+pnpm --filter @stacktape/console-api-app test:db --git-deploy
 pnpm --filter @stacktape/console-api-app test:db --incident-agent
 pnpm --filter @stacktape/console-api-app test:db --sign-up
 ```
+
+`--git-deploy` runs authenticated provider ingress, durable webhook/operation workers, runner dispatch and completion
+against loopback transports, with real API middleware and disposable PostgreSQL. It uses a ready runner fixture; EC2
+provisioning and AMI qualification remain separate.
 
 Pass the flag directly: an extra `--` is forwarded to this script and rejected. Choose the suite whose assertions cover
 the change, extending it when necessary. These suites use the disposable database, not shared dev. The runner currently
