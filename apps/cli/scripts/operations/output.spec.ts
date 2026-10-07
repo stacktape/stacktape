@@ -45,6 +45,10 @@ test('script progress preserves captured stdout and stderr and finishes with one
   try {
     seedDeployedStack(fixture);
     await writeFile(
+      join(fixture.directory, 'emit.ts'),
+      "console.log('\\u001b[31mj9-out\\u001b[0m'); console.error('j9-err');"
+    );
+    await writeFile(
       join(fixture.directory, 'stacktape.yml'),
       JSON.stringify({
         resources: {},
@@ -52,7 +56,7 @@ test('script progress preserves captured stdout and stderr and finishes with one
           report: {
             type: 'local-script',
             properties: {
-              executeCommand: "printf '\\033[31mj9-out\\033[0m\\n'; printf 'j9-err\\n' >&2",
+              executeCommand: `"${process.execPath}" emit.ts`,
               stdioMode: 'capture'
             }
           }
@@ -96,6 +100,7 @@ test('a failed script returns a nonzero exit and an actionable final result with
   const fixture = await createOperationsFixture(cli.path);
   try {
     seedDeployedStack(fixture);
+    await writeFile(join(fixture.directory, 'fail.ts'), "console.error('j9-script-failure'); process.exit(7);");
     await writeFile(
       join(fixture.directory, 'stacktape.yml'),
       JSON.stringify({
@@ -104,7 +109,7 @@ test('a failed script returns a nonzero exit and an actionable final result with
           fail: {
             type: 'local-script',
             properties: {
-              executeCommand: "printf 'j9-script-failure\\n' >&2; exit 7",
+              executeScript: 'fail.ts',
               stdioMode: 'capture'
             }
           }
