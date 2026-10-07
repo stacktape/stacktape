@@ -85,6 +85,10 @@ export const pythonBridge = (opts?: any) => {
   python.lock = setupLock(queue);
   python.pid = ps.pid;
   python.connected = true;
+  // A bridge whose process died (missing script, crash, kill) must not keep answering as connected: callers respawn it.
+  ps.once('exit', () => {
+    python.connected = false;
+  });
   python.Exception = PythonException;
   python.isException = isPythonException;
   python.disconnect = () => {

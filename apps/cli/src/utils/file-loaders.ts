@@ -81,7 +81,7 @@ export const killPythonBridge = () => {
 };
 
 export const getCallablePythonFunc = (filePath: string, functionName = 'main') => {
-  if (!python) {
+  if (!python || !python.connected) {
     python = pythonBridge({ pythonExecutable: getPythonExecutable() });
   }
   const userFileCache = {};

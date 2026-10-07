@@ -12,7 +12,9 @@ import {
   LAMBDA_TRACING_RUNTIME_SOURCE_PATH,
   LLM_DOCS_FOLDER_PATH,
   SCRIPTS_ASSETS_PATH,
-  SOURCE_MAP_INSTALL_FILE_NAME
+  SOURCE_MAP_INSTALL_FILE_NAME,
+  BRIDGE_FILES_FOLDER_NAME,
+  BRIDGE_FILES_SOURCE_PATH
 } from 'src/config/project-paths';
 import { buildEsCode } from '@stacktape/packaging/bundlers/es';
 import { getPlatform } from '@utils/bin-executable';
@@ -475,6 +477,12 @@ export const copyConfigSchema = async ({ distFolderPath }: { distFolderPath?: st
   logInfo('Copying config schema...');
   await copy(CONFIG_SCHEMA_PATH, join(distFolderPath, basename(CONFIG_SCHEMA_PATH)));
   logSuccess('Config schema copied successfully.');
+};
+
+export const copyBridgeFiles = async ({ distFolderPath }: { distFolderPath?: string }) => {
+  logInfo('Copying bridge files...');
+  await copy(BRIDGE_FILES_SOURCE_PATH, join(distFolderPath, BRIDGE_FILES_FOLDER_NAME));
+  logSuccess('Bridge files copied successfully.');
 };
 
 export const copyHelperLambdas = async ({ distFolderPath }: { distFolderPath?: string }) => {
