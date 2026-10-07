@@ -283,6 +283,22 @@ export class PackagingManager {
   }
 
   /**
+   * Records what a command returns and reports for a packaged workload: its identity, size and artifact. A packaging
+   * result also carries every source file it traced and internal details; a Next.js or SSR build lists thousands of
+   * them, and returning those made the `package` command's agent output too large to be delivered at all.
+   */
+  #recordPackagedJob = (result: PackagingOutput) => {
+    this.#packagedJobs.push({
+      jobName: result.jobName,
+      digest: result.digest,
+      skipped: result.outcome === 'skipped',
+      size: result.size,
+      ...(result.artifactPath === undefined ? {} : { artifactPath: result.artifactPath }),
+      ...(result.resolvedModules === undefined ? {} : { resolvedModules: result.resolvedModules })
+    });
+  };
+
+  /**
    * Check if a lambda uses shared layers.
    */
   shouldLambdaUseSharedLayer(lambdaName: string): boolean {
@@ -1356,7 +1372,7 @@ export class PackagingManager {
       executeProcess: exec,
       loadModuleExport: loadPackagingModuleExport
     });
-    packagingOutputs.forEach((result) => this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' }));
+    packagingOutputs.forEach((result) => this.#recordPackagedJob(result));
   };
 
   packageSsrWeb = async ({
@@ -1438,7 +1454,7 @@ export class PackagingManager {
       dockerBuildOutputArchitecture: 'linux/amd64'
     });
 
-    packagingOutputs.forEach((result) => this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' }));
+    packagingOutputs.forEach((result) => this.#recordPackagedJob(result));
   };
 
   packageWorkload = async ({
@@ -1505,7 +1521,7 @@ export class PackagingManager {
 
     if (packagingType === 'dockerfile') {
       const result = await buildUsingDockerfile({ ...sharedProps, ...packaging.properties });
-      this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
+      this.#recordPackagedJob(result);
       return result;
     }
     if (packagingType === 'custom-artifact') {
@@ -1514,7 +1530,7 @@ export class PackagingManager {
         invocationId: globalStateManager.invocationId
       });
       const result = await buildUsingCustomArtifact({ ...sharedProps, ...packaging.properties, distFolderPath });
-      this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
+      this.#recordPackagedJob(result);
       return result;
     }
     if (packagingType === 'buildpack' && target === 'container') {
@@ -1524,7 +1540,7 @@ export class PackagingManager {
         railpackFrontendImage: RAILPACK_FRONTEND_IMAGE,
         runRailpackPrepare: this.#dockerRunners.runRailpackPrepare
       });
-      this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
+      this.#recordPackagedJob(result);
       return result;
     }
     if (packagingType !== 'js-bundle' && packagingType !== 'buildpack') {
@@ -1544,7 +1560,7 @@ export class PackagingManager {
         props: getStableBuildpackDigestProps({ props, configured: { entryfilePath: configuredEntryfilePath } })
       });
     const record = (result: PackagingOutput) => {
-      this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
+      this.#recordPackagedJob(result);
       return result;
     };
 
