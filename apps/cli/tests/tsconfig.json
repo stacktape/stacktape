@@ -1,4 +1,9 @@
 {
   "extends": "../tsconfig.json",
-  "include": ["../src/environment.d.ts", "./characterization/**/*.ts", "./data-safety/**/*.ts"]
+  "include": [
+    "../src/environment.d.ts",
+    "./characterization/**/*.ts",
+    "./data-safety/**/*.ts",
+    "./synthesis-families/**/*.ts"
+  ]
 }
