@@ -676,10 +676,29 @@ const startContainerWorkload = async (
 
   const command = (containerDefinition.packaging as any)?.properties?.command;
 
+  // `docker run` stays attached while the container runs, so its exit is the container's. Each run gets a number;
+  // a rebuild advances it before stopping the old container, so only the latest run's exit that dev mode did not cause
+  // (rebuild or shutdown) is a crash. Without this, a container that crashed stayed "running" in the dashboard and agent.
+  let containerRun = 0;
+  const reportUnexpectedExit = (run: number, stderr: string) => {
+    if (run !== containerRun || applicationManager.isInterrupted) return;
+    const lines = stderr.trim().split('\n').filter(Boolean);
+    const reason = lines.findLast((line) => /error/i.test(line)) ?? lines.at(-1);
+    const error = `Container stopped unexpectedly${reason ? `: ${reason.trim()}` : '.'}`;
+    if (useDevTui) {
+      devTuiManager.setWorkloadStatus(resourceName, 'error', { error });
+      devTuiManager.log(resourceName, error, 'error');
+    } else {
+      tuiManager.error(`[${resourceName}] ${error}`);
+    }
+    updateAgentWorkloadStatus(resourceName, { status: 'error', error });
+  };
+
   // Start container and wait for it to be running (or fail early)
   await new Promise<void>((resolve, reject) => {
     let started = false;
     let stderrBuffer = '';
+    const run = ++containerRun;
 
     const containerPromise = dockerRun({
       name: localContainerName,
@@ -738,14 +757,17 @@ const startContainerWorkload = async (
               'Check container logs above for errors.'
             )
           );
+          return;
         }
+        reportUnexpectedExit(run, stderrBuffer);
       })
       .catch((err) => {
         if (!started) {
           const errMsg = stderrBuffer.trim() || err.message || 'Unknown error';
           reject(new ExpectedError('DOCKER', `Failed to start container "${resourceName}": ${errMsg}`));
+          return;
         }
-        // If already started, container exit is normal (e.g., during restart)
+        reportUnexpectedExit(run, stderrBuffer);
       });
   });
 
@@ -762,6 +784,8 @@ const startContainerWorkload = async (
       tuiManager.info(`[${resourceName}] Rebuilding...`);
     }
 
+    // This stop is not a crash.
+    containerRun++;
     await gracefullyStopContainer(localContainerName);
 
     // Step 2: Package
@@ -783,6 +807,8 @@ const startContainerWorkload = async (
     // Always re-fetch env (and IAM credentials) on explicit restart/rebuild.
     const rebuiltEnvironment = await getFreshEnvironment();
 
+    const run = ++containerRun;
+    let stderrBuffer = '';
     await new Promise<void>((resolve) => {
       dockerRun({
         name: localContainerName,
@@ -813,16 +839,19 @@ const startContainerWorkload = async (
               return null;
             }
           : undefined,
-        transformStderrLine: useDevTui
-          ? (line: string) => {
-              devTuiManager.log(resourceName, line, 'warn');
-              return null;
-            }
-          : undefined,
+        transformStderrLine: (line: string) => {
+          stderrBuffer += `${line}\n`;
+          if (!useDevTui) return line;
+          devTuiManager.log(resourceName, line, 'warn');
+          return null;
+        },
         args: containerArgs
-      }).catch(() => {
-        resolve();
-      });
+      })
+        .catch(() => {})
+        .then(() => {
+          resolve();
+          reportUnexpectedExit(run, stderrBuffer);
+        });
     });
 
     return { sourceFiles: newImage.sourceFiles, size: newImage.details, environment: rebuiltEnvironment };
