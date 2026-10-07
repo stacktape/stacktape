@@ -288,16 +288,16 @@ const verifyReleaseArtifact = async () => {
       : (await pnpmPack({ packageDir: NPM_RELEASE_FOLDER_PATH, destination: fixtureDirectory })).filename;
     const installedPackagePath = join(fixtureDirectory, 'node_modules', 'stacktape');
     await writeFile(join(fixtureDirectory, 'package.json'), JSON.stringify({ private: true }));
-    // Real installation resolves the package's declared dependencies and creates its bin aliases.
-    // Downloads here are npm dependencies; archive acquisition remains guarded below.
+    // Use the workspace package manager, including on hosts without npm. A relative tarball
+    // keeps dynamic Windows paths out of pnpm's batch shim arguments.
+    await copyFile(tarballPath, join(fixtureDirectory, 'stacktape-fixture.tgz'));
     run({
-      command: 'npm',
-      args: ['install', '--ignore-scripts', '--no-audit', '--no-fund', '--prefix', fixtureDirectory, tarballPath],
+      command: 'pnpm',
+      args: ['add', '--ignore-scripts', '--lockfile=false', './stacktape-fixture.tgz'],
       cwd: fixtureDirectory,
       env: {
         NPM_CONFIG_OFFLINE: 'false',
-        PNPM_CONFIG_OFFLINE: 'false',
-        npm_config_cache: join(fixtureDirectory, 'npm-cache')
+        PNPM_CONFIG_OFFLINE: 'false'
       }
     });
     if (

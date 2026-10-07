@@ -136,6 +136,7 @@ improves the assertion; it is not an extra test to add to every feature.
 `pnpm --filter @stacktape/cli test:release-artifact -- --candidate-dir <absolute-directory> --version <exact-version>`
 installs the actual npm tarball, verifies its native archive and packaged checksum manifest, and invokes the binary,
 launcher and installed `stacktape`/`stp` aliases. Supply `stacktape-<version>.tgz`, `SHA256SUMS` and this host's
-archive; this mode never rebuilds artifacts. npm resolves the package's dependencies; first-use tools are checked
-against their real upstream downloads. The no-argument lane still builds a source fixture. Run supplied candidates on
-each native target as part of [release qualification](../../../../docs/releasing.md#qualify-a-release-candidate).
+archive; this mode never rebuilds artifacts. pnpm installs the tarball's declared dependencies; first-use tools are
+checked against their real upstream downloads. The no-argument lane still builds a source fixture. Run supplied
+candidates on each native target as part of
+[release qualification](../../../../docs/releasing.md#qualify-a-release-candidate).
