@@ -5,6 +5,7 @@ import type { TunnelInfo } from '../tunnel-manager';
 import { randomUUID } from 'node:crypto';
 import { applicationManager } from '@application-services/application-manager';
 import { commandLifecycle } from '@application-services/command-lifecycle';
+import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { IS_DEV, PRINT_LOGS_INTERVAL } from '@config';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
@@ -12,7 +13,7 @@ import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { packagingManager } from '@domain-services/packaging-manager';
 import { stpErrors } from '@errors';
-import { getJobName, getLocalInvokeContainerName, injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
+import { getJobName, injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
 import { dockerRun, getDockerHostAddress, inspectDockerContainer } from '@utils/docker';
 import { LambdaCloudwatchLogPrinter } from '@utils/cloudwatch-logs';
 import { getDirectiveParams, getIsDirective, startsLikeGetParamDirective } from '@utils/directives';
@@ -32,6 +33,7 @@ import { startSsrWebDevServer } from '../ssr-web';
 import type { SsrWebResourceType } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/ssr-web-shared';
 import { startTunnel } from '../tunnel-manager';
 import { ensureNamedProxyRoute } from '../named-proxy/manager';
+import { getDevContainerName } from '../cleanup-utils';
 import { isPortAvailable, reservePorts } from '../port-utils';
 import {
   clearCredentialExpiryTimer,
@@ -619,7 +621,11 @@ const startContainerWorkload = async (
   const isInjected = deployedStackOverviewManager.isLocallyInjectedResource(resourceName);
 
   // Run container
-  const localContainerName = getLocalInvokeContainerName(jobName);
+  const localContainerName = getDevContainerName({
+    projectName: globalStateManager.targetStack.projectName,
+    stage: globalStateManager.stage,
+    name: jobName
+  });
   await gracefullyStopContainer(localContainerName);
   const sessionId = randomUUID();
   const containerArgs = {
