@@ -21,7 +21,10 @@ export type ProductCostInformation = {
 
 export type ResourcePricingInformation = {
   priceInfo: {
+    /** Subtotal of the fixed monthly prices available in USD. */
     totalMonthlyFlat: number;
+    /** A fixed monthly product has no usable regional price. */
+    incomplete: boolean;
     costBreakdown: ProductCostInformation[];
   };
   relatedAwsPricingDocs?: Record<string, string>;
@@ -30,7 +33,11 @@ export type ResourcePricingInformation = {
 };
 
 export type StackPricingEstimate = {
+  /** Subtotal; display as a monthly estimate only when incomplete is false. */
   flatMonthlyCost: number;
+  incomplete: boolean;
+  /** Resources unsupported by the estimator or whose lookup failed. */
+  unpricedResources: string[];
   resourcesBreakdown: Record<string, ResourcePricingInformation>;
 };
 

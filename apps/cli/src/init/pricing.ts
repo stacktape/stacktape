@@ -59,10 +59,14 @@ export const estimateMonthlyCost = async (
     const byResource: Record<string, string> = {};
     for (const [name, info] of Object.entries(result.costs.resourcesBreakdown)) {
       const total = info.priceInfo.totalMonthlyFlat;
-      if (typeof total === 'number') byResource[name] = formatMonthly(total);
+      byResource[name] = info.priceInfo.incomplete !== false ? 'Price unavailable' : formatMonthly(total ?? 0);
     }
 
-    return { monthly: formatMonthly(result.costs.flatMonthlyCost), byResource, region };
+    return {
+      monthly: result.costs.incomplete !== false ? 'Estimate incomplete' : formatMonthly(result.costs.flatMonthlyCost),
+      byResource,
+      region
+    };
   } catch {
     // Offline, blocked, rate-limited, or the API changed under us. All the same answer here.
     return undefined;
