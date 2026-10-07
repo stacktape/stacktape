@@ -2,7 +2,7 @@ import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
 import { copyFile, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { delimiter, join, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { brotliDecompressSync } from 'node:zlib';
 import { DIST_PACKAGE_FOLDER_PATH, NPM_RELEASE_FOLDER_PATH } from 'src/config/project-paths';
@@ -187,8 +187,6 @@ export const verifyNativeInstallation = async ({
   assertInstalledCliVersion(run({ command: join(binDirectory, binaryName), args: ['--version'] }), version);
 
   const launcherPath = join(binDirectory, 'stacktape.js');
-  const workspaceNodeModules = join(process.cwd(), 'node_modules');
-  const nodePath = [workspaceNodeModules, process.env.NODE_PATH].filter(Boolean).join(delimiter);
   const networkGuardPath = join(fixtureDirectory, 'reject-node-network.cjs');
   await writeFile(
     networkGuardPath,
@@ -206,14 +204,14 @@ globalThis.fetch = reject;
   const versionOutput = run({
     command: 'node',
     args: [...launcherArgs, '--version'],
-    env: { NODE_PATH: nodePath }
+    env: { NODE_PATH: '' }
   });
   if (!versionOutput.includes(`Stacktape version: ${version}`)) {
     throw new Error(`Installed npm launcher returned the wrong version:\n${versionOutput}`);
   }
   // Invoke both package-manager-created aliases, as an installed customer does.
   // NODE_OPTIONS keeps archive downloads forbidden after the local cache is populated.
-  const aliasEnv = { NODE_PATH: nodePath, NODE_OPTIONS: `--require=${networkGuardPath}` };
+  const aliasEnv = { NODE_PATH: '', NODE_OPTIONS: `--require=${networkGuardPath}` };
   const aliasDirectory = join(fixtureDirectory, 'node_modules', '.bin');
   if (process.platform !== 'win32') {
     for (const alias of ['stacktape', 'stp']) {
@@ -223,7 +221,7 @@ globalThis.fetch = reject;
       );
     }
   }
-  const helpOutput = run({ command: 'node', args: [...launcherArgs, '--help'], env: { NODE_PATH: nodePath } });
+  const helpOutput = run({ command: 'node', args: [...launcherArgs, '--help'], env: { NODE_PATH: '' } });
   for (const expected of ['Available commands:', 'deploy', 'delete', 'package', 'CLI Documentation']) {
     if (!helpOutput.includes(expected)) {
       throw new Error(`Installed npm launcher help is missing ${expected}:\n${helpOutput}`);
@@ -349,12 +347,10 @@ const verifyReleaseArtifact = async () => {
       `Verified ${platform} release artifact stacktape@${packageResult.version}: ${packageResult.fileCount} packed npm files, native archive checksum and contents, first-use tool downloads, launcher version/help, tampering rejected.`
     );
   } finally {
-    if (candidateDirectory) {
-      // Supplied-artifact verification never writes workspace generation outputs.
-    } else if (generatedLlmDocsIndexExisted) {
-      await copyFile(generatedLlmDocsIndexSnapshotPath, generatedLlmDocsIndexPath);
-    } else {
-      await rm(generatedLlmDocsIndexPath, { force: true });
+    // Supplied-artifact verification never writes workspace generation outputs.
+    if (!candidateDirectory) {
+      if (generatedLlmDocsIndexExisted) await copyFile(generatedLlmDocsIndexSnapshotPath, generatedLlmDocsIndexPath);
+      else await rm(generatedLlmDocsIndexPath, { force: true });
     }
     await rm(fixtureDirectory, { recursive: true, force: true });
   }
