@@ -14,19 +14,21 @@ import type { AddressInfo } from 'node:net';
 
 export type AwsRequest = {
   service: string;
+  region: string;
   operation: string;
   method: string;
   path: string;
   /** Parsed JSON body (JSON and REST-JSON protocols) or form parameters (query protocols). */
   input: Record<string, unknown>;
   rawBody: string;
+  rawBytes: Buffer;
 };
 
 export type AwsReply =
   | { kind: 'json'; body: unknown; status?: number }
   | { kind: 'xml'; operation: string; result: string }
   | { kind: 'error'; code: string; message: string; status?: number }
-  | { kind: 'raw'; status: number; contentType: string; body: string }
+  | { kind: 'raw'; status: number; contentType: string; body: string; headers?: Record<string, string> }
   /** Never answers; the child process must give up or be interrupted. */
   | { kind: 'hang' };
 
@@ -42,7 +44,7 @@ const queryServices = new Set(['sts', 'cloudformation', 'ec2', 'autoscaling']);
 const readBody = async (request: IncomingMessage) => {
   const chunks: Buffer[] = [];
   for await (const chunk of request) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  return Buffer.concat(chunks).toString('utf8');
+  return Buffer.concat(chunks);
 };
 
 const serviceFromAuthorization = (request: IncomingMessage) => {
@@ -51,37 +53,52 @@ const serviceFromAuthorization = (request: IncomingMessage) => {
   return /Credential=[^/]+\/[^/]+\/[^/]+\/([^/]+)\/aws4_request/.exec(authorization)?.[1] ?? 'unknown';
 };
 
-const identify = (request: IncomingMessage, rawBody: string): AwsRequest => {
+const identify = (request: IncomingMessage, rawBytes: Buffer): AwsRequest => {
+  const rawBody = rawBytes.toString('utf8');
   const url = new URL(request.url ?? '/', 'http://127.0.0.1');
   const service = serviceFromAuthorization(request);
+  const region = /Credential=[^/]+\/[^/]+\/([^/]+)\//.exec(request.headers.authorization ?? '')?.[1] ?? 'unknown';
   const target = request.headers['x-amz-target'];
   const method = request.method ?? 'GET';
   if (typeof target === 'string') {
     return {
       service,
+      region,
       operation: target.split('.').at(-1) ?? target,
       method,
       path: url.pathname,
       input: rawBody ? (JSON.parse(rawBody) as Record<string, unknown>) : {},
-      rawBody
+      rawBody,
+      rawBytes
     };
   }
   if (queryServices.has(service)) {
     const parameters = new URLSearchParams(rawBody || url.search);
     return {
       service,
+      region,
       operation: parameters.get('Action') ?? 'UnknownAction',
       method,
       path: url.pathname,
       input: Object.fromEntries(parameters),
-      rawBody
+      rawBody,
+      rawBytes
     };
   }
   let input: Record<string, unknown> = {};
   try {
     input = rawBody ? (JSON.parse(rawBody) as Record<string, unknown>) : {};
   } catch {}
-  return { service, operation: `${method} ${url.pathname}`, method, path: url.pathname, input, rawBody };
+  return {
+    service,
+    region,
+    operation: `${method} ${url.pathname}`,
+    method,
+    path: url.pathname,
+    input,
+    rawBody,
+    rawBytes
+  };
 };
 
 const escapeXml = (value: string) =>
@@ -136,7 +153,11 @@ const send = (response: ServerResponse, request: AwsRequest, reply: Exclude<AwsR
     response.end(JSON.stringify({ __type: reply.code, message: reply.message }));
     return;
   }
-  response.writeHead(reply.status, { 'content-type': reply.contentType, 'x-amzn-requestid': requestId });
+  response.writeHead(reply.status, {
+    'content-type': reply.contentType,
+    'x-amzn-requestid': requestId,
+    ...reply.headers
+  });
   response.end(reply.body);
 };
 
