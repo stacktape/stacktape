@@ -37,7 +37,7 @@ const XML_NAMESPACES: Record<string, string> = {
   cloudformation: 'http://cloudformation.amazonaws.com/doc/2010-05-15/'
 };
 
-const queryServices = new Set(['sts', 'cloudformation', 'ec2']);
+const queryServices = new Set(['sts', 'cloudformation', 'ec2', 'autoscaling']);
 
 const readBody = async (request: IncomingMessage) => {
   const chunks: Buffer[] = [];

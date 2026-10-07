@@ -4,6 +4,7 @@ import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { runEcsExecSsmShellSession } from '@utils/ssm-session';
+import { CliError } from '@utils/errors';
 import { containerErrors } from '../_utils/container-errors';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
 
@@ -58,6 +59,15 @@ const resolveTargetContainer = async ({ resourceName, container }: { resourceNam
     ecsClusterName: clusterArn,
     desiredStatus: DesiredStatus.RUNNING
   });
+
+  if (tasks.length === 0) {
+    throw new CliError({
+      category: 'NON_EXISTING_RESOURCE',
+      code: 'CONTAINER_TASK_NOT_RUNNING',
+      message: `No running task was found for resource \`${resourceName}\`.`,
+      hints: 'Wait for a task to start or check the ECS service status.'
+    });
+  }
 
   let taskArn = tasks[0]?.taskArn;
   if (tasks.length > 1) {
