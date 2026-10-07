@@ -15,8 +15,11 @@ import { join, relative } from 'node:path';
 export const LAMBDA_IMAGE = 'public.ecr.aws/lambda/nodejs:24';
 /** The unprivileged test user and group; see the module comment. */
 export const LAMBDA_USER = '993:990';
-/** Every container an archive acceptance starts carries this label, so leftovers can be found. */
-export const CONTAINER_LABEL = 'stacktape.test=lambda-archive-acceptance';
+/**
+ * Every container an acceptance starts carries this label, so leftovers can be found. It names the process, so two
+ * acceptances running at the same time do not report each other's containers as leftovers.
+ */
+export const CONTAINER_LABEL = `stacktape.test=lambda-archive-acceptance-${process.pid}`;
 
 type CommandResult = { exitCode: number | null; stdout: string; stderr: string };
 type RunCommand = (command: string[]) => CommandResult;

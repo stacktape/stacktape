@@ -26,6 +26,7 @@
  * It needs Docker, `unzip` and the local Lambda Node.js 22 and 24 images (pulled when missing); never AWS.
  *
  *   bun scripts/packaging-archives/node-lambda-acceptance.ts [--out <new or empty directory>] [--keep]
+ *     [--export <new or empty directory> | --import <directory>]
  */
 import { createHash } from 'node:crypto';
 import { cp, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
@@ -46,6 +47,17 @@ import { writeInstallMarker } from './split-project-fixture';
 
 /** `--keep` leaves the fixture, the CLI's invocation directories and the extracted layers for inspection. */
 const keep = process.argv.includes('--keep');
+const optionValue = (flag: string) => {
+  const index = process.argv.indexOf(flag);
+  return index === -1 ? undefined : resolve(process.argv[index + 1]!);
+};
+/**
+ * `--export <dir>` runs the build phase only (the CLI packages, digests are compared) and copies the first and edited
+ * builds' artifacts there; `--import <dir>` runs the invoke phase only on such a directory. The build phase runs on
+ * any host the CLI supports, including Windows; the invoke phase needs Docker and `unzip` on Linux.
+ */
+const exportDirectory = optionValue('--export');
+const importDirectory = optionValue('--import');
 const outIndex = process.argv.indexOf('--out');
 const out = resolve(
   outIndex === -1
@@ -332,19 +344,229 @@ const invoke = async ({
   }
 };
 
-const main = async () => {
+/** The first build's three functions in the Lambda runtime, and what their ZIPs hold. */
+const invokeFirst = async ({
+  first,
+  sharedLine,
+  report
+}: {
+  first: PackageRun;
+  /** The 1-based line of `throw new Error('exploded in shared')` in `src/lib/shared.ts`. */
+  sharedLine: number;
+  report: Record<string, unknown>;
+}) => {
+  console.log('Invoking every function in the Lambda runtime...');
+  const esm = await invoke({ run: first, name: 'esm', event: { throw: true } });
+  const plain = await invoke({ run: first, name: 'plain' });
+  const legacy = await invoke({ run: first, name: 'legacy' });
+  report.responses = { esm: esm.response, plain: plain.response, legacy: legacy.response };
+  report.entries = { esm: esm.entries, plain: plain.entries, legacy: legacy.entries };
+
+  const layerChunks = first.layers.flatMap((layer) =>
+    layer.listing
+      .filter((entry) => entry.startsWith('nodejs/chunks/'))
+      .map((entry) => entry.split(' ')[0]!.slice('nodejs/'.length))
+  );
+  const shipsLayerChunk = (entries: string[]) =>
+    entries.some((entry) => layerChunks.some((chunk) => entry.startsWith(`${chunk} `)));
+  check(
+    'esm: shared chunk loads from the layer and is not duplicated in the function',
+    esm.response.sharedLength === SHARED_PAYLOAD.length && layerChunks.length > 0 && !shipsLayerChunk(esm.entries),
+    `sharedLength=${String(esm.response.sharedLength)}, layer chunks: ${layerChunks.join(', ')}`
+  );
+  check(
+    'plain: shared chunk loads from the layer and is not duplicated in the function',
+    plain.response.sharedLength === SHARED_PAYLOAD.length && !shipsLayerChunk(plain.entries),
+    `sharedLength=${String(plain.response.sharedLength)}`
+  );
+  check(
+    'esm: dynamic import resolves inside the package',
+    esm.response.lazyValue === 'loaded-lazily',
+    `lazyValue=${String(esm.response.lazyValue)}`
+  );
+  const asset = esm.response.asset as { path?: string; sha256?: string } | undefined;
+  check(
+    'esm: file asset ships and is read under /var/task',
+    asset?.sha256 === sha256(ASSET) && typeof asset.path === 'string' && asset.path.startsWith('/var/task/'),
+    `path=${String(asset?.path)}`
+  );
+  check(
+    'esm: ESM-only dependency bundles',
+    esm.response.dependency === 'esm-only',
+    `dependency=${String(esm.response.dependency)}`
+  );
+  check(
+    'esm: AWS SDK comes from the runtime, not the ZIP',
+    typeof esm.response.sdk === 'string' &&
+      esm.response.sdk.startsWith('file:///var/runtime/') &&
+      !esm.entries.some((entry) => entry.includes('@aws-sdk/')),
+    `sdk=${String(esm.response.sdk)}`
+  );
+  check(
+    'esm: import.meta.url is the task file',
+    typeof esm.response.importMetaUrl === 'string' && esm.response.importMetaUrl.startsWith('file:///var/task/'),
+    `importMetaUrl=${String(esm.response.importMetaUrl)}`
+  );
+  const stack = Array.isArray(esm.response.stack) ? (esm.response.stack as string[]) : [];
+  check(
+    'esm: a thrown error names the original TypeScript file and line',
+    stack.some((frame) => frame.includes(`src/lib/shared.ts:${sharedLine}:`)),
+    `stack=${JSON.stringify(stack)}`
+  );
+  check(
+    'legacy: CommonJS entry runs with require, module.exports and __dirname',
+    legacy.response.dependency === 'cjs' &&
+      legacy.response.sum === 42 &&
+      legacy.response.dirname === '/var/task' &&
+      legacy.response.format === 'cjs',
+    JSON.stringify(legacy.response)
+  );
+  for (const [name, entries] of [
+    ['esm', esm.entries],
+    ['plain', plain.entries],
+    ['legacy', legacy.entries]
+  ] as const) {
+    check(
+      `${name}: ZIP ships a source map without sourcesContent`,
+      entries.some((entry) => entry.startsWith('index.js.map ')),
+      entries.filter((entry) => entry.endsWith('.map') || entry.startsWith('index.js.map ')).join(', ') || 'no map'
+    );
+  }
+  for (const name of FUNCTIONS) {
+    const size = (await stat(first.functions[name].artifactPath)).size;
+    check(`${name}: ZIP is a non-empty Lambda archive`, size > 0 && size < 50 * 1024 * 1024, `${size} bytes`);
+  }
+};
+
+/** The edited build's `esm` function runs with its new source. */
+const invokeEdited = async ({ edited }: { edited: PackageRun }) => {
+  const editedEsm = await invoke({ run: edited, name: 'esm' });
+  check(
+    'the edited esm function runs with its new source',
+    editedEsm.response.marker === 'esm-v2',
+    `marker=${String(editedEsm.response.marker)}`
+  );
+};
+
+/**
+ * What the invoke phase needs from a build phase run elsewhere (for example on Windows): the ZIPs and the assembled
+ * `/opt` of the first and edited builds, the layer listings, and where the fixture throws.
+ */
+type ExportedManifest = {
+  sharedLine: number;
+  runs: Record<
+    'first' | 'edited',
+    { functions: Record<FunctionName, PackagedFunction>; layers: PackageRun['layers']; opt: string | null }
+  >;
+};
+
+const exportArtifacts = async ({
+  directory,
+  first,
+  edited,
+  sharedLine
+}: {
+  directory: string;
+  first: PackageRun;
+  edited: PackageRun;
+  sharedLine: number;
+}) => {
+  const manifest: ExportedManifest = { sharedLine, runs: {} as ExportedManifest['runs'] };
+  for (const [label, run] of [
+    ['first', first],
+    ['edited', edited]
+  ] as const) {
+    const functions = {} as Record<FunctionName, PackagedFunction>;
+    for (const name of FUNCTIONS) {
+      const zip = `${label}/${name}.zip`;
+      await cp(run.functions[name].artifactPath, join(directory, zip));
+      functions[name] = { ...run.functions[name], artifactPath: zip };
+    }
+    let opt: string | null = null;
+    if (run.optDirectory !== undefined) {
+      opt = `${label}/opt`;
+      await cp(run.optDirectory, join(directory, opt), { recursive: true });
+    }
+    manifest.runs[label] = { functions, layers: run.layers, opt };
+  }
+  await writeJsonAtomic(join(directory, 'manifest.json'), manifest);
+};
+
+const importArtifacts = async (directory: string) => {
+  const manifest = JSON.parse(await readFile(join(directory, 'manifest.json'), 'utf8')) as ExportedManifest;
+  const toRun = (label: 'first' | 'edited'): PackageRun => {
+    const exported = manifest.runs[label];
+    const functions = {} as Record<FunctionName, PackagedFunction>;
+    for (const name of FUNCTIONS) {
+      functions[name] = {
+        ...exported.functions[name],
+        artifactPath: join(directory, exported.functions[name].artifactPath)
+      };
+    }
+    return {
+      invocationId: `imported-${label}`,
+      invocationDirectory: '',
+      functions,
+      layers: exported.layers,
+      optDirectory: exported.opt === null ? undefined : join(directory, exported.opt)
+    };
+  };
+  return { sharedLine: manifest.sharedLine, first: toRun('first'), edited: toRun('edited') };
+};
+
+/** The invoke phase alone, on artifacts a build phase exported, possibly from another operating system. */
+const invokeImported = async (directory: string) => {
   await mkdir(out, { recursive: true });
   if ((await readdir(out)).length > 0) throw new Error(`Refusing to write into ${out}: it is not empty.`);
-  await ensureDevCliArtifacts();
   const images = Object.fromEntries(
     [...new Set(Object.values(RUNTIME_IMAGE))].map((image) => [image, ensureLambdaImage(image)])
   );
+  const report: Record<string, unknown> = { out, images, imported: directory };
+  try {
+    const { first, edited, sharedLine } = await importArtifacts(directory);
+    report.first = first;
+    report.edited = edited;
+    check('the imported build has a shared layer', first.layers.length >= 1, `${first.layers.length} shared layer(s)`);
+    await invokeFirst({ first, sharedLine, report });
+    await invokeEdited({ edited });
+  } finally {
+    const leftovers = listLeftoverContainers();
+    check('no acceptance container is left behind', leftovers.length === 0, leftovers.join(', ') || 'none');
+    report.checks = checks;
+    await writeJsonAtomic(join(out, 'report.json'), report);
+  }
+  const failed = checks.filter((entry) => !entry.ok);
+  if (failed.length > 0) {
+    throw new Error(`${failed.length} check(s) failed: ${failed.map((entry) => entry.check).join('; ')}`);
+  }
+  console.log(`Node Lambda invoke phase passed; report at ${join(out, 'report.json')}`);
+};
+
+const main = async () => {
+  if (importDirectory !== undefined) return invokeImported(importDirectory);
+  await mkdir(out, { recursive: true });
+  if ((await readdir(out)).length > 0) throw new Error(`Refusing to write into ${out}: it is not empty.`);
+  if (exportDirectory !== undefined) {
+    await mkdir(exportDirectory, { recursive: true });
+    if ((await readdir(exportDirectory)).length > 0) {
+      throw new Error(`Refusing to export into ${exportDirectory}: it is not empty.`);
+    }
+  }
+  await ensureDevCliArtifacts();
+  const images =
+    exportDirectory === undefined
+      ? Object.fromEntries([...new Set(Object.values(RUNTIME_IMAGE))].map((image) => [image, ensureLambdaImage(image)]))
+      : {};
   const work = await mkdtemp(join(tmpdir(), 'stacktape-node-lambda-acceptance-'));
   const report: Record<string, unknown> = { out, images, work };
   const runs: PackageRun[] = [];
   try {
     const project = join(work, 'project');
     await writeFixture(project);
+    const sharedLine =
+      (await readFile(join(project, 'src', 'lib', 'shared.ts'), 'utf8'))
+        .split('\n')
+        .findIndex((line) => line.includes("throw new Error('exploded in shared')")) + 1;
     // A pristine copy for the relocation run, taken before any build writes into the project.
     const relocated = join(work, 'elsewhere', 'project');
     await cp(project, relocated, { recursive: true });
@@ -355,90 +577,7 @@ const main = async () => {
     report.first = first;
     check('split group emits a shared layer', first.layers.length >= 1, `${first.layers.length} shared layer(s)`);
 
-    console.log('Invoking every function in the Lambda runtime...');
-    const esm = await invoke({ run: first, name: 'esm', event: { throw: true } });
-    const plain = await invoke({ run: first, name: 'plain' });
-    const legacy = await invoke({ run: first, name: 'legacy' });
-    report.responses = { esm: esm.response, plain: plain.response, legacy: legacy.response };
-    report.entries = { esm: esm.entries, plain: plain.entries, legacy: legacy.entries };
-
-    const layerChunks = first.layers.flatMap((layer) =>
-      layer.listing
-        .filter((entry) => entry.startsWith('nodejs/chunks/'))
-        .map((entry) => entry.split(' ')[0]!.slice('nodejs/'.length))
-    );
-    const shipsLayerChunk = (entries: string[]) =>
-      entries.some((entry) => layerChunks.some((chunk) => entry.startsWith(`${chunk} `)));
-    check(
-      'esm: shared chunk loads from the layer and is not duplicated in the function',
-      esm.response.sharedLength === SHARED_PAYLOAD.length && layerChunks.length > 0 && !shipsLayerChunk(esm.entries),
-      `sharedLength=${String(esm.response.sharedLength)}, layer chunks: ${layerChunks.join(', ')}`
-    );
-    check(
-      'plain: shared chunk loads from the layer and is not duplicated in the function',
-      plain.response.sharedLength === SHARED_PAYLOAD.length && !shipsLayerChunk(plain.entries),
-      `sharedLength=${String(plain.response.sharedLength)}`
-    );
-    check(
-      'esm: dynamic import resolves inside the package',
-      esm.response.lazyValue === 'loaded-lazily',
-      `lazyValue=${String(esm.response.lazyValue)}`
-    );
-    const asset = esm.response.asset as { path?: string; sha256?: string } | undefined;
-    check(
-      'esm: file asset ships and is read under /var/task',
-      asset?.sha256 === sha256(ASSET) && typeof asset.path === 'string' && asset.path.startsWith('/var/task/'),
-      `path=${String(asset?.path)}`
-    );
-    check(
-      'esm: ESM-only dependency bundles',
-      esm.response.dependency === 'esm-only',
-      `dependency=${String(esm.response.dependency)}`
-    );
-    check(
-      'esm: AWS SDK comes from the runtime, not the ZIP',
-      typeof esm.response.sdk === 'string' &&
-        esm.response.sdk.startsWith('file:///var/runtime/') &&
-        !esm.entries.some((entry) => entry.includes('@aws-sdk/')),
-      `sdk=${String(esm.response.sdk)}`
-    );
-    check(
-      'esm: import.meta.url is the task file',
-      typeof esm.response.importMetaUrl === 'string' && esm.response.importMetaUrl.startsWith('file:///var/task/'),
-      `importMetaUrl=${String(esm.response.importMetaUrl)}`
-    );
-    const stack = Array.isArray(esm.response.stack) ? (esm.response.stack as string[]) : [];
-    const sharedLine = (await readFile(join(project, 'src', 'lib', 'shared.ts'), 'utf8'))
-      .split('\n')
-      .findIndex((line) => line.includes("throw new Error('exploded in shared')"));
-    check(
-      'esm: a thrown error names the original TypeScript file and line',
-      stack.some((frame) => frame.includes(`src/lib/shared.ts:${sharedLine + 1}:`)),
-      `stack=${JSON.stringify(stack)}`
-    );
-    check(
-      'legacy: CommonJS entry runs with require, module.exports and __dirname',
-      legacy.response.dependency === 'cjs' &&
-        legacy.response.sum === 42 &&
-        legacy.response.dirname === '/var/task' &&
-        legacy.response.format === 'cjs',
-      JSON.stringify(legacy.response)
-    );
-    for (const [name, entries] of [
-      ['esm', esm.entries],
-      ['plain', plain.entries],
-      ['legacy', legacy.entries]
-    ] as const) {
-      check(
-        `${name}: ZIP ships a source map without sourcesContent`,
-        entries.some((entry) => entry.startsWith('index.js.map ')),
-        entries.filter((entry) => entry.endsWith('.map') || entry.startsWith('index.js.map ')).join(', ') || 'no map'
-      );
-    }
-    for (const name of FUNCTIONS) {
-      const size = (await stat(first.functions[name].artifactPath)).size;
-      check(`${name}: ZIP is a non-empty Lambda archive`, size > 0 && size < 50 * 1024 * 1024, `${size} bytes`);
-    }
+    if (exportDirectory === undefined) await invokeFirst({ first, sharedLine, report });
 
     console.log('Packaging the unchanged project again...');
     const second = await packageProject({ project, label: 'second' });
@@ -475,12 +614,7 @@ const main = async () => {
         JSON.stringify(first.layers.map((layer) => layer.listing)),
       `${edited.layers.length} layer(s)`
     );
-    const editedEsm = await invoke({ run: edited, name: 'esm' });
-    check(
-      'the edited esm function runs with its new source',
-      editedEsm.response.marker === 'esm-v2',
-      `marker=${String(editedEsm.response.marker)}`
-    );
+    if (exportDirectory === undefined) await invokeEdited({ edited });
 
     console.log('Packaging the untouched copy from another directory...');
     const moved = await packageProject({ project: relocated, label: 'relocated' });
@@ -500,6 +634,10 @@ const main = async () => {
         JSON.stringify(first.layers.map((layer) => layer.listing)),
       `${moved.layers.length} layer(s)`
     );
+    if (exportDirectory !== undefined) {
+      await exportArtifacts({ directory: exportDirectory, first, edited, sharedLine });
+      console.log(`Exported the artifacts of the first and edited builds to ${exportDirectory}.`);
+    }
   } finally {
     const leftovers = listLeftoverContainers();
     check('no acceptance container is left behind', leftovers.length === 0, leftovers.join(', ') || 'none');
