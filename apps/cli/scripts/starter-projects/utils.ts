@@ -11,9 +11,12 @@ import { addDefaultTsConfigIfNeeded, adjustPackageJson } from '../../src/command
 import { addReadme, getProjectMdx } from './starters-mdx';
 import type { StacktapeResourceDefinition } from '@stacktape/config/shared';
 
+// Lockfiles are left out because the starter's package.json is rewritten on the way out (see adjustPackageJson):
+// a shipped lockfile would no longer match it and a frozen install would refuse it.
 const IGNORED_FILES = [
   'yarn.lock',
   'package-lock.json',
+  'pnpm-lock.yaml',
   'bun.lockb',
   'bun.lock',
   '.stacktape',
