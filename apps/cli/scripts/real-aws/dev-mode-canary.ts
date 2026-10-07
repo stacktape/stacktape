@@ -766,15 +766,20 @@ const failedStartup = async (context: ScenarioContext) => {
       return 'dev --agent failed to start';
     }
     ports.push(...(await sessionPorts(agentPort)));
-    const status = await waitFor('the API to be reported as failed', async () => {
-      const verbose = await agentRequest(agentPort, '/status?verbose=true');
-      const api = (verbose.data?.workloads as { name: string; status: string; error?: string }[]).find(
-        ({ name }) => name === 'api'
-      );
-      return api?.status === 'error' ? api : undefined;
-    });
-    await runCli({ options, state, args: ['dev:stop', '--agentPort', String(agentPort), '--agent'] });
-    return `reported: ${status.error ?? 'error'}`;
+    try {
+      const status = await waitFor('the API to be reported as failed', async () => {
+        const verbose = await agentRequest(agentPort, '/status?verbose=true');
+        const api = (verbose.data?.workloads as { name: string; status: string; error?: string }[]).find(
+          ({ name }) => name === 'api'
+        );
+        return api?.status === 'error' ? api : undefined;
+      });
+      // The developer must see why, not only that it stopped.
+      assert(status.error?.includes('api fails on start'), `The reported error omits the cause: ${status.error}`);
+      return `reported: ${status.error}`;
+    } finally {
+      await runCli({ options, state, args: ['dev:stop', '--agentPort', String(agentPort), '--agent'] });
+    }
   });
   await expectNoLeftovers(context, ports);
 };
