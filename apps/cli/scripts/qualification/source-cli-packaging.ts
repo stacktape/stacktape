@@ -47,14 +47,21 @@ export const packageWithSourceCli = async ({
   projectRoot,
   configPath,
   templatePath,
-  offlineServer
+  offlineServer,
+  command = 'validate'
 }: {
   label: string;
   projectName: string;
   projectRoot: string;
   configPath: string;
+  /** Where `validate` writes the synthesized template; ignored by `package`. */
   templatePath: string;
   offlineServer: OfflineAwsServer;
+  /**
+   * `validate --withPackage` removes its build directory when it finishes; `package` leaves every artifact and layer
+   * under `<project>/.stacktape/<invocationId>/build` for the caller, as the product's own `package` command does.
+   */
+  command?: 'validate' | 'package';
 }) => {
   const invocationId = `qualification-${label}-${randomBytes(4).toString('hex')}`;
   const isolatedHome = join(dirname(projectRoot), 'isolated-home');
@@ -81,8 +88,7 @@ export const packageWithSourceCli = async ({
   const args = [
     'run',
     join(cliDirectory, 'scripts', 'dev.ts'),
-    'validate',
-    '--withPackage',
+    ...(command === 'package' ? ['package'] : ['validate', '--withPackage']),
     '--configPath',
     configPath,
     '--currentWorkingDirectory',
@@ -94,8 +100,7 @@ export const packageWithSourceCli = async ({
     '--region',
     'eu-west-1',
     '--agent',
-    '--outFile',
-    templatePath
+    ...(command === 'package' ? [] : ['--outFile', templatePath])
   ];
   const processResult = await runProcess({
     command: process.execPath,
@@ -133,6 +138,32 @@ export const packageWithSourceCli = async ({
   }
 
   const commandResult = isRecord(parsed.result.data) ? parsed.result.data.result : undefined;
+  const describeWorkloads = (workloads: unknown[]) =>
+    workloads.map((workload) =>
+      isRecord(workload)
+        ? {
+            jobName: workload.jobName,
+            digest: workload.digest,
+            skipped: workload.skipped,
+            size: workload.size,
+            ...(typeof workload.artifactPath === 'string' ? { artifactPath: workload.artifactPath } : {})
+          }
+        : workload
+    );
+  if (command === 'package') {
+    if (!Array.isArray(commandResult)) throw new Error('The package command did not return its packaged workloads.');
+    return {
+      processResult,
+      invocationId,
+      details: {
+        validationContract: 'package-result' as const,
+        checked: { config: true, resources: false, template: false, packaging: true, cloudformation: false },
+        packagedWorkloads: describeWorkloads(commandResult),
+        blockedNetworkRequests: blockedRequests,
+        templatePath
+      }
+    };
+  }
   const structuredResult = isRecord(commandResult) ? commandResult : undefined;
   const structuredChecks =
     structuredResult !== undefined && isRecord(structuredResult.checked) ? structuredResult.checked : undefined;
@@ -155,21 +186,13 @@ export const packageWithSourceCli = async ({
       : [];
   return {
     processResult,
+    invocationId,
     details: {
       validationContract: hasStructuredContract ? 'structured-result' : 'completed-events-and-template',
       checked: hasStructuredContract
         ? structuredChecks
         : { config: true, resources: true, template: true, packaging: true, cloudformation: false },
-      packagedWorkloads: workloads.map((workload) =>
-        isRecord(workload)
-          ? {
-              jobName: workload.jobName,
-              digest: workload.digest,
-              skipped: workload.skipped,
-              size: workload.size
-            }
-          : workload
-      ),
+      packagedWorkloads: describeWorkloads(workloads),
       blockedNetworkRequests: blockedRequests,
       templatePath
     }

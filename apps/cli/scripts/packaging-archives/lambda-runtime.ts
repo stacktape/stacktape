@@ -134,7 +134,8 @@ export const invokeInLambdaRuntime = async ({
   handler,
   event = {},
   timeoutMs = 60_000,
-  image = LAMBDA_IMAGE
+  image = LAMBDA_IMAGE,
+  environment = {}
 }: {
   functionDirectory: string;
   layerDirectory?: string | undefined;
@@ -142,6 +143,8 @@ export const invokeInLambdaRuntime = async ({
   event?: unknown;
   timeoutMs?: number;
   image?: string | undefined;
+  /** Environment variables of the function, as its configuration would set them. */
+  environment?: Record<string, string>;
 }): Promise<Invocation> => {
   const name = `stp-lambda-archive-${randomUUID().slice(0, 12)}`;
   let outcome: { invocation: Invocation } | { error: unknown };
@@ -161,6 +164,7 @@ export const invokeInLambdaRuntime = async ({
       '--mount',
       `type=bind,source=${functionDirectory},target=/var/task,readonly`,
       ...(layerDirectory ? ['--mount', `type=bind,source=${layerDirectory},target=/opt,readonly`] : []),
+      ...Object.entries(environment).flatMap(([key, value]) => ['--env', `${key}=${value}`]),
       ...(handler ? [image, handler] : ['--entrypoint', '/usr/local/bin/aws-lambda-rie', image, '/var/task/bootstrap'])
     ]);
     const port = runOrThrow(['docker', 'port', name, '8080/tcp']).trim().split('\n')[0]!.split(':').at(-1);
