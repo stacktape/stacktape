@@ -363,6 +363,16 @@ const verifyClientConfigs = async (binary: string, project: string, env: Record<
     assert.equal(backup[rootKey].other.command, 'j12-other');
   }
   assert.equal((await run())?.unchanged, 6, 'Repeated installation should not rewrite configs');
+  const validCodexRaw = await readFile(codexPath, 'utf8');
+  const literalHeaders = 'note = """\n[mcp_servers.stacktape]\nkeep this user text\n[unrelated]\n"""\n' + validCodexRaw;
+  await writeFile(codexPath, literalHeaders);
+  assert.equal((await run())?.failed, 1, 'Unsupported TOML must fail safely instead of changing unrelated values');
+  assert.equal(
+    await readFile(codexPath, 'utf8'),
+    literalHeaders,
+    'Table-looking text inside a multiline string must remain intact'
+  );
+  await writeFile(codexPath, validCodexRaw);
   const invalidPath = join(project, '.cursor/mcp.json');
   await writeFile(invalidPath, '{ invalid json');
   assert.equal((await run())?.failed, 1);

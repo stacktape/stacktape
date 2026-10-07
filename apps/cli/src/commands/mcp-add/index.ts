@@ -3,6 +3,7 @@ import { tuiManager } from '@application-services/tui-manager';
 import { isAgentMode } from '../_utils/agent-mode';
 import { copy, ensureDir, pathExists, readFile, writeFile } from 'fs-extra';
 import { dirname, isAbsolute, join, relative, sep } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import { homedir } from 'node:os';
 import { existsSync, readFileSync } from 'node:fs';
 
@@ -313,7 +314,7 @@ const installCodexTarget = async ({
     const exists = await pathExists(configPath);
     const currentRaw = exists ? await readFile(configPath, 'utf-8') : '';
     const blockLines = renderCodexBlock({ stacktapeCommand });
-    if (currentRaw.trim()) Bun.TOML.parse(currentRaw);
+    const currentParsed = (currentRaw.trim() ? Bun.TOML.parse(currentRaw) : {}) as Record<string, unknown>;
     const lines = currentRaw.length > 0 ? currentRaw.split(/\r?\n/) : [];
     // TOML subtables may appear after another server's section. Remove every owned section,
     // not just adjacent ones, before appending the replacement; otherwise env is declared twice.
@@ -327,7 +328,20 @@ const installCodexTarget = async ({
     const retained = retainedLines.join('\n').replace(/\n+$/, '');
     const nextRaw = `${retained}${retained.trim() ? '\n\n' : ''}${blockLines.join('\n')}\n`;
     // Fail without writing if an unsupported spelling of the existing table would conflict.
-    Bun.TOML.parse(nextRaw);
+    const nextParsed = Bun.TOML.parse(nextRaw);
+    const serverBlock = Bun.TOML.parse(blockLines.join('\n')) as { mcp_servers: Record<string, unknown> };
+    const currentServers = currentParsed.mcp_servers;
+    const expected = {
+      ...currentParsed,
+      mcp_servers: {
+        ...(currentServers && typeof currentServers === 'object' ? currentServers : {}),
+        stacktape: serverBlock.mcp_servers.stacktape
+      }
+    };
+    // A header-shaped line can also be literal string content. Never write if textual replacement altered other values.
+    if (!isDeepStrictEqual(nextParsed, expected)) {
+      throw new Error('Cannot safely update this TOML layout without changing unrelated configuration.');
+    }
     if (exists && currentRaw.trim() === nextRaw.trim()) {
       return {
         client,
