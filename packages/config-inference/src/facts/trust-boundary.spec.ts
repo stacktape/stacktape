@@ -40,6 +40,29 @@ describe('an agent cannot claim probe provenance', () => {
     expect(merged.dependencies[0]?.source).toBe('agent');
   });
 
+  it('cannot erase what already deploys this project', () => {
+    // Found by the init process scenario: with an agent, the "this project has Fly.io deployment config"
+    // warning disappeared, because the merge rebuilt the document without the existing deployments.
+    const baseline = projectFactsSchema.parse({
+      schemaVersion: 1,
+      services: [{ ...agentService, source: 'probe' }],
+      existingDeployments: [
+        {
+          tool: 'fly',
+          managesAws: false,
+          evidence: [{ file: 'fly.toml', line: 1, quote: 'app = "billing"' }],
+          source: 'probe'
+        }
+      ]
+    });
+    const submission = agentSubmissionSchema.parse({ schemaVersion: 1, services: [{ ...agentService, port: 8080 }] });
+
+    const merged = mergeAgentSubmission({ baseline, submission });
+
+    expect(merged.existingDeployments).toEqual(baseline.existingDeployments);
+    expect(composeConfig({ facts: merged }).gaps.map((gap) => gap.subject)).toContain('fly');
+  });
+
   it('does not let a submission overwrite a fact a probe read out of a file', () => {
     const baseline = projectFactsSchema.parse({
       schemaVersion: 1,

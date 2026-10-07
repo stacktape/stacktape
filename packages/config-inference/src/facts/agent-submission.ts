@@ -405,6 +405,9 @@ export const mergeAgentSubmission = ({
     workspaceGlobs: baseline.workspaceGlobs,
     services,
     dependencies,
+    // Not on the agent's schema, so only the probes' findings exist; dropping them here silently removed the
+    // warning that another tool already deploys this project whenever an agent ran.
+    existingDeployments: baseline.existingDeployments,
     migrations,
     uncertainties,
     // `notes` stays a probe-and-verifier field. Free prose from something that reads untrusted files
