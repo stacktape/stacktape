@@ -4,10 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "astro build && node scripts/validate-built-site.ts",
+    "build": "astro build && node scripts/validate-built-site.ts && node scripts/validate-built-examples.ts",
     "dev": "astro dev --port 9001",
     "preview": "astro preview --port 9001",
     "test": "node --import=tsx --test tests/*.test.ts",
+    "test:build-contracts": "node scripts/test-build-contracts.ts",
     "typecheck": "astro check",
     "validate:site": "node scripts/validate-built-site.ts"
   },

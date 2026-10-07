@@ -404,7 +404,7 @@ export default defineConfig(() => {
     packaging: new JsBundleLambdaPackaging({
       entryfilePath: './scripts/migrate.ts'
     }),
-    environment: [{ name: 'DATABASE_URL', value: $ResourceParam('database', 'connectionString') }],
+    environment: { DATABASE_URL: $ResourceParam('database', 'connectionString') },
     joinDefaultVpc: true,
     timeout: 120,
     memory: 512

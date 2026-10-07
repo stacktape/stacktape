@@ -176,10 +176,7 @@ export default defineConfig(() => {
 const frontend = new SvelteKitWeb({
 appDirectory: './apps/web',
 // [!code focus-start]
-environment: [
-{ name: 'INTERNAL_API_BASE_URL', value: 'https://api.example.com' },
-{ name: 'FEATURE_SEARCH_ENABLED', value: true }
-],
+environment: { INTERNAL_API_BASE_URL: 'https://api.example.com', FEATURE_SEARCH_ENABLED: true },
 connectTo: ['mainDatabase']
 // [!code focus-end]
 });

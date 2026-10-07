@@ -214,10 +214,7 @@ export default defineConfig(() => {
   const web = new RemixWeb({
     appDirectory: './apps/web',
     // [!code focus-start]
-    environment: [
-      { name: 'APP_ENV', value: 'production' },
-      { name: 'API_KEY', value: "$Secret('my-api-key')" }
-    ]
+    environment: { APP_ENV: 'production', API_KEY: "$Secret('my-api-key')" }
     // [!code focus-end]
   });
 

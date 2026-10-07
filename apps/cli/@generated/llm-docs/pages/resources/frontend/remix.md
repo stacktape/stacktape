@@ -178,10 +178,7 @@ import { defineConfig, RemixWeb } from 'stacktape';
 export default defineConfig(() => {
   const web = new RemixWeb({
     appDirectory: './apps/web',
-    environment: [
-      { name: 'APP_ENV', value: 'production' },
-      { name: 'API_KEY', value: "$Secret('my-api-key')" }
-    ]
+    environment: { APP_ENV: 'production', API_KEY: "$Secret('my-api-key')" }
   });
 
   return { resources: { web } };

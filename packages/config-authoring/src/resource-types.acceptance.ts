@@ -16,6 +16,8 @@ import {
   HttpApiGateway,
   LambdaFunction,
   RelationalDatabase,
+  StateMachine,
+  WebService,
   WebSocketApiGateway,
   WebSocketApiIntegration,
   WebAppFirewall
@@ -28,9 +30,15 @@ const database = new RelationalDatabase({
 const dsqlDatabase = new DsqlDatabase({});
 const kafkaCluster = new KafkaCluster({});
 const emailSender = new EmailSender({ identity: 'example.com' });
+const workflow = new StateMachine({ definition: { StartAt: 'Done', States: { Done: { Type: 'Succeed' } } } });
+const webWorker = new WebService({
+  packaging: { type: 'prebuilt-image', properties: { image: 'example.invalid/worker:latest' } },
+  resources: { cpu: 0.25, memory: 512 },
+  connectTo: [workflow]
+});
 const worker = new LambdaFunction({
   packaging: { type: 'js-bundle', properties: { entryfilePath: './src/worker.ts' } },
-  connectTo: [database, dsqlDatabase, emailSender],
+  connectTo: [database, dsqlDatabase, emailSender, workflow],
   environment: { DATABASE_URL: database.connectionString, RETRIES: 3 }
 });
 const uploads = new Bucket({ versioning: true });
@@ -108,7 +116,9 @@ const config = defineConfig(() => ({
     codeInterpreter,
     uploads,
     website,
-    worker
+    worker,
+    webWorker,
+    workflow
   }
 }));
 void [config, databaseConnectionString, dsqlEndpoint, functionArn, invalidBrowser, invalidBucket, invalidLambda];

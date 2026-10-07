@@ -11340,10 +11340,10 @@ export default defineConfig(() => {
     packaging: new JsBundleImagePackaging({ entryfilePath: './src/server.ts' }),
     resources: { cpu: 0.25, memory: 512 },
     environment: { LOG_LEVEL: 'info' },
-    secrets: {
-      API_TOKEN: $SsmParam('/my-app/production/api-token'),
-      ROTATING_KEY: $Secret('rotating-key.value')
-    }
+    secrets: [
+      { name: 'API_TOKEN', valueFrom: $SsmParam('/my-app/production/api-token') },
+      { name: 'ROTATING_KEY', valueFrom: $Secret('rotating-key.value') }
+    ]
   });
 
   return { resources: { api } };
@@ -13366,7 +13366,7 @@ export default defineConfig(() => {
     packaging: new JsBundleLambdaPackaging({
       entryfilePath: './scripts/migrate.ts'
     }),
-    environment: [{ name: 'DATABASE_URL', value: $ResourceParam('database', 'connectionString') }],
+    environment: { DATABASE_URL: $ResourceParam('database', 'connectionString') },
     joinDefaultVpc: true,
     timeout: 120,
     memory: 512
@@ -24560,7 +24560,7 @@ export default defineConfig(() => {
       entryfilePath: './src/webhook-provider.ts'
     }),
     timeout: 30,
-    environment: [{ name: 'EXTERNAL_API_KEY', value: '$Secret(external-api-key)' }]
+    environment: { EXTERNAL_API_KEY: '$Secret(external-api-key)' }
   });
 
   const apiWebhook = new CustomResourceInstance({
@@ -25162,10 +25162,7 @@ export default defineConfig(() => {
     packaging: new JsBundleLambdaPackaging({
       entryfilePath: './scripts/seed.ts'
     }),
-    environment: [
-      { name: 'SEED_COUNT', value: '100' },
-      { name: 'ADMIN_EMAIL', value: '$Secret(admin-email)' }
-    ],
+    environment: { SEED_COUNT: '100', ADMIN_EMAIL: '$Secret(admin-email)' },
     parameters: {
       tableName: 'seed-jobs',
       region: 'eu-west-1'
@@ -34574,7 +34571,7 @@ export default defineConfig(() => {
 
 const site = new AstroWeb({
 connectTo: ['mediaBucket'],
-environment: [{ name: 'PUBLIC_SITE_NAME', value: 'Docs Portal' }]
+environment: { PUBLIC_SITE_NAME: 'Docs Portal' }
 });
 
 return { resources: { mediaBucket, site } };
@@ -35523,10 +35520,7 @@ import { defineConfig, RemixWeb } from 'stacktape';
 export default defineConfig(() => {
   const web = new RemixWeb({
     appDirectory: './apps/web',
-    environment: [
-      { name: 'APP_ENV', value: 'production' },
-      { name: 'API_KEY', value: "$Secret('my-api-key')" }
-    ]
+    environment: { APP_ENV: 'production', API_KEY: "$Secret('my-api-key')" }
   });
 
   return { resources: { web } };
@@ -35855,10 +35849,7 @@ import { defineConfig, SolidStartWeb } from 'stacktape';
 export default defineConfig(() => {
   const web = new SolidStartWeb({
     appDirectory: './apps/web',
-    environment: [
-      { name: 'APP_ENV', value: 'production' },
-      { name: 'PUBLIC_API_URL', value: 'https://api.example.com' }
-    ]
+    environment: { APP_ENV: 'production', PUBLIC_API_URL: 'https://api.example.com' }
   });
 
   return { resources: { web } };
@@ -36360,10 +36351,7 @@ export default defineConfig(() => {
 
 const frontend = new SvelteKitWeb({
 appDirectory: './apps/web',
-environment: [
-{ name: 'INTERNAL_API_BASE_URL', value: 'https://api.example.com' },
-{ name: 'FEATURE_SEARCH_ENABLED', value: true }
-],
+environment: { INTERNAL_API_BASE_URL: 'https://api.example.com', FEATURE_SEARCH_ENABLED: true },
 connectTo: ['mainDatabase']
 });
 
@@ -36614,10 +36602,7 @@ import { defineConfig, TanStackWeb } from 'stacktape';
 export default defineConfig(() => {
   const web = new TanStackWeb({
     appDirectory: './apps/web',
-    environment: [
-      { name: 'APP_ENV', value: 'production' },
-      { name: 'API_KEY', value: "$Secret('api.key')" }
-    ]
+    environment: { APP_ENV: 'production', API_KEY: "$Secret('api.key')" }
   });
 
   return { resources: { web } };

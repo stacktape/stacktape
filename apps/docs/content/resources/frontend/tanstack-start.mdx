@@ -188,10 +188,7 @@ The `environment` property sets explicit environment variables on the SSR functi
 export default defineConfig(() => {
   const web = new TanStackWeb({
     appDirectory: './apps/web',
-    environment: [
-      { name: 'APP_ENV', value: 'production' },
-      { name: 'API_KEY', value: "$Secret('api.key')" }
-    ]
+    environment: { APP_ENV: 'production', API_KEY: "$Secret('api.key')" }
   });
 
   return { resources: { web } };

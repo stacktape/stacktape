@@ -178,7 +178,7 @@ export default defineConfig(() => {
 
 const site = new AstroWeb({
 connectTo: ['mediaBucket'],
-environment: [{ name: 'PUBLIC_SITE_NAME', value: 'Docs Portal' }]
+environment: { PUBLIC_SITE_NAME: 'Docs Portal' }
 });
 
 return { resources: { mediaBucket, site } };
