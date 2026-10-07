@@ -1,0 +1,8 @@
+"FormatVersion","v1.0"
+"Disclaimer","This pricing list is for informational purposes only. All prices are subject to the additional terms included in the pricing pages on http://aws.amazon.com. All Free Tier prices are also subject to the terms included at https://aws.amazon.com/free/"
+"Publication Date","2026-10-02T23:15:01Z"
+"Version","20261002231501"
+"OfferCode","AmazonApiGateway"
+"SKU","OfferTermCode","RateCode","TermType","PriceDescription","EffectiveDate","StartingRange","EndingRange","Unit","PricePerUnit","Currency","Product Family","serviceCode","Description","Location","Location Type","usageType","operation","Cache Memory Size (GB)","Region Code","serviceName"
+"FC2TWT2UEPTBKVBX","JRTCKXETXF","FC2TWT2UEPTBKVBX.JRTCKXETXF.9NXBCPDZYR","OnDemand","$1/million requests - API Gateway HTTP API (first 300 million)","2025-11-01","0","300000000","Requests","0.0000010000","USD","API Calls","AmazonApiGateway","HTTP API Requests","US East (N. Virginia)","AWS Region","USE1-ApiGatewayHttpRequest","ApiGatewayHttpApi",,"us-east-1","Amazon API Gateway"
+"FC2TWT2UEPTBKVBX","JRTCKXETXF","FC2TWT2UEPTBKVBX.JRTCKXETXF.Y5DREYKEMT","OnDemand","$0.9/million requests - API Gateway HTTP API (more than 300 million)","2025-11-01","300000000","Inf","Requests","0.0000009000","USD","API Calls","AmazonApiGateway","HTTP API Requests","US East (N. Virginia)","AWS Region","USE1-ApiGatewayHttpRequest","ApiGatewayHttpApi",,"us-east-1","Amazon API Gateway"

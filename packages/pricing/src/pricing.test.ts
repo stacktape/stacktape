@@ -94,7 +94,8 @@ const {
 const PINNED_CATALOG_FILES: Record<string, string> = {
   AmazonEC2: join(import.meta.dir, 'fixtures', 'AmazonEC2.csv'),
   AmazonECS: join(import.meta.dir, 'fixtures', 'AmazonECS.csv'),
-  AmazonEFS: join(import.meta.dir, 'fixtures', 'AmazonEFS.csv')
+  AmazonEFS: join(import.meta.dir, 'fixtures', 'AmazonEFS.csv'),
+  AmazonApiGateway: join(import.meta.dir, 'fixtures', 'AmazonApiGateway.csv')
 };
 const PINNED_TABLE = 'pinned-pricing-table';
 const HOURS_PER_MONTH = 24 * 30;
@@ -304,6 +305,14 @@ describe('catalog', () => {
     const ecs = await parsePricingCsvFile(PINNED_CATALOG_FILES.AmazonECS);
     expect(Object.keys(ecs).toSorted()).toEqual(['ECS-cpu-AMD64-Linux', 'ECS-memory-AMD64-Linux']);
 
+    const apiGateway = await parsePricingCsvFile(PINNED_CATALOG_FILES.AmazonApiGateway);
+    // The volume-discount tier follows the base tier and must not replace the rate for a new deployment.
+    expect(apiGateway['ApiGateway-http-api-requests']['us-east-1']).toEqual({
+      currency: 'USD',
+      pricePerUnit: '0.0000010000',
+      unit: 'Requests'
+    });
+
     const efs = await parsePricingCsvFile(PINNED_CATALOG_FILES.AmazonEFS);
     expect(efs).toEqual({
       'EFS-storage': { 'us-east-1': { currency: 'USD', pricePerUnit: '0.3000000000', unit: 'GB-Mo' } },
@@ -358,15 +367,36 @@ describe('estimator', () => {
     expect(result.resourcesBreakdown.sharedFiles.priceInfo.totalMonthlyFlat).toBeCloseTo(fileSystem, 10);
     expect(result.flatMonthlyCost).toBeCloseTo(bastion + webService + fileSystem, 10);
 
-    // A pay-per-use rate missing from the catalog (HTTP API requests here) is reported but does not change the fixed
-    // monthly total.
     const httpApiRequests = result.resourcesBreakdown.api.priceInfo.costBreakdown.find(
       ({ name }) => name === 'ApiGateway-http-api-requests'
     );
-    expect(httpApiRequests).toMatchObject({ priceModel: 'pay-per-use', unsupportedProduct: true });
-    expect(result.resourcesBreakdown.api.priceInfo.incomplete).toBe(false);
+    expect(httpApiRequests).toMatchObject({ priceModel: 'pay-per-use', pricePerUnit: 0.000001 });
+    expect(httpApiRequests?.unsupportedProduct).toBeUndefined();
 
     expect(commands.filter((command) => command instanceof FakeBatchGetCommand)).toHaveLength(3);
+  });
+
+  test('missing pay-per-use rates cannot turn a function into a complete zero-cost estimate', async () => {
+    const result = await estimate(
+      {
+        resources: {
+          api: {
+            type: 'function',
+            properties: { memory: 128, packaging: { type: 'js-bundle', properties: { entryfilePath: 'index.ts' } } }
+          }
+        }
+      },
+      'us-east-1'
+    );
+    expect(result.flatMonthlyCost).toBe(0);
+    expect(result.incomplete).toBe(true);
+    expect(result.resourcesBreakdown.api.priceInfo.incomplete).toBe(true);
+    expect(result.resourcesBreakdown.api.priceInfo.costBreakdown.length).toBeGreaterThan(0);
+    expect(
+      result.resourcesBreakdown.api.priceInfo.costBreakdown.every(
+        ({ priceModel, unsupportedProduct }) => priceModel === 'pay-per-use' && unsupportedProduct
+      )
+    ).toBe(true);
   });
 
   test('uses the regional price, not another region or tenancy', async () => {

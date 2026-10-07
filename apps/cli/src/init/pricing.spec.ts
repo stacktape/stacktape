@@ -45,6 +45,33 @@ describe('pricing presentation', () => {
     }
   });
 
+  test('a known usage rate is shown as pay-per-use rather than a free monthly resource', async () => {
+    response = {
+      success: true,
+      costs: {
+        flatMonthlyCost: 0,
+        incomplete: false,
+        unpricedResources: [],
+        resourcesBreakdown: {
+          api: {
+            priceInfo: {
+              totalMonthlyFlat: 0,
+              incomplete: false,
+              costBreakdown: [
+                { name: 'requests', description: 'HTTP requests', priceModel: 'pay-per-use', pricePerUnit: 0.000001 }
+              ]
+            }
+          }
+        }
+      }
+    };
+    expect(await estimateMonthlyCost('resources: {}')).toEqual({
+      monthly: '$0/mo + pay-per-use costs',
+      byResource: { api: 'pay-per-use' },
+      region: 'eu-west-1'
+    });
+  });
+
   test('a server without completeness metadata cannot claim a complete estimate', async () => {
     response = { success: true, costs: { flatMonthlyCost: 3.6, resourcesBreakdown: {} } };
     expect((await estimateMonthlyCost('resources: {}'))?.monthly).toBe('Estimate incomplete');

@@ -2,7 +2,7 @@
  * What the composed configuration would cost per month.
  *
  * Cost is the third thing a developer worries about, after "will this break what I have" and "will
- * I lose my data", and it is the one we can answer precisely. Stacktape's anonymous API prices a
+ * I lose my data", and it is one we can estimate when regional prices are available. Stacktape's anonymous API prices a
  * configuration without an account, which is what makes it usable here: `init` works for someone
  * who has never signed up, and the price has to work for them too.
  *
@@ -25,7 +25,7 @@ import { publicApiClient } from '@stacktape-api/public';
  * with itself. Nothing downstream does arithmetic on these.
  */
 export type PriceEstimate = {
-  /** Total monthly cost, e.g. `$47/mo`. */
+  /** Fixed monthly base plus a usage-cost label, or an incomplete-estimate label. */
   monthly: string;
   /** Per-resource monthly cost, keyed by the name in the configuration. */
   byResource: Record<string, string>;
@@ -59,11 +59,23 @@ export const estimateMonthlyCost = async (
     const byResource: Record<string, string> = {};
     for (const [name, info] of Object.entries(result.costs.resourcesBreakdown)) {
       const total = info.priceInfo.totalMonthlyFlat;
-      byResource[name] = info.priceInfo.incomplete !== false ? 'Price unavailable' : formatMonthly(total ?? 0);
+      const hasUsageCosts = info.priceInfo.costBreakdown.some(({ priceModel }) => priceModel === 'pay-per-use');
+      byResource[name] =
+        info.priceInfo.incomplete !== false
+          ? 'Price unavailable'
+          : total === 0 && hasUsageCosts
+            ? 'pay-per-use'
+            : formatMonthly(total ?? 0);
     }
 
+    const hasUsageCosts = Object.values(result.costs.resourcesBreakdown).some(({ priceInfo }) =>
+      priceInfo.costBreakdown.some(({ priceModel }) => priceModel === 'pay-per-use')
+    );
     return {
-      monthly: result.costs.incomplete !== false ? 'Estimate incomplete' : formatMonthly(result.costs.flatMonthlyCost),
+      monthly:
+        result.costs.incomplete !== false
+          ? 'Estimate incomplete'
+          : `${formatMonthly(result.costs.flatMonthlyCost)}${hasUsageCosts ? ' + pay-per-use costs' : ''}`,
       byResource,
       region
     };

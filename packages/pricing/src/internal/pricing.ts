@@ -577,8 +577,8 @@ const productNameBuilders: {
                 ? productsInfo.AmazonDynamoDB.pitrStorage().name
                 : undefined;
   },
-  AmazonApiGateway: ({ description, productFamily }) => {
-    return description === 'HTTP API Requests' && productFamily === 'API Calls'
+  AmazonApiGateway: ({ description, productFamily, startingRange }) => {
+    return description === 'HTTP API Requests' && productFamily === 'API Calls' && Number(startingRange) === 0
       ? productsInfo.AmazonApiGateway.httpApiRequests().name
       : undefined;
   },
@@ -914,7 +914,7 @@ const getCumulatedPriceInfoForProducts = async ({
     .reduce<number>((acc, pricePerMonth) => acc + Number(pricePerMonth), 0);
   return {
     totalMonthlyFlat,
-    incomplete: costBreakdown.some((product) => product.priceModel === 'flat' && product.unsupportedProduct === true),
+    incomplete: costBreakdown.some((product) => product.unsupportedProduct === true),
     costBreakdown
   };
 };

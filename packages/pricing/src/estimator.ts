@@ -23,7 +23,7 @@ export type ResourcePricingInformation = {
   priceInfo: {
     /** Subtotal of the fixed monthly prices available in USD. */
     totalMonthlyFlat: number;
-    /** A fixed monthly product has no usable regional price. */
+    /** A requested product has no usable regional price, including usage rates. */
     incomplete: boolean;
     costBreakdown: ProductCostInformation[];
   };

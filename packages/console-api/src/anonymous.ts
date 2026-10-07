@@ -65,7 +65,7 @@ export type ResourcePricingInfo = {
   priceInfo: {
     /** Absent for resources whose price the estimator could not total. */
     totalMonthlyFlat?: number;
-    /** True when the fixed monthly subtotal lacks a usable regional price. */
+    /** True when any requested product lacks a usable regional price, including usage rates. */
     incomplete?: boolean;
     costBreakdown: CostBreakdownItem[];
   };
