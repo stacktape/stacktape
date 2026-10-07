@@ -63,9 +63,9 @@ export const incidentStatus = z.enum(['ACTIVE', 'OPEN', 'ACKNOWLEDGED', 'RESOLVE
 ---
 Filter incidents by status. ACTIVE (the default) means OPEN + ACKNOWLEDGED.`);
 
-export const aiProvider = z.enum(['claude']).describe(`#### AI Provider
+export const aiProvider = z.enum(['claude', 'codex', 'grok', 'opencode']).describe(`#### AI Provider
 ---
-The AI provider whose subscription to connect for hosted incident runs. Currently \`claude\` (a Claude subscription, through \`claude setup-token\`). When omitted in a terminal, the command asks which provider to use; a non-interactive run must pass it.`);
+The AI provider whose subscription to connect for hosted incident runs, and so the coding agent those runs use: \`claude\` (a Claude subscription for Claude Code, through \`claude setup-token\`), \`codex\` (a ChatGPT plan for Codex, from \`codex login\`), \`grok\` (a Grok sign-in, from \`grok login\`) or \`opencode\` (what OpenCode is signed in to, from \`opencode auth login\`). When omitted in a terminal, the command asks which provider to use; a non-interactive run must pass it.`);
 
 export const incidentWatchTimeoutSeconds = z.number().int().min(1).max(86_400).describe(`#### Incident Watch Timeout
 ---

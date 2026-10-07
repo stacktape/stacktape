@@ -1,12 +1,12 @@
 import type { StacktapeCliArgs } from 'src/config/cli/types';
 import { tuiManager } from '@application-services/tui-manager';
+import { executeAwsSdkCommand } from '@stacktape/aws-read-only/executor';
 import {
   AWS_READ_ONLY_OPERATIONS,
+  describeAwsCallRefusal,
   getReadOnlyAwsOperations,
-  isReadOnlyAwsCommand,
   resolveAwsServiceName
-} from '@domain-services/debug-services/aws-read-only-operations';
-import { executeAwsSdkCommand } from '@domain-services/debug-services/aws-sdk-executor';
+} from '@stacktape/aws-read-only/operations';
 import { CliError } from '@utils/errors';
 import { isAgentMode } from '../_utils/agent-mode';
 import { getDebugAgentCredentials, initDebugAgentCredentials } from '../_utils/debug-agent-credentials';
@@ -43,11 +43,12 @@ export const commandAwsCall = async () => {
   // A service with no reviewed operations is rejected here rather than at the first command, so the message names the
   // real problem.
   if (!resolveAwsServiceName(service)) {
+    const refusal = describeAwsCallRefusal(service, command ?? '')!;
     throw new CliError({
       category: 'CLI',
       code: 'CLI_AWS_CALL_SERVICE_UNSUPPORTED',
-      message: `Service \`${service}\` has no operations that \`aws:call\` is allowed to send.`,
-      hints: `Supported services: ${supportedServices}.`
+      message: refusal.message,
+      hints: refusal.hint
     });
   }
 
@@ -63,12 +64,13 @@ export const commandAwsCall = async () => {
   }
 
   // The executor enforces this allowlist for every caller; checking first explains the refusal before credentials load.
-  if (!isReadOnlyAwsCommand(service, command)) {
+  const refusal = describeAwsCallRefusal(service, command);
+  if (refusal) {
     throw new CliError({
       category: 'CLI',
       code: 'CLI_AWS_CALL_COMMAND_NOT_ALLOWED',
-      message: `Command \`${command}\` is not an accepted read-only operation for service \`${service}\`.`,
-      hints: `\`aws:call\` sends only operations reviewed as read-only. Accepted for ${service}: ${acceptedOperations.join(', ')}.`
+      message: refusal.message,
+      hints: refusal.hint
     });
   }
 
