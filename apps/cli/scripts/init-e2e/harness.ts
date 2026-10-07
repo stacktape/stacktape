@@ -257,13 +257,14 @@ export const interruptSourceInitDuringAnalysis = async ({ sandbox }: { sandbox: 
 };
 
 /**
- * `pnpm install` in the sandbox project, as the developer has already done in their checkout. Uses the sandbox's
- * HOME and its own store, so the developer's store and pnpm configuration are neither read nor written.
+ * Resolve the sandbox project's pnpm lockfile, as a repository commits it. Nothing is installed: packaging
+ * starts from a checkout without `node_modules`, the way CI does. Uses the sandbox's HOME and its own store, so
+ * the developer's store and pnpm configuration are neither read nor written.
  */
-export const installPnpmDependencies = async (sandbox: InitSandbox) => {
+export const lockPnpmDependencies = async (sandbox: InitSandbox) => {
   const result = await runProcess({
     command: 'pnpm',
-    args: ['install', '--store-dir', join(sandbox.root, 'pnpm-store')],
+    args: ['install', '--lockfile-only', '--store-dir', join(sandbox.root, 'pnpm-store')],
     cwd: sandbox.project,
     env: {
       PATH: process.env.PATH,
@@ -275,7 +276,8 @@ export const installPnpmDependencies = async (sandbox: InitSandbox) => {
     },
     timeoutMs: 4 * 60_000
   });
-  if (result.exitCode !== 0) throw new Error(`pnpm install failed:\n${result.stdout}\n${result.stderr}`);
+  if (result.exitCode !== 0)
+    throw new Error(`pnpm install --lockfile-only failed:\n${result.stdout}\n${result.stderr}`);
 };
 
 export type PackagedProject = {

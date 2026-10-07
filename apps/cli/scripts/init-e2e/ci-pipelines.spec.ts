@@ -21,12 +21,15 @@ import { writePipeline } from '../../src/init/cicd/write-pipeline';
 import type { GitHost } from '../../src/init/cicd/detect-host';
 import { buildOfflineQualificationEnvironment, startOfflineAwsServer } from '../qualification/offline-aws';
 import { runProcess } from '../qualification/process';
+import { createInitSandbox, packageOffline, runSourceInit, type InitSandbox } from './harness';
 
 const cliDirectory = join(import.meta.dir, '..', '..');
 const roots: string[] = [];
+const sandboxes: InitSandbox[] = [];
 
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true, maxRetries: 3 })));
+  await Promise.all(sandboxes.splice(0).map((sandbox) => sandbox.cleanup()));
 });
 
 type DeployStep = { command: string; environment: Record<string, string> };
@@ -190,4 +193,74 @@ describe('the pipeline init writes deploys once its secrets are configured', () 
       5 * 60_000
     );
   }
+});
+
+describe('a fresh clone deployed by the written pipeline', () => {
+  test(
+    'github: a Vite site builds from a clean checkout the way the workflow runs it',
+    async () => {
+      // A single-page app with its lockfile committed and no node_modules, which is what CI checks out.
+      const sandbox = await createInitSandbox({
+        files: (id) => ({
+          'package.json': `${JSON.stringify({
+            name: `site-${id}`,
+            private: true,
+            scripts: { dev: 'vite', build: 'vite build' },
+            devDependencies: { vite: '7.1.3' }
+          })}\n`,
+          'index.html':
+            '<!doctype html><html><body><h1>site</h1><script type="module" src="/src/main.js"></script></body></html>\n',
+          'src/main.js': "document.querySelector('h1').textContent = 'built';\n"
+        }),
+        projectDirectoryName: 'site'
+      });
+      sandboxes.push(sandbox);
+      const developerEnvironment = { PATH: process.env.PATH, HOME: sandbox.home, CI: '1' };
+      const lockfile = await runProcess({
+        command: 'npm',
+        args: ['install', '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund'],
+        cwd: sandbox.project,
+        env: developerEnvironment,
+        timeoutMs: 3 * 60_000
+      });
+      expect(lockfile.exitCode, lockfile.stderr).toBe(0);
+
+      const init = await runSourceInit({ sandbox, args: ['--codingAgent', 'none'] });
+      expect(init.exitCode, init.output).toBe(0);
+      expect(await readFile(join(sandbox.project, 'stacktape.yml'), 'utf8')).toContain('type: hosting-bucket');
+
+      const written = await writePipeline({
+        repositoryRoot: sandbox.project,
+        host: 'github',
+        inputs: {
+          configPath: 'stacktape.yml',
+          stage: 'production',
+          region: 'eu-west-1',
+          projectName: 'site',
+          cliVersion: '4.0.0'
+        }
+      });
+      const workflow = parseYaml(await readFile(written.path, 'utf8')) as any;
+      // Every shell step before the deploy runs in the checkout, as the runner would run it. Installing the
+      // pinned CLI is skipped: the current source stands in for it.
+      for (const step of workflow.jobs.deploy.steps as Array<Record<string, any>>) {
+        if (typeof step.run !== 'string') continue;
+        if (step.run.includes('stacktape deploy')) break;
+        if (/npm install -g stacktape@/.test(step.run)) continue;
+        const result = await runProcess({
+          command: 'sh',
+          args: ['-c', step.run],
+          cwd: sandbox.project,
+          env: developerEnvironment,
+          timeoutMs: 4 * 60_000
+        });
+        expect(result.exitCode, `${step.run}\n${result.stdout}\n${result.stderr}`).toBe(0);
+      }
+
+      // What `stacktape deploy` builds before it touches CloudFormation. Today the site's `vite build` runs in a
+      // checkout where nothing installed vite.
+      await packageOffline({ sandbox, configFile: 'stacktape.yml', projectName: `j1-site-${sandbox.id}` });
+    },
+    8 * 60_000
+  );
 });

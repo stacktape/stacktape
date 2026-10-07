@@ -21,7 +21,7 @@ import {
   assertDockerAvailable,
   containerDefinitionFor,
   createInitSandbox,
-  installPnpmDependencies,
+  lockPnpmDependencies,
   interruptSourceInitDuringAnalysis,
   packageOffline,
   removeImages,
@@ -412,8 +412,8 @@ describe('stacktape init in the terminal: existing repository to a running artif
       expect(config.resources.web!.properties.uploadDirectoryPath).toBe('apps/web/dist');
       expect(config.resources.web!.properties.build?.workingDirectory).toBe('apps/web');
 
-      // The developer's checkout has its dependencies installed; the static site builds with them.
-      await installPnpmDependencies(sandbox);
+      // Committed lockfile, no node_modules: the checkout CI starts from. Packaging installs what each part needs.
+      await lockPnpmDependencies(sandbox);
       const packaged = await packageOffline({
         sandbox,
         configFile: 'stacktape.yml',
