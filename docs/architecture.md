@@ -20,6 +20,7 @@ packages/
   console-api/   public control-plane schemas and clients
   pricing/       pricing calculations and upstream catalog parsing
   stack-info/    deployed stack information contracts
+  aws-read-only/ reviewed read-only AWS operations and their executor (CLI aws:call, hosted incident runs)
   analytics/     event contracts and browser/server adapters
   design-tokens/ shared visual values
   ui-react/      reusable, router-neutral React components
