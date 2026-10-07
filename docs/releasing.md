@@ -15,6 +15,95 @@ checksum manifest, and npm tarball. The explicit channel changes only the public
 Both top-level release commands dispatch the workflow from `main`, and stable releases are accepted only from `main`.
 Neither channel deploys a Stacktape project or uses `STACKTAPE_API_KEY`.
 
+## Qualify a release candidate
+
+Run this sequence from a checkout of the candidate's exact public revision and recorded Console revision, before
+publication. Use the six archives, `SHA256SUMS` and npm tarball assembled for that candidate; do not substitute
+artifacts from another build. Record both Git SHAs, artifact hashes, tool versions and the lane results in the release
+record. A missing prerequisite or failed lane blocks qualification. Publication still requires the owner's
+authorization.
+
+The offline/service lanes below run sequentially. Docker, PostgreSQL, MiniStack and the pinned corpus need their normal
+prerequisites ([packaging](../apps/cli/scripts/packaging-archives/README.md), [Console](testing/console.md),
+[corpus](project-qualification.md)). The corpus executes reviewed project code on this host. Split its full run with
+`--shard=1/N` through `--shard=N/N` when necessary; every shard must pass on the same revision. Run each command
+separately when a session has a foreground time limit.
+
+```bash
+set -euo pipefail
+# Supply absolute paths and the exact immutable version outside this block.
+: "${RC_DIRECTORY:?candidate archives, SHA256SUMS and npm tarball directory}"
+: "${RC_VERSION:?exact release candidate version}"
+pnpm install --frozen-lockfile
+pnpm check:integrated
+
+# Install and invoke the supplied npm package and native binary on this host, without rebuilding them.
+pnpm --filter @stacktape/cli test:release-artifact -- --candidate-dir "$RC_DIRECTORY" --version "$RC_VERSION"
+
+for suite in '' --runner --gitlab --security --issues --incidents --incident-agent --sign-up --isolated-browser; do
+  if [ -n "$suite" ]; then
+    pnpm --filter @stacktape/console-api-app test:db "$suite"
+  else
+    pnpm --filter @stacktape/console-api-app test:db
+  fi
+done
+pnpm --filter @stacktape/ui-react test:e2e
+pnpm --filter @stacktape/bitbucket-forge-app test:e2e
+pnpm test:console:browser:smoke
+
+for lane in test:docker-smoke test:node-lambda-e2e test:web-framework-e2e test:es-image-deps-e2e \
+  test:directory-inventory-e2e test:lambda-source-map-e2e test:split-assets-e2e; do
+  pnpm --filter @stacktape/packaging run "$lane"
+done
+for lane in test:lambda-archives test:asset-replacer test:docker-preparation test:layer-upload \
+  test:layer-upload:ministack test:fresh-install test:external-tools; do
+  pnpm --filter @stacktape/cli run "$lane"
+done
+pnpm --filter @stacktape/cli test:init:real-project-corpus -- --all
+pnpm --filter @stacktape/cli test:init:synthetic-project-corpus
+pnpm --filter @stacktape/cli test:init:synthetic-project-corpus:native
+pnpm qualify:projects -- --preset=all --lanes=import,package --allow-host-project-code
+pnpm qualify:projects -- --lanes=runtime
+```
+
+Repeat supplied-artifact installation on all six native OS/architecture/libc targets. The shell fixtures in
+`test:external-tools` run on Linux/macOS; the Windows artifact must separately exercise its bundled Session Manager
+plugin. Qualify Windows-host packaging on Windows and execute its archives in the Linux runtime. A cross-build on one
+host does not qualify another target. Authenticated hosted-login/provider browser acceptance remains a separately
+reserved shared-dev run; these local lanes do not claim to cover hosted identity or provider installation.
+
+Then run the live canaries sequentially in a genuinely disposable connected account, following the
+[live AWS guards](testing/live-aws.md) and [recovery procedure](../apps/cli/scripts/real-aws/README.md). Inject
+credentials into the environment without recording them. Set all required guard variables from that procedure, including
+explicit account, profile, region, owner and disposable-account acknowledgement. Verify STS before mutation. Use the
+extracted candidate binary for packaging/init; the alias canary currently uses the source CLI at this revision.
+
+```bash
+set -euo pipefail
+: "${RC_BINARY:?absolute extracted candidate binary path}"
+: "${RC_VERSION:?exact release candidate version}"
+: "${RC_RUN_ID:?unique lowercase run identifier, at most 20 characters}"
+[[ "$RC_RUN_ID" =~ ^[a-z0-9][a-z0-9-]{0,19}$ ]]
+mkdir -p .stacktape
+scenario_number=0
+export STP_AWS_CANARY_CLI_PATH="$RC_BINARY"
+export STP_AWS_CANARY_EXPECTED_CLI_VERSION="$RC_VERSION"
+for scenario in lambda-packaging-update init-static-site init-node-container init-python-container init-postgres-migration; do
+  scenario_number=$((scenario_number + 1))
+  export STP_AWS_CANARY_PROJECT_NAME="v4canary-${RC_RUN_ID}-${scenario_number}"
+  export STP_AWS_CANARY_STATE_FILE="$(pwd)/.stacktape/${STP_AWS_CANARY_PROJECT_NAME}.json"
+  pnpm test:aws --aws-scenario="$scenario"
+  # The runner verifies deletion. Recover any incomplete cleanup before proceeding.
+done
+export STP_AWS_ALIAS_CANARY_PROJECT_NAME="v4aliascanary-${RC_RUN_ID}"
+export STP_AWS_ALIAS_CANARY_STATE_FILE="$(pwd)/.stacktape/${STP_AWS_ALIAS_CANARY_PROJECT_NAME}.json"
+pnpm test:aws --aws-scenario=lambda-alias-configuration-update
+```
+
+Keep the canary reports and verified-cleanup results with the release record. Never resume from a cached live result.
+When a new database feature flag or heavy lane is added, add it to this sequence and to
+`scripts/workspace/test-plan.ts`.
+
 ## Normal use
 
 The local command validates its arguments and dispatches GitHub Actions; it never builds or publishes locally:
