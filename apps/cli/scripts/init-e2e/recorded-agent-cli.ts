@@ -137,9 +137,10 @@ const main = async (): Promise<number> => {
 
   if (script.behavior === 'hang') {
     // Killed by whoever owns the session. Nothing else ends this process.
-    await new Promise<never>(() => {
+    await new Promise<void>(() => {
       setInterval(() => {}, 60_000);
     });
+    return 0;
   }
 
   emit({ type: 'system', subtype: 'init', tools: listed.tools.map((tool) => `mcp__${MCP_SERVER_NAME}__${tool.name}`) });
