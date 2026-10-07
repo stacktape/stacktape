@@ -25,3 +25,11 @@ Session scenarios place a compiled substitute plugin in the supported `STACKTAPE
 resource resolution, CLI input, session lifecycle and subprocess cleanup remain real. The plugin records its input in
 the disposable working directory. Session scenarios currently omit Windows, whose plugin is bundled outside this cache
 boundary.
+
+Deployment-script tests package a real custom-artifact directory, inspect the uploaded ZIP and execute its handler at an
+isolated Lambda HTTP boundary. Installed service-helper metadata is supplied separately; that helper never runs.
+Remaining-command tests drive read-only AWS calls, validate exported alarm YAML with the canonical config validator,
+select a registry module in a PTY, and verify persisted domain/certificate status. Domain tests redirect only IANA's
+RDAP bootstrap and the synthetic RDAP origin to loopback HTTP. Their complete discovery responses avoid WHOIS/DNS
+fallback. Registry/domain PTY checks omit Windows. These scenarios establish request construction and local effects;
+they do not establish AWS permissions, DNS propagation or certificate issuance.
