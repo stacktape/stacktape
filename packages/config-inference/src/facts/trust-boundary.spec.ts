@@ -119,6 +119,45 @@ describe('an agent cannot claim probe provenance', () => {
   });
 });
 
+describe('a reading the agent disagrees with goes to the user', () => {
+  // A Remix app on a custom Express server: the scan reads Express from the listen call, the agent reads Remix.
+  const disagreement = () =>
+    mergeAgentSubmission({
+      baseline: projectFactsSchema.parse({
+        schemaVersion: 1,
+        services: [{ ...agentService, framework: 'express', source: 'probe' }]
+      }),
+      submission: agentSubmissionSchema.parse({
+        schemaVersion: 1,
+        services: [{ ...agentService, framework: 'remix' }]
+      })
+    });
+
+  it('keeps the scan reading by default and records both', () => {
+    const composition = composeConfig({ facts: disagreement() });
+
+    expect(composition.config.resources.api?.type).toBe('web-service');
+    expect(composition.assumptions).toContainEqual(
+      expect.objectContaining({
+        id: 'conflicting-observation:api:framework',
+        chosen: 'probe',
+        alternatives: ['probe', 'agent'],
+        parameters: expect.objectContaining({ probeValue: 'express', agentValue: 'remix' })
+      })
+    );
+  });
+
+  it("applies the agent's reading when the user settles it that way", () => {
+    // The agent is told "we show both readings to the user and let them settle it". Settling it must count.
+    const composition = composeConfig({
+      facts: disagreement(),
+      decisions: { 'conflicting-observation:api:framework': 'agent' }
+    });
+
+    expect(composition.config.resources.api?.type).toBe('remix-web');
+  });
+});
+
 describe('unanswered questions actually stop a deploy', () => {
   it('carries the facts own uncertainties through as recorded assumptions', () => {
     // Previously the composer started this list empty, so a claim the verifier had carefully
