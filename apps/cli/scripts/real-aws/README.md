@@ -63,6 +63,28 @@ pnpm test:aws --aws-scenario=lambda-alias-configuration-update
 The project name defaults to a new `v4aliascanary-` name and the region to `eu-west-1`. If cleanup does not finish, the
 canary prints one exact `--cleanup-only` command for the same run.
 
+## Dev-mode canary
+
+This runs the `stacktape dev` loop on `_test-stacks/dev-mode` (a container API, a local PostgreSQL database and a
+hosting-bucket dev server with a detached watcher) through the source CLI. The first session deploys the dev stack; the
+others reuse it. The sessions cover agent mode with an edit and `POST /rebuild/api`, `dev:stop --agentPort`, a terminal
+session (PTY) with `--watch` and Ctrl+C, occupied default ports with SIGTERM, a workload that crashes on start, and an
+unknown `--resources` name. After every session no process, container or port it started may remain. Linux only; Docker
+must be running. Like the alias canary it reads the API key from `apps/cli/.env.local` and uses the single active
+Stacktape connection to the expected account. A run takes about 15 minutes, most of it the dev-stack deploy.
+
+```sh
+export STP_AWS_DEV_CANARY_DEPLOY=1
+export STP_AWS_DEV_CANARY_EXPECTED_ACCOUNT_ID='<12-digit account id>'
+export STP_AWS_DEV_CANARY_PROFILE='<profile>'
+export STP_AWS_DEV_CANARY_OWNER="local-dev-$(date -u +%s)"
+export STP_AWS_DEV_CANARY_STATE_FILE="$(pwd)/.stacktape-dev-canary-${STP_AWS_DEV_CANARY_OWNER}.json"
+pnpm test:aws --aws-scenario=dev-mode-local-loop
+```
+
+`STP_AWS_DEV_CANARY_SCENARIOS` selects a comma-separated subset; `first-run-agent` must come first. If cleanup does not
+finish, the canary prints one exact `--cleanup-only` command.
+
 ## Observability fixture (not yet qualified)
 
 `_test-stacks/observability-smoke` is a candidate fixture, not a verified end-to-end runner. Its
