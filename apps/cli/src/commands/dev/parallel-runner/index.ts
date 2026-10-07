@@ -348,11 +348,12 @@ export const runParallelWorkloads = async (
     devTuiManager.transitionToRunning();
   }
 
-  // Setup file watching or stdin restart (only when not using DevTui)
+  // `dev` always runs the dev TUI, so `--watch` must not depend on it; the TUI replaces only the stdin `rs` commands.
+  if (watch) {
+    setupFileWatching();
+  }
   if (!useDevTui) {
-    if (watch) {
-      setupFileWatching();
-    } else {
+    if (!watch) {
       setupStdinRestart();
     }
 
@@ -1188,7 +1189,8 @@ const setupFileWatching = () => {
       tuiManager.info(`File changed: ${tuiManager.prettyFilePath(changedFile)} -> rebuilding ${workloadName}`);
 
       state.sourceCodeWatcher.unwatchAllFiles();
-      await workload.rebuild();
+      // The same path as a rebuild key or agent request, so the TUI and agent status follow the rebuild.
+      await rebuildWorkload(workloadName);
 
       // Re-setup watching with updated source files
       const newAllSourceFiles: string[] = [];
