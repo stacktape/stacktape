@@ -33,7 +33,10 @@ pnpm --filter @stacktape/console-api-app test:db --sign-up
 ```
 
 The `--incident-journey` suite extends issue and incident coverage through the production HTTP router, signed loopback
-webhook delivery and authenticated incident actions. It needs `openssl` for its temporary HTTPS certificate.
+webhook delivery and authenticated incident actions. It also invokes the built uptime prober in the official Node.js 22
+Lambda image and checks the monitoring sweeper through its Lambda proxy. Build the helpers first with
+`pnpm --filter @stacktape/cli build:dev-artifacts`; the lane needs `openssl`, `unzip`, Docker and the local
+`public.ecr.aws/lambda/nodejs:22` image. All fixtures use isolated databases and loopback endpoints.
 
 Pass the flag directly: an extra `--` is forwarded to this script and rejected. Choose the suite whose assertions cover
 the change, extending it when necessary. These suites use the disposable database, not shared dev. The runner currently
