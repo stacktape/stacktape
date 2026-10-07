@@ -98,7 +98,7 @@ describe('the pipelines', () => {
 
   it('asks GitHub for an OIDC role rather than a stored key', () => {
     const template = pipelineFor('github', inputs);
-    expect(template.requiredSecrets.map((secret) => secret.name)).toEqual(['AWS_DEPLOY_ROLE_ARN']);
+    expect(template.requiredSecrets.map((secret) => secret.name)).toEqual(['AWS_DEPLOY_ROLE_ARN', 'STACKTAPE_API_KEY']);
     expect(template.contents).toContain('id-token: write');
     expect(template.contents).not.toContain('AWS_SECRET_ACCESS_KEY');
   });
