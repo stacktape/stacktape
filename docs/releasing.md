@@ -47,6 +47,8 @@ for suite in '' --runner --gitlab --security --issues --incidents --incident-age
     pnpm --filter @stacktape/console-api-app test:db
   fi
 done
+pnpm --filter @stacktape/console-api-app test:runner:scripts
+pnpm --filter @stacktape/console-api-app test:runner:cache
 pnpm --filter @stacktape/ui-react test:e2e
 pnpm --filter @stacktape/bitbucket-forge-app test:e2e
 pnpm test:console:browser:smoke
@@ -86,6 +88,17 @@ set -euo pipefail
 [[ "$RC_RUN_ID" =~ ^[a-z0-9][a-z0-9-]{0,19}$ ]]
 mkdir -p .stacktape
 scenario_number=0
+: "${STP_CONSOLE_DEV_RESERVATION:?task-owned reservation for runner qualification}"
+pnpm console:dev:reservation check
+: "${RC_RUNNER_AMI:?AMI built with the same candidate CLI version}"
+: "${RC_AWS_ACCOUNT_ID:?explicit expected account for runner qualification}"
+: "${RC_AWS_REGION:?explicit qualification region}"
+# Set AWS_PROFILE explicitly for the reserved Console dev account (977946299200).
+for mode in --image-smoke --live --slots --performance --resume --startup-recovery; do
+  pnpm --filter @stacktape/console-api-app test:runner:aws "$mode" \
+    --ami "$RC_RUNNER_AMI" --account "$RC_AWS_ACCOUNT_ID" --region "$RC_AWS_REGION" --expected-cli-version "$RC_VERSION"
+done
+pnpm console:dev:reservation release
 export STP_AWS_CANARY_CLI_PATH="$RC_BINARY"
 export STP_AWS_CANARY_EXPECTED_CLI_VERSION="$RC_VERSION"
 for scenario in lambda-packaging-update init-static-site init-node-container init-python-container init-postgres-migration; do

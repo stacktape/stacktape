@@ -225,9 +225,9 @@ test('feature paths select the actual database suite, not migrations alone', () 
 });
 
 test('packaging subsets select runtime checks without unrelated image or web builds', () => {
-  const commands = new Set(createTestPlan(['packages/packaging/src/split-bundler/layer-builder.ts']).flatMap(
-    (lane) => lane.commands
-  ));
+  const commands = new Set(
+    createTestPlan(['packages/packaging/src/split-bundler/layer-builder.ts']).flatMap((lane) => lane.commands)
+  );
   assert.ok(commands.has('pnpm --filter @stacktape/packaging run test:node-lambda-e2e'));
   assert.ok(commands.has('pnpm --filter @stacktape/cli run test:layer-upload:ministack'));
   assert.ok(!commands.has('pnpm --filter @stacktape/packaging run test:web-framework-e2e'));
@@ -240,5 +240,31 @@ test('release and installer changes select actual candidate invocation', () => {
       createTestPlan([path]).some(({ id }) => id === 'release-installation'),
       String(path)
     );
+  }
+});
+
+test('common Console startup and router contracts select every isolated database feature suite', () => {
+  for (const path of ['src/config.ts', 'src/runtime-parameters.ts', 'src/router.ts', 'src/console-router.ts']) {
+    const commands = new Set(createTestPlan([`apps/console/api/${path}`]).flatMap((lane) => lane.commands));
+    for (const flag of ['runner', 'gitlab', 'security', 'issues', 'incidents', 'incident-agent', 'sign-up']) {
+      assert.ok(commands.has(`pnpm --filter @stacktape/console-api-app test:db --${flag}`), `${path}: --${flag}`);
+    }
+  }
+  assert.ok(
+    createTestPlan(['apps/cli/src/domain/packaging-manager/railpack-command.ts']).some(
+      ({ id }) => id === 'external-tools'
+    )
+  );
+});
+
+test('runner script, cache and image changes select execution in the isolated Docker runtime', () => {
+  for (const path of [
+    'src/services/remote-deploy/ec2/rootless-docker.ts',
+    'scripts/runner-scripts.test.ts',
+    'infrastructure/ec2-runner-image/ec2-runner.pkr.hcl'
+  ]) {
+    const commands = new Set(createTestPlan([`apps/console/api/${path}`]).flatMap((lane) => lane.commands));
+    assert.ok(commands.has('pnpm --filter @stacktape/console-api-app test:runner:scripts'));
+    assert.ok(commands.has('pnpm --filter @stacktape/console-api-app test:runner:cache'));
   }
 });

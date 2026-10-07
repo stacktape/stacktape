@@ -29,16 +29,16 @@ const isConsoleStartupPath = (path: string) =>
 // A suite needs one row here when the isolated database runner gains a flag.
 // Shared schema, router and fixture changes conservatively exercise every feature suite.
 const databaseSuites: [flag: string, feature: RegExp][] = [
-  ['runner', /runners?|remote-deploy/],
+  ['runner', /runners?|remote-deploy|workflow-job|git-credentials/],
   ['gitlab', /gitlab/],
   ['security', /security/],
   ['issues', /issues|issue-/],
   ['incidents', /incidents?|alert-router|notification|uptime|monitoring/],
   ['incident-agent', /incident-agent|incident-fix|claude-subscription/],
-  ['sign-up', /sign-up|sign_up|signup|create-user-post-sign-up/]
+  ['sign-up', /sign-up|sign_up|signup|create-user-post-sign-up|personal-organization/]
 ];
 const isDatabaseSharedPath = (path: string) =>
-  /^apps\/console\/api\/(prisma\/|package\.json$|scripts\/(run-db-integration|incident-agent-fixtures)\.ts$|src\/(api\/|middlewares\.ts$|http-server\.ts$|services\/prisma|model-helpers\/|raw-sql-queries\/))/.test(
+  /^apps\/console\/api\/(prisma\/|package\.json$|scripts\/(run-db-integration|incident-agent-fixtures)|src\/(api\/|(?:router|console-router|middlewares|http-server|config|runtime-parameters)(?:[./-])|services\/prisma|model-helpers\/|raw-sql-queries\/))/.test(
     path
   ) || path.startsWith('packages/console-api/');
 
@@ -124,7 +124,8 @@ const RULES: Rule[] = [
     proves: 'Pinned downloads, checksums, extraction and offline reuse work through real child processes.',
     commands: ['pnpm --filter @stacktape/cli run test:external-tools'],
     matches: (path) =>
-      /^apps\/cli\/(src\/(utils|config)\/external-tools|scripts\/(external-tools-e2e|pin-external-tools))/.test(path)
+      /^apps\/cli\/(src\/(utils|config)\/external-tools|scripts\/(external-tools-e2e|pin-external-tools))/.test(path) ||
+      path.endsWith('/railpack-command.ts')
   },
   {
     id: 'release-installation',
@@ -191,6 +192,18 @@ const RULES: Rule[] = [
       hasPart(path, /^apps\/console\/api\/src\/(raw-sql-queries|services\/prisma|model-helpers)/)
   },
   ...databaseRules,
+  {
+    id: 'console-runner-runtime',
+    proves: 'Generated runner jobs execute in Docker and preserve incremental Buildx cache between jobs.',
+    commands: [
+      'pnpm --filter @stacktape/console-api-app test:runner:scripts',
+      'pnpm --filter @stacktape/console-api-app test:runner:cache'
+    ],
+    matches: (path) =>
+      /^apps\/console\/api\/(scripts\/runner-|infrastructure\/ec2-runner-image\/|src\/services\/(remote-deploy\/ec2\/|incident-agent-runner-job))/.test(
+        path
+      )
+  },
   {
     id: 'shared-ui-browser',
     proves:
