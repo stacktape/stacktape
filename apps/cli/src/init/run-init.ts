@@ -36,6 +36,7 @@ import { runRepairMission } from './missions/repair';
 import type { InfrastructureMode } from '@stacktape/config-inference/compose/modes';
 import type { DeploymentPreferences } from '@stacktape/config-inference/compose/preferences';
 import type { WizardAgentOption } from './server/wizard-server';
+import type { WizardSignInDependencies } from './server/wizard-sign-in';
 import { startWizardSession, toTimelineEntry } from './server/wizard-session';
 import { estimateMonthlyCost } from './pricing';
 import { reportInitTelemetry } from './telemetry';
@@ -72,6 +73,13 @@ export type InitOptions = {
   preferences?: Partial<DeploymentPreferences>;
   /** Directory holding the built wizard bundle. */
   wizardBundle?: string;
+  /**
+   * How the wizard signs someone in to Stacktape without sending them to a terminal.
+   *
+   * Supplied by the command, which owns the Cognito client and the persisted CLI state. Absent in
+   * tests and embeddings, where the wizard falls back to asking for `stacktape login`.
+   */
+  signIn?: WizardSignInDependencies;
   /**
    * Which format the terminal presentation writes.
    *
@@ -437,6 +445,7 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
         }),
     awsIdentity: () => resolveAwsIdentity(),
     stacktapeAccount: () => resolveStacktapeAccount(),
+    ...(options.signIn === undefined ? {} : { signIn: options.signIn }),
     ...(repository === undefined ? {} : { gitHost: repository.host }),
     ...(repository === undefined
       ? {}

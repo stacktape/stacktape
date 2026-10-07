@@ -16,7 +16,39 @@ import { spawn } from 'node:child_process';
 import type { JsonlEvent } from '@application-services/tui-manager/output/jsonl-types';
 import { resolveSelfCommand } from './run-deploy';
 
-export type StacktapeAccount = { signedIn: true; detail: string } | { signedIn: false; detail: string };
+export type StacktapeAccount =
+  | {
+      signedIn: true;
+      detail: string;
+      /** Who `info:whoami` said this machine is, so the wizard can name the account it will deploy as. */
+      email?: string;
+      organization?: string;
+    }
+  | { signedIn: false; detail: string };
+
+const readString = (container: unknown, key: string): string | undefined => {
+  if (typeof container !== 'object' || container === null) return undefined;
+  const value = (container as Record<string, unknown>)[key];
+  return typeof value === 'string' && value !== '' ? value : undefined;
+};
+
+/**
+ * The identity inside a successful `info:whoami` result, read defensively: it crossed a process.
+ *
+ * A command's return value arrives under `result` in the event's data, not at its top level.
+ */
+export const identityFrom = (data: unknown): { email?: string; organization?: string } => {
+  if (typeof data !== 'object' || data === null) return {};
+  const { result } = data as { result?: unknown };
+  if (typeof result !== 'object' || result === null) return {};
+  const { user, organization } = result as { user?: unknown; organization?: unknown };
+  const email = readString(user, 'email');
+  const organizationName = readString(organization, 'name');
+  return {
+    ...(email === undefined ? {} : { email }),
+    ...(organizationName === undefined ? {} : { organization: organizationName })
+  };
+};
 
 export const resolveStacktapeAccount = async ({
   timeoutMs = 25_000
@@ -56,7 +88,11 @@ export const resolveStacktapeAccount = async ({
         try {
           const event = JSON.parse(line) as JsonlEvent;
           if (event.type !== 'result') continue;
-          settle(event.ok ? { signedIn: true, detail: event.message } : { signedIn: false, detail: event.message });
+          settle(
+            event.ok
+              ? { signedIn: true, detail: event.message, ...identityFrom(event.data) }
+              : { signedIn: false, detail: event.message }
+          );
         } catch {
           // Not part of the protocol; ignore.
         }

@@ -5,6 +5,7 @@ import { runInit } from 'src/init/run-init';
 import { openBrowser } from '../_utils/browser';
 import { isAgentMode } from '../_utils/agent-mode';
 import { initUsingStarterProject } from './using-starter-project';
+import { createWizardSignInDependencies } from './wizard-sign-in';
 
 export const commandInit = async () => {
   // Handle --starterId flag (starter project mode)
@@ -35,6 +36,8 @@ export const commandInit = async () => {
     // deciding which browser sees it. That matters over a forwarded port, and for anyone whose
     // default browser is not the one they work in.
     ...(args.noBrowser === true ? {} : { openBrowser: async (url: string) => openBrowser(url) }),
+    // Only the browser presentation has a page to sign in from; the terminal one deploys nothing.
+    ...(headless ? {} : { signIn: createWizardSignInDependencies() }),
     onOutput: (line) => tuiManager.info(line)
   });
 

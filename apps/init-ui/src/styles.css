@@ -603,8 +603,67 @@
     text-underline-offset: 3px;
   }
 
-  .wizard-disclosure:hover {
+  .wizard-disclosure:hover:not(:disabled) {
     color: var(--stp-text-primary);
+  }
+
+  .wizard-disclosure:disabled {
+    cursor: default;
+    opacity: 0.6;
+  }
+
+  /* The page suppresses the browser's focus ring, so every control that is not a shared component
+   * has to opt back in — otherwise a keyboard user cannot see where they are. Same ring as the
+   * shared controls draw. */
+  .wizard-disclosure:focus-visible,
+  .wizard-link:focus-visible,
+  .wizard-decision-option:focus-visible {
+    outline: var(--stp-focus-outline-width) solid var(--stp-color-brand);
+    outline-offset: var(--stp-focus-outline-offset);
+  }
+
+  .wizard-disclosure:focus-visible,
+  .wizard-link:focus-visible {
+    border-radius: var(--stp-radius-small);
+  }
+
+  /* ── Signing in ────────────────────────────────────────────────────────────────────────────── */
+
+  /* A form, so it is narrower than the prose around it: a 68-character password field is a field
+   * nobody can find the end of. */
+  .wizard-signin {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 100%;
+    max-width: 420px;
+    padding: 20px;
+  }
+
+  .wizard-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--stp-text-subtle);
+    font-size: 0.8rem;
+  }
+
+  .wizard-divider::before,
+  .wizard-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  /* The way back for someone who signed in somewhere else. Set apart from the form by the same
+   * hairline, because it is not part of signing in here. */
+  .wizard-signin-footnote {
+    margin: 0;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--stp-text-subtle);
+    font-size: 0.82rem;
   }
 
   .wizard-facts {

@@ -56,6 +56,7 @@ export const LINKS = {
   blog: '/blog',
   github: 'https://github.com/stacktape/stacktape',
   console: 'https://console.stacktape.com',
+  signUp: 'https://console.stacktape.com/sign-up',
   demo: 'https://cal.com/stacktape/30min',
   status: 'https://status.stacktape.com'
 } as const;
@@ -980,6 +981,30 @@ export const CONTACT = {
 } as const;
 
 export const SIGN_IN = { before: 'Already using Stacktape?', link: 'Open the Console', href: LINKS.console } as const;
+
+/**
+ * The way in for someone who starts in the Console instead of the terminal: the person who sets up
+ * the organization and its AWS account before a developer deploys. The command stays the main
+ * action; this sits under it as one sentence. `place` tells sign-up attribution which link was used.
+ */
+export const SIGN_UP = {
+  before: "Setting up your team's organization or AWS account first?",
+  link: 'Create a free account',
+  href: (place: 'install' | 'start') => `${LINKS.signUp}?utm_source=website&utm_content=${place}`
+} as const;
+
+/**
+ * On a phone the command cannot be run, and an account is no use there either: the Console is a
+ * desktop application. What a phone visitor can usefully do is read on and take the page to their
+ * computer, so that is the one thing offered, quietly, where the command is.
+ */
+export const SEND_TO_COMPUTER = {
+  note: 'This runs in a terminal on your computer.',
+  action: 'Send this page to yourself',
+  copied: 'Link copied',
+  shareTitle: 'Stacktape',
+  shareText: `${HEADLINE} Run \`npx stacktape init\` in your repository.`
+} as const;
 
 /** Two things carry the name: the CLI, which is open source, and the Console, which is hosted. */
 export const LICENSE = {

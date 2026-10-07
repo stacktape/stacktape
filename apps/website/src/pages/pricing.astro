@@ -5,7 +5,9 @@
  */
 import PlainPage from '../components/PlainPage.astro';
 
-const PLANS = [
+type Plan = { name: string; price: string; lines: string[]; action?: { label: string; href: string } };
+
+const PLANS: Plan[] = [
   {
     name: 'Free',
     price: '$0',
@@ -14,7 +16,11 @@ const PLANS = [
       'Up to $100 a month of managed AWS spend',
       'Unlimited deployments and stacks',
       'No credit card'
-    ]
+    ],
+    action: {
+      label: 'Create a free account',
+      href: 'https://console.stacktape.com/sign-up?utm_source=website&utm_content=pricing'
+    }
   },
   {
     name: 'Flexible',
@@ -51,6 +57,11 @@ const PLANS = [
               <li>{line}</li>
             ))}
           </ul>
+          {plan.action ? (
+            <p class="plan__action">
+              <a href={plan.action.href}>{plan.action.label}</a>
+            </p>
+          ) : null}
         </section>
       ))
     }
@@ -95,6 +106,12 @@ const PLANS = [
     margin: 0;
     padding-left: 18px;
     font-size: 15px;
+  }
+
+  .plan__action {
+    margin: 14px 0 0;
+    font-size: 15px;
+    font-weight: 600;
   }
 
   @media (max-width: 720px) {

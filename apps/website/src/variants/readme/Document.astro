@@ -16,7 +16,9 @@ import {
   LICENSE,
   SECTIONS,
   type Section as SectionData,
+  SEND_TO_COMPUTER,
   SIGN_IN,
+  SIGN_UP,
   SUBHEADLINE,
   TESTIMONIALS,
   TESTIMONIALS_TITLE,
@@ -89,6 +91,20 @@ const FIGURES: Record<SectionData['id'], readonly { screen: typeof Editor; capti
   <ul class="rm-chips" aria-label={trustLabel}>
     {TRUST_CHIPS.map((chip) => <li class="rm-chip">{chip}</li>)}
   </ul>
+  <p class="rm-p rm-account-line">
+    {SIGN_UP.before} <a href={SIGN_UP.href('install')}>{SIGN_UP.link}</a>.
+  </p>
+  <p class="rm-p rm-send">
+    {SEND_TO_COMPUTER.note}{' '}
+    <button
+      class="rm-send__action"
+      type="button"
+      data-rm-send
+      data-title={SEND_TO_COMPUTER.shareTitle}
+      data-text={SEND_TO_COMPUTER.shareText}
+      data-copied={SEND_TO_COMPUTER.copied}>{SEND_TO_COMPUTER.action}</button
+    >
+  </p>
 
   <h2 class="rm-h2" id="what-stacktape-does">What Stacktape does</h2>
   <ol class="rm-toc" aria-label="Contents">
@@ -135,7 +151,10 @@ const FIGURES: Record<SectionData['id'], readonly { screen: typeof Editor; capti
   <ul class="rm-chips" aria-label={trustLabel}>
     {TRUST_CHIPS.map((chip) => <li class="rm-chip">{chip}</li>)}
   </ul>
-  <p class="rm-p rm-signin-line">{SIGN_IN.before} <a href={SIGN_IN.href}>{SIGN_IN.link}</a>.</p>
+  <p class="rm-p rm-signin-line">
+    {SIGN_IN.before} <a href={SIGN_IN.href}>{SIGN_IN.link}</a>. {SIGN_UP.before}{' '}
+    <a href={SIGN_UP.href('start')}>{SIGN_UP.link}</a>.
+  </p>
 
   <h2 class="rm-h2" id="license">License</h2>
   <p class="rm-p">
@@ -143,3 +162,25 @@ const FIGURES: Record<SectionData['id'], readonly { screen: typeof Editor; capti
     free plan; see <a href={LICENSE.console.href}>pricing</a>.
   </p>
 </article>
+
+<script>
+  // The phone's own share sheet reaches wherever its owner keeps things: mail, notes, a chat with
+  // themselves. Where a browser has none, the link is copied instead.
+  const send = document.querySelector<HTMLButtonElement>('[data-rm-send]');
+  send?.addEventListener('click', async () => {
+    const url = `${window.location.origin}/?utm_source=website&utm_content=sent-from-phone`;
+    const { title = '', text = '', copied = '' } = send.dataset;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, text, url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      const label = send.textContent;
+      send.textContent = copied;
+      setTimeout(() => (send.textContent = label), 2000);
+    } catch {
+      // Closing the share sheet rejects the promise. Nothing went wrong.
+    }
+  });
+</script>
