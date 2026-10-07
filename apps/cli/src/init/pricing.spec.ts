@@ -1,12 +1,15 @@
-import { describe, expect, mock, test } from 'bun:test';
+import { beforeAll, describe, expect, mock, test } from 'bun:test';
 import type { StackPriceEstimationResponse } from '@stacktape/console-api/anonymous';
 
 let response: StackPriceEstimationResponse;
 mock.module('@stacktape-api/public', () => ({
   publicApiClient: { stackPriceEstimation: async () => response }
 }));
-const { estimateMonthlyCost } = await import('./pricing');
-const { getResourceCostLabel, getStackCostLabel } = await import('../commands/init/utils/output-formatting');
+import { getResourceCostLabel, getStackCostLabel } from '../commands/init/utils/output-formatting';
+let estimateMonthlyCost: typeof import('./pricing').estimateMonthlyCost;
+beforeAll(async () => {
+  ({ estimateMonthlyCost } = await import('./pricing'));
+});
 
 describe('pricing presentation', () => {
   test('an incomplete API subtotal is never presented as a monthly estimate', async () => {

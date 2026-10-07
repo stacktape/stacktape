@@ -824,7 +824,10 @@ const formatCostInfo = ({
     !regionalProductPricingInfo.pricePerUnit.trim() ||
     !Number.isFinite(rate) ||
     rate < 0 ||
-    !regionalProductPricingInfo.unit
+    !regionalProductPricingInfo.unit?.trim() ||
+    (productInfo.priceModel === 'flat' &&
+      !regionalProductPricingInfo.unit.toLowerCase().includes('mo') &&
+      !['hr', 'hrs', 'hour', 'hours'].includes(regionalProductPricingInfo.unit.toLowerCase()))
   ) {
     console.error(`Unable to get pricing info for product: ${productInfo.name} (${productInfo.description})`);
     return {

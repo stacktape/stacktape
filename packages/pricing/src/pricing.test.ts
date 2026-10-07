@@ -139,7 +139,7 @@ const estimate = (stackConfig: object, region: string) => {
 let fixtureDirectory: string;
 
 beforeAll(async () => {
-  fixtureDirectory = await mkdtemp(join(tmpdir(), 'stacktape-pricing-'));
+  fixtureDirectory = await mkdtemp(join(tmpdir(), 'stacktape-j10-pricing-'));
   await loadPinnedCatalog(PINNED_TABLE);
 });
 
@@ -427,6 +427,35 @@ describe('estimator', () => {
     );
     expect(result.incomplete).toBe(true);
     expect(result.flatMonthlyCost).toBeCloseTo(0.005 * HOURS_PER_MONTH, 10);
+  });
+
+  test('invalid fixed rates remain unavailable while an explicit zero rate is valid', async () => {
+    for (const [pricePerUnit, unit] of [
+      ['', 'Hrs'],
+      ['NaN', 'Hrs'],
+      ['-1', 'Hrs'],
+      ['1', 'Requests']
+    ]) {
+      tableItems(PINNED_TABLE).set('EC2-instance-t3.nano-Linux', {
+        'us-east-1': { currency: 'USD', pricePerUnit, unit }
+      });
+      // oxlint-disable-next-line eslint/no-await-in-loop -- each case replaces the same catalog product before reading it
+      const result = await estimate(
+        { resources: { adminBastion: { type: 'bastion', properties: { instanceSize: 't3.nano' } } } },
+        'us-east-1'
+      );
+      expect(result.incomplete).toBe(true);
+      expect(result.flatMonthlyCost).toBeCloseTo(3.6, 10);
+    }
+    tableItems(PINNED_TABLE).set('EC2-instance-t3.nano-Linux', {
+      'us-east-1': { currency: 'USD', pricePerUnit: '0', unit: 'Hrs' }
+    });
+    const free = await estimate(
+      { resources: { adminBastion: { type: 'bastion', properties: { instanceSize: 't3.nano' } } } },
+      'us-east-1'
+    );
+    expect(free.incomplete).toBe(false);
+    expect(free.flatMonthlyCost).toBeCloseTo(3.6, 10);
   });
 
   test('retries price reads that DynamoDB leaves unprocessed', async () => {
