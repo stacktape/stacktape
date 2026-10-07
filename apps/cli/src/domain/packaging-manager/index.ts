@@ -98,11 +98,10 @@ import {
   LAMBDA_MAX_LAYERS
 } from '@stacktape/packaging/artifact/lambda-limits';
 import { loadFromJavascript, loadFromTypescript } from '@utils/file-loaders';
+import { isJsEntryFileExtension } from '@config';
 import { getStableBuildpackDigestProps } from './artifact-digest-inputs';
 import type { PackagingTarget } from './types';
 
-/** The entry-file extensions `js-bundle` packaging accepts. */
-const JS_ENTRY_EXTENSIONS: ReadonlySet<string> = new Set(['js', 'ts', 'jsx', 'mjs', 'tsx']);
 import { canBuildSplitNativeDependencies, selectSplitBundlingGroup } from './split-bundling-policy';
 import { groupCompatibleNativeDependencies } from './native-layer-groups';
 import {
@@ -914,7 +913,7 @@ export class PackagingManager {
         if (!shouldPackageWorkload(name)) return false;
         const ext = getFileExtension((packaging?.properties as { entryfilePath?: string })?.entryfilePath || '');
         // Exclude edge functions from split bundling - they don't support ESM with top-level await
-        return ['js', 'ts', 'jsx', 'mjs', 'tsx'].includes(ext) && type !== 'edge-lambda-function';
+        return isJsEntryFileExtension(ext) && type !== 'edge-lambda-function';
       })
       // Tracing is applied by the per-Lambda buildpack, which wraps the handler at the bundle entry.
       .map((lambda) => Object.assign({}, lambda, { tracingEnabled: tracedLambdaNames.has(lambda.name) }));
@@ -923,14 +922,14 @@ export class PackagingManager {
     const edgeLambdas = configManager.allUserCodeLambdas.filter(({ name, packaging, type }) => {
       if (!shouldPackageWorkload(name)) return false;
       const ext = getFileExtension((packaging?.properties as { entryfilePath?: string })?.entryfilePath || '');
-      return ['js', 'ts', 'jsx', 'mjs', 'tsx'].includes(ext) && type === 'edge-lambda-function';
+      return isJsEntryFileExtension(ext) && type === 'edge-lambda-function';
     });
 
     // Non-Node.js lambdas
     const nonNodeLambdas = configManager.allUserCodeLambdas.filter(({ name, packaging }) => {
       if (!shouldPackageWorkload(name)) return false;
       const ext = getFileExtension((packaging?.properties as { entryfilePath?: string })?.entryfilePath || '');
-      return !JS_ENTRY_EXTENSIONS.has(ext);
+      return !isJsEntryFileExtension(ext);
     });
 
     // In dev mode, skip container and hosting bucket builds (they run locally)
@@ -1550,7 +1549,7 @@ export class PackagingManager {
     };
 
     if (packagingType === 'js-bundle') {
-      if (!JS_ENTRY_EXTENSIONS.has(extension)) {
+      if (!isJsEntryFileExtension(extension)) {
         throw createCliPackagingError({
           type: 'PACKAGING',
           message: `js-bundle packaging of ${workloadName} needs a JavaScript or TypeScript entry file, not \`.${extension}\`.`,
@@ -1678,7 +1677,7 @@ export class PackagingManager {
         throw createCliPackagingError({
           type: 'PACKAGING',
           message: `buildpack packaging of ${workloadName} does not support \`.${extension}\` entry files.`,
-          hint: JS_ENTRY_EXTENSIONS.has(extension)
+          hint: isJsEntryFileExtension(extension)
             ? 'Use js-bundle packaging for JavaScript and TypeScript.'
             : 'Supported: .py, .java, .go, .rb, .cs and .rs. Use custom-artifact packaging for other languages.'
         });
