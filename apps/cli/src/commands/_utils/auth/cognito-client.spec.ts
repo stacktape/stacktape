@@ -107,3 +107,79 @@ describe('the Google callback listener', () => {
     attempt.cancel();
   });
 });
+
+describe('Google sign-in completes through the callback page and token HTTP exchange', () => {
+  test.each([true, false])('token endpoint success=%s', async (succeeds) => {
+    const { createHash } = await import('node:crypto');
+    let submitted: URLSearchParams | undefined;
+    const provider = Bun.serve({
+      hostname: '127.0.0.1',
+      port: 0,
+      fetch: async (request) => {
+        submitted = new URLSearchParams(await request.text());
+        return succeeds
+          ? Response.json({ id_token: 'j6-fixture-id-token', access_token: 'j6-fixture-access-token' })
+          : new Response('invalid_grant', { status: 400 });
+      }
+    });
+    const attempt = await startGoogleSignIn({ returnTo: 'terminal', port: 0 });
+    if (attempt.started === false) {
+      provider.stop(true);
+      throw new Error(attempt.error);
+    }
+    const authorize = new URL(attempt.authorizationUrl);
+    const callback = authorize.searchParams.get('redirect_uri')!;
+    const originalFetch = globalThis.fetch;
+    // Cognito is the external dependency. The production callback listener and fetch serialization stay real.
+    globalThis.fetch = Object.assign(
+      async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+        const url = new URL(input instanceof Request ? input.url : input);
+        if (url.origin !== authorize.origin && !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)) {
+          throw new Error('J6 OAuth fixture refuses external requests');
+        }
+        if (url.origin === authorize.origin && url.pathname !== '/oauth2/token') {
+          throw new Error('J6 OAuth fixture received an unexpected provider request');
+        }
+        return originalFetch(
+          url.origin === authorize.origin && url.pathname === '/oauth2/token'
+            ? new URL('/oauth2/token', provider.url)
+            : input,
+          init
+        );
+      },
+      { preconnect: originalFetch.preconnect }
+    );
+    try {
+      const response = await fetch(`${callback}?code=fixture-code&state=${authorize.searchParams.get('state')}`);
+      const html = await response.text();
+      expect(response.status).toBe(200);
+      expect(submitted?.get('grant_type')).toBe('authorization_code');
+      expect(submitted?.get('code')).toBe('fixture-code');
+      expect(submitted?.get('redirect_uri')).toBe(callback);
+      expect(submitted?.get('client_id')).toBe(authorize.searchParams.get('client_id'));
+      expect(createHash('sha256').update(submitted!.get('code_verifier')!).digest('base64url')).toBe(
+        authorize.searchParams.get('code_challenge')
+      );
+      const nonce = /<style nonce="([^"]+)"/.exec(html)![1];
+      expect(response.headers.get('content-security-policy')).toContain(`'nonce-${nonce}'`);
+      expect(response.headers.get('cache-control')).toContain('no-store');
+      expect(html).not.toContain('j6-fixture-id-token');
+      expect(html).not.toContain('fixture-code');
+      if (succeeds) {
+        expect(html).toContain('Signed in');
+        expect(html).toContain('return to your terminal');
+        expect(await attempt.result).toMatchObject({ success: true, idToken: 'j6-fixture-id-token' });
+      } else {
+        expect(html).toContain('Sign-in did not finish');
+        expect(html).not.toContain('Signed in');
+        expect(html).not.toContain('window.close()');
+        expect(await attempt.result).toEqual({ success: false, error: 'Token exchange failed: invalid_grant' });
+      }
+      await expect(originalFetch(callback)).rejects.toThrow();
+    } finally {
+      attempt.cancel();
+      globalThis.fetch = originalFetch;
+      provider.stop(true);
+    }
+  });
+});

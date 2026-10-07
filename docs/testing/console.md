@@ -29,12 +29,18 @@ pnpm --filter @stacktape/console-api-app test:db --gitlab
 pnpm --filter @stacktape/console-api-app test:db --runner
 pnpm --filter @stacktape/console-api-app test:db --incident-agent
 pnpm --filter @stacktape/console-api-app test:db --sign-up
+pnpm --filter @stacktape/console-api-app test:db --cli-console
 ```
 
 Pass the flag directly: an extra `--` is forwarded to this script and rejected. Choose the suite whose assertions cover
 the change, extending it when necessary. These suites use the disposable database, not shared dev. The runner currently
 defaults to a pinned PostgreSQL 15.14 image matching Console's configured RDS major version. Override it only to qualify
 a deliberate database upgrade. `pnpm dev:console` instead exercises the real shared dev data plane.
+
+The `--cli-console` suite runs source CLI processes against the production HTTP router and disposable PostgreSQL. It
+covers deployment reporting and Console read responses, endpoint-scoped login/logout, token exchange, organization and
+project commands, and isolated AWS profiles/defaults. AWS calls use a loopback wire fixture; external network requests
+are rejected. It needs Docker and builds the CLI dev artifacts before testing.
 
 The isolated Console browser lane uses the same disposable database runner:
 
