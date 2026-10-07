@@ -161,6 +161,9 @@ const agentOptions = (
   }
 ];
 
+/** Said in both presentations, so "Using claude-code" is never left implying that the agent read the code. */
+const AGENT_SKIPPED_NOTE = 'The scan answered everything — your agent was not needed, and no tokens were spent.';
+
 /** Whether opening a browser is plausible. Honest rather than clever: if in doubt, use the terminal. */
 export const canOpenBrowser = (env: NodeJS.ProcessEnv = process.env): boolean => {
   // Asking for the terminal is `--headless`; this function only answers whether a browser is even
@@ -284,6 +287,7 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
       timeline.push(entry);
       say(`  ${entry.kind === 'tool' ? '→' : ' '} ${entry.label}`);
     });
+    if (result.agentSkipped === true) say(`  ${AGENT_SKIPPED_NOTE}`);
     for (const line of describeResult(result)) say(line);
 
     // Priced after the resource list is on screen, because it is a network call in a command that
@@ -396,9 +400,8 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
       analysisMs = Date.now() - analysisStartedAt;
       if (result.agentSkipped === true) {
         agentWasSkipped = true;
-        const skippedNote = 'The scan answered everything — your agent was not needed, and no tokens were spent.';
-        say(`  ${skippedNote}`);
-        onProgress({ kind: 'note', label: skippedNote });
+        say(`  ${AGENT_SKIPPED_NOTE}`);
+        onProgress({ kind: 'note', label: AGENT_SKIPPED_NOTE });
       }
       return result;
     },
