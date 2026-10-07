@@ -1,0 +1,2547 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Resources": {
+    "StpDeploymentBucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "BucketName": "stp-deployment-bucket-932f0975",
+        "AccelerateConfiguration": {
+          "AccelerationStatus": "Enabled"
+        },
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+              }
+            }
+          ]
+        },
+        "CorsConfiguration": {
+          "CorsRules": [
+            {
+              "AllowedHeaders": ["*"],
+              "AllowedMethods": ["GET"],
+              "AllowedOrigins": ["*"]
+            }
+          ]
+        }
+      }
+    },
+    "StpDeploymentBucketPolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": {
+          "Ref": "StpDeploymentBucket"
+        },
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "s3:*",
+              "Effect": "Deny",
+              "Principal": "*",
+              "Resource": [
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":s3:::",
+                      {
+                        "Ref": "StpDeploymentBucket"
+                      },
+                      "/*"
+                    ]
+                  ]
+                }
+              ],
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": false
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "StpContainerRepository": {
+      "Type": "AWS::ECR::Repository",
+      "Properties": {
+        "RepositoryName": "932f0975-stp-multi-container-workload-repo",
+        "ImageScanningConfiguration": {
+          "ScanOnPush": true
+        },
+        "LifecyclePolicy": {
+          "LifecyclePolicyText": "{\"rules\":[{\"rulePriority\":1,\"description\":\"Remove untagged images\",\"selection\":{\"tagStatus\":\"untagged\",\"countType\":\"sinceImagePushed\",\"countUnit\":\"days\",\"countNumber\":1},\"action\":{\"type\":\"expire\"}}]}"
+        }
+      }
+    },
+    "FilesBucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "BucketName": "j2-v3-baseline-j2base-files-932f0975",
+        "VersioningConfiguration": {
+          "Status": "Enabled"
+        },
+        "AccelerateConfiguration": {
+          "AccelerationStatus": "Enabled"
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": false,
+          "BlockPublicPolicy": false,
+          "RestrictPublicBuckets": false,
+          "IgnorePublicAcls": false
+        }
+      }
+    },
+    "StacktapeServiceLambdaRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "j2-v3-baseline-j2base-stacktapeServiceLambda-eu-west-1",
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": ["lambda.amazonaws.com", "edgelambda.amazonaws.com"]
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "Policies": [
+          {
+            "PolicyName": "allow-cloudwatch-logging-policy",
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:PutLogEvents",
+                    "logs:DescribeLogGroups",
+                    "logs:DescribeLogStreams",
+                    "logs:CreateLogStream"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:logs:*:${AWS::AccountId}:log-group:/aws/lambda/j2-v3-baseline-j2base-stpService-CR"
+                    },
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:logs:*:${AWS::AccountId}:log-group:/aws/lambda/j2-v3-baseline-j2base-stpService-CR:*"
+                    },
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:logs:*:${AWS::AccountId}:log-group:/aws/lambda/j2-v3-baseline-j2base-stpService-CR:*:*"
+                    }
+                  ]
+                }
+              ],
+              "Version": "2012-10-17"
+            }
+          },
+          {
+            "PolicyName": "custom-iam-role-statements",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Resource": ["*"],
+                  "Effect": "Allow",
+                  "Action": ["s3:PutBucketNotification", "s3:GetBucketNotification"]
+                },
+                {
+                  "Resource": ["*"],
+                  "Effect": "Allow",
+                  "Action": ["lambda:AddPermission", "lambda:RemovePermission"]
+                },
+                {
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:vpc-peering-connection/*"
+                    }
+                  ],
+                  "Effect": "Allow",
+                  "Action": ["ec2:AcceptVpcPeeringConnection"]
+                },
+                {
+                  "Resource": ["*"],
+                  "Effect": "Allow",
+                  "Action": ["ec2:DescribeVpcPeeringConnections"]
+                },
+                {
+                  "Resource": ["arn:aws:iam::977946299200:role/j2-v3-baseline-j2base-*"],
+                  "Effect": "Allow",
+                  "Action": [
+                    "iam:CreateRole",
+                    "iam:DeleteRolePolicy",
+                    "iam:ListRolePolicies",
+                    "iam:PutRolePolicy",
+                    "iam:GetRole",
+                    "iam:PassRole",
+                    "iam:DeleteRole"
+                  ]
+                },
+                {
+                  "Resource": ["arn:aws:lambda:us-east-1:977946299200:function:j2-v3-baseline-j2base-*"],
+                  "Effect": "Allow",
+                  "Action": [
+                    "lambda:UpdateFunctionCode",
+                    "lambda:UpdateFunctionConfiguration",
+                    "lambda:CreateFunction",
+                    "lambda:PublishVersion",
+                    "lambda:GetFunction",
+                    "lambda:GetFunctionConfiguration",
+                    "lambda:ListVersionsByFunction",
+                    "lambda:DeleteFunction",
+                    "lambda:TagResource",
+                    "lambda:UntagResource",
+                    "lambda:ListTags"
+                  ]
+                },
+                {
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:logs:*:${AWS::AccountId}:log-group:*"
+                    }
+                  ],
+                  "Effect": "Allow",
+                  "Action": ["*"]
+                },
+                {
+                  "Resource": [
+                    {
+                      "Fn::GetAtt": ["StacktapeServiceLambdaLogGroup", "Arn"]
+                    }
+                  ],
+                  "Effect": "Deny",
+                  "Action": ["logs:CreateLogGroup"]
+                },
+                {
+                  "Resource": [
+                    "arn:aws:s3:::stp-deployment-bucket-932f0975/*",
+                    "arn:aws:s3:::stp-deployment-bucket-932f0975"
+                  ],
+                  "Effect": "Allow",
+                  "Action": ["s3:ListBucket", "s3:GetObject", "s3:PutObject", "s3:PutObjectAcl"]
+                },
+                {
+                  "Resource": [
+                    "arn:aws:s3:::stp-edge-deployment-bucket-932f0975/*",
+                    "arn:aws:s3:::stp-edge-deployment-bucket-932f0975"
+                  ],
+                  "Effect": "Allow",
+                  "Action": ["*"]
+                },
+                {
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/stp/j2-v3-baseline-j2base/*"
+                    },
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/stp/eu-west-1/j2-v3-baseline-j2base/*"
+                    }
+                  ],
+                  "Effect": "Allow",
+                  "Action": [
+                    "ssm:DeleteParameter",
+                    "ssm:DeleteParameters",
+                    "ssm:PutParameter",
+                    "ssm:AddTagsToResource",
+                    "ssm:GetParameters"
+                  ]
+                },
+                {
+                  "Resource": ["*"],
+                  "Effect": "Allow",
+                  "Action": ["cloudformation:DescribeStacks"]
+                },
+                {
+                  "Resource": ["*"],
+                  "Effect": "Allow",
+                  "Action": ["lambda:PublishVersion", "lambda:GetFunction", "lambda:DeleteFunction"]
+                },
+                {
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:logs:*:${AWS::AccountId}:log-group:*"
+                    }
+                  ],
+                  "Effect": "Allow",
+                  "Action": ["*"]
+                },
+                {
+                  "Resource": ["*"],
+                  "Effect": "Allow",
+                  "Action": ["wafv2:CreateWebACL", "wafv2:UpdateWebACL", "wafv2:DeleteWebACL", "wafv2:ListWebACLs"]
+                },
+                {
+                  "Resource": ["*"],
+                  "Effect": "Allow",
+                  "Action": ["autoscaling:DescribeAutoScalingGroups", "autoscaling:SetInstanceProtection"],
+                  "Condition": {
+                    "StringEquals": {
+                      "autoscaling:ResourceTag/stp:stack-name": "j2-v3-baseline-j2base"
+                    }
+                  }
+                },
+                {
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:targetgroup/j2-v3-baseline-j2base*/*"
+                    }
+                  ],
+                  "Effect": "Allow",
+                  "Action": [
+                    "elasticloadbalancing:DescribeTargetHealth",
+                    "elasticloadbalancing:DeregisterTargets",
+                    "elasticloadbalancing:ModifyTargetGroupAttributes"
+                  ]
+                },
+                {
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:capacity-provider/j2-v3-baseline-j2base*"
+                    }
+                  ],
+                  "Effect": "Allow",
+                  "Action": ["ecs:UpdateCapacityProvider"]
+                },
+                {
+                  "Resource": ["*"],
+                  "Effect": "Allow",
+                  "Action": [
+                    "acm:AddTagsToCertificate",
+                    "acm:DescribeCertificate",
+                    "acm:ListCertificates",
+                    "acm:RequestCertificate"
+                  ]
+                },
+                {
+                  "Resource": ["arn:aws:lambda:eu-west-1:977946299200:function:j2-v3-baseline-j2base-stpService-CR"],
+                  "Effect": "Allow",
+                  "Action": ["lambda:InvokeFunction"]
+                },
+                {
+                  "Resource": ["*"],
+                  "Effect": "Allow",
+                  "Action": ["cognito-idp:DescribeUserPoolClient"],
+                  "Condition": {
+                    "StringEquals": {
+                      "aws:ResourceTag/stp:stack-name": "j2-v3-baseline-j2base"
+                    }
+                  }
+                },
+                {
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:ssm:*:${AWS::AccountId}:parameter/stp/*"
+                    }
+                  ],
+                  "Effect": "Allow",
+                  "Action": ["ssm:GetParameter"]
+                },
+                {
+                  "Resource": ["*"],
+                  "Effect": "Allow",
+                  "Action": [
+                    "servicediscovery:GetNamespace",
+                    "route53:ChangeTagsForResource",
+                    "ec2:CreateTags",
+                    "ec2:DescribeNetworkInterfaces"
+                  ]
+                },
+                {
+                  "Resource": ["*"],
+                  "Effect": "Allow",
+                  "Action": ["logs:GetLogEvents", "logs:FilterLogEvents"]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "StacktapeServiceLambdaLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/j2-v3-baseline-j2base-stpService-CR",
+        "RetentionInDays": 90
+      }
+    },
+    "StacktapeServiceLambdaCustomResourceFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": "j2-v3-baseline-j2base-stpService-CR",
+        "Architectures": ["x86_64"],
+        "Code": {
+          "S3Key": "stacktapeServiceLambda/v000001-characterization.zip",
+          "S3Bucket": "stp-deployment-bucket-932f0975"
+        },
+        "Handler": "index.default",
+        "MemorySize": 2048,
+        "Timeout": 900,
+        "Environment": {
+          "Variables": {
+            "AWS_PARTITION": {
+              "Ref": "AWS::Partition"
+            },
+            "AWS_ACCOUNT_ID": {
+              "Ref": "AWS::AccountId"
+            },
+            "STACK_NAME": "j2-v3-baseline-j2base",
+            "PROJECT_NAME": "j2-v3-baseline",
+            "STAGE": "j2base",
+            "GLOBALLY_UNIQUE_STACK_HASH": "932f0975",
+            "STACKTAPE_TRPC_API_ENDPOINT": "https://api.stacktape.com",
+            "NODE_OPTIONS": "--enable-source-maps",
+            "ISSUE_MAX_ERRORS_PER_INVOCATION": "20",
+            "ISSUE_MAX_CONTEXT_FETCHES_PER_INVOCATION": "5",
+            "ISSUE_MAX_LOG_AGE_MS": "600000"
+          }
+        },
+        "Role": {
+          "Fn::GetAtt": ["StacktapeServiceLambdaRole", "Arn"]
+        },
+        "Runtime": "nodejs22.x",
+        "Tags": [
+          {
+            "Key": "stp:code-digest",
+            "Value": "characterization"
+          },
+          {
+            "Key": "stp:stack-name",
+            "Value": "j2-v3-baseline-j2base"
+          },
+          {
+            "Key": "stp:project-name",
+            "Value": "j2-v3-baseline"
+          },
+          {
+            "Key": "stp:stage",
+            "Value": "j2base"
+          },
+          {
+            "Key": "stp:globally-unique-stack-hash",
+            "Value": "932f0975"
+          }
+        ]
+      },
+      "DependsOn": ["StacktapeServiceLambdaRole", "StacktapeServiceLambdaLogGroup"]
+    },
+    "StpStpCustomTaggingScheduleRule": {
+      "Type": "AWS::Events::Rule",
+      "Properties": {
+        "State": "ENABLED",
+        "ScheduleExpression": "rate(2 hours)",
+        "Targets": [
+          {
+            "Input": {
+              "Fn::Sub": "{\"tagHostedZoneAttributedToCloudMapNamespace\":[],\"tagNetworkInterfaceWithSecurityGroup\":[]}"
+            },
+            "Arn": {
+              "Fn::GetAtt": ["StacktapeServiceLambdaCustomResourceFunction", "Arn"]
+            },
+            "Id": "scheduledService"
+          }
+        ]
+      }
+    },
+    "StpStpCustomTaggingScheduleRulePermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "Principal": "events.amazonaws.com",
+        "FunctionName": {
+          "Fn::GetAtt": ["StacktapeServiceLambdaCustomResourceFunction", "Arn"]
+        },
+        "SourceArn": {
+          "Fn::GetAtt": ["StpStpCustomTaggingScheduleRule", "Arn"]
+        }
+      }
+    },
+    "StpCloudwatchAlarmNotificationSharedPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "Principal": "events.amazonaws.com",
+        "FunctionName": {
+          "Fn::GetAtt": ["StacktapeServiceLambdaCustomResourceFunction", "Arn"]
+        },
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        },
+        "SourceArn": {
+          "Fn::Sub": "arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/j2-v3-baseline-j2base-alarm-notification-*"
+        }
+      }
+    },
+    "StpMainGatewayAnyProxyRoute": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Properties": {
+        "ApiId": {
+          "Ref": "MainGatewayApi"
+        },
+        "RouteKey": "ANY /{proxy+}",
+        "Target": {
+          "Fn::Join": [
+            "/",
+            [
+              "integrations",
+              {
+                "Ref": "ApiMainGatewayIntegration"
+              }
+            ]
+          ]
+        }
+      }
+    },
+    "ApiMainGatewayIntegration": {
+      "Type": "AWS::ApiGatewayV2::Integration",
+      "Properties": {
+        "ApiId": {
+          "Ref": "MainGatewayApi"
+        },
+        "IntegrationType": "AWS_PROXY",
+        "IntegrationUri": {
+          "Fn::GetAtt": ["ApiFunction", "Arn"]
+        },
+        "TimeoutInMillis": 20500,
+        "PayloadFormatVersion": "1.0"
+      }
+    },
+    "ApiMainGatewayPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "FunctionName": {
+          "Fn::GetAtt": ["ApiFunction", "Arn"]
+        },
+        "Action": "lambda:InvokeFunction",
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:aws:execute-api:eu-west-1:977946299200:",
+              {
+                "Ref": "MainGatewayApi"
+              },
+              "/*"
+            ]
+          ]
+        }
+      }
+    },
+    "ApiEvent1EventSourceMapping": {
+      "Type": "AWS::Lambda::EventSourceMapping",
+      "Properties": {
+        "EventSourceArn": {
+          "Fn::GetAtt": ["JobsQueue", "Arn"]
+        },
+        "Enabled": true,
+        "FunctionName": {
+          "Fn::GetAtt": ["ApiFunction", "Arn"]
+        }
+      }
+    },
+    "ApiRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "j2-v3-baseline-j2base-api-eu-west-1",
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": ["lambda.amazonaws.com", "edgelambda.amazonaws.com"]
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "Policies": [
+          {
+            "PolicyName": "allow-cloudwatch-logging-policy",
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:PutLogEvents",
+                    "logs:DescribeLogGroups",
+                    "logs:DescribeLogStreams",
+                    "logs:CreateLogStream"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:logs:*:${AWS::AccountId}:log-group:/aws/lambda/j2-v3-baseline-j2base-api"
+                    },
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:logs:*:${AWS::AccountId}:log-group:/aws/lambda/j2-v3-baseline-j2base-api:*"
+                    },
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:logs:*:${AWS::AccountId}:log-group:/aws/lambda/j2-v3-baseline-j2base-api:*:*"
+                    }
+                  ]
+                }
+              ],
+              "Version": "2012-10-17"
+            }
+          },
+          {
+            "PolicyName": "custom-iam-role-statements",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Resource": [
+                    {
+                      "Fn::GetAtt": ["JobsQueue", "Arn"]
+                    }
+                  ],
+                  "Effect": "Allow",
+                  "Action": [
+                    "sqs:ReceiveMessage",
+                    "sqs:ChangeMessageVisibility",
+                    "sqs:GetQueueUrl",
+                    "sqs:DeleteMessage",
+                    "sqs:GetQueueAttributes"
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "custom-allow-access-to-policy-statements",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "dynamodb:BatchGet*",
+                    "dynamodb:ConditionCheckItem",
+                    "dynamodb:DescribeStream",
+                    "dynamodb:DescribeTable",
+                    "dynamodb:Get*",
+                    "dynamodb:Query",
+                    "dynamodb:Scan",
+                    "dynamodb:BatchWrite*",
+                    "dynamodb:DeleteItem",
+                    "dynamodb:UpdateItem",
+                    "dynamodb:PutItem"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::GetAtt": ["MainDbGlobalTable", "Arn"]
+                    },
+                    {
+                      "Fn::Join": [
+                        "",
+                        [
+                          {
+                            "Fn::GetAtt": ["MainDbGlobalTable", "Arn"]
+                          },
+                          "/index/*"
+                        ]
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "Resource": [
+                    {
+                      "Fn::GetAtt": ["FilesBucket", "Arn"]
+                    }
+                  ],
+                  "Action": ["s3:ListBucket", "s3:GetBucket*"],
+                  "Effect": "Allow"
+                },
+                {
+                  "Resource": [
+                    {
+                      "Fn::Join": [
+                        "",
+                        [
+                          {
+                            "Fn::GetAtt": ["FilesBucket", "Arn"]
+                          },
+                          "/*"
+                        ]
+                      ]
+                    }
+                  ],
+                  "Action": ["s3:*Object*", "s3:Abort*", "s3:*MultipartUpload*"],
+                  "Effect": "Allow"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "sqs:ChangeMessageVisibility",
+                    "sqs:DeleteMessage",
+                    "sqs:GetQueueAttributes",
+                    "sqs:GetQueueUrl",
+                    "sqs:ListQueueTags",
+                    "sqs:PurgeQueue",
+                    "sqs:ReceiveMessage",
+                    "sqs:SendMessage"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::GetAtt": ["JobsQueue", "Arn"]
+                    }
+                  ]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "kinesis:DescribeStream",
+                    "kinesis:DescribeStreamSummary",
+                    "kinesis:GetRecords",
+                    "kinesis:GetShardIterator",
+                    "kinesis:ListShards",
+                    "kinesis:ListStreams",
+                    "kinesis:PutRecord",
+                    "kinesis:PutRecords"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::GetAtt": ["ClicksStream", "Arn"]
+                    }
+                  ]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "sns:ConfirmSubscription",
+                    "sns:GetTopicAttributes",
+                    "sns:ListSubscriptionsByTopic",
+                    "sns:Publish",
+                    "sns:Subscribe",
+                    "sns:Unsubscribe"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::GetAtt": ["NotificationsTopic", "TopicArn"]
+                    }
+                  ]
+                },
+                {
+                  "Resource": [
+                    {
+                      "Fn::GetAtt": ["EventsEventBus", "Arn"]
+                    }
+                  ],
+                  "Action": ["events:PutEvents"],
+                  "Effect": "Allow"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "ApiLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/j2-v3-baseline-j2base-api",
+        "RetentionInDays": 90
+      }
+    },
+    "StpIssueDetectionLogsPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "Principal": "logs.eu-west-1.amazonaws.com",
+        "FunctionName": {
+          "Fn::GetAtt": ["StacktapeServiceLambdaCustomResourceFunction", "Arn"]
+        },
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        }
+      }
+    },
+    "ApiIssueDetectionSubscriptionFilter": {
+      "Type": "AWS::Logs::SubscriptionFilter",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/j2-v3-baseline-j2base-api",
+        "FilterPattern": "?\"Invoke Error\" ?\"Unhandled Promise Rejection\" ?\"Runtime.ExitError\" ?\"Error:\" ?\"TypeError:\" ?\"ReferenceError:\" ?\"SyntaxError:\" ?\"RangeError:\" ?\"at \"",
+        "DestinationArn": {
+          "Fn::GetAtt": ["StacktapeServiceLambdaCustomResourceFunction", "Arn"]
+        }
+      },
+      "DependsOn": ["StpIssueDetectionLogsPermission", "ApiLogGroup"]
+    },
+    "ApiFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": "j2-v3-baseline-j2base-api",
+        "Architectures": ["x86_64"],
+        "Code": {
+          "S3Key": null,
+          "S3Bucket": "stp-deployment-bucket-932f0975"
+        },
+        "Handler": "index.default",
+        "MemorySize": 1024,
+        "Timeout": 20,
+        "Environment": {
+          "Variables": {
+            "NODE_OPTIONS": "--enable-source-maps --experimental-require-module --experimental-detect-module",
+            "STP_MAIN_DB_NAME": {
+              "Ref": "MainDbGlobalTable"
+            },
+            "STP_MAIN_DB_ARN": {
+              "Fn::GetAtt": ["MainDbGlobalTable", "Arn"]
+            },
+            "STP_FILES_NAME": {
+              "Ref": "FilesBucket"
+            },
+            "STP_FILES_ARN": {
+              "Fn::GetAtt": ["FilesBucket", "Arn"]
+            },
+            "STP_JOBS_ARN": {
+              "Fn::GetAtt": ["JobsQueue", "Arn"]
+            },
+            "STP_JOBS_URL": {
+              "Ref": "JobsQueue"
+            },
+            "STP_JOBS_NAME": {
+              "Fn::GetAtt": ["JobsQueue", "QueueName"]
+            },
+            "STP_CLICKS_ARN": {
+              "Fn::GetAtt": ["ClicksStream", "Arn"]
+            },
+            "STP_CLICKS_NAME": "j2-v3-baseline-j2base-clicks",
+            "STP_NOTIFICATIONS_ARN": {
+              "Fn::GetAtt": ["NotificationsTopic", "TopicArn"]
+            },
+            "STP_NOTIFICATIONS_NAME": {
+              "Fn::GetAtt": ["NotificationsTopic", "TopicName"]
+            },
+            "STP_EVENTS_ARN": {
+              "Fn::GetAtt": ["EventsEventBus", "Arn"]
+            }
+          }
+        },
+        "Role": {
+          "Fn::GetAtt": ["ApiRole", "Arn"]
+        },
+        "Runtime": "nodejs24.x",
+        "Tags": [
+          {
+            "Key": "stp:code-digest",
+            "Value": null
+          },
+          {
+            "Key": "stp:stack-name",
+            "Value": "j2-v3-baseline-j2base"
+          },
+          {
+            "Key": "stp:project-name",
+            "Value": "j2-v3-baseline"
+          },
+          {
+            "Key": "stp:stage",
+            "Value": "j2base"
+          },
+          {
+            "Key": "stp:globally-unique-stack-hash",
+            "Value": "932f0975"
+          }
+        ]
+      },
+      "DependsOn": ["ApiRole", "ApiLogGroup"]
+    },
+    "StpSensitiveDataCustomResource": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": ["StacktapeServiceLambdaCustomResourceFunction", "Arn"]
+        },
+        "sensitiveData": []
+      }
+    },
+    "StpDefaultDomainCertCustomResource": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": ["StacktapeServiceLambdaCustomResourceFunction", "Arn"]
+        },
+        "defaultDomainCert": {
+          "certDomainSuffix": ".stacktape-app.com",
+          "version": 1
+        }
+      }
+    },
+    "MainDbGlobalTable": {
+      "Type": "AWS::DynamoDB::GlobalTable",
+      "Properties": {
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "tenantId",
+            "AttributeType": "S"
+          },
+          {
+            "AttributeName": "recordId",
+            "AttributeType": "S"
+          }
+        ],
+        "KeySchema": [
+          {
+            "AttributeName": "tenantId",
+            "KeyType": "HASH"
+          },
+          {
+            "AttributeName": "recordId",
+            "KeyType": "RANGE"
+          }
+        ],
+        "BillingMode": "PAY_PER_REQUEST",
+        "Replicas": [
+          {
+            "Region": "eu-west-1",
+            "PointInTimeRecoverySpecification": {
+              "PointInTimeRecoveryEnabled": false
+            }
+          }
+        ],
+        "TableName": "j2-v3-baseline-j2base-mainDb-932f0975"
+      }
+    },
+    "EventsEventBus": {
+      "Type": "AWS::Events::EventBus",
+      "Properties": {
+        "Name": "j2-v3-baseline-j2base-events"
+      }
+    },
+    "MainGatewayApi": {
+      "Type": "AWS::ApiGatewayV2::Api",
+      "Properties": {
+        "Name": "j2-v3-baseline-j2base-http-api",
+        "ProtocolType": "HTTP",
+        "Tags": {
+          "stp:stack-name": "j2-v3-baseline-j2base",
+          "stp:project-name": "j2-v3-baseline",
+          "stp:stage": "j2base",
+          "stp:globally-unique-stack-hash": "932f0975"
+        }
+      }
+    },
+    "MainGatewayStage": {
+      "Type": "AWS::ApiGatewayV2::Stage",
+      "Properties": {
+        "ApiId": {
+          "Ref": "MainGatewayApi"
+        },
+        "StageName": "$default",
+        "AutoDeploy": true,
+        "AccessLogSettings": {
+          "DestinationArn": {
+            "Fn::GetAtt": ["MainGatewayLogGroup", "Arn"]
+          },
+          "Format": "{\"requestId\":\"$context.requestId\",\"ip\":\"$context.identity.sourceIp\",\"requestTime\":\"$context.requestTime\",\"httpMethod\":\"$context.httpMethod\",\"routeKey\":\"$context.routeKey\",\"status\":\"$context.status\",\"protocol\":\"$context.protocol\",\"responseLength\":\"$context.responseLength\"}"
+        },
+        "Tags": {
+          "stp:stack-name": "j2-v3-baseline-j2base",
+          "stp:project-name": "j2-v3-baseline",
+          "stp:stage": "j2base",
+          "stp:globally-unique-stack-hash": "932f0975"
+        }
+      }
+    },
+    "MainGatewayLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/vendedlogs/j2-v3-baseline-j2base/api-gateway/mainGateway/access-logs",
+        "RetentionInDays": 30
+      }
+    },
+    "MainGatewayDomainName": {
+      "Type": "AWS::ApiGatewayV2::DomainName",
+      "Properties": {
+        "DomainName": "maingateway-j2-v3-baseline-j2base-932f0975.stacktape-app.com",
+        "DomainNameConfigurations": [
+          {
+            "CertificateArn": {
+              "Fn::GetAtt": ["StpDefaultDomainCertCustomResource", "certArn"]
+            },
+            "EndpointType": "REGIONAL"
+          }
+        ]
+      }
+    },
+    "MainGatewayApiMapping": {
+      "Type": "AWS::ApiGatewayV2::ApiMapping",
+      "Properties": {
+        "DomainName": {
+          "Ref": "MainGatewayDomainName"
+        },
+        "ApiId": {
+          "Ref": "MainGatewayApi"
+        },
+        "Stage": {
+          "Ref": "MainGatewayStage"
+        }
+      }
+    },
+    "MainGatewayDefaultDomainCustomResource": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": ["StacktapeServiceLambdaCustomResourceFunction", "Arn"]
+        },
+        "defaultDomain": {
+          "domainName": "maingateway-j2-v3-baseline-j2base-932f0975.stacktape-app.com",
+          "targetInfo": {
+            "domainName": {
+              "Fn::GetAtt": ["MainGatewayDomainName", "RegionalDomainName"]
+            },
+            "hostedZoneId": {
+              "Fn::GetAtt": ["MainGatewayDomainName", "RegionalHostedZoneId"]
+            }
+          },
+          "version": 1
+        }
+      }
+    },
+    "UsersUserPool": {
+      "Type": "AWS::Cognito::UserPool",
+      "Properties": {
+        "UserPoolName": "j2-v3-baseline-j2base-users-user-pool",
+        "AccountRecoverySetting": {
+          "RecoveryMechanisms": [
+            {
+              "Name": "verified_email",
+              "Priority": 1
+            },
+            {
+              "Name": "verified_phone_number",
+              "Priority": 2
+            }
+          ]
+        },
+        "AdminCreateUserConfig": {
+          "AllowAdminCreateUserOnly": false,
+          "UnusedAccountValidityDays": 31,
+          "InviteMessageTemplate": {}
+        },
+        "AutoVerifiedAttributes": ["email"],
+        "EmailConfiguration": {
+          "EmailSendingAccount": "COGNITO_DEFAULT"
+        },
+        "UsernameAttributes": ["phone_number", "email"],
+        "SmsConfiguration": {
+          "SnsCallerArn": {
+            "Fn::GetAtt": ["UsersSendSmsRole", "Arn"]
+          }
+        },
+        "VerificationMessageTemplate": {
+          "DefaultEmailOption": "CONFIRM_WITH_CODE"
+        },
+        "UserPoolTags": {
+          "stp:stack-name": "j2-v3-baseline-j2base",
+          "stp:project-name": "j2-v3-baseline",
+          "stp:stage": "j2base",
+          "stp:globally-unique-stack-hash": "932f0975"
+        }
+      }
+    },
+    "UsersSendSmsRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "Policies": [
+          {
+            "PolicyName": "send-sms-for-users",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": ["sns:publish"],
+                  "Resource": ["*"]
+                }
+              ]
+            }
+          }
+        ],
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "cognito-idp.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ],
+          "Version": "2012-10-17"
+        }
+      }
+    },
+    "UsersUserPoolClient": {
+      "Type": "AWS::Cognito::UserPoolClient",
+      "Properties": {
+        "UserPoolId": {
+          "Ref": "UsersUserPool"
+        },
+        "AccessTokenValidity": 1,
+        "IdTokenValidity": 1,
+        "RefreshTokenValidity": 30,
+        "AllowedOAuthFlowsUserPoolClient": true,
+        "AllowedOAuthFlows": ["code", "implicit"],
+        "ExplicitAuthFlows": [
+          "ALLOW_ADMIN_USER_PASSWORD_AUTH",
+          "ALLOW_CUSTOM_AUTH",
+          "ALLOW_USER_PASSWORD_AUTH",
+          "ALLOW_USER_SRP_AUTH",
+          "ALLOW_REFRESH_TOKEN_AUTH"
+        ],
+        "AllowedOAuthScopes": ["email", "openid", "profile"],
+        "CallbackURLs": ["http://localhost:3000/api/auth/callback/cognito"],
+        "DefaultRedirectURI": "http://localhost:3000/api/auth/callback/cognito",
+        "LogoutURLs": [],
+        "SupportedIdentityProviders": ["COGNITO"],
+        "ClientName": "j2-v3-baseline-j2base-users-user-pool-client"
+      }
+    },
+    "UsersUserPoolDomain": {
+      "Type": "AWS::Cognito::UserPoolDomain",
+      "Properties": {
+        "UserPoolId": {
+          "Ref": "UsersUserPool"
+        },
+        "Domain": "j2-v3-baseline-j2base-users"
+      }
+    },
+    "UsersUserPoolDetailsCustomResource": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": ["StacktapeServiceLambdaCustomResourceFunction", "Arn"]
+        },
+        "userPoolDetails": {
+          "userPoolId": {
+            "Ref": "UsersUserPool"
+          },
+          "userPoolClientId": {
+            "Ref": "UsersUserPoolClient"
+          }
+        }
+      }
+    },
+    "JobsQueue": {
+      "Type": "AWS::SQS::Queue",
+      "Properties": {
+        "QueueName": "j2-v3-baseline-j2base-jobs",
+        "Tags": [
+          {
+            "Key": "stp:stack-name",
+            "Value": "j2-v3-baseline-j2base"
+          },
+          {
+            "Key": "stp:project-name",
+            "Value": "j2-v3-baseline"
+          },
+          {
+            "Key": "stp:stage",
+            "Value": "j2base"
+          },
+          {
+            "Key": "stp:globally-unique-stack-hash",
+            "Value": "932f0975"
+          }
+        ]
+      }
+    },
+    "NotificationsTopic": {
+      "Type": "AWS::SNS::Topic",
+      "Properties": {
+        "TopicName": "j2-v3-baseline-j2base-notifications",
+        "Tags": [
+          {
+            "Key": "stp:stack-name",
+            "Value": "j2-v3-baseline-j2base"
+          },
+          {
+            "Key": "stp:project-name",
+            "Value": "j2-v3-baseline"
+          },
+          {
+            "Key": "stp:stage",
+            "Value": "j2base"
+          },
+          {
+            "Key": "stp:globally-unique-stack-hash",
+            "Value": "932f0975"
+          }
+        ]
+      }
+    },
+    "ClicksStream": {
+      "Type": "AWS::Kinesis::Stream",
+      "Properties": {
+        "Name": "j2-v3-baseline-j2base-clicks",
+        "StreamModeDetails": {
+          "StreamMode": "ON_DEMAND"
+        },
+        "Tags": [
+          {
+            "Key": "stp:stack-name",
+            "Value": "j2-v3-baseline-j2base"
+          },
+          {
+            "Key": "stp:project-name",
+            "Value": "j2-v3-baseline"
+          },
+          {
+            "Key": "stp:stage",
+            "Value": "j2base"
+          },
+          {
+            "Key": "stp:globally-unique-stack-hash",
+            "Value": "932f0975"
+          }
+        ]
+      }
+    },
+    "StpDevAgentRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "j2-v3-baseline-j2base-dev-agent",
+        "Description": "Dev agent role for stack j2-v3-baseline-j2base",
+        "MaxSessionDuration": 43200,
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Fn::Sub": "arn:aws:iam::${AWS::AccountId}:root"
+                }
+              },
+              "Action": "sts:AssumeRole",
+              "Condition": {
+                "StringEquals": {
+                  "sts:ExternalId": "932f0975"
+                }
+              }
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "lambda-access",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "lambda:GetFunction",
+                    "lambda:GetFunctionConfiguration",
+                    "lambda:GetFunctionUrlConfig",
+                    "lambda:GetPolicy",
+                    "lambda:GetAlias",
+                    "lambda:ListAliases",
+                    "lambda:ListVersionsByFunction",
+                    "lambda:ListTags",
+                    "lambda:InvokeFunction",
+                    "lambda:InvokeAsync"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:aws:lambda:*:${AWS::AccountId}:function:j2-v3-baseline-j2base-*"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "dynamodb-access",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "dynamodb:GetItem",
+                    "dynamodb:BatchGetItem",
+                    "dynamodb:Query",
+                    "dynamodb:Scan",
+                    "dynamodb:PutItem",
+                    "dynamodb:UpdateItem",
+                    "dynamodb:DeleteItem",
+                    "dynamodb:BatchWriteItem",
+                    "dynamodb:DescribeTable",
+                    "dynamodb:DescribeTimeToLive",
+                    "dynamodb:ListTagsOfResource"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:aws:dynamodb:*:${AWS::AccountId}:table/j2-v3-baseline-j2base-*"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:dynamodb:*:${AWS::AccountId}:table/j2-v3-baseline-j2base-*/index/*"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "s3-access",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "s3:GetObject",
+                    "s3:GetObjectVersion",
+                    "s3:GetObjectTagging",
+                    "s3:ListBucket",
+                    "s3:ListBucketVersions",
+                    "s3:PutObject",
+                    "s3:PutObjectTagging",
+                    "s3:DeleteObject",
+                    "s3:DeleteObjectVersion",
+                    "s3:GetBucketLocation",
+                    "s3:GetBucketTagging"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:aws:s3:::*932f0975*"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:s3:::*932f0975*/*"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "sqs-access",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "sqs:SendMessage",
+                    "sqs:ReceiveMessage",
+                    "sqs:DeleteMessage",
+                    "sqs:GetQueueAttributes",
+                    "sqs:GetQueueUrl",
+                    "sqs:ListQueueTags",
+                    "sqs:PurgeQueue"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:aws:sqs:*:${AWS::AccountId}:j2-v3-baseline-j2base-*"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "sns-access",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "sns:Publish",
+                    "sns:GetTopicAttributes",
+                    "sns:ListTagsForResource",
+                    "sns:ListSubscriptionsByTopic"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:aws:sns:*:${AWS::AccountId}:j2-v3-baseline-j2base-*"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "eventbridge-access",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "events:PutEvents",
+                    "events:DescribeEventBus",
+                    "events:ListRules",
+                    "events:DescribeRule",
+                    "events:ListTargetsByRule",
+                    "events:ListTagsForResource"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:aws:events:*:${AWS::AccountId}:event-bus/j2-v3-baseline-j2base-*"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "stepfunctions-access",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "states:StartExecution",
+                    "states:StartSyncExecution",
+                    "states:StopExecution",
+                    "states:DescribeStateMachine",
+                    "states:DescribeExecution",
+                    "states:GetExecutionHistory",
+                    "states:ListExecutions",
+                    "states:ListTagsForResource"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:aws:states:*:${AWS::AccountId}:stateMachine:j2-v3-baseline-j2base-*"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:states:*:${AWS::AccountId}:execution:j2-v3-baseline-j2base-*:*"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "logs-access",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:DescribeLogGroups",
+                    "logs:DescribeLogStreams",
+                    "logs:GetLogEvents",
+                    "logs:FilterLogEvents",
+                    "logs:GetLogGroupFields",
+                    "logs:StartQuery",
+                    "logs:StopQuery",
+                    "logs:GetQueryResults"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:aws:logs:*:${AWS::AccountId}:log-group:/aws/lambda/j2-v3-baseline-j2base-*"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:logs:*:${AWS::AccountId}:log-group:/aws/lambda/j2-v3-baseline-j2base-*:*"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:logs:*:${AWS::AccountId}:log-group:/ecs/j2-v3-baseline-j2base-*"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:logs:*:${AWS::AccountId}:log-group:/ecs/j2-v3-baseline-j2base-*:*"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:logs:*:${AWS::AccountId}:log-group:j2-v3-baseline-j2base-*"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:logs:*:${AWS::AccountId}:log-group:j2-v3-baseline-j2base-*:*"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "ecs-access",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "ecs:DescribeClusters",
+                    "ecs:DescribeServices",
+                    "ecs:DescribeTasks",
+                    "ecs:DescribeTaskDefinition",
+                    "ecs:DescribeContainerInstances",
+                    "ecs:ListTasks",
+                    "ecs:ListServices",
+                    "ecs:ListContainerInstances",
+                    "ecs:ListTagsForResource",
+                    "ecs:ExecuteCommand"
+                  ],
+                  "Resource": "*",
+                  "Condition": {
+                    "StringEquals": {
+                      "aws:ResourceTag/stp:stack-name": "j2-v3-baseline-j2base"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "rds-access",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "rds:DescribeDBInstances",
+                    "rds:DescribeDBClusters",
+                    "rds:DescribeDBClusterEndpoints",
+                    "rds:DescribeDBSnapshots",
+                    "rds:DescribeDBClusterSnapshots",
+                    "rds:ListTagsForResource"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:aws:rds:*:${AWS::AccountId}:db:j2-v3-baseline-j2base-*"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:rds:*:${AWS::AccountId}:cluster:j2-v3-baseline-j2base-*"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "elasticache-access",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "elasticache:DescribeReplicationGroups",
+                    "elasticache:DescribeCacheClusters",
+                    "elasticache:ListTagsForResource"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:aws:elasticache:*:${AWS::AccountId}:replicationgroup:j2-v3-baseline-j2base-*"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "opensearch-access",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "es:DescribeDomain",
+                    "es:DescribeDomains",
+                    "es:ListTags",
+                    "es:ESHttpGet",
+                    "es:ESHttpHead",
+                    "es:ESHttpPost",
+                    "es:ESHttpPut",
+                    "es:ESHttpDelete"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:aws:es:*:${AWS::AccountId}:domain/j2-v3-baseline-j2base-*"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "cognito-access",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "cognito-idp:DescribeUserPool",
+                    "cognito-idp:DescribeUserPoolClient",
+                    "cognito-idp:ListUsers",
+                    "cognito-idp:ListGroups",
+                    "cognito-idp:ListUsersInGroup",
+                    "cognito-idp:AdminGetUser",
+                    "cognito-idp:AdminListGroupsForUser",
+                    "cognito-idp:AdminCreateUser",
+                    "cognito-idp:AdminDeleteUser",
+                    "cognito-idp:AdminSetUserPassword",
+                    "cognito-idp:AdminUpdateUserAttributes",
+                    "cognito-idp:AdminAddUserToGroup",
+                    "cognito-idp:AdminRemoveUserFromGroup",
+                    "cognito-idp:AdminEnableUser",
+                    "cognito-idp:AdminDisableUser"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:aws:cognito-idp:*:${AWS::AccountId}:userpool/*"
+                  },
+                  "Condition": {
+                    "StringEquals": {
+                      "aws:ResourceTag/stp:stack-name": "j2-v3-baseline-j2base"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "apigateway-access",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": ["apigateway:GET"],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:aws:apigateway:*::/apis/*"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:apigateway:*::/apis/*/stages/*"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "cloudformation-access",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "cloudformation:DescribeStacks",
+                    "cloudformation:DescribeStackResources",
+                    "cloudformation:DescribeStackEvents",
+                    "cloudformation:GetStackPolicy",
+                    "cloudformation:GetTemplate",
+                    "cloudformation:ListStackResources"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:aws:cloudformation:*:${AWS::AccountId}:stack/j2-v3-baseline-j2base/*"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "cloudwatch-access",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "cloudwatch:DescribeAlarms",
+                    "cloudwatch:DescribeAlarmsForMetric",
+                    "cloudwatch:GetMetricData",
+                    "cloudwatch:GetMetricStatistics",
+                    "cloudwatch:ListMetrics",
+                    "cloudwatch:ListTagsForResource"
+                  ],
+                  "Resource": "*"
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "batch-access",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "batch:DescribeJobs",
+                    "batch:DescribeJobDefinitions",
+                    "batch:DescribeJobQueues",
+                    "batch:DescribeComputeEnvironments",
+                    "batch:ListJobs",
+                    "batch:SubmitJob",
+                    "batch:TerminateJob",
+                    "batch:ListTagsForResource"
+                  ],
+                  "Resource": "*",
+                  "Condition": {
+                    "StringEquals": {
+                      "aws:ResourceTag/stp:stack-name": "j2-v3-baseline-j2base"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "deny-dangerous-operations",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Deny",
+                  "Action": [
+                    "cloudformation:CreateStack",
+                    "cloudformation:DeleteStack",
+                    "cloudformation:UpdateStack",
+                    "cloudformation:ExecuteChangeSet",
+                    "cloudformation:CreateChangeSet",
+                    "iam:*",
+                    "organizations:*",
+                    "account:*",
+                    "secretsmanager:GetSecretValue",
+                    "ssm:GetParameter",
+                    "ssm:GetParameters",
+                    "ssm:GetParametersByPath"
+                  ],
+                  "Resource": "*"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "StpDebugAgentRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "j2-v3-baseline-j2base-debug-agent",
+        "Description": "Read-only debug agent role for stack j2-v3-baseline-j2base",
+        "MaxSessionDuration": 3600,
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Fn::Sub": "arn:aws:iam::${AWS::AccountId}:root"
+                }
+              },
+              "Action": "sts:AssumeRole",
+              "Condition": {
+                "StringEquals": {
+                  "sts:ExternalId": "932f0975"
+                }
+              }
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "ssm-read",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": ["ssm:GetParameter", "ssm:GetParameters", "ssm:GetParametersByPath"],
+                  "Resource": {
+                    "Fn::Sub": "arn:aws:ssm:*:${AWS::AccountId}:parameter/stp/*/j2-v3-baseline-j2base/*"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "secrets-read",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
+                  "Resource": {
+                    "Fn::Sub": "arn:aws:secretsmanager:*:${AWS::AccountId}:secret:*"
+                  },
+                  "Condition": {
+                    "StringEquals": {
+                      "aws:ResourceTag/stp:stack-name": "j2-v3-baseline-j2base"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "lambda-read",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "lambda:GetFunction",
+                    "lambda:GetFunctionConfiguration",
+                    "lambda:GetFunctionUrlConfig",
+                    "lambda:GetPolicy",
+                    "lambda:GetAlias",
+                    "lambda:ListAliases",
+                    "lambda:ListVersionsByFunction",
+                    "lambda:ListTags"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:aws:lambda:*:${AWS::AccountId}:function:j2-v3-baseline-j2base-*"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "dynamodb-read",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "dynamodb:GetItem",
+                    "dynamodb:BatchGetItem",
+                    "dynamodb:Query",
+                    "dynamodb:Scan",
+                    "dynamodb:DescribeTable",
+                    "dynamodb:DescribeTimeToLive",
+                    "dynamodb:ListTagsOfResource"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:aws:dynamodb:*:${AWS::AccountId}:table/j2-v3-baseline-j2base-*"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:dynamodb:*:${AWS::AccountId}:table/j2-v3-baseline-j2base-*/index/*"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "s3-read",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "s3:GetObject",
+                    "s3:GetObjectVersion",
+                    "s3:GetObjectTagging",
+                    "s3:ListBucket",
+                    "s3:ListBucketVersions",
+                    "s3:GetBucketLocation",
+                    "s3:GetBucketTagging"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:aws:s3:::*932f0975*"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:s3:::*932f0975*/*"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "sqs-read",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": ["sqs:GetQueueAttributes", "sqs:GetQueueUrl", "sqs:ListQueueTags"],
+                  "Resource": {
+                    "Fn::Sub": "arn:aws:sqs:*:${AWS::AccountId}:j2-v3-baseline-j2base-*"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "sns-read",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": ["sns:GetTopicAttributes", "sns:ListTagsForResource", "sns:ListSubscriptionsByTopic"],
+                  "Resource": {
+                    "Fn::Sub": "arn:aws:sns:*:${AWS::AccountId}:j2-v3-baseline-j2base-*"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "eventbridge-read",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "events:DescribeEventBus",
+                    "events:ListRules",
+                    "events:DescribeRule",
+                    "events:ListTargetsByRule",
+                    "events:ListTagsForResource"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:aws:events:*:${AWS::AccountId}:event-bus/j2-v3-baseline-j2base-*"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "stepfunctions-read",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "states:DescribeStateMachine",
+                    "states:DescribeExecution",
+                    "states:GetExecutionHistory",
+                    "states:ListExecutions",
+                    "states:ListTagsForResource"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:aws:states:*:${AWS::AccountId}:stateMachine:j2-v3-baseline-j2base-*"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:states:*:${AWS::AccountId}:execution:j2-v3-baseline-j2base-*:*"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "logs-read",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:DescribeLogGroups",
+                    "logs:DescribeLogStreams",
+                    "logs:GetLogEvents",
+                    "logs:FilterLogEvents",
+                    "logs:GetLogGroupFields",
+                    "logs:StartQuery",
+                    "logs:StopQuery",
+                    "logs:GetQueryResults"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:aws:logs:*:${AWS::AccountId}:log-group:/aws/lambda/j2-v3-baseline-j2base-*"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:logs:*:${AWS::AccountId}:log-group:/aws/lambda/j2-v3-baseline-j2base-*:*"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:logs:*:${AWS::AccountId}:log-group:/stp/j2-v3-baseline-j2base/*"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:logs:*:${AWS::AccountId}:log-group:/stp/j2-v3-baseline-j2base/*:*"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:logs:*:${AWS::AccountId}:log-group:j2-v3-baseline-j2base-*"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:logs:*:${AWS::AccountId}:log-group:j2-v3-baseline-j2base-*:*"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "observability-read",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": ["xray:GetTraceSegmentDestination"],
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:DescribeLogGroups",
+                    "logs:DescribeLogStreams",
+                    "logs:GetLogEvents",
+                    "logs:FilterLogEvents",
+                    "logs:GetLogGroupFields",
+                    "logs:StartQuery",
+                    "logs:StopQuery",
+                    "logs:GetQueryResults"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:aws:logs:*:${AWS::AccountId}:log-group:aws/spans"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:logs:*:${AWS::AccountId}:log-group:aws/spans:*"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:logs:*:${AWS::AccountId}:log-group:/aws/lambda/cwsyn-j2-v3-baseline-j2base-*"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:logs:*:${AWS::AccountId}:log-group:/aws/lambda/cwsyn-j2-v3-baseline-j2base-*:*"
+                    }
+                  ]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": ["synthetics:DescribeCanaries", "synthetics:DescribeCanariesLastRun"],
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": ["synthetics:GetCanary", "synthetics:GetCanaryRuns"],
+                  "Resource": {
+                    "Fn::Sub": "arn:aws:synthetics:*:${AWS::AccountId}:canary:j2-v3-baseline-j2base-*"
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": ["ssm:GetParameter", "ssm:GetParameters", "ssm:GetParametersByPath"],
+                  "Resource": {
+                    "Fn::Sub": "arn:aws:ssm:*:${AWS::AccountId}:parameter/stacktape/uptime-checks*"
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": ["lambda:GetFunction", "lambda:GetFunctionConfiguration"],
+                  "Resource": {
+                    "Fn::Sub": "arn:aws:lambda:*:${AWS::AccountId}:function:stacktape-uptime-prober"
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": ["logs:DescribeLogStreams", "logs:GetLogEvents", "logs:FilterLogEvents"],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:aws:logs:*:${AWS::AccountId}:log-group:/aws/lambda/stacktape-uptime-prober"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:logs:*:${AWS::AccountId}:log-group:/aws/lambda/stacktape-uptime-prober:*"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "ecs-read",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "ecs:DescribeClusters",
+                    "ecs:DescribeServices",
+                    "ecs:DescribeTasks",
+                    "ecs:DescribeTaskDefinition",
+                    "ecs:DescribeContainerInstances",
+                    "ecs:ListTasks",
+                    "ecs:ListServices",
+                    "ecs:ListContainerInstances",
+                    "ecs:ListTagsForResource"
+                  ],
+                  "Resource": "*",
+                  "Condition": {
+                    "StringEquals": {
+                      "aws:ResourceTag/stp:stack-name": "j2-v3-baseline-j2base"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "rds-read",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "rds:DescribeDBInstances",
+                    "rds:DescribeDBClusters",
+                    "rds:DescribeDBClusterEndpoints",
+                    "rds:DescribeDBSubnetGroups",
+                    "rds:DescribeDBParameterGroups",
+                    "rds:DescribeDBClusterParameterGroups",
+                    "rds:DescribeDBEngineVersions",
+                    "rds:DescribeOrderableDBInstanceOptions",
+                    "rds:DescribeDBSnapshots",
+                    "rds:DescribeDBClusterSnapshots",
+                    "rds:DescribeEvents",
+                    "rds:ListTagsForResource"
+                  ],
+                  "Resource": "*"
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "elasticache-read",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "elasticache:DescribeReplicationGroups",
+                    "elasticache:DescribeCacheClusters",
+                    "elasticache:DescribeCacheSubnetGroups",
+                    "elasticache:DescribeEvents",
+                    "elasticache:ListTagsForResource"
+                  ],
+                  "Resource": "*"
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "opensearch-read",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": ["es:DescribeDomain", "es:DescribeDomains", "es:ListTags", "es:ESHttpGet", "es:ESHttpHead"],
+                  "Resource": {
+                    "Fn::Sub": "arn:aws:es:*:${AWS::AccountId}:domain/j2-v3-baseline-j2base-*"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "cognito-read",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "cognito-idp:DescribeUserPool",
+                    "cognito-idp:DescribeUserPoolClient",
+                    "cognito-idp:ListUsers",
+                    "cognito-idp:ListGroups",
+                    "cognito-idp:ListUsersInGroup",
+                    "cognito-idp:AdminGetUser",
+                    "cognito-idp:AdminListGroupsForUser"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:aws:cognito-idp:*:${AWS::AccountId}:userpool/*"
+                  },
+                  "Condition": {
+                    "StringEquals": {
+                      "aws:ResourceTag/stp:stack-name": "j2-v3-baseline-j2base"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "apigateway-read",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": ["apigateway:GET"],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:aws:apigateway:*::/apis/*"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:apigateway:*::/apis/*/stages/*"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "cloudformation-read",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "cloudformation:DescribeStacks",
+                    "cloudformation:DescribeStackResources",
+                    "cloudformation:DescribeStackEvents",
+                    "cloudformation:GetStackPolicy",
+                    "cloudformation:GetTemplate",
+                    "cloudformation:ListStackResources"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:aws:cloudformation:*:${AWS::AccountId}:stack/j2-v3-baseline-j2base/*"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "cloudwatch-read",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "cloudwatch:DescribeAlarms",
+                    "cloudwatch:DescribeAlarmsForMetric",
+                    "cloudwatch:GetMetricData",
+                    "cloudwatch:GetMetricStatistics",
+                    "cloudwatch:ListMetrics",
+                    "cloudwatch:ListTagsForResource"
+                  ],
+                  "Resource": "*"
+                }
+              ]
+            }
+          },
+          {
+            "PolicyName": "batch-read",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "batch:DescribeJobs",
+                    "batch:DescribeJobDefinitions",
+                    "batch:DescribeJobQueues",
+                    "batch:DescribeComputeEnvironments",
+                    "batch:ListJobs",
+                    "batch:ListTagsForResource"
+                  ],
+                  "Resource": "*",
+                  "Condition": {
+                    "StringEquals": {
+                      "aws:ResourceTag/stp:stack-name": "j2-v3-baseline-j2base"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "DevAgentRoleArn": {
+      "Value": {
+        "Fn::GetAtt": ["StpDevAgentRole", "Arn"]
+      },
+      "Description": "ARN of the dev agent IAM role"
+    },
+    "DebugAgentRoleArn": {
+      "Value": {
+        "Fn::GetAtt": ["StpDebugAgentRole", "Arn"]
+      },
+      "Description": "ARN of the debug agent IAM role (read-only)"
+    },
+    "StpDeploymentVersion": {
+      "Value": "v000001",
+      "Description": "Version of this stack deployed by Stacktape"
+    },
+    "StpStackInfoMap": {
+      "Value": {
+        "Fn::Sub": [
+          "{\"metadata\":{\"deploymentBucket\":{\"showDuringPrint\":false,\"value\":\"stp-deployment-bucket-932f0975\"},\"devAgentRoleExternalId\":{\"showDuringPrint\":false,\"value\":\"932f0975\"},\"debugAgentRoleExternalId\":{\"showDuringPrint\":false,\"value\":\"932f0975\"}},\"resources\":{\"SHARED_GLOBAL\":{\"resourceType\":\"SHARED_GLOBAL\",\"referencableParams\":{},\"links\":{\"deployment-bucket-contents\":\"${sub0}\"},\"cloudformationChildResources\":{\"StpDeploymentBucket\":{\"cloudformationResourceType\":\"AWS::S3::Bucket\"},\"StpDeploymentBucketPolicy\":{\"cloudformationResourceType\":\"AWS::S3::BucketPolicy\"},\"StpContainerRepository\":{\"cloudformationResourceType\":\"AWS::ECR::Repository\"},\"StpSensitiveDataCustomResource\":{\"cloudformationResourceType\":\"AWS::CloudFormation::CustomResource\"},\"StpDefaultDomainCertCustomResource\":{\"cloudformationResourceType\":\"AWS::CloudFormation::CustomResource\"},\"StpDevAgentRole\":{\"cloudformationResourceType\":\"AWS::IAM::Role\"},\"StpDebugAgentRole\":{\"cloudformationResourceType\":\"AWS::IAM::Role\"}},\"outputs\":{},\"_nestedResources\":{\"stacktapeServiceLambda\":{\"resourceType\":\"function\",\"referencableParams\":{\"logGroupArn\":{\"showDuringPrint\":true,\"value\":\"${sub1}\"},\"arn\":{\"showDuringPrint\":true,\"value\":\"${sub2}\"}},\"links\":{\"logs\":\"${sub3}\",\"metrics\":\"${sub4}\",\"console\":\"${sub5}\"},\"cloudformationChildResources\":{\"StacktapeServiceLambdaRole\":{\"cloudformationResourceType\":\"AWS::IAM::Role\"},\"StacktapeServiceLambdaLogGroup\":{\"cloudformationResourceType\":\"AWS::Logs::LogGroup\"},\"StacktapeServiceLambdaCustomResourceFunction\":{\"cloudformationResourceType\":\"AWS::Lambda::Function\"},\"StpStpCustomTaggingScheduleRule\":{\"cloudformationResourceType\":\"AWS::Events::Rule\"},\"StpStpCustomTaggingScheduleRulePermission\":{\"cloudformationResourceType\":\"AWS::Lambda::Permission\"},\"StpCloudwatchAlarmNotificationSharedPermission\":{\"cloudformationResourceType\":\"AWS::Lambda::Permission\"},\"StpIssueDetectionLogsPermission\":{\"cloudformationResourceType\":\"AWS::Lambda::Permission\"}},\"outputs\":{}}}},\"files\":{\"resourceType\":\"bucket\",\"referencableParams\":{\"name\":{\"showDuringPrint\":true,\"value\":\"${sub6}\"},\"arn\":{\"showDuringPrint\":true,\"value\":\"${sub7}\"}},\"links\":{\"contents\":\"${sub8}\",\"metrics\":\"${sub9}\"},\"cloudformationChildResources\":{\"FilesBucket\":{\"cloudformationResourceType\":\"AWS::S3::Bucket\"}},\"outputs\":{}},\"api\":{\"resourceType\":\"function\",\"referencableParams\":{\"logGroupArn\":{\"showDuringPrint\":true,\"value\":\"${sub10}\"},\"arn\":{\"showDuringPrint\":true,\"value\":\"${sub11}\"}},\"links\":{\"logs\":\"${sub12}\",\"metrics\":\"${sub13}\",\"console\":\"${sub14}\"},\"cloudformationChildResources\":{\"StpMainGatewayAnyProxyRoute\":{\"cloudformationResourceType\":\"AWS::ApiGatewayV2::Route\"},\"ApiMainGatewayIntegration\":{\"cloudformationResourceType\":\"AWS::ApiGatewayV2::Integration\"},\"ApiMainGatewayPermission\":{\"cloudformationResourceType\":\"AWS::Lambda::Permission\"},\"ApiEvent1EventSourceMapping\":{\"cloudformationResourceType\":\"AWS::Lambda::EventSourceMapping\"},\"ApiRole\":{\"cloudformationResourceType\":\"AWS::IAM::Role\"},\"ApiLogGroup\":{\"cloudformationResourceType\":\"AWS::Logs::LogGroup\"},\"ApiIssueDetectionSubscriptionFilter\":{\"cloudformationResourceType\":\"AWS::Logs::SubscriptionFilter\"},\"ApiFunction\":{\"cloudformationResourceType\":\"AWS::Lambda::Function\"}},\"outputs\":{}},\"mainDb\":{\"resourceType\":\"dynamo-db-table\",\"referencableParams\":{\"name\":{\"showDuringPrint\":true,\"value\":\"${sub15}\"},\"arn\":{\"showDuringPrint\":true,\"value\":\"${sub16}\"}},\"links\":{\"metrics\":\"${sub17}\",\"table-items\":\"${sub18}\"},\"cloudformationChildResources\":{\"MainDbGlobalTable\":{\"cloudformationResourceType\":\"AWS::DynamoDB::GlobalTable\"}},\"outputs\":{}},\"events\":{\"resourceType\":\"event-bus\",\"referencableParams\":{\"arn\":{\"showDuringPrint\":true,\"value\":\"${sub19}\"}},\"links\":{\"console\":\"https://eu-west-1.console.aws.amazon.com/events/home?region=eu-west-1#/eventbus/j2-v3-baseline-j2base-events\"},\"cloudformationChildResources\":{\"EventsEventBus\":{\"cloudformationResourceType\":\"AWS::Events::EventBus\"}},\"outputs\":{}},\"mainGateway\":{\"resourceType\":\"http-api-gateway\",\"referencableParams\":{\"domain\":{\"showDuringPrint\":false,\"value\":\"maingateway-j2-v3-baseline-j2base-932f0975.stacktape-app.com\"},\"url\":{\"showDuringPrint\":true,\"value\":\"https://maingateway-j2-v3-baseline-j2base-932f0975.stacktape-app.com\"}},\"links\":{\"logs-gateway-access\":\"${sub20}\"},\"cloudformationChildResources\":{\"MainGatewayApi\":{\"cloudformationResourceType\":\"AWS::ApiGatewayV2::Api\"},\"MainGatewayStage\":{\"cloudformationResourceType\":\"AWS::ApiGatewayV2::Stage\"},\"MainGatewayLogGroup\":{\"cloudformationResourceType\":\"AWS::Logs::LogGroup\"},\"MainGatewayDomainName\":{\"cloudformationResourceType\":\"AWS::ApiGatewayV2::DomainName\"},\"MainGatewayApiMapping\":{\"cloudformationResourceType\":\"AWS::ApiGatewayV2::ApiMapping\"},\"MainGatewayDefaultDomainCustomResource\":{\"cloudformationResourceType\":\"AWS::CloudFormation::CustomResource\"}},\"outputs\":{\"integrations\":[{\"method\":\"*\",\"url\":\"${sub21}\",\"resourceName\":\"api\"}]}},\"users\":{\"resourceType\":\"user-auth-pool\",\"referencableParams\":{\"id\":{\"showDuringPrint\":false,\"value\":\"${sub22}\"},\"clientId\":{\"showDuringPrint\":false,\"value\":\"${sub23}\"},\"arn\":{\"showDuringPrint\":false,\"value\":\"${sub24}\"},\"providerUrl\":{\"showDuringPrint\":false,\"value\":\"${sub25}\"},\"domain\":{\"showDuringPrint\":false,\"value\":\"j2-v3-baseline-j2base-users.auth.eu-west-1.amazoncognito.com\"}},\"links\":{},\"cloudformationChildResources\":{\"UsersUserPool\":{\"cloudformationResourceType\":\"AWS::Cognito::UserPool\"},\"UsersSendSmsRole\":{\"cloudformationResourceType\":\"AWS::IAM::Role\"},\"UsersUserPoolClient\":{\"cloudformationResourceType\":\"AWS::Cognito::UserPoolClient\"},\"UsersUserPoolDomain\":{\"cloudformationResourceType\":\"AWS::Cognito::UserPoolDomain\"},\"UsersUserPoolDetailsCustomResource\":{\"cloudformationResourceType\":\"AWS::CloudFormation::CustomResource\"}},\"outputs\":{}},\"jobs\":{\"resourceType\":\"sqs-queue\",\"referencableParams\":{\"arn\":{\"showDuringPrint\":true,\"value\":\"${sub26}\"},\"url\":{\"showDuringPrint\":true,\"value\":\"${sub27}\"},\"name\":{\"showDuringPrint\":true,\"value\":\"${sub28}\"}},\"links\":{\"console\":\"https://eu-west-1.console.aws.amazon.com/sqs/v2/home?region=eu-west-1#/queues/https%3A%2F%2Fsqs.eu-west-1.amazonaws.com%2F977946299200%2Fj2-v3-baseline-j2base-jobs\"},\"cloudformationChildResources\":{\"JobsQueue\":{\"cloudformationResourceType\":\"AWS::SQS::Queue\"}},\"outputs\":{}},\"notifications\":{\"resourceType\":\"sns-topic\",\"referencableParams\":{\"arn\":{\"showDuringPrint\":true,\"value\":\"${sub29}\"},\"name\":{\"showDuringPrint\":true,\"value\":\"${sub30}\"}},\"links\":{\"console\":\"https://eu-west-1.console.aws.amazon.com/sns/v3/home?region=eu-west-1#/topic/arn:aws:sns:eu-west-1:977946299200:j2-v3-baseline-j2base-notifications\"},\"cloudformationChildResources\":{\"NotificationsTopic\":{\"cloudformationResourceType\":\"AWS::SNS::Topic\"}},\"outputs\":{}},\"clicks\":{\"resourceType\":\"kinesis-stream\",\"referencableParams\":{\"arn\":{\"showDuringPrint\":true,\"value\":\"${sub31}\"},\"name\":{\"showDuringPrint\":true,\"value\":\"j2-v3-baseline-j2base-clicks\"}},\"links\":{\"console\":\"https://eu-west-1.console.aws.amazon.com/kinesis/home?region=eu-west-1#streams/j2-v3-baseline-j2base-clicks/streamDetails\"},\"cloudformationChildResources\":{\"ClicksStream\":{\"cloudformationResourceType\":\"AWS::Kinesis::Stream\"}},\"outputs\":{}}},\"customOutputs\":{\"DevAgentRoleArn\":\"${sub32}\",\"DebugAgentRoleArn\":\"${sub33}\"}}",
+          {
+            "sub0": {
+              "Fn::Sub": [
+                "https://console.aws.amazon.com/s3/buckets/${bucketName}?region=${region}&tab=objects",
+                {
+                  "region": {
+                    "Ref": "AWS::Region"
+                  },
+                  "bucketName": {
+                    "Ref": "StpDeploymentBucket"
+                  }
+                }
+              ]
+            },
+            "sub1": {
+              "Fn::GetAtt": ["StacktapeServiceLambdaLogGroup", "Arn"]
+            },
+            "sub2": {
+              "Fn::GetAtt": ["StacktapeServiceLambdaCustomResourceFunction", "Arn"]
+            },
+            "sub3": {
+              "Fn::Sub": [
+                "https://${region}.console.aws.amazon.com/cloudwatch/home?region=${region}#${service_query}",
+                {
+                  "region": {
+                    "Ref": "AWS::Region"
+                  },
+                  "service_query": "logsV2:log-groups/log-group/%252Faws%252Flambda%252Fj2-v3-baseline-j2base-stpService-CR"
+                }
+              ]
+            },
+            "sub4": {
+              "Fn::Sub": [
+                "https://${region}.console.aws.amazon.com/lambda/home?region=${region}#${service_query}",
+                {
+                  "region": {
+                    "Ref": "AWS::Region"
+                  },
+                  "service_query": {
+                    "Fn::Sub": [
+                      "functions/${awsLambdaName}?tab=monitoring",
+                      {
+                        "awsLambdaName": {
+                          "Ref": "StacktapeServiceLambdaCustomResourceFunction"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "sub5": {
+              "Fn::Sub": [
+                "https://${region}.console.aws.amazon.com/lambda/home?region=${region}#${service_query}",
+                {
+                  "region": {
+                    "Ref": "AWS::Region"
+                  },
+                  "service_query": {
+                    "Fn::Sub": [
+                      "functions/${awsLambdaName}?tab=testing",
+                      {
+                        "awsLambdaName": {
+                          "Ref": "StacktapeServiceLambdaCustomResourceFunction"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "sub6": {
+              "Ref": "FilesBucket"
+            },
+            "sub7": {
+              "Fn::GetAtt": ["FilesBucket", "Arn"]
+            },
+            "sub8": {
+              "Fn::Sub": [
+                "https://console.aws.amazon.com/s3/buckets/${bucketName}?region=${region}&tab=objects",
+                {
+                  "region": {
+                    "Ref": "AWS::Region"
+                  },
+                  "bucketName": {
+                    "Ref": "FilesBucket"
+                  }
+                }
+              ]
+            },
+            "sub9": {
+              "Fn::Sub": [
+                "https://console.aws.amazon.com/s3/buckets/${bucketName}?region=${region}&tab=metrics",
+                {
+                  "region": {
+                    "Ref": "AWS::Region"
+                  },
+                  "bucketName": {
+                    "Ref": "FilesBucket"
+                  }
+                }
+              ]
+            },
+            "sub10": {
+              "Fn::GetAtt": ["ApiLogGroup", "Arn"]
+            },
+            "sub11": {
+              "Fn::GetAtt": ["ApiFunction", "Arn"]
+            },
+            "sub12": {
+              "Fn::Sub": [
+                "https://${region}.console.aws.amazon.com/cloudwatch/home?region=${region}#${service_query}",
+                {
+                  "region": {
+                    "Ref": "AWS::Region"
+                  },
+                  "service_query": "logsV2:log-groups/log-group/%252Faws%252Flambda%252Fj2-v3-baseline-j2base-api"
+                }
+              ]
+            },
+            "sub13": {
+              "Fn::Sub": [
+                "https://${region}.console.aws.amazon.com/lambda/home?region=${region}#${service_query}",
+                {
+                  "region": {
+                    "Ref": "AWS::Region"
+                  },
+                  "service_query": {
+                    "Fn::Sub": [
+                      "functions/${awsLambdaName}?tab=monitoring",
+                      {
+                        "awsLambdaName": {
+                          "Ref": "ApiFunction"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "sub14": {
+              "Fn::Sub": [
+                "https://${region}.console.aws.amazon.com/lambda/home?region=${region}#${service_query}",
+                {
+                  "region": {
+                    "Ref": "AWS::Region"
+                  },
+                  "service_query": {
+                    "Fn::Sub": [
+                      "functions/${awsLambdaName}?tab=testing",
+                      {
+                        "awsLambdaName": {
+                          "Ref": "ApiFunction"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "sub15": {
+              "Ref": "MainDbGlobalTable"
+            },
+            "sub16": {
+              "Fn::GetAtt": ["MainDbGlobalTable", "Arn"]
+            },
+            "sub17": {
+              "Fn::Sub": [
+                "https://${region}.console.aws.amazon.com/dynamodbv2/home?region=${region}#${service_query}",
+                {
+                  "region": {
+                    "Ref": "AWS::Region"
+                  },
+                  "service_query": {
+                    "Fn::Sub": [
+                      "table?name=${tableName}&tab=monitoring",
+                      {
+                        "tableName": {
+                          "Ref": "MainDbGlobalTable"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "sub18": {
+              "Fn::Sub": [
+                "https://${region}.console.aws.amazon.com/dynamodbv2/home?region=${region}#${service_query}",
+                {
+                  "region": {
+                    "Ref": "AWS::Region"
+                  },
+                  "service_query": {
+                    "Fn::Sub": [
+                      "item-explorer?table=${tableName}",
+                      {
+                        "tableName": {
+                          "Ref": "MainDbGlobalTable"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "sub19": {
+              "Fn::GetAtt": ["EventsEventBus", "Arn"]
+            },
+            "sub20": {
+              "Fn::Sub": [
+                "https://${region}.console.aws.amazon.com/cloudwatch/home?region=${region}#${service_query}",
+                {
+                  "region": {
+                    "Ref": "AWS::Region"
+                  },
+                  "service_query": "logsV2:log-groups/log-group/%252Faws%252Fvendedlogs%252Fj2-v3-baseline-j2base%252Fapi-gateway%252FmainGateway%252Faccess-logs"
+                }
+              ]
+            },
+            "sub21": {
+              "Fn::Join": ["", ["https://maingateway-j2-v3-baseline-j2base-932f0975.stacktape-app.com", "/{proxy+}"]]
+            },
+            "sub22": {
+              "Ref": "UsersUserPool"
+            },
+            "sub23": {
+              "Ref": "UsersUserPoolClient"
+            },
+            "sub24": {
+              "Fn::GetAtt": ["UsersUserPool", "Arn"]
+            },
+            "sub25": {
+              "Fn::GetAtt": ["UsersUserPool", "ProviderURL"]
+            },
+            "sub26": {
+              "Fn::GetAtt": ["JobsQueue", "Arn"]
+            },
+            "sub27": {
+              "Ref": "JobsQueue"
+            },
+            "sub28": {
+              "Fn::GetAtt": ["JobsQueue", "QueueName"]
+            },
+            "sub29": {
+              "Fn::GetAtt": ["NotificationsTopic", "TopicArn"]
+            },
+            "sub30": {
+              "Fn::GetAtt": ["NotificationsTopic", "TopicName"]
+            },
+            "sub31": {
+              "Fn::GetAtt": ["ClicksStream", "Arn"]
+            },
+            "sub32": {
+              "Fn::GetAtt": ["StpDevAgentRole", "Arn"]
+            },
+            "sub33": {
+              "Fn::GetAtt": ["StpDebugAgentRole", "Arn"]
+            }
+          }
+        ]
+      },
+      "Description": "Overview of stack resources, outputs and metadata"
+    }
+  },
+  "Parameters": {},
+  "Description": "STP-stack_j2-v3-baseline_j2base_932f0975"
+}

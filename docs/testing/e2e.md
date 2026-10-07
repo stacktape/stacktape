@@ -37,6 +37,7 @@ Reuse these before writing new setup code. Rows marked **duplicate** are consoli
 | Isolated Console application             | [isolated Console test](../../apps/console/ui/e2e/isolated-console.test.ts)                                                                            | UI, API and database for two tenants. Its startup and session code is still inline ([F5](overhaul.md#foundation-work)). |
 | Shared-dev Console sign-in               | [browser fixtures](../../apps/console/ui/e2e/fixtures.ts)                                                                                              | Real dev Cognito login, cached per worker. Needs the reservation.                                                       |
 | Live AWS scenario                        | [real-AWS scripts](../../apps/cli/scripts/real-aws/README.md)                                                                                          | Account check, owned names, recovery state, verified cleanup.                                                           |
+| Change-plan compatibility                | [data-safety lane](../../apps/cli/tests/data-safety/README.md)                                                                                         | Baseline template → current synthesis → the product's change plan; committed v3 and v4 baselines.                       |
 
 ## Helpers worth building
 
@@ -44,13 +45,12 @@ Build each with its first real consumer, and share it across owners when a secon
 Console helpers in the private Console; a public helper never depends on it. No universal `test-utils` package, scenario
 DSL or page object per click.
 
-| Helper                    | Contract                                                                                                                              |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Console tenant fixture    | Seed an organization, project and restricted identities; start the real UI and API; return a signed-in page and an API client.        |
-| Change-plan compatibility | Given a baseline template, synthesize the current one, compute the product's change plan, and report destroyed or replaced resources. |
-| Temporary project         | Copy reviewed fixture files into a fresh directory; return its root and expected outputs.                                             |
-| Provider fixture          | Serve selected realistic responses over loopback, fail on unexpected requests, record deliveries, inject faults.                      |
-| Job observer              | Wait for one operation ID to reach its terminal state with a deadline; return the last state on timeout.                              |
+| Helper                 | Contract                                                                                                                       |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Console tenant fixture | Seed an organization, project and restricted identities; start the real UI and API; return a signed-in page and an API client. |
+| Temporary project      | Copy reviewed fixture files into a fresh directory; return its root and expected outputs.                                      |
+| Provider fixture       | Serve selected realistic responses over loopback, fail on unexpected requests, record deliveries, inject faults.               |
+| Job observer           | Wait for one operation ID to reach its terminal state with a deadline; return the last state on timeout.                       |
 
 The tenant fixture should make a Console feature test this short. This is a sketch, not an existing API:
 
