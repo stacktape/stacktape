@@ -23,3 +23,15 @@ export const nearestManifestRoot = (file: string, files: readonly string[]): str
     .filter((root) => root === '.' || directory === root || directory.startsWith(`${root}/`))
     .toSorted((left, right) => right.length - left.length)[0];
 };
+
+/**
+ * Directories that show how to use a project rather than hold what it deploys: a monorepo's `examples/`, starter
+ * `templates/`, test fixtures. Probes skip them unless the repository holds nothing else.
+ */
+export const SAMPLE_DIRECTORY =
+  /(?:^|\/)(?:examples?|samples?|demos?|extras?|fixtures?|__fixtures__|templates?|playgrounds?)\//i;
+
+export const withoutSampleDirectories = (paths: readonly string[]): readonly string[] => {
+  const own = paths.filter((path) => !SAMPLE_DIRECTORY.test(path));
+  return own.length > 0 ? own : paths;
+};

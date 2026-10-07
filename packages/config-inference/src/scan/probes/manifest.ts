@@ -15,6 +15,7 @@ import { defaultDependencyName, type DependencyFact, type DependencyKind } from 
 import type { MigrationFact, PackageManager } from '../../facts/project-facts';
 import type { ServiceFactInput } from '../../facts/service';
 import { citeFirstMatchOnly, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
+import { withoutSampleDirectories } from '../service-root';
 
 /**
  * Declared dependencies that imply a backing service.
@@ -63,6 +64,8 @@ const DEPENDENCY_SIGNALS: ReadonlyArray<{
 /** Dependencies that prove the package serves HTTP. */
 const HTTP_FRAMEWORKS: ReadonlySet<string> = new Set([
   '@hapi/hapi',
+  // React Router 7 in framework mode, Remix's successor: `react-router-serve` is its HTTP server.
+  '@react-router/serve',
   '@nestjs/platform-express',
   '@nestjs/platform-fastify',
   'astro',
@@ -80,6 +83,8 @@ const HTTP_FRAMEWORKS: ReadonlySet<string> = new Set([
   'sveltekit',
   '@sveltejs/kit',
   '@solidjs/start',
+  '@tanstack/react-start',
+  '@tanstack/solid-start',
   '@tanstack/start'
 ]);
 
@@ -91,6 +96,9 @@ const FRAMEWORK_NAMES: ReadonlyArray<{ package: string; name: string }> = [
   { package: 'astro', name: 'astro' },
   { package: '@remix-run/node', name: 'remix' },
   { package: '@solidjs/start', name: 'solid-start' },
+  // The package was `@tanstack/start` until 2025; current projects depend on the framework-specific one.
+  { package: '@tanstack/react-start', name: 'tanstack-start' },
+  { package: '@tanstack/solid-start', name: 'tanstack-start' },
   { package: '@tanstack/start', name: 'tanstack-start' },
   { package: '@nestjs/core', name: 'nestjs' },
   { package: 'express', name: 'express' },
@@ -100,6 +108,29 @@ const FRAMEWORK_NAMES: ReadonlyArray<{ package: string; name: string }> = [
 ];
 
 /** Build-only browser frameworks that produce a directory for `hosting-bucket`. */
+/** Installing one of these is what turns an Astro project into a server; `@astrojs/node` is the one Stacktape runs. */
+const ASTRO_SERVER_ADAPTERS = [
+  '@astrojs/node',
+  '@astrojs/vercel',
+  '@astrojs/netlify',
+  '@astrojs/cloudflare',
+  '@astrojs/deno'
+];
+
+/**
+ * Bun's own types, or a script that runs a source file with `bun`, mean the server is written for Bun. Using Bun
+ * only as the package manager (`bun install`, `bun run build`) does not.
+ */
+const writtenForBun = (manifest: ParsedManifest): boolean =>
+  manifest.dependencies['@types/bun'] !== undefined ||
+  manifest.dependencies['bun-types'] !== undefined ||
+  ['start', 'dev'].some((script) =>
+    /^bun (?:run )?(?:--\S+ )*\S+\.[cm]?[jt]sx?\b/.test(manifest.scripts[script] ?? '')
+  );
+
+const DEV_SERVER_START =
+  /(?:^|&&|;|\s)(?:vite(?:\s+(?:dev|serve))?|docusaurus\s+start|next\s+dev|nuxt\s+dev|astro\s+dev|remix\s+dev|react-scripts\s+start|ng\s+serve|gatsby\s+develop|webpack(?:-dev-server|\s+serve)|parcel(?:\s+serve)?|storybook(?:\s+dev)?)(?:\s|$)/;
+
 const staticSiteFor = (
   manifest: ParsedManifest,
   files: readonly string[]
@@ -275,7 +306,10 @@ const prismaDatasourceKind = async (
 export const manifestProbe: Probe = {
   name: 'manifest',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
-    const manifestPaths = context.files.filter((file) => file === 'package.json' || file.endsWith('/package.json'));
+    // A monorepo's example and template packages are not what the repository deploys.
+    const manifestPaths = withoutSampleDirectories(
+      context.files.filter((file) => file === 'package.json' || file.endsWith('/package.json'))
+    );
     if (manifestPaths.length === 0) {
       return {};
     }
@@ -302,6 +336,25 @@ export const manifestProbe: Probe = {
         ? []
         : [...pnpmWorkspace.matchAll(/^\s*-\s*['"]?([^'"\n]+)['"]?\s*$/gm)].map((match) => match[1]!.trim());
 
+    // Workspace members import each other by package name (`workspace:*`, `*`, or a version), so an install run
+    // from the member's own directory cannot resolve them. Recording the membership lets the composer build such a
+    // member from the repository root.
+    const isMonorepo = workspaceGlobs.length > 0 || pnpmGlobs.length > 0;
+    const memberPackageNames = new Set(
+      manifests.flatMap((manifest) =>
+        manifest.directory !== '.' && manifest.name !== undefined ? [manifest.name] : []
+      )
+    );
+    const workspaceFor = (manifest: ParsedManifest): Pick<ServiceFactInput, 'workspace'> => {
+      if (!isMonorepo || manifest.directory === '.') return {};
+      const internalDependencies = Object.keys(manifest.dependencies)
+        .filter((name) => name !== manifest.name && memberPackageNames.has(name))
+        .toSorted();
+      return {
+        workspace: { ...(manifest.name === undefined ? {} : { packageName: manifest.name }), internalDependencies }
+      };
+    };
+
     const services: ServiceFactInput[] = [];
     const dependencyConsumers = new Map<
       DependencyKind,
@@ -310,14 +363,27 @@ export const manifestProbe: Probe = {
     const migrations: MigrationFact[] = [];
 
     for (const manifest of manifests) {
-      const hasStart = typeof manifest.scripts.start === 'string';
+      // `start` that launches a development server (`vite`, `docusaurus start`) describes local work, not a
+      // deployment; such a package is a static site when it builds one, and nothing otherwise.
+      const hasStart = typeof manifest.scripts.start === 'string' && !DEV_SERVER_START.test(manifest.scripts.start);
       const hasBuild = typeof manifest.scripts.build === 'string';
       const frameworkEntry = FRAMEWORK_NAMES.find((entry) => manifest.dependencies[entry.package] !== undefined);
-      const exposesHttp = Object.keys(manifest.dependencies).some((name) => HTTP_FRAMEWORKS.has(name));
+      // Astro renders to static files unless a server adapter is installed; without one there is no server to run.
+      const astroStatic =
+        manifest.dependencies.astro !== undefined &&
+        !ASTRO_SERVER_ADAPTERS.some((adapter) => manifest.dependencies[adapter] !== undefined);
+      const exposesHttp = !astroStatic && Object.keys(manifest.dependencies).some((name) => HTTP_FRAMEWORKS.has(name));
       // A Vite/CRA/Angular/Gatsby development server is not a production service. Its build output
       // is uploaded to static hosting; treating `ng serve` or `gatsby develop` as a worker is both
       // expensive and non-functional.
-      const staticSite = exposesHttp || !hasBuild ? undefined : staticSiteFor(manifest, context.files);
+      const staticSite:
+        | { framework: 'angular' | 'astro' | 'gatsby' | 'react' | 'vite' | 'vue'; outputDirectory: string }
+        | undefined =
+        astroStatic && hasBuild
+          ? { framework: 'astro', outputDirectory: 'dist' }
+          : exposesHttp || !hasBuild
+            ? undefined
+            : staticSiteFor(manifest, context.files);
       const manifestPrefix = manifest.directory === '.' ? '' : `${manifest.directory}/`;
       const hasHandlerLayout = context.files.some(
         (file) =>
@@ -379,6 +445,7 @@ export const manifestProbe: Probe = {
           path: manifest.directory,
           language: 'javascript',
           ...(nodeEngine ? { runtimeVersion: nodeEngine } : {}),
+          ...(writtenForBun(manifest) ? { javascriptRuntime: 'bun' as const } : {}),
           ...(frameworkEntry
             ? { framework: frameworkEntry.name }
             : staticSite
@@ -400,6 +467,7 @@ export const manifestProbe: Probe = {
                       : `${manifest.directory}/${staticSite.outputDirectory}`
                 }
               }),
+          ...workspaceFor(manifest),
           environmentVariables: [],
           evidence,
           source: 'probe'

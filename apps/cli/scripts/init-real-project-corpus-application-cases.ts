@@ -3,6 +3,347 @@ import type { RealProjectCorpusCase } from './init-real-project-corpus-cases';
 /** Pinned production applications and substantial starters representative of Stacktape's target customers. */
 const ALL_REAL_PROJECT_APPLICATION_CASES = [
   {
+    id: 'hono-aws-lambda-starter',
+    repository: 'https://github.com/honojs/starter.git',
+    commit: 'd6d809a16ba28942deab56bd6feb9a4e51c88c2b',
+    subdirectory: 'templates/aws-lambda',
+    source: 'official-starter',
+    exercises: ['hono', 'aws-lambda', 'js-bundle', 'lambda-wrapped-app', 'official-starter'],
+    expect: {
+      resourceTypes: { function: 1 },
+      serviceCount: 1,
+      httpServiceCount: 0,
+      requiredConfig: ['type: function', 'type: js-bundle', 'entryfilePath: src/index.ts'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'hono-deno-starter',
+    repository: 'https://github.com/honojs/starter.git',
+    commit: 'd6d809a16ba28942deab56bd6feb9a4e51c88c2b',
+    subdirectory: 'templates/deno',
+    source: 'real-application',
+    exercises: ['hono', 'deno', 'js-bundle', 'deno-runtime', 'official-starter'],
+    expect: {
+      resourceTypes: { 'web-service': 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: js-bundle', 'runtime: deno'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'flask-celery-example',
+    repository: 'https://github.com/pallets/flask.git',
+    commit: 'd73fa1cdcbd8b1465c151db8924ba58b1dd14e35',
+    subdirectory: 'examples/celery',
+    source: 'real-application',
+    exercises: ['python', 'flask', 'celery', 'redis', 'buildpack', 'subdirectory'],
+    expect: {
+      resourceTypes: { 'redis-cluster': 1, 'web-service': 1 },
+      dependencyKinds: { redis: 1, amqp: 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: buildpack', 'type: redis-cluster'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'gofiber-hello-world',
+    repository: 'https://github.com/gofiber/recipes.git',
+    commit: '62c94cc38a06275126db8d8172262b73372f3a08',
+    subdirectory: 'hello-world',
+    source: 'real-application',
+    exercises: ['go', 'fiber', 'buildpack', 'subdirectory'],
+    expect: {
+      resourceTypes: { 'web-service': 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: buildpack'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'wagtail-bakerydemo',
+    repository: 'https://github.com/wagtail/bakerydemo.git',
+    commit: 'c8f8255593c0efcfab5fef2fb19d60895227748a',
+    source: 'real-application',
+    exercises: ['django', 'wagtail', 'python', 'docker', 'postgres', 'redis'],
+    expect: {
+      resourceTypes: { 'relational-database': 1, 'redis-cluster': 1, bastion: 1, 'web-service': 1 },
+      dependencyKinds: { postgres: 1, redis: 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: dockerfile', "$ResourceParam('mainDatabase', 'connectionString')"],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'real-lobsters',
+    repository: 'https://github.com/lobsters/lobsters.git',
+    commit: '52f7961c4a98ed4c466d6dfce3ff9131ea460f3c',
+    source: 'real-application',
+    exercises: ['rails', 'ruby', 'docker', 'sqlite'],
+    expect: {
+      resourceTypes: { 'web-service': 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: dockerfile'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'next-mdx-blog',
+    repository: 'https://github.com/leerob/next-mdx-blog.git',
+    commit: 'fd03371e3c90481a8447904e1b548e4c0327b7db',
+    source: 'real-application',
+    exercises: ['nextjs', 'opennext', 'mdx', 'postgres', 'self-contained-build'],
+    expect: {
+      resourceTypes: { 'relational-database': 1, 'nextjs-web': 1 },
+      dependencyKinds: { postgres: 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: nextjs-web'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'deno-saaskit',
+    repository: 'https://github.com/denoland/saaskit.git',
+    commit: 'bc8043e85a1e8ba8d097ce21af3b7b49e7dfc5ad',
+    source: 'real-application',
+    exercises: ['deno', 'fresh', 'docker'],
+    expect: {
+      resourceTypes: { 'web-service': 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: dockerfile'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'symfony-demo',
+    repository: 'https://github.com/symfony/demo.git',
+    commit: '8d2e2ef75c3e18df173d8bf2379a14abb58c4c31',
+    source: 'real-application',
+    exercises: ['php', 'symfony', 'buildpack', 'sqlite'],
+    expect: {
+      resourceTypes: { 'web-service': 1 },
+      dependencyKinds: { sqlite: 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: buildpack'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'flask-tutorial',
+    repository: 'https://github.com/pallets/flask.git',
+    commit: 'd73fa1cdcbd8b1465c151db8924ba58b1dd14e35',
+    subdirectory: 'examples/tutorial',
+    source: 'real-application',
+    exercises: ['python', 'flask', 'buildpack', 'subdirectory'],
+    expect: {
+      resourceTypes: { 'web-service': 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: buildpack'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'spring-rest-guide',
+    repository: 'https://github.com/spring-guides/gs-rest-service.git',
+    commit: '3f4cef01152596c19bc4d37939409358812b1421',
+    subdirectory: 'complete',
+    source: 'real-application',
+    exercises: ['java', 'spring-boot', 'buildpack', 'subdirectory'],
+    expect: {
+      resourceTypes: { 'web-service': 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: buildpack'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'rails-campfire',
+    repository: 'https://github.com/basecamp/once-campfire.git',
+    commit: '90b330024dec3e757c79b6a7e6568f93da8e3148',
+    source: 'real-application',
+    exercises: ['rails', 'ruby', 'docker', 'procfile', 'redis', 'resque', 'datastore-process'],
+    expect: {
+      resourceTypes: { 'redis-cluster': 1, 'web-service': 1, 'worker-service': 1 },
+      dependencyKinds: { redis: 1 },
+      serviceCount: 2,
+      httpServiceCount: 1,
+      requiredConfig: ['type: dockerfile', 'type: worker-service', 'resque-pool'],
+      forbiddenConfig: ['redis-server'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'hono-bun-starter',
+    repository: 'https://github.com/honojs/starter.git',
+    commit: 'd6d809a16ba28942deab56bd6feb9a4e51c88c2b',
+    subdirectory: 'templates/bun',
+    source: 'real-application',
+    exercises: ['hono', 'bun', 'js-bundle', 'bun-runtime', 'official-starter'],
+    expect: {
+      resourceTypes: { 'web-service': 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: js-bundle', 'runtime: bun'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'astro-astrowind',
+    repository: 'https://github.com/onwidget/astrowind.git',
+    commit: '14e1a691f80548dcc36370847b1a02c0d0b12821',
+    source: 'real-application',
+    exercises: ['astro', 'static-site', 'hosting-bucket'],
+    expect: {
+      resourceTypes: { 'hosting-bucket': 1 },
+      serviceCount: 1,
+      httpServiceCount: 0,
+      existingDeployments: ['cloudflare-workers', 'netlify', 'vercel'],
+      requiredConfig: ['type: hosting-bucket', 'uploadDirectoryPath: dist'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'real-memos',
+    repository: 'https://github.com/usememos/memos.git',
+    commit: 'a80576a6def3c241c7c73e07448c8d2d8cd582bd',
+    source: 'real-application',
+    exercises: ['go', 'echo', 'react', 'docker', 'postgres', 'object-storage', 'same-name-services'],
+    expect: {
+      resourceTypes: { 'relational-database': 1, bucket: 1, bastion: 1, 'hosting-bucket': 1, 'web-service': 1 },
+      dependencyKinds: { postgres: 1, 'object-storage': 1 },
+      serviceCount: 2,
+      httpServiceCount: 1,
+      requiredConfig: ['type: dockerfile', 'dockerfilePath: scripts/Dockerfile', 'type: hosting-bucket'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'fastapi-full-stack',
+    repository: 'https://github.com/fastapi/full-stack-fastapi-template.git',
+    commit: 'cb740b656d7a0a6c5e12c7bf8e50343ec94ee9c7',
+    source: 'real-application',
+    exercises: ['fastapi', 'python', 'react', 'docker-compose', 'postgres', 'bun-workspace'],
+    expect: {
+      resourceTypes: { 'relational-database': 1, bastion: 1, 'hosting-bucket': 1, 'web-service': 1 },
+      dependencyKinds: { postgres: 1 },
+      serviceCount: 2,
+      httpServiceCount: 1,
+      requiredConfig: ['type: dockerfile', 'workingDirectory: frontend'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'nestjs-typescript-starter',
+    repository: 'https://github.com/nestjs/typescript-starter.git',
+    commit: 'a122dea65cd0610ee205d7765ed46f9d73629141',
+    source: 'real-application',
+    exercises: ['nestjs', 'typescript', 'js-bundle', 'optional-dependencies', 'official-starter'],
+    expect: {
+      resourceTypes: { 'web-service': 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: js-bundle', 'entryfilePath: src/main.ts'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'express-api-starter-ts',
+    repository: 'https://github.com/w3cj/express-api-starter-ts.git',
+    commit: 'c46ad4526400e0ae6640fdaa94d037aa7573600c',
+    source: 'real-application',
+    exercises: ['express', 'typescript', 'pnpm', 'js-bundle'],
+    expect: {
+      resourceTypes: { 'web-service': 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: js-bundle'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'nuxt-landing',
+    repository: 'https://github.com/nuxt-ui-templates/landing.git',
+    commit: 'd732ce91cbbe73763985732555c088401cb0e3a7',
+    source: 'real-application',
+    exercises: ['nuxt', 'ssr', 'official-template'],
+    expect: {
+      resourceTypes: { 'nuxt-web': 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: nuxt-web'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'hono-nodejs-starter',
+    repository: 'https://github.com/honojs/starter.git',
+    commit: 'd6d809a16ba28942deab56bd6feb9a4e51c88c2b',
+    subdirectory: 'templates/nodejs',
+    source: 'real-application',
+    exercises: ['hono', 'node', 'buildpack', 'official-starter'],
+    expect: {
+      resourceTypes: { 'web-service': 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: buildpack'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'fastify-demo',
+    repository: 'https://github.com/fastify/demo.git',
+    commit: '5cd560125b3c2f0d42192bc7f493e8e3b9e75e52',
+    source: 'real-application',
+    exercises: ['fastify', 'typescript', 'mysql', 'js-bundle'],
+    expect: {
+      resourceTypes: { 'relational-database': 1, bastion: 1, 'web-service': 1 },
+      dependencyKinds: { mysql: 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: js-bundle', "$ResourceParam('mainDatabase'"],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'gin-realworld',
+    repository: 'https://github.com/gothinkster/golang-gin-realworld-example-app.git',
+    commit: '626c372d259472148d93303f74aa9b9a1cdcef24',
+    source: 'real-application',
+    exercises: ['go', 'gin', 'buildpack', 'realworld'],
+    expect: {
+      resourceTypes: { 'web-service': 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: buildpack'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'django-djangox',
+    repository: 'https://github.com/wsvincent/djangox.git',
+    commit: '14c0374eaab52dc49898229ffe9a3e8f0e0e51c2',
+    source: 'real-application',
+    exercises: ['django', 'python', 'postgres', 'docker'],
+    expect: {
+      resourceTypes: { 'relational-database': 1, bastion: 1, 'web-service': 1 },
+      dependencyKinds: { postgres: 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      requiredConfig: ['type: dockerfile', '- mainDatabase'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
     id: 'real-documenso',
     repository: 'https://github.com/documenso/documenso.git',
     commit: '779de01fe8fb8c242da867b6c1fa38c70e448c3a',
@@ -478,7 +819,30 @@ const RELEASE_CASE_IDS = new Set([
   'zero-to-production-rust',
   'real-lemmy',
   'spring-petclinic',
-  'dotnet-eshop'
+  'dotnet-eshop',
+  'nuxt-landing',
+  'hono-nodejs-starter',
+  'fastify-demo',
+  'gin-realworld',
+  'django-djangox',
+  'hono-bun-starter',
+  'rails-campfire',
+  'hono-aws-lambda-starter',
+  'hono-deno-starter',
+  'flask-celery-example',
+  'gofiber-hello-world',
+  'wagtail-bakerydemo',
+  'real-lobsters',
+  'next-mdx-blog',
+  'deno-saaskit',
+  'symfony-demo',
+  'flask-tutorial',
+  'spring-rest-guide',
+  'astro-astrowind',
+  'real-memos',
+  'fastapi-full-stack',
+  'nestjs-typescript-starter',
+  'express-api-starter-ts'
 ]);
 
 /** Customer-shaped applications whose exact inferred topology is reviewed and release-blocking. */

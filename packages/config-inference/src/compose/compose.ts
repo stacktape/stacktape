@@ -24,6 +24,7 @@ import { resolveEngineVersion, type EngineVersionCatalogue } from './engine-vers
 import { generatedDatabasePasswordSecretReference, secretNameFor, wiringFor } from './env-wiring';
 import { composeMigrationHooks } from './migrations';
 import { monorepoPackaging } from './monorepo';
+import { normalizeScheduleExpression } from './schedule';
 import { MODE_PREFERENCES, MODE_PROFILES, type InfrastructureMode } from './modes';
 import {
   defaultDeploymentPreferences,
@@ -213,8 +214,38 @@ const pythonStartCommand = (service: ServiceFact): string | undefined => {
   return undefined;
 };
 
-const packagingFor = (service: ServiceFact, packageManager: PackageManager | undefined): Record<string, unknown> => {
+/** Shell operators that make a start command need a shell rather than the image's exec form. */
+const NEEDS_SHELL = /[&|;<>$`'"\\()]/;
+
+/** A Procfile line as a container command: exec form when it is plain words, a shell otherwise. */
+const containerCommand = (startCommand: string): string[] =>
+  NEEDS_SHELL.test(startCommand) ? ['sh', '-c', startCommand] : startCommand.trim().split(/\s+/);
+
+const packagingFor = (
+  service: ServiceFact,
+  packageManager: PackageManager | undefined,
+  siblingDockerfile?: Pick<ServiceFact, 'dockerfile' | 'buildRoot' | 'path'>
+): Record<string, unknown> => {
   const buildRoot = service.buildRoot ?? service.path;
+  if (service.containerImage !== undefined) {
+    // The manifest runs a published image; there is no source to build.
+    return { type: 'prebuilt-image', properties: { image: service.containerImage } };
+  }
+  if (service.dockerfile === undefined && siblingDockerfile?.dockerfile !== undefined) {
+    // A Procfile worker beside a web process with a Dockerfile is the same application started differently. The
+    // image that already builds the web process runs it; a second buildpack build of a Rails app with native gems
+    // is the thing most likely to fail.
+    const sibling = packagingFor({ ...siblingDockerfile, containerImage: undefined } as ServiceFact, packageManager);
+    return service.startCommand === undefined
+      ? sibling
+      : {
+          ...sibling,
+          properties: {
+            ...(sibling.properties as Record<string, unknown>),
+            command: containerCommand(service.startCommand)
+          }
+        };
+  }
   if (service.dockerfile !== undefined) {
     // Their Dockerfile is the most faithful description of how this runs that exists. Use it.
     return {
@@ -231,7 +262,12 @@ const packagingFor = (service: ServiceFact, packageManager: PackageManager | und
     // A known JavaScript entry file: Stacktape bundles it, which is smaller and faster than a project build.
     return {
       type: 'js-bundle',
-      properties: { entryfilePath: service.containerEntrypoint, ...runtimeVersionConfig(service) }
+      properties: {
+        entryfilePath: service.containerEntrypoint,
+        ...(service.javascriptRuntime === undefined
+          ? runtimeVersionConfig(service)
+          : { runtime: service.javascriptRuntime })
+      }
     };
   }
   // A workspace member that imports internal packages must be installed and built from the root,
@@ -241,11 +277,16 @@ const packagingFor = (service: ServiceFact, packageManager: PackageManager | und
   // Railpack detects the language and builds without anyone writing a Dockerfile, which is the
   // whole promise for a user who does not want to learn containers.
   const startCommand = service.startCommand ?? pythonStartCommand(service);
+  // Railpack builds Java with JDK 21 unless told otherwise; a Gradle toolchain or Maven release pinned to another
+  // version fails the build, so the declared version travels along.
+  const javaVersion =
+    service.language === 'java' && service.runtimeVersion !== undefined ? service.runtimeVersion : undefined;
   return {
     type: 'buildpack',
     properties: {
       sourceDirectoryPath: buildRoot,
-      ...(startCommand === undefined ? {} : { startCommand })
+      ...(startCommand === undefined ? {} : { startCommand }),
+      ...(javaVersion === undefined ? {} : { packages: { java: javaVersion } })
     }
   };
 };
@@ -785,9 +826,15 @@ export const composeConfig = ({
     }
   });
 
+  const dockerfileOwners = facts.services.filter((candidate) => candidate.dockerfile !== undefined);
+
   for (const [index, service] of facts.services.entries()) {
     const name = resourceNames[index]!;
     const classification = classifyService(service);
+    const siblingDockerfile =
+      service.dockerfile === undefined
+        ? dockerfileOwners.find((candidate) => candidate.path === service.path)
+        : undefined;
     const connectTo = facts.dependencies
       .filter((dependency) => dependency.consumedBy.includes(service.name))
       .map((dependency) => dependencyResourceNames.get(dependency.name))
@@ -879,7 +926,8 @@ export const composeConfig = ({
       ...(httpApiGatewayName === undefined ? {} : { httpApiGatewayName }),
       profile,
       packageManager: facts.packageManager,
-      requiresVpc
+      requiresVpc,
+      ...(siblingDockerfile === undefined ? {} : { siblingDockerfile })
     });
     provenance[name] = {
       reason: classification.reason,
@@ -1019,7 +1067,8 @@ const buildServiceResource = ({
   httpApiGatewayName,
   profile,
   packageManager,
-  requiresVpc
+  requiresVpc,
+  siblingDockerfile
 }: {
   resourceType: ServiceResourceType;
   service: ServiceFact;
@@ -1030,6 +1079,8 @@ const buildServiceResource = ({
   profile: InfrastructureProfile;
   packageManager: PackageManager | undefined;
   requiresVpc: boolean;
+  /** Another process of the same source directory that ships a Dockerfile; this one reuses it. */
+  siblingDockerfile?: Pick<ServiceFact, 'dockerfile' | 'buildRoot' | 'path'> | undefined;
 }): ComposedResource => {
   const shared = {
     ...(environment.length > 0 ? { environment } : {}),
@@ -1037,7 +1088,10 @@ const buildServiceResource = ({
   };
 
   if (resourceType === 'hosting-bucket') {
-    const buildRoot = service.buildRoot ?? service.path;
+    // A build root comes from a deployment descriptor (a Docker context, a Render root directory) and belongs to that
+    // descriptor's command. The package's own `<manager> run build` script only exists in the package directory.
+    const ownBuildScript = /^(?:npm|pnpm|yarn|bun) run build$/.test(service.buildCommand ?? '');
+    const buildRoot = ownBuildScript ? service.path : (service.buildRoot ?? service.path);
     const contentType =
       service.framework === 'gatsby'
         ? 'gatsby-static-website'
@@ -1074,7 +1128,8 @@ const buildServiceResource = ({
             type: 'http-api-gateway',
             properties: {
               httpApiGatewayName,
-              method: trigger.method.toUpperCase(),
+              // SAM and Serverless spell the catch-all `ANY`; the HTTP API gateway event takes `*`.
+              method: /^(?:any|\*)$/i.test(trigger.method) ? '*' : trigger.method.toUpperCase(),
               path: trigger.path
             }
           });
@@ -1084,7 +1139,7 @@ const buildServiceResource = ({
       if (trigger.type === 'schedule') {
         events.push({
           type: 'schedule',
-          properties: { scheduleRate: trigger.rate }
+          properties: { scheduleRate: normalizeScheduleExpression(trigger.rate) }
         });
         continue;
       }
@@ -1120,7 +1175,10 @@ const buildServiceResource = ({
       properties: {
         packaging: {
           type: JS_ENTRY_FILE.test(service.functionEntrypoint ?? '') ? 'js-bundle' : 'buildpack',
-          properties: { entryfilePath: service.functionEntrypoint }
+          properties: {
+            entryfilePath: service.functionEntrypoint,
+            ...(service.functionHandler === undefined ? {} : { handlerFunction: service.functionHandler })
+          }
         },
         ...(events.length === 0 ? {} : { events }),
         ...(requiresVpc ? { joinDefaultVpc: true } : {}),
@@ -1161,7 +1219,7 @@ const buildServiceResource = ({
       type: 'batch-job',
       properties: {
         container: {
-          packaging: packagingFor(service, packageManager)
+          packaging: packagingFor(service, packageManager, siblingDockerfile)
         },
         resources: { ...profile.container },
         ...(service.schedule === undefined
@@ -1170,7 +1228,7 @@ const buildServiceResource = ({
               events: [
                 {
                   type: 'schedule',
-                  properties: { scheduleRate: service.schedule }
+                  properties: { scheduleRate: normalizeScheduleExpression(service.schedule) }
                 }
               ]
             }),
@@ -1187,7 +1245,7 @@ const buildServiceResource = ({
   return {
     type: resourceType,
     properties: {
-      packaging: packagingFor(service, packageManager),
+      packaging: packagingFor(service, packageManager, siblingDockerfile),
       resources: { ...profile.container },
       // Scaling is only meaningful for something that stays up. A batch job is sized, not scaled.
       scaling: {

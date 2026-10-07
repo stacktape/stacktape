@@ -3,7 +3,7 @@
 import { posix } from 'node:path';
 import type { ServiceFactInput } from '../../facts/service';
 import { citeFirstMatch, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
-import { nearestManifestRoot } from '../service-root';
+import { nearestManifestRoot, withoutSampleDirectories } from '../service-root';
 
 const javaServiceExposesHttp = async (root: string, context: ProbeContext): Promise<boolean> => {
   const manifestNames = ['pom.xml', 'build.gradle', 'build.gradle.kts'];
@@ -114,7 +114,7 @@ const detectionFor = (path: string, raw: string): Detection | undefined => {
 export const serverEntrypointProbe: Probe = {
   name: 'server-entrypoint',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
-    const candidates = context.files.filter(
+    const candidates = withoutSampleDirectories(context.files).filter(
       (path) =>
         /\.(?:[cm]?js|tsx?|py|php|go|java|kt)$/.test(path) &&
         !/(?:^|\/)(?:test|tests|__tests__|spec|fixtures)(?:\/|$)/i.test(path) &&

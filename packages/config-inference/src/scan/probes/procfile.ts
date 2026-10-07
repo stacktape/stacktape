@@ -134,6 +134,8 @@ export const safeMigrationClauseOf = (command: string): string | undefined => {
   return candidates.length === 1 ? candidates[0] : undefined;
 };
 
+const DATASTORE_PROCESS = /^(?:\S+=\S+\s+)*(?:redis-server|valkey-server|postgres|mysqld|mariadbd|mongod|memcached)\b/;
+
 export const procfileProbe: Probe = {
   name: 'procfile',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
@@ -194,6 +196,10 @@ export const procfileProbe: Probe = {
         });
         continue;
       }
+
+      // A Procfile line that starts a datastore (`redis: redis-server config/redis.conf`) is how a single-container
+      // image carries its own Redis. The store is a dependency Stacktape provisions, not a worker to run.
+      if (DATASTORE_PROCESS.test(command)) continue;
 
       const isWeb = name === 'web';
       if (isWeb) webService = name;

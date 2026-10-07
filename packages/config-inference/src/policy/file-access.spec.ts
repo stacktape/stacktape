@@ -7,6 +7,13 @@ import {
 } from './file-access';
 
 describe('classifyFileAccess', () => {
+  it("reads a Rust crate's binaries in src/bin but still skips build output named bin", () => {
+    expect(classifyFileAccess('src/bin/handler.rs')).not.toBe('blocked');
+    expect(classifyFileAccess('services/api/src/bin/worker/main.rs')).not.toBe('blocked');
+    expect(classifyFileAccess('bin/Release/net8.0/App.dll')).toBe('blocked');
+    expect(classifyFileAccess('Api/bin/Debug/App.dll')).toBe('blocked');
+  });
+
   it('reads ordinary source and configuration files', () => {
     expect(classifyFileAccess('src/index.ts')).toBe('read');
     expect(classifyFileAccess('docker-compose.yml')).toBe('read');

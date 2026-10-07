@@ -5,7 +5,7 @@ import type {
   PackagingProgressLogger as ProgressLogger
 } from '../runtime-contracts';
 import { basename, join } from 'node:path';
-import { serializeEnvironment } from '../runtime-helpers';
+import { hostBuildEnvironment } from '../runtime-helpers';
 import { copy, emptyDir, ensureDir, outputFile, pathExists, readFile, remove, writeFile } from 'fs-extra';
 import { buildUsingCustomArtifact } from '../artifact/custom-artifact';
 import type { EnvironmentVar } from '@stacktape/config/shared';
@@ -503,7 +503,7 @@ export const createSsrWebArtifacts = async ({
     });
   }
 
-  const copyEnv = serializeEnvironment(process.env);
+  const copyEnv = hostBuildEnvironment(process.env);
 
   // Add environment variables
   environmentVars.forEach((env) => {
@@ -591,9 +591,10 @@ export const createSsrWebArtifacts = async ({
           }
         }
       } catch (error) {
+        // The CLI prints the message, not the cause: without the cause's text the user sees only the resource name.
         throw createPackagingError({
           type: 'PACKAGING',
-          message: `Error when packaging ${resourceType} "${resourceName}".`,
+          message: `Error when packaging ${resourceType} "${resourceName}".\n${error instanceof Error ? error.message : String(error)}`,
           cause: error
         });
       }

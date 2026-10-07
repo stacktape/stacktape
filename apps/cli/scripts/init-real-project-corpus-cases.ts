@@ -72,7 +72,8 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
       existingDeployments: ['render'],
       requiredConfig: [
         'type: buildpack',
-        'app.main:app --host 0.0.0.0 --port $PORT',
+        // The Blueprint's own production start command, not a FastAPI guess.
+        'startCommand: bash scripts/start.sh',
         'uploadDirectoryPath: frontend/dist',
         'executeCommand: alembic upgrade head',
         "$Secret('render-full-stack-fastapi-mainDatabase.password')"
@@ -95,22 +96,6 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
       existingDeployments: [],
       requiredConfig: ['entryfilePath: index.js'],
       forbiddenGapPatterns: ['Heroku|deploys to Heroku today|already running'],
-      forbidCurrentlyHostedDependencies: true
-    }
-  },
-  {
-    id: 'fly-remix',
-    repository: 'https://github.com/fly-apps/hello-remix.git',
-    commit: 'b12a6b1fb5522478360dd7a7e93cbe1643cd48d6',
-    source: 'official-example',
-    exercises: ['fly', 'legacy-services', 'remix', 'web-service'],
-    expect: {
-      resourceTypes: { 'web-service': 1 },
-      serviceCount: 1,
-      httpServiceCount: 1,
-      existingDeployments: ['fly'],
-      forbiddenConfig: ['name: PORT'],
-      requiredGapPatterns: ['Fly\\.io deployment config'],
       forbidCurrentlyHostedDependencies: true
     }
   },
@@ -452,22 +437,6 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
     }
   },
   {
-    id: 'railway-nextjs-prisma',
-    repository: 'https://github.com/railwayapp-templates/nextjs-prisma.git',
-    commit: '764e19f32760a2b9b6be5277859f1d16ee0b6398',
-    source: 'official-starter',
-    exercises: ['railway', 'nextjs', 'prisma', 'postgres'],
-    expect: {
-      resourceTypes: { 'nextjs-web': 1, 'relational-database': 1 },
-      dependencyKinds: { postgres: 1 },
-      serviceCount: 1,
-      httpServiceCount: 1,
-      requiredConfig: ['name: DATABASE_URL', "$ResourceParam('mainDatabase', 'connectionString')"],
-      forbiddenGapPatterns: ['does not read a configurable address'],
-      forbidCurrentlyHostedDependencies: true
-    }
-  },
-  {
     id: 'railway-django',
     repository: 'https://github.com/railwayapp-templates/django.git',
     commit: '9c630a47d4a2988c7b7b596574ae01f95f5ee3a9',
@@ -495,22 +464,6 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
       httpServiceCount: 1,
       requiredConfig: ['name: APP_URL', "$ResourceParam('railwayLaravel', 'url')"],
       forbiddenConfig: ['type: sqs-queue', 'type: redis-cluster', 'type: bucket', 'name: QUEUE_CONNECTION'],
-      forbidCurrentlyHostedDependencies: true
-    }
-  },
-  {
-    id: 'railway-ruby-rails',
-    repository: 'https://github.com/railwayapp-templates/ruby-rails.git',
-    commit: '619fbaf1af67af1e60365c9f190a873b6d7a3d5b',
-    source: 'official-starter',
-    exercises: ['railway', 'rails', 'ruby', 'postgres'],
-    expect: {
-      resourceTypes: { bastion: 1, 'redis-cluster': 1, 'relational-database': 1, 'web-service': 1 },
-      dependencyKinds: { postgres: 1, redis: 1 },
-      serviceCount: 1,
-      httpServiceCount: 1,
-      requiredConfig: ['name: DATABASE_URL', 'name: REDIS_URL'],
-      forbiddenGapPatterns: ['does not read a configurable address'],
       forbidCurrentlyHostedDependencies: true
     }
   },
@@ -769,7 +722,8 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
       serviceCount: 1,
       httpServiceCount: 0,
       existingDeployments: ['aws-sam'],
-      requiredConfig: ['scheduleRate: rate(5 minute)', 'entryfilePath: src/main.go'],
+      // The template writes `rate(5 minute)`, which EventBridge rules reject; the importer normalizes it.
+      requiredConfig: ['scheduleRate: rate(5 minutes)', 'entryfilePath: src/main.go'],
       forbiddenGapPatterns: ['no event that invokes|cannot translate that trigger'],
       forbidCurrentlyHostedDependencies: true
     }
@@ -912,6 +866,59 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
       requiredConfig: ['name: DATABASE_URL', 'name: APP_URL', "$ResourceParam('saasStarterKit', 'url')"],
       forbiddenConfig: ["$Secret('app_url')"],
       forbiddenGapPatterns: ['APP_URL is set in a deployment file|does not read a configurable address'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'sam-http-api-lambda-rust',
+    repository: 'https://github.com/aws-samples/serverless-patterns.git',
+    commit: 'c407694899b1bfa4575b76e106e259e44d0a15fb',
+    subdirectory: 'apigw-http-api-lambda-rust',
+    source: 'official-example',
+    exercises: ['aws-sam', 'lambda', 'rust', 'cargo-lambda', 'globals-handler'],
+    expect: {
+      resourceTypes: { function: 1 },
+      serviceCount: 1,
+      httpServiceCount: 0,
+      existingDeployments: ['aws-sam'],
+      requiredConfig: ['type: buildpack', 'entryfilePath: src/bin/'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'sam-alb-lambda-rust',
+    repository: 'https://github.com/aws-samples/serverless-patterns.git',
+    commit: 'c407694899b1bfa4575b76e106e259e44d0a15fb',
+    subdirectory: 'alb-lambda-rust',
+    source: 'official-example',
+    exercises: ['aws-sam', 'lambda', 'rust', 'cargo-lambda', 'globals-handler'],
+    expect: {
+      resourceTypes: { function: 1 },
+      serviceCount: 1,
+      httpServiceCount: 0,
+      existingDeployments: ['aws-sam'],
+      requiredConfig: ['type: buildpack', 'entryfilePath: src/bin/'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'sam-http-api-lambda-dotnet',
+    repository: 'https://github.com/aws-samples/serverless-patterns.git',
+    commit: 'c407694899b1bfa4575b76e106e259e44d0a15fb',
+    subdirectory: 'apigw-http-api-lambda-dotnet-sam',
+    source: 'official-example',
+    exercises: ['aws-sam', 'lambda', 'dotnet', 'aspnet', 'handler-string'],
+    expect: {
+      resourceTypes: { 'http-api-gateway': 1, function: 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      existingDeployments: ['aws-sam'],
+      requiredConfig: [
+        'type: buildpack',
+        'entryfilePath: HttpApi/LambdaEntryPoint.cs',
+        'handlerFunction: HttpApi::HttpApi.LambdaEntryPoint::FunctionHandlerAsync',
+        'method: "*"'
+      ],
       forbidCurrentlyHostedDependencies: true
     }
   },

@@ -1482,6 +1482,34 @@ export class ConfigManager {
     });
   }
 
+  /**
+   * Whether this command needs the project's Node dependencies installed on this machine: something bundles or runs
+   * project code here rather than inside a container build. A Rails or Django project with a `package.json` for its
+   * assets, deployed as `buildpack` or `dockerfile`, builds those assets in the image and must not fail on a host
+   * package manager it never needed.
+   */
+  get hostNodeDependenciesRequired(): boolean {
+    if (Object.keys(this.hooks).length > 0 || Object.keys(this.scripts).length > 0) return true;
+    const bundlesHere = ({ packaging }: { packaging?: { type: string } | undefined }) =>
+      packaging?.type === 'js-bundle';
+    return (
+      this.allUserCodeLambdas.some(bundlesHere) ||
+      this.allContainers.some(bundlesHere) ||
+      this.agentCoreRuntimes.some(bundlesHere) ||
+      this.hostingBuckets.some(({ build }) => build !== undefined) ||
+      this.nextjsWebs.length > 0 ||
+      this.astroWebs.length > 0 ||
+      this.nuxtWebs.length > 0 ||
+      this.sveltekitWebs.length > 0 ||
+      this.solidstartWebs.length > 0 ||
+      this.tanstackWebs.length > 0 ||
+      this.remixWebs.length > 0 ||
+      this.syntheticTests.length > 0 ||
+      this.awsCdkConstructs.length > 0 ||
+      this.convexes.length > 0
+    );
+  }
+
   get hooks() {
     return this.config.hooks || {};
   }

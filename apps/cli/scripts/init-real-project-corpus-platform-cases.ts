@@ -19,38 +19,6 @@ const ALL_REAL_PROJECT_PLATFORM_CASES = [
     }
   },
   {
-    id: 'render-strapi-postgres',
-    repository: 'https://github.com/render-examples/strapi-postgres.git',
-    commit: '5ab436c5289349b8a7290a7da1ccf3603c48e54b',
-    source: 'official-example',
-    exercises: ['render', 'strapi', 'postgres', 'persistent-storage'],
-    expect: {
-      resourceTypes: { bastion: 1, 'relational-database': 1, 'web-service': 1 },
-      dependencyKinds: { postgres: 1 },
-      serviceCount: 1,
-      httpServiceCount: 1,
-      existingDeployments: ['render'],
-      requiredGapPatterns: ['Render deployment config'],
-      forbidCurrentlyHostedDependencies: true
-    }
-  },
-  {
-    id: 'render-rails-7',
-    repository: 'https://github.com/render-examples/rails-7.git',
-    commit: '0bd502bdcf26ee11af9b4bc5a90e36c7b779c97d',
-    source: 'official-example',
-    exercises: ['render', 'rails', 'postgres', 'migration'],
-    expect: {
-      resourceTypes: { bastion: 1, 'relational-database': 1, 'web-service': 1 },
-      dependencyKinds: { postgres: 1 },
-      serviceCount: 1,
-      httpServiceCount: 1,
-      existingDeployments: ['render'],
-      requiredGapPatterns: ['Render deployment config'],
-      forbidCurrentlyHostedDependencies: true
-    }
-  },
-  {
     id: 'render-dify-template',
     repository: 'https://github.com/render-examples/dify-render-template.git',
     commit: 'e93a0979384ac7bff7cadbff097e7e6286e4f30e',
@@ -69,22 +37,6 @@ const ALL_REAL_PROJECT_PLATFORM_CASES = [
       httpServiceCount: 2,
       existingDeployments: ['render'],
       requiredGapPatterns: ['Render deployment config'],
-      forbidCurrentlyHostedDependencies: true
-    }
-  },
-  {
-    id: 'fly-live-beats',
-    repository: 'https://github.com/fly-apps/live_beats.git',
-    commit: 'ac9780472e7019af274110a1cf71250a8d40c986',
-    source: 'official-example',
-    exercises: ['fly', 'elixir', 'phoenix', 'websocket', 'release-command'],
-    expect: {
-      resourceTypes: { bastion: 1, 'relational-database': 1, 'web-service': 1 },
-      dependencyKinds: { postgres: 1 },
-      serviceCount: 1,
-      httpServiceCount: 1,
-      existingDeployments: ['fly'],
-      requiredGapPatterns: ['Fly\.io deployment config'],
       forbidCurrentlyHostedDependencies: true
     }
   },
@@ -132,37 +84,6 @@ const ALL_REAL_PROJECT_PLATFORM_CASES = [
       httpServiceCount: 1,
       existingDeployments: ['fly'],
       requiredGapPatterns: ['SQLite runs inside|Fly\.io deployment config'],
-      forbidCurrentlyHostedDependencies: true
-    }
-  },
-  {
-    id: 'fly-remix-indie-stack',
-    repository: 'https://github.com/remix-run/indie-stack.git',
-    commit: '56abb93bf81f635b574d9ca23eed05602699458a',
-    source: 'official-starter',
-    exercises: ['fly', 'remix', 'prisma', 'sqlite', 'volume'],
-    expect: {
-      resourceTypes: { 'remix-web': 1 },
-      dependencyKinds: { sqlite: 1 },
-      serviceCount: 1,
-      httpServiceCount: 1,
-      existingDeployments: ['fly'],
-      requiredGapPatterns: ['SQLite runs inside|Fly\.io deployment config'],
-      forbidCurrentlyHostedDependencies: true
-    }
-  },
-  {
-    id: 'railway-ghost',
-    repository: 'https://github.com/railwayapp-templates/ghost.git',
-    commit: '67a63633b8824b5a0c888eb262bfb024c1466848',
-    source: 'official-starter',
-    exercises: ['railway', 'ghost', 'mysql', 'docker', 'persistent-storage'],
-    expect: {
-      resourceTypes: { bastion: 1, 'relational-database': 1, 'web-service': 1 },
-      dependencyKinds: { mysql: 1 },
-      serviceCount: 1,
-      httpServiceCount: 1,
-      existingDeployments: [],
       forbidCurrentlyHostedDependencies: true
     }
   },

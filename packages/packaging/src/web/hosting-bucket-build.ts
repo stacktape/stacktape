@@ -4,8 +4,8 @@ import type {
   PackagingProgressLogger as ProgressLogger
 } from '../runtime-contracts';
 import { isAbsolute, join } from 'node:path';
-import { serializeEnvironment } from '../runtime-helpers';
-import { parseCommand } from '../process/command';
+import { hostBuildEnvironment } from '../runtime-helpers';
+import { shellInvocation } from '../process/command';
 
 /**
  * Strips ANSI escape codes from a string.
@@ -356,10 +356,11 @@ export const buildHostingBucket = async ({
   let outputBuffer = '';
 
   try {
-    const [command, ...args] = parseCommand(build.command);
+    // Imported and hand-written build commands chain steps (`npm ci && npm run build`); a shell runs them as written.
+    const [command, args] = shellInvocation(build.command);
     await executeProcess(command, args, {
       cwd: workingDir,
-      env: { ...serializeEnvironment(process.env), FORCE_COLOR: '1' },
+      env: { ...hostBuildEnvironment(process.env), FORCE_COLOR: '1' },
       onOutputLine: (line) => {
         outputBuffer += `${line}\n`;
       }

@@ -9,7 +9,7 @@ import type {
 import type { NextjsWeb } from '@stacktape/config/nextjs-web';
 import { join } from 'node:path';
 import { dirExists, isFileAccessible } from '../fs/files';
-import { serializeEnvironment } from '../runtime-helpers';
+import { hostBuildEnvironment } from '../runtime-helpers';
 import { EDGE_LAMBDA_ENV_ASSET_REPLACER_PLACEHOLDER } from './constants';
 import { copy, emptyDir, move, outputFile, readJson, readdir, remove, writeFile } from 'fs-extra';
 import kleur from 'kleur';
@@ -48,6 +48,8 @@ type PackagedNextjsWeb = NextjsWeb['properties'] & {
 
 type OpenNextConfig = Pick<UpstreamOpenNextConfig, 'buildCommand' | 'default' | 'functions'>;
 const OPEN_NEXT_BUILD_PACKAGE = '@opennextjs/aws@3.10.4';
+/** Any URL string: `prisma generate` reads it from the config file but does not use it. */
+const PRISMA_GENERATE_PLACEHOLDER_URL = 'postgresql://stacktape:generate@127.0.0.1:5432/generate';
 
 export const getWindowsNextBuildCommand = (nextVersion: string | undefined) => {
   const majorVersion = Number(nextVersion?.split('.')[0]);
@@ -76,7 +78,7 @@ export const createNextjsWebArtifacts = async ({
   executeProcess,
   loadModuleExport
 }: NextjsWebBundlingProps) => {
-  const copyEnv = serializeEnvironment(process.env);
+  const copyEnv = hostBuildEnvironment(process.env);
   const absoluteAppDirectory = join(cwd, resource.appDirectory || '.');
   environmentVars.forEach((env) => {
     copyEnv[env.name] = String(env.value);
@@ -99,7 +101,10 @@ export const createNextjsWebArtifacts = async ({
         if (hasDefaultPrismaSchema(absoluteAppDirectory)) {
           await executeProcess('npx', ['--no-install', 'prisma', 'generate'], {
             cwd: absoluteAppDirectory,
-            env: { ...copyEnv },
+            // Prisma 7 evaluates `env('DATABASE_URL')` in prisma.config.ts before it generates, and fails when the
+            // variable is missing; generation never connects, so a placeholder is enough. The real value is set on the
+            // deployed Lambda. A value already in the environment wins.
+            env: { DATABASE_URL: PRISMA_GENERATE_PLACEHOLDER_URL, ...copyEnv },
             disableStderr: true,
             disableStdout: true,
             inheritEnvVarsExcept: []

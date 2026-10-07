@@ -153,6 +153,13 @@ export const isSkippedDirectoryName = (name: string): boolean =>
   SKIPPED_DIRECTORY_NAMES.has(name) || CREDENTIAL_DIRECTORY_NAMES.has(name.toLowerCase());
 
 /**
+ * The same question for a directory at a known place. `bin` is build output for .NET and holds scripts elsewhere,
+ * but `src/bin` is where a Rust crate keeps the sources of its binaries, and hiding it hides the program.
+ */
+export const isSkippedDirectory = (name: string, parentName: string | undefined): boolean =>
+  name === 'bin' && parentName === 'src' ? false : isSkippedDirectoryName(name);
+
+/**
  * Classify a repository-relative POSIX path.
  *
  * Containment is *not* checked here — that belongs to whoever resolves the path against a root, and
@@ -161,7 +168,7 @@ export const isSkippedDirectoryName = (name: string): boolean =>
  */
 export const classifyFileAccess = (repoRelativePath: string): FileAccess => {
   const segments = repoRelativePath.split('/');
-  if (segments.slice(0, -1).some((segment) => isSkippedDirectoryName(segment))) {
+  if (segments.slice(0, -1).some((segment, index) => isSkippedDirectory(segment, segments[index - 1]))) {
     return 'blocked';
   }
 

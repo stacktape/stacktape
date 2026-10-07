@@ -69,7 +69,10 @@ export const classifyService = (service: ServiceFact): ServiceClassification => 
     };
   }
 
-  const frameworkResource = service.framework === undefined ? undefined : FRAMEWORK_RESOURCES[service.framework];
+  // An Astro project with no server adapter only produces files; the static rule below places it.
+  const staticAstro = service.framework === 'astro' && !service.exposesHttp && service.servesStaticAssets !== undefined;
+  const frameworkResource =
+    service.framework === undefined || staticAstro ? undefined : FRAMEWORK_RESOURCES[service.framework];
   if (frameworkResource !== undefined) {
     return {
       resourceType: frameworkResource,

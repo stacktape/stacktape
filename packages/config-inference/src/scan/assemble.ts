@@ -129,6 +129,26 @@ const mergeDependencies = (outputs: readonly ProbeOutput[]): DependencyFact[] =>
 const serviceKey = (service: ServiceFactInput): string =>
   service.processType === undefined ? service.path : `${service.path}::${service.processType}`;
 
+const languageFamily = (language: string | undefined): string | undefined =>
+  language === undefined || language === 'unknown' || language === 'container'
+    ? undefined
+    : language === 'typescript'
+      ? 'javascript'
+      : language;
+
+/**
+ * Two descriptions of one service agree on its language. A Go server at the repository root and the React client
+ * in `web/` that shares its package name (memos) are two services, and merging them by name loses the server.
+ */
+const languagesConflict = (
+  left: Pick<ServiceFactInput, 'language'>,
+  right: Pick<ServiceFactInput, 'language'>
+): boolean => {
+  const leftFamily = languageFamily(left.language);
+  const rightFamily = languageFamily(right.language);
+  return leftFamily !== undefined && rightFamily !== undefined && leftFamily !== rightFamily;
+};
+
 const normalizedServiceName = (service: Pick<ServiceFactInput, 'name'>): string =>
   service.name.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
 
@@ -190,6 +210,7 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
       ? undefined
       : (existing.port ?? incoming.port),
   processType: existing.processType ?? incoming.processType,
+  javascriptRuntime: existing.javascriptRuntime ?? incoming.javascriptRuntime,
   framework: existing.framework ?? incoming.framework,
   runtimeVersion: existing.runtimeVersion ?? incoming.runtimeVersion,
   buildCommand: existing.buildCommand ?? incoming.buildCommand,
@@ -197,6 +218,7 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
   buildRoot: existing.buildRoot ?? incoming.buildRoot,
   containerEntrypoint: existing.containerEntrypoint ?? incoming.containerEntrypoint,
   functionEntrypoint: existing.functionEntrypoint ?? incoming.functionEntrypoint,
+  functionHandler: existing.functionHandler ?? incoming.functionHandler,
   functionTriggers: [
     ...new Map(
       [...(existing.functionTriggers ?? []), ...(incoming.functionTriggers ?? [])].map((trigger) => [
@@ -241,7 +263,8 @@ const genericMergeTarget = (
   );
   if (exactCommandMatches.length === 1) return exactCommandMatches[0];
   const exactNameMatches = entries.filter(
-    ([, service]) => normalizedServiceName(service) === normalizedServiceName(incoming)
+    ([, service]) =>
+      normalizedServiceName(service) === normalizedServiceName(incoming) && !languagesConflict(service, incoming)
   );
   if (exactNameMatches.length === 1) return exactNameMatches[0];
   const candidates = entries.filter(
@@ -296,12 +319,14 @@ const genericMergeTarget = (
       comesFromAnotherDescription &&
       existingName.length >= 3 &&
       existingName === incomingName &&
+      !languagesConflict(service, incoming) &&
       (service.path === '.' || incoming.path === '.')
     ) {
       return true;
     }
     return (
       Math.min(existingName.length, incomingName.length) >= 4 &&
+      !languagesConflict(service, incoming) &&
       (service.servesStaticAssets !== undefined || incoming.servesStaticAssets !== undefined) &&
       (existingName.endsWith(incomingName) || incomingName.endsWith(existingName))
     );
@@ -431,6 +456,13 @@ const mergeServices = (
       service.processType !== undefined && service.dockerfile !== undefined ? [service.dockerfile] : []
     )
   );
+  // A package whose entry file is a Lambda handler (a Hono app wrapped with `handle(app)`) is a function; the HTTP
+  // framework in its manifest does not also make it a server.
+  const functionPaths = new Set(
+    merged.flatMap((service) => (service.functionEntrypoint === undefined ? [] : [service.path]))
+  );
+  const ownsFunction = (path: string) =>
+    functionPaths.has(path) || functionPaths.has(path === '.' ? 'src' : `${path}/src`);
   const services = merged.filter(
     (service) =>
       !(
@@ -440,6 +472,15 @@ const mergeServices = (
         service.startCommand === undefined &&
         service.containerEntrypoint === undefined &&
         service.functionEntrypoint === undefined
+      ) &&
+      !(
+        service.processType === undefined &&
+        service.functionEntrypoint === undefined &&
+        service.dockerfile === undefined &&
+        service.startCommand === undefined &&
+        service.containerEntrypoint === undefined &&
+        service.servesStaticAssets === undefined &&
+        ownsFunction(service.path)
       )
   );
 

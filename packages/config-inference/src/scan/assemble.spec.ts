@@ -2,8 +2,12 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'bun:test';
+import { composeConfig } from '../compose/compose';
 import { assembleCandidateFacts } from './assemble';
 import { environmentProbe } from './probes/environment';
+import { dockerfileProbe } from './probes/dockerfile';
+import { lambdaSourceProbe } from './probes/lambda-source';
+import { languageManifestProbe } from './probes/language-manifests';
 import { manifestProbe } from './probes/manifest';
 import { staticSiteProbe } from './probes/static-site';
 
@@ -398,6 +402,166 @@ describe('assembleCandidateFacts', () => {
     expect(facts.services[0]?.startCommand).toBeUndefined();
   });
 
+  it('tells a server written for Bun from a project that only installs with Bun', async () => {
+    const bunServer = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'api',
+        scripts: { dev: 'bun run --hot src/index.ts' },
+        dependencies: { hono: '^4.0.0' },
+        devDependencies: { '@types/bun': 'latest' }
+      })
+    });
+    expect(
+      (await assembleCandidateFacts({ root: bunServer, probes: PROBES })).facts.services[0]?.javascriptRuntime
+    ).toBe('bun');
+
+    const nodeServer = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'api',
+        scripts: { start: 'node dist/index.js', build: 'bun run build:js' },
+        dependencies: { hono: '^4.0.0' }
+      }),
+      'bun.lock': '{}'
+    });
+    expect(
+      (await assembleCandidateFacts({ root: nodeServer, probes: PROBES })).facts.services[0]?.javascriptRuntime
+    ).toBeUndefined();
+  });
+
+  it("does not deploy a monorepo's example packages", async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({ name: 'whiteboard', private: true, workspaces: ['app', 'examples/*'] }),
+      'app/package.json': JSON.stringify({
+        name: 'whiteboard-app',
+        scripts: { start: 'node server.js' },
+        dependencies: { express: '^5.0.0' }
+      }),
+      'examples/with-nextjs/package.json': JSON.stringify({
+        name: 'with-nextjs',
+        scripts: { build: 'next build', start: 'next start' },
+        dependencies: { next: '^16.0.0' }
+      })
+    });
+    expect(
+      (await assembleCandidateFacts({ root: repoRoot, probes: PROBES })).facts.services.map(({ name }) => name)
+    ).toEqual(['whiteboard-app']);
+
+    // A repository that holds nothing but starters still offers them.
+    const startersRoot = await makeRepo({
+      'templates/api/package.json': JSON.stringify({
+        name: 'api-starter',
+        scripts: { start: 'node index.js' },
+        dependencies: { hono: '^4.0.0' }
+      })
+    });
+    expect(
+      (await assembleCandidateFacts({ root: startersRoot, probes: PROBES })).facts.services.map(({ name }) => name)
+    ).toEqual(['api-starter']);
+  });
+
+  it('does not deploy a package whose start script only runs a development server', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({ name: 'whiteboard', private: true, workspaces: ['app', 'dev-docs'] }),
+      'app/package.json': JSON.stringify({
+        name: 'whiteboard-app',
+        scripts: { start: 'yarn && vite', build: 'vite build' },
+        dependencies: { react: '^19.0.0' }
+      }),
+      'dev-docs/package.json': JSON.stringify({
+        name: 'docs',
+        scripts: { start: 'docusaurus start', build: 'docusaurus build' },
+        dependencies: { '@docusaurus/core': '^3.0.0' }
+      })
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+
+    expect(facts.services).toEqual([]);
+  });
+
+  it('keeps a Lambda-wrapped HTTP app a function rather than a server', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({ name: 'api', dependencies: { hono: '^4.0.0', '@hono/aws-lambda': '^1.0.0' } }),
+      'src/index.ts': "import { handle } from '@hono/aws-lambda';\nexport const handler = handle(app);\n"
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: [manifestProbe, lambdaSourceProbe] });
+
+    expect(facts.services.map(({ functionEntrypoint, exposesHttp }) => ({ functionEntrypoint, exposesHttp }))).toEqual([
+      { functionEntrypoint: 'src/index.ts', exposesHttp: false }
+    ]);
+  });
+
+  it('treats React Router framework mode as an HTTP service', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'storefront',
+        scripts: { build: 'react-router build', start: 'react-router-serve ./build/server/index.js' },
+        dependencies: { '@react-router/node': '^7.0.0', '@react-router/serve': '^7.0.0', react: '^19.0.0' }
+      })
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+
+    expect(facts.services[0]).toMatchObject({ exposesHttp: true, startCommand: 'npm run start' });
+  });
+
+  it('keeps a Go server and its same-named React client as two services', async () => {
+    const repoRoot = await makeRepo({
+      'go.mod': 'module github.com/acme/notes\n\ngo 1.24\n\nrequire github.com/labstack/echo/v4 v4.13.0\n',
+      'main.go': 'package main\n',
+      'scripts/Dockerfile': 'FROM golang:1.24\nCOPY . .\nEXPOSE 5230\nCMD ["notes"]\n',
+      'web/package.json': JSON.stringify({
+        name: 'notes',
+        scripts: { build: 'vite build' },
+        dependencies: { react: '^19.0.0' },
+        devDependencies: { vite: '^7.0.0' }
+      }),
+      'web/index.html': '<div id="root"></div>'
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: [manifestProbe, dockerfileProbe, languageManifestProbe]
+    });
+
+    expect(
+      facts.services
+        .map(({ path, language, dockerfile }) => ({ path, language, dockerfile }))
+        .toSorted((a, b) => a.path.localeCompare(b.path))
+    ).toEqual([
+      { path: '.', language: 'go', dockerfile: 'scripts/Dockerfile' },
+      { path: 'web', language: 'javascript', dockerfile: undefined }
+    ]);
+  });
+
+  it('hosts an Astro project without a server adapter as static files', async () => {
+    const staticRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'marketing-site',
+        scripts: { start: 'astro dev', build: 'astro build' },
+        dependencies: { astro: '^7.0.0', '@astrojs/sitemap': '^3.0.0' }
+      })
+    });
+    const staticFacts = (await assembleCandidateFacts({ root: staticRoot, probes: PROBES })).facts;
+    expect(staticFacts.services[0]).toMatchObject({ exposesHttp: false, servesStaticAssets: { path: 'dist' } });
+    expect(staticFacts.services[0]?.startCommand).toBeUndefined();
+    expect(composeConfig({ facts: staticFacts }).config.resources.marketingSite).toMatchObject({
+      type: 'hosting-bucket',
+      properties: { uploadDirectoryPath: 'dist', build: { command: 'npm run build' } }
+    });
+
+    const serverRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'storefront',
+        scripts: { build: 'astro build' },
+        dependencies: { astro: '^7.0.0', '@astrojs/node': '^9.0.0' }
+      })
+    });
+    const serverFacts = (await assembleCandidateFacts({ root: serverRoot, probes: PROBES })).facts;
+    expect(composeConfig({ facts: serverFacts }).config.resources.storefront?.type).toBe('astro-web');
+  });
+
   it('does not turn a Vite-built workspace library into a static website', async () => {
     const repoRoot = await makeRepo({
       'package.json': JSON.stringify({ name: 'monorepo', private: true, workspaces: ['packages/*'] }),
@@ -414,6 +578,27 @@ describe('assembleCandidateFacts', () => {
 
     expect(facts.services).toEqual([]);
     expect(facts.dependencies[0]?.consumedBy).toEqual([]);
+  });
+
+  it('records which workspace packages a member imports, whatever specifier it uses', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({ name: 'monorepo', private: true, workspaces: ['packages/*', 'shared/*'] }),
+      'packages/api/package.json': JSON.stringify({
+        name: '@acme/api',
+        scripts: { start: 'node index.js' },
+        dependencies: { express: '^5.0.0', '@acme/db': '*', '@acme/ui': 'workspace:*' }
+      }),
+      'shared/db/package.json': JSON.stringify({ name: '@acme/db', private: true }),
+      'shared/ui/package.json': JSON.stringify({ name: '@acme/ui', private: true })
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+
+    expect(facts.services.find((entry) => entry.name === 'api')?.workspace).toEqual({
+      packageName: '@acme/api',
+      internalDependencies: ['@acme/db', '@acme/ui'],
+      buildsFromRoot: false
+    });
   });
 
   it('does not turn a workspace root start orchestrator into a service', async () => {

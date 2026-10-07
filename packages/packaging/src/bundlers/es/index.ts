@@ -322,7 +322,9 @@ export const buildEsCode = async ({
               ignoredModules: IGNORED_MODULES,
               modulePath,
               moduleName,
-              shouldIgnoreAllDeps
+              shouldIgnoreAllDeps,
+              importer: args.importer,
+              importKind: args.kind
             });
             allDependenciesToInstallInDocker.push(...verdict.dependenciesToInstallInDocker);
 
@@ -770,7 +772,9 @@ export const createEsBundle = async ({
     isLambda?: boolean | undefined;
     skipDigestCalculation?: boolean | undefined;
   }) => {
-  await installDependencies({ rootProjectDirPath: cwd, progressLogger });
+  // The entry file's own package (`backend/package.json` beside `backend/src/index.js`) is what the bundle resolves
+  // against; the installer walks up from there to a workspace root when there is one.
+  await installDependencies({ rootProjectDirPath: dirname(resolve(cwd, entryfilePath)), progressLogger });
 
   const distIndexFilePath = join(distFolderPath, 'index.js');
 

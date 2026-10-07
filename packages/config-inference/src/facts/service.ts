@@ -230,6 +230,12 @@ export const serviceShape = {
   language: z.string().min(1),
   /** Declared runtime version, e.g. `22` or `3.12`. Decides buildpack and runtime selection. */
   runtimeVersion: z.string().min(1).optional(),
+  /**
+   * The JavaScript runtime the code is written for, when it is not Node.js. A Bun server (`export default app`,
+   * `Bun.serve`) or a Deno one (`Deno.serve`) starts nothing under Node, so the container must run it with its own
+   * runtime.
+   */
+  javascriptRuntime: z.enum(['bun', 'deno']).optional(),
   framework: z.string().min(1).optional(),
 
   // ── Observations the composer classifies from ────────────────────────────────────────────────
@@ -276,10 +282,20 @@ export const serviceShape = {
   containerEntrypoint: containerEntrypointSchema.optional(),
   /** Source file exporting a Lambda-compatible handler. Its presence proves this is per-invocation compute. */
   functionEntrypoint: repositoryPathSchema.optional(),
+  /**
+   * The handler as the platform names it, when the entry file alone does not identify it. A .NET function is
+   * `Assembly::Namespace.Class::Method`; nothing in `LambdaEntryPoint.cs` says which method the runtime calls.
+   */
+  functionHandler: z.string().min(1).optional(),
   /** Repository-declared events that invoke `functionEntrypoint`. */
   functionTriggers: z.array(functionTriggerSchema).default([]),
   /** Repository-relative path to a Dockerfile, when the service ships one. */
   dockerfile: repositoryPathSchema.optional(),
+  /**
+   * A prebuilt image the service runs from, when the deployment manifest declares one instead of a build (a Render
+   * `image` service, for example). Nothing in the repository is built for it.
+   */
+  containerImage: z.string().min(1).optional(),
   healthCheckPath: z.string().min(1).optional(),
 
   /**

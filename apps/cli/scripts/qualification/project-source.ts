@@ -157,6 +157,26 @@ const copyProject = async ({ sourceRoot, workRoot, id }: { sourceRoot: string; w
       return !excludedSourceNames.has(name);
     }
   });
+  // The checkout's history stays behind (it can be larger than the project), but a customer's project is a Git
+  // repository, and Dockerfiles do read it (`git rev-parse HEAD`). One throwaway commit stands in for it.
+  if (await pathExists(join(sourceRoot, '.git'))) {
+    await runGit(['init', '--quiet'], projectRoot);
+    await runGit(['add', '--all'], projectRoot);
+    await runGit(
+      [
+        '-c',
+        'user.name=qualification',
+        '-c',
+        'user.email=qualification@stacktape.invalid',
+        'commit',
+        '--quiet',
+        '--no-verify',
+        '--message',
+        'qualification snapshot'
+      ],
+      projectRoot
+    );
+  }
   return projectRoot;
 };
 

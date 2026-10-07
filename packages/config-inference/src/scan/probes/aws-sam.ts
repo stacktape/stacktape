@@ -45,6 +45,8 @@ const languageFor = (path: string): string => {
   if (path.endsWith('.go')) return 'go';
   if (path.endsWith('.rb')) return 'ruby';
   if (path.endsWith('.java')) return 'java';
+  if (path.endsWith('.rs')) return 'rust';
+  if (path.endsWith('.cs')) return 'dotnet';
   return 'unknown';
 };
 
@@ -63,6 +65,15 @@ const entrypointFor = (
   const handlerSeparator = handlerValue.lastIndexOf('.');
   const modulePath = normalize(handlerSeparator > 0 ? handlerValue.slice(0, handlerSeparator) : handlerValue);
   const runtime = typeof runtimeValue === 'string' ? runtimeValue : '';
+  if (runtime.startsWith('dotnet')) {
+    // `Assembly::Namespace.Class::Method`: the class file carries the handler.
+    const typeName = handlerValue.split('::')[1]?.trim();
+    const className = typeName?.split('.').at(-1);
+    if (className === undefined || className === '') return undefined;
+    const matches = files.filter((file) => file === `${codeUri}/${className}.cs` || file.endsWith(`/${className}.cs`));
+    const scoped = matches.filter((file) => file.startsWith(`${codeUri}/`) || codeUri === '.');
+    return scoped.length === 1 ? scoped[0] : matches.length === 1 ? matches[0] : undefined;
+  }
   if (runtime.startsWith('java') || handlerValue.includes('::')) {
     const className = handlerValue.split('::')[0]?.trim();
     if (className === undefined || className === '') return undefined;
@@ -74,6 +85,17 @@ const entrypointFor = (
     if (scoped.length === 1) return scoped[0];
     if (matches.length === 1) return matches[0];
     return undefined;
+  }
+  // A Rust function is a `bootstrap` binary built by cargo-lambda: the handler names no file, so the crate's own
+  // binary target is the entry point (`src/main.rs`, or the single file under `src/bin`).
+  if (handlerValue === 'bootstrap' && files.includes(normalize(posix.join(codeUri, 'Cargo.toml')))) {
+    const mainFile = normalize(posix.join(codeUri, 'src/main.rs'));
+    if (files.includes(mainFile)) return mainFile;
+    const binaryPrefix = `${normalize(posix.join(codeUri, 'src/bin'))}/`;
+    const binaries = files.filter(
+      (file) => file.startsWith(binaryPrefix) && /^(?:[^/]+\.rs|[^/]+\/main\.rs)$/.test(file.slice(binaryPrefix.length))
+    );
+    return binaries.length === 1 ? binaries[0] : undefined;
   }
   const extensions = runtime.startsWith('python') ? ['py'] : ['ts', 'tsx', 'js', 'mjs', 'cjs', 'py', 'go', 'rb'];
   const baseCandidates = [
@@ -259,7 +281,8 @@ export const awsSamProbe: Probe = {
           context.files,
           templateDirectory,
           properties.CodeUri ?? globals.CodeUri,
-          properties.Handler,
+          // `Globals.Function` supplies whatever a function leaves out; Rust templates put `Handler: bootstrap` there.
+          properties.Handler ?? globals.Handler,
           properties.Runtime ?? globals.Runtime
         );
         if (entrypoint === undefined) continue;
@@ -275,6 +298,10 @@ export const awsSamProbe: Probe = {
                 /(?:export\s+(?:const|async\s+function|function)\s+\w+|def\s+\w+\s*\(|(?:module\.)?exports(?:\.\w+)?\s*=|class\s+\w+)/,
                 'functionEntrypoint'
               );
+        const handler = properties.Handler ?? globals.Handler;
+        const runtimeName = String(properties.Runtime ?? globals.Runtime ?? '');
+        // .NET's handler names the method; every other runtime's handler is implied by the entry file.
+        const functionHandler = runtimeName.startsWith('dotnet') && typeof handler === 'string' ? handler : undefined;
         const functionTriggers = triggersFor(properties.Events, dependencyNames);
         const environmentVariables = environmentVariablesFor({
           file: templatePath,
@@ -310,6 +337,7 @@ export const awsSamProbe: Probe = {
           exposesHttp: false,
           executionModel: 'per-request',
           functionEntrypoint: entrypoint,
+          ...(functionHandler === undefined ? {} : { functionHandler }),
           functionTriggers,
           environmentVariables,
           evidence: [sourceCitation, ...samEvidence].filter((citation) => citation !== undefined),

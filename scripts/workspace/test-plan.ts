@@ -175,7 +175,7 @@ const RULES: Rule[] = [
   {
     id: 'live-aws',
     proves: 'AWS interprets the changed infrastructure/runtime contract and owned resources are removed afterward.',
-    commands: ['pnpm test:aws -- --aws-scenario=<explicit-scenario>'],
+    commands: ['pnpm test:aws --aws-scenario=<explicit-scenario>'],
     matches: (path) =>
       hasPart(path, /^apps\/console\/api\/(stacktape\.ts|infrastructure)/) ||
       hasPart(path, /^apps\/cli\/(src\/aws|scripts\/real-aws|helper-lambdas)/) ||

@@ -49,3 +49,14 @@ export const parseCommand = (command: string): [string, ...string[]] => {
   if (args.length === 0) throw new Error('Build command cannot be empty.');
   return args as [string, ...string[]];
 };
+
+/**
+ * Runs a command line the way a `package.json` script or a PaaS build command runs: through the platform shell, so
+ * `a && b`, environment expansion and redirections behave as the author expects.
+ */
+export const shellInvocation = (command: string): [string, string[]] => {
+  if (command.trim() === '') throw new Error('Build command cannot be empty.');
+  return process.platform === 'win32'
+    ? [process.env.ComSpec ?? 'cmd.exe', ['/d', '/s', '/c', command]]
+    : ['/bin/sh', ['-c', command]];
+};

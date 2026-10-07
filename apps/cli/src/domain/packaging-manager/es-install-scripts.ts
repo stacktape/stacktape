@@ -6,11 +6,16 @@ import type { SupportedEsPackageManager } from '@stacktape/packaging/runtime-con
  * (https://docs.npmjs.com/using-npm/config/: `audit`, `update-notifier`).
  */
 const NPM_INFORMATIONAL_OPT_OUTS = ['--no-audit', '--no-update-notifier'];
+/**
+ * This machine only bundles the code; the runtime that runs it is chosen in the Stacktape configuration. A project's
+ * `engines.node` with `engine-strict=true` in its `.npmrc` must not stop the bundle on a newer local Node.
+ */
+const NPM_HOST_BUNDLER_OPTIONS = ['--engine-strict=false'];
 
 const installScripts: { [_pm in SupportedEsPackageManager]: { ciInstall: string[]; normalInstall: string[] } } = {
   npm: {
-    ciInstall: ['npm', 'ci', ...NPM_INFORMATIONAL_OPT_OUTS],
-    normalInstall: ['npm', 'install', ...NPM_INFORMATIONAL_OPT_OUTS]
+    ciInstall: ['npm', 'ci', ...NPM_INFORMATIONAL_OPT_OUTS, ...NPM_HOST_BUNDLER_OPTIONS],
+    normalInstall: ['npm', 'install', ...NPM_INFORMATIONAL_OPT_OUTS, ...NPM_HOST_BUNDLER_OPTIONS]
   },
   yarn: {
     ciInstall: ['yarn', 'install', '--frozen-lockfile', '--ignore-platform', '--ignore-engines'],
@@ -33,6 +38,18 @@ const installScripts: { [_pm in SupportedEsPackageManager]: { ciInstall: string[
 const getEsInstallScript = (packageManager: SupportedEsPackageManager, installType: 'normal' | 'CI') => {
   return installScripts[packageManager][installType === 'CI' ? 'ciInstall' : 'normalInstall'];
 };
+
+/**
+ * Yarn 2 and later ("Berry") rejects the classic flags outright (`Unsupported option name "--ignore-platform"`).
+ * Its lockfile opens with a `__metadata:` block, and a project may also declare it in `packageManager`.
+ */
+const isYarnBerry = ({
+  packageManagerDeclaration,
+  lockfile
+}: {
+  packageManagerDeclaration: string | undefined;
+  lockfile: string | undefined;
+}) => /^yarn@(?:[2-9]|\d{2,})\./.test(packageManagerDeclaration ?? '') || /^__metadata:/m.test(lockfile ?? '');
 
 const pnpmVersionForLockfile = (lockfile: string | undefined) => {
   const version = lockfile?.match(/^lockfileVersion:\s*['"]?([^'"\s]+)['"]?\s*$/m)?.[1];
@@ -58,6 +75,9 @@ export const getProjectDependencyInstallScript = ({
   lockfile?: string;
 }) => {
   const installScript = getEsInstallScript(packageManager, installType);
+  if (packageManager === 'yarn' && installType === 'CI' && isYarnBerry({ packageManagerDeclaration, lockfile })) {
+    return ['yarn', 'install', '--immutable'];
+  }
   if (packageManager !== 'pnpm') return installScript;
 
   const version = declaredPnpmVersion(packageManagerDeclaration) ?? pnpmVersionForLockfile(lockfile);

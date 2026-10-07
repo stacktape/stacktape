@@ -70,6 +70,16 @@ describe('qualification project sources', () => {
     );
     expect(await readFile(join(first.projectRoot, 'version.txt'), 'utf8')).toBe('one\n');
     expect(await readFile(join(second.projectRoot, 'version.txt'), 'utf8')).toBe('two\n');
+    // The copy is a Git repository of its own: Dockerfiles that run `git rev-parse HEAD` keep working, without
+    // the checkout's history.
+    const snapshot = await runProcess({
+      command: 'git',
+      args: ['log', '--format=%s', '--all'],
+      cwd: first.projectRoot,
+      timeoutMs: 10_000
+    });
+    assertProcessSucceeded(snapshot);
+    expect(snapshot.stdout.trim().split('\n')).toEqual(['qualification snapshot']);
 
     const cacheDirectories = await readdir(cacheRoot);
     expect(

@@ -8,7 +8,7 @@
 
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { classifyFileAccess, isSkippedDirectoryName } from '../policy/file-access';
+import { classifyFileAccess, isSkippedDirectory } from '../policy/file-access';
 
 export type RepositoryListing = {
   /** Repository-relative POSIX paths, sorted, excluding anything the policy blocks. */
@@ -73,7 +73,7 @@ export const listRepositoryFiles = async (
         const relativePath = relativeDirectory === '' ? entry.name : `${relativeDirectory}/${entry.name}`;
 
         if (entry.isDirectory()) {
-          if (!isSkippedDirectoryName(entry.name)) {
+          if (!isSkippedDirectory(entry.name, relativeDirectory.split('/').at(-1))) {
             nextQueue.push(relativePath);
           }
           continue;

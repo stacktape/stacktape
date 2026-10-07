@@ -114,6 +114,30 @@ describe('the render.yaml importer', () => {
     expect(database?.currentlyHostedOn).toBeUndefined();
   });
 
+  it('keeps the published image of an image service instead of inventing a build', async () => {
+    root = await makeRepo({
+      'render.yaml': [
+        'services:',
+        '  - type: web',
+        '    name: dify-api',
+        '    runtime: image',
+        '    image:',
+        '      url: docker.io/langgenius/dify-api:1.14.2',
+        '    healthCheckPath: /health',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: [paasManifestsProbe] });
+
+    expect(facts.services[0]).toMatchObject({
+      name: 'difyApi',
+      language: 'container',
+      exposesHttp: true,
+      containerImage: 'docker.io/langgenius/dify-api:1.14.2'
+    });
+  });
+
   it('reads current nested projects, production environment databases, groups, and Docker commands', async () => {
     root = await makeRepo({
       'backend/Dockerfile': 'FROM python:3.13\n',

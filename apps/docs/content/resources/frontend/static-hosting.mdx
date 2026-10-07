@@ -63,7 +63,7 @@ export default defineConfig(() => {
 
 ## Build and dev
 
-A hosting-bucket can run one command for deployment builds and a separate command for dev mode. Both commands use the same `HostingBucketBuild` shape: a required `command` and an optional `workingDirectory`, which defaults to the project root when omitted.
+A hosting-bucket can run one command for deployment builds and a separate command for dev mode. Both commands use the same `HostingBucketBuild` shape: a required `command` and an optional `workingDirectory`, which defaults to the project root when omitted. Commands run through the system shell, so `npm ci && npm run build` works as written. When `workingDirectory` has its own `package.json`, Stacktape installs that directory's dependencies before the build.
 
 Use `build` when your static files are generated from source code. Skip `build` when `uploadDirectoryPath` already contains the files you want to upload, such as a directory produced by an external CI job. Use `dev` to tell `stacktape dev` which frontend development server command to run.
 

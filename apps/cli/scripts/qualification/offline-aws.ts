@@ -53,6 +53,24 @@ const emptyJsonReadResponse = (request: IncomingMessage, body: string): Record<s
 const isGetSecretValue = (request: IncomingMessage, body: string) =>
   queryAction(request, body).split('.').at(-1) === 'GetSecretValue';
 
+/**
+ * Stacktape checks that a third-party provider's credentials (MongoDB Atlas, Upstash) exist in Parameter Store
+ * before it packages a project that uses one. Packaging never uses the values, so the guard answers those reads
+ * with a placeholder and refuses every other parameter.
+ */
+const THIRD_PARTY_CREDENTIALS_PARAMETER = /^\/stp\/third-party-provider-credentials\//;
+
+const requestedParameterName = (request: IncomingMessage, body: string): string | undefined => {
+  if (queryAction(request, body).split('.').at(-1) !== 'GetParameter') return undefined;
+  try {
+    const parsed: unknown = JSON.parse(body);
+    const name = typeof parsed === 'object' && parsed !== null ? Reflect.get(parsed, 'Name') : undefined;
+    return typeof name === 'string' ? name : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 const requestedSecretName = (body: string) => {
   try {
     const parsed: unknown = JSON.parse(body);
@@ -121,6 +139,37 @@ export const startOfflineAwsServer = async (): Promise<OfflineAwsServer> => {
       if (emptyRead !== undefined) {
         response.writeHead(200, { 'content-type': 'application/x-amz-json-1.1' });
         response.end(JSON.stringify(emptyRead));
+        return;
+      }
+      // Validating an open-search-domain reads the instance type's storage limits; every real type supports EBS gp3.
+      if (request.method === 'GET' && /^\/2021-01-01\/opensearch\/instanceTypeLimits\//.test(request.url ?? '')) {
+        response.writeHead(200, { 'content-type': 'application/json' });
+        response.end(
+          JSON.stringify({
+            LimitsByRole: {
+              data: {
+                StorageTypes: [{ StorageTypeName: 'ebs', StorageSubTypeName: 'gp3', StorageTypeLimits: [] }],
+                InstanceLimits: { InstanceCountLimits: { MinimumInstanceCount: 1, MaximumInstanceCount: 80 } }
+              }
+            }
+          })
+        );
+        return;
+      }
+      const parameterName = requestedParameterName(request, body);
+      if (parameterName !== undefined && THIRD_PARTY_CREDENTIALS_PARAMETER.test(parameterName)) {
+        response.writeHead(200, { 'content-type': 'application/x-amz-json-1.1' });
+        response.end(
+          JSON.stringify({
+            Parameter: {
+              Name: parameterName,
+              Type: 'SecureString',
+              Value: JSON.stringify({ publicKey: 'offline-value', privateKey: 'offline-value' }),
+              Version: 1,
+              ARN: `arn:aws:ssm:eu-west-1:${OFFLINE_ACCOUNT_ID}:parameter${parameterName}`
+            }
+          })
+        );
         return;
       }
       if (isGetSecretValue(request, body)) {

@@ -37,6 +37,7 @@ export const denoProbe: Probe = {
           name: context.root.split(/[/\\]/).findLast((segment) => segment !== '') ?? 'app',
           path: '.',
           language: 'typescript',
+          javascriptRuntime: 'deno' as const,
           ...(isFresh ? { framework: 'fresh' } : {}),
           exposesHttp: true,
           executionModel: 'long-running',

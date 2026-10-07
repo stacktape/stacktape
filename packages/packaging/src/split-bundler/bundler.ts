@@ -406,7 +406,9 @@ const createAnalyzePlugin = ({
           ignoredModules: IGNORED_MODULES,
           modulePath,
           moduleName,
-          shouldIgnoreAllDeps
+          shouldIgnoreAllDeps,
+          importer: args.importer,
+          importKind: args.kind
         });
         trackDependencies(tracker, args.importer, verdict.dependenciesToInstallInDocker);
 

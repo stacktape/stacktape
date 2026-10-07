@@ -29460,7 +29460,7 @@
         "name": "command",
         "required": true,
         "shortDescription": "<p> Command to run (e.g., <code>npm run build</code>, <code>vite build</code>, <code>npm run dev</code>).</p>",
-        "longDescription": "",
+        "longDescription": "<p>Runs through the system shell, so <code>npm ci &amp;&amp; npm run build</code> works as written. When <code>workingDirectory</code> has its own\n<code>package.json</code>, Stacktape installs its dependencies first.</p>",
         "typeInfo": {
           "kind": "primitive",
           "types": [

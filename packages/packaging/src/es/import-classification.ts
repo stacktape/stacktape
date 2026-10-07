@@ -14,7 +14,7 @@
  */
 import { isBuiltin } from 'node:module';
 import type { PackageJsonDepsInfo } from './bundler-helpers';
-import { determineIfAlias, getInfoFromPackageJson } from './bundler-helpers';
+import { determineIfAlias, getInfoFromPackageJson, isRequireImportKind } from './bundler-helpers';
 import { DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE, IGNORED_OPTIONAL_PEER_DEPS_FROM_INSTALL_IN_DOCKER } from './config';
 
 /** The package a specifier belongs to: `lodash/merge` is `lodash`, `@scope/pkg/sub` is `@scope/pkg`. */
@@ -202,7 +202,9 @@ export const classifyResolvedModule = async ({
   ignoredModules,
   modulePath,
   moduleName,
-  shouldIgnoreAllDeps
+  shouldIgnoreAllDeps,
+  importer,
+  importKind
 }: {
   dependenciesToExcludeFromBundle: string[];
   excludeDependencies: string[];
@@ -211,6 +213,9 @@ export const classifyResolvedModule = async ({
   modulePath: string | null | undefined;
   moduleName: string;
   shouldIgnoreAllDeps: boolean;
+  /** The file doing the import and how, when the bundler knows them. */
+  importer?: string | undefined;
+  importKind?: Bun.ImportKind | undefined;
 }): Promise<ResolvedModuleVerdict> => {
   const readPackageInfo = async (note: string): Promise<PackageJsonDepsInfo[]> => {
     if (!modulePath) return [];
@@ -240,7 +245,22 @@ export const classifyResolvedModule = async ({
     };
   }
 
-  if (!modulePath) return { outcome: 'bundle', dependenciesToInstallInDocker: [] };
+  if (!modulePath) {
+    // A dependency that `require()`s or `import()`s a package nobody installed is probing for an optional integration: NestJS
+    // asks for `@nestjs/microservices`, `ws` for `bufferutil`, inside a try/catch. Node answers that with a runtime
+    // MODULE_NOT_FOUND the library handles; failing the whole bundle instead breaks every such framework. The
+    // project's own code gets no such leniency: a missing import there is a real error.
+    const fromDependency = importer !== undefined && /[\\/]node_modules[\\/]/.test(importer);
+    if (fromDependency && (isRequireImportKind(importKind) || importKind === 'dynamic-import')) {
+      return {
+        outcome: 'external',
+        note: 'OPTIONAL_NOT_INSTALLED',
+        dependenciesToInstallInDocker: [],
+        alsoExternal: []
+      };
+    }
+    return { outcome: 'bundle', dependenciesToInstallInDocker: [] };
+  }
 
   const { allExternalDeps, dependenciesToInstallInDocker } = await analyzeDependency({
     dependenciesToExcludeFromBundle,

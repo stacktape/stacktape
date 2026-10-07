@@ -205,7 +205,8 @@ const HTTP_FRAMEWORKS: ReadonlyArray<{
   { packages: ['slim'], name: 'slim' },
   { packages: ['wordpress'], name: 'wordpress' },
   {
-    packages: ['spring-boot-starter-web', 'spring-boot-starter-webflux'],
+    // Spring Boot 4 renamed the servlet starter to `spring-boot-starter-webmvc`.
+    packages: ['spring-boot-starter-web', 'spring-boot-starter-webmvc', 'spring-boot-starter-webflux'],
     name: 'spring-boot'
   },
   {
@@ -400,6 +401,22 @@ const normalise = (name: string): string => {
   return segments.at(-1) ?? '';
 };
 
+/**
+ * The Java release a build pins: a Gradle toolchain (`JavaLanguageVersion.of(17)`), `sourceCompatibility`, or Maven's
+ * `java.version` / `maven.compiler.release` property. The build tool refuses any other JDK, so the value is a fact.
+ */
+const javaVersionOf = (rawByPath: ReadonlyMap<string, string | undefined>): string | undefined => {
+  const gradle = rawByPath.get('build.gradle') ?? rawByPath.get('build.gradle.kts');
+  const fromGradle =
+    gradle?.match(/JavaLanguageVersion\.of\(\s*(\d+)\s*\)/)?.[1] ??
+    gradle?.match(/sourceCompatibility\s*=\s*(?:JavaVersion\.VERSION_)?['"]?(?:1\.)?(\d+)['"]?/)?.[1];
+  const pom = rawByPath.get('pom.xml');
+  const fromMaven =
+    pom?.match(/<java\.version>\s*(?:1\.)?(\d+)\s*<\/java\.version>/)?.[1] ??
+    pom?.match(/<maven\.compiler\.(?:release|target)>\s*(?:1\.)?(\d+)\s*<\/maven\.compiler\.(?:release|target)>/)?.[1];
+  return fromGradle ?? fromMaven;
+};
+
 export const languageManifestProbe: Probe = {
   name: 'language-manifests',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
@@ -527,6 +544,7 @@ export const languageManifestProbe: Probe = {
       return pattern.exec(prepare === undefined ? raw : prepare(raw))?.[1] ?? undefined;
     }).find((name) => name !== undefined);
     const projectName = declaredName ?? context.root.split(/[/\\]/).findLast((segment) => segment !== '');
+    const javaVersion = language === 'java' ? javaVersionOf(rawByPath) : undefined;
 
     const framework = HTTP_FRAMEWORKS.find((entry) => entry.packages.some((name) => foundIn.has(name)));
     const server = [...HTTP_SERVERS].find((name) => foundIn.has(name));
@@ -552,6 +570,7 @@ export const languageManifestProbe: Probe = {
                 name: projectName ?? 'app',
                 path: '.',
                 language,
+                ...(javaVersion === undefined ? {} : { runtimeVersion: javaVersion }),
                 ...(framework === undefined ? {} : { framework: framework.name }),
                 exposesHttp: true,
                 executionModel: 'long-running' as const,

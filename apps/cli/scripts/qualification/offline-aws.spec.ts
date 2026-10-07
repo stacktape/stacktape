@@ -5,6 +5,7 @@ import { BudgetsClient, DescribeBudgetsCommand } from '@aws-sdk/client-budgets';
 import { CostExplorerClient, GetTagsCommand } from '@aws-sdk/client-cost-explorer';
 import { GetTagKeysCommand, ResourceGroupsTaggingAPIClient } from '@aws-sdk/client-resource-groups-tagging-api';
 import { GetSecretValueCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
+import { GetParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
 import { buildOfflineQualificationEnvironment, startOfflineAwsServer, type OfflineAwsServer } from './offline-aws';
 
 let server: OfflineAwsServer | undefined;
@@ -96,10 +97,45 @@ describe('offline AWS qualification guard', () => {
         secrets.destroy();
       }
 
+      // A project with a MongoDB Atlas cluster checks that provider credentials exist before packaging.
+      const parameters = new SSMClient({
+        endpoint: server.endpoint,
+        region: 'eu-west-1',
+        credentials: { accessKeyId: 'offline', secretAccessKey: 'offline' }
+      });
+      try {
+        const credentials = await parameters.send(
+          new GetParameterCommand({
+            Name: '/stp/third-party-provider-credentials/us-east-1/mongodb-atlas',
+            WithDecryption: true
+          })
+        );
+        expect(JSON.parse(credentials.Parameter?.Value ?? '')).toEqual({
+          publicKey: 'offline-value',
+          privateKey: 'offline-value'
+        });
+        expect(server.unexpectedRequests).toEqual([expect.stringContaining('GetSecretValue:wrong-secret')]);
+        await expect(parameters.send(new GetParameterCommand({ Name: '/app/prod/token' }))).rejects.toThrow();
+        // An open-search-domain validates its instance type's storage support before packaging.
+        const limits = await fetch(
+          `${server.endpoint}/2021-01-01/opensearch/instanceTypeLimits/OpenSearch_2.17/m4.large.search`
+        );
+        expect(limits.status).toBe(200);
+        const limitsBody = (await limits.json()) as { LimitsByRole: { data: { StorageTypes: unknown[] } } };
+        expect(limitsBody.LimitsByRole.data.StorageTypes[0]).toMatchObject({ StorageSubTypeName: 'gp3' });
+        expect(server.unexpectedRequests).toEqual([
+          expect.stringContaining('GetSecretValue:wrong-secret'),
+          expect.stringContaining('GetParameter')
+        ]);
+      } finally {
+        parameters.destroy();
+      }
+
       const blocked = await fetch(`${server.endpoint}/s3-artifact-upload`, { method: 'PUT', body: 'blocked' });
       expect(blocked.status).toBe(501);
       expect(server.unexpectedRequests).toEqual([
         expect.stringContaining('GetSecretValue:wrong-secret'),
+        expect.stringContaining('GetParameter'),
         'PUT /s3-artifact-upload (UnknownAction)'
       ]);
     } finally {
