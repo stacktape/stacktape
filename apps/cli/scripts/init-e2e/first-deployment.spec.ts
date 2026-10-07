@@ -51,8 +51,9 @@ const toolResults = (log: readonly AgentLogEntry[]) =>
   log.filter((entry): entry is Extract<AgentLogEntry, { type: 'tool-result' }> => entry.type === 'tool-result');
 
 /**
- * An Express API whose port lives in a config module and which reads a payment key at request time. The scan
- * finds the service and its entrypoint but neither the port nor what the key is, so the agent is asked.
+ * An Express API whose settings come from a config module that destructures `process.env`. The scan finds the
+ * service and its entrypoint but not the port or the payments token, so the agent is asked; only the agent can
+ * say that the token is a third-party secret.
  */
 const ordersApi = (id: string) => ({
   'package.json': `${JSON.stringify(
@@ -65,14 +66,19 @@ const ordersApi = (id: string) => ({
     null,
     2
   )}\n`,
-  'src/config.js': 'module.exports = { PORT: Number(process.env.PORT || 8080) };\n',
+  'src/config.js': [
+    "const { PAYMENTS_API_TOKEN, PORT = '8080' } = process.env;",
+    '',
+    'module.exports = { port: Number(PORT), paymentsToken: PAYMENTS_API_TOKEN };',
+    ''
+  ].join('\n'),
   'src/server.js': [
     "const express = require('express');",
-    "const { PORT } = require('./config');",
+    "const config = require('./config');",
     '',
     'const app = express();',
-    "app.get('/', (_request, response) => response.json({ service: 'orders', paymentsConfigured: Boolean(process.env.STRIPE_SECRET_KEY) }));",
-    'app.listen(PORT, process.env.HOST);',
+    "app.get('/', (_request, response) => response.json({ service: 'orders', paymentsConfigured: Boolean(config.paymentsToken) }));",
+    'app.listen(config.port, process.env.HOST);',
     ''
   ].join('\n')
 });
@@ -83,7 +89,7 @@ const ordersAgentTranscript = (serviceName: string): AgentScript => ({
   calls: [
     { tool: 'get_project_brief', arguments: {} },
     { tool: 'read_file', arguments: { path: 'src/config.js' } },
-    { tool: 'grep', arguments: { pattern: 'process\\.env\\.STRIPE_SECRET_KEY' } },
+    { tool: 'grep', arguments: { pattern: 'PAYMENTS_API_TOKEN' } },
     {
       tool: 'submit_facts',
       arguments: {
@@ -98,13 +104,13 @@ const ordersAgentTranscript = (serviceName: string): AgentScript => ({
             port: 8080,
             environmentVariables: [
               {
-                name: 'STRIPE_SECRET_KEY',
+                name: 'PAYMENTS_API_TOKEN',
                 role: 'third-party-secret',
                 evidence: [
                   {
-                    file: 'src/server.js',
-                    line: 5,
-                    quote: 'paymentsConfigured: Boolean(process.env.STRIPE_SECRET_KEY)'
+                    file: 'src/config.js',
+                    line: 1,
+                    quote: "const { PAYMENTS_API_TOKEN, PORT = '8080' } = process.env;"
                   }
                 ]
               }
@@ -114,7 +120,7 @@ const ordersAgentTranscript = (serviceName: string): AgentScript => ({
                 field: 'port',
                 file: 'src/config.js',
                 line: 1,
-                quote: 'module.exports = { PORT: Number(process.env.PORT || 8080) };'
+                quote: "const { PAYMENTS_API_TOKEN, PORT = '8080' } = process.env;"
               }
             ]
           }
@@ -158,9 +164,7 @@ describe('stacktape init in the terminal: existing repository to a running artif
       });
       // Tool answers came from the real files through the real MCP server.
       const results = toolResults(init.agentLog);
-      expect(JSON.stringify(results.find((entry) => entry.tool === 'read_file')?.result)).toContain(
-        'process.env.PORT || 8080'
-      );
+      expect(JSON.stringify(results.find((entry) => entry.tool === 'read_file')?.result)).toContain("PORT = '8080'");
       expect(results.find((entry) => entry.tool === 'submit_facts')?.result).toEqual({ accepted: true });
 
       expect(init.output).toContain('Using claude-code');
@@ -171,7 +175,7 @@ describe('stacktape init in the terminal: existing repository to a running artif
       const configText = await readFile(join(sandbox.project, 'stacktape.yml'), 'utf8');
       expect(validateConfigYaml(configText).errors).toEqual([]);
       // The agent's classification reached the file as a secret reference, never as a value.
-      expect(configText).toMatch(/name: STRIPE_SECRET_KEY\n\s+value: \$Secret\('stripe_secret_key'\)/);
+      expect(configText).toMatch(/name: PAYMENTS_API_TOKEN\n\s+value: \$Secret\('payments_api_token'\)/);
       // The price shown is the price of the file that was written.
       expect(init.api.pricedConfigs).toEqual([configText]);
       expect(init.api.unexpectedRequests).toEqual([]);
@@ -188,8 +192,8 @@ describe('stacktape init in the terminal: existing repository to a running artif
       const container = containerDefinitionFor(packaged.template, jobName);
       // The key reaches the task as a Secrets Manager reference that AWS resolves; its value is never in the template.
       expect(container.Environment).toContainEqual({
-        Name: 'STRIPE_SECRET_KEY',
-        Value: expect.stringMatching(/^\{\{resolve:secretsmanager:stripe_secret_key:/)
+        Name: 'PAYMENTS_API_TOKEN',
+        Value: expect.stringMatching(/^\{\{resolve:secretsmanager:payments_api_token:/)
       });
       expect(await readFile(packaged.templatePath, 'utf8')).not.toContain('offline-qualification-secret');
 
@@ -472,7 +476,7 @@ describe('stacktape init in the terminal: existing repository to a running artif
       expect(JSON.stringify(submissions[0]!.result)).toContain('dependency:cache');
       const config = await readFile(join(sandbox.project, 'stacktape.yml'), 'utf8');
       expect(config).not.toContain('redis');
-      expect(config).toContain("$Secret('stripe_secret_key')");
+      expect(config).toContain("$Secret('payments_api_token')");
 
       // An agent that cannot run at all costs the user nothing but quality.
       await rm(join(sandbox.project, 'stacktape.yml'));
@@ -487,6 +491,8 @@ describe('stacktape init in the terminal: existing repository to a running artif
       const scanned = await readFile(join(sandbox.project, 'stacktape.yml'), 'utf8');
       expect(validateConfigYaml(scanned).errors).toEqual([]);
       expect(scanned).toMatch(new RegExp(`^  orders${sandbox.id}:$`, 'im'));
+      // Only the agent could classify the token, so the scan-only file honestly lacks it.
+      expect(scanned).not.toContain('PAYMENTS_API_TOKEN');
     },
     6 * 60_000
   );

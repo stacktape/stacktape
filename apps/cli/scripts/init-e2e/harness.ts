@@ -238,7 +238,14 @@ export const interruptSourceInitDuringAnalysis = async ({ sandbox }: { sandbox: 
     const settledBy = Date.now() + 5_000;
     const survivors = () => [invocation!.pid, invocation!.mcpServerPid!].filter(isAlive);
     while (survivors().length > 0 && Date.now() < settledBy) await new Promise((resolve) => setTimeout(resolve, 100));
-    return { exit, output, agentPid: invocation.pid, mcpServerPid: invocation.mcpServerPid!, survivors: survivors() };
+    const remaining = survivors();
+    // Reported, then stopped: a failed assertion must not leave the stand-in running on a shared machine.
+    for (const pid of remaining) {
+      try {
+        process.kill(pid, 'SIGKILL');
+      } catch {}
+    }
+    return { exit, output, agentPid: invocation.pid, mcpServerPid: invocation.mcpServerPid!, survivors: remaining };
   } finally {
     if (child.exitCode === null && child.signalCode === null) {
       try {
