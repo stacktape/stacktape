@@ -151,7 +151,11 @@ export const packageWithSourceCli = async ({
         : workload
     );
   if (command === 'package') {
-    if (!Array.isArray(commandResult)) throw new Error('The package command did not return its packaged workloads.');
+    if (!Array.isArray(commandResult)) {
+      throw new Error(
+        `The package command did not return its packaged workloads.\n${outputTail(`${processResult.stdout}\n${processResult.stderr}`, 12_000)}`
+      );
+    }
     return {
       processResult,
       invocationId,

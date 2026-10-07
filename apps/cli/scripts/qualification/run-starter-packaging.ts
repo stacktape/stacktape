@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { mkdir, readFile, rm } from 'node:fs/promises';
+import { access, mkdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -61,7 +61,24 @@ const parseOptions = async (): Promise<Options | 'help' | 'list'> => {
   });
   if (values.help) return 'help';
   if (values.list) return 'list';
-  const all = (await getAllStarterProjectIds()).sort();
+  // Only folders with `.project/_metadata.yml` are publishable starters; in-progress ones are skipped, as the
+  // starter metadata generator skips them.
+  const all = (
+    await Promise.all(
+      (
+        await getAllStarterProjectIds()
+      ).map(async (id) =>
+        (await access(join(cliDirectory, 'starter-projects', id, '.project', '_metadata.yml')).then(
+          () => true,
+          () => false
+        ))
+          ? [id]
+          : []
+      )
+    )
+  )
+    .flat()
+    .sort();
   const requested = (values.starter ?? []).flatMap((value) => value.split(',')).filter(Boolean);
   const unknown = requested.filter((id) => !all.includes(id));
   if (unknown.length > 0) throw new Error(`Unknown starter project(s): ${unknown.join(', ')}.`);
