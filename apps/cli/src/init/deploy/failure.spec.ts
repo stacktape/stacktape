@@ -10,7 +10,7 @@ import { describe, expect, it } from 'bun:test';
 import type { JsonlEvent } from '@application-services/tui-manager/output/jsonl-types';
 import { describeFailureForAgent, summariseFailure } from './failure';
 
-const log = (level: 'info' | 'error', message: string): JsonlEvent => ({
+const log = (level: 'info' | 'warn' | 'error', message: string): JsonlEvent => ({
   type: 'log',
   ts: '2026-08-13T00:00:00.000Z',
   level,
@@ -70,6 +70,21 @@ describe('summarising a failed deploy', () => {
       // tokens and several minutes to prove it.
       expect(failure?.worthRetrying).toBe(false);
     }
+  });
+
+  it('does not send an agent after a secret only the user can create', () => {
+    // What `deploy --agent` reports when init wired a third-party key to `$Secret()` and the user has not
+    // set it yet (`ensureMissingSecretsCreated`). No configuration change creates the value.
+    const failure = summariseFailure({
+      events: [
+        log('warn', "The config references 1 secret(s) that don't exist in eu-west-1:\n  - payments_api_token"),
+        log('error', '[CONFIG] Missing 1 secret(s): payments_api_token')
+      ],
+      lines: [],
+      outcome: { ok: false, code: 'CONFIG_ERROR', message: 'Missing 1 secret(s): payments_api_token' }
+    });
+
+    expect(failure?.worthRetrying).toBe(false);
   });
 
   it('never asks an agent to work around a changed deploy target', () => {
