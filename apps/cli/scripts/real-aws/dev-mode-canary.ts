@@ -372,6 +372,9 @@ const getThroughUrl = (url: string) =>
     outgoing.end();
   });
 
+/** Thrown by a probe when waiting longer cannot help, such as when the process it waits for has exited. */
+class WaitAborted extends Error {}
+
 const waitFor = async <T>(description: string, probe: () => Promise<T | undefined>, timeoutMs = 60_000) => {
   let lastError = '';
   for (const deadline = Date.now() + timeoutMs; Date.now() < deadline; await sleep(500)) {
@@ -379,6 +382,7 @@ const waitFor = async <T>(description: string, probe: () => Promise<T | undefine
       const value = await probe();
       if (value !== undefined) return value;
     } catch (error) {
+      if (error instanceof WaitAborted) throw error;
       lastError = String(error);
     }
   }
@@ -685,6 +689,10 @@ const interactiveWatchCtrlC = async (context: ScenarioContext) => {
   );
   startedProcesses.add(terminal);
   const apiHostPort = async () => {
+    // A session that already ended will never publish the port; say why instead of waiting out the deadline.
+    if (terminal.exitCode !== null) {
+      throw new WaitAborted(`The session exited (${terminal.exitCode}):\n${stripAnsi(screen).slice(-1500)}`);
+    }
     const { exitCode, stdout } = docker(['port', apiContainerName(options), '3000/tcp']);
     return exitCode === 0 ? Number(stdout.split('\n')[0].split(':').at(-1)) : undefined;
   };
@@ -742,6 +750,9 @@ const terminalSigterm = async (context: ScenarioContext) => {
     const port = await waitFor(
       'the API container to publish its port',
       async () => {
+        if (terminal.exitCode !== null) {
+          throw new WaitAborted(`The session exited (${terminal.exitCode}):\n${stripAnsi(screen).slice(-1500)}`);
+        }
         const { exitCode, stdout } = docker(['port', apiContainerName(options), '3000/tcp']);
         return exitCode === 0 ? Number(stdout.split('\n')[0].split(':').at(-1)) : undefined;
       },
