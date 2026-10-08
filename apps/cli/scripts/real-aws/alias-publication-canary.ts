@@ -12,7 +12,8 @@
  *    must report the failure, CloudFormation must roll the stack back to UPDATE_ROLLBACK_COMPLETE, and the alias must
  *    still serve the previous value from the same version with the previous template in place;
  * 4. deploy again unchanged, from the rolled-back state: no new version, the same alias, byte-identical publisher
- *    properties and resources;
+ *    properties and resources, no artifact uploaded (only the two template objects of the new deployment version are
+ *    written to the deployment bucket) and no output other than the deployment version changed;
  * 5. delete the stack with the CLI, then confirm with AWS that the stack, its deployment bucket, its functions and their
  *    log groups are gone.
  *
@@ -45,7 +46,7 @@ import {
   LambdaClient,
   ListVersionsByFunctionCommand
 } from '@aws-sdk/client-lambda';
-import { HeadBucketCommand, S3Client } from '@aws-sdk/client-s3';
+import { HeadBucketCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
 import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { fromIni } from '@aws-sdk/credential-providers';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
@@ -375,6 +376,22 @@ const runStackCommand = async ({
   };
 };
 
+/** Every object in the deployment bucket with its ETag, so uploads between two deploys can be told apart. */
+const listBucketObjects = async (clients: Clients, bucket: string) => {
+  const objects = new Map<string, string>();
+  let token: string | undefined;
+  do {
+    const page = await clients.s3.send(new ListObjectsV2Command({ Bucket: bucket, ContinuationToken: token }));
+    for (const { Key, ETag } of page.Contents ?? []) if (Key) objects.set(Key, ETag ?? '');
+    token = page.IsTruncated ? page.NextContinuationToken : undefined;
+  } while (token);
+  return objects;
+};
+
+/** Keys that are new or whose content changed between two listings. */
+const changedObjects = (before: Map<string, string>, after: Map<string, string>) =>
+  [...after.entries()].filter(([key, etag]) => before.get(key) !== etag).map(([key]) => key);
+
 const readStackResources = async (clients: Clients, stackName: string) =>
   (await clients.cloudFormation.send(new DescribeStackResourcesCommand({ StackName: stackName }))).StackResources ?? [];
 
@@ -697,6 +714,8 @@ export const runAliasPublicationCanary = async ({ cleanupOnly = false }: { clean
       `The rolled-back template differs in resources: ${rolledBackPaths.join(', ')}.`
     );
 
+    assert(state.deploymentBucket, 'The deployment bucket is unknown.');
+    const objectsBeforeUnchanged = await listBucketObjects(clients, state.deploymentBucket);
     const third = await runStackCommand({
       options,
       command: 'deploy',
@@ -706,12 +725,37 @@ export const runAliasPublicationCanary = async ({ cleanupOnly = false }: { clean
     });
     const unchanged = await readStep(values.updated, third);
     const changedPaths = differingPaths(updated.template, unchanged.template);
+    const uploadedObjects = changedObjects(
+      objectsBeforeUnchanged,
+      await listBucketObjects(clients, state.deploymentBucket)
+    );
+    const nextVersion = (unchanged.template as { Outputs?: Record<string, { Value?: unknown }> }).Outputs
+      ?.StpDeploymentVersion?.Value;
     report.unchangedRedeploy = {
       ...describeStep(unchanged),
       templateByteIdentical: unchanged.templateSha256 === updated.templateSha256,
-      changedTemplatePaths: changedPaths
+      changedTemplatePaths: changedPaths,
+      uploadedObjects,
+      deploymentVersion: nextVersion
     };
     await writeReport();
+    // Nothing uploaded but the template objects of the new deployment version: no artifact, layer or manifest.
+    assert(typeof nextVersion === 'string' && /^v\d+$/.test(nextVersion), 'The redeploy has no deployment version.');
+    const templateObjectPattern = new RegExp(`(^|/)${nextVersion}\\.(yml|yaml|json)$`);
+    const unexpectedUploads = uploadedObjects.filter((key) => !templateObjectPattern.test(key));
+    assert(
+      unexpectedUploads.length === 0,
+      `The unchanged redeploy uploaded ${unexpectedUploads.join(', ')}; only the ${nextVersion} template objects may be written.`
+    );
+    assert(
+      uploadedObjects.length <= 2,
+      `The unchanged redeploy wrote ${uploadedObjects.length} objects: ${uploadedObjects.join(', ')}.`
+    );
+    // Nothing changed in the stack but the deployment version output.
+    assert(
+      changedPaths.every((path) => path === 'Outputs.StpDeploymentVersion.Value'),
+      `The unchanged redeploy changed ${changedPaths.join(', ')}; only Outputs.StpDeploymentVersion.Value may differ.`
+    );
     assert(
       JSON.stringify(unchanged.versions) === JSON.stringify(updated.versions),
       'The unchanged redeploy published a version.'
@@ -721,10 +765,6 @@ export const runAliasPublicationCanary = async ({ cleanupOnly = false }: { clean
     assert(
       JSON.stringify(unchanged.publisher) === JSON.stringify(updated.publisher),
       'The unchanged redeploy changed the publisher properties.'
-    );
-    assert(
-      !changedPaths.some((path) => path.startsWith('Resources')),
-      `The unchanged redeploy changed resources: ${changedPaths.join(', ')}.`
     );
   } catch (error) {
     bodyError = error;
