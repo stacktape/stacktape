@@ -415,14 +415,22 @@ export class AwsSdkManager {
     return this.#applyPlugins(new ACMClient(this.#getClientArgs({ region: 'us-east-1' })));
   }
 
-  #acceleratedS3Client() {
-    return this.#applyPlugins(
-      new S3Client(
-        this.#getClientArgs({
-          endpoint: this.#getContext().endpoint || 'https://s3-accelerate.amazonaws.com'
-        })
-      )
+  /**
+   * Uploads go through S3 Transfer Acceleration. An explicit endpoint, from the context or from the standard
+   * `AWS_ENDPOINT_URL` variables, replaces it: every client of one invocation must talk to the same endpoint, or an
+   * emulator-backed run leaks its uploads to the real service.
+   */
+  #acceleratedEndpoint() {
+    return (
+      this.#getContext().endpoint ||
+      process.env.AWS_ENDPOINT_URL_S3 ||
+      process.env.AWS_ENDPOINT_URL ||
+      'https://s3-accelerate.amazonaws.com'
     );
+  }
+
+  #acceleratedS3Client() {
+    return this.#applyPlugins(new S3Client(this.#getClientArgs({ endpoint: this.#acceleratedEndpoint() })));
   }
 
   #syncS3Client() {
@@ -436,9 +444,7 @@ export class AwsSdkManager {
   #acceleratedSyncS3Client() {
     return new S3Sync({
       s3RetryCount: 5,
-      clientArgs: this.#getClientArgs({
-        endpoint: this.#getContext().endpoint || 'https://s3-accelerate.amazonaws.com'
-      }),
+      clientArgs: this.#getClientArgs({ endpoint: this.#acceleratedEndpoint() }),
       s3Plugins: [...this.plugins]
     });
   }
