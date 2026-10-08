@@ -1112,7 +1112,13 @@ const cleanup = async (
             `Both Stacktape and direct CloudFormation cleanup failed for ${state.stackName}.`
           );
         }
-        console.warn(`Stacktape cleanup failed for ${state.stackName}; direct CloudFormation deletion succeeded.`);
+        console.warn(
+          `Stacktape cleanup failed for ${state.stackName}; direct CloudFormation deletion succeeded. ${
+            cliDeleteError instanceof Error
+              ? cliDeleteError.message.slice(0, 600)
+              : String(cliDeleteError).slice(0, 600)
+          }`
+        );
       }
     }
   }
