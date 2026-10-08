@@ -551,8 +551,12 @@ const stackArgs = (options: InitCanaryOptions, configPath?: string) => [
   stage,
   '--region',
   options.region,
-  ...(options.credentials.mode === 'profile' ? ['--profile', options.credentials.profile] : []),
-  // With more than one connected account, a non-interactive stack command cannot pick one itself.
+  ...(options.credentials.mode === 'profile' ? ['--profile', options.credentials.profile] : [])
+];
+
+/** For commands that act on the deployed stack. With two connected accounts they cannot pick one themselves. */
+const deployedStackArgs = (options: InitCanaryOptions, configPath?: string) => [
+  ...stackArgs(options, configPath),
   '--awsAccount',
   options.awsAccount
 ];
@@ -818,7 +822,15 @@ const verifyHealth = async ({
   const configPath = requiredString(state.configFile?.path, 'Written config path');
   const result = await runJsonlCli(
     options,
-    ['param:get', ...stackArgs(options, configPath), '--resourceName', resourceName, '--paramName', 'url', '--agent'],
+    [
+      'param:get',
+      ...deployedStackArgs(options, configPath),
+      '--resourceName',
+      resourceName,
+      '--paramName',
+      'url',
+      '--agent'
+    ],
     env
   );
   const value = commandResult(result.result);
@@ -1085,7 +1097,7 @@ const cleanup = async (
     let cliDeleteError: unknown;
     try {
       assert(configPath !== undefined, 'No generated config is available for Stacktape cleanup.');
-      await runJsonlCli(options, ['delete', ...stackArgs(options, configPath), '--agent'], env);
+      await runJsonlCli(options, ['delete', ...deployedStackArgs(options, configPath), '--agent'], env);
       await waitForStackAbsence(clients.cloudFormation, stackId, state.stackName, abortSignal);
     } catch (error) {
       cliDeleteError = error;
