@@ -24,6 +24,26 @@ const PACKAGE_LOCKS = {
   'deno.lockb': 'deno'
 } as const;
 
+/**
+ * The package manager a project without a lockfile declares: `packageManager` in its manifest (Corepack's field), or
+ * pnpm when it has a pnpm workspace file. A pnpm workspace installed with npm gets no `workspace:` links and its
+ * bundles cannot resolve sibling packages, so the declaration must win over the npm default.
+ */
+const getDeclaredPackageManager = async (dirPath: string): Promise<SupportedEsPackageManager | null> => {
+  try {
+    const manifest = JSON.parse(await readFile(join(dirPath, 'package.json'), 'utf8')) as {
+      packageManager?: unknown;
+    };
+    const declared = typeof manifest.packageManager === 'string' ? manifest.packageManager.split('@')[0] : undefined;
+    if (declared === 'npm' || declared === 'yarn' || declared === 'pnpm' || declared === 'bun' || declared === 'deno') {
+      return declared;
+    }
+  } catch {
+    // No readable manifest: nothing is declared.
+  }
+  return isFileAccessible(join(dirPath, 'pnpm-workspace.yaml')) ? 'pnpm' : null;
+};
+
 export const getLockFileData = async (
   dirPath: string
 ): Promise<{ lockfilePath: string | null; packageManager: SupportedEsPackageManager | null }> => {
@@ -33,7 +53,7 @@ export const getLockFileData = async (
       return { lockfilePath, packageManager };
     }
   }
-  return { packageManager: null, lockfilePath: null };
+  return { packageManager: await getDeclaredPackageManager(dirPath), lockfilePath: null };
 
   // @todo validate existence of lock file
   // let isLockFileRequired = false;

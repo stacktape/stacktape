@@ -98,11 +98,10 @@ import {
   LAMBDA_MAX_LAYERS
 } from '@stacktape/packaging/artifact/lambda-limits';
 import { loadFromJavascript, loadFromTypescript } from '@utils/file-loaders';
+import { isJsEntryFileExtension } from '@config';
 import { getStableBuildpackDigestProps } from './artifact-digest-inputs';
 import type { PackagingTarget } from './types';
 
-/** The entry-file extensions `js-bundle` packaging accepts. */
-const JS_ENTRY_EXTENSIONS: ReadonlySet<string> = new Set(['js', 'ts', 'jsx', 'mjs', 'tsx']);
 import { canBuildSplitNativeDependencies, selectSplitBundlingGroup } from './split-bundling-policy';
 import { groupCompatibleNativeDependencies } from './native-layer-groups';
 import {
@@ -282,6 +281,22 @@ export class PackagingManager {
   getPackagingOutputForJob(jobName: string) {
     return this.#packagedJobs.find((job) => job.jobName === jobName) || null;
   }
+
+  /**
+   * Records what a command returns and reports for a packaged workload: its identity, size and artifact. A packaging
+   * result also carries every source file it traced and internal details; a Next.js or SSR build lists thousands of
+   * them, and returning those made the `package` command's agent output too large to be delivered at all.
+   */
+  #recordPackagedJob = (result: PackagingOutput) => {
+    this.#packagedJobs.push({
+      jobName: result.jobName,
+      digest: result.digest,
+      skipped: result.outcome === 'skipped',
+      size: result.size,
+      ...(result.artifactPath === undefined ? {} : { artifactPath: result.artifactPath }),
+      ...(result.resolvedModules === undefined ? {} : { resolvedModules: result.resolvedModules })
+    });
+  };
 
   /**
    * Check if a lambda uses shared layers.
@@ -914,7 +929,7 @@ export class PackagingManager {
         if (!shouldPackageWorkload(name)) return false;
         const ext = getFileExtension((packaging?.properties as { entryfilePath?: string })?.entryfilePath || '');
         // Exclude edge functions from split bundling - they don't support ESM with top-level await
-        return ['js', 'ts', 'jsx', 'mjs', 'tsx'].includes(ext) && type !== 'edge-lambda-function';
+        return isJsEntryFileExtension(ext) && type !== 'edge-lambda-function';
       })
       // Tracing is applied by the per-Lambda buildpack, which wraps the handler at the bundle entry.
       .map((lambda) => Object.assign({}, lambda, { tracingEnabled: tracedLambdaNames.has(lambda.name) }));
@@ -923,14 +938,14 @@ export class PackagingManager {
     const edgeLambdas = configManager.allUserCodeLambdas.filter(({ name, packaging, type }) => {
       if (!shouldPackageWorkload(name)) return false;
       const ext = getFileExtension((packaging?.properties as { entryfilePath?: string })?.entryfilePath || '');
-      return ['js', 'ts', 'jsx', 'mjs', 'tsx'].includes(ext) && type === 'edge-lambda-function';
+      return isJsEntryFileExtension(ext) && type === 'edge-lambda-function';
     });
 
     // Non-Node.js lambdas
     const nonNodeLambdas = configManager.allUserCodeLambdas.filter(({ name, packaging }) => {
       if (!shouldPackageWorkload(name)) return false;
       const ext = getFileExtension((packaging?.properties as { entryfilePath?: string })?.entryfilePath || '');
-      return !JS_ENTRY_EXTENSIONS.has(ext);
+      return !isJsEntryFileExtension(ext);
     });
 
     // In dev mode, skip container and hosting bucket builds (they run locally)
@@ -1357,7 +1372,7 @@ export class PackagingManager {
       executeProcess: exec,
       loadModuleExport: loadPackagingModuleExport
     });
-    packagingOutputs.forEach((result) => this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' }));
+    packagingOutputs.forEach((result) => this.#recordPackagedJob(result));
   };
 
   packageSsrWeb = async ({
@@ -1439,7 +1454,7 @@ export class PackagingManager {
       dockerBuildOutputArchitecture: 'linux/amd64'
     });
 
-    packagingOutputs.forEach((result) => this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' }));
+    packagingOutputs.forEach((result) => this.#recordPackagedJob(result));
   };
 
   packageWorkload = async ({
@@ -1506,7 +1521,7 @@ export class PackagingManager {
 
     if (packagingType === 'dockerfile') {
       const result = await buildUsingDockerfile({ ...sharedProps, ...packaging.properties });
-      this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
+      this.#recordPackagedJob(result);
       return result;
     }
     if (packagingType === 'custom-artifact') {
@@ -1515,7 +1530,7 @@ export class PackagingManager {
         invocationId: globalStateManager.invocationId
       });
       const result = await buildUsingCustomArtifact({ ...sharedProps, ...packaging.properties, distFolderPath });
-      this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
+      this.#recordPackagedJob(result);
       return result;
     }
     if (packagingType === 'buildpack' && target === 'container') {
@@ -1525,7 +1540,7 @@ export class PackagingManager {
         railpackFrontendImage: RAILPACK_FRONTEND_IMAGE,
         runRailpackPrepare: this.#dockerRunners.runRailpackPrepare
       });
-      this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
+      this.#recordPackagedJob(result);
       return result;
     }
     if (packagingType !== 'js-bundle' && packagingType !== 'buildpack') {
@@ -1545,12 +1560,12 @@ export class PackagingManager {
         props: getStableBuildpackDigestProps({ props, configured: { entryfilePath: configuredEntryfilePath } })
       });
     const record = (result: PackagingOutput) => {
-      this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
+      this.#recordPackagedJob(result);
       return result;
     };
 
     if (packagingType === 'js-bundle') {
-      if (!JS_ENTRY_EXTENSIONS.has(extension)) {
+      if (!isJsEntryFileExtension(extension)) {
         throw createCliPackagingError({
           type: 'PACKAGING',
           message: `js-bundle packaging of ${workloadName} needs a JavaScript or TypeScript entry file, not \`.${extension}\`.`,
@@ -1678,7 +1693,7 @@ export class PackagingManager {
         throw createCliPackagingError({
           type: 'PACKAGING',
           message: `buildpack packaging of ${workloadName} does not support \`.${extension}\` entry files.`,
-          hint: JS_ENTRY_EXTENSIONS.has(extension)
+          hint: isJsEntryFileExtension(extension)
             ? 'Use js-bundle packaging for JavaScript and TypeScript.'
             : 'Supported: .py, .java, .go, .rb, .cs and .rs. Use custom-artifact packaging for other languages.'
         });

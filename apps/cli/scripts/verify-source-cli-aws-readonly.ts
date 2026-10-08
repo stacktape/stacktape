@@ -5,6 +5,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
+import { runProcess } from './qualification/process';
 
 const optInVariable = 'STP_SOURCE_CLI_AWS_READONLY';
 const profileVariable = 'STP_SOURCE_CLI_AWS_PROFILE';
@@ -141,47 +142,18 @@ const runSourceCli = async ({
   args: string[];
   env: Environment;
 }) => {
-  const child = Bun.spawn({
-    cmd: [process.execPath, 'run', 'dev', command, ...args],
+  // The qualification process runner owns deadlines, process-group termination and output capture for every
+  // source-CLI invocation in this directory.
+  const result = await runProcess({
+    command: process.execPath,
+    args: ['run', 'dev', command, ...args],
     cwd: cliDirectory,
     env,
-    stdout: 'pipe',
-    stderr: 'pipe',
-    detached: process.platform !== 'win32'
+    timeoutMs: commandTimeoutMs,
+    terminationGraceMs
   });
-  const stdoutPromise = new Response(child.stdout).text();
-  const stderrPromise = new Response(child.stderr).text();
-  let timedOut = false;
-  let forceKillTimer: ReturnType<typeof setTimeout> | undefined;
-  const signalProcessGroup = (signal: NodeJS.Signals) => {
-    if (process.platform === 'win32') {
-      const killer = Bun.spawn({
-        cmd: ['taskkill.exe', '/pid', String(child.pid), '/t', ...(signal === 'SIGKILL' ? ['/f'] : [])],
-        stdout: 'ignore',
-        stderr: 'ignore',
-        windowsHide: true
-      });
-      void killer.exited;
-      return;
-    }
-    try {
-      process.kill(-child.pid, signal);
-      return;
-    } catch {}
-    try {
-      child.kill(signal);
-    } catch {}
-  };
-  const timeoutTimer = setTimeout(() => {
-    timedOut = true;
-    signalProcessGroup('SIGTERM');
-    forceKillTimer = setTimeout(() => signalProcessGroup('SIGKILL'), terminationGraceMs);
-  }, commandTimeoutMs);
-  const [exitCode, stdout, stderr] = await Promise.all([child.exited, stdoutPromise, stderrPromise]).finally(() => {
-    clearTimeout(timeoutTimer);
-    if (forceKillTimer) clearTimeout(forceKillTimer);
-  });
-  assert(!timedOut, `Source CLI ${command} exceeded ${commandTimeoutMs / 60_000} minutes.`);
+  const { exitCode, stdout, stderr } = result;
+  assert(!result.timedOut, `Source CLI ${command} exceeded ${commandTimeoutMs / 60_000} minutes.`);
 
   let parsed: ReturnType<typeof parseCliJsonl>;
   try {

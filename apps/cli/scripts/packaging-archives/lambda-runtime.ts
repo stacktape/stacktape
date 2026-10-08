@@ -10,13 +10,16 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { chmod, lstat, mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, relative } from 'node:path';
+import { join, relative, sep } from 'node:path';
 
 export const LAMBDA_IMAGE = 'public.ecr.aws/lambda/nodejs:24';
 /** The unprivileged test user and group; see the module comment. */
 export const LAMBDA_USER = '993:990';
-/** Every container an archive acceptance starts carries this label, so leftovers can be found. */
-export const CONTAINER_LABEL = 'stacktape.test=lambda-archive-acceptance';
+/**
+ * Every container an acceptance starts carries this label, so leftovers can be found. It names the process, so two
+ * acceptances running at the same time do not report each other's containers as leftovers.
+ */
+export const CONTAINER_LABEL = `stacktape.test=lambda-archive-acceptance-${process.pid}`;
 
 type CommandResult = { exitCode: number | null; stdout: string; stderr: string };
 type RunCommand = (command: string[]) => CommandResult;
@@ -62,19 +65,23 @@ export const extractZip = async (zipPaths: string | string[], runCommand: RunCom
   }
 };
 
-/** Each entry of an extracted tree as `path mode sha256` (files) or `path directory`, sorted. */
+/**
+ * Each entry of an extracted tree as `path mode sha256` (files) or `path directory`, sorted. Paths use `/` whatever
+ * the host, so a listing taken on Windows compares with one taken on Linux.
+ */
 export const listExtractedEntries = async (root: string) => {
   const lines: string[] = [];
   for (const entry of await readdir(root, { recursive: true, withFileTypes: true })) {
     const path = join(entry.parentPath, entry.name);
+    const relativePath = relative(root, path).split(sep).join('/');
     const info = await lstat(path);
     const mode = (info.mode & 0o777).toString(8);
     lines.push(
       info.isFile()
-        ? `${relative(root, path)} ${mode} ${createHash('sha256')
+        ? `${relativePath} ${mode} ${createHash('sha256')
             .update(await readFile(path))
             .digest('hex')}`
-        : `${relative(root, path)} ${info.isDirectory() ? 'directory' : 'other'} ${mode}`
+        : `${relativePath} ${info.isDirectory() ? 'directory' : 'other'} ${mode}`
     );
   }
   return lines.toSorted();
@@ -134,7 +141,8 @@ export const invokeInLambdaRuntime = async ({
   handler,
   event = {},
   timeoutMs = 60_000,
-  image = LAMBDA_IMAGE
+  image = LAMBDA_IMAGE,
+  environment = {}
 }: {
   functionDirectory: string;
   layerDirectory?: string | undefined;
@@ -142,6 +150,8 @@ export const invokeInLambdaRuntime = async ({
   event?: unknown;
   timeoutMs?: number;
   image?: string | undefined;
+  /** Environment variables of the function, as its configuration would set them. */
+  environment?: Record<string, string>;
 }): Promise<Invocation> => {
   const name = `stp-lambda-archive-${randomUUID().slice(0, 12)}`;
   let outcome: { invocation: Invocation } | { error: unknown };
@@ -161,6 +171,7 @@ export const invokeInLambdaRuntime = async ({
       '--mount',
       `type=bind,source=${functionDirectory},target=/var/task,readonly`,
       ...(layerDirectory ? ['--mount', `type=bind,source=${layerDirectory},target=/opt,readonly`] : []),
+      ...Object.entries(environment).flatMap(([key, value]) => ['--env', `${key}=${value}`]),
       ...(handler ? [image, handler] : ['--entrypoint', '/usr/local/bin/aws-lambda-rie', image, '/var/task/bootstrap'])
     ]);
     const port = runOrThrow(['docker', 'port', name, '8080/tcp']).trim().split('\n')[0]!.split(':').at(-1);

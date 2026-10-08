@@ -14,6 +14,7 @@ import type { StpWebService } from '@domain-services/config-manager/resolved-typ
 import type { StackContext } from '@domain-services/stack-context';
 import { join } from 'node:path';
 import {
+  isJsEntryFileExtension,
   lambdaRuntimesForFileExtension,
   linksMap,
   supportedAwsCdkConstructExtensions,
@@ -130,7 +131,7 @@ const validatePackagingProps = ({
         hints: issue
       });
     }
-    const isJsEntryFile = ['js', 'ts', 'jsx', 'mjs', 'tsx'].includes(extension);
+    const isJsEntryFile = isJsEntryFileExtension(extension);
     if (packaging.type === 'js-bundle' && !isJsEntryFile) {
       throw new CliError({
         category: 'PACKAGING_CONFIG',
