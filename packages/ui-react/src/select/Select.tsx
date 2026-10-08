@@ -173,8 +173,8 @@ export function Select<Value>({
     [breakOptionWord, leading, optionHeight]
   );
   const styles = useMemo(
-    () => createStyles<Value>({ buttonMode: !searchable, controlHeight, cursor, hideDropdownIndicator, multiple }),
-    [controlHeight, cursor, hideDropdownIndicator, multiple, searchable]
+    () => createStyles<Value>({ controlHeight, cursor, hideDropdownIndicator, multiple }),
+    [controlHeight, cursor, hideDropdownIndicator, multiple]
   );
 
   return (
@@ -239,13 +239,11 @@ export function Select<Value>({
 }
 
 function createStyles<Value>({
-  buttonMode,
   controlHeight,
   cursor,
   hideDropdownIndicator,
   multiple
 }: {
-  buttonMode: boolean;
   controlHeight: number;
   cursor: CSSProperties['cursor'];
   hideDropdownIndicator: boolean;
@@ -260,18 +258,12 @@ function createStyles<Value>({
       height: multiple ? undefined : controlHeight,
       padding: '0 6px',
       marginTop: 5,
-      border: buttonMode
-        ? 'var(--stp-interactive-border, 1px solid transparent)'
-        : 'var(--stp-field-border, 1px solid transparent)',
+      border: 'var(--stp-field-border, 1px solid transparent)',
       borderColor: state.isFocused
         ? 'var(--stp-field-border-focus, var(--stp-field-focus-border))'
         : 'var(--stp-field-border, var(--stp-border-subtle))',
-      borderRadius: buttonMode
-        ? 'var(--stp-interactive-radius, var(--stp-radius-medium))'
-        : 'var(--stp-field-radius, var(--stp-radius-large))',
-      background: buttonMode
-        ? 'var(--stp-interactive-background, var(--stp-surface-raised))'
-        : 'var(--stp-field-background, var(--stp-surface-input))',
+      borderRadius: 'var(--stp-field-radius, var(--stp-radius-large))',
+      background: 'var(--stp-field-background, var(--stp-surface-input))',
       boxShadow: state.isFocused
         ? 'var(--stp-field-shadow-focus, inset 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 0 3px var(--stp-field-focus-ring))'
         : 'var(--stp-field-shadow, inset 0 1px 3px rgba(0, 0, 0, 0.3))',
