@@ -10,9 +10,12 @@ tRPC requests reach scripted loopback endpoints on random ports; unexpected oper
 responses prove our request construction and output handling, not the external services' behavior. Commands that do not
 execute helper Lambdas receive an empty startup artifact inventory.
 
-Fixtures terminate their own CLI processes and tracked scripts, close sockets, and remove temporary files after failure
-as well as success. The source bundle lives in an owned temporary directory under this worktree's `node_modules` so its
-native OpenTUI modules resolve from the installed dependencies.
+POSIX fixtures start each CLI in its own process group and kill that group on teardown or deadline. They retain group
+ownership after CLI exit, so product assertions can verify command cleanup before fixture teardown. Cleanup owns
+descendants independently of readiness checks or PID registration, waits for process/output completion, closes sockets
+and removes temporary files. Windows uses `taskkill /T` for active invocations; its orphan cleanup is unqualified. The
+source bundle lives in an owned temporary directory under this worktree's `node_modules` so its native OpenTUI modules
+resolve from the installed dependencies.
 
 Run `pnpm --filter @stacktape/cli test:operations:db` for the explicit Docker query lane. It starts PostgreSQL 15.14,
 Redis 7.4.5, DynamoDB Local at a pinned digest, and OpenSearch 2.19.3 sequentially. Each container binds a random

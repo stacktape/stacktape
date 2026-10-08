@@ -59,7 +59,6 @@ const record = async (fixture: Awaited<ReturnType<typeof create>>) => {
     operation: string;
     target: { Target: string };
   };
-  fixture.trackScriptPid(state.pid);
   return state;
 };
 const expectStopped = async (pid: number) => {

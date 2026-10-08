@@ -161,7 +161,6 @@ setInterval(() => {}, 1000);
       const run = fixture.start(['script:run', '--scriptName', 'wait', '--outputFormat', format, ...targetArgs]);
       await run.waitFor('j9-child-ready');
       const pid = Number(await readFile(join(fixture.directory, 'child.pid'), 'utf8'));
-      fixture.trackScriptPid(pid);
       run.child.kill('SIGINT');
       const result = await run.finished;
       expect(result.exitCode).toBe(0);

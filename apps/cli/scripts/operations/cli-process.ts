@@ -10,6 +10,23 @@ import type { StackInfoMap } from '@stacktape/stack-info/contracts';
 
 const cliDirectory = resolve(import.meta.dir, '../..');
 
+const terminateProcessTree = (child: ReturnType<typeof Bun.spawn>) => {
+  if (process.platform === 'win32') {
+    const result = Bun.spawnSync(['taskkill', '/PID', String(child.pid), '/T', '/F'], {
+      stdout: 'ignore',
+      stderr: 'ignore'
+    });
+    if (result.exitCode !== 0 && child.exitCode === null) throw new Error(`Could not terminate CLI tree ${child.pid}`);
+    return;
+  }
+  try {
+    // detached gives this invocation its own process group; this also reaches unregistered grandchildren.
+    process.kill(-child.pid, 'SIGKILL');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
+  }
+};
+
 /** Builds the real process entrypoint once. External native modules resolve from this worktree's node_modules. */
 export const buildOperationsCli = async () => {
   const directory = await mkdtemp(join(cliDirectory, 'node_modules/.j9-cli-'));
@@ -35,8 +52,7 @@ export const createOperationsFixture = async (cliPath: string, extraEnvironment:
   const directory = await mkdtemp(join(tmpdir(), 'stacktape-j9-'));
   const aws = await startLoopbackAws();
   const api = await startLoopbackConsole({ identity: developerIdentity({ projectName: 'j9-operations' }) });
-  const children = new Set<ReturnType<typeof Bun.spawn>>();
-  const scriptPids = new Set<number>();
+  const children = new Map<ReturnType<typeof Bun.spawn>, Promise<unknown>>();
   const home = join(directory, 'home');
   await mkdir(home, { recursive: true });
   // These commands never invoke helper Lambdas. An empty artifact directory satisfies the startup inventory.
@@ -59,7 +75,7 @@ export const createOperationsFixture = async (cliPath: string, extraEnvironment:
     J9_AWS_ENDPOINT: aws.endpoint,
     ...extraEnvironment
   };
-  const start = (args: string[], { tty = false }: { tty?: boolean } = {}) => {
+  const start = (args: string[], { tty = false, timeoutMs = 30_000 }: { tty?: boolean; timeoutMs?: number } = {}) => {
     let stdout = '';
     let stderr = '';
     const decoder = new TextDecoder();
@@ -74,6 +90,7 @@ export const createOperationsFixture = async (cliPath: string, extraEnvironment:
       ],
       cwd: directory,
       env,
+      detached: true,
       stdin: tty ? undefined : 'pipe',
       ...(tty
         ? {
@@ -87,7 +104,6 @@ export const createOperationsFixture = async (cliPath: string, extraEnvironment:
           }
         : { stdout: 'pipe', stderr: 'pipe' })
     });
-    children.add(child);
     const collect = async (stream: ReadableStream<Uint8Array>, append: (value: string) => void) => {
       const reader = stream.getReader();
       const streamDecoder = new TextDecoder();
@@ -108,21 +124,38 @@ export const createOperationsFixture = async (cliPath: string, extraEnvironment:
       : collect(child.stderr, (value) => {
           stderr += value;
         });
-    const deadline = setTimeout(() => child.kill('SIGKILL'), 30_000);
+    const deadline = setTimeout(() => terminateProcessTree(child), timeoutMs);
     const finished = Promise.all([child.exited, out, err])
       .then(([exitCode]) => ({ exitCode, stdout, stderr }))
+      .catch(async (error: unknown) => {
+        terminateProcessTree(child);
+        await child.exited;
+        await Promise.allSettled([out, err]);
+        throw error;
+      })
       .finally(() => {
         clearTimeout(deadline);
-        children.delete(child);
+        // Retain ownership after CLI exit: a script can leave live descendants in this group.
+        // Product assertions run before teardown so the fixture does not hide command cleanup failures.
+        if (process.platform !== 'win32') {
+          try {
+            process.kill(-child.pid, 0);
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
+            // An empty group no longer belongs to this fixture; do not retain an ID which could be reused.
+            children.delete(child);
+          }
+        }
         child.terminal?.close();
       });
+    children.set(child, finished);
     return {
       child,
       finished,
       output: () => stdout,
       write: (input: string) => (tty ? child.terminal?.write(input) : child.stdin?.write(input)),
-      waitFor: async (text: string, from = 0) => {
-        const deadlineAt = Date.now() + 15_000;
+      waitFor: async (text: string, from = 0, timeoutMs = 15_000) => {
+        const deadlineAt = Date.now() + timeoutMs;
         while (!stripAnsi(stdout.slice(from)).includes(text)) {
           if (child.exitCode !== null || Date.now() > deadlineAt) {
             throw new Error(`CLI did not show ${text}; status ${child.exitCode}: ${stripAnsi(stdout).slice(-2000)}`);
@@ -135,23 +168,26 @@ export const createOperationsFixture = async (cliPath: string, extraEnvironment:
   return {
     directory,
     home,
-    trackScriptPid: (pid: number) => {
-      scriptPids.add(pid);
-    },
     aws,
     api,
     start,
     run: (args: string[]) => start(args).finished,
     close: async () => {
-      for (const child of children) child.kill('SIGKILL');
-      await Promise.all([...children].map((child) => child.exited));
-      for (const pid of scriptPids) {
-        try {
-          process.kill(pid, 'SIGKILL');
-        } catch {}
+      const owned = [...children];
+      try {
+        const results = await Promise.allSettled(
+          owned.map(async ([child, finished]) => {
+            terminateProcessTree(child);
+            await finished;
+          })
+        );
+        const failures = results.filter((result) => result.status === 'rejected').map((result) => result.reason);
+        if (failures.length) throw new AggregateError(failures, 'CLI fixture teardown failed');
+      } finally {
+        children.clear();
+        await Promise.all([aws.close(), api.close()]);
+        await rm(directory, { recursive: true, force: true });
       }
-      await Promise.all([aws.close(), api.close()]);
-      await rm(directory, { recursive: true, force: true });
     }
   };
 };
