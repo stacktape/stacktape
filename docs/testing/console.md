@@ -29,6 +29,7 @@ pnpm --filter @stacktape/console-api-app test:db --gitlab
 pnpm --filter @stacktape/console-api-app test:db --runner
 pnpm --filter @stacktape/console-api-app test:db --incident-agent
 pnpm --filter @stacktape/console-api-app test:db --sign-up
+pnpm --filter @stacktape/console-api-app test:db --console-access
 ```
 
 Pass the flag directly: an extra `--` is forwarded to this script and rejected. The `--incident-agent` suite also spawns
