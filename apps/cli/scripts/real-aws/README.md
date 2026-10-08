@@ -63,6 +63,10 @@ pnpm test:aws --aws-scenario=lambda-alias-configuration-update
 The project name defaults to a new `v4aliascanary-` name and the region to `eu-west-1`. If cleanup does not finish, the
 canary prints one exact `--cleanup-only` command for the same run.
 
+Set `STP_AWS_ALIAS_CANARY_TERMINAL_FIRST_DEPLOY=1` to run the first deploy in a terminal (`script`) from this
+repository's GitHub checkout. That deploy creates the stack, so it must offer CI/CD setup ("Set up automatic deployments
+on push to ..."). The canary presses Ctrl+C at the offer without answering it and continues as usual.
+
 ## Observability fixture (not yet qualified)
 
 `_test-stacks/observability-smoke` is a candidate fixture, not a verified end-to-end runner. Its
@@ -74,6 +78,11 @@ not count a deployment, a matching span substring, or stack deletion alone as th
 
 This drives the browser-facing `stacktape init` API, writes and validates the generated config, deploys it, resolves the
 composed resource URL, checks the live response, and removes the exact resources recorded for the run.
+
+The wizard runs signed in the way `stacktape login` or the wizard's own sign-in leaves a machine: the API key is
+persisted in a fresh HOME, and the wizard's environment has no `STACKTAPE_API_KEY`. Its target check, deploy and URL
+lookup children must therefore find the credentials there. Before deploying, the canary edits the reviewed config and
+requires the wizard to refuse the next create and check the target again.
 
 ```sh
 export STACKTAPE_API_KEY='<development API key>'

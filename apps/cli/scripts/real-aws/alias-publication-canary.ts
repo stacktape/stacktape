@@ -49,6 +49,7 @@ import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { createHash, randomBytes } from 'node:crypto';
 import { readFile, rm, writeFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
+import stripAnsi from 'strip-ansi';
 import { parseYaml } from '../../src/utils/yaml';
 
 type Environment = Record<string, string | undefined>;
@@ -60,6 +61,8 @@ type Options = {
   owner: string;
   stateFile: string;
   reportFile?: string;
+  /** Run the first deploy in a terminal and require the CI/CD setup offer a first deployment makes. */
+  terminalFirstDeploy: boolean;
 };
 type State = {
   accountId: string;
@@ -128,7 +131,16 @@ export const resolveOptions = (env: Environment = process.env): Options => {
   assert(isAbsolute(stateFile), `${PREFIX}STATE_FILE must be an absolute path.`);
   const reportFile = env[`${PREFIX}REPORT`]?.trim();
   assert(!reportFile || isAbsolute(reportFile), `${PREFIX}REPORT must be an absolute path.`);
-  return { expectedAccountId, profile, region, projectName, owner, stateFile, ...(reportFile && { reportFile }) };
+  return {
+    expectedAccountId,
+    profile,
+    region,
+    projectName,
+    owner,
+    stateFile,
+    ...(reportFile && { reportFile }),
+    terminalFirstDeploy: env[`${PREFIX}TERMINAL_FIRST_DEPLOY`] === '1'
+  };
 };
 
 const createClients = ({ profile, region }: Options): Clients => {
@@ -207,18 +219,16 @@ const parseAgentOutput = (stdout: string, command: string) => {
   return { records, result: results[0] as AgentRecord & { ok?: unknown; code?: unknown; message?: unknown } };
 };
 
-/** One source-built CLI command, `pnpm dev:cli <args> --agent`, with the run's owner and value in its environment. */
-const runSourceCli = async ({
+/** The environment of a source-built CLI command: the run's owner and value, the profile, no inherited credentials. */
+const sourceCliEnvironment = ({
   options,
-  args,
-  value,
-  invocationId
+  invocationId,
+  value
 }: {
   options: Options;
-  args: string[];
-  value?: string;
   invocationId: string;
-}) => {
+  value?: string;
+}): Environment => {
   const env: Environment = {
     ...process.env,
     AWS_PROFILE: options.profile,
@@ -235,6 +245,22 @@ const runSourceCli = async ({
     delete env[name];
   }
   delete env.SKIP_LOADING_ENV;
+  return env;
+};
+
+/** One source-built CLI command, `pnpm dev:cli <args> --agent`, with the run's owner and value in its environment. */
+const runSourceCli = async ({
+  options,
+  args,
+  value,
+  invocationId
+}: {
+  options: Options;
+  args: string[];
+  value?: string;
+  invocationId: string;
+}) => {
+  const env = sourceCliEnvironment({ options, invocationId, ...(value === undefined ? {} : { value }) });
   const cliArgs = ['dev:cli', ...args, '--agent'];
   invocationIds.push(invocationId);
   const child = Bun.spawn({
@@ -284,6 +310,90 @@ const resolveAwsAccountName = async (options: Options, invocationId: string) => 
   return name;
 };
 
+const stackCommandArgs = ({
+  options,
+  command,
+  awsAccountName
+}: {
+  options: Options;
+  command: 'deploy' | 'delete';
+  awsAccountName: string;
+}) => [
+  command,
+  '--configPath',
+  FIXTURE_CONFIG,
+  '--projectName',
+  options.projectName,
+  '--stage',
+  STAGE,
+  '--region',
+  options.region,
+  '--profile',
+  options.profile,
+  '--awsAccount',
+  awsAccountName
+];
+
+/** What `deploy` prints after creating a stack in a terminal checked out from GitHub, GitLab or Bitbucket. */
+const CICD_OFFER = 'Set up automatic deployments on push to';
+
+/**
+ * The first deploy as a developer runs it in a terminal. After creating a stack the CLI offers to set up CI/CD, but
+ * only on a TTY, so this runs under `script`. It presses Ctrl+C at the offer without answering it (the stack is
+ * already deployed by then) and reports whether the offer appeared. The working directory is this repository's
+ * checkout, whose origin is on GitHub.
+ */
+const runFirstDeployInTerminal = async ({
+  options,
+  awsAccountName,
+  value,
+  invocationId
+}: {
+  options: Options;
+  awsAccountName: string;
+  value: string;
+  invocationId: string;
+}) => {
+  const cliArgs = ['dev:cli', ...stackCommandArgs({ options, command: 'deploy', awsAccountName })];
+  const quoted = cliArgs.map((part) => `'${part.replaceAll("'", "'\\''")}'`).join(' ');
+  invocationIds.push(invocationId);
+  const child = Bun.spawn({
+    cmd: ['script', '-qfec', `stty cols 160 rows 50; exec pnpm ${quoted}`, '/dev/null'],
+    cwd: REPO_ROOT,
+    env: { ...sourceCliEnvironment({ options, invocationId, value }), TERM: 'xterm-256color' },
+    stdin: 'pipe',
+    stdout: 'pipe',
+    stderr: 'pipe',
+    detached: true
+  });
+  activeChild = child;
+  const timer = setTimeout(() => stopActiveChild('SIGKILL'), COMMAND_TIMEOUT_MS);
+  let transcript = '';
+  let offered = false;
+  const decoder = new TextDecoder();
+  try {
+    for await (const chunk of child.stdout) {
+      transcript = `${transcript}${decoder.decode(chunk, { stream: true })}`.slice(-400_000);
+      if (!offered && stripAnsi(transcript).replace(/\s+/g, ' ').includes(CICD_OFFER)) {
+        offered = true;
+        child.stdin.write('\u0003');
+        await child.stdin.flush();
+      }
+    }
+    await child.exited;
+  } finally {
+    clearTimeout(timer);
+    activeChild = undefined;
+  }
+  return {
+    command: `pnpm ${cliArgs.join(' ')}`,
+    updateMessage: null,
+    cicdOffered: offered,
+    exitCode: child.exitCode,
+    transcriptTail: stripAnsi(transcript).slice(-2_000)
+  };
+};
+
 /** `deploy` or `delete` of the fixture stack through the connection `resolveAwsAccountName` accepted. */
 const runStackCommand = async ({
   options,
@@ -300,21 +410,7 @@ const runStackCommand = async ({
 }) => {
   const { command: commandLine, records } = await runSourceCli({
     options,
-    args: [
-      command,
-      '--configPath',
-      FIXTURE_CONFIG,
-      '--projectName',
-      options.projectName,
-      '--stage',
-      STAGE,
-      '--region',
-      options.region,
-      '--profile',
-      options.profile,
-      '--awsAccount',
-      awsAccountName
-    ],
+    args: stackCommandArgs({ options, command, awsAccountName }),
     value,
     invocationId
   });
@@ -529,13 +625,20 @@ export const runAliasPublicationCanary = async ({ cleanupOnly = false }: { clean
 
     // A rejected preflight above authorizes no cleanup; from here on, cleanup always runs.
     deployAttempted = true;
-    const first = await runStackCommand({
-      options,
-      command: 'deploy',
-      awsAccountName,
-      value: values.initial,
-      invocationId: `alias-canary-1-${run}`
-    });
+    const first = options.terminalFirstDeploy
+      ? await runFirstDeployInTerminal({
+          options,
+          awsAccountName,
+          value: values.initial,
+          invocationId: `alias-canary-1-${run}`
+        })
+      : await runStackCommand({
+          options,
+          command: 'deploy',
+          awsAccountName,
+          value: values.initial,
+          invocationId: `alias-canary-1-${run}`
+        });
     const stack = await describeStack(clients.cloudFormation, stackName);
     assert(stack, `${stackName} does not exist after the first deploy.`);
     assertOwned(stack, options);
@@ -548,6 +651,14 @@ export const runAliasPublicationCanary = async ({ cleanupOnly = false }: { clean
     await writeState(options, state);
     report.resources = resources.map(({ LogicalResourceId, ResourceType }) => `${LogicalResourceId} ${ResourceType}`);
     report.deploymentBucket = state.deploymentBucket;
+    if ('cicdOffered' in first) {
+      // Checked once the stack's resources are recorded, so a missing offer still leaves a complete cleanup state.
+      report.cicdOffered = first.cicdOffered;
+      assert(
+        first.cicdOffered,
+        `The first deploy in a terminal did not offer CI/CD setup (exit ${String(first.exitCode)}):\n${first.transcriptTail}`
+      );
+    }
 
     const readStep = async (value: string, cli: Awaited<ReturnType<typeof runStackCommand>>) => {
       const invocation = await invokeAlias(clients, functionName, value);
