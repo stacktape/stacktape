@@ -372,7 +372,7 @@ export const packageOffline = async ({
     const parsed = parseCliJsonl(result.stdout, 'validate --withPackage');
     if (result.exitCode !== 0 || !parsed.result.ok) {
       throw new Error(
-        `validate --withPackage failed (${String(result.exitCode)}): ${parsed.result.code}: ${parsed.result.message}\n${result.stderr.slice(-4_000)}`
+        `validate --withPackage failed (${String(result.exitCode)}): ${parsed.result.code}: ${parsed.result.message}\n${JSON.stringify((parsed.result.data as { hints?: unknown } | undefined)?.hints ?? [])}\n${result.stderr.slice(-4_000)}`
       );
     }
     if (guard.unexpectedRequests.length > 0) {

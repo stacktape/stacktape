@@ -17,6 +17,7 @@ import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { validateConfigYaml } from '../code-generation/validate-config-string';
+import { runProcess } from '../qualification/process';
 import {
   assertDockerAvailable,
   containerDefinitionFor,
@@ -30,6 +31,7 @@ import {
 } from './harness';
 import type { AgentLogEntry, AgentScript } from './recorded-agent-cli';
 
+const cliDirectory = join(import.meta.dir, '..', '..');
 const sandboxes: InitSandbox[] = [];
 
 beforeAll(() => assertDockerAvailable());
@@ -207,39 +209,122 @@ describe('stacktape init in the terminal: existing repository to a running artif
   );
 
   test(
-    'a TypeScript config written by init loads, packages and runs like the YAML one',
+    'a TypeScript config written by init loads, packages and runs, in a Node project and in a Go project',
     async () => {
-      const sandbox = await sandboxFor({ files: ordersApi, projectDirectoryName: 'orders' });
-      // A developer's checkout has node_modules. That also keeps Bun from silently auto-installing whatever
-      // `stacktape` version npm calls latest when the config imports it.
-      await mkdir(join(sandbox.project, 'node_modules'));
+      const cliVersion = (JSON.parse(await readFile(join(cliDirectory, 'package.json'), 'utf8')) as { version: string })
+        .version;
+      /** Bun would put an auto-installed `stacktape` here; the config must never cause that. */
+      const bunInstalledStacktape = async (sandbox: InitSandbox) => {
+        const cache = join(sandbox.home, '.cache', '.bun', 'install', 'cache');
+        return existsSync(cache) ? (await readdir(cache)).filter((name) => name.startsWith('stacktape')) : [];
+      };
 
-      const init = await runSourceInit({
-        sandbox,
+      // A Node project: init pins `stacktape` to its own version and says how to install it. The checkout has
+      // node_modules, as a developer's does, but not the new package yet.
+      const node = await sandboxFor({ files: ordersApi, projectDirectoryName: 'orders' });
+      await mkdir(join(node.project, 'node_modules'));
+      const nodeInit = await runSourceInit({
+        sandbox: node,
         args: ['--codingAgent', 'claude-code', '--configFormat', 'typescript'],
-        agent: ordersAgentTranscript(`orders-${sandbox.id}`)
+        agent: ordersAgentTranscript(`orders-${node.id}`)
       });
-      expect(init.exitCode, init.output).toBe(0);
-      expect(init.output).toContain(`Wrote ${join(sandbox.project, 'stacktape.ts')}`);
-      expect(existsSync(join(sandbox.project, 'stacktape.yml'))).toBe(false);
-      const configText = await readFile(join(sandbox.project, 'stacktape.ts'), 'utf8');
-      expect(configText).toContain('defineConfig');
+      expect(nodeInit.exitCode, nodeInit.output).toBe(0);
+      expect(nodeInit.output).toContain(`Wrote ${join(node.project, 'stacktape.ts')}`);
+      expect(nodeInit.output).toContain(`Added stacktape@${cliVersion} to devDependencies in package.json`);
+      expect(nodeInit.output).toContain('Run `npm install` before deploying.');
+      expect(existsSync(join(node.project, 'stacktape.yml'))).toBe(false);
+      const manifest = JSON.parse(await readFile(join(node.project, 'package.json'), 'utf8')) as {
+        dependencies: Record<string, string>;
+        devDependencies?: Record<string, string>;
+      };
+      expect(manifest.devDependencies).toEqual({ stacktape: cliVersion });
+      expect(manifest.dependencies).toEqual({ express: '5.1.0' });
 
-      const packaged = await packageOffline({
-        sandbox,
-        configFile: 'stacktape.ts',
-        projectName: `j1-orders-${sandbox.id}`
+      // The user's `npm install`. A development CLI's version is not on npm, so a local package with that version
+      // stands in for the published one; like the release, it is the CLI's own authoring source. The config then
+      // loads from the project's installed copy rather than the CLI's.
+      const published = join(node.root, 'stacktape-package');
+      await mkdir(published);
+      await writeFile(
+        join(published, 'package.json'),
+        `${JSON.stringify({ name: 'stacktape', version: cliVersion, main: 'index.js' })}\n`
+      );
+      await writeFile(
+        join(published, 'index.js'),
+        `module.exports = require(${JSON.stringify(join(cliDirectory, '..', '..', 'packages', 'config-authoring', 'src', 'index.ts'))});\n`
+      );
+      await writeFile(
+        join(node.project, 'package.json'),
+        `${JSON.stringify({ ...manifest, devDependencies: { stacktape: `file:${published}` } }, null, 2)}\n`
+      );
+      const install = await runProcess({
+        command: 'npm',
+        args: ['install', '--no-audit', '--no-fund', '--ignore-scripts'],
+        cwd: node.project,
+        env: { PATH: process.env.PATH, HOME: node.home, CI: '1' },
+        timeoutMs: 4 * 60_000
       });
-      const jobName = packaged.packagedWorkloads[0]!.jobName;
-      const container = containerDefinitionFor(packaged.template, jobName);
-      expect(container.Environment).toContainEqual({
+      expect(install.exitCode, install.stderr).toBe(0);
+
+      const nodePackaged = await packageOffline({
+        sandbox: node,
+        configFile: 'stacktape.ts',
+        projectName: `j1-orders-${node.id}`
+      });
+      const nodeJob = nodePackaged.packagedWorkloads[0]!.jobName;
+      const nodeContainer = containerDefinitionFor(nodePackaged.template, nodeJob);
+      expect(nodeContainer.Environment).toContainEqual({
         Name: 'PAYMENTS_API_TOKEN',
         Value: expect.stringMatching(/^\{\{resolve:secretsmanager:payments_api_token:/)
       });
-      const response = await requestRunningImage({ jobName, container });
-      expect(response.status, response.logs).toBe(200);
+      const nodeResponse = await requestRunningImage({ jobName: nodeJob, container: nodeContainer });
+      expect(nodeResponse.status, nodeResponse.logs).toBe(200);
+      expect(await bunInstalledStacktape(node)).toEqual([]);
+
+      // A Go project: no package.json and no node_modules. The CLI serves `stacktape` from its own runtime, and
+      // init adds no Node manifest. The fixed listen port reaches the config too.
+      const go = await sandboxFor({
+        files: (id) => ({
+          'go.mod': `module example.com/inventory${id}\n\ngo 1.22\n`,
+          'main.go': [
+            'package main',
+            '',
+            'import "net/http"',
+            '',
+            'func main() {',
+            '\thttp.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte("inventory")) })',
+            '\thttp.ListenAndServe(":8080", nil)',
+            '}',
+            ''
+          ].join('\n')
+        }),
+        projectDirectoryName: 'inventory'
+      });
+      const goInit = await runSourceInit({
+        sandbox: go,
+        args: ['--codingAgent', 'none', '--configFormat', 'typescript']
+      });
+      expect(goInit.exitCode, goInit.output).toBe(0);
+      expect(goInit.output).not.toContain('devDependencies');
+      expect(existsSync(join(go.project, 'package.json'))).toBe(false);
+      expect(await readFile(join(go.project, 'stacktape.ts'), 'utf8')).toContain('port: 8080');
+
+      const goPackaged = await packageOffline({
+        sandbox: go,
+        configFile: 'stacktape.ts',
+        projectName: `j1-inventory-${go.id}`
+      });
+      expect(existsSync(join(go.project, 'node_modules'))).toBe(false);
+      const goJob = goPackaged.packagedWorkloads[0]!.jobName;
+      const goResponse = await requestRunningImage({
+        jobName: goJob,
+        container: containerDefinitionFor(goPackaged.template, goJob)
+      });
+      expect(goResponse.status, goResponse.logs).toBe(200);
+      expect(goResponse.body).toBe('inventory');
+      expect(await bunInstalledStacktape(go)).toEqual([]);
     },
-    8 * 60_000
+    10 * 60_000
   );
 
   test(
