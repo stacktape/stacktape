@@ -293,6 +293,7 @@ export class AwsObservability {
   }): Promise<MetricDataResult[]> => {
     const handleError = this.#getErrorHandler('Failed to get CloudWatch metric data.');
     const results: MetricDataResult[] = [];
+    const seenTokens = new Set<string>();
     let nextToken: string | undefined;
     do {
       const response = await this.#createCloudWatchClient()
@@ -301,20 +302,34 @@ export class AwsObservability {
             EndTime: endTime,
             MetricDataQueries: metricQueries,
             StartTime: startTime,
-            ...(nextToken ? { NextToken: nextToken } : {})
+            NextToken: nextToken
           })
         )
         .catch(handleError);
       for (const page of response.MetricDataResults || []) {
-        const existing = page.Id ? results.find(({ Id }) => Id === page.Id) : undefined;
-        if (existing) {
-          existing.Timestamps = [...(existing.Timestamps || []), ...(page.Timestamps || [])];
-          existing.Values = [...(existing.Values || []), ...(page.Values || [])];
-          existing.Messages = [...(existing.Messages || []), ...(page.Messages || [])];
-          existing.StatusCode = page.StatusCode;
-        } else results.push(page);
+        const previous = page.Id && results.find(({ Id }) => Id === page.Id);
+        if (previous) {
+          Object.assign(previous, {
+            ...page,
+            Timestamps: [...(previous.Timestamps || []), ...(page.Timestamps || [])],
+            Values: [...(previous.Values || []), ...(page.Values || [])],
+            ...((previous.Messages || page.Messages) && {
+              Messages: [...(previous.Messages || []), ...(page.Messages || [])]
+            })
+          });
+        } else {
+          results.push({ ...page });
+        }
       }
       nextToken = response.NextToken;
+      if (nextToken && seenTokens.has(nextToken)) {
+        throw new CliError({
+          category: 'AWS',
+          code: 'METRICS_PAGINATION_TOKEN_REPEATED',
+          message: 'CloudWatch repeated a metric page token; the complete metric window could not be read.'
+        });
+      }
+      if (nextToken) seenTokens.add(nextToken);
     } while (nextToken);
     return results;
   };

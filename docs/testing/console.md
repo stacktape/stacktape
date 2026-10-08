@@ -26,6 +26,7 @@ pnpm --filter @stacktape/console-api-app test:db --issues
 pnpm --filter @stacktape/console-api-app test:db --incidents
 pnpm --filter @stacktape/console-api-app test:db --incident-journey
 pnpm --filter @stacktape/console-api-app test:db --security
+pnpm --filter @stacktape/console-api-app test:db --insights
 pnpm --filter @stacktape/console-api-app test:db --gitlab
 pnpm --filter @stacktape/console-api-app test:db --runner
 pnpm --filter @stacktape/console-api-app test:db --git-deploy

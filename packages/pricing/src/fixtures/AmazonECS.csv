@@ -1,0 +1,10 @@
+"FormatVersion","v1.0"
+"Disclaimer","This pricing list is for informational purposes only. All prices are subject to the additional terms included in the pricing pages on http://aws.amazon.com. All Free Tier prices are also subject to the terms included at https://aws.amazon.com/free/"
+"Publication Date","2026-09-11T12:44:25Z"
+"Version","20260911124425"
+"OfferCode","AmazonECS"
+"SKU","OfferTermCode","RateCode","TermType","PriceDescription","EffectiveDate","StartingRange","EndingRange","Unit","PricePerUnit","Currency","Product Family","serviceCode","Location","Location Type","Instance Type","Tenancy","Operating System","usageType","operation","CPU Architecture","CPUType","External Instance Type","MemoryType","Region Code","Resource","serviceName","StorageType"
+"8CESGAFWKAJ98PME","JRTCKXETXF","8CESGAFWKAJ98PME.JRTCKXETXF.6YS6EN2CT7","OnDemand","AWS Fargate - vCPU - US East (N.Virginia)","2026-07-01","0","Inf","hours","0.0404800000","USD","Compute","AmazonECS","US East (N. Virginia)","AWS Region",,"Shared",,"USE1-Fargate-vCPU-Hours:perCPU","",,"perCPU",,,"us-east-1",,"Amazon Elastic Container Service",
+"K4EXFQ5YFQCP98EN","JRTCKXETXF","K4EXFQ5YFQCP98EN.JRTCKXETXF.6YS6EN2CT7","OnDemand","AWS Fargate - vCPU  - EU (Ireland)","2026-07-01","0","Inf","hours","0.0404800000","USD","Compute","AmazonECS","EU (Ireland)","AWS Region",,"Shared",,"EU-Fargate-vCPU-Hours:perCPU","",,"perCPU",,,"eu-west-1",,"Amazon Elastic Container Service",
+"PBZNQUSEXZUC34C9","JRTCKXETXF","PBZNQUSEXZUC34C9.JRTCKXETXF.6YS6EN2CT7","OnDemand","AWS Fargate - Memory  - US East (N.Virginia)","2026-07-01","0","Inf","hours","0.0044450000","USD","Compute","AmazonECS","US East (N. Virginia)","AWS Region",,"Shared",,"USE1-Fargate-GB-Hours","",,,,"perGB","us-east-1",,"Amazon Elastic Container Service",
+"UP5ETC3QSW2QZGEY","JRTCKXETXF","UP5ETC3QSW2QZGEY.JRTCKXETXF.6YS6EN2CT7","OnDemand","AWS Fargate - Memory  - EU (Ireland)","2026-07-01","0","Inf","hours","0.0044450000","USD","Compute","AmazonECS","EU (Ireland)","AWS Region",,"Shared",,"EU-Fargate-GB-Hours","",,,,"perGB","eu-west-1",,"Amazon Elastic Container Service",
