@@ -7,6 +7,7 @@ import {
   type Stack
 } from '@aws-sdk/client-cloudformation';
 import { CloudWatchLogsClient, DeleteLogGroupCommand, DescribeLogGroupsCommand } from '@aws-sdk/client-cloudwatch-logs';
+import { BatchDeleteImageCommand, ECRClient, ListImagesCommand } from '@aws-sdk/client-ecr';
 import {
   DeleteSecretCommand,
   DescribeSecretCommand,
@@ -117,6 +118,7 @@ export type InitCanaryState = {
 
 type AwsClients = {
   cloudFormation: CloudFormationClient;
+  ecr: ECRClient;
   logs: CloudWatchLogsClient;
   s3: S3Client;
   secrets: SecretsManagerClient;
@@ -263,6 +265,7 @@ const createAwsClients = (options: CanaryOptions): AwsClients => {
   const config = { credentials, maxAttempts: 6, region: options.region };
   return {
     cloudFormation: new CloudFormationClient(config),
+    ecr: new ECRClient(config),
     logs: new CloudWatchLogsClient(config),
     s3: new S3Client(config),
     secrets: new SecretsManagerClient(config),
@@ -272,6 +275,7 @@ const createAwsClients = (options: CanaryOptions): AwsClients => {
 
 const closeClients = (clients: AwsClients) => {
   clients.cloudFormation.destroy();
+  clients.ecr.destroy();
   clients.logs.destroy();
   clients.s3.destroy();
   clients.secrets.destroy();
@@ -285,9 +289,11 @@ const isMissingSecretError = (error: unknown) =>
   error instanceof Error &&
   (error.name === 'ResourceNotFoundException' || /can't find the specified secret/i.test(error.message));
 
+/** The live stack, if any. Looked up by id, a deleted stack is still returned for 90 days as DELETE_COMPLETE. */
 const describeStack = async (client: CloudFormationClient, stackNameOrId: string): Promise<Stack | undefined> => {
   try {
-    return (await client.send(new DescribeStacksCommand({ StackName: stackNameOrId }))).Stacks?.[0];
+    const stack = (await client.send(new DescribeStacksCommand({ StackName: stackNameOrId }))).Stacks?.[0];
+    return stack?.StackStatus === 'DELETE_COMPLETE' ? undefined : stack;
   } catch (error) {
     if (isMissingStackError(error)) return undefined;
     throw error;
@@ -531,7 +537,10 @@ const stackArgs = (options: InitCanaryOptions, configPath?: string) => [
   stage,
   '--region',
   options.region,
-  ...(options.credentials.mode === 'profile' ? ['--profile', options.credentials.profile] : [])
+  ...(options.credentials.mode === 'profile' ? ['--profile', options.credentials.profile] : []),
+  // With more than one connected account, a non-interactive stack command cannot pick one itself.
+  '--awsAccount',
+  options.awsAccount
 ];
 
 const startWizard = async ({
@@ -902,23 +911,71 @@ const emptyBucket = async (client: S3Client, bucket: string) => {
 };
 
 const emptyStackBuckets = async (clients: AwsClients, state: InitCanaryState, stackId: string) => {
-  const buckets = new Set<string>();
+  const buckets = new Map<string, string>();
   let nextToken: string | undefined;
   do {
     const page = await clients.cloudFormation.send(
       new ListStackResourcesCommand({ StackName: stackId, NextToken: nextToken })
     );
     for (const resource of page.StackResourceSummaries ?? []) {
-      if (resource.ResourceType === 'AWS::S3::Bucket' && resource.PhysicalResourceId !== undefined) {
-        buckets.add(resource.PhysicalResourceId);
+      // A retried cleanup still lists a bucket an earlier DeleteStack already removed.
+      if (
+        resource.ResourceType === 'AWS::S3::Bucket' &&
+        resource.PhysicalResourceId !== undefined &&
+        resource.ResourceStatus !== 'DELETE_COMPLETE'
+      ) {
+        buckets.set(resource.PhysicalResourceId, resource.LogicalResourceId ?? '');
       }
     }
     nextToken = page.NextToken;
   } while (nextToken !== undefined);
 
-  for (const bucket of buckets) {
-    assert(bucket.startsWith(`${state.stackName}-`), `Refusing to empty unexpected bucket ${bucket}.`);
+  for (const [bucket, logicalId] of buckets) {
+    // Stacktape names its deployment bucket `stp-deployment-bucket-<hash>`, never after the stack. It is still only
+    // reached through the stack whose identity cleanup has already verified.
+    assert(
+      bucket.startsWith(`${state.stackName}-`) ||
+        (logicalId === 'StpDeploymentBucket' && /^stp-deployment-bucket-[a-z0-9]+$/.test(bucket)),
+      `Refusing to empty unexpected bucket ${bucket}.`
+    );
     await emptyBucket(clients.s3, bucket);
+  }
+};
+
+/**
+ * Empty the stack's own image repository. CloudFormation cannot delete a repository that still holds images, so a
+ * direct DeleteStack after a failed `stacktape delete` would otherwise stop at DELETE_FAILED.
+ */
+const emptyStackRepositories = async (clients: AwsClients, stackId: string) => {
+  const repositories: string[] = [];
+  let nextToken: string | undefined;
+  do {
+    const page = await clients.cloudFormation.send(
+      new ListStackResourcesCommand({ StackName: stackId, NextToken: nextToken })
+    );
+    for (const resource of page.StackResourceSummaries ?? []) {
+      if (
+        resource.ResourceType === 'AWS::ECR::Repository' &&
+        resource.LogicalResourceId === 'StpContainerRepository' &&
+        resource.PhysicalResourceId !== undefined &&
+        resource.ResourceStatus !== 'DELETE_COMPLETE'
+      ) {
+        repositories.push(resource.PhysicalResourceId);
+      }
+    }
+    nextToken = page.NextToken;
+  } while (nextToken !== undefined);
+
+  for (const repositoryName of repositories) {
+    // A multi-platform image is an index plus child manifests (the image and its attestation). The children become
+    // deletable only once the index is gone, so pass over the repository until it is empty.
+    for (let pass = 0; ; pass += 1) {
+      const imageIds =
+        (await clients.ecr.send(new ListImagesCommand({ repositoryName, maxResults: 100 }))).imageIds ?? [];
+      if (imageIds.length === 0) break;
+      assert(pass < 10, `Could not empty the image repository ${repositoryName}.`);
+      await clients.ecr.send(new BatchDeleteImageCommand({ repositoryName, imageIds }));
+    }
   }
 };
 
@@ -1028,6 +1085,7 @@ const cleanup = async (
         try {
           assertStackBelongsToState(remaining, state);
           await emptyStackBuckets(clients, state, stackId);
+          await emptyStackRepositories(clients, stackId);
           await clients.cloudFormation.send(new DeleteStackCommand({ StackName: stackId }));
           await waitForStackAbsence(clients.cloudFormation, stackId, state.stackName, abortSignal);
         } catch (fallbackError) {
