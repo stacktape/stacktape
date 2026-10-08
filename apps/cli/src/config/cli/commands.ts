@@ -1117,6 +1117,8 @@ export const commandsNotRequiringApiKey: StacktapeCommand[] = [
   'help',
   'defaults:list',
   'defaults:configure',
+  // Stops a local dev agent and removes local containers; it never calls the Stacktape API.
+  'dev:stop',
   'upgrade',
   'init',
   'package',
