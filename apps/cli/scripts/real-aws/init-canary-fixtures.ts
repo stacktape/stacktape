@@ -40,8 +40,7 @@ export const INIT_CANARY_FIXTURES = {
       deployable: true,
       maxGaps: 0
     },
-    // This intentionally exposes the current gap: preferred Stacktape image buildpacks are not
-    // exercised by local preflight yet. The canary must not count "skipped" as a pass.
+    // Local preflight must build and boot the js-bundle image; the canary never counts "skipped" as a pass.
     preflight: 'required',
     health: {
       kind: 'http',

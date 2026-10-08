@@ -30,6 +30,9 @@ import {
   type InitSandbox
 } from './harness';
 import type { AgentLogEntry, AgentScript } from './recorded-agent-cli';
+import { runGreenfieldMission } from '../../src/init/missions/greenfield';
+import { runPreflight } from '../../src/init/preflight/preflight';
+import { createPreflightRunners } from '../../src/init/preflight/runners';
 
 const cliDirectory = join(import.meta.dir, '..', '..');
 const sandboxes: InitSandbox[] = [];
@@ -617,6 +620,37 @@ describe('stacktape init in the terminal: existing repository to a running artif
       expect(scanned).toMatch(new RegExp(`^  orders${sandbox.id}:$`, 'im'));
       // Only the agent could classify the token, so the scan-only file honestly lacks it.
       expect(scanned).not.toContain('PAYMENTS_API_TOKEN');
+    },
+    6 * 60_000
+  );
+
+  test(
+    "the wizard's local try-out builds a js-bundle service and finds it listening on the port the deploy routes to",
+    async () => {
+      // What the wizard's "Try it locally" runs, in process: the init canary requires it for express-basic.
+      const tryOut = async (sandbox: InitSandbox) => {
+        const { facts, composition } = await runGreenfieldMission({
+          repositoryRoot: sandbox.project,
+          projectName: 'tryout'
+        });
+        return runPreflight({ repositoryRoot: sandbox.project, facts, composition, runners: createPreflightRunners() });
+      };
+      const service = (id: string, listen: string) => ({
+        'package.json': `${JSON.stringify({ name: `tryout-${id}`, private: true, scripts: { start: 'node src/server.js' }, dependencies: { express: '5.1.0' } })}\n`,
+        'src/server.js': `const app = require('express')();\napp.get('/', (_request, response) => response.send('ok'));\n${listen}\n`
+      });
+
+      const followsPort = await sandboxFor({ files: (id) => service(id, 'app.listen(process.env.PORT);') });
+      const followsPortResult = await tryOut(followsPort);
+      expect(followsPortResult.services).toEqual([
+        expect.objectContaining({ status: 'passed', reason: 'Listening on port 3000, as configured.' })
+      ]);
+
+      const fixedPort = await sandboxFor({ files: (id) => service(id, 'app.listen(4000);') });
+      const fixedPortResult = await tryOut(fixedPort);
+      expect(fixedPortResult.services).toEqual([
+        expect.objectContaining({ status: 'passed', reason: 'Listening on port 4000, as configured.' })
+      ]);
     },
     6 * 60_000
   );
