@@ -4,9 +4,10 @@ import { spawn } from 'node:child_process';
 import { appendFileSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 
+const port = Number(process.env.PORT);
 const recordPid = (role, pid) => {
   if (process.env.STP_DEV_FIXTURE_PID_FILE) {
-    appendFileSync(process.env.STP_DEV_FIXTURE_PID_FILE, `${JSON.stringify({ role, pid })}\n`);
+    appendFileSync(process.env.STP_DEV_FIXTURE_PID_FILE, `${JSON.stringify({ role, pid, port })}\n`);
   }
 };
 
@@ -18,7 +19,6 @@ watcher.unref();
 recordPid('dev-server', process.pid);
 recordPid('watcher', watcher.pid);
 
-const port = Number(process.env.PORT);
 createServer((_request, response) => {
   response.writeHead(200, { 'content-type': 'text/html' });
   response.end(readFileSync(new URL('./index.html', import.meta.url)));

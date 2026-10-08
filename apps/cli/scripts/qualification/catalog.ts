@@ -50,7 +50,17 @@ export const AWS_QUALIFICATION_SCENARIOS: readonly AwsQualificationScenario[] = 
     runner: 'dev-mode',
     policy: 'routine',
     costClass: 'negligible',
-    coverage: ['dev', 'dev-stack', 'local-container', 'local-postgres', 'dev-server', 'agent-mode', 'pty', 'cleanup'],
+    coverage: [
+      'dev',
+      'dev-stack',
+      'local-container',
+      'local-postgres',
+      'local-redis',
+      'dev-server',
+      'agent-mode',
+      'pty',
+      'cleanup'
+    ],
     reason:
       'dev starts, rebuilds and stops a container, a local database and a dev server against a real dev stack, leaving nothing running.'
   },

@@ -65,13 +65,15 @@ canary prints one exact `--cleanup-only` command for the same run.
 
 ## Dev-mode canary
 
-This runs the `stacktape dev` loop on `_test-stacks/dev-mode` (a container API, a local PostgreSQL database and a
-hosting-bucket dev server with a detached watcher) through the source CLI. The first session deploys the dev stack; the
-others reuse it. The sessions cover agent mode with an edit and `POST /rebuild/api`, `dev:stop --agentPort`, a terminal
-session (PTY) with `--watch` and Ctrl+C, occupied default ports with SIGTERM, a workload that crashes on start, and an
-unknown `--resources` name. After every session no process, container or port it started may remain. Linux only; Docker
-must be running. Like the alias canary it reads the API key from `apps/cli/.env.local` and uses the single active
-Stacktape connection to the expected account. A run takes about 15 minutes, most of it the dev-stack deploy.
+This runs the `stacktape dev` loop on `_test-stacks/dev-mode` (a container API, local PostgreSQL and Redis containers,
+and a hosting-bucket dev server with a detached watcher) through the source CLI. The first session deploys the dev
+stack; the others reuse it. The sessions cover agent mode with an edit and `POST /rebuild/api`, `dev:stop --agentPort`,
+terminal sessions (PTY) ended by Ctrl+C and by SIGTERM, `--watch`, occupied default ports with SIGTERM to the agent, a
+workload that crashes on start, and an unknown `--resources` name. After every session no process, container or port it
+started may remain; a Docker command that fails counts as a failure, not as "no containers". Linux only; Docker must be
+running. Like the alias canary it reads the API key from `apps/cli/.env.local` and uses the single active Stacktape
+connection to the expected account. Run it in a disposable test account, such as the `stacktape-e2e` profile. A run
+takes about 10 minutes, most of it the dev-stack deploy.
 
 ```sh
 export STP_AWS_DEV_CANARY_DEPLOY=1

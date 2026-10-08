@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { resolveOptions } from './dev-mode-canary';
+import { findOwnedContainers, resolveOptions } from './dev-mode-canary';
 
 const valid = {
   STP_AWS_DEV_CANARY_DEPLOY: '1',
@@ -30,5 +30,41 @@ describe.skipIf(process.platform !== 'linux')('dev-mode canary options', () => {
     ['an unknown scenario', { STP_AWS_DEV_CANARY_SCENARIOS: 'first-run-agent,deploy-prod' }, 'unknown scenario']
   ])('refuses %s before touching AWS', (_name, override, message) => {
     expect(() => resolveOptions({ ...valid, ...override })).toThrow(message);
+  });
+});
+
+describe('dev-mode canary container discovery', () => {
+  const run = { projectName: 'v4devcanary-abc-1f2e', stage: 'c1f2e' };
+  const state = { workDirectory: '/tmp/stacktape-dev-canary-run' };
+  const ownedDatabase = JSON.stringify([
+    { Name: '/stp-v4devcanary-abc-1f2e-c1f2e-db', State: { Status: 'running' }, Mounts: [] },
+    { Name: '/someone-else', State: { Status: 'running' }, Mounts: [{ Source: '/home/other' }] },
+    {
+      Name: '/mounted',
+      State: { Status: 'exited' },
+      Mounts: [{ Source: '/tmp/stacktape-dev-canary-run/project/data' }]
+    }
+  ]);
+
+  test("finds the run's containers by name and by mounts from its project", () => {
+    const docker = (args: string[]) =>
+      args[0] === 'ps' ? { exitCode: 0, stdout: 'a\nb\nc' } : { exitCode: 0, stdout: ownedDatabase };
+    expect(findOwnedContainers(run, state, docker)).toEqual([
+      { name: 'stp-v4devcanary-abc-1f2e-c1f2e-db', status: 'running' },
+      { name: 'mounted', status: 'exited' }
+    ]);
+  });
+
+  test.each([
+    [
+      'docker ps fails',
+      (args: string[]) => (args[0] === 'ps' ? { exitCode: 1, stdout: '' } : { exitCode: 0, stdout: '[]' })
+    ],
+    [
+      'docker inspect keeps failing',
+      (args: string[]) => (args[0] === 'ps' ? { exitCode: 0, stdout: 'a' } : { exitCode: 1, stdout: '' })
+    ]
+  ])('treats an unknown container state as a failure when %s', (_name, docker) => {
+    expect(() => findOwnedContainers(run, state, docker)).toThrow('container state is unknown');
   });
 });

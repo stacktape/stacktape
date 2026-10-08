@@ -12,9 +12,10 @@
  *    endpoint answers; `dev:stop --agentPort` returns only after the agent is gone.
  * 2. `interactive-watch-ctrl-c`: in a terminal (PTY), a warm start reuses the stack without updating it, `--watch`
  *    rebuilds the API after an edit, and Ctrl+C ends the session with status 0.
- * 3. `occupied-ports-sigterm`: with the default container and dev-server ports held by other processes, `dev --agent`
+ * 3. `terminal-sigterm`: SIGTERM to a terminal session (what closing the terminal or a process manager sends) ends it.
+ * 4. `occupied-ports-sigterm`: with the default container and dev-server ports held by other processes, `dev --agent`
  *    still serves both workloads elsewhere and leaves the other listeners alone; SIGTERM ends the agent.
- * 4. `failed-startup`: an API that crashes on start is reported as failed; an unknown `--resources` name fails before
+ * 5. `failed-startup`: an API that crashes on start is reported as failed; an unknown `--resources` name fails before
  *    anything starts.
  *
  * Guardrails (docs/testing/live-aws.md): explicit opt-in; STS must resolve the profile to the expected account and the
@@ -53,7 +54,12 @@ import { isAbsolute, join } from 'node:path';
 import stripAnsi from 'strip-ansi';
 
 type Environment = Record<string, string | undefined>;
-type ScenarioName = 'first-run-agent' | 'interactive-watch-ctrl-c' | 'occupied-ports-sigterm' | 'failed-startup';
+type ScenarioName =
+  | 'first-run-agent'
+  | 'interactive-watch-ctrl-c'
+  | 'terminal-sigterm'
+  | 'occupied-ports-sigterm'
+  | 'failed-startup';
 export type Options = {
   expectedAccountId: string;
   profile: string;
@@ -96,6 +102,7 @@ const PREFIX = 'STP_AWS_DEV_CANARY_';
 const SCENARIOS: ScenarioName[] = [
   'first-run-agent',
   'interactive-watch-ctrl-c',
+  'terminal-sigterm',
   'occupied-ports-sigterm',
   'failed-startup'
 ];
@@ -230,7 +237,7 @@ const cliEnvironment = (options: Options, state: State): Environment => {
   return env;
 };
 
-const projectDirectory = (state: State) => join(state.workDirectory, 'project');
+const projectDirectory = (state: Pick<State, 'workDirectory'>) => join(state.workDirectory, 'project');
 
 const stackArgs = (options: Options, state: State) => [
   '--currentWorkingDirectory',
@@ -378,7 +385,7 @@ const waitFor = async <T>(description: string, probe: () => Promise<T | undefine
   throw new Error(`Timed out waiting for ${description}.${lastError ? ` Last error: ${lastError}` : ''}`);
 };
 
-type ApiAnswer = { release: string; databaseReachable: boolean };
+type ApiAnswer = { release: string; databaseReachable: boolean; cacheReachable: boolean };
 const waitForApiRelease = (url: string, release: string, timeoutMs = 90_000) =>
   waitFor(
     `the API to answer with release "${release}"`,
@@ -390,6 +397,16 @@ const waitForApiRelease = (url: string, release: string, timeoutMs = 90_000) =>
     },
     timeoutMs
   );
+
+/** The port the fixture's dev server listens on, which it records next to its pid. */
+const fixtureDevServerPort = async (state: State) => {
+  const lines = (await readFile(join(state.workDirectory, 'fixture-pids.jsonl'), 'utf8').catch(() => '')).split('\n');
+  const record = lines
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as { role: string; port?: number })
+    .findLast(({ role }) => role === 'dev-server');
+  return record?.port;
+};
 
 const setRelease = async (state: State, release: string) => {
   const path = join(projectDirectory(state), 'src', 'api.ts');
@@ -445,26 +462,50 @@ const findOwnedProcesses = async (state: State) => {
   return found;
 };
 
-const docker = (args: string[]) => {
+type DockerRunner = (args: string[]) => { exitCode: number; stdout: string };
+const docker: DockerRunner = (args) => {
   const result = Bun.spawnSync({ cmd: ['docker', ...args], stdout: 'pipe', stderr: 'pipe' });
   return { exitCode: result.exitCode, stdout: result.stdout.toString().trim() };
 };
 
 /** The names dev mode gives this run's containers: project and stage keep them apart from any other session's. */
-const apiContainerName = (options: Options) => `stp-${options.projectName}-${options.stage}-api-service-container`;
-const databaseContainerName = (options: Options) => `stp-${options.projectName}-${options.stage}-db`;
+const apiContainerName = (options: Pick<Options, 'projectName' | 'stage'>) =>
+  `stp-${options.projectName}-${options.stage}-api-service-container`;
+const databaseContainerName = (options: Pick<Options, 'projectName' | 'stage'>) =>
+  `stp-${options.projectName}-${options.stage}-db`;
+const cacheContainerName = (options: Pick<Options, 'projectName' | 'stage'>) =>
+  `stp-${options.projectName}-${options.stage}-cache`;
 
 const containerState = (name: string): string | undefined => {
   const { exitCode, stdout } = docker(['inspect', '--format', '{{.State.Status}}', name]);
   return exitCode === 0 ? stdout : undefined;
 };
 
-/** Containers whose name is one of this run's or whose bind mounts come from its project. */
-const findOwnedContainers = (options: Options, state: State) => {
-  const names = new Set([apiContainerName(options), databaseContainerName(options)]);
-  const ids = docker(['ps', '-aq']).stdout.split('\n').filter(Boolean);
+/**
+ * Containers whose name is one of this run's or whose bind mounts come from its project. A Docker command that fails
+ * throws: an unknown container state must never read as "no containers remain".
+ */
+export const findOwnedContainers = (
+  options: Pick<Options, 'projectName' | 'stage'>,
+  state: Pick<State, 'workDirectory'>,
+  run: DockerRunner = docker
+) => {
+  const names = new Set([apiContainerName(options), databaseContainerName(options), cacheContainerName(options)]);
+  const listed = run(['ps', '-aq']);
+  assert(listed.exitCode === 0, `docker ps failed (${listed.exitCode}); the container state is unknown.`);
+  const ids = listed.stdout.split('\n').filter(Boolean);
   if (!ids.length) return [];
-  const inspected = JSON.parse(docker(['inspect', ...ids]).stdout || '[]') as {
+  // A container removed between the two commands makes inspect fail; list again rather than trust a partial answer.
+  let inspection = run(['inspect', ...ids]);
+  if (inspection.exitCode !== 0) {
+    const relisted = run(['ps', '-aq']);
+    assert(relisted.exitCode === 0, `docker ps failed (${relisted.exitCode}); the container state is unknown.`);
+    const remaining = relisted.stdout.split('\n').filter(Boolean);
+    if (!remaining.length) return [];
+    inspection = run(['inspect', ...remaining]);
+  }
+  assert(inspection.exitCode === 0, `docker inspect failed (${inspection.exitCode}); the container state is unknown.`);
+  const inspected = JSON.parse(inspection.stdout) as {
     Name: string;
     State: { Status: string };
     Mounts?: { Source?: string }[];
@@ -511,7 +552,10 @@ const freePort = () =>
     });
   });
 
-/** A foreign listener that answers every connection with a marker, holding a port dev mode would otherwise pick. */
+/**
+ * A foreign listener that answers every connection with a marker, holding a port dev mode would otherwise pick. A port
+ * that cannot be held fails the scenario: the test would otherwise prove nothing about occupied ports.
+ */
 const holdPort = (port: number) =>
   new Promise<Server>((resolve, reject) => {
     const server = createServer((socket) => socket.end('HTTP/1.1 200 OK\r\ncontent-length: 7\r\n\r\nforeign'));
@@ -578,16 +622,15 @@ const firstRunAgent = async (context: ScenarioContext) => {
   const apiUrl = run.ready.workloads.find(({ name }) => name === 'api')?.url;
   const webUrl = run.ready.workloads.find(({ name }) => name === 'web')?.url;
   await check(
-    'the API and PostgreSQL run in containers named for this project, and the API reaches the database',
+    'the API, PostgreSQL and Redis run in containers named for this project, and the API reaches both',
     async () => {
       assert(apiUrl, 'AGENT_READY lists no URL for api.');
       const answer = await waitForApiRelease(apiUrl, 'first');
       assert(answer.databaseReachable, 'The API cannot reach the database address dev mode injected.');
-      assert(
-        containerState(databaseContainerName(options)) === 'running' &&
-          containerState(apiContainerName(options)) === 'running',
-        `The project's containers ${databaseContainerName(options)} and ${apiContainerName(options)} are not both running.`
-      );
+      assert(answer.cacheReachable, 'The API cannot reach the Redis address dev mode injected.');
+      for (const name of [apiContainerName(options), databaseContainerName(options), cacheContainerName(options)]) {
+        assert(containerState(name) === 'running', `The project's container ${name} is not running.`);
+      }
     }
   );
   await check('the hosting-bucket dev server serves the page', async () => {
@@ -601,6 +644,10 @@ const firstRunAgent = async (context: ScenarioContext) => {
       body: { sql: 'select 41 + 1 as answer' }
     });
     assert(response.ok && JSON.stringify(response.data).includes('42'), `Query failed: ${JSON.stringify(response)}`);
+  });
+  await check('the agent runs a command against the local Redis', async () => {
+    const response = await agentRequest(agentPort, '/redis/cache/command', { method: 'POST', body: { cmd: 'PING' } });
+    assert(response.ok && JSON.stringify(response.data).includes('PONG'), `PING failed: ${JSON.stringify(response)}`);
   });
   await check('an edit followed by POST /rebuild/api changes what the API answers', async () => {
     await setRelease(state, 'second');
@@ -680,12 +727,63 @@ const interactiveWatchCtrlC = async (context: ScenarioContext) => {
   }
 };
 
+const terminalSigterm = async (context: ScenarioContext) => {
+  const { options, state, check } = context;
+  await resetProject(state);
+  let screen = '';
+  const decoder = new TextDecoder();
+  const terminal = Bun.spawn(['bun', 'scripts/dev.ts', 'dev', ...stackArgs(options, state), '--resources', 'all'], {
+    cwd: CLI_DIRECTORY,
+    env: cliEnvironment(options, state),
+    terminal: { cols: 160, rows: 50, data: (_terminal, data) => (screen += decoder.decode(data, { stream: true })) }
+  });
+  startedProcesses.add(terminal);
+  try {
+    const port = await waitFor(
+      'the API container to publish its port',
+      async () => {
+        const { exitCode, stdout } = docker(['port', apiContainerName(options), '3000/tcp']);
+        return exitCode === 0 ? Number(stdout.split('\n')[0].split(':').at(-1)) : undefined;
+      },
+      READY_TIMEOUT_MS
+    );
+    await waitForApiRelease(`http://localhost:${port}/`, 'first');
+    await waitFor('the web dev server to start', async () => ((await fixtureDevServerPort(state)) ? true : undefined));
+    const webPort = (await fixtureDevServerPort(state))!;
+    await check('SIGTERM to a terminal session ends it with status 0', async () => {
+      terminal.kill('SIGTERM');
+      const exit = await Promise.race([terminal.exited, sleep(STOP_TIMEOUT_MS).then(() => 'still running')]);
+      assert(
+        exit === 0,
+        `The session did not exit with status 0 after SIGTERM: ${String(exit)}\n${stripAnsi(screen).slice(-1500)}`
+      );
+    });
+    await expectNoLeftovers(context, [port, webPort]);
+  } finally {
+    terminal.kill('SIGKILL');
+    terminal.terminal?.close();
+    startedProcesses.delete(terminal);
+  }
+};
+
 const occupiedPortsSigterm = async (context: ScenarioContext) => {
   const { options, state, check } = context;
   await resetProject(state);
   // 3000 is both the API's container port and the default port for a dev server of an unknown framework.
-  const held = await Promise.all([3000, 3001].map((port) => holdPort(port).catch(() => undefined)));
+  const heldPorts = [3000, 3001];
+  const held = await Promise.all(
+    heldPorts.map((port) =>
+      holdPort(port).catch((error: unknown) => (error instanceof Error ? error : new Error(String(error))))
+    )
+  );
   try {
+    const failedBinds = held.flatMap((server, index) =>
+      server instanceof Error ? [`${heldPorts[index]}: ${server.message}`] : []
+    );
+    assert(
+      !failedBinds.length,
+      `The scenario could not hold its ports, so it proves nothing: ${failedBinds.join('; ')}`
+    );
     const agentPort = await freePort();
     const run = await startAgent({ options, state, agentPort });
     await check('`dev --agent` starts while the default ports are taken', () => {
@@ -695,7 +793,7 @@ const occupiedPortsSigterm = async (context: ScenarioContext) => {
       );
     });
     if (!run.ready) return;
-    const ports = (await sessionPorts(agentPort)).filter((port) => port !== 3000 && port !== 3001);
+    const ports = (await sessionPorts(agentPort)).filter((port) => !heldPorts.includes(port));
     await check('both workloads answer on other ports and the foreign listeners keep theirs', async () => {
       const apiUrl = run.ready!.workloads.find(({ name }) => name === 'api')?.url;
       const webUrl = run.ready!.workloads.find(({ name }) => name === 'web')?.url;
@@ -706,8 +804,18 @@ const occupiedPortsSigterm = async (context: ScenarioContext) => {
         return answer.status === 200 && answer.body.includes('first page') ? answer : undefined;
       });
       assert(web, 'web did not answer.');
-      for (const [index, port] of [3000, 3001].entries()) {
-        if (!held[index]) continue;
+      const verbose = await agentRequest(agentPort, '/status?verbose=true');
+      const apiPort = (verbose.data?.workloads as { name: string; port?: number }[]).find(
+        ({ name }) => name === 'api'
+      )?.port;
+      const webPort = await fixtureDevServerPort(state);
+      for (const [name, port] of [
+        ['api', apiPort],
+        ['web', webPort]
+      ] as const) {
+        assert(port && !heldPorts.includes(port), `${name} is on port ${String(port)}, not on a free one.`);
+      }
+      for (const port of heldPorts) {
         const answer = await getThroughUrl(`http://localhost:${port}/`);
         assert(
           answer.body === 'foreign',
@@ -724,7 +832,7 @@ const occupiedPortsSigterm = async (context: ScenarioContext) => {
     await expectNoLeftovers(context, ports);
   } finally {
     // Not awaited: Bun can release a closed server without calling back, which would drain the event loop.
-    for (const server of held) server?.close();
+    for (const server of held) if (!(server instanceof Error)) server.close();
   }
 };
 
@@ -787,6 +895,7 @@ const failedStartup = async (context: ScenarioContext) => {
 const SCENARIO_RUNNERS: Record<ScenarioName, (context: ScenarioContext) => Promise<void>> = {
   'first-run-agent': firstRunAgent,
   'interactive-watch-ctrl-c': interactiveWatchCtrlC,
+  'terminal-sigterm': terminalSigterm,
   'occupied-ports-sigterm': occupiedPortsSigterm,
   'failed-startup': failedStartup
 };
