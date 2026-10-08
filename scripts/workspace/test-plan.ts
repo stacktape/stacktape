@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { access } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -18,13 +19,97 @@ export type TestLane = {
 };
 
 type Rule = TestLane & {
-  matches: (path: string) => boolean;
+  matches: (path: string, suiteDependencies: Map<string, Set<string>>) => boolean;
 };
 
 const hasPart = (path: string, expression: RegExp) => expression.test(path);
 const isConsoleStartupPath = (path: string) =>
   /^scripts\/workspace\/run-console-dev(?:\.test)?\.ts$/.test(path) ||
   /^apps\/console\/api\/stacktape(?:\.test)?\.ts$/.test(path);
+
+// A suite needs one row here when the isolated database runner gains a flag.
+// Shared schema, router and fixture changes conservatively exercise every feature suite.
+const databaseSuites: [flag: string, feature: RegExp, files?: string[]][] = [
+  ['runner', /runners?|remote-deploy|workflow-job|git-credentials/],
+  ['gitlab', /gitlab/],
+  ['security', /security/],
+  ['issues', /issues|issue-/],
+  [
+    'incidents',
+    /incidents?|alert-router|notification|uptime|monitoring/,
+    ['incidents-database.test.ts', 'incident-assessment-database.test.ts']
+  ],
+  [
+    'incident-agent',
+    /incident-agent|incident-fix|claude-subscription/,
+    ['incident-agent-database.test.ts', 'incident-agent-runtime.test.ts']
+  ],
+  ['sign-up', /sign-up|sign_up|signup|create-user-post-sign-up|personal-organization/]
+];
+const modulePath = (path: string) =>
+  path
+    .replaceAll('\\', '/')
+    .replace(/\.[cm]?[jt]sx?$/, '')
+    .replace(/\/index$/, '');
+
+const readDatabaseSuiteDependencies = (root: string) => {
+  const dependencies = new Map<string, Set<string>>();
+  for (const [flag, , files = [`${flag}-database.test.ts`]] of databaseSuites) {
+    for (const file of files) {
+      const suitePath = resolve(root, 'apps/console/api/scripts', file);
+      let source: string;
+      try {
+        source = readFileSync(suitePath, 'utf8');
+      } catch (error) {
+        if (error instanceof Error && 'code' in error && error.code === 'ENOENT') continue;
+        throw error;
+      }
+      const imports = dependencies.get(flag) ?? new Set<string>();
+      imports.add(modulePath(relative(root, suitePath)));
+      // Static, side-effect and dynamic relative imports; never execute private source.
+      for (const match of source.matchAll(/\b(?:from\s*|import\s*(?:\(\s*)?)['"](\.[^'"]+)['"]/g)) {
+        imports.add(modulePath(relative(root, resolve(dirname(suitePath), match[1]!))));
+      }
+      dependencies.set(flag, imports);
+    }
+  }
+  return dependencies;
+};
+const isDatabaseSharedPath = (path: string) =>
+  /^apps\/console\/api\/(prisma\/|package\.json$|scripts\/(run-db-integration|incident-agent-fixtures)|src\/(api\/|(?:router|console-router|middlewares|http-server|config|runtime-parameters)(?:[./-])|services\/prisma|model-helpers\/|raw-sql-queries\/))/.test(
+    path
+  ) || path.startsWith('packages/console-api/');
+
+const databaseRules: Rule[] = databaseSuites.map(([flag, feature]) => ({
+  id: `console-database-${flag}`,
+  proves: `Real ${flag} services and persistence through the isolated PostgreSQL feature suite.`,
+  commands: [`pnpm --filter @stacktape/console-api-app test:db --${flag}`],
+  matches: (path, dependencies) =>
+    isDatabaseSharedPath(path) ||
+    (path.startsWith('apps/console/api/') &&
+      (feature.test(path) ||
+        // Without the private suite source, choose the lane rather than miss its dependencies.
+        (dependencies.get(flag)?.has(modulePath(path)) ?? true)))
+}));
+
+const packagingSuites: [id: string, scripts: string[], feature: RegExp][] = [
+  ['packaging-images', ['test:docker-smoke', 'test:es-image-deps-e2e'], /image|docker|railpack|js-bundle-image/],
+  [
+    'packaging-lambdas',
+    ['test:node-lambda-e2e', 'test:lambda-source-map-e2e', 'test:split-assets-e2e', 'test:directory-inventory-e2e'],
+    /lambda|bundlers|split|artifact|source-map|directory-inventory/
+  ],
+  ['packaging-web', ['test:web-framework-e2e'], /web|hosting/]
+];
+const packagingRules: Rule[] = packagingSuites.map(([id, scripts, feature]) => ({
+  id,
+  proves: 'Built artifacts execute in their target runtimes.',
+  commands: scripts.map((script) => `pnpm --filter @stacktape/packaging run ${script}`),
+  matches: (path: string) =>
+    (path.startsWith('packages/packaging/') &&
+      (feature.test(path) || /\/(package\.json|src\/(fs|es|runtime-contracts)|scripts\/e2e-helpers)/.test(path))) ||
+    /^apps\/cli\/src\/(packaging|domain\/packaging)/.test(path)
+}));
 
 const RULES: Rule[] = [
   {
@@ -64,29 +149,73 @@ const RULES: Rule[] = [
       hasPart(path, /^apps\/cli\/(src\/(domain|config|resource-reference)|tests\/characterization)/) ||
       hasPart(path, /^packages\/(cloudformation|config|config-authoring|naming)\//)
   },
+  ...packagingRules,
   {
-    id: 'packaging-runtime',
-    proves: 'Real archives and images build and execute in their target runtimes.',
-    commands: ['pnpm test:packaging-e2e'],
+    id: 'packaging-archives',
+    proves: 'Lambda archives, asset replacement, Docker preparation and fresh source installation work.',
+    commands: ['test:lambda-archives', 'test:asset-replacer', 'test:docker-preparation', 'test:fresh-install'].map(
+      (script) => `pnpm --filter @stacktape/cli run ${script}`
+    ),
     matches: (path) =>
-      path.startsWith('packages/packaging/') ||
-      hasPart(
-        path,
-        /^apps\/cli\/src\/(packaging|domain\/packaging|utils\/(zip|external-tools)|config\/external-tools)/
-      ) ||
-      path.startsWith('apps/cli/scripts/packaging') ||
-      hasPart(path, /^apps\/cli\/scripts\/(external-tools-e2e|pin-external-tools)\.ts$/) ||
-      path.startsWith('apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/asset-replacer')
+      path.startsWith('packages/packaging/src/artifact/') ||
+      /^apps\/cli\/(src\/(packaging|domain\/packaging|utils\/zip)|scripts\/packaging-archives|helper-lambdas\/stacktapeServiceLambda\/custom-resources\/resolvers\/asset-replacer)/.test(
+        path
+      )
+  },
+  {
+    id: 'external-tools',
+    proves: 'Pinned downloads, checksums, extraction and offline reuse work through real child processes.',
+    commands: ['pnpm --filter @stacktape/cli run test:external-tools'],
+    matches: (path) =>
+      /^apps\/cli\/(src\/(utils|config)\/external-tools|scripts\/(external-tools-e2e|pin-external-tools))/.test(path) ||
+      path.endsWith('/railpack-command.ts')
+  },
+  {
+    id: 'release-installation',
+    proves: 'The actual release package and binary can be installed and invoked.',
+    commands: [
+      'pnpm --filter @stacktape/cli run test:release-artifact',
+      'pnpm --filter @stacktape/cli run test:release-security'
+    ],
+    matches: (path) =>
+      /^apps\/cli\/(package\.json|scripts\/(release\/|install-scripts\/|build-|verify-release-artifact|verify-npm-declarations|platform-runtime))/.test(
+        path
+      )
+  },
+  {
+    id: 'artifact-upload',
+    proves: 'Layer upload and retention work against the SDK wire protocol and MiniStack.',
+    commands: [
+      'pnpm --filter @stacktape/cli run test:layer-upload',
+      'pnpm --filter @stacktape/cli run test:layer-upload:ministack'
+    ],
+    matches: (path) =>
+      /^apps\/cli\/(src\/domain\/deployment-artifact-manager\/|scripts\/packaging-archives\/(layer-upload|lambda-runtime|acceptance-helpers))/.test(
+        path
+      ) || path.startsWith('packages/packaging/src/split-bundler/')
   },
   {
     id: 'project-qualification',
-    proves: 'Representative customer projects import, package, and execute through the current source CLI.',
+    proves: 'The reviewed project corpus imports, packages and runs through the source CLI.',
     commands: [
-      'pnpm qualify:projects -- --preset=smoke --lanes=import,package --allow-host-project-code',
+      'pnpm qualify:projects -- --preset=release --lanes=import,package --allow-host-project-code',
       'pnpm qualify:projects -- --lanes=runtime'
     ],
     matches: (path) =>
-      hasPart(path, /^apps\/cli\/(src\/init|scripts\/qualification|starter-projects-metadata)/) ||
+      /^apps\/cli\/(src\/(init|packaging|domain\/packaging|domain\/config-manager)|scripts\/qualification|starter-projects-metadata)/.test(
+        path
+      ) || /^packages\/(config-inference|packaging)\//.test(path)
+  },
+  {
+    id: 'init-corpus',
+    proves: 'Real and synthetic importer corpus contracts and native fixture builds pass.',
+    commands: [
+      'test:init:real-project-corpus',
+      'test:init:synthetic-project-corpus',
+      'test:init:synthetic-project-corpus:native'
+    ].map((script) => `pnpm --filter @stacktape/cli run ${script}`),
+    matches: (path) =>
+      /^apps\/cli\/(src\/init\/|scripts\/(init-.*project-corpus|validate-synthetic-project-corpus))/.test(path) ||
       path.startsWith('packages/config-inference/')
   },
   {
@@ -102,7 +231,21 @@ const RULES: Rule[] = [
     commands: ['pnpm --filter @stacktape/console-api-app test:db'],
     matches: (path) =>
       path.startsWith('apps/console/api/prisma/') ||
+      /^apps\/console\/api\/scripts\/(migrate-db|run-db-integration)/.test(path) ||
       hasPart(path, /^apps\/console\/api\/src\/(raw-sql-queries|services\/prisma|model-helpers)/)
+  },
+  ...databaseRules,
+  {
+    id: 'console-runner-runtime',
+    proves: 'Generated runner jobs execute in Docker and preserve incremental Buildx cache between jobs.',
+    commands: [
+      'pnpm --filter @stacktape/console-api-app test:runner:scripts',
+      'pnpm --filter @stacktape/console-api-app test:runner:cache'
+    ],
+    matches: (path) =>
+      /^apps\/console\/api\/(scripts\/runner-|infrastructure\/ec2-runner-image\/|src\/services\/(remote-deploy\/ec2\/|incident-agent-runner-job))/.test(
+        path
+      )
   },
   {
     id: 'shared-ui-browser',
@@ -145,6 +288,10 @@ const RULES: Rule[] = [
       'Issue-state persistence and tenant denial through the real UI, local HTTP router and disposable PostgreSQL.',
     commands: ['pnpm --filter @stacktape/console-api-app test:db --isolated-browser'],
     matches: (path) =>
+      isDatabaseSharedPath(path) ||
+      path.startsWith('apps/console/api/src/issues/') ||
+      path.startsWith('apps/console/api/src/services/issue-') ||
+      path.startsWith('packages/ui-react/') ||
       path === 'apps/console/ui/e2e/isolated-console.test.ts' ||
       path === 'apps/console/api/scripts/incident-agent-fixtures.ts' ||
       path === 'apps/console/api/scripts/run-db-integration.ts' ||
@@ -305,11 +452,14 @@ export const collectChangedPaths = async (options: TestPlanOptions, root = works
   return [...new Set(paths)].toSorted();
 };
 
-export const createTestPlan = (paths: string[]): TestLane[] => {
+export const createTestPlan = (paths: string[], root = workspaceRoot): TestLane[] => {
   const includesConsole = paths.some(
     (path) => path === 'apps/console' || path.startsWith('apps/console/') || isConsoleStartupPath(path)
   );
-  let lanes = RULES.filter((rule) => paths.some((path) => rule.matches(path))).map(({ matches: _, ...lane }) => lane);
+  const suiteDependencies = includesConsole ? readDatabaseSuiteDependencies(root) : new Map<string, Set<string>>();
+  let lanes = RULES.filter((rule) => paths.some((path) => rule.matches(path, suiteDependencies))).map(
+    ({ matches: _, ...lane }) => lane
+  );
   if (lanes.some(({ id }) => id === 'console-browser-local-api')) {
     lanes = lanes.filter(({ id }) => id !== 'console-browser-dev-api');
   }
