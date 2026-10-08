@@ -15,6 +15,8 @@ const test = (name: string, fn: () => Promise<void>) => bunTest(name, fn, 180_00
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { stringifyToYaml } from '@utils/yaml';
+import { getCfTemplateS3Key } from '../../src/domain/deployment-artifact-manager/artifact-names';
 import { startAwsFake, outputsFromTemplate, type AwsFake, type FakeStackState } from './aws-fake';
 import { startControlPlaneFake, type ControlPlaneFake } from './control-plane-fake';
 
@@ -52,6 +54,121 @@ const deployedStack = async (status: string): Promise<FakeStackState> => {
   return { stackName, status, template, outputs: outputsFromTemplate(template) };
 };
 
+/** A stack at version v000002 whose deployment bucket still holds the v000001 and v000002 templates. */
+const deployedStackWithHistory = async (): Promise<FakeStackState> => {
+  const stack = await deployedStack('UPDATE_COMPLETE');
+  const previous = structuredClone(stack.template);
+  (previous.Outputs!.StpDeploymentVersion as { Value: unknown }).Value = 'v000001';
+  (previous.Resources.ApiFunction as { Properties: { MemorySize?: number } }).Properties.MemorySize = 256;
+  (stack.template.Outputs!.StpDeploymentVersion as { Value: unknown }).Value = 'v000002';
+  stack.outputs.StpDeploymentVersion = 'v000002';
+  stack.bucketObjects = {
+    [getCfTemplateS3Key('v000001')]: stringifyToYaml(previous),
+    [getCfTemplateS3Key('v000002')]: stringifyToYaml(stack.template)
+  };
+  return stack;
+};
+
+const cliEnvironment = ({
+  home,
+  controlPlane,
+  aws,
+  tty
+}: {
+  home: string;
+  controlPlane: ControlPlaneFake;
+  aws: AwsFake;
+  tty: boolean;
+}) => ({
+  PATH: process.env.PATH ?? '',
+  HOME: home,
+  XDG_CONFIG_HOME: join(home, '.config'),
+  XDG_CACHE_HOME: join(home, '.cache'),
+  TMPDIR: join(home, 'tmp'),
+  ...(tty ? { TERM: 'xterm-256color' } : { CI: '1' }),
+  NO_COLOR: '1',
+  AWS_ACCESS_KEY_ID: 'cli-process-fake',
+  AWS_SECRET_ACCESS_KEY: 'cli-process-fake',
+  AWS_REGION: region,
+  AWS_DEFAULT_REGION: region,
+  AWS_EC2_METADATA_DISABLED: 'true',
+  AWS_SDK_LOAD_CONFIG: '0',
+  AWS_ENDPOINT_URL: aws.endpoint,
+  AWS_ENDPOINT_URL_STS: aws.endpoint,
+  STACKTAPE_API_KEY: 'cli-process-fake-do-not-use',
+  STP_CUSTOM_TRPC_API_ENDPOINT: controlPlane.endpoint,
+  SKIP_LOADING_ENV: '1',
+  STP_DISABLE_TELEMETRY: '1'
+});
+
+const cliArguments = (args: string[]) => [
+  'run',
+  join(cliRoot, 'scripts', 'dev.ts'),
+  ...args,
+  '--stage',
+  stage,
+  '--region',
+  region,
+  '--projectName',
+  projectName,
+  '--awsAccount',
+  'cli-process-account',
+  '--currentWorkingDirectory',
+  projectDir
+];
+
+const stripAnsi = (text: string) =>
+  text
+    .split(String.fromCharCode(27))
+    .map((part, index) => (index === 0 ? part : part.replace(/^\[[0-9;?]*[A-Za-z]/, '')))
+    .join('');
+
+/** Runs one CLI command in a pseudo-terminal and answers its confirmation prompt. */
+const runCliInTerminal = async ({
+  args,
+  controlPlane,
+  aws,
+  promptText,
+  answer
+}: {
+  args: string[];
+  controlPlane: ControlPlaneFake;
+  aws: AwsFake;
+  promptText: string;
+  answer: string;
+}) => {
+  const home = await mkdtemp(join(tmpdir(), 'stacktape-cli-process-home-'));
+  temporaryDirectories.push(home);
+  let screen = '';
+  const decoder = new TextDecoder();
+  const child = Bun.spawn(['bun', ...cliArguments(args)], {
+    cwd: cliRoot,
+    env: cliEnvironment({ home, controlPlane, aws, tty: true }),
+    terminal: {
+      cols: 120,
+      rows: 40,
+      data: (_terminal, data) => {
+        screen += decoder.decode(data, { stream: true });
+      }
+    }
+  });
+  const timeout = setTimeout(() => child.kill('SIGKILL'), 150_000);
+  try {
+    for (const deadline = Date.now() + 120_000; !stripAnsi(screen).includes(promptText); await Bun.sleep(100)) {
+      if (child.exitCode !== null || Date.now() > deadline) {
+        throw new Error(`The CLI did not show "${promptText}":\n${stripAnsi(screen).slice(-3_000)}`);
+      }
+    }
+    child.terminal?.write(answer);
+    const exitCode = await child.exited;
+    return { exitCode, screen: stripAnsi(screen) };
+  } finally {
+    clearTimeout(timeout);
+    child.kill();
+    child.terminal?.close();
+  }
+};
+
 const startFakes = async (stack?: FakeStackState) => {
   const controlPlane = await startControlPlaneFake({ projectName });
   resources.push(controlPlane);
@@ -74,48 +191,14 @@ const runCli = async ({
 }): Promise<CliRun> => {
   const home = await mkdtemp(join(tmpdir(), 'stacktape-cli-process-home-'));
   temporaryDirectories.push(home);
-  const env: Record<string, string> = {
-    PATH: process.env.PATH ?? '',
-    HOME: home,
-    XDG_CONFIG_HOME: join(home, '.config'),
-    XDG_CACHE_HOME: join(home, '.cache'),
-    TMPDIR: join(home, 'tmp'),
-    CI: tty ? '' : '1',
-    NO_COLOR: '1',
-    AWS_ACCESS_KEY_ID: 'cli-process-fake',
-    AWS_SECRET_ACCESS_KEY: 'cli-process-fake',
-    AWS_REGION: region,
-    AWS_DEFAULT_REGION: region,
-    AWS_EC2_METADATA_DISABLED: 'true',
-    AWS_SDK_LOAD_CONFIG: '0',
-    AWS_ENDPOINT_URL: aws.endpoint,
-    AWS_ENDPOINT_URL_STS: aws.endpoint,
-    STACKTAPE_API_KEY: 'cli-process-fake-do-not-use',
-    STP_CUSTOM_TRPC_API_ENDPOINT: controlPlane.endpoint,
-    SKIP_LOADING_ENV: '1',
-    STP_DISABLE_TELEMETRY: '1'
-  };
-  const child = Bun.spawn(
-    [
-      'bun',
-      'run',
-      join(cliRoot, 'scripts', 'dev.ts'),
-      ...args,
-      '--stage',
-      stage,
-      '--region',
-      region,
-      '--projectName',
-      projectName,
-      '--awsAccount',
-      'cli-process-account',
-      '--currentWorkingDirectory',
-      projectDir,
-      '--outputFormat',
-      'jsonl'
-    ],
-    { cwd: cliRoot, env, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' }
-  );
+  const env = cliEnvironment({ home, controlPlane, aws, tty });
+  const child = Bun.spawn(['bun', ...cliArguments(args), '--outputFormat', 'jsonl'], {
+    cwd: cliRoot,
+    env,
+    stdin: 'ignore',
+    stdout: 'pipe',
+    stderr: 'pipe'
+  });
   const timeout = setTimeout(() => child.kill('SIGKILL'), 120_000);
   const [stdout, stderr, exitCode] = await Promise.all([
     new Response(child.stdout).text(),
@@ -191,6 +274,24 @@ describe('delete', () => {
     expect(controlPlane.unexpectedProcedures).toEqual([]);
   });
 
+  test('declining the confirmation in a terminal cancels the delete and leaves the stack untouched', async () => {
+    const { controlPlane, aws } = await startFakes(await deployedStack('UPDATE_COMPLETE'));
+    const run = await runCliInTerminal({
+      args: ['delete'],
+      controlPlane,
+      aws,
+      promptText: `Delete stack ${stackName} and all of its resources?`,
+      answer: 'n\r'
+    });
+
+    expect(run.screen).toContain('Operation canceled');
+    // The CLI ends a cancelled operation by signalling its own process tree, so the parent observes SIGTERM (143)
+    // rather than status 0 in this source-run wrapper.
+    expect([0, 143]).toContain(run.exitCode);
+    expect(aws.mutations.filter(({ action }) => action === 'DeleteStack')).toEqual([]);
+    expect(aws.stack?.status).toBe('UPDATE_COMPLETE');
+  });
+
   test('a stack whose previous delete failed can be deleted again', async () => {
     const { controlPlane, aws } = await startFakes(await deployedStack('DELETE_FAILED'));
     const run = await runCli({ args: ['delete', '--autoConfirmOperation'], controlPlane, aws });
@@ -213,6 +314,26 @@ describe('rollback', () => {
     expect(aws.mutations).toEqual([]);
   });
 
+  test("rolling back to the previous version redeploys that version's template and waits for completion", async () => {
+    const { controlPlane, aws } = await startFakes(await deployedStackWithHistory());
+    const run = await runCli({ args: ['rollback', '--targetVersion', 'v000001'], controlPlane, aws });
+
+    expect(printable(run)).toBe('');
+    expect(run.exitCode).toBe(0);
+    const updates = aws.mutations.filter(({ action }) => action === 'UpdateStack');
+    expect(updates).toHaveLength(1);
+    expect(updates[0].parameters.StackName).toBe(stackName);
+    // The rollback uploads the v000001 template as the new version v000003 and deploys exactly that.
+    const uploadedTemplateKey = getCfTemplateS3Key('v000003');
+    expect(Object.keys(aws.uploads)).toContain(uploadedTemplateKey);
+    expect(updates[0].parameters.TemplateURL).toContain(uploadedTemplateKey);
+    expect(aws.uploads[uploadedTemplateKey]).toContain('MemorySize: 256');
+    expect(aws.uploads[uploadedTemplateKey]).toContain('v000003');
+    expect(aws.stack?.status).toBe('UPDATE_COMPLETE');
+    expect(aws.stack?.outputs.StpDeploymentVersion).toBe('v000003');
+    expect(aws.unexpectedRequests).toEqual([]);
+  });
+
   test('an absent stack cannot be rolled back', async () => {
     const { controlPlane, aws } = await startFakes(undefined);
     const run = await runCli({ args: ['rollback', '--targetVersion', 'v000001'], controlPlane, aws });
@@ -224,6 +345,24 @@ describe('rollback', () => {
 });
 
 describe('diff', () => {
+  test('a deployed stack gets a change set from the uploaded template and nothing is executed', async () => {
+    const { controlPlane, aws } = await startFakes(await deployedStackWithHistory());
+    const run = await runCli({ args: ['diff'], controlPlane, aws });
+
+    expect(printable(run)).toBe('');
+    expect(run.exitCode).toBe(0);
+    expect(aws.changeSets).toHaveLength(1);
+    const uploadedTemplateKey = getCfTemplateS3Key('v000003');
+    expect(aws.changeSets[0].parameters.StackName).toBe(stackName);
+    expect(aws.changeSets[0].parameters.TemplateURL).toContain(uploadedTemplateKey);
+    expect(Object.keys(aws.uploads)).toContain(uploadedTemplateKey);
+    expect(aws.mutations.filter(({ action }) => /^(UpdateStack|DeleteStack|ExecuteChangeSet)$/.test(action))).toEqual(
+      []
+    );
+    expect(aws.stack?.status).toBe('UPDATE_COMPLETE');
+    expect(JSON.stringify(run.result)).toContain('ApiFunction');
+  });
+
   test('an absent stack is reported as not deployed before anything is uploaded', async () => {
     const { controlPlane, aws } = await startFakes(undefined);
     const run = await runCli({ args: ['diff'], controlPlane, aws });

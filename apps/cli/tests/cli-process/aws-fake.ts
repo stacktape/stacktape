@@ -18,6 +18,8 @@ export type FakeStackState = {
   outputs: Record<string, string>;
   /** Set to make the stack vanish on the next DescribeStacks after a DeleteStack. */
   deleteCompletesImmediately?: boolean;
+  /** Objects present in the deployment bucket, by key; templates of earlier versions for a rollback to read. */
+  bucketObjects?: Record<string, string>;
 };
 
 export type AwsFake = {
@@ -26,6 +28,9 @@ export type AwsFake = {
   stack: FakeStackState | undefined;
   /** CloudFormation actions that change state, in order, with their parameters. */
   mutations: { action: string; parameters: Record<string, string> }[];
+  /** Objects written to the deployment bucket, by key. */
+  uploads: Record<string, string>;
+  changeSets: { name: string; parameters: Record<string, string> }[];
   actions: string[];
   unexpectedRequests: string[];
   close: () => Promise<void>;
@@ -127,7 +132,11 @@ export const startAwsFake = async ({
   const actions: string[] = [];
   const unexpectedRequests: string[] = [];
   const logGroups = new Set<string>();
+  const uploads: Record<string, string> = {};
+  const changeSets: AwsFake['changeSets'] = [];
+  const bucketObjects: Record<string, string> = { ...(stack?.bucketObjects ?? {}) };
   let deleteObserved = 0;
+  let updateObserved = 0;
 
   const server = createServer(async (request, response) => {
     const body = await readBody(request);
@@ -174,6 +183,12 @@ export const startAwsFake = async ({
             current.status = 'DELETE_COMPLETE';
           }
         }
+        if (current.status === 'UPDATE_IN_PROGRESS') {
+          updateObserved += 1;
+          if (updateObserved >= 2) {
+            current.status = 'UPDATE_COMPLETE';
+          }
+        }
         return xml(200, describeStacksXml(region, current));
       }
       case 'ListStackResources':
@@ -200,9 +215,64 @@ export const startAwsFake = async ({
           state.stack.status = 'DELETE_IN_PROGRESS';
         }
         return xml(200, wrapResult('DeleteStack', ''));
-      case 'UpdateStack':
+      case 'UpdateStack': {
+        mutations.push({ action, parameters });
+        if (!state.stack) {
+          return xml(
+            400,
+            cloudFormationError('ValidationError', `Stack with id ${form.get('StackName')} does not exist`)
+          );
+        }
+        // The new template is what the CLI uploaded under the URL it passed; its outputs become the stack's.
+        const templateUrl = form.get('TemplateURL') ?? '';
+        const uploadedKey = Object.keys(uploads).find((key) => templateUrl.endsWith(key));
+        if (uploadedKey) {
+          const uploaded = uploads[uploadedKey];
+          const parsed = uploaded.trimStart().startsWith('{')
+            ? (JSON.parse(uploaded) as CloudFormationTemplate)
+            : undefined;
+          if (parsed) {
+            state.stack.template = parsed;
+            state.stack.outputs = { ...state.stack.outputs, ...outputsFromTemplate(parsed) };
+          } else {
+            const version = uploaded.match(/StpDeploymentVersion:\s*\n\s*Value:\s*(v\d+)/)?.[1];
+            if (version) state.stack.outputs.StpDeploymentVersion = version;
+          }
+        }
+        state.stack.status = 'UPDATE_IN_PROGRESS';
+        updateObserved = 0;
+        return xml(200, wrapResult('UpdateStack', `<StackId>${stackId(region, state.stack.stackName)}</StackId>`));
+      }
+      case 'ValidateTemplate':
+        return xml(
+          200,
+          wrapResult(
+            'ValidateTemplate',
+            '<Capabilities><member>CAPABILITY_IAM</member><member>CAPABILITY_NAMED_IAM</member><member>CAPABILITY_AUTO_EXPAND</member></Capabilities><Parameters/>'
+          )
+        );
+      case 'CreateChangeSet': {
+        const name = form.get('ChangeSetName') ?? 'change-set';
+        changeSets.push({ name, parameters });
+        return xml(
+          200,
+          wrapResult(
+            'CreateChangeSet',
+            `<Id>arn:aws:cloudformation:${region}:${FAKE_AWS_ACCOUNT_ID}:changeSet/${name}/00000000-0000-0000-0000-000000000000</Id><StackId>${stackId(region, state.stack?.stackName ?? 'unknown')}</StackId>`
+          )
+        );
+      }
+      case 'DescribeChangeSet':
+        return xml(
+          200,
+          wrapResult(
+            'DescribeChangeSet',
+            `<ChangeSetName>${form.get('ChangeSetName') ?? ''}</ChangeSetName><Status>CREATE_COMPLETE</Status><ExecutionStatus>AVAILABLE</ExecutionStatus><Changes><member><Type>Resource</Type><ResourceChange><Action>Modify</Action><LogicalResourceId>ApiFunction</LogicalResourceId><ResourceType>AWS::Lambda::Function</ResourceType><Replacement>False</Replacement><Scope><member>Properties</member></Scope><Details/></ResourceChange></member></Changes>`
+          )
+        );
+      case 'DeleteChangeSet':
+        return xml(200, wrapResult('DeleteChangeSet', ''));
       case 'CreateStack':
-      case 'CreateChangeSet':
       case 'RollbackStack':
       case 'ContinueUpdateRollback':
       case 'CancelUpdateStack':
@@ -257,12 +327,36 @@ export const startAwsFake = async ({
     if (request.method === 'GET' && url.pathname.startsWith('/2017-03-31/tags/')) {
       return json(200, { Tags: {} });
     }
-    // S3 on the deployment bucket: always empty, deletions succeed.
+    // S3 on the deployment bucket: the configured objects plus whatever the CLI uploads; deletions succeed.
+    const objectKey = decodeURIComponent(url.pathname.replace(/^\/[^/]+\//, ''));
     if (request.method === 'GET' && url.searchParams.has('list-type')) {
+      const keys = Object.keys(bucketObjects);
       return xml(
         200,
-        `<?xml version="1.0" encoding="UTF-8"?><ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>bucket</Name><KeyCount>0</KeyCount><MaxKeys>1000</MaxKeys><IsTruncated>false</IsTruncated></ListBucketResult>`
+        `<?xml version="1.0" encoding="UTF-8"?><ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>bucket</Name><KeyCount>${keys.length}</KeyCount><MaxKeys>1000</MaxKeys><IsTruncated>false</IsTruncated>${keys
+          .map(
+            (key) =>
+              `<Contents><Key>${escapeXml(key)}</Key><LastModified>2026-10-02T10:00:00.000Z</LastModified><ETag>&quot;${key.length}&quot;</ETag><Size>${bucketObjects[key].length}</Size><StorageClass>STANDARD</StorageClass></Contents>`
+          )
+          .join('')}</ListBucketResult>`
       );
+    }
+    if (request.method === 'PUT' && objectKey && !url.searchParams.has('tagging')) {
+      uploads[objectKey] = body;
+      bucketObjects[objectKey] = body;
+      response.writeHead(200, { etag: '"uploaded"' });
+      return response.end();
+    }
+    if (
+      request.method === 'GET' &&
+      objectKey &&
+      bucketObjects[objectKey] !== undefined &&
+      !url.searchParams.has('list-type') &&
+      !url.searchParams.has('versions') &&
+      !url.searchParams.has('tagging')
+    ) {
+      response.writeHead(200, { 'content-type': 'application/octet-stream' });
+      return response.end(bucketObjects[objectKey]);
     }
     if (request.method === 'GET' && url.searchParams.has('versions')) {
       return xml(
@@ -270,8 +364,25 @@ export const startAwsFake = async ({
         `<?xml version="1.0" encoding="UTF-8"?><ListVersionsResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>bucket</Name><MaxKeys>1000</MaxKeys><IsTruncated>false</IsTruncated></ListVersionsResult>`
       );
     }
+    if (
+      request.method === 'GET' &&
+      objectKey &&
+      !url.searchParams.has('list-type') &&
+      !url.searchParams.has('versions') &&
+      !url.searchParams.has('tagging')
+    ) {
+      // A missing object is an ordinary S3 answer (best-effort reads such as the bucket-sync manifest expect it).
+      response.writeHead(404, { 'content-type': 'application/xml' });
+      return response.end(
+        `<?xml version="1.0" encoding="UTF-8"?><Error><Code>NoSuchKey</Code><Message>The specified key does not exist.</Message><Key>${escapeXml(objectKey)}</Key><RequestId>${randomUUID()}</RequestId></Error>`
+      );
+    }
     if (request.method === 'HEAD') {
-      response.writeHead(200);
+      if (objectKey && bucketObjects[objectKey] === undefined) {
+        response.writeHead(404);
+        return response.end();
+      }
+      response.writeHead(200, { 'content-length': String(objectKey ? bucketObjects[objectKey].length : 0) });
       return response.end();
     }
     if (request.method === 'DELETE' || (request.method === 'POST' && url.searchParams.has('delete'))) {
@@ -301,6 +412,8 @@ export const startAwsFake = async ({
       return state.stack;
     },
     mutations,
+    uploads,
+    changeSets,
     actions,
     unexpectedRequests,
     close: () =>
