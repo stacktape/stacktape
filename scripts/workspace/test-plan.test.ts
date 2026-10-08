@@ -193,7 +193,21 @@ test('CLI plans heavy evidence from a real changed public/private checkout', asy
   ) as { paths: string[]; lanes: { id: string; commands: string[] }[] };
   assert.deepEqual(result.paths, ['apps/console', 'apps/console/api/prisma/schema.prisma', ...publicPaths].toSorted());
   const commands = new Set(result.lanes.flatMap(({ commands: laneCommands }) => laneCommands));
-  for (const flag of ['runner', 'gitlab', 'security', 'issues', 'incidents', 'incident-agent', 'sign-up']) {
+  for (const flag of [
+    'runner',
+    'gitlab',
+    'security',
+    'issues',
+    'incidents',
+    'incident-agent',
+    'sign-up',
+    'console-access',
+    'cli-console',
+    'incident-journey',
+    'git-deploy',
+    'insights',
+    'billing'
+  ]) {
     assert.ok(commands.has(`pnpm --filter @stacktape/console-api-app test:db --${flag}`), `missing --${flag}`);
   }
   for (const command of [
@@ -281,6 +295,9 @@ test('suite imports select new and deleted dependencies without executing privat
   }
   assert.ok(selects('src/services/secret-boundary.ts', 'gitlab'));
   assert.ok(!selects('src/services/secret-boundary.ts', 'runner'));
+  await writeFile(join(scripts, 'insights-runtime.test.ts'), "import '../src/services/catalog-boundary';");
+  assert.ok(selects('src/services/catalog-boundary.ts', 'insights'));
+  assert.ok(!selects('src/services/unrelated-boundary.ts', 'insights'));
   await writeFile(join(scripts, 'runner-database.test.ts'), "import '../src/services/new-boundary';");
   assert.ok(selects('src/services/new-boundary.ts', 'runner'));
   assert.ok(!selects('src/services/tenant-boundary.ts', 'runner'));
@@ -293,7 +310,21 @@ test('missing private suite source conservatively selects database features', as
   const commands = new Set(
     createTestPlan(['apps/console/api/src/services/unknown-boundary.ts'], root).flatMap((lane) => lane.commands)
   );
-  for (const flag of ['runner', 'gitlab', 'security', 'issues', 'incidents', 'incident-agent', 'sign-up']) {
+  for (const flag of [
+    'runner',
+    'gitlab',
+    'security',
+    'issues',
+    'incidents',
+    'incident-agent',
+    'sign-up',
+    'console-access',
+    'cli-console',
+    'incident-journey',
+    'git-deploy',
+    'insights',
+    'billing'
+  ]) {
     assert.ok(commands.has(`pnpm --filter @stacktape/console-api-app test:db --${flag}`));
   }
 });
@@ -320,7 +351,21 @@ test('release and installer changes select actual candidate invocation', () => {
 test('common Console startup and router contracts select every isolated database feature suite', () => {
   for (const path of ['src/config.ts', 'src/runtime-parameters.ts', 'src/router.ts', 'src/console-router.ts']) {
     const commands = new Set(createTestPlan([`apps/console/api/${path}`]).flatMap((lane) => lane.commands));
-    for (const flag of ['runner', 'gitlab', 'security', 'issues', 'incidents', 'incident-agent', 'sign-up']) {
+    for (const flag of [
+      'runner',
+      'gitlab',
+      'security',
+      'issues',
+      'incidents',
+      'incident-agent',
+      'sign-up',
+      'console-access',
+      'cli-console',
+      'incident-journey',
+      'git-deploy',
+      'insights',
+      'billing'
+    ]) {
       assert.ok(commands.has(`pnpm --filter @stacktape/console-api-app test:db --${flag}`), `${path}: --${flag}`);
     }
   }
@@ -340,5 +385,98 @@ test('runner script, cache and image changes select execution in the isolated Do
     const commands = new Set(createTestPlan([`apps/console/api/${path}`]).flatMap((lane) => lane.commands));
     assert.ok(commands.has('pnpm --filter @stacktape/console-api-app test:runner:scripts'));
     assert.ok(commands.has('pnpm --filter @stacktape/console-api-app test:runner:cache'));
+  }
+});
+
+test('batch 1 Console paths select their journey database lanes', () => {
+  for (const [path, flags] of [
+    ['apps/console/api/scripts/console-tenancy-database.test.ts', ['console-access']],
+    ['apps/console/api/src/organizations/index.ts', ['console-access']],
+    ['apps/console/api/scripts/console-tenant-fixtures.ts', ['console-access', 'cli-console', 'billing', 'insights']],
+    ['apps/console/api/src/services/stack-operation-progress.ts', ['cli-console']],
+    ['apps/cli/src/app/stacktape-trpc-api-manager/operation-recording.ts', ['cli-console']],
+    ['apps/cli/src/domain/notification-manager/index.ts', ['cli-console']],
+    ['apps/cli/src/config/cli/commands.ts', ['cli-console']],
+    ['apps/cli/src/commands/defaults-configure/index.ts', ['cli-console']],
+    ['apps/cli/src/commands/info-whoami/index.ts', ['cli-console']],
+    ['apps/cli/src/commands/org-create/index.ts', ['cli-console']],
+    ['apps/console/api/src/services/alert-router.ts', ['incidents', 'incident-journey']],
+    ['apps/cli/helper-lambdas/uptimeProber/index.ts', ['incident-journey']],
+    ['apps/console/api/src/integrations/bitbucket/index.ts', ['git-deploy']],
+    ['apps/console/api/scripts/git-deploy-journey.test.ts', ['git-deploy']],
+    ['packages/pricing/src/pricing.ts', ['insights']],
+    ['apps/cli/src/aws/observability.ts', ['insights']],
+    ['apps/console/api/src/security/osv-client.ts', ['insights', 'security']],
+    ['apps/console/api/src/lambdas/paddle-hooks.ts', ['billing']],
+    ['apps/console/api/scripts/billing-database.test.ts', ['billing']]
+  ] as [string, string[]][]) {
+    const commands = new Set(createTestPlan([path]).flatMap((lane) => lane.commands));
+    for (const flag of flags) {
+      assert.ok(commands.has(`pnpm --filter @stacktape/console-api-app test:db --${flag}`), `${path}: --${flag}`);
+    }
+  }
+});
+
+test('batch 1 public paths select all new explicit acceptance lanes', () => {
+  for (const [path, command] of [
+    ['apps/cli/src/domain/template-manager/finalize.ts', 'pnpm --filter @stacktape/cli run test:data-safety'],
+    [
+      'apps/cli/src/domain/calculated-stack-overview-manager/index.ts',
+      'pnpm --filter @stacktape/cli run test:data-safety'
+    ],
+    ['apps/cli/src/utils/stack-info-map-diff.ts', 'pnpm --filter @stacktape/cli run test:data-safety'],
+    ['apps/cli/src/domain/deployment-change-plan/index.ts', 'pnpm --filter @stacktape/cli run test:data-safety'],
+    ['packages/naming/src/index.ts', 'pnpm --filter @stacktape/cli run test:data-safety'],
+    ['apps/cli/tests/config-loading/directives.spec.ts', 'pnpm --filter @stacktape/cli run test:config-loading'],
+    ['apps/cli/src/utils/python-bridge/index.ts', 'pnpm --filter @stacktape/cli run test:config-loading'],
+    [
+      'apps/cli/tests/synthesis-families/families.spec.ts',
+      'pnpm --filter @stacktape/cli run test:synthesis-families:cfn-lint'
+    ],
+    ['apps/cli/src/commands/delete/index.ts', 'pnpm --filter @stacktape/cli run test:cli-process'],
+    ['apps/cli/src/commands/dev/index.ts', 'pnpm test:aws --aws-scenario=dev-mode-local-loop'],
+    ['apps/cli/src/commands/query-sql/index.ts', 'pnpm --filter @stacktape/cli run test:operations:db'],
+    ['apps/cli/src/domain/debug-services/db-client.ts', 'pnpm --filter @stacktape/cli run test:operations:db'],
+    ['apps/cli/src/aws/observability.ts', 'pnpm --filter @stacktape/cli run test:operations'],
+    ['packages/packaging/src/bundlers/es/index.ts', 'pnpm --filter @stacktape/cli run test:node-lambda'],
+    ['packages/packaging/src/web/astro.ts', 'pnpm --filter @stacktape/cli run test:ssr-web'],
+    [
+      'apps/cli/helper-lambdas/cdnOriginRequest/index.ts',
+      'pnpm --filter @stacktape/cli run test:helper-lambda-runtime'
+    ],
+    ['apps/cli/starter-projects/nextjs/stacktape.yml', 'pnpm --filter @stacktape/cli run qualify:starters'],
+    [
+      'apps/cli/scripts/qualification/run-project-qualification.ts',
+      'pnpm --filter @stacktape/cli run test:runtime-acceptances'
+    ],
+    ['apps/cli/src/commands/mcp-add/index.ts', 'pnpm --filter @stacktape/cli run test:mcp-executable'],
+    ['apps/vscode-extension/src/extension.ts', 'pnpm --filter vscode-stacktape run test:host'],
+    ['apps/docs/content/compute/lambda-functions.mdx', 'pnpm --filter @stacktape/docs run test:build-contracts']
+  ] as [string, string][]) {
+    assert.ok(
+      createTestPlan([path]).some((lane) => lane.commands.includes(command)),
+      `${path}: ${command}`
+    );
+  }
+});
+
+test('J1 init acceptance is selected for init and importer paths before its branch is integrated', () => {
+  for (const path of [
+    'apps/cli/src/init/index.ts',
+    'apps/cli/src/commands/init/index.ts',
+    'packages/config-inference/src/policy/index.ts'
+  ]) {
+    assert.ok(
+      createTestPlan([path]).some((lane) => lane.commands.includes('pnpm --filter @stacktape/cli test:init:e2e')),
+      path
+    );
+  }
+});
+
+test('unrelated presentation changes do not select batch 1 database or Docker query lanes', () => {
+  for (const path of ['apps/website/src/pages/index.astro', 'apps/console/ui/src/components/Button.tsx']) {
+    const commands = createTestPlan([path]).flatMap((lane) => lane.commands);
+    assert.ok(!commands.some((command) => command.includes('test:db --')));
+    assert.ok(!commands.some((command) => command.includes('test:operations:db')));
   }
 });

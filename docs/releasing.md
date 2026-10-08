@@ -40,7 +40,7 @@ pnpm check:integrated
 # Install and invoke the supplied npm package and native binary on this host, without rebuilding them.
 pnpm --filter @stacktape/cli test:release-artifact -- --candidate-dir "$RC_DIRECTORY" --version "$RC_VERSION"
 
-for suite in '' --runner --gitlab --security --issues --incidents --incident-agent --sign-up --isolated-browser; do
+for suite in '' --runner --gitlab --security --issues --incidents --incident-agent --sign-up --console-access --cli-console --incident-journey --git-deploy --insights --billing --isolated-browser; do
   if [ -n "$suite" ]; then
     pnpm --filter @stacktape/console-api-app test:db "$suite"
   else
@@ -58,15 +58,29 @@ for lane in test:docker-smoke test:node-lambda-e2e test:web-framework-e2e test:e
   pnpm --filter @stacktape/packaging run "$lane"
 done
 for lane in test:lambda-archives test:asset-replacer test:docker-preparation test:layer-upload \
-  test:layer-upload:ministack test:fresh-install test:external-tools; do
+  test:layer-upload:ministack test:fresh-install test:external-tools test:node-lambda test:ssr-web \
+  test:helper-lambda-runtime test:operations:db; do
   pnpm --filter @stacktape/cli run "$lane"
 done
+pnpm --filter @stacktape/cli qualify:starters
+pnpm --filter @stacktape/cli test:config-loading
+pnpm --filter @stacktape/cli test:data-safety
+pnpm --filter @stacktape/cli test:synthesis-families:cfn-lint
+pnpm --filter @stacktape/cli test:cli-process
+pnpm --filter @stacktape/cli test:operations
+pnpm --filter @stacktape/cli test:mcp-executable
+pnpm --filter vscode-stacktape test:host
+pnpm --filter @stacktape/docs test:build-contracts
 pnpm --filter @stacktape/cli test:init:real-project-corpus -- --all
 pnpm --filter @stacktape/cli test:init:synthetic-project-corpus
 pnpm --filter @stacktape/cli test:init:synthetic-project-corpus:native
 pnpm qualify:projects -- --preset=all --lanes=import,package --allow-host-project-code
 pnpm qualify:projects -- --lanes=runtime
 ```
+
+The extension host lane requires `STP_VSCODE_EXECUTABLE` and the host prerequisites in the
+[extension README](../apps/vscode-extension/README.md). Build CLI dev artifacts before the database sequence with
+`pnpm --filter @stacktape/cli build:dev-artifacts`.
 
 Repeat supplied-artifact installation on all six native OS/architecture/libc targets. The shell fixtures in
 `test:external-tools` run on Linux/macOS; the Windows artifact must separately exercise its bundled Session Manager
@@ -128,6 +142,10 @@ pnpm test:aws --aws-scenario=lambda-alias-configuration-update
 ```
 
 Keep the canary reports and verified-cleanup results with the release record. Never resume from a cached live result.
+Also qualify local development with `pnpm test:aws --aws-scenario=dev-mode-local-loop`, using its separate
+`STP_AWS_DEV_CANARY_*` guards and recovery state from the
+[dev-mode canary procedure](../apps/cli/scripts/real-aws/README.md#dev-mode-canary).
+
 When a new database feature flag or heavy lane is added, add it to this sequence and to
 `scripts/workspace/test-plan.ts`.
 

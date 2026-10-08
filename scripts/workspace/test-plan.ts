@@ -29,7 +29,41 @@ const isConsoleStartupPath = (path: string) =>
 
 // A suite needs one row here when the isolated database runner gains a flag.
 // Shared schema, router and fixture changes conservatively exercise every feature suite.
-const databaseSuites: [flag: string, feature: RegExp, files?: string[]][] = [
+const databaseSuites: [flag: string, feature: RegExp, files?: string[], publicFeature?: RegExp][] = [
+  [
+    'console-access',
+    /console-(access|tenancy|aws-connection|secrets|tenant)|organizations?\/|browser-(access|capabilities)|api-keys|middlewares|billing\/permissions/,
+    [
+      'console-access-database.test.ts',
+      'console-tenancy-database.test.ts',
+      'console-aws-connection-database.test.ts',
+      'console-secrets-database.test.ts'
+    ]
+  ],
+  [
+    'cli-console',
+    /cli-console|stack-operation-progress|stack-info/,
+    ['cli-console-network.test.ts', 'cli-console-database.test.ts'],
+    /^apps\/cli\/src\/(commands\/(_utils\/(auth|aws-profile-input)|login|logout|info-whoami|defaults|aws-profile|org-|project-)|app\/stacktape-trpc-api-manager|domain\/notification-manager|config\/cli\/commands|stacktape-api\/)/
+  ],
+  [
+    'incident-journey',
+    /incidents?|issues|issue-|alert-router|notification|uptime|monitoring/,
+    ['incident-journey.test.ts'],
+    /^apps\/cli\/helper-lambdas\/uptimeProber\//
+  ],
+  [
+    'git-deploy',
+    /git-deploy|runners?|remote-deploy|workflow-job|git-credentials|github|gitlab|bitbucket|webhook/,
+    ['git-deploy-journey.test.ts']
+  ],
+  [
+    'insights',
+    /insights|security|costs?|budgets?|pricing|guardrail|observability|browser-(access|capabilities)/,
+    ['insights-environment.test.ts', 'insights-runtime.test.ts'],
+    /^packages\/pricing\/|^apps\/cli\/src\/(aws\/observability|init\/pricing|commands\/budget)/
+  ],
+  ['billing', /billing|paddle|payments?|attribute-costs/],
   ['runner', /runners?|remote-deploy|workflow-job|git-credentials/],
   ['gitlab', /gitlab/],
   ['security', /security/],
@@ -76,11 +110,11 @@ const readDatabaseSuiteDependencies = (root: string) => {
   return dependencies;
 };
 const isDatabaseSharedPath = (path: string) =>
-  /^apps\/console\/api\/(prisma\/|package\.json$|scripts\/(run-db-integration|incident-agent-fixtures)|src\/(api\/|(?:router|console-router|middlewares|http-server|config|runtime-parameters)(?:[./-])|services\/prisma|model-helpers\/|raw-sql-queries\/))/.test(
+  /^apps\/console\/api\/(prisma\/|package\.json$|scripts\/(run-db-integration|incident-agent-fixtures|console-tenant-fixtures)|src\/(api\/|(?:router|console-router|middlewares|http-server|config|runtime-parameters)(?:[./-])|services\/prisma|model-helpers\/|raw-sql-queries\/))/.test(
     path
   ) || path.startsWith('packages/console-api/');
 
-const databaseRules: Rule[] = databaseSuites.map(([flag, feature]) => ({
+const databaseRules: Rule[] = databaseSuites.map(([flag, feature, , publicFeature]) => ({
   id: `console-database-${flag}`,
   proves: `Real ${flag} services and persistence through the isolated PostgreSQL feature suite.`,
   commands: [`pnpm --filter @stacktape/console-api-app test:db --${flag}`],
@@ -89,7 +123,8 @@ const databaseRules: Rule[] = databaseSuites.map(([flag, feature]) => ({
     (path.startsWith('apps/console/api/') &&
       (feature.test(path) ||
         // Without the private suite source, choose the lane rather than miss its dependencies.
-        (dependencies.get(flag)?.has(modulePath(path)) ?? true)))
+        (dependencies.get(flag)?.has(modulePath(path)) ?? true))) ||
+    (publicFeature?.test(path) ?? false)
 }));
 
 const packagingSuites: [id: string, scripts: string[], feature: RegExp][] = [
@@ -148,6 +183,136 @@ const RULES: Rule[] = [
     matches: (path) =>
       hasPart(path, /^apps\/cli\/(src\/(domain|config|resource-reference)|tests\/characterization)/) ||
       hasPart(path, /^packages\/(cloudformation|config|config-authoring|naming)\//)
+  },
+  {
+    id: 'data-safety',
+    proves: 'Equivalent v3 and v4 configurations preserve stateful resources through the real change plan.',
+    commands: ['pnpm --filter @stacktape/cli run test:data-safety'],
+    matches: (path) =>
+      /^apps\/cli\/(src\/(domain\/(template-manager|calculated-stack-overview-manager|deployment-change-plan)|utils\/stack-info-map-diff)|tests\/data-safety)/.test(
+        path
+      ) || path.startsWith('packages/naming/')
+  },
+  {
+    id: 'config-loading',
+    proves: 'YAML, TypeScript and user directives resolve through the production loader without leaking secrets.',
+    commands: ['pnpm --filter @stacktape/cli run test:config-loading'],
+    matches: (path) =>
+      /^apps\/cli\/(src\/(domain\/config-manager|utils\/(file-loaders|python-bridge))|tests\/config-loading)/.test(
+        path
+      ) || /^packages\/(config|config-authoring)\//.test(path)
+  },
+  {
+    id: 'synthesis-families',
+    proves: 'Resource families synthesize connected templates accepted by cfn-lint.',
+    commands: [
+      'pnpm --filter @stacktape/cli run test:synthesis-families',
+      'pnpm --filter @stacktape/cli run test:synthesis-families:cfn-lint'
+    ],
+    matches: (path) =>
+      /^apps\/cli\/(src\/domain\/(template-manager|calculated-stack-overview-manager)|tests\/synthesis-families)/.test(
+        path
+      ) || path.startsWith('packages/cloudformation/')
+  },
+  {
+    id: 'cli-stack-operations',
+    proves: 'The CLI process refuses unsafe operations and performs confirmed deletion.',
+    commands: ['pnpm --filter @stacktape/cli run test:cli-process'],
+    matches: (path) =>
+      /^apps\/cli\/(src\/(commands\/(delete|rollback|diff)|domain\/(cloudformation-stack-manager|deployment-change-plan))|tests\/cli-process)/.test(
+        path
+      )
+  },
+  {
+    id: 'cli-operations',
+    proves: 'CLI output, diagnostics, sessions and operational commands work through real processes.',
+    commands: ['pnpm --filter @stacktape/cli run test:operations'],
+    matches: (path) =>
+      /^apps\/cli\/(scripts\/operations\/|src\/(commands\/|aws\/|app\/tui-manager\/|utils\/(bastion|session|tunnel|script)))/.test(
+        path
+      )
+  },
+  {
+    id: 'cli-operations-database',
+    proves: 'CLI query commands return real database results and enforce read-only access.',
+    commands: ['pnpm --filter @stacktape/cli run test:operations:db'],
+    matches: (path) =>
+      /^apps\/cli\/(scripts\/operations\/(queries|fixtures)|src\/(commands\/query|domain\/debug-services\/db-client))/.test(
+        path
+      )
+  },
+  {
+    id: 'cli-packaged-lambda',
+    proves: 'CLI-packaged Node functions, layers, source maps and cache identities survive runtime invocation.',
+    commands: ['pnpm --filter @stacktape/cli run test:node-lambda'],
+    matches: (path) =>
+      /^packages\/packaging\/src\/(bundlers\/es|split-bundler|artifact)/.test(path) ||
+      /^apps\/cli\/(scripts\/packaging-archives\/(node-lambda|lambda-runtime|acceptance-helpers)|src\/(domain\/packaging|config\/random))/.test(
+        path
+      )
+  },
+  {
+    id: 'cli-packaged-web',
+    proves: 'CLI-packaged SSR starters serve dynamic routes, cookies and assets in the Lambda runtime.',
+    commands: ['pnpm --filter @stacktape/cli run test:ssr-web'],
+    matches: (path) =>
+      path.startsWith('packages/packaging/src/web/') ||
+      /^apps\/cli\/(scripts\/packaging-archives\/(ssr-web|lambda-runtime|acceptance-helpers)|starter-projects\/|src\/commands\/package)/.test(
+        path
+      )
+  },
+  {
+    id: 'helper-lambda-runtime',
+    proves: 'Built CDN helper archives handle real CloudFront events in their Lambda runtime.',
+    commands: ['pnpm --filter @stacktape/cli run test:helper-lambda-runtime'],
+    matches: (path) =>
+      /^apps\/cli\/(helper-lambdas\/|scripts\/(packaging-archives\/(helper-lambda|lambda-runtime|acceptance-helpers)|build-helper-lambdas))/.test(
+        path
+      )
+  },
+  {
+    id: 'cli-runtime-acceptances',
+    proves: 'CLI-packaged functions, SSR starters and helper archives execute in their Lambda runtimes.',
+    commands: ['pnpm --filter @stacktape/cli run test:runtime-acceptances'],
+    matches: (path) => /^apps\/cli\/scripts\/qualification\/run-project-qualification\.ts$/.test(path)
+  },
+  {
+    id: 'starter-qualification',
+    proves: 'Materialized starters package through the current source CLI.',
+    commands: ['pnpm --filter @stacktape/cli run qualify:starters'],
+    matches: (path) =>
+      /^apps\/cli\/(starter-projects\/|starter-projects-metadata|scripts\/(starter-projects|qualification)|src\/(init\/|commands\/init\/|domain\/packaging))/.test(
+        path
+      ) || path.startsWith('packages/packaging/')
+  },
+  {
+    id: 'init-e2e',
+    proves: 'Terminal init writes a configuration that synthesizes and packages into a runnable artifact.',
+    commands: ['pnpm --filter @stacktape/cli test:init:e2e'],
+    matches: (path) =>
+      /^apps\/cli\/(src\/(init\/|commands\/init\/)|tests\/init-e2e\/|scripts\/test-init-e2e)/.test(path) ||
+      path.startsWith('packages/config-inference/')
+  },
+  {
+    id: 'local-dev-live',
+    proves: 'Owned live dev sessions rebuild and leave no owned processes, containers or ports.',
+    commands: ['pnpm test:aws --aws-scenario=dev-mode-local-loop'],
+    matches: (path) =>
+      /^apps\/cli\/(src\/(commands\/(dev|dev-stop)\/|domain\/debug-services\/)|scripts\/real-aws\/dev-mode-canary|_test-stacks\/dev-mode\/)/.test(
+        path
+      )
+  },
+  {
+    id: 'mcp-executable',
+    proves: 'The shipped MCP executable serves docs and dispatches cancellable, redacted CLI children.',
+    commands: ['pnpm --filter @stacktape/cli run test:mcp-executable'],
+    matches: (path) => /^apps\/cli\/(src\/(mcp\/|commands\/mcp)|scripts\/test-mcp|@generated\/llm-docs\/)/.test(path)
+  },
+  {
+    id: 'vscode-host',
+    proves: 'VS Code activates the installed extension and shows real schema diagnostics and CodeLens.',
+    commands: ['pnpm --filter vscode-stacktape run test:host'],
+    matches: (path) => path.startsWith('apps/vscode-extension/')
   },
   ...packagingRules,
   {
@@ -337,7 +502,11 @@ const RULES: Rule[] = [
   {
     id: 'docs',
     proves: 'Documentation source compiles and renders through its application build.',
-    commands: ['pnpm --filter @stacktape/docs typecheck', 'pnpm --filter @stacktape/docs build'],
+    commands: [
+      'pnpm --filter @stacktape/docs typecheck',
+      'pnpm --filter @stacktape/docs build',
+      'pnpm --filter @stacktape/docs run test:build-contracts'
+    ],
     matches: (path) => path.startsWith('apps/docs/')
   }
 ];
