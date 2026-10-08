@@ -354,7 +354,12 @@ const runFirstDeployInTerminal = async ({
   value: string;
   invocationId: string;
 }) => {
-  const cliArgs = ['dev:cli', ...stackCommandArgs({ options, command: 'deploy', awsAccountName })];
+  // The change-plan confirmation is answered up front; the CI/CD offer is asked on any TTY regardless.
+  const cliArgs = [
+    'dev:cli',
+    ...stackCommandArgs({ options, command: 'deploy', awsAccountName }),
+    '--autoConfirmOperation'
+  ];
   const quoted = cliArgs.map((part) => `'${part.replaceAll("'", "'\\''")}'`).join(' ');
   invocationIds.push(invocationId);
   const child = Bun.spawn({
@@ -390,7 +395,7 @@ const runFirstDeployInTerminal = async ({
     updateMessage: null,
     cicdOffered: offered,
     exitCode: child.exitCode,
-    transcriptTail: stripAnsi(transcript).slice(-2_000)
+    transcriptTail: stripAnsi(transcript).replace(/\s+/g, ' ').slice(-2_000)
   };
 };
 
@@ -639,6 +644,14 @@ export const runAliasPublicationCanary = async ({ cleanupOnly = false }: { clean
           value: values.initial,
           invocationId: `alias-canary-1-${run}`
         });
+    if ('cicdOffered' in first) {
+      report.firstDeployTranscriptTail = first.transcriptTail;
+      await writeReport();
+      assert(
+        first.exitCode === 0,
+        `The first deploy in a terminal exited with ${String(first.exitCode)}:\n${first.transcriptTail}`
+      );
+    }
     const stack = await describeStack(clients.cloudFormation, stackName);
     assert(stack, `${stackName} does not exist after the first deploy.`);
     assertOwned(stack, options);
