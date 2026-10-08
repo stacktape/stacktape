@@ -20,7 +20,11 @@ import {
 import { entryToUrlSlug } from '../src/utils/route-slugs.ts';
 
 const APP_ROOT = fileURLToPath(new URL('..', import.meta.url));
-const OUT_DIR = resolve(APP_ROOT, 'dist');
+const cliArgs = process.argv.slice(2);
+if (cliArgs.length > 0 && (cliArgs.length !== 2 || cliArgs[0] !== '--out-dir' || !cliArgs[1])) {
+  throw new Error('Usage: validate-built-site.ts [--out-dir <built-site-directory>]');
+}
+const OUT_DIR = resolve(APP_ROOT, cliArgs[1] ?? 'dist');
 const CONTENT_DIR = resolve(APP_ROOT, 'content');
 const SITE_ORIGIN = 'https://docs.stacktape.com';
 const ERROR_PAGE = '404.html';

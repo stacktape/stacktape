@@ -65,7 +65,7 @@ export default defineConfig(() => {
       entryfilePath: './src/webhook-provider.ts'
     }),
     timeout: 30,
-    environment: [{ name: 'EXTERNAL_API_KEY', value: '$Secret(external-api-key)' }]
+    environment: { EXTERNAL_API_KEY: '$Secret(external-api-key)' }
   });
 
   const apiWebhook = new CustomResourceInstance({

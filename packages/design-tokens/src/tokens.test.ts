@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { readFile } from 'node:fs/promises';
 
 import { designTokens, flattenTokens, tokenVar } from './tokens.ts';
 
@@ -59,4 +60,39 @@ test('literal tokens contain direct CSS values rather than token references', ()
   for (const { name, value } of flattenTokens(designTokens)) {
     assert.ok(!value.includes('var('), `${name} must hold a literal value so JS-side consumers can read it.`);
   }
+});
+
+test('shipped CSS declares each typed token value and resolves every typed reference', async () => {
+  const css = await readFile(new URL('../generated/tokens.css', import.meta.url), 'utf8');
+  const declarations = [...css.matchAll(/(--stp-[a-z-]+):\s*([^;]+);/g)];
+  const actual = new Map(declarations.map((match) => [match[1], match[2]]));
+  assert.equal(actual.size, declarations.length, 'CSS must not redeclare a token');
+  const expected = new Map<string, string>();
+  const visit = (literals: Record<string, unknown>, references: Record<string, unknown>, path: string[]) => {
+    assert.deepEqual(
+      Object.keys(references),
+      Object.keys(literals),
+      'Typed reference and value trees must have identical paths'
+    );
+    for (const [key, value] of Object.entries(literals)) {
+      const reference = references[key];
+      const nextPath = [...path, key];
+      if (typeof value === 'string') {
+        const name =
+          '--stp-' + nextPath.map((part) => part.replace(/[A-Z]/g, (letter) => '-' + letter.toLowerCase())).join('-');
+        expected.set(name, value);
+        assert.equal(
+          reference,
+          `var(${name})`,
+          `Reference at ${nextPath.join('.')} must resolve to its CSS declaration`
+        );
+        assert.equal(actual.get(name), value, `${name} must ship the same value JS consumers receive`);
+      } else {
+        assert(value && typeof value === 'object' && reference && typeof reference === 'object');
+        visit(value as Record<string, unknown>, reference as Record<string, unknown>, nextPath);
+      }
+    }
+  };
+  visit(designTokens, tokenVar, []);
+  assert.deepEqual(actual, expected, 'CSS must contain exactly the typed token inventory');
 });

@@ -83,10 +83,10 @@ export default defineConfig(() => {
     packaging: new JsBundleImagePackaging({ entryfilePath: './src/server.ts' }),
     resources: { cpu: 0.25, memory: 512 },
     environment: { LOG_LEVEL: 'info' },
-    secrets: {
-      API_TOKEN: $SsmParam('/my-app/production/api-token'),
-      ROTATING_KEY: $Secret('rotating-key.value')
-    }
+    secrets: [
+      { name: 'API_TOKEN', valueFrom: $SsmParam('/my-app/production/api-token') },
+      { name: 'ROTATING_KEY', valueFrom: $Secret('rotating-key.value') }
+    ]
   });
 
   return { resources: { api } };

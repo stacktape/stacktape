@@ -88,3 +88,16 @@ preferring a locally installed CLI (`node_modules/.bin`) and falling back to a g
 ## License
 
 MIT
+
+## Extension-host tests
+
+`test` keeps the compiled language-server JSON-RPC checks. `test:host` also loads the compiled extension in a real VS
+Code desktop host and checks automatic activation, CodeLens commands, per-project schemas and diagnostics. Supply a
+portable VS Code executable; Linux needs `xvfb-run` and VS Code's desktop libraries already installed:
+
+```sh
+STP_VSCODE_EXECUTABLE=/path/to/VSCode-linux-x64/code pnpm --filter vscode-stacktape run test:host
+```
+
+The runner uses VS Code's `--extensionDevelopmentPath`/`--extensionTestsPath` flags, a fresh workspace/home/profile and
+an automatically selected xvfb display. It adds no download-helper dependency and closes only its own process group.

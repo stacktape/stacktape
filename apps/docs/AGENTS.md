@@ -29,8 +29,12 @@ finished API-reference data; it does not own another schema extractor. YAML/Type
 `CliCommandsApiReference` takes only a command name. Its options come from the current generated command metadata, which
 also supplies the CLI's LLM corpus; do not embed option snapshots in MDX.
 
-The rendered Twoslash component hides diagnostics from readers, so `tests/twoslash-types.test.ts` is the actual type
-correctness gate. The served LLM text must remain byte-identical to the CLI corpus.
+The rendered Twoslash component hides diagnostics from readers, so the build checks complete rendered config examples
+against the served Stacktape declarations and Node types. `tests/twoslash-types.test.ts` also checks the browser
+type-loading contract. IntelliSense blocks are complete config examples by default. Mark contextual snippets with
+`configExample="fragment"` and complete config blocks without IntelliSense with `configExample="complete"`. The build
+selects examples from this metadata rather than requiring valid source syntax. The served LLM text must remain
+byte-identical to the CLI corpus.
 
 ## UI and assets
 
