@@ -28,6 +28,7 @@ pnpm --filter @stacktape/console-api-app test:db --incident-journey
 pnpm --filter @stacktape/console-api-app test:db --security
 pnpm --filter @stacktape/console-api-app test:db --gitlab
 pnpm --filter @stacktape/console-api-app test:db --runner
+pnpm --filter @stacktape/console-api-app test:db --git-deploy
 pnpm --filter @stacktape/console-api-app test:db --incident-agent
 pnpm --filter @stacktape/console-api-app test:db --sign-up
 pnpm --filter @stacktape/console-api-app test:db --console-access
@@ -51,6 +52,13 @@ webhook delivery and authenticated incident actions. It also invokes the built u
 Lambda image and checks the monitoring sweeper through its Lambda proxy. Build the helpers first with
 `pnpm --filter @stacktape/cli build:dev-artifacts`; the lane needs `openssl`, `unzip`, Docker and the local
 `public.ecr.aws/lambda/nodejs:22` image. All fixtures use isolated databases and loopback endpoints.
+
+`--git-deploy` runs authenticated provider ingress, durable webhook/operation workers, runner dispatch and completion
+against loopback transports, with real API middleware and disposable PostgreSQL. It uses a ready runner fixture; EC2
+provisioning and AMI qualification remain separate. Dispatched deployment, Actions and cancellation scripts execute in a
+network-disabled `node:24-bookworm` container with controlled external tools and a systemd stand-in. A local file relay
+forwards only the suite's AWS/API HTTP requests, including real CLI and runner completion callbacks, across Docker
+Desktop and WSL.
 
 The isolated Console browser lane uses the same disposable database runner:
 
