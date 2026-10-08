@@ -12,7 +12,8 @@
  *    endpoint answers; `dev:stop --agentPort` returns only after the agent is gone.
  * 2. `interactive-watch-ctrl-c`: in a terminal (PTY), a warm start reuses the stack without updating it, `--watch`
  *    rebuilds the API after an edit, and Ctrl+C ends the session with status 0.
- * 3. `terminal-sigterm`: SIGTERM to a terminal session (what closing the terminal or a process manager sends) ends it.
+ * 3. `terminal-sigterm`: `dev:stop --cleanupContainers` keeps a running terminal session's containers, and SIGTERM to the
+ *    session (what closing the terminal or a process manager sends) ends it.
  * 4. `occupied-ports-sigterm`: with the default container and dev-server ports held by other processes, `dev --agent`
  *    still serves both workloads elsewhere and leaves the other listeners alone; SIGTERM ends the agent.
  * 5. `failed-startup`: an API that crashes on start is reported as failed; an unknown `--resources` name fails before
@@ -761,6 +762,17 @@ const terminalSigterm = async (context: ScenarioContext) => {
     await waitForApiRelease(`http://localhost:${port}/`, 'first');
     await waitFor('the web dev server to start', async () => ((await fixtureDevServerPort(state)) ? true : undefined));
     const webPort = (await fixtureDevServerPort(state))!;
+    await check('`dev:stop --cleanupContainers` keeps the containers of a running terminal session', async () => {
+      // A terminal session has no agent, so cleanup can only know it is alive from its lock file and container labels.
+      const cleanup = await runCli({ options, state, args: ['dev:stop', '--cleanupContainers', '--agent'] });
+      assert(
+        cleanup.exitCode === 0,
+        `dev:stop --cleanupContainers failed (${cleanup.exitCode}): ${cleanup.output.slice(-1500)}`
+      );
+      for (const name of [databaseContainerName(options), cacheContainerName(options)]) {
+        assert(containerState(name) === 'running', `Cleanup removed or stopped ${name} of the running session.`);
+      }
+    });
     await check('SIGTERM to a terminal session ends it with status 0', async () => {
       terminal.kill('SIGTERM');
       const exit = await Promise.race([terminal.exited, sleep(STOP_TIMEOUT_MS).then(() => 'still running')]);
