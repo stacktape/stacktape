@@ -819,18 +819,10 @@ const verifyHealth = async ({
   if (fixture.health.kind === 'none') return;
   const resourceName = healthResourceName({ fixture, state });
   assert(resourceName, `Could not find ${fixture.health.resourceType} resource for the health check.`);
-  const configPath = requiredString(state.configFile?.path, 'Written config path');
+  // A deployed parameter is read from the stack itself; param:get takes no working directory.
   const result = await runJsonlCli(
     options,
-    [
-      'param:get',
-      ...deployedStackArgs(options, configPath),
-      '--resourceName',
-      resourceName,
-      '--paramName',
-      'url',
-      '--agent'
-    ],
+    ['param:get', ...deployedStackArgs(options), '--resourceName', resourceName, '--paramName', 'url', '--agent'],
     env
   );
   const value = commandResult(result.result);
