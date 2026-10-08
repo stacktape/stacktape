@@ -152,7 +152,11 @@ class ApplicationManager {
       tuiManager.forceRestoreTerminal();
     }
 
-    this.removeOwnProcessListeners();
+    tuiManager.emitJsonlResult({
+      ok: false,
+      code: 'USER_INTERRUPTION',
+      message: 'Operation interrupted by user'
+    });
     process.exitCode = 0;
 
     if (globalStateManager.command === 'dev') {
@@ -163,10 +167,14 @@ class ApplicationManager {
         // Safety timeout: don't hang forever if drain never fires
         setTimeout(resolve, 500);
       });
+      this.removeOwnProcessListeners();
       process.exit(0);
       return;
     }
     return kill(process.pid, () => {
+      // tree-kill signals this process as well as its descendants. Keep our handlers installed until its callback
+      // runs, otherwise the default SIGTERM handler exits with 143 before we can preserve the interruption status.
+      this.removeOwnProcessListeners();
       process.exit(0);
     });
   };

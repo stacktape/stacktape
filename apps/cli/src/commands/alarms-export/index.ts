@@ -30,7 +30,7 @@ export const commandAlarmsExport = async () => {
   );
 
   for (const wireAlarm of consoleAlarms) {
-    const { notificationTargets, forServices, forStages, ...alarm } = wireAlarm as Record<string, unknown> & {
+    const { name, notificationTargets, forServices, forStages, ...alarm } = wireAlarm as Record<string, unknown> & {
       notificationTargets?: { name: string }[];
       forServices?: string[];
       forStages?: string[];
@@ -46,7 +46,9 @@ export const commandAlarmsExport = async () => {
       `projects: ${!forServices?.length || forServices.includes('*') ? 'all' : forServices.join(', ')}`,
       `stages: ${!forStages?.length || forStages.includes('*') ? 'all' : forStages.join(', ')}`
     ].join(' · ');
-    tuiManager.info(`# applies to ${appliesTo}\n${stringify([configAlarm]).trimEnd()}\n`);
+    tuiManager.info(
+      `# alarm ${JSON.stringify(name)}\n# applies to ${appliesTo}\n${stringify([configAlarm]).trimEnd()}\n`
+    );
   }
 
   return null;
