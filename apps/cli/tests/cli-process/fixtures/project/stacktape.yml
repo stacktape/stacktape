@@ -1,0 +1,30 @@
+# Project configuration for the CLI-process tests: the stack the fakes report was deployed from the serverless-api
+# data-safety baseline; this config only needs to load so hooks and validation run the way a customer's would.
+resources:
+  mainGateway:
+    type: http-api-gateway
+  api:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: ./src/api.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: mainGateway
+            method: '*'
+            path: /{proxy+}
+      connectTo:
+        - mainDb
+  mainDb:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: tenantId
+          type: string
+        sortKey:
+          name: recordId
+          type: string

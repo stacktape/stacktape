@@ -1,0 +1,67 @@
+# Every built-in directive that resolves without AWS, plus user directives, in one YAML config.
+projectName: directive-project
+variables:
+  retentionDays: 7
+  owner: platform-team
+directives:
+  - name: shout
+    filePath: ./directives/custom.ts:shout
+resources:
+  gateway:
+    type: http-api-gateway
+  api:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: ./src/api.ts
+      memory: $File($Format('./data/stages/{}.yml', $Stage())).memory
+      logging:
+        retentionDays: $Var().retentionDays
+      environment:
+        - name: STAGE
+          value: $Stage()
+        - name: REGION
+          value: $Region()
+        - name: ACCOUNT
+          value: $AwsAccountId()
+        - name: OWNER
+          value: $Var().owner
+        - name: PROJECT
+          value: $This().projectName
+        - name: LOG_LEVEL
+          value: $File('./data/settings.json').logLevel
+        - name: RETENTION
+          value: $File('./data/settings.json').nested.retention
+        - name: FEATURE_FLAG
+          value: $File('./data/.env').FEATURE_FLAG
+        - name: BANNER
+          value: $FileRaw('./data/banner.txt')
+        - name: GREETING
+          value: $Format('hello {} from {}', $Var().owner, $Stage())
+        - name: SHOUTED
+          value: $shout($Var().owner, $File('./data/.env').STAGE_SUFFIX)
+        - name: TABLE_NAME
+          value: $ResourceParam('records', 'name')
+        - name: TABLE_ARN
+          value: $CfResourceParam('RecordsGlobalTable', 'Arn')
+        - name: GATEWAY_URL
+          value: $ResourceParam('gateway', 'url')
+        - name: CLI_FLAVOR
+          value: $CliArgs('flavor', 'default-flavor')
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: gateway
+            method: GET
+            path: /
+      connectTo:
+        - records
+  records:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: id
+          type: string

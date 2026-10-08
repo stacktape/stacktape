@@ -43,13 +43,15 @@ pnpm --filter @stacktape/cli run test:real-aws-canary
 
 This deploys `_test-stacks/alias-publication` (one Node.js function behind a CodeDeploy alias) through the source CLI
 (`pnpm dev:cli`, which reads `STACKTAPE_API_KEY` from `apps/cli/.env.local` in dev mode). It changes only the function's
-environment value and requires the alias to serve it from a newly published version. It then redeploys unchanged and
-requires no new version, deletes the stack, and verifies that the stack, its deployment bucket, functions and log groups
-are gone. Its account preflight takes the expected account from the environment and refuses any other account; it has no
-disposable-account confirmation, so run it only where the owner has authorized a unique disposable stack. The CLI
-deploys through the single active Stacktape connection to that account, found with `info:whoami`: an organization with
-several connections needs `--awsAccount`, and a privileged connection gives the CLI Stacktape-issued credentials instead
-of the profile's.
+environment value and requires the alias to serve it from a newly published version. It then deploys a change
+CloudFormation rejects while creating it (the fixture adds an impossible queue when `STP_AWS_ALIAS_CANARY_BREAK=1`),
+requires the CLI to report the failure and the stack to roll back with the alias, versions and template untouched,
+redeploys unchanged from that state and requires no new version, deletes the stack, and verifies that the stack, its
+deployment bucket, functions and log groups are gone. Its account preflight takes the expected account from the
+environment and refuses any other account; it has no disposable-account confirmation, so run it only where the owner has
+authorized a unique disposable stack. The CLI deploys through the single active Stacktape connection to that account,
+found with `info:whoami`: an organization with several connections needs `--awsAccount`, and a privileged connection
+gives the CLI Stacktape-issued credentials instead of the profile's.
 
 ```sh
 export STP_AWS_ALIAS_CANARY_DEPLOY=1

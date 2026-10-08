@@ -1424,7 +1424,6 @@ describe('full synthesis contract', () => {
     expect(Object.values(resources).some(({ Type }) => Type === 'AWS::ApiGatewayV2::Deployment')).toBe(false);
     expect(resources[messageRouteResponseLogicalName]).toEqual({
       Type: 'AWS::ApiGatewayV2::RouteResponse',
-      DependsOn: [],
       Properties: {
         ApiId: { Ref: apiLogicalName },
         RouteId: { Ref: messageRouteLogicalName },

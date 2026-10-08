@@ -12,6 +12,7 @@ import { packageHelperLambdas } from './package-helper-lambdas';
 import { getCliArgs } from './release/args';
 import {
   buildBinaryFile,
+  copyBridgeFiles,
   copyConfigSchema,
   copyInitWizardBundle,
   copyMcpDocs,
@@ -74,6 +75,7 @@ export const buildDistPackage = async ({
   await Promise.all([
     copySessionsManagerPluginBinary({ distFolderPath, platform }),
     copyConfigSchema({ distFolderPath: platformDistFolderPath }),
+    copyBridgeFiles({ distFolderPath: platformDistFolderPath }),
     copyInitWizardBundle({ distFolderPath: platformDistFolderPath }),
     copyMcpDocs({ distFolderPath: platformDistFolderPath }),
     generateStarterProjectsMetadata({ distFolderPath: platformDistFolderPath }),
