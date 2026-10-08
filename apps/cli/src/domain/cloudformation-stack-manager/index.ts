@@ -314,7 +314,8 @@ class StackManager {
       terminationProtection
     } = configManager.deploymentConfig;
     const stackPolicy = []; // configManager.guardrails?.cloudformationStackPolicies
-    const operationRequiresTags = this.stackActionType === 'create' || this.stackActionType === 'update';
+    // `dev` creates and updates the dev stack, which needs the same configured and Stacktape tags as a deployed stack.
+    const operationRequiresTags = ['create', 'update', 'dev'].includes(this.stackActionType);
     const rollbackAlarmArns = (triggerRollbackOnAlarms || [])
       .map((alarmNameOrArn) => {
         // if alarm is arn we use the arn

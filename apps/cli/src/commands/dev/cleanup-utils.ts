@@ -32,31 +32,47 @@ export const createCleanupHook = (hookName: string, cleanupFn: () => Promise<voi
 };
 
 /**
- * Extract stage from container name.
- * Container names are formatted as: stp-{stage}-{resourceName}
+ * Name of a local container dev mode starts for a workload or database. The project and stage keep the sessions of two
+ * projects apart when they use the same stage and resource names; without them, one project's session reused the
+ * other's database container and stopped its workload containers.
  */
-const extractStageFromContainerName = (containerName: string): string | null => {
-  // Container name format: stp-{stage}-{resourceName}
-  // Stage can contain hyphens, so we need to be careful
-  // We know it starts with "stp-" and ends with "-{resourceName}"
-  // Resource names typically don't have hyphens in them
-  const match = containerName.match(/^stp-(.+)-[^-]+$/);
-  return match ? match[1] : null;
-};
+export const getDevContainerName = ({
+  projectName,
+  stage,
+  name
+}: {
+  projectName: string;
+  stage: string;
+  name: string;
+}): string => `stp-${projectName}-${stage}-${name}`;
+
+/**
+ * The `stp-` containers that belong to no running agent, by their current name or the legacy `stp-{stage}-{resource}`
+ * one. Reading the stage back out of a name broke once names gained the project, so names are matched against agents.
+ */
+export const selectOrphanedDevContainers = (
+  containerNames: string[],
+  runningAgents: { projectName: string; stage: string }[]
+): string[] =>
+  containerNames.filter(
+    (name) =>
+      !runningAgents.some(
+        ({ projectName, stage }) =>
+          name.startsWith(`stp-${projectName}-${stage}-`) ||
+          (name.startsWith(`stp-${stage}-`) && !name.slice(`stp-${stage}-`.length).includes('-'))
+      )
+  );
 
 /**
  * Clean up truly orphaned Stacktape dev containers.
- * Only removes containers whose stage doesn't match any running dev agent.
- * Container naming: stp-{stage}-{resourceName}
+ * Only removes containers that belong to no running dev agent.
  */
 export const cleanupOrphanedContainers = async (): Promise<string[]> => {
   const { execDocker } = await import('@utils/docker');
   const { getAllRunningAgents } = await import('./agent-daemon');
 
   try {
-    // Get all running agents to know which stages are active
     const runningAgents = await getAllRunningAgents();
-    const activeStages = new Set(runningAgents.map((agent) => agent.stage));
 
     // List all containers (running and stopped) with names starting with 'stp-'
     const result = await execDocker(['ps', '-a', '--filter', 'name=^stp-', '--format', '{{.Names}}'], {
@@ -72,12 +88,7 @@ export const cleanupOrphanedContainers = async (): Promise<string[]> => {
       return [];
     }
 
-    // Filter to only orphaned containers (stage not in activeStages)
-    const orphanedContainers = containerNames.filter((name) => {
-      const stage = extractStageFromContainerName(name);
-      // If we can't parse the stage, or if the stage has no running agent, it's orphaned
-      return !stage || !activeStages.has(stage);
-    });
+    const orphanedContainers = selectOrphanedDevContainers(containerNames, runningAgents);
 
     if (orphanedContainers.length === 0) {
       return [];

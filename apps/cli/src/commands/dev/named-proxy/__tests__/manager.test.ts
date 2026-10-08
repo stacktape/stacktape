@@ -128,9 +128,49 @@ describe('removeNamedProxyRoute', () => {
     }
   });
 
+  test('removing one route leaves the others routed', async () => {
+    const { ensureNamedProxyRoute, removeNamedProxyRoute } = await import('../manager');
+    const backend = await startEchoBackend(19221);
+    try {
+      const removed = await ensureNamedProxyRoute({ resourceName: 'removedService', targetPort: 19221 });
+      const kept = await ensureNamedProxyRoute({ resourceName: 'keptService', targetPort: 19221 });
+      removeNamedProxyRoute('removedService');
+
+      expect((await fetch(removed.url, { headers: { Host: removed.hostname } })).status).toBe(404);
+      expect((await fetch(kept.url, { headers: { Host: kept.hostname } })).status).toBe(200);
+    } finally {
+      await closeServer(backend);
+    }
+  });
+
   test('removing non-existent route is a no-op', async () => {
     const { removeNamedProxyRoute } = await import('../manager');
     expect(() => removeNamedProxyRoute('nonexistent')).not.toThrow();
+  });
+});
+
+describe('workload restarts', () => {
+  afterEach(async () => {
+    const { stopNamedProxy } = await import('../manager');
+    await stopNamedProxy();
+  });
+
+  // A rebuild stops a workload's container or dev server and starts it again on the same port; its URL must keep working.
+  test('a workload restarted on the same port is reachable through its existing route', async () => {
+    const { ensureNamedProxyRoute } = await import('../manager');
+    let backend = await startEchoBackend(19225);
+    const route = await ensureNamedProxyRoute({ resourceName: 'rebuilt', targetPort: 19225 });
+    await closeServer(backend);
+    expect((await fetch(route.url, { headers: { Host: route.hostname } })).status).toBe(502);
+
+    backend = await startEchoBackend(19225);
+    try {
+      const response = await fetch(route.url, { headers: { Host: route.hostname } });
+      expect(response.status).toBe(200);
+      expect(await response.text()).toBe('echo');
+    } finally {
+      await closeServer(backend);
+    }
   });
 });
 
@@ -140,11 +180,8 @@ describe('stopNamedProxy', () => {
     const route = await ensureNamedProxyRoute({ resourceName: 'app', targetPort: 19230 });
     await stopNamedProxy();
 
-    try {
-      await fetch(route.url, { headers: { Host: route.hostname } });
-    } catch {
-      // Expected: connection refused
-    }
+    // Nothing listens on the proxy port any more, so the connection is refused.
+    await expect(fetch(route.url, { headers: { Host: route.hostname } })).rejects.toThrow();
   });
 
   test('can be called multiple times safely', async () => {
