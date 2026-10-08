@@ -3,6 +3,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { execDocker, inspectDockerContainer } from '@utils/docker';
 import { isPortInUse } from '@utils/ports';
 import findFreePorts from 'find-free-ports';
+import { getDevContainerOwnerArgs } from '../cleanup-utils';
 import { DEV_CONFIG } from '../dev-config';
 
 export const DEFAULT_LOCAL_HOST = 'localhost';
@@ -223,7 +224,7 @@ export const buildDockerRunArgs = ({
   imageTag: string;
   additionalArgs?: string[];
 }): string[] => {
-  const args = ['run', '-d', '--name', containerName];
+  const args = ['run', '-d', '--name', containerName, ...getDevContainerOwnerArgs()];
 
   for (const [key, value] of Object.entries(envVars)) {
     args.push('-e', `${key}=${value}`);
