@@ -25,6 +25,33 @@ const cliDirectory = join(import.meta.dir, '..', '..');
 const devEntry = join(cliDirectory, 'scripts', 'dev.ts');
 const standIn = join(import.meta.dir, 'recorded-agent-cli.ts');
 
+const docker = (args: string[]) => spawnSync('docker', args, { encoding: 'utf8' });
+
+/**
+ * Images packaging built for one sandbox. Every fixture puts the sandbox id in its resource names, and image tags
+ * are derived from them, so this finds them by name even when packaging failed before reporting what it built.
+ */
+const imagesOwnedBy = (id: string): string[] => {
+  const listed = docker(['image', 'ls', '--format', '{{.Repository}}:{{.Tag}}']);
+  if (listed.status !== 0) return [];
+  return listed.stdout
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((image) => image !== '' && (image.split(':')[0] ?? '').includes(id));
+};
+
+const removeImages = async (images: readonly string[]) => {
+  const remaining = new Set(images);
+  for (let attempt = 0; attempt < 3 && remaining.size > 0; attempt += 1) {
+    if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 1_000));
+    for (const image of [...remaining]) {
+      docker(['image', 'rm', '--force', image]);
+      if (docker(['image', 'inspect', image]).status !== 0) remaining.delete(image);
+    }
+  }
+  if (remaining.size > 0) throw new Error(`Could not remove test images: ${[...remaining].join(', ')}.`);
+};
+
 export type InitSandbox = {
   /** Short random suffix, unique per scenario. Fixtures put it in package names so image tags never collide. */
   id: string;
@@ -35,6 +62,7 @@ export type InitSandbox = {
   agentScript: string;
   agentLog: string;
   readAgentLog: () => Promise<AgentLogEntry[]>;
+  /** Removes every image built for this sandbox and the sandbox directory, and verifies the images are gone. */
   cleanup: () => Promise<void>;
 };
 
@@ -86,7 +114,14 @@ export const createInitSandbox = async ({
             .filter((line) => line.trim() !== '')
             .map((line) => JSON.parse(line) as AgentLogEntry)
         : [],
-    cleanup: () => rm(root, { recursive: true, force: true, maxRetries: 3 })
+    // Images first, then the directory, and the directory even when an image could not be removed.
+    cleanup: async () => {
+      try {
+        await removeImages(imagesOwnedBy(id));
+      } finally {
+        await rm(root, { recursive: true, force: true, maxRetries: 3 });
+      }
+    }
   };
 };
 
@@ -354,24 +389,9 @@ export const packageOffline = async ({
   }
 };
 
-const docker = (args: string[]) => spawnSync('docker', args, { encoding: 'utf8' });
-
 export const assertDockerAvailable = () => {
   const info = docker(['info', '--format', '{{.ServerVersion}}']);
   if (info.status !== 0) throw new Error(`This scenario builds and runs an image and needs Docker: ${info.stderr}`);
-};
-
-/** Remove the images a scenario built. Tags are unique per scenario, so nothing else is touched. */
-export const removeImages = async (jobNames: readonly string[]) => {
-  const remaining = new Set(jobNames.map((jobName) => `${jobName}:latest`));
-  for (let attempt = 0; attempt < 3 && remaining.size > 0; attempt += 1) {
-    if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 1_000));
-    for (const image of [...remaining]) {
-      docker(['image', 'rm', '--force', image]);
-      if (docker(['image', 'inspect', image]).status !== 0) remaining.delete(image);
-    }
-  }
-  if (remaining.size > 0) throw new Error(`Could not remove test images: ${[...remaining].join(', ')}.`);
 };
 
 type ContainerDefinition = {

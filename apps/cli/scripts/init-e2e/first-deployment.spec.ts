@@ -24,7 +24,6 @@ import {
   lockPnpmDependencies,
   interruptSourceInitDuringAnalysis,
   packageOffline,
-  removeImages,
   requestRunningImage,
   runSourceInit,
   type InitSandbox
@@ -32,13 +31,17 @@ import {
 import type { AgentLogEntry, AgentScript } from './recorded-agent-cli';
 
 const sandboxes: InitSandbox[] = [];
-const builtJobs: string[] = [];
 
 beforeAll(() => assertDockerAvailable());
 
 afterEach(async () => {
-  await removeImages(builtJobs.splice(0));
-  await Promise.all(sandboxes.splice(0).map((sandbox) => sandbox.cleanup()));
+  const results = await Promise.allSettled(sandboxes.splice(0).map((sandbox) => sandbox.cleanup()));
+  const failures = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
+  if (failures.length > 0)
+    throw new AggregateError(
+      failures.map((failure) => failure.reason),
+      'Cleanup failed.'
+    );
 });
 
 const sandboxFor = async (...args: Parameters<typeof createInitSandbox>) => {
@@ -185,7 +188,6 @@ describe('stacktape init in the terminal: existing repository to a running artif
         configFile: 'stacktape.yml',
         projectName: `j1-orders-${sandbox.id}`
       });
-      builtJobs.push(...packaged.packagedWorkloads.map((workload) => workload.jobName));
       expect(packaged.packagedWorkloads).toHaveLength(1);
 
       const jobName = packaged.packagedWorkloads[0]!.jobName;
@@ -228,7 +230,6 @@ describe('stacktape init in the terminal: existing repository to a running artif
         configFile: 'stacktape.ts',
         projectName: `j1-orders-${sandbox.id}`
       });
-      builtJobs.push(...packaged.packagedWorkloads.map((workload) => workload.jobName));
       const jobName = packaged.packagedWorkloads[0]!.jobName;
       const container = containerDefinitionFor(packaged.template, jobName);
       expect(container.Environment).toContainEqual({
@@ -305,7 +306,6 @@ describe('stacktape init in the terminal: existing repository to a running artif
         configFile: 'stacktape.yml',
         projectName: `j1-ledger-${sandbox.id}`
       });
-      builtJobs.push(...packaged.packagedWorkloads.map((workload) => workload.jobName));
       const jobName = packaged.packagedWorkloads[0]!.jobName;
       const reachable = await requestRunningImage({
         jobName,
@@ -387,7 +387,6 @@ describe('stacktape init in the terminal: existing repository to a running artif
         configFile: 'stacktape.generated.yml',
         projectName: `j1-orders-${sandbox.id}`
       });
-      builtJobs.push(...packaged.packagedWorkloads.map((workload) => workload.jobName));
       const jobName = packaged.packagedWorkloads[0]!.jobName;
       const response = await requestRunningImage({
         jobName,
@@ -456,7 +455,6 @@ describe('stacktape init in the terminal: existing repository to a running artif
         configFile: 'stacktape.yml',
         projectName: `j1-shop-${sandbox.id}`
       });
-      builtJobs.push(...packaged.packagedWorkloads.map((workload) => workload.jobName));
       const apiJob = packaged.packagedWorkloads.find((workload) =>
         workload.jobName.startsWith(`${apiName.toLowerCase()}-`)
       )?.jobName;
