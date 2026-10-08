@@ -32,7 +32,7 @@ const EXPRESS_APP = {
     dependencies: { express: '^5.0.0', pg: '^8.11.0' }
   }),
   'package-lock.json': '{}',
-  'src/index.ts': 'import express from "express";\nconst app = express();\napp.listen(3000);'
+  'src/index.ts': 'import express from "express";\nconst app = express();\napp.listen(process.env.PORT);'
 };
 
 const agent = (id: DetectedAgent['id'], executable = id): DetectedAgent => ({
