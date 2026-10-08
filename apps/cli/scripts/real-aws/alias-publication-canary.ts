@@ -739,16 +739,20 @@ export const runAliasPublicationCanary = async ({ cleanupOnly = false }: { clean
       deploymentVersion: nextVersion
     };
     await writeReport();
-    // Nothing uploaded but the template objects of the new deployment version: no artifact, layer or manifest.
+    // Nothing uploaded but the deployment's own records: the two template objects of the new deployment version and
+    // the security inventory (one per deployment by design). No artifact, layer or bucket manifest.
     assert(typeof nextVersion === 'string' && /^v\d+$/.test(nextVersion), 'The redeploy has no deployment version.');
     const templateObjectPattern = new RegExp(`(^|/)${nextVersion}\\.(yml|yaml|json)$`);
-    const unexpectedUploads = uploadedObjects.filter((key) => !templateObjectPattern.test(key));
-    assert(
-      unexpectedUploads.length === 0,
-      `The unchanged redeploy uploaded ${unexpectedUploads.join(', ')}; only the ${nextVersion} template objects may be written.`
+    const inventoryObjectPattern = /^security-inventory\/v\d+\.json$/;
+    const unexpectedUploads = uploadedObjects.filter(
+      (key) => !templateObjectPattern.test(key) && !inventoryObjectPattern.test(key)
     );
     assert(
-      uploadedObjects.length <= 2,
+      unexpectedUploads.length === 0,
+      `The unchanged redeploy uploaded ${unexpectedUploads.join(', ')}; only the ${nextVersion} template objects and the security inventory may be written.`
+    );
+    assert(
+      uploadedObjects.length <= 3,
       `The unchanged redeploy wrote ${uploadedObjects.length} objects: ${uploadedObjects.join(', ')}.`
     );
     // Nothing changed in the stack but the deployment version output.
