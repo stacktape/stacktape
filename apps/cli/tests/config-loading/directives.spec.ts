@@ -18,7 +18,7 @@ import { templateManager } from '@domain-services/template-manager';
 import type { GetConfigParams } from '@stacktape/config-authoring';
 import type { StacktapeConfig } from '@stacktape/config';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import { afterEach, describe, expect, test } from 'bun:test';
+import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test';
 import { cp, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -48,6 +48,16 @@ const synthesizeYaml = (stage: string, workingDir = directivesFixture) =>
     workingDir,
     identity: { ...identity, stage }
   });
+
+// `.gitignore` excludes every `.env*` file and `$File` accepts dotenv files only under that name, so the fixture's
+// dotenv file is written here instead of being committed.
+const dotenvFixture = join(directivesFixture, 'data', '.env');
+beforeAll(async () => {
+  await writeFile(dotenvFixture, 'FEATURE_FLAG=enabled\nSTAGE_SUFFIX=-env\n');
+});
+afterAll(async () => {
+  await rm(dotenvFixture, { force: true });
+});
 
 const temporaryDirectories: string[] = [];
 afterEach(async () => {
@@ -130,9 +140,8 @@ describe('a YAML config with directives, references and stage-specific values sy
     expect(functionEnvironment(template, 'ApiFunction').STAGE).toBe('staging');
   });
 
-  // Open product bug: under Bun, the Python bridge's child process reads end-of-file after its first reply and exits,
-  // so every Python directive (and hook) fails with "Python process closed with exit code 0". Node keeps the IPC
-  // channel open. The transport in `src/utils/python-bridge` needs to stop relying on Node IPC semantics.
+  // The bridge speaks newline-delimited JSON over the child's stdin and stdout. Node IPC, the previous channel, closes
+  // after the first reply under Bun, which made every Python directive fail in the compiled CLI.
   test('a Python user directive resolves like a TypeScript one', async () => {
     const dir = await fixtureWithConfig(`projectName: directive-project
 directives:
