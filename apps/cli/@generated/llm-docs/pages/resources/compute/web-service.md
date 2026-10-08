@@ -258,6 +258,37 @@ A web service supports the same four container packaging types as other Stacktap
 
 `js-bundle` images are based on Alpine. Set `requiresGlibcBinaries` only when native dependencies such as `sharp`, `canvas`, `bcrypt` or `puppeteer` need glibc. A `buildpack` web service must listen on the port in the `PORT` environment variable; set `startCommand` if the detected start command does not.
 
+### Port
+
+Stacktape sets the `PORT` environment variable and routes traffic to that port, `3000` by default. If your application listens on a fixed port, such as `app.listen(8080)` or a Spring Boot service on its default `8080`, set `port` to that number instead of changing the code. `stacktape init` sets it when it finds a fixed port in your project. With `network-load-balancer`, `loadBalancing.properties.ports[].containerPort` sets the container port instead.
+
+Changing `port` on a deployed service replaces the resources that route to the old port, so in-flight requests can fail during that update.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, WebService, JsBundleImagePackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new JsBundleImagePackaging({
+      entryfilePath: './src/server.ts'
+    }),
+    port: 8080,
+    resources: {
+      cpu: 0.5,
+      memory: 1024
+    }
+  });
+
+  return {
+    resources: { api }
+  };
+});
+```
+
+
 ## Connecting to other resources
 
 A Stacktape web service can use `connectTo` to access other resources in the same stack. Stacktape grants IAM permissions where relevant, opens security group access for supported network resources, and injects environment variables with connection details following the `STP_[RESOURCE_NAME]_[PARAM]` naming pattern.
@@ -532,6 +563,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `internalHealthCheck` | no | `ContainerHealthCheck` | - |
 | `loadBalancing` | no | `http-api-gateway \| application-load-balancer \| network-load-balancer` | - |
 | `logging` | no | `ContainerWorkloadContainerLogging` | - |
+| `port` | no | `number` | `3000` |
 | `scaling` | no | `ContainerWorkloadScaling` | - |
 | `secrets` | no | `Array<SecretEnvironmentVar>` | - |
 | `sideContainers` | no | `Array<ServiceHelperContainer>` | - |

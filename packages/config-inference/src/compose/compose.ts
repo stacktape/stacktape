@@ -1058,6 +1058,9 @@ export const composeConfig = ({
   };
 };
 
+/** The port Stacktape routes a web or private service's traffic to when its config sets none. */
+const DEFAULT_SERVICE_PORT = 3000;
+
 const buildServiceResource = ({
   resourceType,
   service,
@@ -1246,6 +1249,13 @@ const buildServiceResource = ({
     type: resourceType,
     properties: {
       packaging: packagingFor(service, packageManager, siblingDockerfile),
+      // Stacktape routes a service's traffic to the port in $PORT, 3000 unless set. An app listening on a fixed port
+      // would deploy green and never receive a request, so the port it listens on is written whenever it differs.
+      ...((resourceType === 'web-service' || resourceType === 'private-service') &&
+      service.port !== undefined &&
+      service.port !== DEFAULT_SERVICE_PORT
+        ? { port: service.port }
+        : {}),
       resources: { ...profile.container },
       // Scaling is only meaningful for something that stays up. A batch job is sized, not scaled.
       scaling: {

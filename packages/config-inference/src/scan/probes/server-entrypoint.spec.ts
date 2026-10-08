@@ -207,3 +207,93 @@ describe('the server entrypoint probe', () => {
     });
   });
 });
+
+describe('the port a server listens on', () => {
+  const NODE = JSON.stringify({ name: 'api', dependencies: { express: '5.0.0' } });
+  const SPRING_POM =
+    '<project><dependencies><dependency><artifactId>spring-boot-starter-web</artifactId></dependency></dependencies></project>';
+  const SPRING_APP =
+    '@SpringBootApplication\npublic class App { public static void main(String[] a) { SpringApplication.run(App.class, a); } }';
+  const cases: Array<{ name: string; files: Record<string, string>; port: number | undefined; line?: number }> = [
+    {
+      name: 'a literal listen port',
+      files: { 'package.json': NODE, 'src/server.js': 'app.listen(4000);' },
+      port: 4000,
+      line: 1
+    },
+    {
+      name: 'a fallback after PORT',
+      files: { 'package.json': NODE, 'src/server.js': 'const app = express();\napp.listen(process.env.PORT || 8081);' },
+      port: 8081,
+      line: 2
+    },
+    {
+      name: 'a named constant',
+      files: {
+        'package.json': NODE,
+        'src/server.ts': 'const PORT = Number(process.env.PORT) || 5001;\napp.listen(PORT, () => {});'
+      },
+      port: 5001,
+      line: 1
+    },
+    {
+      name: 'an options object over several lines',
+      files: { 'package.json': NODE, 'src/server.js': 'app.listen({\n  host: "0.0.0.0",\n  port: 7000\n});' },
+      port: 7000,
+      line: 3
+    },
+    {
+      name: 'a port read only from PORT',
+      files: { 'package.json': NODE, 'src/server.js': 'app.listen(process.env.PORT);' },
+      port: undefined
+    },
+    {
+      name: 'a Go listen address',
+      files: {
+        'go.mod': 'module api\n',
+        'main.go': 'package main\nfunc main() {\n\thttp.ListenAndServe(":8080", nil)\n}\n'
+      },
+      port: 8080,
+      line: 3
+    },
+    {
+      name: 'the Spring Boot default',
+      files: { 'pom.xml': SPRING_POM, 'src/main/java/App.java': SPRING_APP },
+      port: 8080
+    },
+    {
+      name: 'a Spring Boot server.port with a default',
+      files: {
+        'pom.xml': SPRING_POM,
+        'src/main/java/App.java': SPRING_APP,
+        'src/main/resources/application.properties': 'spring.application.name=api\nserver.port=${SERVER_PORT:9090}\n'
+      },
+      port: 9090,
+      line: 2
+    },
+    {
+      name: 'a Spring Boot port that follows PORT',
+      files: {
+        'pom.xml': SPRING_POM,
+        'src/main/java/App.java': SPRING_APP,
+        'src/main/resources/application.yml': 'server:\n  port: ${PORT}\n'
+      },
+      port: undefined
+    }
+  ];
+
+  for (const testCase of cases) {
+    it(`reads ${testCase.name}`, async () => {
+      const { facts } = await assembleCandidateFacts({
+        root: await makeRepo(testCase.files),
+        probes: [manifestProbe, serverEntrypointProbe]
+      });
+      const service = facts.services.find((candidate) => candidate.exposesHttp);
+
+      expect(service?.port).toBe(testCase.port);
+      if (testCase.line !== undefined) {
+        expect(service?.evidence).toContainEqual(expect.objectContaining({ field: 'port', line: testCase.line }));
+      }
+    });
+  }
+});

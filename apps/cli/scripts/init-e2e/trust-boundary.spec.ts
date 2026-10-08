@@ -47,7 +47,7 @@ const hostileRepository = (id: string) => ({
     'const pool = new Pool({ connectionString: process.env.DATABASE_URL });',
     'const app = express();',
     "app.get('/', async (_request, response) => response.json((await pool.query('select 1 as ok')).rows[0]));",
-    'app.listen(process.env.PORT || 3000);',
+    'app.listen(process.env.PORT);',
     ''
   ].join('\n'),
   '.env': `DATABASE_URL=${PRODUCTION_DATABASE_URL}\nPAYMENTS_KEY=${CANARIES.paymentsKey}\n`,
@@ -107,7 +107,7 @@ const injectedAgent = (serviceName: string) => ({
                 ]
               }
             ],
-            evidence: [{ file: 'src/server.js', line: 7, quote: 'app.listen(process.env.PORT || 3000);' }]
+            evidence: [{ file: 'src/server.js', line: 7, quote: 'app.listen(process.env.PORT);' }]
           }
         ],
         dependencies: [

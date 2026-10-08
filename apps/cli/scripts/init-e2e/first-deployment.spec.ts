@@ -243,51 +243,75 @@ describe('stacktape init in the terminal: existing repository to a running artif
   );
 
   test(
-    'an app that listens on a fixed port is either reachable through the written config or flagged before deploy',
+    'an app that listens on a fixed port gets a config that routes to it, from the scan alone or from the agent',
     async () => {
-      // `app.listen(4000)`: the most common shape in tutorials and older services. The agent reads the port and
-      // cites it, so init knows it. Stacktape routes a web-service's traffic to the port in $PORT.
-      const sandbox = await sandboxFor({
-        files: (id) => ({
-          'package.json': `${JSON.stringify({ name: `ledger-${id}`, private: true, scripts: { start: 'node src/server.js' }, dependencies: { express: '5.1.0' } })}\n`,
-          'src/server.js': [
-            "const express = require('express');",
-            '',
-            'const app = express();',
-            "app.get('/', (_request, response) => response.json({ service: 'ledger' }));",
-            "app.listen(4000, () => console.log('ledger listening on 4000'));",
-            ''
-          ].join('\n')
-        }),
+      // `app.listen(4000)`: the most common shape in tutorials and older services. Stacktape routes a web-service's
+      // traffic to $PORT, 3000 unless the config sets `port`, so init has to write the port the app listens on.
+      const ledger = (id: string, server: string, extra: Record<string, string> = {}) => ({
+        'package.json': `${JSON.stringify({ name: `ledger-${id}`, private: true, scripts: { start: 'node src/server.js' }, dependencies: { express: '5.1.0' } })}\n`,
+        'src/server.js': [
+          "const express = require('express');",
+          "const settings = require('./settings');",
+          '',
+          'const app = express();',
+          "app.get('/', (_request, response) => response.json({ service: 'ledger' }));",
+          server,
+          ''
+        ].join('\n'),
+        'src/settings.js': 'module.exports = { port: 4100 };\n',
+        ...extra
+      });
+      const expectRoutedPortAnswers = async (sandbox: InitSandbox, port: number) => {
+        const configText = await readFile(join(sandbox.project, 'stacktape.yml'), 'utf8');
+        expect(configText).toContain(`port: ${port}`);
+        const packaged = await packageOffline({
+          sandbox,
+          configFile: 'stacktape.yml',
+          projectName: `j1-ledger-${sandbox.id}`
+        });
+        const jobName = packaged.packagedWorkloads[0]!.jobName;
+        const container = containerDefinitionFor(packaged.template, jobName);
+        expect(container.PortMappings?.[0]?.ContainerPort).toBe(port);
+        const response = await requestRunningImage({ jobName, container, deadlineMs: 20_000 });
+        expect(response.status, response.logs).toBe(200);
+      };
+
+      // Files only: the literal in the listen call is enough.
+      const scanned = await sandboxFor({
+        files: (id) => ledger(id, "app.listen(4000, () => console.log('ledger listening on 4000'));"),
         projectDirectoryName: 'ledger'
       });
-      const init = await runSourceInit({
-        sandbox,
+      const scanInit = await runSourceInit({ sandbox: scanned, args: ['--codingAgent', 'none'] });
+      expect(scanInit.exitCode, scanInit.output).toBe(0);
+      await expectRoutedPortAnswers(scanned, 4000);
+
+      // A port the scan cannot resolve (it lives in another module) is the agent's to cite.
+      const cited = await sandboxFor({
+        files: (id) => ledger(id, 'app.listen(settings.port);'),
+        projectDirectoryName: 'ledger'
+      });
+      const agentInit = await runSourceInit({
+        sandbox: cited,
         args: ['--codingAgent', 'claude-code'],
         agent: {
           behavior: 'run',
           calls: [
             { tool: 'get_project_brief', arguments: {} },
-            { tool: 'grep', arguments: { pattern: '\\.listen\\(' } },
+            { tool: 'read_file', arguments: { path: 'src/settings.js' } },
             {
               tool: 'submit_facts',
               arguments: {
                 schemaVersion: 1,
                 services: [
                   {
-                    name: `ledger-${sandbox.id}`,
+                    name: `ledger-${cited.id}`,
                     path: '.',
                     language: 'javascript',
                     exposesHttp: true,
                     executionModel: 'long-running',
-                    port: 4000,
+                    port: 4100,
                     evidence: [
-                      {
-                        field: 'port',
-                        file: 'src/server.js',
-                        line: 5,
-                        quote: "app.listen(4000, () => console.log('ledger listening on 4000'));"
-                      }
+                      { field: 'port', file: 'src/settings.js', line: 1, quote: 'module.exports = { port: 4100 };' }
                     ]
                   }
                 ]
@@ -296,31 +320,11 @@ describe('stacktape init in the terminal: existing repository to a running artif
           ]
         }
       });
-      expect(init.exitCode, init.output).toBe(0);
-      expect(toolResults(init.agentLog).find((entry) => entry.tool === 'submit_facts')?.result).toEqual({
+      expect(agentInit.exitCode, agentInit.output).toBe(0);
+      expect(toolResults(agentInit.agentLog).find((entry) => entry.tool === 'submit_facts')?.result).toEqual({
         accepted: true
       });
-
-      const packaged = await packageOffline({
-        sandbox,
-        configFile: 'stacktape.yml',
-        projectName: `j1-ledger-${sandbox.id}`
-      });
-      const jobName = packaged.packagedWorkloads[0]!.jobName;
-      const reachable = await requestRunningImage({
-        jobName,
-        container: containerDefinitionFor(packaged.template, jobName),
-        deadlineMs: 15_000
-      }).then(
-        (response) => response.status === 200,
-        () => false
-      );
-      // A config that deploys green while the load balancer can never reach the app is the worst first deploy.
-      // If the routed port does not answer, init must say so before the user deploys, naming the port.
-      if (!reachable) {
-        expect(init.output).toContain('Before you deploy:');
-        expect(init.output).toMatch(/4000/);
-      }
+      await expectRoutedPortAnswers(cited, 4100);
     },
     8 * 60_000
   );

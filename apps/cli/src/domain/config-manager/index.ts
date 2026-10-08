@@ -1067,6 +1067,7 @@ export class ConfigManager {
         loadBalancing,
         deployment,
         useFirewall,
+        port,
         configParentResourceType: _configParentResourceType,
         nameChain,
         stopTimeout,
@@ -1110,7 +1111,7 @@ export class ConfigManager {
                 packaging,
                 environment: (environment || [])
                   .concat([
-                    ...(loadBalancing?.type === 'network-load-balancer' ? [] : [{ name: 'PORT', value: 3000 }]),
+                    ...(loadBalancing?.type === 'network-load-balancer' ? [] : [{ name: 'PORT', value: port ?? 3000 }]),
                     { name: 'HOST', value: '0.0.0.0' }
                   ])
                   .concat(deployment ? [{ name: 'DEPLOYMENT_TEST_PORT', value: DEFAULT_TEST_LISTENER_PORT }] : []),
@@ -1133,7 +1134,7 @@ export class ConfigManager {
                         type: 'application-load-balancer',
                         properties: {
                           priority: 3,
-                          containerPort: 3000,
+                          containerPort: port ?? 3000,
                           loadBalancerName: `${[...nameChain, loadBalancerIdentifier].join('.')}`,
                           listenerPort: 443,
                           paths: ['*']
@@ -1151,7 +1152,7 @@ export class ConfigManager {
                       : {
                           type: 'http-api-gateway',
                           properties: {
-                            containerPort: 3000,
+                            containerPort: port ?? 3000,
                             httpApiGatewayName: `${[...nameChain, httpApiGatewayIdentifier].join('.')}`,
                             method: '*',
                             path: '/{proxy+}'
