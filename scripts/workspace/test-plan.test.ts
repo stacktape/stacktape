@@ -4,7 +4,14 @@ import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { collectChangedPaths, createTestPlan, parsePorcelainStatusPaths, parseTestPlanArgs } from './test-plan.ts';
+import { fileURLToPath } from 'node:url';
+import {
+  collectChangedPaths,
+  createTestPlan,
+  parsePorcelainStatusPaths,
+  parseTestPlanArgs,
+  type TestLane
+} from './test-plan.ts';
 
 const git = (cwd: string, ...args: string[]) =>
   execFileSync('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', ...args], {
@@ -221,6 +228,73 @@ test('feature paths select the actual database suite, not migrations alone', () 
       ),
       String(path)
     );
+  }
+});
+
+test('CLI selects the database suites that exercise progress, installation, webhooks and Git secrets', () => {
+  for (const [path, flag] of [
+    ['src/services/stack-operation-progress.ts', 'runner'],
+    ['src/services/github-project-installation.ts', 'runner'],
+    ['src/integrations/git/webhook-delivery.ts', 'runner'],
+    ['src/services/git-connection-secret-store.ts', 'gitlab']
+  ]) {
+    const result = JSON.parse(
+      execFileSync(
+        process.execPath,
+        [fileURLToPath(new URL('./test-plan.ts', import.meta.url)), `--paths=apps/console/api/${path}`, '--json'],
+        {
+          encoding: 'utf8'
+        }
+      )
+    ) as { lanes: TestLane[] };
+    assert.ok(
+      result.lanes.some(({ commands }) =>
+        commands.includes(`pnpm --filter @stacktape/console-api-app test:db --${flag}`)
+      ),
+      String(path)
+    );
+  }
+});
+
+test('suite imports select new and deleted dependencies without executing private source', async (context) => {
+  const root = await mkdtemp(join(tmpdir(), 'stacktape-j13-plan-imports-'));
+  context.after(() => rm(root, { recursive: true, force: true }));
+  const scripts = join(root, 'apps/console/api/scripts');
+  await mkdir(scripts, { recursive: true });
+  await writeFile(
+    join(scripts, 'runner-database.test.ts'),
+    `
+    import { read } from '../src/services/tenant-boundary.js';
+    import '../src/services/side-effect';
+    const load = () => import('../src/services/dynamic-check.ts');
+    throw new Error('The planner must never execute this suite.');
+  `
+  );
+  await writeFile(join(scripts, 'gitlab-database.test.ts'), "import { read } from '../src/services/secret-boundary';");
+  const selects = (path: string, flag: string) =>
+    createTestPlan([`apps/console/api/${path}`], root).some(({ commands }) =>
+      commands.includes(`pnpm --filter @stacktape/console-api-app test:db --${flag}`)
+    );
+  for (const path of ['tenant-boundary.ts', 'side-effect/index.ts', 'dynamic-check.ts']) {
+    assert.ok(selects(`src/services/${path}`, 'runner'), path);
+    assert.ok(!selects(`src/services/${path}`, 'gitlab'), path);
+  }
+  assert.ok(selects('src/services/secret-boundary.ts', 'gitlab'));
+  assert.ok(!selects('src/services/secret-boundary.ts', 'runner'));
+  await writeFile(join(scripts, 'runner-database.test.ts'), "import '../src/services/new-boundary';");
+  assert.ok(selects('src/services/new-boundary.ts', 'runner'));
+  assert.ok(!selects('src/services/tenant-boundary.ts', 'runner'));
+  // No implementation files exist: deleted dependencies still need their suite.
+});
+
+test('missing private suite source conservatively selects database features', async (context) => {
+  const root = await mkdtemp(join(tmpdir(), 'stacktape-j13-plan-public-'));
+  context.after(() => rm(root, { recursive: true, force: true }));
+  const commands = new Set(
+    createTestPlan(['apps/console/api/src/services/unknown-boundary.ts'], root).flatMap((lane) => lane.commands)
+  );
+  for (const flag of ['runner', 'gitlab', 'security', 'issues', 'incidents', 'incident-agent', 'sign-up']) {
+    assert.ok(commands.has(`pnpm --filter @stacktape/console-api-app test:db --${flag}`));
   }
 });
 

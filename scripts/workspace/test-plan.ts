@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { access } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -18,7 +19,7 @@ export type TestLane = {
 };
 
 type Rule = TestLane & {
-  matches: (path: string) => boolean;
+  matches: (path: string, suiteDependencies: Map<string, Set<string>>) => boolean;
 };
 
 const hasPart = (path: string, expression: RegExp) => expression.test(path);
@@ -28,15 +29,52 @@ const isConsoleStartupPath = (path: string) =>
 
 // A suite needs one row here when the isolated database runner gains a flag.
 // Shared schema, router and fixture changes conservatively exercise every feature suite.
-const databaseSuites: [flag: string, feature: RegExp][] = [
+const databaseSuites: [flag: string, feature: RegExp, files?: string[]][] = [
   ['runner', /runners?|remote-deploy|workflow-job|git-credentials/],
   ['gitlab', /gitlab/],
   ['security', /security/],
   ['issues', /issues|issue-/],
-  ['incidents', /incidents?|alert-router|notification|uptime|monitoring/],
-  ['incident-agent', /incident-agent|incident-fix|claude-subscription/],
+  [
+    'incidents',
+    /incidents?|alert-router|notification|uptime|monitoring/,
+    ['incidents-database.test.ts', 'incident-assessment-database.test.ts']
+  ],
+  [
+    'incident-agent',
+    /incident-agent|incident-fix|claude-subscription/,
+    ['incident-agent-database.test.ts', 'incident-agent-runtime.test.ts']
+  ],
   ['sign-up', /sign-up|sign_up|signup|create-user-post-sign-up|personal-organization/]
 ];
+const modulePath = (path: string) =>
+  path
+    .replaceAll('\\', '/')
+    .replace(/\.[cm]?[jt]sx?$/, '')
+    .replace(/\/index$/, '');
+
+const readDatabaseSuiteDependencies = (root: string) => {
+  const dependencies = new Map<string, Set<string>>();
+  for (const [flag, , files = [`${flag}-database.test.ts`]] of databaseSuites) {
+    for (const file of files) {
+      const suitePath = resolve(root, 'apps/console/api/scripts', file);
+      let source: string;
+      try {
+        source = readFileSync(suitePath, 'utf8');
+      } catch (error) {
+        if (error instanceof Error && 'code' in error && error.code === 'ENOENT') continue;
+        throw error;
+      }
+      const imports = dependencies.get(flag) ?? new Set<string>();
+      imports.add(modulePath(relative(root, suitePath)));
+      // Static, side-effect and dynamic relative imports; never execute private source.
+      for (const match of source.matchAll(/\b(?:from\s*|import\s*(?:\(\s*)?)['"](\.[^'"]+)['"]/g)) {
+        imports.add(modulePath(relative(root, resolve(dirname(suitePath), match[1]!))));
+      }
+      dependencies.set(flag, imports);
+    }
+  }
+  return dependencies;
+};
 const isDatabaseSharedPath = (path: string) =>
   /^apps\/console\/api\/(prisma\/|package\.json$|scripts\/(run-db-integration|incident-agent-fixtures)|src\/(api\/|(?:router|console-router|middlewares|http-server|config|runtime-parameters)(?:[./-])|services\/prisma|model-helpers\/|raw-sql-queries\/))/.test(
     path
@@ -46,7 +84,12 @@ const databaseRules: Rule[] = databaseSuites.map(([flag, feature]) => ({
   id: `console-database-${flag}`,
   proves: `Real ${flag} services and persistence through the isolated PostgreSQL feature suite.`,
   commands: [`pnpm --filter @stacktape/console-api-app test:db --${flag}`],
-  matches: (path) => isDatabaseSharedPath(path) || (path.startsWith('apps/console/api/') && feature.test(path))
+  matches: (path, dependencies) =>
+    isDatabaseSharedPath(path) ||
+    (path.startsWith('apps/console/api/') &&
+      (feature.test(path) ||
+        // Without the private suite source, choose the lane rather than miss its dependencies.
+        (dependencies.get(flag)?.has(modulePath(path)) ?? true)))
 }));
 
 const packagingSuites: [id: string, scripts: string[], feature: RegExp][] = [
@@ -409,11 +452,14 @@ export const collectChangedPaths = async (options: TestPlanOptions, root = works
   return [...new Set(paths)].toSorted();
 };
 
-export const createTestPlan = (paths: string[]): TestLane[] => {
+export const createTestPlan = (paths: string[], root = workspaceRoot): TestLane[] => {
   const includesConsole = paths.some(
     (path) => path === 'apps/console' || path.startsWith('apps/console/') || isConsoleStartupPath(path)
   );
-  let lanes = RULES.filter((rule) => paths.some((path) => rule.matches(path))).map(({ matches: _, ...lane }) => lane);
+  const suiteDependencies = includesConsole ? readDatabaseSuiteDependencies(root) : new Map<string, Set<string>>();
+  let lanes = RULES.filter((rule) => paths.some((path) => rule.matches(path, suiteDependencies))).map(
+    ({ matches: _, ...lane }) => lane
+  );
   if (lanes.some(({ id }) => id === 'console-browser-local-api')) {
     lanes = lanes.filter(({ id }) => id !== 'console-browser-dev-api');
   }
