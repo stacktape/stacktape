@@ -84,14 +84,19 @@ describe('TypeScript project ownership', () => {
     expect(packageJson.scripts['test:generated-types']).toContain('-p @generated/tsconfig.json');
   });
 
-  test('owns characterization tests and the committed generated schema validator', async () => {
+  test('owns typed synthesis journeys and the committed generated schema validator', async () => {
     const [testsConfig, generatedConfig, generatedValidator] = await Promise.all([
       readJson(join(cliPath, 'tests', 'tsconfig.json')),
       readJson(join(cliPath, '@generated', 'tsconfig.json')),
       readFile(join(cliPath, '@generated', 'schemas', 'validate-config-zod.ts'), 'utf8')
     ]);
 
-    expect(testsConfig.include).toEqual(['../src/environment.d.ts', './characterization/**/*.ts']);
+    expect(testsConfig.include).toEqual([
+      '../src/environment.d.ts',
+      './characterization/**/*.ts',
+      './data-safety/**/*.ts',
+      './synthesis-families/**/*.ts'
+    ]);
     expect(generatedConfig.include).toEqual(['./schemas/validate-config-zod.ts']);
     expect(generatedValidator).toStartWith('// @ts-nocheck\n');
     expect(generatedValidator).toContain('export const stacktapeConfigSchema: z.ZodType<Record<string, unknown>> =');
