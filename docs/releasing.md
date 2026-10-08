@@ -74,11 +74,14 @@ plugin. Qualify Windows-host packaging on Windows and execute its archives in th
 host does not qualify another target. Authenticated hosted-login/provider browser acceptance remains a separately
 reserved shared-dev run; these local lanes do not claim to cover hosted identity or provider installation.
 
-Then run the live canaries sequentially in a genuinely disposable connected account, following the
+Then run the live canaries sequentially in the disposable `stacktape-e2e` account (`597581086285`), following the
 [live AWS guards](testing/live-aws.md) and [recovery procedure](../apps/cli/scripts/real-aws/README.md). Inject
 credentials into the environment without recording them. Set all required guard variables from that procedure, including
 explicit account, profile, region, owner and disposable-account acknowledgement. Verify STS before mutation. Use the
-extracted candidate binary for packaging/init; the alias canary currently uses the source CLI at this revision.
+extracted candidate binary for packaging/init; the alias canary currently uses the source CLI at this revision. The
+runner qualifier needs a reserved Console operator identity in account `977946299200` to assume the supplied receiving
+account connection; its test stacks belong to `597581086285`. The CLI canaries use the `stacktape-e2e` AWS profile
+directly and must never target `stacktape-dev`.
 
 ```bash
 set -euo pipefail
@@ -89,16 +92,27 @@ set -euo pipefail
 mkdir -p .stacktape
 scenario_number=0
 : "${STP_CONSOLE_DEV_RESERVATION:?task-owned reservation for runner qualification}"
-pnpm console:dev:reservation check
 : "${RC_RUNNER_AMI:?AMI built with the same candidate CLI version}"
-: "${RC_AWS_ACCOUNT_ID:?explicit expected account for runner qualification}"
+: "${RC_ACCOUNT_CONNECTION_ID:?Console connection to receiving account 597581086285}"
+: "${RC_CONSOLE_OPERATOR_PROFILE:?Console operator profile for account 977946299200}"
 : "${RC_AWS_REGION:?explicit qualification region}"
-# Set AWS_PROFILE explicitly for the reserved Console dev account (977946299200).
+export AWS_PROFILE="$RC_CONSOLE_OPERATOR_PROFILE"
+pnpm console:dev:reservation check
 for mode in --image-smoke --live --slots --performance --resume --startup-recovery; do
   pnpm --filter @stacktape/console-api-app test:runner:aws "$mode" \
-    --ami "$RC_RUNNER_AMI" --account "$RC_AWS_ACCOUNT_ID" --region "$RC_AWS_REGION" --expected-cli-version "$RC_VERSION"
+    --ami "$RC_RUNNER_AMI" --account 597581086285 --connection "$RC_ACCOUNT_CONNECTION_ID" \
+    --region "$RC_AWS_REGION" --expected-cli-version "$RC_VERSION"
 done
 pnpm console:dev:reservation release
+export AWS_PROFILE=stacktape-e2e
+export STP_AWS_CANARY_EXPECTED_ACCOUNT_ID=597581086285
+export STP_AWS_CANARY_CREDENTIAL_MODE=profile
+export STP_AWS_CANARY_PROFILE=stacktape-e2e
+export STP_AWS_ALIAS_CANARY_EXPECTED_ACCOUNT_ID=597581086285
+export STP_AWS_ALIAS_CANARY_PROFILE=stacktape-e2e
+export STP_AWS_CANARY_REGION="$RC_AWS_REGION"
+export STP_AWS_ALIAS_CANARY_REGION="$RC_AWS_REGION"
+: "${STP_INIT_CANARY_AWS_ACCOUNT:?connected Stacktape account name for 597581086285}"
 export STP_AWS_CANARY_CLI_PATH="$RC_BINARY"
 export STP_AWS_CANARY_EXPECTED_CLI_VERSION="$RC_VERSION"
 for scenario in lambda-packaging-update init-static-site init-node-container init-python-container init-postgres-migration; do
