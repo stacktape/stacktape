@@ -497,7 +497,7 @@ const readStream = (stream: NodeJS.ReadableStream | null): Promise<string> =>
     stream.once('error', reject);
   });
 
-const runPlainCli = async (options: CanaryOptions, args: string[], env: Environment) => {
+const runCli = async (options: CanaryOptions, args: string[], env: Environment) => {
   const child = spawnCli(options, args, env);
   const stdoutPromise = readStream(child.stdout);
   const stderrPromise = readStream(child.stderr);
@@ -506,19 +506,33 @@ const runPlainCli = async (options: CanaryOptions, args: string[], env: Environm
     stdoutPromise,
     stderrPromise
   ]);
+  return { exitCode, stdout, stderr };
+};
+
+const runPlainCli = async (options: CanaryOptions, args: string[], env: Environment) => {
+  const { exitCode, stdout, stderr } = await runCli(options, args, env);
   assert(exitCode === 0, `Stacktape ${args[0]} exited with ${exitCode}: ${outputTail(stderr)}`);
   return { stdout, stderr };
 };
 
 const runJsonlCli = async (options: CanaryOptions, args: string[], env: Environment) => {
-  const { stdout, stderr } = await runPlainCli(options, args, env);
+  const { exitCode, stdout, stderr } = await runCli(options, args, env);
   let parsed: ReturnType<typeof parseCliJsonl>;
   try {
     parsed = parseCliJsonl(stdout, args[0]!);
   } catch (error) {
-    throw new Error(`Could not verify Stacktape ${args[0]} output.\nStderr:\n${outputTail(stderr)}`, { cause: error });
+    throw new Error(
+      `Could not verify Stacktape ${args[0]} output (exit ${exitCode}).\nStderr:\n${outputTail(stderr)}`,
+      {
+        cause: error
+      }
+    );
   }
-  assert(parsed.result.ok, `Stacktape ${args[0]} failed: ${parsed.result.code}: ${parsed.result.message}`);
+  // The result record says why a command failed; the exit code alone does not.
+  assert(
+    exitCode === 0 && parsed.result.ok,
+    `Stacktape ${args[0]} failed (exit ${exitCode}): ${parsed.result.code}: ${parsed.result.message}`
+  );
   return parsed;
 };
 
