@@ -4,20 +4,51 @@ import { spawn } from 'node:child_process';
 import { fsPaths } from 'src/config/runtime-paths';
 
 export const pythonBridge = (opts?: any) => {
-  // default options
   const pythonExecutable = opts.pythonExecutable;
-  const stdio = (opts && opts.stdio) || ['pipe', process.stdout, process.stderr];
+  // The channel is the child's stdin and stdout, newline-delimited JSON in both directions. The script moves the user
+  // code's `print` output to stderr. Node IPC is not used: Bun closes an IPC channel to a non-JavaScript child after
+  // its first message, which made every second Python directive call fail in the compiled CLI.
   const options = {
     cwd: opts && opts.cwd,
     env: opts && opts.env,
     uid: opts && opts.uid,
     gid: opts && opts.gid,
-    stdio: stdio.concat(['ipc'])
+    stdio: ['pipe', 'pipe', (opts && opts.stderr) || process.stderr]
   };
 
-  // create process bridge
-  const ps = spawn(pythonExecutable, [fsPaths.pythonBridgeScriptPath()], options);
+  const ps = spawn(pythonExecutable, [fsPaths.pythonBridgeScriptPath()], options as any);
   const queue = singleQueue();
+  const pendingReplies: ((reply: { data?: any; error?: Error }) => void)[] = [];
+  let buffered = '';
+  ps.stdout.setEncoding('utf8');
+  ps.stdout.on('data', (chunk: string) => {
+    buffered += chunk;
+    let newline = buffered.indexOf('\n');
+    while (newline !== -1) {
+      const line = buffered.slice(0, newline);
+      buffered = buffered.slice(newline + 1);
+      const reply = pendingReplies.shift();
+      if (reply) {
+        try {
+          reply({ data: JSON.parse(line) });
+        } catch (error) {
+          reply({ error: new Error(`Python bridge sent an unreadable reply: ${line.slice(0, 200)}`) });
+        }
+      }
+      newline = buffered.indexOf('\n');
+    }
+  });
+  let exitDescription: string | undefined;
+  ps.once('exit', (exitCode, signal) => {
+    exitDescription = `Python process closed with exit code ${exitCode ?? `signal ${signal}`}`;
+    python.connected = false;
+    for (const reply of pendingReplies.splice(0)) reply({ error: new Error(exitDescription) });
+  });
+  ps.once('error', (error) => {
+    exitDescription = `Python process could not start: ${error.message}`;
+    python.connected = false;
+    for (const reply of pendingReplies.splice(0)) reply({ error: new Error(exitDescription) });
+  });
 
   function sendPythonCommand(type, enqueue, self) {
     function wrapper() {
@@ -33,29 +64,28 @@ export const pythonBridge = (opts?: any) => {
       return enqueue(
         () =>
           new Promise((resolve, reject) => {
-            ps.send({ type, code });
-            ps.once('message', onMessage);
-            ps.once('close', onClose);
-
-            function onMessage(data) {
-              ps.removeListener('close', onClose);
-              if (data && data.type && data.type === 'success') {
-                resolve(eval(`(${data.value})`));
-              } else if (data && data.type && data.type === 'exception') {
+            if (exitDescription) {
+              reject(new Error(exitDescription));
+              return;
+            }
+            pendingReplies.push(({ data, error }) => {
+              if (error) {
+                reject(error);
+              } else if (data && data.type === 'success') {
+                resolve(data.value === undefined ? undefined : eval(`(${data.value})`));
+              } else if (data && data.type === 'exception') {
                 reject(new PythonException(data.value));
               } else {
                 reject(data);
               }
-            }
-
-            function onClose(exit_code, message) {
-              ps.removeListener('message', onMessage);
-              if (!message) {
-                reject(new Error(`Python process closed with exit code ${exit_code}`));
-              } else {
-                reject(new Error(`Python process closed with exit code ${exit_code} and message: ${message}`));
+            });
+            ps.stdin.write(`${JSON.stringify({ type, code })}\n`, (error) => {
+              if (error) {
+                const index = pendingReplies.length - 1;
+                if (index >= 0) pendingReplies.splice(index, 1);
+                reject(error);
               }
-            }
+            });
           })
       );
     }
@@ -85,16 +115,12 @@ export const pythonBridge = (opts?: any) => {
   python.lock = setupLock(queue);
   python.pid = ps.pid;
   python.connected = true;
-  // A bridge whose process died (missing script, crash, kill) must not keep answering as connected: callers respawn it.
-  ps.once('exit', () => {
-    python.connected = false;
-  });
   python.Exception = PythonException;
   python.isException = isPythonException;
   python.disconnect = () => {
     python.connected = false;
     return queue(() => {
-      ps.disconnect();
+      ps.stdin.end();
     });
   };
   python.end = python.disconnect;
