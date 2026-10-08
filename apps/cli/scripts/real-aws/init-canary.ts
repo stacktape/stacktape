@@ -27,10 +27,15 @@ import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import type { AwsCredentialIdentityProvider } from '@aws-sdk/types';
 import { randomBytes } from 'node:crypto';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { access, chmod, cp, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { access, chmod, cp, mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { withPersistedApiKey } from '../../src/app/global-state-manager/api-key-storage';
+import {
+  STACKTAPE_DEVELOPMENT_TRPC_API_ENDPOINT,
+  STACKTAPE_PRODUCTION_TRPC_API_ENDPOINT
+} from '../../src/config/params';
 import type { WizardState, WizardVerification } from '../../src/init/server/wizard-server';
 import { generatedSecretNames, isGeneratedSecretNameForProject } from '../../src/init/deploy/generated-secrets';
 import { parseCliJsonl } from '../verify-source-cli-aws-readonly';
@@ -198,6 +203,56 @@ export const buildWizardEnvironment = (env: Environment, platform: NodeJS.Platfo
     result.DISPLAY = 'stacktape-init-canary';
   }
   return result;
+};
+
+/**
+ * The wizard as a signed-in developer runs it: the API key persisted in HOME for the CLI's endpoint, exactly where
+ * `stacktape login` and the wizard's own sign-in put it, and no STACKTAPE_API_KEY in the environment. The target
+ * check, the deploy and the URL lookup are children of the wizard, so each has to find the credentials there.
+ *
+ * HOME is a fresh directory, so the developer's own Stacktape state is never read or written. AWS keeps reading the
+ * developer's profile files, and Docker its CLI plugins.
+ */
+export const buildSignedInWizardEnvironment = async ({
+  env,
+  options,
+  home
+}: {
+  env: Environment;
+  options: CanaryOptions;
+  home: string;
+}): Promise<Environment> => {
+  const apiKey = env.STACKTAPE_API_KEY;
+  assert(typeof apiKey === 'string' && apiKey.length > 0, 'STACKTAPE_API_KEY is required to sign the wizard in.');
+  const endpoint =
+    env.STP_CUSTOM_TRPC_API_ENDPOINT ||
+    (options.cli.mode === 'source' ? STACKTAPE_DEVELOPMENT_TRPC_API_ENDPOINT : STACKTAPE_PRODUCTION_TRPC_API_ENDPOINT);
+  const empty = { cliArgsDefaults: {}, otherDefaults: {} } as Parameters<
+    typeof withPersistedApiKey
+  >[0]['persistedState'];
+  await mkdir(join(home, '.stacktape'), { recursive: true });
+  await writeFile(
+    join(home, '.stacktape', 'persisted-state.json'),
+    JSON.stringify(withPersistedApiKey({ persistedState: empty, apiKey, endpoint })),
+    { mode: 0o600 }
+  );
+  const developerHome = env.HOME ?? homedir();
+  const dockerConfig = join(home, '.docker');
+  await mkdir(dockerConfig, { recursive: true });
+  await symlink(join(developerHome, '.docker', 'cli-plugins'), join(dockerConfig, 'cli-plugins')).catch(
+    () => undefined
+  );
+
+  const result = buildWizardEnvironment(env);
+  delete result.STACKTAPE_API_KEY;
+  return {
+    ...result,
+    HOME: home,
+    USERPROFILE: home,
+    DOCKER_CONFIG: dockerConfig,
+    AWS_CONFIG_FILE: env.AWS_CONFIG_FILE ?? join(developerHome, '.aws', 'config'),
+    AWS_SHARED_CREDENTIALS_FILE: env.AWS_SHARED_CREDENTIALS_FILE ?? join(developerHome, '.aws', 'credentials')
+  };
 };
 
 const credentialProvider = (options: CanaryOptions): AwsCredentialIdentityProvider =>
@@ -482,12 +537,13 @@ const stackArgs = (options: InitCanaryOptions, configPath?: string) => [
 const startWizard = async ({
   options,
   workspace,
-  env,
+  wizardEnv,
   signal
 }: {
   options: InitCanaryOptions;
   workspace: string;
-  env: Environment;
+  /** Already prepared by `buildSignedInWizardEnvironment`. */
+  wizardEnv: Environment;
   signal: AbortSignal;
 }): Promise<RunningWizard> => {
   const child = spawnCli(
@@ -506,7 +562,7 @@ const startWizard = async ({
       '--awsAccount',
       options.awsAccount
     ],
-    buildWizardEnvironment(env)
+    wizardEnv
   );
 
   let combined = '';
@@ -1068,7 +1124,8 @@ export const runInitCanary = async ({ cleanupOnly = false }: { cleanupOnly?: boo
     const workspace = join(temporaryRoot, options.projectName);
     await cp(fixture.sourceDirectory, workspace, { recursive: true, errorOnExist: true });
 
-    wizard = await startWizard({ options, workspace, env, signal: operationAbort.signal });
+    const wizardEnv = await buildSignedInWizardEnvironment({ env, options, home: join(temporaryRoot, 'home') });
+    wizard = await startWizard({ options, workspace, wizardEnv, signal: operationAbort.signal });
     const ready = await wizard.client.getState();
     assert(ready.phase === 'ready', `Wizard started in ${ready.phase}, expected ready.`);
     assert(
@@ -1138,6 +1195,25 @@ export const runInitCanary = async ({ cleanupOnly = false }: { cleanupOnly?: boo
     assert(
       checkedTarget.deployTarget.region === options.region && checkedTarget.deployTarget.stackName === stackName,
       `Authoritative deploy target was ${checkedTarget.deployTarget.stackName} in ${checkedTarget.deployTarget.region}, expected ${stackName} in ${options.region}.`
+    );
+    // Consent is bound to the reviewed bytes. Editing the file after the check must turn the next "create" into a
+    // fresh read-only check rather than a deployment; only a second confirmation of the new file deploys.
+    const reviewedConfigPath = requiredString(checkedTarget.configFile?.path, 'Reviewed config path');
+    await writeFile(
+      reviewedConfigPath,
+      `${await readFile(reviewedConfigPath, 'utf8')}# Edited after the target check by the init canary.\n`
+    );
+    await persist({ configText: await readFile(reviewedConfigPath, 'utf8') });
+    const refused = await withTimeout(
+      wizard.client.post('/api/deploy', { stage, region: options.region, expected: { kind: 'create' } }),
+      60_000,
+      'the wizard to re-check an edited configuration'
+    );
+    assert(refused.deployment === undefined, 'The wizard deployed a configuration edited after it was reviewed.');
+    assert(
+      refused.deployTarget?.status === 'absent' &&
+        refused.deployTarget.configSha256 !== checkedTarget.deployTarget.configSha256,
+      'The wizard did not re-check the edited configuration before asking for consent again.'
     );
     const deploymentStarted = await withTimeout(
       wizard.client.post('/api/deploy', { stage, region: options.region, expected: { kind: 'create' } }),
