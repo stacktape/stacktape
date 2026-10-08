@@ -24,6 +24,7 @@ in a `finally` block. The default selection covers migration/adoption only. Feat
 ```sh
 pnpm --filter @stacktape/console-api-app test:db --issues
 pnpm --filter @stacktape/console-api-app test:db --incidents
+pnpm --filter @stacktape/console-api-app test:db --incident-journey
 pnpm --filter @stacktape/console-api-app test:db --security
 pnpm --filter @stacktape/console-api-app test:db --gitlab
 pnpm --filter @stacktape/console-api-app test:db --runner
@@ -44,6 +45,12 @@ The `--cli-console` suite runs source CLI processes against the production HTTP 
 covers deployment reporting and Console read responses, endpoint-scoped login/logout, token exchange, organization and
 project commands, and isolated AWS profiles/defaults. AWS calls use a loopback wire fixture; external network requests
 are rejected. It needs Docker and builds the CLI dev artifacts before testing.
+
+The `--incident-journey` suite extends issue and incident coverage through the production HTTP router, signed loopback
+webhook delivery and authenticated incident actions. It also invokes the built uptime prober in the official Node.js 22
+Lambda image and checks the monitoring sweeper through its Lambda proxy. Build the helpers first with
+`pnpm --filter @stacktape/cli build:dev-artifacts`; the lane needs `openssl`, `unzip`, Docker and the local
+`public.ecr.aws/lambda/nodejs:22` image. All fixtures use isolated databases and loopback endpoints.
 
 The isolated Console browser lane uses the same disposable database runner:
 
