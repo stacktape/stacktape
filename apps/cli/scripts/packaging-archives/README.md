@@ -50,9 +50,9 @@ layers at `/opt` and source maps enabled: the shared chunk must load from the la
 import and the asset must resolve under `/var/task`, the AWS SDK must come from `/var/runtime` and be absent from the
 ZIP, `__dirname` must be `/var/task`, and a thrown error must name the original TypeScript file and line. Then an
 unchanged repeat must reproduce every digest and the layer bytes, an edit of one function must change only its digest,
-and the untouched project built from another directory must reproduce the first digests. The last two checks fail today:
-the shipped source maps and Bun's `debugId` encode the build directory (see the J3 handoff). `--keep` leaves the fixture
-and the CLI's build directories. It needs Docker and `unzip`, not AWS.
+and the untouched project built from another directory must reproduce the first digests and layer bytes, and no file of
+a function or layer may mention the build host's temporary or home directory. `--keep` leaves the fixture and the CLI's
+build directories. It needs Docker and `unzip`, not AWS.
 
 The lane splits across hosts: `--export <dir>` runs the build phase only (the CLI packages, digests are compared) and
 copies the first and edited builds' ZIPs and assembled `/opt` into the directory with a manifest, on any host the CLI
