@@ -13,6 +13,8 @@ export type DocsCodeBlockProps = {
   code?: string;
   lang?: string | null;
   intellisense?: boolean;
+  /** Build validation treats IntelliSense examples as complete configs unless explicitly marked as fragments. */
+  configExample?: 'complete' | 'fragment';
   stacktapeConfig?: boolean;
   typescript?: string;
 };

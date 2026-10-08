@@ -105,6 +105,46 @@ try {
   } finally {
     await writeFile(examplePage, originalExample);
   }
+  const configPage = join(output, 'resources/advanced/deployment-scripts/index.html');
+  const originalConfig = await readFile(configPage, 'utf8');
+  const configFaults = [
+    {
+      name: 'a misspelled config factory',
+      from: 'export default defineConfig',
+      to: 'export default defineConfg',
+      diagnostic: /TS2552 Cannot find name 'defineConfg'/
+    },
+    {
+      name: 'a broken config import',
+      // Astro escapes quotes in the serialized code prop's HTML attribute.
+      from: 'from &#39;stacktape&#39;',
+      to: 'from &#39;j12-missing-stacktape&#39;',
+      diagnostic: /TS2307 Cannot find module 'j12-missing-stacktape'/
+    },
+    {
+      name: 'malformed config export syntax',
+      from: 'export default defineConfig',
+      to: 'export defalt defineConfig',
+      diagnostic: /TS(?:1128|1434|1005)/
+    }
+  ];
+  // Each fault changes the same complete-config page; restore it before the next compiler invocation.
+  /* eslint-disable no-await-in-loop */
+  for (const { name, from, to, diagnostic } of configFaults) {
+    const changed = originalConfig.replaceAll(from, to);
+    assert(changed !== originalConfig, 'Fault must reach the rendered complete configs');
+    await writeFile(configPage, changed);
+    try {
+      const invalid = validate('validate-built-examples.ts');
+      assert.equal(invalid.status, 1, `${name} must not remove complete configs from validation`);
+      assert.match(invalid.text, /resources\/advanced\/deployment-scripts\/index.html complete config \d+: TS/);
+      assert.match(invalid.text, diagnostic);
+      console.info(`PASS docs build gate rejects ${name}`);
+    } finally {
+      await writeFile(configPage, originalConfig);
+    }
+  }
+  /* eslint-enable no-await-in-loop */
   assert.equal(
     validate('validate-built-examples.ts').status,
     0,

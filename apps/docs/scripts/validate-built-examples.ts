@@ -42,14 +42,20 @@ for (const file of (await walk(output)).filter((path) => path.endsWith('.html'))
     if (!/component-url="[^"]*DocsCodeBlock\./.test(island[0])) continue;
     const rawProps = island[0].match(/\bprops="([^"]*)"/)?.[1];
     assert(rawProps, `${file}: CodeBlock island has no serialized props`);
-    for (const { lang, code } of codeTabs(JSON.parse(decode(rawProps)))) {
-      // Fragments and application handlers need their project's context. Complete configs stand alone.
-      if (
-        !/^(?:ts|typescript)$/.test(lang) ||
-        !/from ['"]stacktape['"]/.test(code) ||
-        !/export default\s+defineConfig\b/.test(code)
-      )
-        continue;
+    const props = JSON.parse(decode(rawProps)) as Record<string, unknown>;
+    const exampleKind = Array.isArray(props.configExample) ? props.configExample[1] : undefined;
+    assert(
+      exampleKind === undefined || exampleKind === 'complete' || exampleKind === 'fragment',
+      `${file}: invalid configExample metadata`
+    );
+    // IntelliSense blocks are authored config examples unless explicitly marked as contextual fragments.
+    // Decide from metadata before reading code: broken imports, exports or factory names must still be compiled.
+    const isCompleteConfig =
+      exampleKind === 'complete' ||
+      (exampleKind !== 'fragment' && Array.isArray(props.intellisense) && props.intellisense[1] === true);
+    if (!isCompleteConfig) continue;
+    for (const { lang, code } of codeTabs(props)) {
+      if (!/^(?:ts|typescript)$/.test(lang)) continue;
       sample += 1;
       const page = relative(output, file).replace(/\\/g, '/');
       checkedPages.add(page);
