@@ -22,6 +22,7 @@ PostgreSQL container, creates scratch databases, runs the real migration-adoptio
 in a `finally` block. The default selection covers migration/adoption only. Feature suites are available explicitly:
 
 ```sh
+pnpm --filter @stacktape/console-api-app test:db --billing
 pnpm --filter @stacktape/console-api-app test:db --issues
 pnpm --filter @stacktape/console-api-app test:db --incidents
 pnpm --filter @stacktape/console-api-app test:db --incident-journey
@@ -60,6 +61,10 @@ provisioning and AMI qualification remain separate. Dispatched deployment, Actio
 network-disabled `node:24-bookworm` container with controlled external tools and a systemd stand-in. A local file relay
 forwards only the suite's AWS/API HTTP requests, including real CLI and runner completion callbacks, across Docker
 Desktop and WSL.
+
+The billing suite sends Paddle Classic form events through the real webhook and reads plan restrictions and receipts
+through the production HTTP router. It exercises production billing with synthetic credentials and loopback Paddle, AWS
+and telemetry providers. It never contacts Paddle or creates real charges.
 
 The isolated Console browser lane uses the same disposable database runner:
 
