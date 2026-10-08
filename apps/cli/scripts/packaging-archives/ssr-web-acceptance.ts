@@ -2,13 +2,17 @@
  * The SSR starters, packaged by the CLI's own `package` command, answer requests in the Lambda runtime.
  *
  * One pinned real build per adapter: the Astro, Nuxt, SolidStart, SvelteKit, TanStack Start, Remix and Next.js
- * starters that ship with the CLI (their lockfiles pin the framework). Each is materialized as `stacktape init`
- * writes it, then the source CLI runs `package` as a child process in an isolated home with every AWS and Stacktape
- * request routed to the offline guard; the CLI installs the dependencies and runs the framework's build itself. The
- * server function ZIP is extracted with `unzip` and invoked in the official Lambda Node.js image as an unprivileged
- * user that owns none of the files, with HTTP API v2 events as the gateway sends them: the index page must be HTML,
- * the starter's dynamic API route must answer with its message, an unknown path must be a 404, and a request
- * carrying a cookie must still be served. The build must also leave hashed static assets for the hosting bucket.
+ * starters that ship with the CLI. Each is materialized as `stacktape init` writes it, then its committed manifest and
+ * lockfile are put back (materialization drops lockfiles and rewrites the manifest), so the CLI's frozen install
+ * resolves exactly the committed versions; the framework version installed must equal the lockfile's. The source CLI
+ * runs `package` as a child process in an isolated home with every AWS and Stacktape request routed to the offline
+ * guard; the CLI installs the dependencies and runs the framework's build itself. The server function ZIP is
+ * extracted with `unzip` and invoked in the official Lambda Node.js image as an unprivileged user that owns none of
+ * the files, with HTTP API v2 events as the gateway sends them: the index page must be HTML, the starter's dynamic
+ * API route must answer with its message, and an unknown path must get the framework's not-found status. The index
+ * request carries a cookie as a browser would; no starter route reads or sets cookies, so cookie semantics are not
+ * observed here (the packaging package's web-framework E2E proves them for Astro and SvelteKit with purpose-built
+ * apps). The build must also leave hashed static assets for the hosting bucket.
  *
  * It needs Docker, `unzip`, the local Lambda Node.js 24 image (pulled when missing) and network access for the
  * starters' dependency installs; it contacts no AWS service.
@@ -16,7 +20,7 @@
  *   bun scripts/packaging-archives/ssr-web-acceptance.ts [--starter <id>[,<id>...]] [--out <new or empty directory>]
  *     [--keep]
  */
-import { mkdir, mkdtemp, readdir, rm, stat } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { generateStarterProject } from '../generate-starter-project';
@@ -42,23 +46,28 @@ type Adapter = {
    * unless the application declares a catch-all route, which the starter does not.
    */
   unknownRouteStatus?: number;
+  /** The framework package whose installed version must equal the committed lockfile's. */
+  frameworkPackage: string;
 };
 
 const ADAPTERS: Adapter[] = [
   {
     starter: 'astro-serverless',
+    frameworkPackage: 'astro',
     resourceType: 'astro-web',
     dynamicRoute: { path: '/api/hello', expectedText: 'Hello from Astro API route on Lambda!' },
     expectsAssets: false
   },
   {
     starter: 'nuxt-serverless',
+    frameworkPackage: 'nuxt',
     resourceType: 'nuxt-web',
     dynamicRoute: { path: '/api/hello', expectedText: 'Hello from Nuxt API route on Lambda!' },
     expectsAssets: true
   },
   {
     starter: 'solidstart-serverless',
+    frameworkPackage: '@solidjs/start',
     resourceType: 'solidstart-web',
     dynamicRoute: { path: '/api/hello', expectedText: 'Hello from SolidStart API route on Lambda!' },
     expectsAssets: true,
@@ -66,19 +75,27 @@ const ADAPTERS: Adapter[] = [
   },
   {
     starter: 'sveltekit-serverless',
+    frameworkPackage: '@sveltejs/kit',
     resourceType: 'sveltekit-web',
     dynamicRoute: { path: '/api/hello', expectedText: 'Hello from SvelteKit API route on Lambda!' },
     expectsAssets: true
   },
-  { starter: 'tanstack-start-serverless', resourceType: 'tanstack-web', expectsAssets: true },
+  {
+    starter: 'tanstack-start-serverless',
+    frameworkPackage: '@tanstack/react-start',
+    resourceType: 'tanstack-web',
+    expectsAssets: true
+  },
   {
     starter: 'remix-serverless',
+    frameworkPackage: '@remix-run/node',
     resourceType: 'remix-web',
     dynamicRoute: { path: '/api/hello', expectedText: 'Hello from Remix API route on Lambda!' },
     expectsAssets: true
   },
   {
     starter: 'nextjs-serverless',
+    frameworkPackage: 'next',
     resourceType: 'nextjs-web',
     dynamicRoute: { path: '/api/hello', expectedText: 'Hello from Next.js API route on Lambda!' },
     expectsAssets: true
@@ -162,6 +179,46 @@ const listFiles = async (directory: string, limit = 5_000) => {
     .slice(0, limit);
 };
 
+/**
+ * Puts the starter's committed `package.json` and lockfile back into a materialized copy, so the install is the
+ * committed one. `package-lock.json` is preferred; a starter with only `bun.lock` installs with Bun. Returns the
+ * lockfile name, or `undefined` when the starter commits none (the build then resolves its version ranges).
+ */
+const restoreCommittedLockfile = async ({ starter, project }: { starter: string; project: string }) => {
+  const source = join(cliDirectory, 'starter-projects', starter);
+  for (const lockfile of ['package-lock.json', 'bun.lock']) {
+    const exists = await stat(join(source, lockfile)).then(
+      () => true,
+      () => false
+    );
+    if (!exists) continue;
+    await cp(join(source, 'package.json'), join(project, 'package.json'));
+    await cp(join(source, lockfile), join(project, lockfile));
+    // The committed manifest has no `stacktape` package (materialization adds it), and a framework's type check would
+    // fail on the TypeScript config's import of it; this lane packages the YAML config.
+    await rm(join(project, 'stacktape.ts'), { force: true });
+    return lockfile;
+  }
+  return undefined;
+};
+
+const installedVersion = async (packageDirectory: string) => {
+  try {
+    return (JSON.parse(await readFile(join(packageDirectory, 'package.json'), 'utf8')) as { version?: string }).version;
+  } catch {
+    return undefined;
+  }
+};
+
+/** The version a lockfile pins for a package; `undefined` for a lockfile format this does not read (bun.lock). */
+const lockedVersion = async ({ project, lockfile, name }: { project: string; lockfile: string; name: string }) => {
+  if (lockfile !== 'package-lock.json') return undefined;
+  const lock = JSON.parse(await readFile(join(project, lockfile), 'utf8')) as {
+    packages?: Record<string, { version?: string }>;
+  };
+  return lock.packages?.[`node_modules/${name}`]?.version;
+};
+
 const runAdapter = async ({ adapter, work }: { adapter: Adapter; work: string }) => {
   const { starter } = adapter;
   const caseWork = join(work, starter);
@@ -174,6 +231,9 @@ const runAdapter = async ({ adapter, work }: { adapter: Adapter; work: string })
     await generateStarterProject({ starterProjectId: starter, outputDirPath: caseWork, mode: 'app' });
     const configPath = join(project, 'stacktape.yml');
     await replacePlaceholdersInStacktapeConfig({ configPath });
+    const lockfile = await restoreCommittedLockfile({ starter, project });
+    report.lockfile = lockfile;
+    check(starter, 'the starter commits a lockfile to pin its build', lockfile !== undefined, lockfile ?? 'none');
 
     console.log(`${starter}: packaging with the source CLI...`);
     const offlineServer = await startOfflineAwsServer();
@@ -191,6 +251,16 @@ const runAdapter = async ({ adapter, work }: { adapter: Adapter; work: string })
     } finally {
       await offlineServer.close();
     }
+    const installed = await installedVersion(join(project, 'node_modules', adapter.frameworkPackage));
+    const locked =
+      lockfile === undefined ? undefined : await lockedVersion({ project, lockfile, name: adapter.frameworkPackage });
+    report.frameworkVersion = { installed, locked };
+    check(
+      starter,
+      `the build used the committed lockfile's ${adapter.frameworkPackage}`,
+      installed !== undefined && (locked === undefined ? lockfile !== undefined : installed === locked),
+      `installed=${String(installed)} locked=${String(locked)}`
+    );
     const workloads = packaged.details.packagedWorkloads as {
       jobName?: unknown;
       digest?: unknown;

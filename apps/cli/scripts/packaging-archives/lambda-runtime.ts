@@ -10,7 +10,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { chmod, lstat, mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, relative } from 'node:path';
+import { join, relative, sep } from 'node:path';
 
 export const LAMBDA_IMAGE = 'public.ecr.aws/lambda/nodejs:24';
 /** The unprivileged test user and group; see the module comment. */
@@ -65,19 +65,23 @@ export const extractZip = async (zipPaths: string | string[], runCommand: RunCom
   }
 };
 
-/** Each entry of an extracted tree as `path mode sha256` (files) or `path directory`, sorted. */
+/**
+ * Each entry of an extracted tree as `path mode sha256` (files) or `path directory`, sorted. Paths use `/` whatever
+ * the host, so a listing taken on Windows compares with one taken on Linux.
+ */
 export const listExtractedEntries = async (root: string) => {
   const lines: string[] = [];
   for (const entry of await readdir(root, { recursive: true, withFileTypes: true })) {
     const path = join(entry.parentPath, entry.name);
+    const relativePath = relative(root, path).split(sep).join('/');
     const info = await lstat(path);
     const mode = (info.mode & 0o777).toString(8);
     lines.push(
       info.isFile()
-        ? `${relative(root, path)} ${mode} ${createHash('sha256')
+        ? `${relativePath} ${mode} ${createHash('sha256')
             .update(await readFile(path))
             .digest('hex')}`
-        : `${relative(root, path)} ${info.isDirectory() ? 'directory' : 'other'} ${mode}`
+        : `${relativePath} ${info.isDirectory() ? 'directory' : 'other'} ${mode}`
     );
   }
   return lines.toSorted();

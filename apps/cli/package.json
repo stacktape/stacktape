@@ -65,6 +65,7 @@
     "test:external-tools": "bun scripts/external-tools-e2e.ts",
     "test:lambda-archives": "bun scripts/packaging-archives/lambda-archive-acceptance.ts",
     "test:node-lambda": "bun scripts/packaging-archives/node-lambda-acceptance.ts",
+    "test:runtime-acceptances": "bun run test:helper-lambda-runtime && bun run test:node-lambda && bun run test:ssr-web",
     "test:helper-lambda-runtime": "bun scripts/packaging-archives/helper-lambda-runtime-acceptance.ts",
     "test:ssr-web": "bun scripts/packaging-archives/ssr-web-acceptance.ts",
     "test:layer-upload": "bun scripts/packaging-archives/layer-upload-acceptance.ts",

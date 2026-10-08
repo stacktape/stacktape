@@ -4,10 +4,13 @@ Read the [test-selection policy](../../../../docs/testing.md) first, then only t
 behavior. Run commands from the public workspace root. These procedures describe coverage and prerequisites, not a
 checklist for every change.
 
-Use `pnpm test:packaging-e2e` for archive/image behavior. Use the import, package, and runtime qualification lanes for
-customer projects as described in [project qualification](../../../../docs/project-qualification.md). The package lane
-intentionally blocks unreviewed project code on the host. Packaging proves that artifacts can be produced; only the
-runtime and AWS lanes prove that they run.
+Use `pnpm test:packaging-e2e` for archive/image behavior, and
+`pnpm --filter @stacktape/cli run test:runtime-acceptances` for the CLI-process acceptances below (helper Lambdas,
+Node.js Lambdas through the package command, SSR starters); the qualification runtime lane runs both. Use the import,
+package, and runtime qualification lanes for customer projects as described in
+[project qualification](../../../../docs/project-qualification.md). The package lane intentionally blocks unreviewed
+project code on the host. Packaging proves that artifacts can be produced; only the runtime and AWS lanes prove that
+they run.
 
 ## Lambda archives
 

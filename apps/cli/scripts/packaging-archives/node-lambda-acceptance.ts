@@ -319,10 +319,11 @@ const invoke = async ({
   run: PackageRun;
   name: FunctionName;
   event?: unknown;
-}): Promise<{ response: Response; entries: string[] }> => {
+}): Promise<{ response: Response; entries: string[]; map: PackagedMap | undefined }> => {
   const functionDirectory = await extractZip(run.functions[name].artifactPath);
   try {
     const entries = await listExtractedEntries(functionDirectory);
+    const map = await readPackagedMap(join(functionDirectory, 'index.js.map'));
     const invocation = await invokeInLambdaRuntime({
       functionDirectory,
       layerDirectory: run.optDirectory,
@@ -338,10 +339,25 @@ const invoke = async ({
     if ('errorMessage' in response) {
       throw new Error(`${name} failed in the Lambda runtime: ${invocation.body}\n${invocation.logs.stdout}`);
     }
-    return { response, entries };
+    return { response, entries, map };
   } finally {
     await rm(functionDirectory, { recursive: true, force: true });
   }
+};
+
+/** What a shipped source map discloses: whether it carries the sources' text, and which files it names. */
+type PackagedMap = { hasSourcesContent: boolean; sources: string[] };
+
+const readPackagedMap = async (path: string): Promise<PackagedMap | undefined> => {
+  const text = await readFile(path, 'utf8').catch(() => undefined);
+  if (text === undefined) return undefined;
+  const map = JSON.parse(text) as { sources?: unknown; sourcesContent?: unknown };
+  return {
+    hasSourcesContent: Array.isArray(map.sourcesContent) && map.sourcesContent.some((entry) => entry !== null),
+    sources: Array.isArray(map.sources)
+      ? map.sources.filter((source): source is string => typeof source === 'string')
+      : []
+  };
 };
 
 /** The first build's three functions in the Lambda runtime, and what their ZIPs hold. */
@@ -421,15 +437,17 @@ const invokeFirst = async ({
       legacy.response.format === 'cjs',
     JSON.stringify(legacy.response)
   );
-  for (const [name, entries] of [
-    ['esm', esm.entries],
-    ['plain', plain.entries],
-    ['legacy', legacy.entries]
+  for (const [name, map, source] of [
+    ['esm', esm.map, 'src/esm.ts'],
+    ['plain', plain.map, 'src/plain.ts'],
+    ['legacy', legacy.map, 'src/legacy.cjs']
   ] as const) {
     check(
-      `${name}: ZIP ships a source map without sourcesContent`,
-      entries.some((entry) => entry.startsWith('index.js.map ')),
-      entries.filter((entry) => entry.endsWith('.map') || entry.startsWith('index.js.map ')).join(', ') || 'no map'
+      `${name}: ZIP ships a source map naming the original file, without sourcesContent`,
+      map !== undefined && !map.hasSourcesContent && map.sources.some((entry) => entry.endsWith(source)),
+      map === undefined
+        ? 'no index.js.map'
+        : `sourcesContent=${String(map.hasSourcesContent)} sources=${map.sources.slice(0, 4).join(', ')}`
     );
   }
   for (const name of FUNCTIONS) {
@@ -639,8 +657,11 @@ const main = async () => {
       console.log(`Exported the artifacts of the first and edited builds to ${exportDirectory}.`);
     }
   } finally {
-    const leftovers = listLeftoverContainers();
-    check('no acceptance container is left behind', leftovers.length === 0, leftovers.join(', ') || 'none');
+    // The build phase starts no container and needs no Docker; the check would only fail where there is none.
+    if (exportDirectory === undefined) {
+      const leftovers = listLeftoverContainers();
+      check('no acceptance container is left behind', leftovers.length === 0, leftovers.join(', ') || 'none');
+    }
     if (!keep) {
       await rm(work, { recursive: true, force: true }).catch(() => undefined);
       await Promise.all(
