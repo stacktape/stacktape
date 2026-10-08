@@ -301,7 +301,8 @@ describe('stacktape init in the terminal: existing repository to a running artif
             ''
           ].join('\n')
         }),
-        projectDirectoryName: 'inventory'
+        // A Go service is named after its directory; the id keeps its image tag owned by this run.
+        projectDirectoryName: (id) => `inventory-${id}`
       });
       const goInit = await runSourceInit({
         sandbox: go,

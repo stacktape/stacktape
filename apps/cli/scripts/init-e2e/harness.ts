@@ -71,11 +71,15 @@ export const createInitSandbox = async ({
   projectDirectoryName = 'project'
 }: {
   files: (id: string) => Record<string, string>;
-  projectDirectoryName?: string;
+  /** A function when the directory name becomes a resource name, so the image tag carries the sandbox id. */
+  projectDirectoryName?: string | ((id: string) => string);
 }): Promise<InitSandbox> => {
   const id = randomBytes(3).toString('hex');
   const root = await mkdtemp(join(tmpdir(), `stacktape-j1-init-${id}-`));
-  const project = join(root, projectDirectoryName);
+  const project = join(
+    root,
+    typeof projectDirectoryName === 'function' ? projectDirectoryName(id) : projectDirectoryName
+  );
   const home = join(root, 'home');
   const bin = join(root, 'bin');
   await Promise.all(
