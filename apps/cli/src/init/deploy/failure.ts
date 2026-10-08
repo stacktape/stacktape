@@ -47,7 +47,8 @@ const ACCOUNT_PATTERNS: readonly RegExp[] = [
   // Stacktape's own account layer, which no reading of the repository can fix either.
   /api key|not logged in|not signed in|stacktape login/i,
   /quota|limit exceeded|too many|throttl/i,
-  /\bsecret\b.*\b(not set|missing|does not exist)\b/i,
+  // The deploy's own secret preflight says "Missing 1 secret(s): name", with the noun after the verb.
+  /\bsecret\b.*\b(not set|missing|does not exist)\b|\bmissing \d+ secret/i,
   /insufficient permissions|assume role/i
 ];
 

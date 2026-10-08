@@ -36,13 +36,21 @@ const VERIFIABLE_RESOURCE_TYPES: ReadonlySet<string> = new Set(['web-service', '
 const MAX_SERVICES_PER_RUN = 2;
 const BOOT_WINDOW_MS = 30_000;
 const POLL_INTERVAL_MS = 1_000;
-/** The port Stacktape injects; the stub environment injects the same so conventions line up. */
-const PLATFORM_PORT = 8080;
+/** The port Stacktape routes a service to when its config sets none; the service's `port` overrides it. */
+const DEFAULT_ROUTED_PORT = 3000;
 
 export type CommandResult = { stdout: string; stderr: string };
 /** Shell-out seams, injected so the engine is testable without Docker or a repository. */
 export type PreflightRunners = {
   docker: (commands: string[]) => Promise<CommandResult>;
+  /** Builds a `js-bundle` service image the way a deploy does. */
+  jsBundle: (input: {
+    repositoryRoot: string;
+    imageName: string;
+    entryfilePath: string;
+    nodeVersion?: number;
+    requiresGlibcBinaries: boolean;
+  }) => Promise<unknown>;
   /** Builds a buildpack (Railpack) service image the way a deploy does. */
   buildpack: (input: {
     sourceDirectory: string;
@@ -169,6 +177,8 @@ const tail = (text: string, lines: number): string[] => text.split(/\r?\n/).filt
 type VerifiableService = {
   service: ServiceFact;
   resourceName: string;
+  /** The port the deployed service receives traffic on, injected as `PORT` exactly as the deploy injects it. */
+  routedPort: number;
   packaging: { type: string; properties: Record<string, unknown> };
 };
 
@@ -183,7 +193,13 @@ const selectServices = (facts: ProjectFacts, composition: CompositionResult): Ve
     if (resource === undefined || !VERIFIABLE_RESOURCE_TYPES.has(resource.type)) continue;
     const packaging = resource.properties.packaging as VerifiableService['packaging'] | undefined;
     if (packaging === undefined) continue;
-    selected.push({ service, resourceName, packaging });
+    const configuredPort = resource.properties.port;
+    selected.push({
+      service,
+      resourceName,
+      routedPort: typeof configuredPort === 'number' ? configuredPort : DEFAULT_ROUTED_PORT,
+      packaging
+    });
     if (selected.length >= MAX_SERVICES_PER_RUN) break;
   }
   return selected;
@@ -226,6 +242,18 @@ const buildImage = async ({
       });
       return { ok: true };
     }
+    if (packaging.type === 'js-bundle' && typeof packaging.properties.entryfilePath === 'string') {
+      await runners.jsBundle({
+        repositoryRoot,
+        imageName,
+        entryfilePath: join(repositoryRoot, packaging.properties.entryfilePath),
+        ...(typeof packaging.properties.nodeVersion === 'number'
+          ? { nodeVersion: packaging.properties.nodeVersion }
+          : {}),
+        requiresGlibcBinaries: packaging.properties.requiresGlibcBinaries === true
+      });
+      return { ok: true };
+    }
     return { ok: false, reason: `Packaging type ${packaging.type} is verified at deploy time for now.` };
   } catch (error) {
     return { ok: false, reason: error instanceof Error ? error.message : 'The build failed.' };
@@ -257,7 +285,7 @@ const bootProbe = async ({
 
   const environmentFlags = [
     '--env',
-    `PORT=${PLATFORM_PORT}`,
+    `PORT=${entry.routedPort}`,
     ...stubEnvironmentFor(service, facts).flatMap(({ name, value }) => ['--env', `${name}=${value}`])
   ];
 
@@ -338,7 +366,7 @@ const bootProbe = async ({
         const ports = parseListeningPorts(proc.stdout);
         if (ports.length > 0) {
           observations.listeningPorts = ports;
-          const expected = service.port ?? PLATFORM_PORT;
+          const expected = entry.routedPort;
           return {
             serviceName: service.name,
             resourceName,

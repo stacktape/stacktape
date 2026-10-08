@@ -123,7 +123,7 @@ const scriptedRunners = (scenario: {
   };
 
   return {
-    runners: { docker, buildpack: async () => ({}), sleep: async () => {} },
+    runners: { docker, jsBundle: async () => ({}), buildpack: async () => ({}), sleep: async () => {} },
     calls
   };
 };

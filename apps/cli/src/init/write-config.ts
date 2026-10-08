@@ -12,7 +12,7 @@
  * wizard, next to the resource, where it can link to the line it came from.
  */
 
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { convertYamlToTypescript } from '@stacktape/config-authoring/converter';
@@ -57,6 +57,13 @@ export type WriteConfigResult = {
    * say so — a user who does not notice ends up deploying a file they did not know they had.
    */
   existingPath?: string;
+  /**
+   * The `stacktape` dev dependency a TypeScript config needs, when init added or changed it in `package.json`.
+   *
+   * `stacktape.ts` imports the resource classes from `stacktape`, and the editor needs the package for its types.
+   * Pinned to the CLI that wrote the file, so the classes and the CLI that loads them agree.
+   */
+  devDependency?: { specifier: string; previousVersion?: string; installCommand: string };
 };
 
 const CANONICAL: Record<ConfigFormat, string> = { yaml: 'stacktape.yml', typescript: 'stacktape.ts' };
@@ -79,11 +86,14 @@ const ALONGSIDE: Record<ConfigFormat, string> = {
 export const writeComposedConfig = async ({
   repositoryRoot,
   composition,
-  format = 'yaml'
+  format = 'yaml',
+  stacktapeVersion
 }: {
   repositoryRoot: string;
   composition: CompositionResult;
   format?: ConfigFormat;
+  /** The running CLI's version. A TypeScript config in a project with a `package.json` depends on it. */
+  stacktapeVersion?: string;
 }): Promise<WriteConfigResult> => {
   const existing = findExistingConfig(repositoryRoot);
   const filename = existing === undefined ? CANONICAL[format] : ALONGSIDE[format];
@@ -91,5 +101,66 @@ export const writeComposedConfig = async ({
 
   const contents = format === 'typescript' ? await renderTypeScript(composition) : renderYaml(composition);
   await writeFile(path, contents, 'utf8');
-  return { path, filename, ...(existing === undefined ? {} : { existingPath: existing }) };
+  const devDependency =
+    format === 'typescript' && stacktapeVersion !== undefined
+      ? await pinStacktapeDevDependency({ repositoryRoot, version: stacktapeVersion })
+      : undefined;
+  return {
+    path,
+    filename,
+    ...(existing === undefined ? {} : { existingPath: existing }),
+    ...(devDependency === undefined ? {} : { devDependency })
+  };
+};
+
+const INSTALL_COMMANDS: ReadonlyArray<{ lockfile: string; command: string }> = [
+  { lockfile: 'pnpm-lock.yaml', command: 'pnpm install' },
+  { lockfile: 'yarn.lock', command: 'yarn install' },
+  { lockfile: 'bun.lock', command: 'bun install' },
+  { lockfile: 'bun.lockb', command: 'bun install' }
+];
+
+/**
+ * Add `stacktape@<version>` to the project's dev dependencies, or move an older pin to it.
+ *
+ * Only for a JavaScript or TypeScript project, one with a `package.json`. Elsewhere the CLI serves the import from
+ * its own authoring runtime, and adding a Node manifest to a Go or Python repository would be clutter. Nothing is
+ * installed here: init never runs the project's package manager, so the user is told the command instead.
+ */
+const pinStacktapeDevDependency = async ({
+  repositoryRoot,
+  version
+}: {
+  repositoryRoot: string;
+  version: string;
+}): Promise<WriteConfigResult['devDependency']> => {
+  const manifestPath = join(repositoryRoot, 'package.json');
+  if (!existsSync(manifestPath)) return undefined;
+  const raw = await readFile(manifestPath, 'utf8');
+  let manifest: Record<string, unknown>;
+  try {
+    manifest = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    // A manifest init cannot parse is not one it should rewrite.
+    return undefined;
+  }
+  const section = (name: 'dependencies' | 'devDependencies') =>
+    typeof manifest[name] === 'object' && manifest[name] !== null
+      ? (manifest[name] as Record<string, string>)
+      : undefined;
+  const declared = section('dependencies')?.stacktape ?? section('devDependencies')?.stacktape;
+  if (declared === version) return undefined;
+  if (section('dependencies')?.stacktape !== undefined) {
+    section('dependencies')!.stacktape = version;
+  } else {
+    manifest.devDependencies = { ...section('devDependencies'), stacktape: version };
+  }
+  const indentation = /^([ \t]+)"/m.exec(raw)?.[1] ?? '  ';
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, indentation)}\n`, 'utf8');
+  return {
+    specifier: `stacktape@${version}`,
+    ...(declared === undefined ? {} : { previousVersion: declared }),
+    installCommand:
+      INSTALL_COMMANDS.find(({ lockfile }) => existsSync(join(repositoryRoot, lockfile)))?.command ?? 'npm install'
+  };
 };

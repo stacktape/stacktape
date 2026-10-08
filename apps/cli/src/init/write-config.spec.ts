@@ -212,3 +212,40 @@ describe('writeComposedConfig', () => {
     expect(findExistingConfig(root)).toBe(join(root, 'stacktape.ts'));
   });
 });
+
+describe('the stacktape dev dependency of a TypeScript config', () => {
+  const write = async (files: Record<string, string>, format: 'yaml' | 'typescript' = 'typescript') => {
+    root = await mkdtemp(join(tmpdir(), 'stp-write-config-'));
+    for (const [path, contents] of Object.entries(files)) await writeFile(join(root, path), contents, 'utf8');
+    return writeComposedConfig({ repositoryRoot: root, composition: composition(), format, stacktapeVersion: '4.2.0' });
+  };
+  const manifest = async () => JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
+
+  it('moves an older pin to the version that wrote the file, and names the lockfile’s package manager', async () => {
+    const written = await write({
+      'package.json':
+        '{\n    "name": "orders",\n    "devDependencies": { "stacktape": "^3.4.0", "vitest": "3.0.0" }\n}\n',
+      'pnpm-lock.yaml': ''
+    });
+
+    expect(written.devDependency).toEqual({
+      specifier: 'stacktape@4.2.0',
+      previousVersion: '^3.4.0',
+      installCommand: 'pnpm install'
+    });
+    expect((await manifest()).devDependencies).toEqual({ stacktape: '4.2.0', vitest: '3.0.0' });
+    // The project's own indentation is kept.
+    expect(await readFile(join(root, 'package.json'), 'utf8')).toContain('\n    "name": "orders"');
+  });
+
+  it('leaves a matching pin alone', async () => {
+    expect((await write({ 'package.json': '{"dependencies":{"stacktape":"4.2.0"}}' })).devDependency).toBeUndefined();
+  });
+
+  it('adds nothing to a project without a package.json, or for a YAML config', async () => {
+    expect((await write({ 'go.mod': 'module x\n' })).devDependency).toBeUndefined();
+    await rm(root, { recursive: true, force: true });
+    expect((await write({ 'package.json': '{"name":"orders"}' }, 'yaml')).devDependency).toBeUndefined();
+    expect(await manifest()).toEqual({ name: 'orders' });
+  });
+});

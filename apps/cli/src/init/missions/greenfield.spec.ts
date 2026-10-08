@@ -28,7 +28,8 @@ const EXPRESS_APP = {
     dependencies: { express: '^5.0.0', pg: '^8.11.0' }
   }),
   'package-lock.json': '{}',
-  'src/index.ts': 'import express from "express";\nconst app = express();\napp.listen(4000);'
+  'src/index.ts':
+    'import express from "express";\nconst app = express();\napp.listen(settings.port); // listens on 4000'
 };
 
 const agentReturning =
@@ -74,7 +75,7 @@ describe('runGreenfieldMission', () => {
               executionModel: 'long-running',
               functionTriggers: [],
               environmentVariables: [{ name: 'STRIPE_KEY', role: 'third-party-secret', required: true, evidence: [] }],
-              evidence: [{ file: 'src/index.ts', line: 3, quote: 'app.listen(4000);' }]
+              evidence: [{ file: 'src/index.ts', line: 3, quote: 'app.listen(settings.port); // listens on 4000' }]
             }
           ],
           dependencies: [],

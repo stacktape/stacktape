@@ -1,5 +1,8 @@
 import type { LoadableFileExtensions } from '@utils/file-types';
-import { basename, isAbsolute, join } from 'node:path';
+import { existsSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { basename, dirname, isAbsolute, join } from 'node:path';
+import * as stacktapeAuthoringRuntime from '@stacktape/config-authoring';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { VALID_CONFIG_PATHS } from '@config';
@@ -31,6 +34,51 @@ const formatFilePathForError = (filePath: string) => {
   return safePath.startsWith('./') ? safePath : `./${safePath}`;
 };
 
+/**
+ * The directory of the project's own `stacktape` package, if one is installed above the importing file. Found on
+ * disk rather than with `require.resolve`, which the virtual module below answers for the bare name.
+ */
+const findInstalledStacktape = (importer: string): string | undefined => {
+  for (let directory = dirname(importer); ; directory = dirname(directory)) {
+    const packageDirectory = join(directory, 'node_modules', 'stacktape');
+    if (existsSync(join(packageDirectory, 'package.json'))) return packageDirectory;
+    if (dirname(directory) === directory) return undefined;
+  }
+};
+
+let stacktapeImportResolutionRegistered = false;
+/** The TypeScript file being loaded; `stacktape` resolves relative to it. */
+let stacktapeImporter: string | undefined;
+
+/**
+ * Resolve `import ... from 'stacktape'` in a TypeScript config.
+ *
+ * A project that installed `stacktape` gets its own copy. Any other project, a Go or Python one with no
+ * node_modules included, gets the authoring runtime built into this CLI. A virtual module is the one hook Bun
+ * consults before its own resolution of a bare package name, which would otherwise auto-install whatever version
+ * npm calls latest into its global cache.
+ */
+const ensureStacktapeImportResolution = (importer: string) => {
+  stacktapeImporter = importer;
+  if (stacktapeImportResolutionRegistered) return;
+  stacktapeImportResolutionRegistered = true;
+  Bun.plugin({
+    name: 'stacktape-config-runtime',
+    setup: (build) => {
+      build.module('stacktape', () => {
+        const installed = stacktapeImporter === undefined ? undefined : findInstalledStacktape(stacktapeImporter);
+        return {
+          exports:
+            installed === undefined
+              ? { ...stacktapeAuthoringRuntime }
+              : createRequire(join(installed, 'package.json'))(installed),
+          loader: 'object'
+        };
+      });
+    }
+  });
+};
+
 export const getTypescriptExport = ({
   cache,
   filePath,
@@ -41,6 +89,7 @@ export const getTypescriptExport = ({
   exportName: string | 'default';
 }) => {
   // Bun's require() handles TypeScript natively
+  ensureStacktapeImportResolution(filePath);
   const importedValue = dynamicRequire({ filePath, cache });
   return importedValue[exportName || 'default'];
 };

@@ -161,6 +161,9 @@ const agentOptions = (
   }
 ];
 
+/** Said in both presentations, so "Using claude-code" is never left implying that the agent read the code. */
+const AGENT_SKIPPED_NOTE = 'The scan answered everything — your agent was not needed, and no tokens were spent.';
+
 /** Whether opening a browser is plausible. Honest rather than clever: if in doubt, use the terminal. */
 export const canOpenBrowser = (env: NodeJS.ProcessEnv = process.env): boolean => {
   // Asking for the terminal is `--headless`; this function only answers whether a browser is even
@@ -284,6 +287,7 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
       timeline.push(entry);
       say(`  ${entry.kind === 'tool' ? '→' : ' '} ${entry.label}`);
     });
+    if (result.agentSkipped === true) say(`  ${AGENT_SKIPPED_NOTE}`);
     for (const line of describeResult(result)) say(line);
 
     // Priced after the resource list is on screen, because it is a network call in a command that
@@ -300,13 +304,15 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
     const configFile = await writeComposedConfig({
       repositoryRoot,
       composition: result.composition,
-      ...(options.configFormat === undefined ? {} : { format: options.configFormat })
+      ...(options.configFormat === undefined ? {} : { format: options.configFormat }),
+      ...(options.configFormat === 'typescript' ? { stacktapeVersion: getStacktapeVersion() } : {})
     });
     say(
       configFile.existingPath === undefined
         ? `\nWrote ${configFile.path}`
         : `\n${configFile.existingPath} was already here and has not been touched.\nWrote ${configFile.path} beside it — deploy it with \`--configPath ${configFile.filename}\`, or merge it in yourself.`
     );
+    for (const line of describeDevDependency(configFile)) say(line);
 
     // The same session summary the wizard sends, built from the finished run. Categories and
     // counts only; see `initTelemetryEvent` for the rule.
@@ -396,13 +402,21 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
       analysisMs = Date.now() - analysisStartedAt;
       if (result.agentSkipped === true) {
         agentWasSkipped = true;
-        const skippedNote = 'The scan answered everything — your agent was not needed, and no tokens were spent.';
-        say(`  ${skippedNote}`);
-        onProgress({ kind: 'note', label: skippedNote });
+        say(`  ${AGENT_SKIPPED_NOTE}`);
+        onProgress({ kind: 'note', label: AGENT_SKIPPED_NOTE });
       }
       return result;
     },
-    write: ({ composition, format }) => writeComposedConfig({ repositoryRoot, composition, format }),
+    write: async ({ composition, format }) => {
+      const written = await writeComposedConfig({
+        repositoryRoot,
+        composition,
+        format,
+        ...(format === 'typescript' ? { stacktapeVersion: getStacktapeVersion() } : {})
+      });
+      for (const line of describeDevDependency(written)) say(line);
+      return written;
+    },
     // The local try-out: build the composed services the way the deploy will, start them in an
     // isolated container with stub values, and watch. Only ever invoked after the user's click —
     // the session owns that consent — and every machinery failure reads as "unavailable" there.
@@ -640,6 +654,17 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
     }
   };
 };
+
+/** What init changed in `package.json` for a TypeScript config, and the one command the user still has to run. */
+const describeDevDependency = ({ devDependency }: WriteConfigResult): string[] =>
+  devDependency === undefined
+    ? []
+    : [
+        devDependency.previousVersion === undefined
+          ? `Added ${devDependency.specifier} to devDependencies in package.json: stacktape.ts imports its resource classes from it.`
+          : `Changed stacktape in package.json from ${devDependency.previousVersion} to ${devDependency.specifier}, the version that wrote stacktape.ts.`,
+        `Run \`${devDependency.installCommand}\` before deploying.`
+      ];
 
 /**
  * The terminal presentation.

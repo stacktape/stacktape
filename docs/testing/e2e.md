@@ -40,6 +40,8 @@ Reuse these before writing new setup code. Rows marked **duplicate** are consoli
 | Live AWS scenario                        | [real-AWS scripts](../../apps/cli/scripts/real-aws/README.md)                                                                                          | Account check, owned names, recovery state, verified cleanup.                                                                        |
 | Change-plan compatibility                | [data-safety lane](../../apps/cli/tests/data-safety/README.md)                                                                                         | Baseline template → current synthesis → the product's change plan; committed v3 and v4 baselines.                                    |
 | Console API over HTTP with tenants       | [Console tenant fixtures](../../apps/console/api/scripts/console-tenant-fixtures.ts)                                                                   | Production router, middleware and Prisma on a loopback port; tenant and member factory; HTTP client per credential surface. Private. |
+| Init as a CLI process                    | [init harness](../../apps/cli/scripts/init-e2e/harness.ts)                                                                                             | Sandboxed project and HOME, offline package, image run with its task definition. `test:init:e2e`.                                    |
+| Recorded coding agent                    | [Claude Code stand-in](../../apps/cli/scripts/init-e2e/recorded-agent-cli.ts)                                                                          | `claude` on PATH that replays tool calls against the real init MCP server and logs every answer.                                     |
 
 ## Helpers worth building
 
