@@ -142,6 +142,8 @@ describe('a YAML config with directives, references and stage-specific values sy
 
   // The bridge speaks newline-delimited JSON over the child's stdin and stdout. Node IPC, the previous channel, closes
   // after the first reply under Bun, which made every Python directive fail in the compiled CLI.
+  // Starting Python on the Windows CI runner is slow and uneven: the same test took 0.9 s in one run and over 5 s
+  // (bun's default budget) in the next. One minute covers a cold start; a real hang still fails, just later.
   test('a Python user directive resolves like a TypeScript one', async () => {
     const dir = await fixtureWithConfig(`projectName: directive-project
 directives:
@@ -161,7 +163,7 @@ resources:
 `);
     const template = await synthesizeYaml('production', dir);
     expect(functionEnvironment(template, 'ApiFunction').SHOUTED_PY).toBe('PRODUCTION');
-  });
+  }, 60_000);
 
   test('the TypeScript form of the same resources synthesizes the same references', async () => {
     const yamlTemplate = await synthesizeYaml('production');
