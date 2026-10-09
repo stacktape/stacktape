@@ -10,13 +10,18 @@ import type { StackInfoMap } from '@stacktape/stack-info/contracts';
 
 const cliDirectory = resolve(import.meta.dir, '../..');
 
-const terminateProcessTree = (child: ReturnType<typeof Bun.spawn>) => {
+const terminateProcessTree = async (child: ReturnType<typeof Bun.spawn>) => {
   if (process.platform === 'win32') {
     const result = Bun.spawnSync(['taskkill', '/PID', String(child.pid), '/T', '/F'], {
       stdout: 'ignore',
       stderr: 'ignore'
     });
-    if (result.exitCode !== 0 && child.exitCode === null) throw new Error(`Could not terminate CLI tree ${child.pid}`);
+    if (result.exitCode !== 0 && child.exitCode === null) {
+      // A process the test has just interrupted can be gone before Bun observes its exit: taskkill then reports
+      // failure for a tree that no longer exists. Wait briefly for that exit before calling the tree stuck.
+      const exited = await Promise.race([child.exited.then(() => true), Bun.sleep(2_000).then(() => false)]);
+      if (!exited) throw new Error(`Could not terminate CLI tree ${child.pid}`);
+    }
     return;
   }
   try {
@@ -124,11 +129,13 @@ export const createOperationsFixture = async (cliPath: string, extraEnvironment:
       : collect(child.stderr, (value) => {
           stderr += value;
         });
-    const deadline = setTimeout(() => terminateProcessTree(child), timeoutMs);
+    // On timeout the tree is killed in the background; `finished` reports the exit, and teardown reports a tree that
+    // outlived the kill.
+    const deadline = setTimeout(() => void terminateProcessTree(child).catch(() => undefined), timeoutMs);
     const finished = Promise.all([child.exited, out, err])
       .then(([exitCode]) => ({ exitCode, stdout, stderr }))
       .catch(async (error: unknown) => {
-        terminateProcessTree(child);
+        await terminateProcessTree(child).catch(() => undefined);
         await child.exited;
         await Promise.allSettled([out, err]);
         throw error;
@@ -177,7 +184,7 @@ export const createOperationsFixture = async (cliPath: string, extraEnvironment:
       try {
         const results = await Promise.allSettled(
           owned.map(async ([child, finished]) => {
-            terminateProcessTree(child);
+            await terminateProcessTree(child);
             await finished;
           })
         );
