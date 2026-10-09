@@ -14,6 +14,7 @@ import { createBunFfiShimPlugin, createNativeNodeModulesPlugin, isBareImportSpec
 import { getBunMinifyConfig } from '../../es/minify';
 import { writePackagedSourceMap } from '../../es/packaged-source-map';
 import { writeEditedJavaScript } from '../../es/source-map-edits';
+import { normalizeBundleIdentity } from '../../es/artifact-identity';
 import {
   classifyBeforeResolution,
   classifyResolvedModule,
@@ -689,6 +690,20 @@ export const buildEsCode = async ({
     if (metafile && distPath) {
       await writeJson(join(dirname(distPath), metafile), buildMetafile);
     }
+
+    // The bundle's debug ID and its map's sources must not depend on the build directory (`es/artifact-identity`).
+    await Promise.all(
+      (distPath
+        ? [distPath]
+        : buildResult.outputs.filter(({ path }) => path.endsWith('.js')).map(({ path }) => path)
+      ).map((javascriptPath) =>
+        normalizeBundleIdentity({
+          javascriptPath,
+          projectRoot: monorepoRoot || cwd,
+          sourcesResolveFrom: outdir ?? dirname(javascriptPath)
+        })
+      )
+    );
 
     return {
       dependenciesToInstallInDocker: dedupeDependenciesByName(allDependenciesToInstallInDocker),

@@ -30,7 +30,7 @@
  */
 import { createHash } from 'node:crypto';
 import { cp, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { startOfflineAwsServer } from '../qualification/offline-aws';
 import { outputTail } from '../qualification/process';
@@ -319,11 +319,12 @@ const invoke = async ({
   run: PackageRun;
   name: FunctionName;
   event?: unknown;
-}): Promise<{ response: Response; entries: string[]; map: PackagedMap | undefined }> => {
+}): Promise<{ response: Response; entries: string[]; map: PackagedMap | undefined; hostPaths: string[] }> => {
   const functionDirectory = await extractZip(run.functions[name].artifactPath);
   try {
     const entries = await listExtractedEntries(functionDirectory);
     const map = await readPackagedMap(join(functionDirectory, 'index.js.map'));
+    const hostPaths = await findHostPaths([functionDirectory, ...(run.optDirectory ? [run.optDirectory] : [])]);
     const invocation = await invokeInLambdaRuntime({
       functionDirectory,
       layerDirectory: run.optDirectory,
@@ -339,10 +340,29 @@ const invoke = async ({
     if ('errorMessage' in response) {
       throw new Error(`${name} failed in the Lambda runtime: ${invocation.body}\n${invocation.logs.stdout}`);
     }
-    return { response, entries, map };
+    return { response, entries, map, hostPaths };
   } finally {
     await rm(functionDirectory, { recursive: true, force: true });
   }
+};
+
+/**
+ * Files under `directories` whose text contains a path of this build host: the temporary directory the fixture was
+ * built in, or the home directory. A deployed artifact must carry neither (owner decision, 2026-10-09).
+ */
+const findHostPaths = async (directories: string[]) => {
+  const forbidden = [tmpdir(), homedir()].map((path) => path.replace(/\\/g, '/'));
+  const found: string[] = [];
+  for (const directory of directories) {
+    for (const entry of await readdir(directory, { recursive: true, withFileTypes: true })) {
+      if (!entry.isFile()) continue;
+      const path = join(entry.parentPath, entry.name);
+      const text = (await readFile(path)).toString('latin1').replace(/\\/g, '/');
+      const leaked = forbidden.find((candidate) => text.includes(candidate));
+      if (leaked !== undefined) found.push(`${path.slice(directory.length + 1)} mentions ${leaked}`);
+    }
+  }
+  return found;
 };
 
 /** What a shipped source map discloses: whether it carries the sources' text, and which files it names. */
@@ -437,6 +457,17 @@ const invokeFirst = async ({
       legacy.response.format === 'cjs',
     JSON.stringify(legacy.response)
   );
+  for (const [name, result] of [
+    ['esm', esm],
+    ['plain', plain],
+    ['legacy', legacy]
+  ] as const) {
+    check(
+      `${name}: no path of the build host in the function or its layers`,
+      result.hostPaths.length === 0,
+      result.hostPaths.slice(0, 3).join('; ') || 'none'
+    );
+  }
   for (const [name, map, source] of [
     ['esm', esm.map, 'src/esm.ts'],
     ['plain', plain.map, 'src/plain.ts'],
