@@ -16,6 +16,7 @@ import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
+import type { StackPriceEstimationResponse } from '@stacktape/console-api/anonymous';
 import { buildOfflineQualificationEnvironment, startOfflineAwsServer } from '../qualification/offline-aws';
 import { runProcess, type ProcessResult } from '../qualification/process';
 import { parseCliJsonl } from '../verify-source-cli-aws-readonly';
@@ -154,10 +155,12 @@ export const startStacktapeApiStub = async ({ flatMonthlyCost }: { flatMonthlyCo
         '0'
       ];
       pricedConfigs.push(input?.stackConfig ?? '');
+      const estimate = {
+        success: true,
+        costs: { flatMonthlyCost, incomplete: false, unpricedResources: [], resourcesBreakdown: {} }
+      } satisfies StackPriceEstimationResponse;
       response.writeHead(200, { 'content-type': 'application/json' });
-      response.end(
-        JSON.stringify([{ result: { data: { success: true, costs: { flatMonthlyCost, resourcesBreakdown: {} } } } }])
-      );
+      response.end(JSON.stringify([{ result: { data: estimate } }]));
       return;
     }
     unexpectedRequests.push(`${request.method} ${path}`);
