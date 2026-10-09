@@ -369,6 +369,9 @@ export const ensureDefaultExport = (content: string): string => {
   return edit ? applyTextEdits(content, [edit]) : content;
 };
 
+/** A CommonJS bundle gets `__dirname` and `__filename` from Node.js; the build redirects both identifiers here. */
+export const CJS_PATH_BANNER = 'var __stp_dirname = __dirname, __stp_filename = __filename;';
+
 export const ESM_SOURCE_MAP_BANNER = `import { createRequire as __stp_createRequire } from "node:module";
 import { fileURLToPath as __stp_fileURLToPath } from "node:url";
 import { dirname as __stp_pathDirname } from "node:path";

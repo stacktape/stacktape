@@ -399,6 +399,7 @@ describe('TypeScript authoring compilation', () => {
       'SqsQueue',
       'SnsTopic',
       'KinesisStream',
+      'StateMachine',
       'OpenSearchDomain',
       'EfsFilesystem'
     ];

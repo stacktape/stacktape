@@ -15,6 +15,140 @@ checksum manifest, and npm tarball. The explicit channel changes only the public
 Both top-level release commands dispatch the workflow from `main`, and stable releases are accepted only from `main`.
 Neither channel deploys a Stacktape project or uses `STACKTAPE_API_KEY`.
 
+## Qualify a release candidate
+
+Run this sequence from a checkout of the candidate's exact public revision and recorded Console revision, before
+publication. Use the six archives, `SHA256SUMS` and npm tarball assembled for that candidate; do not substitute
+artifacts from another build. Record both Git SHAs, artifact hashes, tool versions and the lane results in the release
+record. A missing prerequisite or failed lane blocks qualification. Publication still requires the owner's
+authorization.
+
+The local/service lanes below run sequentially. Docker, PostgreSQL, MiniStack and the pinned corpus need their normal
+prerequisites ([packaging](../apps/cli/scripts/packaging-archives/README.md), [Console](testing/console.md),
+[corpus](project-qualification.md)). The corpus executes reviewed project code on this host. Split its full run with
+`--shard=1/N` through `--shard=N/N` when necessary; every shard must pass on the same revision. Run each command
+separately when a session has a foreground time limit.
+
+```bash
+set -euo pipefail
+# Supply absolute paths and the exact immutable version outside this block.
+: "${RC_DIRECTORY:?candidate archives, SHA256SUMS and npm tarball directory}"
+: "${RC_VERSION:?exact release candidate version}"
+pnpm install --frozen-lockfile
+pnpm check:integrated
+
+# Install and invoke the supplied npm package and native binary on this host, without rebuilding them.
+pnpm --filter @stacktape/cli test:release-artifact -- --candidate-dir "$RC_DIRECTORY" --version "$RC_VERSION"
+
+for suite in '' --runner --gitlab --security --issues --incidents --incident-agent --sign-up --console-access --cli-console --incident-journey --git-deploy --insights --billing --isolated-browser; do
+  if [ -n "$suite" ]; then
+    pnpm --filter @stacktape/console-api-app test:db "$suite"
+  else
+    pnpm --filter @stacktape/console-api-app test:db
+  fi
+done
+pnpm --filter @stacktape/console-api-app test:runner:scripts
+pnpm --filter @stacktape/console-api-app test:runner:cache
+pnpm --filter @stacktape/ui-react test:e2e
+pnpm --filter @stacktape/bitbucket-forge-app test:e2e
+pnpm test:console:browser:smoke
+
+for lane in test:docker-smoke test:node-lambda-e2e test:web-framework-e2e test:es-image-deps-e2e \
+  test:directory-inventory-e2e test:lambda-source-map-e2e test:split-assets-e2e; do
+  pnpm --filter @stacktape/packaging run "$lane"
+done
+for lane in test:lambda-archives test:asset-replacer test:docker-preparation test:layer-upload \
+  test:layer-upload:ministack test:fresh-install test:external-tools test:node-lambda test:ssr-web \
+  test:helper-lambda-runtime test:operations:db; do
+  pnpm --filter @stacktape/cli run "$lane"
+done
+pnpm --filter @stacktape/cli qualify:starters
+pnpm --filter @stacktape/cli test:config-loading
+pnpm --filter @stacktape/cli test:data-safety
+pnpm --filter @stacktape/cli test:synthesis-families:cfn-lint
+pnpm --filter @stacktape/cli test:cli-process
+pnpm --filter @stacktape/cli test:operations
+pnpm --filter @stacktape/cli test:mcp-executable
+pnpm --filter vscode-stacktape test:host
+pnpm --filter @stacktape/docs test:build-contracts
+pnpm --filter @stacktape/cli test:init:real-project-corpus -- --all
+pnpm --filter @stacktape/cli test:init:synthetic-project-corpus
+pnpm --filter @stacktape/cli test:init:synthetic-project-corpus:native
+pnpm qualify:projects -- --preset=all --lanes=import,package --allow-host-project-code
+pnpm qualify:projects -- --lanes=runtime
+```
+
+The extension host lane requires `STP_VSCODE_EXECUTABLE` and the host prerequisites in the
+[extension README](../apps/vscode-extension/README.md). Build CLI dev artifacts before the database sequence with
+`pnpm --filter @stacktape/cli build:dev-artifacts`.
+
+Repeat supplied-artifact installation on all six native OS/architecture/libc targets. The shell fixtures in
+`test:external-tools` run on Linux/macOS; the Windows artifact must separately exercise its bundled Session Manager
+plugin. Qualify Windows-host packaging on Windows and execute its archives in the Linux runtime. A cross-build on one
+host does not qualify another target. Authenticated hosted-login/provider browser acceptance remains a separately
+reserved shared-dev run; these local lanes do not claim to cover hosted identity or provider installation.
+
+Then run the live canaries sequentially in the disposable `stacktape-e2e` account (`597581086285`), following the
+[live AWS guards](testing/live-aws.md) and [recovery procedure](../apps/cli/scripts/real-aws/README.md). Inject
+credentials into the environment without recording them. Set all required guard variables from that procedure, including
+explicit account, profile, region, owner and disposable-account acknowledgement. Verify STS before mutation. Use the
+extracted candidate binary for packaging/init; the alias canary currently uses the source CLI at this revision. The
+runner qualifier needs a reserved Console operator identity in account `977946299200` to assume the supplied receiving
+account connection; its test stacks belong to `597581086285`. The CLI canaries use the `stacktape-e2e` AWS profile
+directly and must never target `stacktape-dev`.
+
+```bash
+set -euo pipefail
+: "${RC_BINARY:?absolute extracted candidate binary path}"
+: "${RC_VERSION:?exact release candidate version}"
+: "${RC_RUN_ID:?unique lowercase run identifier, at most 20 characters}"
+[[ "$RC_RUN_ID" =~ ^[a-z0-9][a-z0-9-]{0,19}$ ]]
+mkdir -p .stacktape
+scenario_number=0
+: "${STP_CONSOLE_DEV_RESERVATION:?task-owned reservation for runner qualification}"
+: "${RC_RUNNER_AMI:?AMI built with the same candidate CLI version}"
+: "${RC_ACCOUNT_CONNECTION_ID:?Console connection to receiving account 597581086285}"
+: "${RC_CONSOLE_OPERATOR_PROFILE:?Console operator profile for account 977946299200}"
+: "${RC_AWS_REGION:?explicit qualification region}"
+export AWS_PROFILE="$RC_CONSOLE_OPERATOR_PROFILE"
+pnpm console:dev:reservation check
+for mode in --image-smoke --live --slots --performance --resume --startup-recovery; do
+  pnpm --filter @stacktape/console-api-app test:runner:aws "$mode" \
+    --ami "$RC_RUNNER_AMI" --account 597581086285 --connection "$RC_ACCOUNT_CONNECTION_ID" \
+    --region "$RC_AWS_REGION" --expected-cli-version "$RC_VERSION"
+done
+pnpm console:dev:reservation release
+export AWS_PROFILE=stacktape-e2e
+export STP_AWS_CANARY_EXPECTED_ACCOUNT_ID=597581086285
+export STP_AWS_CANARY_CREDENTIAL_MODE=profile
+export STP_AWS_CANARY_PROFILE=stacktape-e2e
+export STP_AWS_ALIAS_CANARY_EXPECTED_ACCOUNT_ID=597581086285
+export STP_AWS_ALIAS_CANARY_PROFILE=stacktape-e2e
+export STP_AWS_CANARY_REGION="$RC_AWS_REGION"
+export STP_AWS_ALIAS_CANARY_REGION="$RC_AWS_REGION"
+: "${STP_INIT_CANARY_AWS_ACCOUNT:?connected Stacktape account name for 597581086285}"
+export STP_AWS_CANARY_CLI_PATH="$RC_BINARY"
+export STP_AWS_CANARY_EXPECTED_CLI_VERSION="$RC_VERSION"
+for scenario in lambda-packaging-update init-static-site init-node-container init-python-container init-postgres-migration; do
+  scenario_number=$((scenario_number + 1))
+  export STP_AWS_CANARY_PROJECT_NAME="v4canary-${RC_RUN_ID}-${scenario_number}"
+  export STP_AWS_CANARY_STATE_FILE="$(pwd)/.stacktape/${STP_AWS_CANARY_PROJECT_NAME}.json"
+  pnpm test:aws --aws-scenario="$scenario"
+  # The runner verifies deletion. Recover any incomplete cleanup before proceeding.
+done
+export STP_AWS_ALIAS_CANARY_PROJECT_NAME="v4aliascanary-${RC_RUN_ID}"
+export STP_AWS_ALIAS_CANARY_STATE_FILE="$(pwd)/.stacktape/${STP_AWS_ALIAS_CANARY_PROJECT_NAME}.json"
+pnpm test:aws --aws-scenario=lambda-alias-configuration-update
+```
+
+Keep the canary reports and verified-cleanup results with the release record. Never resume from a cached live result.
+Also qualify local development with `pnpm test:aws --aws-scenario=dev-mode-local-loop`, using its separate
+`STP_AWS_DEV_CANARY_*` guards and recovery state from the
+[dev-mode canary procedure](../apps/cli/scripts/real-aws/README.md#dev-mode-canary).
+
+When a new database feature flag or heavy lane is added, add it to this sequence and to
+`scripts/workspace/test-plan.ts`.
+
 ## Normal use
 
 The local command validates its arguments and dispatches GitHub Actions; it never builds or publishes locally:

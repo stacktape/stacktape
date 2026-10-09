@@ -4,10 +4,13 @@ Read the [test-selection policy](../../../../docs/testing.md) first, then only t
 behavior. Run commands from the public workspace root. These procedures describe coverage and prerequisites, not a
 checklist for every change.
 
-Use `pnpm test:packaging-e2e` for archive/image behavior. Use the import, package, and runtime qualification lanes for
-customer projects as described in [project qualification](../../../../docs/project-qualification.md). The package lane
-intentionally blocks unreviewed project code on the host. Packaging proves that artifacts can be produced; only the
-runtime and AWS lanes prove that they run.
+Use `pnpm test:packaging-e2e` for archive/image behavior, and
+`pnpm --filter @stacktape/cli run test:runtime-acceptances` for the CLI-process acceptances below (helper Lambdas,
+Node.js Lambdas through the package command, SSR starters); the qualification runtime lane runs both. Use the import,
+package, and runtime qualification lanes for customer projects as described in
+[project qualification](../../../../docs/project-qualification.md). The package lane intentionally blocks unreviewed
+project code on the host. Packaging proves that artifacts can be produced; only the runtime and AWS lanes prove that
+they run.
 
 ## Lambda archives
 
@@ -35,6 +38,46 @@ outcome is read from the CloudFormation response, not the invocation status. Upl
 inspected and run in the Lambda runtime; the helper's logs must not contain any search or replacement value, and its
 `/tmp` must be left as it was. It needs Docker and `unzip`, not AWS. `--helper-lambdas-dir` characterizes already built
 helper artifacts instead, and the report marks them as supplied.
+
+## Node.js Lambdas through the package command
+
+`pnpm --filter @stacktape/cli run test:node-lambda` runs the CLI's own `package` command as a child process, in an
+isolated home with every AWS and Stacktape request routed to the offline guard, on a TypeScript project outside the
+repository: an ESM split group whose shared module becomes a chunk layer, with a dynamic `import()`, a file asset, an
+ESM-only dependency and `@aws-sdk/client-s3`, and a CommonJS `.cjs` function packaged for Node.js 22. Each ZIP is
+extracted with `unzip` and invoked in the official Lambda image for its runtime as the unprivileged user, with the
+layers at `/opt` and source maps enabled: the shared chunk must load from the layer and not be duplicated, the dynamic
+import and the asset must resolve under `/var/task`, the AWS SDK must come from `/var/runtime` and be absent from the
+ZIP, `__dirname` must be `/var/task`, and a thrown error must name the original TypeScript file and line. Then an
+unchanged repeat must reproduce every digest and the layer bytes, an edit of one function must change only its digest,
+and the untouched project built from another directory must reproduce the first digests and layer bytes, and no file of
+a function or layer may mention the build host's temporary or home directory. `--keep` leaves the fixture and the CLI's
+build directories. It needs Docker and `unzip`, not AWS.
+
+The lane splits across hosts: `--export <dir>` runs the build phase only (the CLI packages, digests are compared) and
+copies the first and edited builds' ZIPs and assembled `/opt` into the directory with a manifest, on any host the CLI
+supports, Windows included; `--import <dir>` runs the Lambda runtime checks on that directory on Linux. A Windows
+packaging job is the export phase on a Windows runner with the directory uploaded as an artifact, and the import phase
+on a Linux runner that downloads it.
+
+## SSR starters in the Lambda runtime
+
+`pnpm --filter @stacktape/cli run test:ssr-web` materializes each SSR starter (Astro, Nuxt, SolidStart, SvelteKit,
+TanStack Start, Remix, Next.js) as `stacktape init` writes it and packages it with the `package` command the same way;
+the CLI installs the dependencies and runs the framework build. The server function ZIP is extracted and invoked in the
+Lambda Node.js 24 image as the unprivileged user with HTTP API v2 events: the index page must be HTML, the starter's
+`/api/hello` route must answer from server code, an unknown path must get the framework's not-found status, a request
+with a cookie must still be served, and the build must leave hashed assets for the hosting bucket.
+`--starter <id>[,<id>]` selects starters. It needs Docker, `unzip` and network for the installs, not AWS.
+
+## Helper Lambdas in the Lambda runtime
+
+`pnpm --filter @stacktape/cli run test:helper-lambda-runtime` builds the helper Lambdas as a release does (or takes
+`--helper-lambdas-dir`), verifies them, and runs the two CDN edge functions in the Lambda Node.js 22 image as the
+unprivileged user with CloudFront origin-request and origin-response events: single-page-application rewrites, files
+with extensions, bucket origins without URL normalization, the rewrite-host header on custom origins, and the
+`x-amz-meta-` prefix removal on bucket responses. The service helper is covered by the asset replacement lane; the batch
+job trigger and the uptime prober need live AWS and the Console API. It needs Docker and `unzip`, not AWS.
 
 ## Docker preparation
 
@@ -91,9 +134,10 @@ request; the synthetic executable answers `railpack prepare` by writing `plan.js
 and `--info-out` paths, and a build variable must reach it through the environment, never the command line. A checksum
 mismatch must leave no executable, and a refused download must name the URL, the checksum and the path to place the file
 offline. A process killed mid-download must leave nothing usable before the retry succeeds, and two concurrent first
-uses must download once. It needs Linux or macOS, not Docker, AWS or the internet. The real upstream assets are checked
-by `scripts/pin-external-tools.ts` whenever a version changes, and by the release artifact check, which downloads each
-one on first use.
+uses must download once. Checksum-valid corrupt tar, zip and Debian payloads must leave no usable executable, and a
+healthy retry must recover. Warm and preseeded tools must still execute after the download server stops. It needs Linux
+or macOS, not Docker, AWS or the internet. The real upstream assets are checked by `scripts/pin-external-tools.ts`
+whenever a version changes, and by the release artifact check, which downloads each one on first use.
 
 ## Packaging performance
 
@@ -129,3 +173,13 @@ the emulator's supported behavior before accepting a passing test as evidence. M
 CloudFront resources, and no CloudFormation stack policy enforcement. Keep the existing disposable-AWS acceptance for
 behavior owned by those services. An emulator test should replace a handwritten fixture only when it preserves or
 improves the assertion; it is not an extra test to add to every feature.
+
+## Supplied release candidates
+
+`pnpm --filter @stacktape/cli test:release-artifact -- --candidate-dir <absolute-directory> --version <exact-version>`
+installs the actual npm tarball, verifies its native archive and packaged checksum manifest, and invokes the binary,
+launcher and installed `stacktape`/`stp` aliases. Supply `stacktape-<version>.tgz`, `SHA256SUMS` and this host's
+archive; this mode never rebuilds artifacts. pnpm installs the tarball's declared dependencies; first-use tools are
+checked against their real upstream downloads. The no-argument lane still builds a source fixture. Run supplied
+candidates on each native target as part of
+[release qualification](../../../../docs/releasing.md#qualify-a-release-candidate).

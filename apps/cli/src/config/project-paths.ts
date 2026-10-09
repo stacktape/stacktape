@@ -2,6 +2,9 @@ import { join } from 'node:path';
 
 const DIST_FOLDER_NAME = '__stacktape-dist';
 export const BRIDGE_FILES_FOLDER_NAME = 'bridge-files';
+/** The Python bridge script, shipped beside the release binary as `bridge-files/python-bridge.py`. */
+export const BRIDGE_FILES_SOURCE_PATH = join(process.cwd(), 'src', 'utils', BRIDGE_FILES_FOLDER_NAME);
+export const PYTHON_BRIDGE_SCRIPT_SOURCE_PATH = join(BRIDGE_FILES_SOURCE_PATH, 'python-bridge.py');
 export const HELPER_LAMBDAS_FOLDER_NAME = 'helper-lambdas';
 const JSON_SCHEMAS_FOLDER_NAME = 'schemas';
 const SOURCE_MAP_INSTALL_FILENAME = 'source-map-install.js';

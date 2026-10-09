@@ -165,9 +165,15 @@ const resolveDependenciesBetweenResources = () => {
     );
     cfChildLogicalNames.forEach((cfLogicalName) => {
       const cfResource = templateManager.template.Resources[cfLogicalName];
-      cfResource.DependsOn = ([cfResource.DependsOn || []].flat() as string[]).concat(
-        dependencyCloudformationResources
-      );
+      const dependsOn = ([cfResource.DependsOn || []].flat() as string[]).concat(dependencyCloudformationResources);
+      // A resource without dependencies keeps no `DependsOn` at all. An empty list is harmless to CloudFormation, but
+      // it differs from what every v3 template and every resource added before finalization carries, so it made the
+      // diff and the change plan report an update on resources whose properties had not changed.
+      if (dependsOn.length) {
+        cfResource.DependsOn = dependsOn;
+      } else {
+        delete cfResource.DependsOn;
+      }
     });
   });
 };

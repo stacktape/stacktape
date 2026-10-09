@@ -18,7 +18,7 @@ export const SMOKE_CASE_IDS = [
 
 export type AwsQualificationScenario = {
   id: string;
-  runner: 'packaging' | 'init' | 'alias-publication';
+  runner: 'packaging' | 'init' | 'alias-publication' | 'dev-mode';
   fixture?: 'express-basic' | 'express-postgres-migration' | 'vite-static' | 'fastapi-basic';
   policy: 'routine' | 'periodic' | 'deep';
   costClass: 'negligible' | 'low' | 'medium' | 'high';
@@ -44,6 +44,25 @@ export const AWS_QUALIFICATION_SCENARIOS: readonly AwsQualificationScenario[] = 
     coverage: ['lambda', 'codedeploy-alias', 'version-publication', 'environment-update', 'no-op-update', 'cleanup'],
     reason:
       'A configuration-only change must publish a version the alias serves, and an unchanged redeploy must publish none.'
+  },
+  {
+    id: 'dev-mode-local-loop',
+    runner: 'dev-mode',
+    policy: 'routine',
+    costClass: 'negligible',
+    coverage: [
+      'dev',
+      'dev-stack',
+      'local-container',
+      'local-postgres',
+      'local-redis',
+      'dev-server',
+      'agent-mode',
+      'pty',
+      'cleanup'
+    ],
+    reason:
+      'dev starts, rebuilds and stops a container, a local database and a dev server against a real dev stack, leaving nothing running.'
   },
   {
     id: 'init-static-site',

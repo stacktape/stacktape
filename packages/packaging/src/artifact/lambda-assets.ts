@@ -1,5 +1,6 @@
 import type { TextEdit } from '../es/source-map-edits';
 import { basename } from 'node:path';
+import { writeEditedJavaScript } from '../es/source-map-edits';
 
 const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -15,3 +16,17 @@ export const getLambdaAssetReferenceEdits = (contents: string, assetPaths: strin
       text: `${match[1]}/var/task/${assetName}${match[1]}`
     }))
   );
+
+/** Point built Lambda code at its packaged assets, shifting source maps with each reference edit. */
+export const rewriteLambdaAssetReferences = async (javascriptPaths: string[], assetPaths: string[]) => {
+  await Promise.all(
+    javascriptPaths.map((path) =>
+      writeEditedJavaScript({
+        from: path,
+        to: path,
+        edits: (code) => getLambdaAssetReferenceEdits(code, assetPaths),
+        packaged: false
+      })
+    )
+  );
+};

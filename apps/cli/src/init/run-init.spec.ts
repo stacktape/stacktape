@@ -32,7 +32,7 @@ const EXPRESS_APP = {
     dependencies: { express: '^5.0.0', pg: '^8.11.0' }
   }),
   'package-lock.json': '{}',
-  'src/index.ts': 'import express from "express";\nconst app = express();\napp.listen(3000);'
+  'src/index.ts': 'import express from "express";\nconst app = express();\napp.listen(process.env.PORT);'
 };
 
 const agent = (id: DetectedAgent['id'], executable = id): DetectedAgent => ({
@@ -139,6 +139,33 @@ describe('runInit', () => {
     });
 
     expect(said.join('\n')).toContain('not sent to Stacktape');
+  });
+
+  it('says when the scan answered everything and the agent was never run', async () => {
+    // A port the scan can read leaves nothing for the agent, so none of the user's tokens are spent.
+    const repoRoot = await makeRepo({
+      ...EXPRESS_APP,
+      'src/index.ts': 'app.listen(3000);',
+      'fly.toml': 'app = "orders"\n[http_service]\n  internal_port = 3000\n'
+    });
+    const said: string[] = [];
+    let sessions = 0;
+
+    await runInit({
+      repositoryRoot: repoRoot,
+      presentation: 'terminal',
+      detect: async () => [agent('claude-code')],
+      runSession: async () => {
+        sessions += 1;
+        return { usage: { inputTokens: 0, outputTokens: 0 }, stopReason: 'complete' };
+      },
+      estimateCost: async () => undefined,
+      onOutput: (line) => said.push(line)
+    });
+
+    expect(sessions).toBe(0);
+    // "Using claude-code" alone would tell the user their code was read by it.
+    expect(said.join('\n')).toContain('your agent was not needed, and no tokens were spent');
   });
 
   it('says when an agent failed and the result fell back to file scans', async () => {

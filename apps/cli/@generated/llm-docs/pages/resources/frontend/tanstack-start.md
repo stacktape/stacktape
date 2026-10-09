@@ -153,10 +153,7 @@ import { defineConfig, TanStackWeb } from 'stacktape';
 export default defineConfig(() => {
   const web = new TanStackWeb({
     appDirectory: './apps/web',
-    environment: [
-      { name: 'APP_ENV', value: 'production' },
-      { name: 'API_KEY', value: "$Secret('api.key')" }
-    ]
+    environment: { APP_ENV: 'production', API_KEY: "$Secret('api.key')" }
   });
 
   return { resources: { web } };

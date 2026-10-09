@@ -173,6 +173,14 @@ export const runBastionSsmShellSession = async ({ instanceId, region }: { instan
       [JSON.stringify(startSessionResponse), region, 'StartSession', '', JSON.stringify(startSessionCommandInput)],
       { stdio: 'inherit' }
     );
+  } catch {
+    // Execa's error includes argv with the SSM token. Do not retain it as a cause.
+    throw new CliError({
+      category: 'AWS',
+      code: 'SSM_SESSION_FAILED',
+      message: 'The Session Manager plugin failed to complete the shell session.',
+      hints: 'Check the session connection and retry the command.'
+    });
   } finally {
     await awsSdkManager.systemsManager.terminateSession({ sessionId: startSessionResponse.SessionId });
   }
@@ -212,6 +220,14 @@ export const runEcsExecSsmShellSession = async ({
       [JSON.stringify(startSessionResponse), region, 'StartSession', '', JSON.stringify(startSessionTargetParams)],
       { stdio: 'inherit' }
     );
+  } catch {
+    // Execa's error includes argv with the SSM token. Do not retain it as a cause.
+    throw new CliError({
+      category: 'AWS',
+      code: 'SSM_SESSION_FAILED',
+      message: 'The Session Manager plugin failed to complete the shell session.',
+      hints: 'Check the session connection and retry the command.'
+    });
   } finally {
     await awsSdkManager.systemsManager.terminateSession({ sessionId: startSessionResponse.SessionId });
   }

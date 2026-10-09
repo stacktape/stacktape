@@ -145,7 +145,7 @@ const main = async () => {
       join(CLI_ROOT, '.stacktape', 'external-tools-e2e', new Date().toISOString().replace(/[:.]/g, '-'))
   );
   await mkdir(outputDirectory, { recursive: true });
-  const work = await mkdtemp(join(tmpdir(), 'stacktape-external-tools-e2e-'));
+  const work = await mkdtemp(join(tmpdir(), 'stacktape-j13-external-tools-e2e-'));
   const toolsDirectory = join(work, 'tools');
   const checks: { case: string; ok: boolean; detail: string }[] = [];
   const check = (name: string, ok: boolean, detail: string) => {
@@ -502,6 +502,36 @@ const main = async () => {
       JSON.stringify({ idle, overall, afterStalls, healthy, requests: requests.get(hangRoute) ?? 0 })
     );
 
+    // A payload can match its pinned checksum and still be an invalid archive.
+    // None of these formats may publish a partial executable; the healthy retry must recover.
+    for (const [tool, platform, archive] of [
+      ['railpack', 'macos', 'railpack.tar.gz'],
+      ['session-manager-plugin', 'linux', 'session-manager-plugin.deb'],
+      ['session-manager-plugin', 'macos', 'sessionmanager-bundle.zip']
+    ] as const) {
+      await rm(dirname(finalPath(tool, platform)), { recursive: true, force: true });
+      const route = serve(tool, platform, archive);
+      const corrupt = new TextEncoder().encode('checksum-valid but corrupt archive');
+      routes.set(route, { body: corrupt, mode: 'ok' });
+      manifest[tool].assets[platform] = { ...asset(tool, platform, archive, sha256(corrupt)), bytes: corrupt.length };
+      await writeFile(manifestPath, JSON.stringify(manifest));
+      const rejected = await resolveIn(tool, platform);
+      const unpublished = !existsSync(finalPath(tool, platform)) && leftovers(tool).length === 0;
+      serve(tool, platform, archive);
+      manifest[tool].assets[platform] = asset(tool, platform, archive);
+      await writeFile(manifestPath, JSON.stringify(manifest));
+      const recovered = await resolveIn(tool, platform);
+      check(
+        `corrupt ${archives[archive]!.archive} with a matching checksum is refused, then healthy retry works`,
+        !rejected.ok &&
+          unpublished &&
+          recovered.ok &&
+          versionOf(recovered.path!) === `${tool} synthetic ${VERSIONS[tool]}` &&
+          leftovers(tool).length === 0,
+        JSON.stringify({ rejected, unpublished, recovered })
+      );
+    }
+
     // Preseeded: the CLI's call sites use a file already at the resolver's path, without any request.
     const { externalToolPath } = await import('src/utils/external-tools');
     const project = join(work, 'project');
@@ -536,6 +566,19 @@ const main = async () => {
         prepared.info.variable === BUILD_VARIABLE.value &&
         !(prepared.info.commandLine ?? BUILD_VARIABLE.value).includes(BUILD_VARIABLE.value),
       JSON.stringify({ info: prepared?.info })
+    );
+    // Stop the only download endpoint before resolving the warm cache again.
+    // This establishes offline execution, rather than merely a request count while online.
+    server.stop(true);
+    const offline = await resolveIn('railpack', 'linux');
+    const offlinePlanner = await finish(startDriver(['--call-site', 'planner', '--cwd', project]));
+    check(
+      'warm and preseeded tools execute after the download server is gone',
+      offline.ok &&
+        versionOf(offline.path!) === 'railpack synthetic 0.40.1' &&
+        offlinePlanner.ok &&
+        offlinePlanner.output === 'node synthetic-server.js',
+      JSON.stringify({ offline, offlinePlanner })
     );
   } catch (error) {
     check('the check ran to the end', false, error instanceof Error ? (error.stack ?? error.message) : String(error));

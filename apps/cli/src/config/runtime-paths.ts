@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { CF_TEMPLATE_FILE_NAME, INITIAL_CF_TEMPLATE_FILE_NAME, IS_DEV, STP_TEMPLATE_FILE_NAME } from '@config';
 import type { ExternalToolDownloadOptions } from '@utils/external-tools';
@@ -7,6 +8,7 @@ import {
   BRIDGE_FILES_FOLDER_NAME,
   DEV_ARTIFACTS_FOLDER_PATH,
   HELPER_LAMBDAS_FOLDER_NAME,
+  PYTHON_BRIDGE_SCRIPT_SOURCE_PATH,
   SCRIPTS_ASSETS_PATH,
   STARTER_PROJECTS_METADATA_FOLDER_NAME
 } from './project-paths';
@@ -100,7 +102,13 @@ export const fsPaths = {
     return join(process.cwd(), outputFileName || `stack-info.${outputFormat}`);
   },
   pythonBridgeScriptPath() {
-    return join(fsPaths.absoluteExecutableDirname(), BRIDGE_FILES_FOLDER_NAME, 'python-bridge.py');
+    // A release ships the bridge script beside the executable. Source runs (dev CLI and tests) have no such folder
+    // next to Bun's binary; they read the script from the source tree.
+    const shippedPath = join(fsPaths.absoluteExecutableDirname(), BRIDGE_FILES_FOLDER_NAME, 'python-bridge.py');
+    if (IS_DEV || !existsSync(shippedPath)) {
+      return PYTHON_BRIDGE_SCRIPT_SOURCE_PATH;
+    }
+    return shippedPath;
   },
   stackInfoPath({ dirPath, stackName }: { dirPath: string; stackName: string }) {
     return join(dirPath, `${stackName}.json`);

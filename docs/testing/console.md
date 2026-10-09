@@ -22,13 +22,19 @@ PostgreSQL container, creates scratch databases, runs the real migration-adoptio
 in a `finally` block. The default selection covers migration/adoption only. Feature suites are available explicitly:
 
 ```sh
+pnpm --filter @stacktape/console-api-app test:db --billing
 pnpm --filter @stacktape/console-api-app test:db --issues
 pnpm --filter @stacktape/console-api-app test:db --incidents
+pnpm --filter @stacktape/console-api-app test:db --incident-journey
 pnpm --filter @stacktape/console-api-app test:db --security
+pnpm --filter @stacktape/console-api-app test:db --insights
 pnpm --filter @stacktape/console-api-app test:db --gitlab
 pnpm --filter @stacktape/console-api-app test:db --runner
+pnpm --filter @stacktape/console-api-app test:db --git-deploy
 pnpm --filter @stacktape/console-api-app test:db --incident-agent
 pnpm --filter @stacktape/console-api-app test:db --sign-up
+pnpm --filter @stacktape/console-api-app test:db --console-access
+pnpm --filter @stacktape/console-api-app test:db --cli-console
 ```
 
 Pass the flag directly: an extra `--` is forwarded to this script and rejected. The `--incident-agent` suite also spawns
@@ -37,6 +43,28 @@ the source CLI for `stacktape ai:connect`, so the runner first builds the CLI de
 cover the change, extending it when necessary. These suites use the disposable database, not shared dev. The runner
 currently defaults to a pinned PostgreSQL 15.14 image matching Console's configured RDS major version. Override it only
 to qualify a deliberate database upgrade. `pnpm dev:console` instead exercises the real shared dev data plane.
+
+The `--cli-console` suite runs source CLI processes against the production HTTP router and disposable PostgreSQL. It
+covers deployment reporting and Console read responses, endpoint-scoped login/logout, token exchange, organization and
+project commands, and isolated AWS profiles/defaults. AWS calls use a loopback wire fixture; external network requests
+are rejected. It needs Docker and builds the CLI dev artifacts before testing.
+
+The `--incident-journey` suite extends issue and incident coverage through the production HTTP router, signed loopback
+webhook delivery and authenticated incident actions. It also invokes the built uptime prober in the official Node.js 22
+Lambda image and checks the monitoring sweeper through its Lambda proxy. Build the helpers first with
+`pnpm --filter @stacktape/cli build:dev-artifacts`; the lane needs `openssl`, `unzip`, Docker and the local
+`public.ecr.aws/lambda/nodejs:22` image. All fixtures use isolated databases and loopback endpoints.
+
+`--git-deploy` runs authenticated provider ingress, durable webhook/operation workers, runner dispatch and completion
+against loopback transports, with real API middleware and disposable PostgreSQL. It uses a ready runner fixture; EC2
+provisioning and AMI qualification remain separate. Dispatched deployment, Actions and cancellation scripts execute in a
+network-disabled `node:24-bookworm` container with controlled external tools and a systemd stand-in. A local file relay
+forwards only the suite's AWS/API HTTP requests, including real CLI and runner completion callbacks, across Docker
+Desktop and WSL.
+
+The billing suite sends Paddle Classic form events through the real webhook and reads plan restrictions and receipts
+through the production HTTP router. It exercises production billing with synthetic credentials and loopback Paddle, AWS
+and telemetry providers. It never contacts Paddle or creates real charges.
 
 The isolated Console browser lane uses the same disposable database runner:
 

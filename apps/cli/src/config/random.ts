@@ -23,6 +23,8 @@ export const possiblySupportedLangExtensions = [
   'ts',
   'mjs',
   'mts',
+  'cjs',
+  'cts',
   'py',
   'java',
   'rb',
@@ -41,6 +43,8 @@ export const lambdaRuntimesForFileExtension: {
   ts: ['nodejs24.x', 'nodejs22.x', 'nodejs20.x', 'nodejs18.x'],
   mjs: ['nodejs24.x', 'nodejs22.x', 'nodejs20.x', 'nodejs18.x'],
   mts: ['nodejs24.x', 'nodejs22.x', 'nodejs20.x', 'nodejs18.x'],
+  cjs: ['nodejs24.x', 'nodejs22.x', 'nodejs20.x', 'nodejs18.x'],
+  cts: ['nodejs24.x', 'nodejs22.x', 'nodejs20.x', 'nodejs18.x'],
   jsx: ['nodejs24.x', 'nodejs22.x', 'nodejs20.x', 'nodejs18.x'],
   tsx: ['nodejs24.x', 'nodejs22.x', 'nodejs20.x', 'nodejs18.x'],
   py: ['python3.14', 'python3.13', 'python3.12', 'python3.11', 'python3.10'],
@@ -52,12 +56,17 @@ export const lambdaRuntimesForFileExtension: {
   rs: ['provided.al2023', 'provided.al2'],
   cs: ['dotnet10', 'dotnet8', 'dotnet6']
 };
+/**
+ * Every entry-file extension `js-bundle` packaging bundles: JavaScript and TypeScript in their plain, ES-module
+ * (`.mjs`/`.mts`) and CommonJS (`.cjs`/`.cts`) spellings, and JSX/TSX. The bundler accepts them all; this list is the
+ * one place that says so, for validation and for choosing the Node.js packaging path.
+ */
+export const jsEntryFileExtensions = ['js', 'ts', 'jsx', 'tsx', 'mjs', 'mts', 'cjs', 'cts'] as const;
+export const isJsEntryFileExtension = (extension: string): boolean =>
+  (jsEntryFileExtensions as readonly string[]).includes(extension);
+
 export const supportedWorkloadExtensions: (typeof possiblySupportedLangExtensions)[number][] = [
-  'js',
-  'ts',
-  'mjs',
-  'jsx',
-  'tsx',
+  ...jsEntryFileExtensions,
   'py',
   'java',
   'go',

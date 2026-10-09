@@ -111,6 +111,7 @@ That's it — your app is now running on AWS. 🎉
 Stacktape supports three configuration formats. Use TypeScript for full type-safety and autocomplete, or YAML/JSON if you prefer.
 
 <CodeBlock
+  configExample="complete"
   tabs={[
     { label: 'stacktape.ts (recommended)', lang: 'typescript', code: `import { defineConfig } from 'stacktape';
 
@@ -216,6 +217,7 @@ export default defineConfig(({ stage }) => {
 Then add a bastion resource, so you can perform management tasks through a secure tunnel:
 
 <CodeBlock
+  configExample="fragment"
   intellisense
   tabs={[{
     label: 'stacktape.ts',
@@ -242,6 +244,7 @@ const migrationScript = new LocalScriptWithBastionTunneling({
 Need more control? Override or transform any AWS resource:
 
 <CodeBlock
+  configExample="fragment"
   intellisense
   tabs={[{
     label: 'stacktape.ts',

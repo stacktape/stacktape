@@ -1,6 +1,6 @@
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
-import { getAllRunningAgents, stopRunningAgent } from '../dev/agent-daemon';
+import { type AgentLockFile, getAllRunningAgents, stopRunningAgent } from '../dev/agent-daemon';
 import { cleanupOrphanedContainers } from '../dev/cleanup-utils';
 
 /**
@@ -31,36 +31,41 @@ export const commandDevStop = async () => {
 
   // Helper to stop agent on a specific port
   const stopAgentOnPort = async (port: number): Promise<boolean> => {
-    try {
-      const response = await fetch(`http://localhost:${port}/status`, {
-        signal: AbortSignal.timeout(2000)
-      });
-      if (response.ok) {
-        const status = (await response.json()) as { projectName?: string; stage?: string; pid?: number };
-        const agent = {
-          pid: status.pid || 0,
+    // A lock file names the agent's project and stage, so stopping through it also removes that file.
+    const lockFileAgent = (await getAllRunningAgents()).find((agent) => agent.port === port);
+    let agent: AgentLockFile | undefined = lockFileAgent;
+    if (!agent) {
+      try {
+        const response = await fetch(`http://localhost:${port}/status`, {
+          signal: AbortSignal.timeout(2000)
+        });
+        if (!response.ok) return false;
+        // The agent wraps every response in its `{ v, ok, code, data }` envelope.
+        const status = (await response.json()) as { data?: { pid?: unknown } };
+        const pid = typeof status.data?.pid === 'number' ? status.data.pid : 0;
+        agent = {
+          pid,
           port,
-          phase: 'ready' as const,
-          projectName: status.projectName || 'unknown',
-          stage: status.stage || 'unknown',
+          phase: 'ready',
+          projectName: 'unknown',
+          stage: 'unknown',
           region: 'unknown',
           startedAt: '',
           workloads: [],
           databases: []
         };
-        tuiManager.info(`Stopping dev agent on port ${port}...`);
-        const stopped = await stopRunningAgent(agent);
-        if (stopped) {
-          tuiManager.success('Dev agent stopped.');
-          return true;
-        } else {
-          tuiManager.error('Failed to stop dev agent.');
-          return false;
-        }
+      } catch {
+        // Agent not responding on this port
+        return false;
       }
-    } catch {
-      // Agent not responding on this port
     }
+    tuiManager.info(`Stopping dev agent on port ${port}...`);
+    const stopped = await stopRunningAgent(agent);
+    if (stopped) {
+      tuiManager.success('Dev agent stopped.');
+      return true;
+    }
+    tuiManager.error('Failed to stop dev agent.');
     return false;
   };
 

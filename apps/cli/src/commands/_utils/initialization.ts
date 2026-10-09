@@ -167,6 +167,16 @@ export const initializePackageOperation = async () => {
   const stackContext = getStackContext();
   await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
   await packagingManager.init();
+  // What a deployment installs before it packages, `package` has to install too: a framework build such as
+  // `astro build` runs the project's own installed tooling, and without this step a fresh checkout built whatever
+  // `npx` fetched instead of the pinned dependencies.
+  if (!isRemoteRunnerDeployInvocation() && configManager.hostNodeDependenciesRequired) {
+    await dependencyInstaller.install({
+      rootProjectDirPath: globalStateManager.workingDir,
+      progressLogger: operationReporter,
+      phase: 'INITIALIZE'
+    });
+  }
 
   return {
     args: captureCommandArgs(),

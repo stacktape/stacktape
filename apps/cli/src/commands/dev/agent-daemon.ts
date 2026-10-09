@@ -33,7 +33,7 @@ const getLockDir = (): string => {
  * Get lock file path for a specific project+stage combination.
  * Format: .stacktape/dev-agents/{projectName}-{stage}.json
  */
-const getLockFilePath = (projectName?: string, stage?: string): string => {
+export const getLockFilePath = (projectName?: string, stage?: string): string => {
   // Use args directly since targetStack may not be initialized yet
   const project =
     projectName ?? globalStateManager.targetStack?.projectName ?? globalStateManager.args.projectName ?? 'unknown';

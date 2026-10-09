@@ -2,6 +2,7 @@
  * Utility for creating once-only cleanup hook registrations.
  * Prevents duplicate registrations when modules are imported multiple times.
  */
+import { readFileSync } from 'node:fs';
 import { applicationManager } from '@application-services/application-manager';
 
 // Track registered hooks by name to prevent duplicates
@@ -32,52 +33,108 @@ export const createCleanupHook = (hookName: string, cleanupFn: () => Promise<voi
 };
 
 /**
- * Extract stage from container name.
- * Container names are formatted as: stp-{stage}-{resourceName}
+ * Name of a local container dev mode starts for a workload or database. The project and stage keep the sessions of two
+ * projects apart when they use the same stage and resource names; without them, one project's session reused the
+ * other's database container and stopped its workload containers.
  */
-const extractStageFromContainerName = (containerName: string): string | null => {
-  // Container name format: stp-{stage}-{resourceName}
-  // Stage can contain hyphens, so we need to be careful
-  // We know it starts with "stp-" and ends with "-{resourceName}"
-  // Resource names typically don't have hyphens in them
-  const match = containerName.match(/^stp-(.+)-[^-]+$/);
-  return match ? match[1] : null;
-};
+export const getDevContainerName = ({
+  projectName,
+  stage,
+  name
+}: {
+  projectName: string;
+  stage: string;
+  name: string;
+}): string => `stp-${projectName}-${stage}-${name}`;
 
 /**
- * Clean up truly orphaned Stacktape dev containers.
- * Only removes containers whose stage doesn't match any running dev agent.
- * Container naming: stp-{stage}-{resourceName}
+ * Every dev session, terminal or agent, writes a lock file and labels the containers it starts with that lock file and
+ * its process id. Cleanup reads the labels to tell a live session's containers from abandoned ones.
  */
+const OWNER_LOCK_LABEL = 'stacktape.dev.lock';
+const OWNER_PID_LABEL = 'stacktape.dev.pid';
+
+let devSessionOwner: { lockFile: string; pid: number } | undefined;
+
+export const setDevSessionOwner = (owner: { lockFile: string; pid: number }) => {
+  devSessionOwner = owner;
+};
+
+/** `docker run` arguments that mark a container as owned by the current dev session. */
+export const getDevContainerOwnerArgs = (): string[] =>
+  devSessionOwner
+    ? [
+        '--label',
+        `${OWNER_LOCK_LABEL}=${devSessionOwner.lockFile}`,
+        '--label',
+        `${OWNER_PID_LABEL}=${devSessionOwner.pid}`
+      ]
+    : [];
+
+/** The same labels in the `--name value` form that `dockerRun`'s extra `dockerArgs` expect. */
+export const getDevContainerOwnerDockerArgs = (): string[] => {
+  const args = getDevContainerOwnerArgs();
+  return args.length ? [`${args[0]} ${args[1]}`, `${args[2]} ${args[3]}`] : [];
+};
+
+type DevContainer = { name: string; state: string; lockFile?: string; pid?: number };
+
+/**
+ * The dev containers `dev:stop --cleanupContainers` may remove: every stopped container, and a running one only when
+ * its session is known to be gone (its lock file is missing or no longer names its process, or that process exited).
+ * A running container without owner labels comes from an older CLI; its session cannot be checked, so it stays.
+ */
+export const selectRemovableDevContainers = (
+  containers: DevContainer[],
+  sessionIsAlive: (owner: { lockFile: string; pid: number }) => boolean
+): string[] =>
+  containers
+    .filter(({ state, lockFile, pid }) => {
+      if (state !== 'running' && state !== 'restarting' && state !== 'paused') return true;
+      if (!lockFile || !pid) return false;
+      return !sessionIsAlive({ lockFile, pid });
+    })
+    .map(({ name }) => name);
+
+const isDevSessionAlive = ({ lockFile, pid }: { lockFile: string; pid: number }): boolean => {
+  try {
+    const lock = JSON.parse(readFileSync(lockFile, 'utf-8')) as { pid?: unknown };
+    if (lock.pid !== pid) return false;
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/** Stop and remove the dev containers no live session owns. */
 export const cleanupOrphanedContainers = async (): Promise<string[]> => {
   const { execDocker } = await import('@utils/docker');
-  const { getAllRunningAgents } = await import('./agent-daemon');
 
   try {
-    // Get all running agents to know which stages are active
-    const runningAgents = await getAllRunningAgents();
-    const activeStages = new Set(runningAgents.map((agent) => agent.stage));
-
     // List all containers (running and stopped) with names starting with 'stp-'
-    const result = await execDocker(['ps', '-a', '--filter', 'name=^stp-', '--format', '{{.Names}}'], {
-      skipHandleError: true
-    });
+    const result = await execDocker(
+      [
+        'ps',
+        '-a',
+        '--filter',
+        'name=^stp-',
+        '--format',
+        `{{.Names}}\t{{.State}}\t{{.Label "${OWNER_LOCK_LABEL}"}}\t{{.Label "${OWNER_PID_LABEL}"}}`
+      ],
+      { skipHandleError: true }
+    );
 
-    const containerNames = result.stdout
+    const containers = result.stdout
       .split('\n')
-      .map((name) => name.trim())
-      .filter((name) => name.length > 0);
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .map((line): DevContainer => {
+        const [name, state, lockFile, pid] = line.split('\t');
+        return { name, state, lockFile: lockFile || undefined, pid: Number(pid) || undefined };
+      });
 
-    if (containerNames.length === 0) {
-      return [];
-    }
-
-    // Filter to only orphaned containers (stage not in activeStages)
-    const orphanedContainers = containerNames.filter((name) => {
-      const stage = extractStageFromContainerName(name);
-      // If we can't parse the stage, or if the stage has no running agent, it's orphaned
-      return !stage || !activeStages.has(stage);
-    });
+    const orphanedContainers = selectRemovableDevContainers(containers, isDevSessionAlive);
 
     if (orphanedContainers.length === 0) {
       return [];

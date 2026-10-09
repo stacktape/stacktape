@@ -70,6 +70,7 @@ const STANDARD_COMPUTE_CONNECTION_TARGET_CLASSES = [
   'SqsQueue',
   'SnsTopic',
   'KinesisStream',
+  'StateMachine',
   'OpenSearchDomain',
   'EfsFilesystem'
 ] as const satisfies readonly ResourceClassName[];
@@ -91,6 +92,7 @@ const VPC_COMPUTE_CONNECTION_TARGET_CLASSES = [
   'SqsQueue',
   'SnsTopic',
   'KinesisStream',
+  'StateMachine',
   'OpenSearchDomain',
   'EfsFilesystem'
 ] as const satisfies readonly ResourceClassName[];

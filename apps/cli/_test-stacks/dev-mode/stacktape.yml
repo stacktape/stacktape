@@ -1,0 +1,55 @@
+# Sample app for `scripts/real-aws/dev-mode-canary.ts`, the `stacktape dev` journey.
+#
+# - `api` is a container web service that dev mode builds and runs in Docker and rebuilds after an edit. It answers
+#   with its release string and whether it reaches the database and cache dev mode injected through `connectTo`.
+# - `db` is a PostgreSQL database and `cache` a Redis cluster; dev mode runs both as local containers instead of
+#   deploying them.
+# - `web` is a hosting bucket whose dev command stands in for a framework dev server with a detached watcher.
+#
+# The canary copies this directory and replaces the owner tag value with its run owner.
+stackConfig:
+  tags:
+    - name: stacktape-canary-owner
+      value: local
+
+resources:
+  api:
+    type: web-service
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: ./src/api.ts
+      resources:
+        cpu: 0.25
+        memory: 512
+      connectTo:
+        - db
+        - cache
+
+  db:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: dev-mode-fixture-password
+      engine:
+        type: postgres
+        properties:
+          version: '16.4'
+          primaryInstance:
+            instanceSize: db.t3.micro
+
+  cache:
+    type: redis-cluster
+    properties:
+      defaultUserPassword: dev-mode-fixture-cache-password
+      instanceSize: cache.t3.micro
+      engineVersion: '7.1'
+
+  web:
+    type: hosting-bucket
+    properties:
+      uploadDirectoryPath: ./web
+      hostingContentType: static-website
+      dev:
+        command: node web/dev-server.mjs

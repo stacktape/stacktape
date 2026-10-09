@@ -14,6 +14,7 @@ import { createBunFfiShimPlugin, createNativeNodeModulesPlugin, isBareImportSpec
 import { getBunMinifyConfig } from '../../es/minify';
 import { writePackagedSourceMap } from '../../es/packaged-source-map';
 import { writeEditedJavaScript } from '../../es/source-map-edits';
+import { normalizeBundleIdentity } from '../../es/artifact-identity';
 import {
   classifyBeforeResolution,
   classifyResolvedModule,
@@ -30,6 +31,7 @@ import {
 import {
   createModuleResolver,
   getDefaultExportEdit,
+  CJS_PATH_BANNER,
   ESM_SOURCE_MAP_BANNER,
   filterDuplicates,
   getInfoFromPackageJson,
@@ -51,7 +53,7 @@ import {
   UnsupportedArchiveEntryError
 } from '../../artifact/archive-entries';
 import { getArchiveInventoryChecksum, getDirectoryChecksum } from '../../artifact/hashing';
-import { getLambdaAssetReferenceEdits } from '../../artifact/lambda-assets';
+import { rewriteLambdaAssetReferences } from '../../artifact/lambda-assets';
 
 /** Kept on the established ES bundler surface while file-selection ownership lives in the artifact layer. */
 export const removeExplicitlyExcludedFiles: typeof removeArtifactFiles = (options) => removeArtifactFiles(options);
@@ -494,22 +496,23 @@ export const buildEsCode = async ({
     }
 
     // Build with Bun
-    // For ESM: We use define to replace __dirname/__filename with our custom variables
-    // because Bun injects hardcoded build-time paths which won't work in production.
-    // Our banner then defines these variables properly using import.meta.url.
-    const esmDefines =
-      outputModuleFormat === 'esm'
-        ? {
-            __dirname: '__stp_dirname',
-            __filename: '__stp_filename'
-          }
-        : {};
+    // Bun replaces `__dirname` and `__filename` with the build host's paths in both output formats, so a bundle
+    // deployed elsewhere would read directories that only existed where it was built. Both identifiers are
+    // redirected to variables that a banner defines at runtime: from `import.meta.url` in an ES module, and from the
+    // `__dirname` and `__filename` Node.js itself provides to a CommonJS module.
+    const pathDefines = {
+      __dirname: '__stp_dirname',
+      __filename: '__stp_filename'
+    };
 
     // Get banner content to prepend
     const banner = await getSourceMapBanner({ sourceMapBannerType, outputModuleFormat, sourceMapInstallPath });
     const shouldInjectBanner =
       (outputModuleFormat === 'cjs' && sourceMapBannerType !== 'disabled') ||
       (outputModuleFormat === 'esm' && sourceMapBannerType === 'pre-compiled');
+    const bannerJs = [outputModuleFormat === 'cjs' ? CJS_PATH_BANNER : '', shouldInjectBanner ? banner.js : '']
+      .filter(Boolean)
+      .join('\n');
 
     // Use monorepo root for module resolution if available
     // Convert to Unix paths for Bun compatibility on Windows
@@ -531,12 +534,12 @@ export const buildEsCode = async ({
         // Keep it runtime-configurable; production images provide their own production default.
         define: {
           'process.env.NODE_ENV': 'process.env.NODE_ENV',
-          ...esmDefines,
+          ...pathDefines,
           ...define
         },
         plugins: allBunPlugins,
         root: buildRoot,
-        ...(shouldInjectBanner && banner.js ? { banner: banner.js } : {}),
+        ...(bannerJs ? { banner: bannerJs } : {}),
         ...(tsConfigPathForBuild ? { tsconfig: tsConfigPathForBuild } : {}),
         metafile: true,
         ...(virtualFiles && { files: virtualFiles })
@@ -571,18 +574,9 @@ export const buildEsCode = async ({
     if (isLambda) {
       const assetFiles = buildResult.outputs.filter((output) => output.kind === 'asset').map(({ path }) => path);
       if (assetFiles.length > 0) {
-        await Promise.all(
-          buildResult.outputs
-            .filter(({ path }) => path.endsWith('.js'))
-            // The file's map moves with its edited references (`es/source-map-edits`).
-            .map(({ path }) =>
-              writeEditedJavaScript({
-                from: path,
-                to: path,
-                edits: (code) => getLambdaAssetReferenceEdits(code, assetFiles),
-                packaged: false
-              })
-            )
+        await rewriteLambdaAssetReferences(
+          buildResult.outputs.filter(({ path }) => path.endsWith('.js')).map(({ path }) => path),
+          assetFiles
         );
       }
     }
@@ -687,6 +681,20 @@ export const buildEsCode = async ({
     if (metafile && distPath) {
       await writeJson(join(dirname(distPath), metafile), buildMetafile);
     }
+
+    // The bundle's debug ID and its map's sources must not depend on the build directory (`es/artifact-identity`).
+    await Promise.all(
+      (distPath
+        ? [distPath]
+        : buildResult.outputs.filter(({ path }) => path.endsWith('.js')).map(({ path }) => path)
+      ).map((javascriptPath) =>
+        normalizeBundleIdentity({
+          javascriptPath,
+          projectRoot: monorepoRoot || cwd,
+          sourcesResolveFrom: outdir ?? dirname(javascriptPath)
+        })
+      )
+    );
 
     return {
       dependenciesToInstallInDocker: dedupeDependenciesByName(allDependenciesToInstallInDocker),

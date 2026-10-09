@@ -43,13 +43,15 @@ pnpm --filter @stacktape/cli run test:real-aws-canary
 
 This deploys `_test-stacks/alias-publication` (one Node.js function behind a CodeDeploy alias) through the source CLI
 (`pnpm dev:cli`, which reads `STACKTAPE_API_KEY` from `apps/cli/.env.local` in dev mode). It changes only the function's
-environment value and requires the alias to serve it from a newly published version. It then redeploys unchanged and
-requires no new version, deletes the stack, and verifies that the stack, its deployment bucket, functions and log groups
-are gone. Its account preflight takes the expected account from the environment and refuses any other account; it has no
-disposable-account confirmation, so run it only where the owner has authorized a unique disposable stack. The CLI
-deploys through the single active Stacktape connection to that account, found with `info:whoami`: an organization with
-several connections needs `--awsAccount`, and a privileged connection gives the CLI Stacktape-issued credentials instead
-of the profile's.
+environment value and requires the alias to serve it from a newly published version. It then deploys a change
+CloudFormation rejects while creating it (the fixture adds an impossible queue when `STP_AWS_ALIAS_CANARY_BREAK=1`),
+requires the CLI to report the failure and the stack to roll back with the alias, versions and template untouched,
+redeploys unchanged from that state and requires no new version, deletes the stack, and verifies that the stack, its
+deployment bucket, functions and log groups are gone. Its account preflight takes the expected account from the
+environment and refuses any other account; it has no disposable-account confirmation, so run it only where the owner has
+authorized a unique disposable stack. The CLI deploys through the single active Stacktape connection to that account,
+found with `info:whoami`: an organization with several connections needs `--awsAccount`, and a privileged connection
+gives the CLI Stacktape-issued credentials instead of the profile's.
 
 ```sh
 export STP_AWS_ALIAS_CANARY_DEPLOY=1
@@ -63,6 +65,34 @@ pnpm test:aws --aws-scenario=lambda-alias-configuration-update
 The project name defaults to a new `v4aliascanary-` name and the region to `eu-west-1`. If cleanup does not finish, the
 canary prints one exact `--cleanup-only` command for the same run.
 
+Set `STP_AWS_ALIAS_CANARY_TERMINAL_FIRST_DEPLOY=1` to run the first deploy in a terminal (`script`) from this
+repository's GitHub checkout. That deploy creates the stack, so it must offer CI/CD setup ("Set up automatic deployments
+on push to ..."). The canary presses Ctrl+C at the offer without answering it and continues as usual.
+
+## Dev-mode canary
+
+This runs the `stacktape dev` loop on `_test-stacks/dev-mode` (a container API, local PostgreSQL and Redis containers,
+and a hosting-bucket dev server with a detached watcher) through the source CLI. The first session deploys the dev
+stack; the others reuse it. The sessions cover agent mode with an edit and `POST /rebuild/api`, `dev:stop --agentPort`,
+terminal sessions (PTY) ended by Ctrl+C and by SIGTERM, `--watch`, occupied default ports with SIGTERM to the agent, a
+workload that crashes on start, and an unknown `--resources` name. After every session no process, container or port it
+started may remain; a Docker command that fails counts as a failure, not as "no containers". Linux only; Docker must be
+running. Like the alias canary it reads the API key from `apps/cli/.env.local` and uses the single active Stacktape
+connection to the expected account. Run it in a disposable test account, such as the `stacktape-e2e` profile. A run
+takes about 10 minutes, most of it the dev-stack deploy.
+
+```sh
+export STP_AWS_DEV_CANARY_DEPLOY=1
+export STP_AWS_DEV_CANARY_EXPECTED_ACCOUNT_ID='<12-digit account id>'
+export STP_AWS_DEV_CANARY_PROFILE='<profile>'
+export STP_AWS_DEV_CANARY_OWNER="local-dev-$(date -u +%s)"
+export STP_AWS_DEV_CANARY_STATE_FILE="$(pwd)/.stacktape-dev-canary-${STP_AWS_DEV_CANARY_OWNER}.json"
+pnpm test:aws --aws-scenario=dev-mode-local-loop
+```
+
+`STP_AWS_DEV_CANARY_SCENARIOS` selects a comma-separated subset; `first-run-agent` must come first. If cleanup does not
+finish, the canary prints one exact `--cleanup-only` command.
+
 ## Observability fixture (not yet qualified)
 
 `_test-stacks/observability-smoke` is a candidate fixture, not a verified end-to-end runner. Its
@@ -74,6 +104,11 @@ not count a deployment, a matching span substring, or stack deletion alone as th
 
 This drives the browser-facing `stacktape init` API, writes and validates the generated config, deploys it, resolves the
 composed resource URL, checks the live response, and removes the exact resources recorded for the run.
+
+The wizard runs signed in the way `stacktape login` or the wizard's own sign-in leaves a machine: the API key is
+persisted in a fresh HOME, and the wizard's environment has no `STACKTAPE_API_KEY`. Its target check, deploy and URL
+lookup children must therefore find the credentials there. Before deploying, the canary edits the reviewed config and
+requires the wizard to refuse the next create and check the target again.
 
 ```sh
 export STACKTAPE_API_KEY='<development API key>'

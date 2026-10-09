@@ -52,7 +52,7 @@ export const commandAlarms = async () => {
       resource: matchedResource ? stpResourceName : undefined,
       state: alarm.StateValue || 'UNKNOWN',
       metric: alarm.MetricName || '',
-      threshold: String(alarm.Threshold || ''),
+      threshold: String(alarm.Threshold ?? ''),
       comparison: alarm.ComparisonOperator || '',
       lastUpdated: alarm.StateUpdatedTimestamp?.toISOString() || '',
       ...(alarm.StateReason && alarm.StateValue === StateValue.ALARM && { reason: alarm.StateReason })

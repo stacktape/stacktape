@@ -131,8 +131,24 @@ export const applyAnswer = ({
       );
       break;
     }
+    case 'conflicting-observation': {
+      // The scan's reading is already in the facts. Only the user choosing the agent's changes anything, and
+      // only the two scalar fields the merge raises a disagreement for.
+      if (value !== 'agent') break;
+      const [subjectKind, serviceName] = uncertainty.subject.split(':');
+      if (subjectKind !== 'service') break;
+      const agentValue =
+        uncertainty.field === 'port'
+          ? { port: Number(uncertainty.agentValue) }
+          : uncertainty.field === 'framework'
+            ? { framework: uncertainty.agentValue }
+            : undefined;
+      if (agentValue === undefined || ('port' in agentValue && !Number.isInteger(agentValue.port))) break;
+      services = services.map((service) => (service.name === serviceName ? { ...service, ...agentValue } : service));
+      break;
+    }
     default:
-      // The remaining kinds — persistence strategy, migration timing, conflicting readings — are
+      // The remaining kinds — persistence strategy, migration timing — are
       // recorded as decided and consumed by later stages rather than by changing a fact here.
       break;
   }

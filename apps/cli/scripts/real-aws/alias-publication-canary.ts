@@ -8,8 +8,13 @@
  * 2. change only its environment value and deploy. The alias must serve the new value from a newly published version,
  *    and the publisher's properties in the two deployed templates must differ only in `versionedConfiguration`: without
  *    it they would be identical, and CloudFormation would not have run the publisher;
- * 3. deploy again unchanged: no new version, the same alias, byte-identical publisher properties and resources;
- * 4. delete the stack with the CLI, then confirm with AWS that the stack, its deployment bucket, its functions and their
+ * 3. deploy a change CloudFormation rejects while creating it (a queue with an impossible visibility timeout). The CLI
+ *    must report the failure, CloudFormation must roll the stack back to UPDATE_ROLLBACK_COMPLETE, and the alias must
+ *    still serve the previous value from the same version with the previous template in place;
+ * 4. deploy again unchanged, from the rolled-back state: no new version, the same alias, byte-identical publisher
+ *    properties and resources, no artifact uploaded (only the two template objects of the new deployment version are
+ *    written to the deployment bucket) and no output other than the deployment version changed;
+ * 5. delete the stack with the CLI, then confirm with AWS that the stack, its deployment bucket, its functions and their
  *    log groups are gone.
  *
  * Guardrails (docs/testing.md, "Live AWS"): an explicit opt-in; STS must resolve the credentials to the explicitly
@@ -41,7 +46,7 @@ import {
   LambdaClient,
   ListVersionsByFunctionCommand
 } from '@aws-sdk/client-lambda';
-import { HeadBucketCommand, S3Client } from '@aws-sdk/client-s3';
+import { HeadBucketCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
 import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { fromIni } from '@aws-sdk/credential-providers';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
@@ -49,6 +54,7 @@ import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { createHash, randomBytes } from 'node:crypto';
 import { readFile, rm, writeFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
+import stripAnsi from 'strip-ansi';
 import { parseYaml } from '../../src/utils/yaml';
 
 type Environment = Record<string, string | undefined>;
@@ -60,6 +66,8 @@ type Options = {
   owner: string;
   stateFile: string;
   reportFile?: string;
+  /** Run the first deploy in a terminal and require the CI/CD setup offer a first deployment makes. */
+  terminalFirstDeploy: boolean;
 };
 type State = {
   accountId: string;
@@ -128,7 +136,16 @@ export const resolveOptions = (env: Environment = process.env): Options => {
   assert(isAbsolute(stateFile), `${PREFIX}STATE_FILE must be an absolute path.`);
   const reportFile = env[`${PREFIX}REPORT`]?.trim();
   assert(!reportFile || isAbsolute(reportFile), `${PREFIX}REPORT must be an absolute path.`);
-  return { expectedAccountId, profile, region, projectName, owner, stateFile, ...(reportFile && { reportFile }) };
+  return {
+    expectedAccountId,
+    profile,
+    region,
+    projectName,
+    owner,
+    stateFile,
+    ...(reportFile && { reportFile }),
+    terminalFirstDeploy: env[`${PREFIX}TERMINAL_FIRST_DEPLOY`] === '1'
+  };
 };
 
 const createClients = ({ profile, region }: Options): Clients => {
@@ -150,6 +167,21 @@ const hasDevApiKey = async () => {
     ?.trim()
     .replace(/^(["'])(.*)\1$/, '$2');
   return Boolean(value);
+};
+
+/**
+ * The CLI reports a failed update as soon as CloudFormation starts rolling it back; the rollback itself continues in
+ * AWS. The canary waits for it, as the next deploy would, before reading what the stack settled on.
+ */
+const waitForStackToSettle = async (client: CloudFormationClient, stackName: string, deadlineMs = 15 * 60 * 1000) => {
+  const startedAt = Date.now();
+  for (;;) {
+    const stack = await describeStack(client, stackName);
+    assert(stack, `${stackName} disappeared while waiting for it to settle.`);
+    if (!stack.StackStatus?.endsWith('_IN_PROGRESS')) return stack;
+    assert(Date.now() - startedAt < deadlineMs, `${stackName} is still ${stack.StackStatus} after ${deadlineMs} ms.`);
+    await sleep(10_000);
+  }
 };
 
 const describeStack = async (client: CloudFormationClient, stackName: string): Promise<Stack | undefined> => {
@@ -207,18 +239,19 @@ const parseAgentOutput = (stdout: string, command: string) => {
   return { records, result: results[0] as AgentRecord & { ok?: unknown; code?: unknown; message?: unknown } };
 };
 
-/** One source-built CLI command, `pnpm dev:cli <args> --agent`, with the run's owner and value in its environment. */
-const runSourceCli = async ({
+/** The environment of a source-built CLI command: the run's owner and value, the profile, no inherited credentials. */
+const sourceCliEnvironment = ({
   options,
-  args,
+  invocationId,
   value,
-  invocationId
+  breakUpdate = false
 }: {
   options: Options;
-  args: string[];
-  value?: string;
   invocationId: string;
-}) => {
+  value?: string;
+  /** Adds the fixture's deliberately invalid resource so CloudFormation fails the update. */
+  breakUpdate?: boolean;
+}): Environment => {
   const env: Environment = {
     ...process.env,
     AWS_PROFILE: options.profile,
@@ -228,13 +261,34 @@ const runSourceCli = async ({
     STP_DISABLE_TELEMETRY: '1',
     STP_INVOCATION_ID: invocationId,
     [`${PREFIX}OWNER`]: options.owner,
-    ...(value !== undefined && { [`${PREFIX}VALUE`]: value })
+    ...(value !== undefined && { [`${PREFIX}VALUE`]: value }),
+    ...(breakUpdate && { [`${PREFIX}BREAK`]: '1' })
   };
   // The key comes from apps/cli/.env.local, which the dev runner loads; nothing inherited may replace or suppress it.
   for (const name of ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_SESSION_TOKEN', 'STACKTAPE_API_KEY']) {
     delete env[name];
   }
   delete env.SKIP_LOADING_ENV;
+  return env;
+};
+
+/** One source-built CLI command, `pnpm dev:cli <args> --agent`, with the run's owner and value in its environment. */
+const runSourceCli = async ({
+  options,
+  args,
+  value,
+  invocationId,
+  breakUpdate = false,
+  expectFailure = false
+}: {
+  options: Options;
+  args: string[];
+  value?: string;
+  invocationId: string;
+  breakUpdate?: boolean;
+  expectFailure?: boolean;
+}) => {
+  const env = sourceCliEnvironment({ options, invocationId, breakUpdate, ...(value === undefined ? {} : { value }) });
   const cliArgs = ['dev:cli', ...args, '--agent'];
   invocationIds.push(invocationId);
   const child = Bun.spawn({
@@ -256,11 +310,18 @@ const runSourceCli = async ({
     activeChild = undefined;
   });
   const { records, result } = parseAgentOutput(stdout, args[0]);
-  assert(
-    exitCode === 0 && result.ok === true,
-    `CLI ${args[0]} failed (${exitCode}): ${String(result.code)}: ${String(result.message)}\n${stderr.trim().slice(-2000)}`
-  );
-  return { command: `pnpm ${cliArgs.join(' ')}`, records, result };
+  if (expectFailure) {
+    assert(
+      exitCode !== 0 && result.ok !== true,
+      `CLI ${args[0]} was expected to fail but exited ${exitCode} with ${String(result.code)}.`
+    );
+  } else {
+    assert(
+      exitCode === 0 && result.ok === true,
+      `CLI ${args[0]} failed (${exitCode}): ${String(result.code)}: ${String(result.message)}\n${stderr.trim().slice(-2000)}`
+    );
+  }
+  return { command: `pnpm ${cliArgs.join(' ')}`, records, result, exitCode };
 };
 
 /**
@@ -284,46 +345,154 @@ const resolveAwsAccountName = async (options: Options, invocationId: string) => 
   return name;
 };
 
+const stackCommandArgs = ({
+  options,
+  command,
+  awsAccountName
+}: {
+  options: Options;
+  command: 'deploy' | 'delete';
+  awsAccountName: string;
+}) => [
+  command,
+  '--configPath',
+  FIXTURE_CONFIG,
+  '--projectName',
+  options.projectName,
+  '--stage',
+  STAGE,
+  '--region',
+  options.region,
+  '--profile',
+  options.profile,
+  '--awsAccount',
+  awsAccountName
+];
+
+/** What `deploy` prints after creating a stack in a terminal checked out from GitHub, GitLab or Bitbucket. */
+const CICD_OFFER = 'Set up automatic deployments on push to';
+
+/**
+ * The first deploy as a developer runs it in a terminal. After creating a stack the CLI offers to set up CI/CD, but
+ * only on a TTY, so this runs under `script`. It presses Ctrl+C at the offer without answering it (the stack is
+ * already deployed by then) and reports whether the offer appeared. The working directory is this repository's
+ * checkout, whose origin is on GitHub.
+ */
+const runFirstDeployInTerminal = async ({
+  options,
+  awsAccountName,
+  value,
+  invocationId
+}: {
+  options: Options;
+  awsAccountName: string;
+  value: string;
+  invocationId: string;
+}) => {
+  // The change-plan confirmation is answered up front; the CI/CD offer is asked on any TTY regardless.
+  const cliArgs = [
+    'dev:cli',
+    ...stackCommandArgs({ options, command: 'deploy', awsAccountName }),
+    '--autoConfirmOperation'
+  ];
+  const quoted = cliArgs.map((part) => `'${part.replaceAll("'", "'\\''")}'`).join(' ');
+  invocationIds.push(invocationId);
+  const child = Bun.spawn({
+    cmd: ['script', '-qfec', `stty cols 160 rows 50; exec pnpm ${quoted}`, '/dev/null'],
+    cwd: REPO_ROOT,
+    env: { ...sourceCliEnvironment({ options, invocationId, value }), TERM: 'xterm-256color' },
+    stdin: 'pipe',
+    stdout: 'pipe',
+    stderr: 'pipe',
+    detached: true
+  });
+  activeChild = child;
+  const timer = setTimeout(() => stopActiveChild('SIGKILL'), COMMAND_TIMEOUT_MS);
+  let transcript = '';
+  let offered = false;
+  const decoder = new TextDecoder();
+  try {
+    for await (const chunk of child.stdout) {
+      transcript = `${transcript}${decoder.decode(chunk, { stream: true })}`.slice(-400_000);
+      if (!offered && stripAnsi(transcript).replace(/\s+/g, ' ').includes(CICD_OFFER)) {
+        offered = true;
+        child.stdin.write('\u0003');
+        await child.stdin.flush();
+      }
+    }
+    await child.exited;
+  } finally {
+    clearTimeout(timer);
+    activeChild = undefined;
+  }
+  return {
+    command: `pnpm ${cliArgs.join(' ')}`,
+    updateMessage: null,
+    cicdOffered: offered,
+    exitCode: child.exitCode,
+    transcriptTail: stripAnsi(transcript).replace(/\s+/g, ' ').slice(-2_000)
+  };
+};
+
 /** `deploy` or `delete` of the fixture stack through the connection `resolveAwsAccountName` accepted. */
 const runStackCommand = async ({
   options,
   command,
   awsAccountName,
   value,
-  invocationId
+  invocationId,
+  breakUpdate = false,
+  expectFailure = false
 }: {
   options: Options;
   command: 'deploy' | 'delete';
   awsAccountName: string;
   value: string;
   invocationId: string;
+  breakUpdate?: boolean;
+  expectFailure?: boolean;
 }) => {
-  const { command: commandLine, records } = await runSourceCli({
+  const {
+    command: commandLine,
+    records,
+    result,
+    exitCode
+  } = await runSourceCli({
     options,
-    args: [
-      command,
-      '--configPath',
-      FIXTURE_CONFIG,
-      '--projectName',
-      options.projectName,
-      '--stage',
-      STAGE,
-      '--region',
-      options.region,
-      '--profile',
-      options.profile,
-      '--awsAccount',
-      awsAccountName
-    ],
+    args: stackCommandArgs({ options, command, awsAccountName }),
     value,
-    invocationId
+    invocationId,
+    breakUpdate,
+    expectFailure
   });
   const update = records.find(
     (record) =>
       record.eventType === 'UPDATE_STACK' && record.status === 'completed' && typeof record.message === 'string'
   );
-  return { command: commandLine, updateMessage: (update?.message as string | undefined) ?? null };
+  return {
+    command: commandLine,
+    updateMessage: (update?.message as string | undefined) ?? null,
+    exitCode,
+    resultCode: typeof result.code === 'string' ? result.code : null,
+    resultMessage: typeof result.message === 'string' ? result.message : null
+  };
 };
+
+/** Every object in the deployment bucket with its ETag, so uploads between two deploys can be told apart. */
+const listBucketObjects = async (clients: Clients, bucket: string) => {
+  const objects = new Map<string, string>();
+  let token: string | undefined;
+  do {
+    const page = await clients.s3.send(new ListObjectsV2Command({ Bucket: bucket, ContinuationToken: token }));
+    for (const { Key, ETag } of page.Contents ?? []) if (Key) objects.set(Key, ETag ?? '');
+    token = page.IsTruncated ? page.NextContinuationToken : undefined;
+  } while (token);
+  return objects;
+};
+
+/** Keys that are new or whose content changed between two listings. */
+const changedObjects = (before: Map<string, string>, after: Map<string, string>) =>
+  [...after.entries()].filter(([key, etag]) => before.get(key) !== etag).map(([key]) => key);
 
 const readStackResources = async (clients: Clients, stackName: string) =>
   (await clients.cloudFormation.send(new DescribeStackResourcesCommand({ StackName: stackName }))).StackResources ?? [];
@@ -529,13 +698,28 @@ export const runAliasPublicationCanary = async ({ cleanupOnly = false }: { clean
 
     // A rejected preflight above authorizes no cleanup; from here on, cleanup always runs.
     deployAttempted = true;
-    const first = await runStackCommand({
-      options,
-      command: 'deploy',
-      awsAccountName,
-      value: values.initial,
-      invocationId: `alias-canary-1-${run}`
-    });
+    const first = options.terminalFirstDeploy
+      ? await runFirstDeployInTerminal({
+          options,
+          awsAccountName,
+          value: values.initial,
+          invocationId: `alias-canary-1-${run}`
+        })
+      : await runStackCommand({
+          options,
+          command: 'deploy',
+          awsAccountName,
+          value: values.initial,
+          invocationId: `alias-canary-1-${run}`
+        });
+    if ('cicdOffered' in first) {
+      report.firstDeployTranscriptTail = first.transcriptTail;
+      await writeReport();
+      assert(
+        first.exitCode === 0,
+        `The first deploy in a terminal exited with ${String(first.exitCode)}:\n${first.transcriptTail}`
+      );
+    }
     const stack = await describeStack(clients.cloudFormation, stackName);
     assert(stack, `${stackName} does not exist after the first deploy.`);
     assertOwned(stack, options);
@@ -548,8 +732,19 @@ export const runAliasPublicationCanary = async ({ cleanupOnly = false }: { clean
     await writeState(options, state);
     report.resources = resources.map(({ LogicalResourceId, ResourceType }) => `${LogicalResourceId} ${ResourceType}`);
     report.deploymentBucket = state.deploymentBucket;
+    if ('cicdOffered' in first) {
+      // Checked once the stack's resources are recorded, so a missing offer still leaves a complete cleanup state.
+      report.cicdOffered = first.cicdOffered;
+      assert(
+        first.cicdOffered,
+        `The first deploy in a terminal did not offer CI/CD setup (exit ${String(first.exitCode)}):\n${first.transcriptTail}`
+      );
+    }
 
-    const readStep = async (value: string, cli: Awaited<ReturnType<typeof runStackCommand>>) => {
+    const readStep = async (
+      value: string,
+      cli: Awaited<ReturnType<typeof runStackCommand>> | Awaited<ReturnType<typeof runFirstDeployInTerminal>>
+    ) => {
       const invocation = await invokeAlias(clients, functionName, value);
       const { body, template, publisher } = await readDeployedTemplate(clients, stackName);
       return {
@@ -600,6 +795,55 @@ export const runAliasPublicationCanary = async ({ cleanupOnly = false }: { clean
     );
     assert(JSON.stringify(before) !== JSON.stringify(after), 'versionedConfiguration did not change.');
 
+    // A failed update: CloudFormation rejects the extra queue while creating it and rolls the stack back. The CLI must
+    // report the failure, and nothing the customer relies on may have moved.
+    const failed = await runStackCommand({
+      options,
+      command: 'deploy',
+      awsAccountName,
+      value: values.updated,
+      invocationId: `alias-canary-failed-${run}`,
+      breakUpdate: true,
+      expectFailure: true
+    });
+    const rolledBackStack = await waitForStackToSettle(clients.cloudFormation, stackName);
+    assertOwned(rolledBackStack, options, state);
+    report.failedUpdateCli = {
+      exitCode: failed.exitCode,
+      resultCode: failed.resultCode,
+      resultMessage: failed.resultMessage
+    };
+    const rolledBack = await readStep(values.updated, failed);
+    const rolledBackPaths = differingPaths(updated.template, rolledBack.template);
+    report.failedUpdate = {
+      ...describeStep(rolledBack),
+      stackStatus: rolledBackStack.StackStatus,
+      brokenResourceLeft: (await readStackResources(clients, stackName)).some(
+        ({ LogicalResourceId }) => LogicalResourceId === 'canaryBrokenQueue'
+      ),
+      changedTemplatePaths: rolledBackPaths
+    };
+    await writeReport();
+    assert(
+      rolledBackStack.StackStatus === 'UPDATE_ROLLBACK_COMPLETE',
+      `Expected UPDATE_ROLLBACK_COMPLETE after the failed update, found ${rolledBackStack.StackStatus}.`
+    );
+    assert(
+      JSON.stringify(rolledBack.versions) === JSON.stringify(updated.versions),
+      'The failed update published a version.'
+    );
+    assert(rolledBack.aliasVersion === updated.aliasVersion, 'The failed update moved the alias.');
+    assert(
+      rolledBack.invocation.version === updated.invocation.version,
+      'Another version answered after the rollback.'
+    );
+    assert(
+      !rolledBackPaths.some((path) => path.startsWith('Resources')),
+      `The rolled-back template differs in resources: ${rolledBackPaths.join(', ')}.`
+    );
+
+    assert(state.deploymentBucket, 'The deployment bucket is unknown.');
+    const objectsBeforeUnchanged = await listBucketObjects(clients, state.deploymentBucket);
     const third = await runStackCommand({
       options,
       command: 'deploy',
@@ -609,12 +853,37 @@ export const runAliasPublicationCanary = async ({ cleanupOnly = false }: { clean
     });
     const unchanged = await readStep(values.updated, third);
     const changedPaths = differingPaths(updated.template, unchanged.template);
+    const uploadedObjects = changedObjects(
+      objectsBeforeUnchanged,
+      await listBucketObjects(clients, state.deploymentBucket)
+    );
+    const nextVersion = (unchanged.template as { Outputs?: Record<string, { Value?: unknown }> }).Outputs
+      ?.StpDeploymentVersion?.Value;
     report.unchangedRedeploy = {
       ...describeStep(unchanged),
       templateByteIdentical: unchanged.templateSha256 === updated.templateSha256,
-      changedTemplatePaths: changedPaths
+      changedTemplatePaths: changedPaths,
+      uploadedObjects,
+      deploymentVersion: nextVersion
     };
     await writeReport();
+    // Nothing uploaded but the template objects of the new deployment version: no artifact, layer or manifest.
+    assert(typeof nextVersion === 'string' && /^v\d+$/.test(nextVersion), 'The redeploy has no deployment version.');
+    const templateObjectPattern = new RegExp(`(^|/)${nextVersion}\\.(yml|yaml|json)$`);
+    const unexpectedUploads = uploadedObjects.filter((key) => !templateObjectPattern.test(key));
+    assert(
+      unexpectedUploads.length === 0,
+      `The unchanged redeploy uploaded ${unexpectedUploads.join(', ')}; only the ${nextVersion} template objects may be written.`
+    );
+    assert(
+      uploadedObjects.length <= 2,
+      `The unchanged redeploy wrote ${uploadedObjects.length} objects: ${uploadedObjects.join(', ')}.`
+    );
+    // Nothing changed in the stack but the deployment version output.
+    assert(
+      changedPaths.every((path) => path === 'Outputs.StpDeploymentVersion.Value'),
+      `The unchanged redeploy changed ${changedPaths.join(', ')}; only Outputs.StpDeploymentVersion.Value may differ.`
+    );
     assert(
       JSON.stringify(unchanged.versions) === JSON.stringify(updated.versions),
       'The unchanged redeploy published a version.'
@@ -624,10 +893,6 @@ export const runAliasPublicationCanary = async ({ cleanupOnly = false }: { clean
     assert(
       JSON.stringify(unchanged.publisher) === JSON.stringify(updated.publisher),
       'The unchanged redeploy changed the publisher properties.'
-    );
-    assert(
-      !changedPaths.some((path) => path.startsWith('Resources')),
-      `The unchanged redeploy changed resources: ${changedPaths.join(', ')}.`
     );
   } catch (error) {
     bodyError = error;

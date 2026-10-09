@@ -40,6 +40,29 @@ describe('an agent cannot claim probe provenance', () => {
     expect(merged.dependencies[0]?.source).toBe('agent');
   });
 
+  it('cannot erase what already deploys this project', () => {
+    // Found by the init process scenario: with an agent, the "this project has Fly.io deployment config"
+    // warning disappeared, because the merge rebuilt the document without the existing deployments.
+    const baseline = projectFactsSchema.parse({
+      schemaVersion: 1,
+      services: [{ ...agentService, source: 'probe' }],
+      existingDeployments: [
+        {
+          tool: 'fly',
+          managesAws: false,
+          evidence: [{ file: 'fly.toml', line: 1, quote: 'app = "billing"' }],
+          source: 'probe'
+        }
+      ]
+    });
+    const submission = agentSubmissionSchema.parse({ schemaVersion: 1, services: [{ ...agentService, port: 8080 }] });
+
+    const merged = mergeAgentSubmission({ baseline, submission });
+
+    expect(merged.existingDeployments).toEqual(baseline.existingDeployments);
+    expect(composeConfig({ facts: merged }).gaps.map((gap) => gap.subject)).toContain('fly');
+  });
+
   it('does not let a submission overwrite a fact a probe read out of a file', () => {
     const baseline = projectFactsSchema.parse({
       schemaVersion: 1,
@@ -93,6 +116,45 @@ describe('an agent cannot claim probe provenance', () => {
     // No free prose from something that reads untrusted files reaches the user at all.
     expect(merged.notes).toEqual([]);
     expect(JSON.stringify(merged)).not.toContain('AWS secret key');
+  });
+});
+
+describe('a reading the agent disagrees with goes to the user', () => {
+  // A Remix app on a custom Express server: the scan reads Express from the listen call, the agent reads Remix.
+  const disagreement = () =>
+    mergeAgentSubmission({
+      baseline: projectFactsSchema.parse({
+        schemaVersion: 1,
+        services: [{ ...agentService, framework: 'express', source: 'probe' }]
+      }),
+      submission: agentSubmissionSchema.parse({
+        schemaVersion: 1,
+        services: [{ ...agentService, framework: 'remix' }]
+      })
+    });
+
+  it('keeps the scan reading by default and records both', () => {
+    const composition = composeConfig({ facts: disagreement() });
+
+    expect(composition.config.resources.api?.type).toBe('web-service');
+    expect(composition.assumptions).toContainEqual(
+      expect.objectContaining({
+        id: 'conflicting-observation:api:framework',
+        chosen: 'probe',
+        alternatives: ['probe', 'agent'],
+        parameters: expect.objectContaining({ probeValue: 'express', agentValue: 'remix' })
+      })
+    );
+  });
+
+  it("applies the agent's reading when the user settles it that way", () => {
+    // The agent is told "we show both readings to the user and let them settle it". Settling it must count.
+    const composition = composeConfig({
+      facts: disagreement(),
+      decisions: { 'conflicting-observation:api:framework': 'agent' }
+    });
+
+    expect(composition.config.resources.api?.type).toBe('remix-web');
   });
 });
 

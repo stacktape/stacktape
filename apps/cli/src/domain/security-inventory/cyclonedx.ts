@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 /**
  * The dependency inventory of one deployment is a CycloneDX document: the packages the source tree declares (from
@@ -139,6 +139,20 @@ const compareSpecVersions = (a: string, b: string) => {
  * One document for the deployment out of the parts Trivy produced. Dependency graphs are dropped: the Console grades
  * packages, not their relationships, and the graphs are the bulk of a CycloneDX file.
  */
+/**
+ * A digest of what the inventory records, independent of the deployment it was recorded for. Two deployments with the
+ * same packages share it even though their documents differ in serial number, timestamp, tool versions and the
+ * application version, so an unchanged redeploy can reuse the inventory already in the deployment bucket.
+ */
+export const inventoryContentDigest = (document: CycloneDxDocument) => {
+  const components = [...(document.components ?? [])].toSorted((a, b) =>
+    (a['bom-ref'] ?? '').localeCompare(b['bom-ref'] ?? '')
+  );
+  return createHash('sha256')
+    .update(JSON.stringify({ specVersion: document.specVersion, components }))
+    .digest('hex');
+};
+
 export const mergeInventoryParts = ({
   parts,
   application,

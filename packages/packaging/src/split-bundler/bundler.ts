@@ -15,6 +15,7 @@ import type {
 } from './types';
 import type { PackageJsonDepsInfo } from '../es/bundler-helpers';
 import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { stat } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, posix, win32 } from 'node:path';
 import type { TextEdit } from '../es/source-map-edits';
 import { assertNoRootChunkImports, getChunkImportEdits } from './chunk-rewriter';
@@ -35,8 +36,9 @@ import { createBunFfiShimPlugin, createNativeNodeModulesPlugin, isBareImportSpec
 import { classifyBeforeResolution, classifyResolvedModule, getModuleName } from '../es/import-classification';
 import { getBunMinifyConfig } from '../es/minify';
 import { writeEditedJavaScript } from '../es/source-map-edits';
+import { normalizeSplitBuildIdentity } from '../es/artifact-identity';
 import { resolvePrisma } from '../bundlers/es/utils';
-import { getLambdaAssetReferenceEdits } from '../artifact/lambda-assets';
+import { rewriteLambdaAssetReferences } from '../artifact/lambda-assets';
 
 const transformToUnixPath = (path: string): string => path.replace(/\\/g, '/');
 
@@ -216,7 +218,8 @@ const executeBunBuild = async ({
   tracker: DependencyTracker;
   createPackagingError: BuildSplitBundleOptions['createPackagingError'];
 }): Promise<{
-  buildResult: Awaited<ReturnType<typeof Bun.build>>;
+  /** The emitted files after identity normalization: their final paths, kinds and sizes. */
+  buildResult: { outputs: { path: string; kind: string; size: number }[] };
   metafile: BuildMetafile;
   /** `performance.now()` around the `Bun.build` call, so the caller can time it apart from setup and rewriting. */
   bunBuildStartedAt: number;
@@ -301,29 +304,32 @@ const executeBunBuild = async ({
     });
   }
 
-  /*
-   * Point asset references at `/var/task`, and make each output's map match its file: moved with those edits, and with
-   * `sources` relative to the map's own folder, which every later copy rebases from. Bun 1.4.1 writes a split map's
-   * `sources` relative to the outdir instead. `synthetic-lambda-source-map-e2e` checks both.
-   */
+  // Point asset references at `/var/task`, shifting each output's source map with the edits before normalization.
   const assetFiles = result.outputs.filter((output) => output.kind === 'asset').map(({ path }) => path);
-  await Promise.all(
-    result.outputs
-      .filter(({ path }) => path.endsWith('.js'))
-      .map(({ path }) =>
-        writeEditedJavaScript({
-          from: path,
-          to: path,
-          edits: (code) => getLambdaAssetReferenceEdits(code, assetFiles),
-          sourcesDirectory: sharedOutdir,
-          packaged: false
-        })
-      )
+  await rewriteLambdaAssetReferences(
+    result.outputs.filter(({ path }) => path.endsWith('.js')).map(({ path }) => path),
+    assetFiles
   );
 
+  // Chunk names, debug IDs and map sources must not depend on the build directory (`es/artifact-identity`). Renamed
+  // chunks are carried into the outputs and the metafile every later step reads.
+  const renames = await normalizeSplitBuildIdentity({
+    javascriptFiles: result.outputs.filter(({ path }) => path.endsWith('.js')).map(({ path }) => path),
+    projectRoot: monorepoRoot || cwd,
+    sourcesResolveFrom: sharedOutdir
+  });
+  const renamed = (text: string) => text.replace(/chunk-[a-z0-9]{8}/g, (name) => renames.get(name) ?? name);
+  const outputs = await Promise.all(
+    result.outputs.map(async ({ path, kind }) => {
+      const finalPath = renamed(path);
+      return { path: finalPath, kind, size: (await stat(finalPath)).size };
+    })
+  );
+  const metafile = JSON.parse(renamed(JSON.stringify(result.metafile))) as BuildMetafile;
+
   return {
-    buildResult: result,
-    metafile: result.metafile as BuildMetafile,
+    buildResult: { outputs },
+    metafile,
     bunBuildStartedAt,
     bunBuildFinishedAt
   };

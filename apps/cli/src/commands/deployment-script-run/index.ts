@@ -4,6 +4,7 @@ import type { StpResourceType } from '@domain-services/config-manager/resolved-t
 import { operationReporter } from '@application-services/operation-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
+import { CliError } from '@utils/errors';
 import { stpErrors } from '@errors';
 import { tagNames } from '@stacktape/naming/tag-names';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
@@ -20,7 +21,8 @@ export const commandDeploymentScriptRun = async () => {
     stackName: stackContext.stackName
   });
 
-  const { lambdaArn } = await buildAndUpdateFunctionCode(resourceName);
+  const deploymentScript = configManager.deploymentScripts.find(({ name }) => name === resourceName);
+  const { lambdaArn } = await buildAndUpdateFunctionCode(deploymentScript._nestedResources.scriptFunction.name);
 
   await awsSdkManager.lambda.tagFunction({
     lambdaArn,
@@ -29,7 +31,7 @@ export const commandDeploymentScriptRun = async () => {
 
   const [scriptParametersResolvedLocally] = await Promise.all([
     configManager.resolveDirectives<StpDeploymentScript['parameters']>({
-      itemToResolve: configManager.deploymentScripts.find(({ name }) => name === resourceName).parameters || {},
+      itemToResolve: deploymentScript.parameters || {},
       resolveRuntime: true,
       useLocalResolve: true
     })
@@ -49,7 +51,10 @@ export const commandDeploymentScriptRun = async () => {
     finalMessage: resultMessage
   });
 
-  return { success: !response.FunctionError, returnedPayload: response.Payload };
+  if (response.FunctionError) {
+    throw new CliError({ category: 'SCRIPT', code: 'DEPLOYMENT_SCRIPT_FAILED', message: resultMessage });
+  }
+  return { success: true, returnedPayload: response.Payload };
 };
 
 const getScriptResultMessage = ({
