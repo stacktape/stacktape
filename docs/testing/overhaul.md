@@ -20,13 +20,15 @@ therefore:
 
 ## Status
 
-The pilots are complete. Their run evidence is in the ignored `.stacktape/qa-initiative/` directory.
+**Batch 1 (7–9 October 2026) is merged.** Every journey J1–J13 has non-browser coverage: an anchor scenario through real
+code plus focused contracts, each reviewed independently by GPT-6.1 Sol, with the review findings fixed. The tests found
+and fixed about 40 product bugs, among them double monthly charges, an organization left without an owner,
+vulnerabilities marked resolved from malformed input, and build artifacts that depended on the build directory. Live
+canaries run in the disposable `stacktape-e2e` account (AWS profile `stacktape-e2e`). Per-journey handoffs and reviews
+are in the ignored `~/projects/stacktape-qa/handoffs/` and `reviews/` directories of the coordinator's machine.
 
-- Stable naming (P1), a shared dialog in the browser (P2), MiniStack layer upload and retention (P3), and the isolated
-  Console issue journey (P4) are merged, with the helpers they needed.
-- Calibration accepted the shared config editor (former S40), issue ingestion (S54) and CLI analytics (S69).
-- The pricing assignment (S42) found a product bug: a product without a price in the selected region crashes the
-  estimator and returns an empty breakdown. It is blocked until that bug is fixed.
+Still open in the functional track: F6 and F7 consolidation, the Windows CI job (F4), and the live model evaluation for
+init (J1.5). All browser work belongs to the [browser track](#two-tracks-functional-and-browser).
 
 ## Priorities
 
@@ -41,6 +43,30 @@ must never lose data.
 | 3        | J8–J13                                                                                                    | Important, but fewer users or lower cost of failure. Do on demand. |
 
 Work in priority order. Within a priority, start with the assignment whose anchor scenario is missing entirely.
+
+## Two tracks: functional and browser
+
+The overhaul has two tracks with separate owners. A change belongs to exactly one of them.
+
+| Track                                     | Owns                                                                                                                                                                                                                                                                                   | Does not own                                                                                                         |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **Functional** (this plan, J1–J13)        | Behavior proven without a browser: CLI processes, packaging and runtimes, synthesis, AWS (MiniStack and live), Console API, database, workers, provider webhooks. Shared API fixtures: the Console tenant/identity fixture (J5), the CLI–Console fixture (J6), provider and AWS fakes. | Anything that drives a browser.                                                                                      |
+| **Browser** (UI review and browser tests) | Everything that drives a browser: Playwright journeys of the Console, the init wizard, docs and website; the shared UI gallery; agent UI review and its calibration. The isolated Console browser fixture (UI startup, sessions in the browser).                                       | Re-proving API rules (authorization matrices, transactions, billing logic) that the functional track already covers. |
+
+Browser tests assert what the user sees and does, and that the result survives a reload, through the real API and a
+disposable database. They prove one representative denial per area, not the whole authorization matrix. When a browser
+test finds an API or data bug, the browser track fixes it with a regression at the API level as well.
+
+Shared files change in one track at a time: the Console database lane table (`run-db-integration.ts`), the isolated
+Console fixtures and `docs/testing/e2e.md`. Merge `main` before starting work in either track.
+
+Browser coverage the functional journeys deferred, by journey: J1.2 the init wizard (review step and TypeScript choice,
+sign-in gating deploy, no orphan processes after disconnect); J5 users, roles, organization deletion, AWS accounts and
+secrets pages; J6 a CLI deployment rendered under the right project, stage and account, terminal states after reload; J7
+issue and incident lists and details, assessment states, hosted-run requests; J8 repository and stage selection,
+reconnect after revoke, runner state; J9 the Console diagnostic views (pagination, empty, denied and error states); J10
+incomplete pricing, costs and budgets, security findings, guardrails; J11 plan and billing pages; J12 docs search and
+navigation, website routes, shared controls, the diagram.
 
 ## Journeys and assignments
 
@@ -144,7 +170,7 @@ of what each area promises.
 | J9 Day-2 CLI operations and output. [Commands](../../apps/cli/src/commands), [terminal UI](../../apps/cli/src/app/tui-manager).                                    | Logs, metrics, queries, sessions and tunnels through the CLI process; TTY, plain and JSON output; `aws-call`, `cf-module-update`, `domain-add`, `ai-connect`.                                                                                                  | S16, S17, S74                |
 | J10 Console insight pages. [Pages](../../apps/console/ui/src/pages).                                                                                               | Logs, metrics and traces views; costs, budgets and pricing; security inventory and findings; guardrails.                                                                                                                                                       | S42, S61, S62, S64, S66, S67 |
 | J11 Billing. [Billing](../../apps/console/api/src/billing).                                                                                                        | Provider events: duplicates, out of order, plan changes, denied actions. No real charges.                                                                                                                                                                      | S53                          |
-| J12 Editor, AI and documentation surfaces.                                                                                                                         | VS Code extension host, MCP protocol against the shipped binary, docs build and search, website routes, shared UI controls, config editor, diagram, tokens.                                                                                                    | S35–S41, S70                 |
+| J12 Editor, AI and documentation surfaces.                                                                                                                         | MCP protocol against the shipped binary, docs build contracts, design tokens, diagram scene algorithms. The VS Code extension is out of scope. Browser parts belong to the browser track.                                                                      | S35, S37, S41, S70           |
 | J13 Distribution and repository tooling.                                                                                                                           | Release artifacts and installers, external tool downloads, workspace checks, analytics opt-out, Console database migrations and startup parameters.                                                                                                            | S34, S68, S69, S71, S72      |
 
 ## Foundation work
@@ -228,7 +254,7 @@ two accepted assignments need the same capability.
 
 ## Done
 
-The overhaul is done when every priority 1 and 2 journey has an anchor scenario that passes on the integrated revision,
-each assignment has a recorded disposition, removed tests lost no unique protection, and every heavy lane is selectable
-through `test:plan` and part of release qualification. Known product bugs stay listed as blockers until fixed or
-explicitly descoped by the owner.
+The functional track is done when every priority 1 and 2 journey has an anchor scenario that passes on the integrated
+revision, each assignment has a recorded disposition, removed tests lost no unique protection, and every heavy lane is
+selectable through `test:plan` and part of release qualification. Known product bugs stay listed as blockers until fixed
+or explicitly descoped by the owner. The browser track defines its own completion with the owner.
