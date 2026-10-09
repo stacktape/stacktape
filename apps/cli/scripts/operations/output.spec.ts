@@ -138,58 +138,64 @@ test('a failed script returns a nonzero exit and an actionable final result with
   }
 }, 60_000);
 
-test('interrupting a running script cleans up its child and leaves plain and JSONL output complete', async () => {
-  const fixture = await createOperationsFixture(cli.path);
-  try {
-    seedDeployedStack(fixture);
-    await writeFile(
-      join(fixture.directory, 'wait.ts'),
-      `import { writeFileSync } from 'node:fs';
+// Windows has no SIGINT: `kill('SIGINT')` terminates the CLI (exit 130) instead of interrupting it, so the interruption
+// contract is exercised on Linux and macOS only, as the fixture's own interruption cases are.
+test.skipIf(process.platform === 'win32')(
+  'interrupting a running script cleans up its child and leaves plain and JSONL output complete',
+  async () => {
+    const fixture = await createOperationsFixture(cli.path);
+    try {
+      seedDeployedStack(fixture);
+      await writeFile(
+        join(fixture.directory, 'wait.ts'),
+        `import { writeFileSync } from 'node:fs';
 writeFileSync('child.pid', String(process.pid));
 console.log('j9-child-ready');
 setInterval(() => {}, 1000);
 `
-    );
-    await writeFile(
-      join(fixture.directory, 'stacktape.yml'),
-      JSON.stringify({
-        resources: {},
-        scripts: { wait: { type: 'local-script', properties: { executeScript: 'wait.ts', stdioMode: 'capture' } } }
-      })
-    );
-    for (const format of ['plain', 'jsonl'] as const) {
-      const run = fixture.start(['script:run', '--scriptName', 'wait', '--outputFormat', format, ...targetArgs]);
-      await run.waitFor('j9-child-ready');
-      const pid = Number(await readFile(join(fixture.directory, 'child.pid'), 'utf8'));
-      run.child.kill('SIGINT');
-      const result = await run.finished;
-      expect(result.exitCode).toBe(0);
-      expect(result.stderr).toBe('');
-      expect(result.stdout).toBe(stripAnsi(result.stdout));
-      if (format === 'jsonl') {
-        const parsed = parseCliJsonl(result.stdout, 'script:run');
-        expect(parsed.result).toMatchObject({ ok: false, code: 'USER_INTERRUPTION' });
-      }
-      // On Linux an orphan can briefly be a zombie until its new parent reaps it; neither state may still run.
-      let state = '';
-      try {
-        if (process.platform === 'linux') state = await readFile(`/proc/${pid}/stat`, 'utf8');
-        else {
-          process.kill(pid, 0);
-          state = 'running';
+      );
+      await writeFile(
+        join(fixture.directory, 'stacktape.yml'),
+        JSON.stringify({
+          resources: {},
+          scripts: { wait: { type: 'local-script', properties: { executeScript: 'wait.ts', stdioMode: 'capture' } } }
+        })
+      );
+      for (const format of ['plain', 'jsonl'] as const) {
+        const run = fixture.start(['script:run', '--scriptName', 'wait', '--outputFormat', format, ...targetArgs]);
+        await run.waitFor('j9-child-ready');
+        const pid = Number(await readFile(join(fixture.directory, 'child.pid'), 'utf8'));
+        run.child.kill('SIGINT');
+        const result = await run.finished;
+        expect(result.exitCode).toBe(0);
+        expect(result.stderr).toBe('');
+        expect(result.stdout).toBe(stripAnsi(result.stdout));
+        if (format === 'jsonl') {
+          const parsed = parseCliJsonl(result.stdout, 'script:run');
+          expect(parsed.result).toMatchObject({ ok: false, code: 'USER_INTERRUPTION' });
         }
-      } catch {}
-      expect(state === '' || state.split(') ')[1]?.startsWith('Z ')).toBe(true);
+        // On Linux an orphan can briefly be a zombie until its new parent reaps it; neither state may still run.
+        let state = '';
+        try {
+          if (process.platform === 'linux') state = await readFile(`/proc/${pid}/stat`, 'utf8');
+          else {
+            process.kill(pid, 0);
+            state = 'running';
+          }
+        } catch {}
+        expect(state === '' || state.split(') ')[1]?.startsWith('Z ')).toBe(true);
+      }
+      expect(
+        fixture.api.calls.filter(({ procedure }) => procedure === 'recordStackOperation').map(({ input }) => input)
+      ).toContainEqual(expect.objectContaining({ success: false, interrupted: true, inProgress: false }));
+      expect(fixture.aws.unexpected).toEqual([]);
+      expect(fixture.api.unexpected).toEqual([]);
+    } finally {
+      await fixture.close();
     }
-    expect(
-      fixture.api.calls.filter(({ procedure }) => procedure === 'recordStackOperation').map(({ input }) => input)
-    ).toContainEqual(expect.objectContaining({ success: false, interrupted: true, inProgress: false }));
-    expect(fixture.aws.unexpected).toEqual([]);
-    expect(fixture.api.unexpected).toEqual([]);
-  } finally {
-    await fixture.close();
-  }
-}, 60_000);
+  },
+  60_000
+);
 
 test.skipIf(process.platform === 'win32')(
   'a PTY profile prompt saves the answer while keeping the password out of terminal output',

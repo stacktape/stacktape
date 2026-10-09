@@ -214,6 +214,9 @@ test('denied AWS reads fail and cancelling a pending diagnostic read ends with a
     expect(
       (await run(fixture, ['metrics', '--resourceName', 'api', '--metric', 'Invocations'], false)).result.message
     ).toContain('J9 metrics access denied');
+    // Windows has no SIGINT: `kill('SIGINT')` terminates the CLI (exit 130) instead of interrupting it, so the
+    // interruption contract is exercised on Linux and macOS only, as the fixture's own interruption cases are.
+    if (process.platform === 'win32') return;
     let ready: () => void;
     const received = new Promise<void>((resolve) => {
       ready = resolve;
