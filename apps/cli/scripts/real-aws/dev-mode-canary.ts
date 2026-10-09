@@ -515,10 +515,13 @@ export const findOwnedContainers = (
     State: { Status: string };
     Mounts?: { Source?: string }[];
   }[];
+  // Docker reports mount sources with `/`; the project directory is compared in the same spelling on every host.
+  const projectRoot = projectDirectory(state).replace(/\\/g, '/');
   return inspected
     .filter(
       ({ Name, Mounts }) =>
-        names.has(Name.replace(/^\//, '')) || Mounts?.some(({ Source }) => Source?.startsWith(projectDirectory(state)))
+        names.has(Name.replace(/^\//, '')) ||
+        Mounts?.some(({ Source }) => Source?.replace(/\\/g, '/').startsWith(projectRoot))
     )
     .map(({ Name, State }) => ({ name: Name.replace(/^\//, ''), status: State.Status }));
 };
