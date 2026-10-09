@@ -460,11 +460,16 @@ test('batch 1 public paths select all new explicit acceptance lanes', () => {
   }
 });
 
-test('J1 init acceptance is selected for init and importer paths before its branch is integrated', () => {
+test('J1 init acceptance is selected for init, importer, corpus and its own scenario paths', () => {
   for (const path of [
     'apps/cli/src/init/index.ts',
     'apps/cli/src/commands/init/index.ts',
-    'packages/config-inference/src/policy/index.ts'
+    'packages/config-inference/src/policy/index.ts',
+    'packages/config-inference/src/scan/importers/terraform.ts',
+    'apps/cli/scripts/init-e2e/first-deployment.spec.ts',
+    'apps/cli/scripts/init-e2e/harness.ts',
+    'apps/cli/scripts/init-real-project-corpus.ts',
+    'apps/cli/scripts/validate-synthetic-project-corpus.ts'
   ]) {
     assert.ok(
       createTestPlan([path]).some((lane) => lane.commands.includes('pnpm --filter @stacktape/cli test:init:e2e')),
@@ -473,10 +478,11 @@ test('J1 init acceptance is selected for init and importer paths before its bran
   }
 });
 
-test('unrelated presentation changes do not select batch 1 database or Docker query lanes', () => {
+test('unrelated presentation changes do not select batch 1 database, init or Docker query lanes', () => {
   for (const path of ['apps/website/src/pages/index.astro', 'apps/console/ui/src/components/Button.tsx']) {
     const commands = createTestPlan([path]).flatMap((lane) => lane.commands);
     assert.ok(!commands.some((command) => command.includes('test:db --')));
     assert.ok(!commands.some((command) => command.includes('test:operations:db')));
+    assert.ok(!commands.some((command) => command.includes('test:init:e2e')));
   }
 });

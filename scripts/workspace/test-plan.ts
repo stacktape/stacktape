@@ -290,8 +290,9 @@ const RULES: Rule[] = [
     proves: 'Terminal init writes a configuration that synthesizes and packages into a runnable artifact.',
     commands: ['pnpm --filter @stacktape/cli test:init:e2e'],
     matches: (path) =>
-      /^apps\/cli\/(src\/(init\/|commands\/init\/)|tests\/init-e2e\/|scripts\/test-init-e2e)/.test(path) ||
-      path.startsWith('packages/config-inference/')
+      /^apps\/cli\/(src\/(init\/|commands\/init\/)|tests\/init-e2e\/|scripts\/(init-e2e\/|test-init-e2e|init-.*project-corpus|validate-synthetic-project-corpus))/.test(
+        path
+      ) || path.startsWith('packages/config-inference/')
   },
   {
     id: 'local-dev-live',

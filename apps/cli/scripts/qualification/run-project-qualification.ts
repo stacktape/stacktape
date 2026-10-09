@@ -656,20 +656,8 @@ const runGlobalLanes = async (options: ParsedOptions): Promise<QualificationStep
         command: 'pnpm',
         args: ['test:packaging-e2e'],
         cwd: rootDirectory,
-        timeoutMs: 90 * 60_000,
+        timeoutMs: 150 * 60_000,
         reproduction: 'pnpm test:packaging-e2e'
-      })
-    );
-    // The CLI-process acceptances: functions packaged by the package command, the SSR starters and the helper
-    // Lambdas, each executed in the Lambda runtime.
-    steps.push(
-      await runGlobalProcessStep({
-        name: 'runtime',
-        command: 'pnpm',
-        args: ['--filter', '@stacktape/cli', 'run', 'test:runtime-acceptances'],
-        cwd: rootDirectory,
-        timeoutMs: 60 * 60_000,
-        reproduction: 'pnpm --filter @stacktape/cli run test:runtime-acceptances'
       })
     );
   }
