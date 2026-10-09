@@ -38,7 +38,7 @@ import { getBunMinifyConfig } from '../es/minify';
 import { writeEditedJavaScript } from '../es/source-map-edits';
 import { normalizeSplitBuildIdentity } from '../es/artifact-identity';
 import { resolvePrisma } from '../bundlers/es/utils';
-import { getLambdaAssetReferenceEdits } from '../artifact/lambda-assets';
+import { rewriteLambdaAssetReferences } from '../artifact/lambda-assets';
 
 const transformToUnixPath = (path: string): string => path.replace(/\\/g, '/');
 
@@ -304,23 +304,11 @@ const executeBunBuild = async ({
     });
   }
 
-  /*
-   * Point asset references at `/var/task`, and make each output's map match its file: moved with those edits, and with
-   * `sources` relative to the map's own folder, which every later copy rebases from. Bun 1.4.1 writes a split map's
-   * `sources` relative to the outdir instead. `synthetic-lambda-source-map-e2e` checks both.
-   */
+  // Point asset references at `/var/task`, shifting each output's source map with the edits before normalization.
   const assetFiles = result.outputs.filter((output) => output.kind === 'asset').map(({ path }) => path);
-  await Promise.all(
-    result.outputs
-      .filter(({ path }) => path.endsWith('.js'))
-      .map(({ path }) =>
-        writeEditedJavaScript({
-          from: path,
-          to: path,
-          edits: (code) => getLambdaAssetReferenceEdits(code, assetFiles),
-          packaged: false
-        })
-      )
+  await rewriteLambdaAssetReferences(
+    result.outputs.filter(({ path }) => path.endsWith('.js')).map(({ path }) => path),
+    assetFiles
   );
 
   // Chunk names, debug IDs and map sources must not depend on the build directory (`es/artifact-identity`). Renamed

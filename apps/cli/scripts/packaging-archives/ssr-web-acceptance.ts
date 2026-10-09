@@ -82,7 +82,7 @@ const ADAPTERS: Adapter[] = [
   },
   {
     starter: 'tanstack-start-serverless',
-    frameworkPackage: '@tanstack/react-start',
+    frameworkPackage: '@tanstack/start',
     resourceType: 'tanstack-web',
     expectsAssets: true
   },

@@ -53,7 +53,7 @@ import {
   UnsupportedArchiveEntryError
 } from '../../artifact/archive-entries';
 import { getArchiveInventoryChecksum, getDirectoryChecksum } from '../../artifact/hashing';
-import { getLambdaAssetReferenceEdits } from '../../artifact/lambda-assets';
+import { rewriteLambdaAssetReferences } from '../../artifact/lambda-assets';
 
 /** Kept on the established ES bundler surface while file-selection ownership lives in the artifact layer. */
 export const removeExplicitlyExcludedFiles: typeof removeArtifactFiles = (options) => removeArtifactFiles(options);
@@ -574,18 +574,9 @@ export const buildEsCode = async ({
     if (isLambda) {
       const assetFiles = buildResult.outputs.filter((output) => output.kind === 'asset').map(({ path }) => path);
       if (assetFiles.length > 0) {
-        await Promise.all(
-          buildResult.outputs
-            .filter(({ path }) => path.endsWith('.js'))
-            // The file's map moves with its edited references (`es/source-map-edits`).
-            .map(({ path }) =>
-              writeEditedJavaScript({
-                from: path,
-                to: path,
-                edits: (code) => getLambdaAssetReferenceEdits(code, assetFiles),
-                packaged: false
-              })
-            )
+        await rewriteLambdaAssetReferences(
+          buildResult.outputs.filter(({ path }) => path.endsWith('.js')).map(({ path }) => path),
+          assetFiles
         );
       }
     }
