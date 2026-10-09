@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { getDevContainerName, selectOrphanedDevContainers } from './cleanup-utils';
+import { getDevContainerName, selectRemovableDevContainers } from './cleanup-utils';
 
 describe('dev container names', () => {
   test('two projects with the same stage and resource names get different containers', () => {
@@ -9,21 +9,25 @@ describe('dev container names', () => {
     expect([shop, blog]).toEqual(['stp-shop-dev-mainDatabase', 'stp-blog-dev-mainDatabase']);
   });
 
-  test('`dev:stop --cleanupContainers` removes only the containers no running agent owns', () => {
+  test('`dev:stop --cleanupContainers` removes stopped containers and those of sessions known to be gone', () => {
+    const live = { lockFile: '/work/shop/.stacktape/dev-agents/shop-dev.json', pid: 4100 };
+    const sessionIsAlive = ({ lockFile, pid }: { lockFile: string; pid: number }) =>
+      lockFile === live.lockFile && pid === live.pid;
     const containers = [
-      'stp-shop-dev-mainDatabase',
-      'stp-shop-dev-api-service-container',
-      'stp-blog-dev-mainDatabase',
-      'stp-shop-prod-mainDatabase',
-      // Named before containers included the project; still owned by the agent of their stage.
-      'stp-dev-cache',
-      'stp-staging-cache'
+      { name: 'stp-shop-dev-mainDatabase', state: 'running', ...live },
+      { name: 'stp-shop-dev-cache', state: 'exited', ...live },
+      // The lock file is gone or names another process: the session that started it has ended.
+      { name: 'stp-blog-dev-mainDatabase', state: 'running', lockFile: '/work/blog/gone.json', pid: 4200 },
+      { name: 'stp-blog-dev-cache', state: 'running', lockFile: live.lockFile, pid: 4300 },
+      { name: 'stp-old-dev-db', state: 'created' },
+      // Started by an older CLI without owner labels: its session cannot be checked, so it stays.
+      { name: 'stp-dev-legacy', state: 'running' }
     ];
-    expect(selectOrphanedDevContainers(containers, [{ projectName: 'shop', stage: 'dev' }])).toEqual([
+    expect(selectRemovableDevContainers(containers, sessionIsAlive)).toEqual([
+      'stp-shop-dev-cache',
       'stp-blog-dev-mainDatabase',
-      'stp-shop-prod-mainDatabase',
-      'stp-staging-cache'
+      'stp-blog-dev-cache',
+      'stp-old-dev-db'
     ]);
-    expect(selectOrphanedDevContainers(containers, [])).toEqual(containers);
   });
 });

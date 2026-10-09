@@ -47,16 +47,22 @@ const startAgent = async (behavior: 'slow-cleanup' | 'ignores-stop') => {
 const runDevStop = async (port: number) => {
   const home = await mkdtemp(join(tmpdir(), 'stacktape-dev-stop-'));
   try {
-    const child = spawn(process.execPath, ['scripts/dev.ts', 'dev:stop', '--agentPort', String(port), '--agent'], {
-      cwd: CLI_DIRECTORY,
-      env: {
-        PATH: process.env.PATH,
-        HOME: home,
-        SKIP_LOADING_ENV: '1',
-        STP_DISABLE_TELEMETRY: '1',
-        AWS_EC2_METADATA_DISABLED: 'true'
+    // `--no-env-file`: Bun would otherwise load `apps/cli/.env.local`, which on a developer machine holds an API key.
+    // dev:stop is local and must work with no key and an empty HOME.
+    const child = spawn(
+      process.execPath,
+      ['--no-env-file', 'scripts/dev.ts', 'dev:stop', '--agentPort', String(port), '--agent'],
+      {
+        cwd: CLI_DIRECTORY,
+        env: {
+          PATH: process.env.PATH,
+          HOME: home,
+          SKIP_LOADING_ENV: '1',
+          STP_DISABLE_TELEMETRY: '1',
+          AWS_EC2_METADATA_DISABLED: 'true'
+        }
       }
-    });
+    );
     let output = '';
     child.stdout.on('data', (data) => (output += data));
     child.stderr.on('data', (data) => (output += data));
@@ -75,6 +81,7 @@ test('dev:stop returns after the agent has finished stopping', async () => {
   const { agent, port } = await startAgent('slow-cleanup');
   try {
     const { exitCode, output } = await runDevStop(port);
+    expect(output).not.toContain('API_KEY');
     expect(output).toContain('Dev agent stopped.');
     expect(exitCode).toBe(0);
     expect(isRunning(agent.pid!)).toBeFalse();

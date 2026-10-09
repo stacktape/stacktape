@@ -1128,6 +1128,8 @@ export const commandsNotRequiringApiKey: StacktapeCommand[] = [
   'aws-profile:create',
   'aws-profile:update',
   'aws-profile:delete',
+  // Stops a local dev agent and removes local containers; it never calls the Stacktape API.
+  'dev:stop',
   'upgrade',
   'init',
   'package',

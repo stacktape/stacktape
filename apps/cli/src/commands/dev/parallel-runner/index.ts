@@ -33,7 +33,7 @@ import { startSsrWebDevServer } from '../ssr-web';
 import type { SsrWebResourceType } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/ssr-web-shared';
 import { startTunnel } from '../tunnel-manager';
 import { ensureNamedProxyRoute } from '../named-proxy/manager';
-import { getDevContainerName } from '../cleanup-utils';
+import { getDevContainerName, getDevContainerOwnerDockerArgs } from '../cleanup-utils';
 import { isPortAvailable, reservePorts } from '../port-utils';
 import {
   clearCredentialExpiryTimer,
@@ -630,7 +630,11 @@ const startContainerWorkload = async (
   const sessionId = randomUUID();
   const containerArgs = {
     ...args,
-    dockerArgs: [...(args.dockerArgs || []), `--label stacktape.dev-session=${sessionId}`]
+    dockerArgs: [
+      ...(args.dockerArgs || []),
+      `--label stacktape.dev-session=${sessionId}`,
+      ...getDevContainerOwnerDockerArgs()
+    ]
   };
   applicationManager.registerCleanUpHook(async () => {
     const container = await inspectDockerContainer(localContainerName);

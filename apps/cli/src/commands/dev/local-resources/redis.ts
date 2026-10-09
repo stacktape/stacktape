@@ -1,5 +1,6 @@
 import type { LocalResourceConfig, LocalResourceInstance } from './index';
 import { execDocker } from '@utils/docker';
+import { getDevContainerOwnerArgs } from '../cleanup-utils';
 import {
   buildLocalResourceInstance,
   DEFAULT_LOCAL_HOST,
@@ -77,6 +78,7 @@ export const startLocalRedis = async (
     '-d',
     '--name',
     containerName,
+    ...getDevContainerOwnerArgs(),
     '-p',
     `${hostPort}:${defaultPort}`,
     '-v',
