@@ -28,7 +28,8 @@ describe('Git remote parsing', () => {
 
 describe('config path for push deploys', () => {
   test('a config in a repository subdirectory keeps its path from the repository root', () => {
-    const repositoryRoot = realpathSync(mkdtempSync(join(tmpdir(), 'stp-git-detection-')));
+    // `.native` expands Windows 8.3 names (`RUNNER~1`), which Git never prints; `realpathSync` alone keeps them.
+    const repositoryRoot = realpathSync.native(mkdtempSync(join(tmpdir(), 'stp-git-detection-')));
     try {
       execSync('git init --quiet && git remote add origin git@github.com:acme/shop.git', { cwd: repositoryRoot });
       const serviceDirectory = join(repositoryRoot, 'services', 'api');
