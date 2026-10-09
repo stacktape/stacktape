@@ -35,7 +35,7 @@ Reuse these before writing new setup code. Rows marked **duplicate** are consoli
 | Shared UI in a browser                   | [gallery fixture](../../packages/ui-react/e2e/fixtures.ts)                                                                                             | Loopback Vite server per worker, external traffic rejected, fresh context per test.                                                  |
 | Disposable PostgreSQL                    | [database runner](../../apps/console/api/scripts/run-db-integration.ts)                                                                                | Pinned 15.14, real migrations, verified container removal. Private.                                                                  |
 | Console identities and providers         | [incident-agent fixtures](../../apps/console/api/scripts/incident-agent-fixtures.ts)                                                                   | Locally signed tokens, loopback server, AWS/GitHub/model fakes, fixture Git repositories. Private.                                   |
-| Isolated Console application             | [isolated Console test](../../apps/console/ui/e2e/isolated-console.test.ts)                                                                            | UI, API and database for two tenants. Its startup and session code is still inline ([F5](overhaul.md#foundation-work)).              |
+| Isolated Console application             | [isolated Console fixtures](../../apps/console/ui/e2e/isolated-console-fixtures.ts)                                                                    | Shared UI/API startup, signed sessions and cleanup, consumed by issue and deployment browser journeys. Private.                      |
 | Shared-dev Console sign-in               | [browser fixtures](../../apps/console/ui/e2e/fixtures.ts)                                                                                              | Real dev Cognito login, cached per worker. Needs the reservation.                                                                    |
 | Live AWS scenario                        | [real-AWS scripts](../../apps/cli/scripts/real-aws/README.md)                                                                                          | Account check, owned names, recovery state, verified cleanup.                                                                        |
 | Change-plan compatibility                | [data-safety lane](../../apps/cli/tests/data-safety/README.md)                                                                                         | Baseline template → current synthesis → the product's change plan; committed v3 and v4 baselines.                                    |
@@ -95,11 +95,17 @@ concurrent runs independent, cleanup verified after a deliberate failure, and no
 pnpm --filter @stacktape/console-api-app test:db --isolated-browser
 ```
 
-The runner owns a disposable PostgreSQL container. The test starts the real Fastify/tRPC API and Vite UI, installs
-locally signed Cognito-shaped tokens where Amplify expects them, and runs two tenants concurrently. Each resolves an
-issue in the browser, checks the database, reloads and checks again; the other tenant is denied through the same server.
-Only PostgreSQL's TLS options are substituted; Prisma, token verification, authorization and the router are production
-code. It needs no AWS credentials or reservation.
+The runner owns a disposable PostgreSQL container. Each journey starts the real Fastify/tRPC API and Vite UI and
+installs locally signed Cognito-shaped tokens where Amplify expects them. The issue journey runs two tenants
+concurrently: each resolves an issue, checks the database and reloads; the other tenant is denied through the same
+server. The deployment journey finds a project and stage and understands a failure with and without logs, including
+after reload. Its AWS credential endpoint and CloudWatch responses are synthetic; the Console API remains real. Journey
+files run in separate processes because their API environment and module graphs are process-wide. Only PostgreSQL's TLS
+options are substituted; Prisma, token verification, authorization and the router are production code. It needs no AWS
+credentials or reservation.
+
+The Console's [UI review procedure](../../apps/console/e2e/README.md#agent-ui-review) combines these journeys with
+visual and product critique and describes which findings should become repeatable browser assertions.
 
 `STP_ISOLATED_BROWSER_FAIL_AFTER_START=1` forces a failure after startup to check teardown; the run must fail and still
 report the container removed.
