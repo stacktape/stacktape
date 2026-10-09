@@ -27,7 +27,14 @@ describe('shell invocation', () => {
   test('runs a chained build command through the platform shell', async () => {
     const [command, args] = shellInvocation('echo first && echo second');
     const { stdout } = Bun.spawnSync([command, ...args]);
-    expect(stdout.toString().trim().split(/\r?\n/)).toEqual(['first', 'second']);
+    // cmd.exe echoes the space before `&&`; the lines are compared trimmed.
+    expect(
+      stdout
+        .toString()
+        .trim()
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+    ).toEqual(['first', 'second']);
     expect(() => shellInvocation('  ')).toThrow('cannot be empty');
   });
 });

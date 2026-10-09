@@ -246,28 +246,45 @@ describe('AWS CDK construct family', () => {
       return { resources: { notifications, api } };
     });
 
-  test('a construct cannot be a connectTo target, and the error names both resources', async () => {
-    await expect(synthesizeFamily('invalid-cdk-connect', config({ connectToConstruct: true }))).rejects.toMatchObject({
-      code: 'CONFIG_CONNECT_TO_RESOURCE_TYPE_UNSUPPORTED',
-      message: expect.stringContaining('`notifications` of type `aws-cdk-construct`')
-    });
-  });
+  /*
+   * Synthesizing a construct loads the construct file and with it aws-cdk-lib. That first load took over 200 s on the
+   * Windows CI runner (a pnpm store on another drive, scanned on read), which is far past bun's 5 s default; the
+   * second construct test then ran in under a second. The construct tests get the time the first load needs.
+   */
+  const CDK_FIRST_LOAD_TIMEOUT_MS = 300_000;
 
-  test('construct resources land in the template with their subscriptions and outputs', async () => {
-    const template = await synthesizeFamily('aws-cdk-construct', config());
-    expectReferencesResolve(template);
+  test(
+    'a construct cannot be a connectTo target, and the error names both resources',
+    async () => {
+      await expect(synthesizeFamily('invalid-cdk-connect', config({ connectToConstruct: true }))).rejects.toMatchObject(
+        {
+          code: 'CONFIG_CONNECT_TO_RESOURCE_TYPE_UNSUPPORTED',
+          message: expect.stringContaining('`notifications` of type `aws-cdk-construct`')
+        }
+      );
+    },
+    CDK_FIRST_LOAD_TIMEOUT_MS
+  );
 
-    const topic = onlyResourceOfType(template, 'AWS::SNS::Topic');
-    const queue = onlyResourceOfType(template, 'AWS::SQS::Queue');
-    const subscription = onlyResourceOfType(template, 'AWS::SNS::Subscription');
-    expect(topic.logicalId.startsWith('Notifications')).toBe(true);
-    expect(queue.logicalId.startsWith('Notifications')).toBe(true);
-    expect(json(subscription.resource.Properties?.TopicArn)).toContain(topic.logicalId);
-    expect(json(subscription.resource.Properties?.Endpoint)).toContain(queue.logicalId);
-    expect(queue.resource.Properties?.MessageRetentionPeriod).toBe(345600);
-    const outputs = Object.values(template.Outputs ?? {}) as { Value: unknown }[];
-    expect(outputs.some(({ Value }) => json(Value).includes(topic.logicalId))).toBe(true);
-  });
+  test(
+    'construct resources land in the template with their subscriptions and outputs',
+    async () => {
+      const template = await synthesizeFamily('aws-cdk-construct', config());
+      expectReferencesResolve(template);
+
+      const topic = onlyResourceOfType(template, 'AWS::SNS::Topic');
+      const queue = onlyResourceOfType(template, 'AWS::SQS::Queue');
+      const subscription = onlyResourceOfType(template, 'AWS::SNS::Subscription');
+      expect(topic.logicalId.startsWith('Notifications')).toBe(true);
+      expect(queue.logicalId.startsWith('Notifications')).toBe(true);
+      expect(json(subscription.resource.Properties?.TopicArn)).toContain(topic.logicalId);
+      expect(json(subscription.resource.Properties?.Endpoint)).toContain(queue.logicalId);
+      expect(queue.resource.Properties?.MessageRetentionPeriod).toBe(345600);
+      const outputs = Object.values(template.Outputs ?? {}) as { Value: unknown }[];
+      expect(outputs.some(({ Value }) => json(Value).includes(topic.logicalId))).toBe(true);
+    },
+    CDK_FIRST_LOAD_TIMEOUT_MS
+  );
 });
 
 describe('custom resource family', () => {

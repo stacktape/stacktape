@@ -20,7 +20,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { readFile, rename, writeFile } from 'node:fs/promises';
-import { basename, dirname, join, relative, resolve } from 'node:path';
+import { basename, dirname, join, posix, win32 } from 'node:path';
 
 const DEBUG_ID_COMMENT = /\/\/# debugId=[0-9A-Fa-f]+/;
 const SOURCE_MAPPING_URL_COMMENT = /\/\/# sourceMappingURL=\S+/;
@@ -28,6 +28,22 @@ const SOURCE_MAPPING_URL_COMMENT = /\/\/# sourceMappingURL=\S+/;
 const CHUNK_NAME = /chunk-[a-z0-9]{8}/g;
 
 const toPosix = (path: string) => path.replace(/\\/g, '/');
+/** A Windows path, by its drive letter; the path functions for it are win32's on every host. */
+const WINDOWS_DRIVE = /^[a-z]:[\\/]/i;
+const pathsFor = (path: string) => (WINDOWS_DRIVE.test(path) ? win32 : posix);
+
+/**
+ * The absolute path Bun means by `path`, written relative to `resolveFrom` (its output directory). On Windows, Bun
+ * records a file on another drive than its working directory as `..` segments up to the root followed by the file's
+ * own absolute path, such as `../../C:/app/src/handler.ts`; resolving that against the output directory would put it
+ * under the output directory (`C:/out/../C:/app/…`), so the climb is dropped and the absolute path kept.
+ */
+export const resolveBunOutputPath = (resolveFrom: string, path: string): string => {
+  const unix = toPosix(path).replace(/^(?:\.\.\/)+(?=[a-z]:\/)/i, '');
+  if (WINDOWS_DRIVE.test(unix)) return win32.normalize(unix);
+  if (unix.startsWith('/')) return posix.normalize(unix);
+  return pathsFor(resolveFrom).resolve(resolveFrom, path);
+};
 const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
 
 /**
@@ -36,11 +52,11 @@ const sha256 = (value: string) => createHash('sha256').update(value).digest('hex
  * build host's layout nor a home directory appears.
  */
 export const projectRelativeSource = (source: string, projectRoot: string): string => {
-  const relativePath = toPosix(relative(projectRoot, source));
+  const relativePath = toPosix(pathsFor(source).relative(projectRoot, source));
   if (relativePath !== '' && !relativePath.startsWith('../') && !relativePath.startsWith('/')) return relativePath;
-  const posix = toPosix(source);
-  const dependencyIndex = posix.lastIndexOf('/node_modules/');
-  if (dependencyIndex !== -1) return posix.slice(dependencyIndex + 1);
+  const unix = toPosix(source);
+  const dependencyIndex = unix.lastIndexOf('/node_modules/');
+  if (dependencyIndex !== -1) return unix.slice(dependencyIndex + 1);
   return `external/${basename(source)}`;
 };
 
@@ -59,7 +75,9 @@ export const deterministicDebugId = (code: string): string =>
 const PATH_COMMENT_LINE = /^\/\/ (\.{1,2}\/\S+|\S+\/\S+)$/gm;
 const rewritePathComments = (code: string, resolveFrom: string, projectRoot: string) =>
   code.replace(PATH_COMMENT_LINE, (line, path: string) =>
-    /^[a-z][a-z\d+.-]*:/i.test(path) ? line : `// ${projectRelativeSource(resolve(resolveFrom, path), projectRoot)}`
+    /^[a-z][a-z\d+.-]*:\/\//i.test(path)
+      ? line
+      : `// ${projectRelativeSource(resolveBunOutputPath(resolveFrom, path), projectRoot)}`
   );
 
 /** A chunk's content-derived name: its code with chunk references and the debug ID masked. */
@@ -106,8 +124,11 @@ export const rebaseMapSourcesToProject = async ({
     JSON.stringify({
       ...rest,
       sources: map.sources.map((source) =>
-        typeof source === 'string' && !/^[a-z][a-z\d+.-]*:/i.test(source)
-          ? projectRelativeSource(resolve(resolveFrom, root, source), projectRoot)
+        typeof source === 'string' && !/^[a-z][a-z\d+.-]*:\/\//i.test(source)
+          ? projectRelativeSource(
+              resolveBunOutputPath(resolveFrom, root === '' ? source : `${root}/${source}`),
+              projectRoot
+            )
           : source
       )
     })

@@ -59,7 +59,8 @@ for (const file of (await walk(output)).filter((path) => path.endsWith('.html'))
       sample += 1;
       const page = relative(output, file).replace(/\\/g, '/');
       checkedPages.add(page);
-      samples.set(join(appRoot, 'scripts', '__config_samples__', `sample${samples.size}.ts`), {
+      // TypeScript asks its host for files with `/` separators on every host; the virtual samples are keyed the same way.
+      samples.set(join(appRoot, 'scripts', '__config_samples__', `sample${samples.size}.ts`).replace(/\\/g, '/'), {
         code,
         label: `${page} complete config ${sample}`
       });
@@ -86,17 +87,18 @@ const host = ts.createCompilerHost(options);
 const originalGetSourceFile = host.getSourceFile.bind(host);
 const originalReadFile = host.readFile.bind(host);
 const originalFileExists = host.fileExists.bind(host);
+const sampleFor = (filename: string) => samples.get(filename.replace(/\\/g, '/'));
 host.getSourceFile = (filename, languageVersion, onError, shouldCreateNewSourceFile) => {
-  const sample = samples.get(filename);
+  const sample = sampleFor(filename);
   return sample
     ? ts.createSourceFile(filename, sample.code, languageVersion, true)
     : originalGetSourceFile(filename, languageVersion, onError, shouldCreateNewSourceFile);
 };
-host.readFile = (filename) => samples.get(filename)?.code ?? originalReadFile(filename);
-host.fileExists = (filename) => samples.has(filename) || originalFileExists(filename);
+host.readFile = (filename) => sampleFor(filename)?.code ?? originalReadFile(filename);
+host.fileExists = (filename) => sampleFor(filename) !== undefined || originalFileExists(filename);
 const diagnostics = ts.getPreEmitDiagnostics(ts.createProgram([...samples.keys()], options, host));
 const errors = diagnostics.map((diagnostic) => {
-  const sample = diagnostic.file ? samples.get(diagnostic.file.fileName) : undefined;
+  const sample = diagnostic.file ? sampleFor(diagnostic.file.fileName) : undefined;
   return `${sample?.label ?? diagnostic.file?.fileName ?? 'compiler'}: TS${diagnostic.code} ${ts.flattenDiagnosticMessageText(diagnostic.messageText, ' ')}`;
 });
 if (errors.length)

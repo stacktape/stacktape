@@ -26,6 +26,8 @@ beforeEach(() => {
 });
 
 describe('AWS SDK executor', () => {
+  // The first call loads the AWS SDK clients, which took over bun's 5 s default on a cold windows-latest runner
+  // (under a second in warm runs); a request still in flight at that timeout then landed in the next test's count.
   test('sends reviewed reads, including secret and parameter metadata', async () => {
     expect(await executeAwsSdkCommand('lambda', 'ListFunctions', {}, context)).toEqual({
       ok: true,
@@ -39,7 +41,7 @@ describe('AWS SDK executor', () => {
       'secretsmanager.DescribeSecret',
       'AmazonSSM.DescribeParameters'
     ]);
-  });
+  }, 60_000);
 
   test('never sends an operation outside the reviewed list, whoever calls it and however it is spelled', async () => {
     const stateMachineArn = 'arn:aws:states:eu-west-1:123456789012:stateMachine:orders';
