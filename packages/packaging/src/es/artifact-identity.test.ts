@@ -6,7 +6,8 @@ import {
   deterministicDebugId,
   normalizeBundleIdentity,
   normalizeSplitBuildIdentity,
-  projectRelativeSource
+  projectRelativeSource,
+  resolveBunOutputPath
 } from './artifact-identity';
 
 const roots: string[] = [];
@@ -54,7 +55,7 @@ const identity = async (outdir: string) => {
     files.map(async (entry) => {
       const path = join(entry.parentPath, entry.name);
       const hash = new Bun.CryptoHasher('sha256').update(await readFile(path)).digest('hex');
-      return `${path.slice(outdir.length + 1)}: ${hash}`;
+      return `${path.slice(outdir.length + 1).replace(/\\/g, '/')}: ${hash}`;
     })
   );
   return lines.toSorted();
@@ -135,5 +136,24 @@ describe('artifact identity', () => {
       projectRelativeSource('/home/dev/.cache/pnpm/node_modules/.pnpm/zod/node_modules/zod/index.js', '/home/dev/app')
     ).toBe('node_modules/zod/index.js');
     expect(projectRelativeSource('/home/dev/elsewhere/helper.ts', '/home/dev/app')).toBe('external/helper.ts');
+    expect(projectRelativeSource('C:\\Users\\dev\\app\\src\\x.ts', 'C:\\Users\\dev\\app')).toBe('src/x.ts');
+  });
+
+  test("Bun's output-relative paths resolve on both hosts, including Windows' other-drive climb", () => {
+    expect(resolveBunOutputPath('/home/dev/app/out', '../src/a.ts')).toBe('/home/dev/app/src/a.ts');
+    expect(resolveBunOutputPath('/home/dev/app/out', '../../../../home/dev/app/src/a.ts')).toBe(
+      '/home/dev/app/src/a.ts'
+    );
+    // Bun on Windows, working directory on D: and the project on C: (the CI runner's layout).
+    expect(resolveBunOutputPath('D:\\work\\out', '../../C:/Users/dev/app/src/a.ts')).toBe(
+      'C:\\Users\\dev\\app\\src\\a.ts'
+    );
+    expect(resolveBunOutputPath('C:\\Users\\dev\\app\\out', '../src/a.ts')).toBe('C:\\Users\\dev\\app\\src\\a.ts');
+    expect(
+      projectRelativeSource(
+        resolveBunOutputPath('D:\\work\\out', '../../C:/Users/dev/app/src/a.ts'),
+        'C:\\Users\\dev\\app'
+      )
+    ).toBe('src/a.ts');
   });
 });
