@@ -741,7 +741,10 @@ export const runAliasPublicationCanary = async ({ cleanupOnly = false }: { clean
       );
     }
 
-    const readStep = async (value: string, cli: Awaited<ReturnType<typeof runStackCommand>>) => {
+    const readStep = async (
+      value: string,
+      cli: Awaited<ReturnType<typeof runStackCommand>> | Awaited<ReturnType<typeof runFirstDeployInTerminal>>
+    ) => {
       const invocation = await invokeAlias(clients, functionName, value);
       const { body, template, publisher } = await readDeployedTemplate(clients, stackName);
       return {
