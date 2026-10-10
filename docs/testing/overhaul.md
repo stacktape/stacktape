@@ -71,9 +71,10 @@ navigation, website routes, shared controls, the diagram.
 ## Journeys and assignments
 
 A **journey** is a customer outcome that crosses packages, processes and services. Each journey has one **anchor
-scenario**: the end-to-end test that proves the outcome. An **assignment** is the unit one agent completes in one
-session: the anchor scenario or a focused contract inside the journey. Former slice IDs (S01–S74) are listed so earlier
-evidence stays traceable.
+scenario**: the end-to-end test that proves the outcome. A **slice** (also called an assignment, such as J1.2) is the
+unit one agent completes in one session: the anchor scenario or a focused contract inside the journey. A slice owns all
+its tests: end-to-end, integration and unit tests from the functional track, and browser tests from the browser track.
+Former slice IDs (S01–S74) are listed so earlier evidence stays traceable.
 
 Before dispatching a journey, check its surface against the code: commands, resource types, helper Lambdas, Console
 pages and workers. Assign anything unlisted. Split an assignment that turns out to hold several independent contracts.
