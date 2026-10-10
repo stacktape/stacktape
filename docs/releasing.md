@@ -51,7 +51,7 @@ pnpm --filter @stacktape/console-api-app test:runner:scripts
 pnpm --filter @stacktape/console-api-app test:runner:cache
 pnpm --filter @stacktape/ui-react test:e2e
 pnpm --filter @stacktape/bitbucket-forge-app test:e2e
-pnpm test:console:browser:smoke
+pnpm test:console:browser:offline
 
 for lane in test:docker-smoke test:node-lambda-e2e test:web-framework-e2e test:es-image-deps-e2e \
   test:directory-inventory-e2e test:lambda-source-map-e2e test:split-assets-e2e; do

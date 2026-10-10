@@ -136,6 +136,13 @@ The shared-UI lane: `pnpm --filter @stacktape/ui-react test:e2e`; `dev:e2e` open
 scenarios under [`packages/ui-react/e2e`](../../packages/ui-react/e2e) with its `test` fixture. Check a new case with
 `--repeat-each=3 --workers=1`, then with the default two workers.
 
+The Console offline lane: `pnpm test:console:browser:offline` runs
+[`playwright.offline.config.ts`](../../apps/console/ui/playwright.offline.config.ts). Its specs render real Console
+pages and sign-in screens and answer their own API and Cognito requests; the browser refuses every other non-loopback
+request. It needs no credentials or reservation. Signed-in specs run from the Console's other Playwright configurations,
+each through its own package script; live, cost-bearing specs are only in `playwright.live*.config.ts`, so a bare
+`playwright test` cannot start one.
+
 ## Authoring with agents
 
 Explore the scenario with the browser tool already available, then save ordinary Playwright assertions that run without

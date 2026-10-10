@@ -146,6 +146,69 @@ const packagingRules: Rule[] = packagingSuites.map(([id, scripts, feature]) => (
     /^apps\/cli\/src\/(packaging|domain\/packaging)/.test(path)
 }));
 
+// Console browser specs that no general lane runs. A changed spec selects the package script that runs it; each script
+// checks the shared-dev reservation, and `pnpm dev:console` marks the specs that need full local mode.
+const consoleBrowserSpecs: [spec: string, commands: string[], proves: string][] = [
+  [
+    'admin',
+    ['test:e2e:admin:dev-api'],
+    'The Admin sees the intended organization, the connection-management menu and a real AWS metadata read.'
+  ],
+  [
+    'project-access',
+    ['test:e2e:project-access:dev-api'],
+    'A project-scoped Developer opens the allowed project and is denied the other one, through the dev API.'
+  ],
+  [
+    'issues',
+    ['test:e2e:issues:dev-api'],
+    'A recorded issue of the acceptance stack shows redacted values, counts and scoped visibility.'
+  ],
+  [
+    'security',
+    ['pnpm dev:console', 'test:e2e:security'],
+    'Security findings of a deployed stack, Admin ignore/reopen, and no access for a scoped Developer.'
+  ],
+  [
+    'runners',
+    ['pnpm dev:console', 'test:e2e:runners'],
+    'Runner listing, settings persistence and Admin-only terminal access, without AWS resources.'
+  ],
+  [
+    'runners-live',
+    ['pnpm dev:console', 'test:e2e:runners-live'],
+    'Cost-bearing: a real runner terminal and telemetry, then verified project deletion.'
+  ],
+  [
+    'git-provider-writes-live',
+    ['pnpm dev:console', 'test:e2e:git-provider-writes-live'],
+    'Writes to provider fixture repositories: security-fix branches and pull requests, then cleanup.'
+  ],
+  [
+    'incident-assessment-live',
+    ['test:e2e:incident-assessment-live'],
+    'Cost-bearing: the AI assessment of a real incident on deployed dev code, then cleanup.'
+  ],
+  [
+    'incident-run-live',
+    ['test:e2e:incident-run-live'],
+    'Cost-bearing: a hosted incident run on a real runner with deployed dev code, then cleanup.'
+  ]
+];
+const browserSpecPath = (spec: string) => `apps/console/ui/e2e/${spec}.spec.ts`;
+const consoleBrowserSpecRules: Rule[] = consoleBrowserSpecs.map(([spec, commands, proves]) => ({
+  id: `console-browser-${spec}`,
+  proves,
+  commands: commands.map((command) =>
+    command.startsWith('pnpm ') ? command : `pnpm --filter @stacktape/console-ui ${command}`
+  ),
+  matches: (path) => path === browserSpecPath(spec)
+}));
+const isOfflineBrowserPath = (path: string) =>
+  /^apps\/console\/ui\/e2e\/(console-smoke|auth-pages|git-connections|region-select|resolved-config|incident-investigate|ui-review-controls)(-ui)?(\.spec\.ts|-fixture\.tsx|\.html)$/.test(
+    path
+  );
+
 const RULES: Rule[] = [
   {
     id: 'agent-instructions',
@@ -458,7 +521,7 @@ const RULES: Rule[] = [
       path.startsWith('apps/console/api/src/issues/') ||
       path.startsWith('apps/console/api/src/services/issue-') ||
       path.startsWith('packages/ui-react/') ||
-      path === 'apps/console/ui/e2e/isolated-console.test.ts' ||
+      path.startsWith('apps/console/ui/e2e/isolated-') ||
       path === 'apps/console/api/scripts/incident-agent-fixtures.ts' ||
       path === 'apps/console/api/scripts/run-db-integration.ts' ||
       path.startsWith('apps/console/ui/src/pages/IssuesPage/')
@@ -470,9 +533,26 @@ const RULES: Rule[] = [
     commands: ['pnpm test:console:browser:dev-api'],
     matches: (path) =>
       path.startsWith('apps/console/ui/src/') ||
-      (path.startsWith('apps/console/ui/e2e/') && path !== 'apps/console/ui/e2e/isolated-console.test.ts') ||
-      /^apps\/console\/ui\/playwright.*\.ts$/.test(path) ||
+      (path.startsWith('apps/console/ui/e2e/') &&
+        !path.startsWith('apps/console/ui/e2e/isolated-') &&
+        !isOfflineBrowserPath(path) &&
+        !consoleBrowserSpecs.some(([spec]) => path === browserSpecPath(spec))) ||
+      (/^apps\/console\/ui\/playwright.*\.ts$/.test(path) && path !== 'apps/console/ui/playwright.offline.config.ts') ||
       path.startsWith('packages/ui-react/')
+  },
+  ...consoleBrowserSpecRules,
+  {
+    id: 'console-browser-offline',
+    proves:
+      'Console pages and sign-in screens work in Chromium with synthetic API and Cognito responses, without credentials or network.',
+    commands: ['pnpm test:console:browser:offline'],
+    matches: (path) =>
+      isOfflineBrowserPath(path) ||
+      path.startsWith('apps/console/ui/src/') ||
+      path.startsWith('packages/ui-react/') ||
+      /^apps\/console\/ui\/(e2e\/fixtures|playwright\.(offline\.)?config|vite\.config|scripts\/(browser-target|dev-api-url))\.ts$/.test(
+        path
+      )
   },
   {
     id: 'console-deployed-dev',

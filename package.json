@@ -50,7 +50,7 @@
     "test:aws": "pnpm qualify:projects -- --lanes=aws",
     "test:console:api": "pnpm --filter @stacktape/console-api-app test",
     "test:console:browser": "pnpm --filter @stacktape/console-ui test:e2e",
-    "test:console:browser:smoke": "pnpm --filter @stacktape/console-ui test:e2e:smoke",
+    "test:console:browser:offline": "pnpm --filter @stacktape/console-ui test:e2e:offline",
     "test:console:browser:dev-api": "pnpm --filter @stacktape/console-ui test:e2e:dev-api",
     "test:console:db": "pnpm --filter @stacktape/console-api-app test:db",
     "test:doctor": "node scripts/workspace/test-doctor.ts",
