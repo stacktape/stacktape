@@ -106,21 +106,75 @@ test('startup config and launcher changes require the local API even alongside a
 });
 
 test('browser scenario and configuration edits require executing the browser lane', () => {
-  for (const path of ['apps/console/ui/e2e/authenticated.spec.ts', 'apps/console/ui/playwright.config.ts']) {
+  for (const path of [
+    'apps/console/ui/e2e/authenticated.spec.ts',
+    'apps/console/ui/e2e/fixtures.ts',
+    'apps/console/ui/playwright.config.ts'
+  ]) {
     assert.ok(createTestPlan([path]).some(({ id }) => id === 'console-browser-dev-api'));
   }
 });
 
-test('isolated Console issue journeys select the disposable browser and database lane', () => {
+test('isolated Console journeys select the disposable browser and database lane', () => {
   for (const path of [
     'apps/console/ui/e2e/isolated-console.test.ts',
+    'apps/console/ui/e2e/isolated-deployment.test.ts',
+    'apps/console/ui/e2e/isolated-console-fixtures.ts',
     'apps/console/ui/src/pages/IssuesPage/IssueDetailPage.tsx',
     'apps/console/api/scripts/run-db-integration.ts'
   ]) {
     const ids = new Set(createTestPlan([path]).map(({ id }) => id));
-    assert.ok(ids.has('console-browser-isolated'));
-    if (path.endsWith('isolated-console.test.ts')) assert.ok(!ids.has('console-browser-dev-api'));
+    assert.ok(ids.has('console-browser-isolated'), path);
+    if (path.startsWith('apps/console/ui/e2e/')) assert.ok(!ids.has('console-browser-dev-api'), path);
   }
+});
+
+test('a changed signed-in or live spec selects the script that runs it', () => {
+  for (const [spec, command] of [
+    ['admin', 'pnpm --filter @stacktape/console-ui test:e2e:admin:dev-api'],
+    ['project-access', 'pnpm --filter @stacktape/console-ui test:e2e:project-access:dev-api'],
+    ['issues', 'pnpm --filter @stacktape/console-ui test:e2e:issues:dev-api'],
+    ['security', 'pnpm --filter @stacktape/console-ui test:e2e:security'],
+    ['runners', 'pnpm --filter @stacktape/console-ui test:e2e:runners'],
+    ['runners-live', 'pnpm --filter @stacktape/console-ui test:e2e:runners-live'],
+    ['git-provider-writes-live', 'pnpm --filter @stacktape/console-ui test:e2e:git-provider-writes-live'],
+    ['incident-assessment-live', 'pnpm --filter @stacktape/console-ui test:e2e:incident-assessment-live'],
+    ['incident-run-live', 'pnpm --filter @stacktape/console-ui test:e2e:incident-run-live']
+  ] as const) {
+    const lanes = createTestPlan([`apps/console/ui/e2e/${spec}.spec.ts`]);
+    assert.ok(
+      lanes.some(({ commands }) => commands.includes(command)),
+      `${spec} must select ${command}`
+    );
+    // The dev-api lane runs only the authenticated project, so it is not evidence for this spec.
+    assert.ok(!lanes.some(({ id }) => id === 'console-browser-dev-api'), spec);
+  }
+});
+
+test('offline browser specs and their fixtures select the offline lane, not a shared-dev lane', () => {
+  for (const path of [
+    'apps/console/ui/e2e/console-smoke.spec.ts',
+    'apps/console/ui/e2e/auth-pages.spec.ts',
+    'apps/console/ui/e2e/git-connections-ui.spec.ts',
+    'apps/console/ui/e2e/git-connections-fixture.tsx',
+    'apps/console/ui/e2e/region-select-ui.spec.ts',
+    'apps/console/ui/e2e/resolved-config-fixture.tsx',
+    'apps/console/ui/e2e/incident-investigate-ui.spec.ts',
+    'apps/console/ui/e2e/ui-review-controls.html',
+    'apps/console/ui/playwright.offline.config.ts'
+  ]) {
+    const ids = createTestPlan([path]).map(({ id }) => id);
+    assert.ok(ids.includes('console-browser-offline'), path);
+    assert.deepEqual(
+      ids.filter((id) => id.startsWith('console-browser-') && id !== 'console-browser-offline'),
+      [],
+      path
+    );
+  }
+  assert.ok(
+    createTestPlan(['apps/console/ui/src/App.tsx']).some(({ id }) => id === 'console-browser-offline'),
+    'UI source changes also render through the offline pages'
+  );
 });
 
 test('selects semantic synthesis and live AWS evidence for CloudFormation changes', () => {

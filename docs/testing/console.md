@@ -181,11 +181,12 @@ pnpm dev:console
 STP_CONSOLE_E2E_CREDENTIAL_SOURCE=ssm pnpm --filter @stacktape/console-ui test:e2e
 ```
 
-Use `pnpm test:console:browser:smoke` for the separate anonymous shell check. It is not a substitute for authenticated
-coverage. Both browser modes verify the running UI's API target before entering credentials; a local-API test cannot
-silently use the deployed dev API. The authenticated lane currently covers login and projects navigation, not complete
-feature acceptance. Missing credentials fail the lane instead of skipping it. Authenticated traces, screenshots, and
-videos are disabled to avoid storing credentials, tokens, or private account data.
+Use `pnpm test:console:browser:offline` for the anonymous screens and the pages that answer their own API requests. It
+needs no credentials or reservation and is not a substitute for authenticated coverage. The dev-API and local-API modes
+both verify the running UI's API target before entering credentials; a local-API test cannot silently use the deployed
+dev API. The authenticated lane currently covers login and projects navigation, not complete feature acceptance. Missing
+credentials fail the lane instead of skipping it. Authenticated traces, screenshots, and videos are disabled to avoid
+storing credentials, tokens, or private account data.
 
 Authenticated automation uses a dedicated email/password user in the dev Cognito pool. Invite it to the existing dev
 Stacktape organization with Developer access to the intended test projects. For interactive development, the owner's

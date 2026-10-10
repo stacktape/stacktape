@@ -51,9 +51,10 @@ implementation.
 ## Console
 
 The [isolated Console application](testing/e2e.md#isolated-console-application) runs the real UI, API and disposable
-PostgreSQL with no credentials; prefer it when it covers the change. Other API and UI journeys use `pnpm dev:console`;
-UI-only work can use `pnpm dev:console:ui` when deployed dev supports its unchanged contract. The source CLI defaults to
-deployed dev even when a local API is running; select
+PostgreSQL with no credentials; prefer it when it covers the change. Page behavior that synthetic API responses can
+drive runs in the [offline browser lane](testing/e2e.md#browser-tests). Other API and UI journeys use
+`pnpm dev:console`; UI-only work can use `pnpm dev:console:ui` when deployed dev supports its unchanged contract. The
+source CLI defaults to deployed dev even when a local API is running; select
 [the intended API explicitly](testing/console.md#prove-the-changed-revision).
 
 [Localhost login](testing/console.md#localhost-login) uses the existing dev test identities and the SSM-backed
