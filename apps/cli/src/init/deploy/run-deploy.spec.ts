@@ -1,4 +1,5 @@
-import { EventEmitter } from 'node:events';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { EventEmitter, once } from 'node:events';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { describe, expect, it } from 'bun:test';
@@ -30,6 +31,39 @@ const fakeChild = (stdout: string[], stderr: string[] = [], exitCode = 0) => {
   // uses and the order the parser depends on.
   setTimeout(() => child.emit('close', exitCode), 10);
   return child;
+};
+
+/** A real pending command, so timeout/cancel assertions observe process exit rather than a mock kill callback. */
+const withPendingChild = async (run: (child: ChildProcess) => Promise<void>) => {
+  const child = spawn(
+    process.execPath,
+    ['--no-env-file', '--eval', 'process.stdout.write("ready"); setInterval(() => {}, 1000);'],
+    {
+      env: { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, WINDIR: process.env.WINDIR },
+      stdio: ['ignore', 'pipe', 'pipe']
+    }
+  );
+  const closed = once(child, 'close');
+  let deadline: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await once(child.stdout!, 'data', { signal: AbortSignal.timeout(5_000) });
+    await run(child);
+    await Promise.race([
+      closed,
+      new Promise<never>((_resolve, reject) => {
+        deadline = setTimeout(() => reject(new Error('The pending command survived cancellation.')), 1_000);
+      })
+    ]);
+    expect(child.exitCode !== null || child.signalCode !== null).toBe(true);
+  } finally {
+    clearTimeout(deadline);
+    if (child.pid !== undefined && child.exitCode === null && child.signalCode === null) {
+      if (process.platform === 'win32')
+        spawnSync('taskkill.exe', ['/pid', String(child.pid), '/t', '/f'], { stdio: 'ignore' });
+      else child.kill('SIGKILL');
+    }
+    await closed;
+  }
 };
 
 describe('the deploy command line', () => {
@@ -208,22 +242,15 @@ describe('reading a deployed resource URL', () => {
   });
 
   it('stops a lookup that never finishes', async () => {
-    const child = new EventEmitter() as EventEmitter & { stdout: Readable; stderr: null };
-    child.stdout = new Readable({ read() {} });
-    child.stderr = null;
-    let terminated = false;
-
-    const url = await readResourceUrl({
-      request: { projectName: 'orders', stage: 'dev', region: 'eu-west-1', resourceName: 'api' },
-      spawnChild: (() => child) as never,
-      timeoutMs: 5,
-      terminate: () => {
-        terminated = true;
-      }
+    await withPendingChild(async (child) => {
+      expect(
+        await readResourceUrl({
+          request: { projectName: 'orders', stage: 'dev', region: 'eu-west-1', resourceName: 'api' },
+          spawnChild: (() => child) as typeof spawn,
+          timeoutMs: 10
+        })
+      ).toBeUndefined();
     });
-
-    expect(url).toBeUndefined();
-    expect(terminated).toBe(true);
   });
 });
 
@@ -331,22 +358,15 @@ describe('checking the deploy target with deploy credentials', () => {
       })
     ).toBeUndefined();
 
-    const child = new EventEmitter() as EventEmitter & { stdout: Readable; stderr: null };
-    child.stdout = new Readable({ read() {} });
-    child.stderr = null;
-    const controller = new AbortController();
-    let terminated = false;
-    const pending = inspectDeployTarget({
-      request,
-      spawnChild: (() => child) as never,
-      signal: controller.signal,
-      terminate: () => {
-        terminated = true;
-      }
+    await withPendingChild(async (child) => {
+      const controller = new AbortController();
+      const pending = inspectDeployTarget({
+        request,
+        spawnChild: (() => child) as typeof spawn,
+        signal: controller.signal
+      });
+      controller.abort();
+      expect(await pending).toBeUndefined();
     });
-    controller.abort();
-
-    expect(await pending).toBeUndefined();
-    expect(terminated).toBe(true);
   });
 });

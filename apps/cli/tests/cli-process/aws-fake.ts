@@ -1,19 +1,20 @@
 /**
- * A loopback AWS endpoint for CLI-process tests: STS identity, one CloudFormation stack whose state the test chooses,
- * and empty answers for the read-only lookups a stack operation makes. Every mutation (DeleteStack, UpdateStack, ...)
- * is recorded; anything unknown is refused with HTTP 501 and recorded, so the test can assert both what the CLI did
- * and that it did nothing else. S3 is not answered here: the deployment bucket lives in MiniStack, which the test
- * selects for the CLI through `AWS_ENDPOINT_URL_S3`, so an S3 request arriving here is an unexpected request.
+ * A CloudFormation wire observer for source-CLI scenarios. Healthy requests are forwarded to MiniStack unchanged.
+ * The only synthetic state machine injects DELETE_FAILED / UPDATE_ROLLBACK_FAILED and a refused recovery, which the
+ * emulator cannot produce reliably. Identity, artifacts and operation logs always use the real MiniStack services.
+ * Unknown requests fail closed, so an injected scenario cannot silently gain another AWS stand-in.
  */
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, Server } from 'node:http';
 import { createServer } from 'node:http';
-import { FAKE_AWS_ACCOUNT_ID } from './control-plane-fake';
+import { MINISTACK_DEFAULT_ACCOUNT_ID } from '@stacktape/ministack/fixture';
 
 export type FakeStackState = {
   stackName: string;
   status: string;
+  terminationProtection?: boolean;
+  rollbackFailure?: boolean;
   template: CloudFormationTemplate;
   /** Resolved output values as CloudFormation would report them. */
   outputs: Record<string, string>;
@@ -29,11 +30,27 @@ export type AwsFake = {
   stack: FakeStackState | undefined;
   /** CloudFormation actions that change state, in order, with their parameters. */
   mutations: { action: string; parameters: Record<string, string> }[];
-  changeSets: { name: string; parameters: Record<string, string> }[];
-  actions: string[];
+  bucketsBeforeDelete: Array<{ deployment: string[]; customer: string[] }>;
   unexpectedRequests: string[];
   close: () => Promise<void>;
 };
+
+// Only these read operations belong to the command scenarios. Everything else must be an explicitly observed
+// mutation or is refused before forwarding, including registry reads not needed by these stacks.
+const reads = new Set(['DescribeStacks', 'ListStackResources', 'GetTemplate', 'DescribeStackEvents']);
+const writes = new Set([
+  'CreateStack',
+  'UpdateStack',
+  'DeleteStack',
+  'CreateChangeSet',
+  'ExecuteChangeSet',
+  'DeleteChangeSet',
+  'UpdateTerminationProtection',
+  'SetStackPolicy',
+  'CancelUpdateStack',
+  'RollbackStack',
+  'ContinueUpdateRollback'
+]);
 
 const escapeXml = (value: string) =>
   value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -67,7 +84,7 @@ const wrapResult = (action: string, inner: string) => `<?xml version="1.0" encod
 </${action}Response>`;
 
 const stackId = (region: string, stackName: string) =>
-  `arn:aws:cloudformation:${region}:${FAKE_AWS_ACCOUNT_ID}:stack/${stackName}/${'11111111-2222-3333-4444-555555555555'}`;
+  `arn:aws:cloudformation:${region}:${MINISTACK_DEFAULT_ACCOUNT_ID}:stack/${stackName}/${'11111111-2222-3333-4444-555555555555'}`;
 
 const describeStacksXml = (region: string, stack: FakeStackState) => {
   const outputs = Object.entries(stack.outputs)
@@ -85,7 +102,7 @@ const describeStacksXml = (region: string, stack: FakeStackState) => {
       <CreationTime>2026-10-01T10:00:00.000Z</CreationTime>
       <LastUpdatedTime>2026-10-02T10:00:00.000Z</LastUpdatedTime>
       <DisableRollback>false</DisableRollback>
-      <EnableTerminationProtection>false</EnableTerminationProtection>
+      <EnableTerminationProtection>${Boolean(stack.terminationProtection)}</EnableTerminationProtection>
       <Outputs>${outputs}</Outputs>
       <Tags><member><Key>stacktape:managed</Key><Value>true</Value></member></Tags>
     </member></Stacks>`
@@ -122,19 +139,19 @@ const stackEventsXml = (region: string, stack: FakeStackState) =>
 export const startAwsFake = async ({
   region = 'eu-west-1',
   stack,
-  readTemplate
+  forwardEndpoint,
+  beforeDelete
 }: {
   region?: string;
+  /** Healthy stacks use MiniStack; this endpoint only observes the wire requests. */
+  forwardEndpoint?: string;
   stack?: FakeStackState;
-  /** Reads the template the CLI uploaded under a `TemplateURL`, the way CloudFormation fetches it from S3. */
-  readTemplate: (templateUrl: string) => Promise<string | undefined>;
+  beforeDelete: () => Promise<{ deployment: string[]; customer: string[] }>;
 }): Promise<AwsFake> => {
   const state: { stack: FakeStackState | undefined } = { stack };
   const mutations: AwsFake['mutations'] = [];
-  const actions: string[] = [];
+  const bucketsBeforeDelete: AwsFake['bucketsBeforeDelete'] = [];
   const unexpectedRequests: string[] = [];
-  const logGroups = new Set<string>();
-  const changeSets: AwsFake['changeSets'] = [];
   let deleteObserved = 0;
   let updateObserved = 0;
 
@@ -148,27 +165,35 @@ export const startAwsFake = async ({
       form.get('Action') ??
       (Array.isArray(target) ? target[0] : target)?.split('.').at(-1) ??
       (url.searchParams.has('list-type') ? 'S3ListObjects' : `${request.method} ${url.pathname}`);
-    actions.push(action);
+    if (action === 'DeleteStack') bucketsBeforeDelete.push(await beforeDelete());
     const parameters = Object.fromEntries(form.entries());
     const xml = (status: number, document: string) => {
       response.writeHead(status, { 'content-type': 'text/xml; charset=utf-8' });
       response.end(document);
     };
-    const json = (status: number, value: unknown) => {
-      response.writeHead(status, { 'content-type': 'application/x-amz-json-1.1' });
-      response.end(JSON.stringify(value));
-    };
-
+    if (writes.has(action)) mutations.push({ action, parameters });
+    if (!reads.has(action) && !writes.has(action)) {
+      const requestName = `${request.method} ${url.pathname}${url.search} (${action})`;
+      unexpectedRequests.push(requestName);
+      return xml(501, cloudFormationError('CLI_PROCESS_FAKE_REFUSED', `The observer refuses ${requestName}.`));
+    }
+    if (forwardEndpoint) {
+      const forwarded = await fetch(`${forwardEndpoint}${request.url ?? '/'}`, {
+        method: request.method,
+        headers: {
+          'content-type': String(request.headers['content-type'] ?? ''),
+          authorization: String(request.headers.authorization ?? '')
+        },
+        ...(request.method !== 'GET' && request.method !== 'HEAD' ? { body } : {})
+      });
+      const document = await forwarded.text();
+      const status = /<StackStatus>([^<]+)<\/StackStatus>/.exec(document)?.[1];
+      if (state.stack && status) state.stack.status = status;
+      response.writeHead(forwarded.status, { 'content-type': forwarded.headers.get('content-type') ?? 'text/xml' });
+      response.end(document);
+      return;
+    }
     switch (action) {
-      case 'GetCallerIdentity':
-        return xml(
-          200,
-          `<?xml version="1.0" encoding="UTF-8"?>
-<GetCallerIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
-  <GetCallerIdentityResult><Arn>arn:aws:iam::${FAKE_AWS_ACCOUNT_ID}:user/cli-process</Arn><UserId>cli-process</UserId><Account>${FAKE_AWS_ACCOUNT_ID}</Account></GetCallerIdentityResult>
-  <ResponseMetadata><RequestId>${randomUUID()}</RequestId></ResponseMetadata>
-</GetCallerIdentityResponse>`
-        );
       case 'DescribeStacks': {
         const current = state.stack;
         if (!current) {
@@ -188,6 +213,10 @@ export const startAwsFake = async ({
           if (updateObserved >= 2) {
             current.status = 'UPDATE_COMPLETE';
           }
+        }
+        if (current.status === 'UPDATE_ROLLBACK_IN_PROGRESS') {
+          updateObserved += 1;
+          if (updateObserved >= 2) current.status = 'UPDATE_ROLLBACK_COMPLETE';
         }
         return xml(200, describeStacksXml(region, current));
       }
@@ -210,120 +239,24 @@ export const startAwsFake = async ({
           ? xml(200, stackEventsXml(region, state.stack))
           : xml(400, cloudFormationError('ValidationError', `Stack with id ${form.get('StackName')} does not exist`));
       case 'DeleteStack':
-        mutations.push({ action, parameters });
         if (state.stack) {
           state.stack.status = 'DELETE_IN_PROGRESS';
         }
         return xml(200, wrapResult('DeleteStack', ''));
-      case 'UpdateStack': {
-        mutations.push({ action, parameters });
-        if (!state.stack) {
-          return xml(
-            400,
-            cloudFormationError('ValidationError', `Stack with id ${form.get('StackName')} does not exist`)
-          );
-        }
-        // The new template is what the CLI uploaded under the URL it passed; its outputs become the stack's.
-        const uploaded = await readTemplate(form.get('TemplateURL') ?? '');
-        if (uploaded !== undefined) {
-          const parsed = uploaded.trimStart().startsWith('{')
-            ? (JSON.parse(uploaded) as CloudFormationTemplate)
-            : undefined;
-          if (parsed) {
-            state.stack.template = parsed;
-            state.stack.outputs = { ...state.stack.outputs, ...outputsFromTemplate(parsed) };
-          } else {
-            const version = uploaded.match(/StpDeploymentVersion:\s*\n\s*Value:\s*(v\d+)/)?.[1];
-            if (version) state.stack.outputs.StpDeploymentVersion = version;
-          }
-        }
-        state.stack.status = 'UPDATE_IN_PROGRESS';
-        updateObserved = 0;
-        return xml(200, wrapResult('UpdateStack', `<StackId>${stackId(region, state.stack.stackName)}</StackId>`));
-      }
-      case 'ValidateTemplate':
-        return xml(
-          200,
-          wrapResult(
-            'ValidateTemplate',
-            '<Capabilities><member>CAPABILITY_IAM</member><member>CAPABILITY_NAMED_IAM</member><member>CAPABILITY_AUTO_EXPAND</member></Capabilities><Parameters/>'
-          )
-        );
-      case 'CreateChangeSet': {
-        const name = form.get('ChangeSetName') ?? 'change-set';
-        changeSets.push({ name, parameters });
-        return xml(
-          200,
-          wrapResult(
-            'CreateChangeSet',
-            `<Id>arn:aws:cloudformation:${region}:${FAKE_AWS_ACCOUNT_ID}:changeSet/${name}/00000000-0000-0000-0000-000000000000</Id><StackId>${stackId(region, state.stack?.stackName ?? 'unknown')}</StackId>`
-          )
-        );
-      }
-      case 'DescribeChangeSet':
-        return xml(
-          200,
-          wrapResult(
-            'DescribeChangeSet',
-            `<ChangeSetName>${form.get('ChangeSetName') ?? ''}</ChangeSetName><Status>CREATE_COMPLETE</Status><ExecutionStatus>AVAILABLE</ExecutionStatus><Changes><member><Type>Resource</Type><ResourceChange><Action>Modify</Action><LogicalResourceId>ApiFunction</LogicalResourceId><ResourceType>AWS::Lambda::Function</ResourceType><Replacement>False</Replacement><Scope><member>Properties</member></Scope><Details/></ResourceChange></member></Changes>`
-          )
-        );
-      case 'DeleteChangeSet':
-        return xml(200, wrapResult('DeleteChangeSet', ''));
-      case 'CreateStack':
       case 'RollbackStack':
       case 'ContinueUpdateRollback':
+        if (!state.stack || state.stack.rollbackFailure) {
+          return xml(400, cloudFormationError('ValidationError', 'Injected rollback refusal.'));
+        }
+        state.stack.status = 'UPDATE_ROLLBACK_IN_PROGRESS';
+        updateObserved = 0;
+        return xml(200, wrapResult(action, ''));
+      case 'UpdateStack':
+      case 'CreateStack':
       case 'CancelUpdateStack':
-        mutations.push({ action, parameters });
         return xml(400, cloudFormationError('ValidationError', `The CLI-process fake does not execute ${action}.`));
-      case 'GetTagKeys':
-        return json(200, { TagKeys: [] });
-      // The operation recorder writes the CLI's own log to CloudWatch Logs; accepted, not a stack mutation.
-      case 'DescribeLogGroups': {
-        const prefix = (JSON.parse(body || '{}') as { logGroupNamePrefix?: string }).logGroupNamePrefix ?? '';
-        return json(200, {
-          logGroups: [...logGroups]
-            .filter((name) => name.startsWith(prefix))
-            .map((name) => ({
-              logGroupName: name,
-              arn: `arn:aws:logs:${region}:${FAKE_AWS_ACCOUNT_ID}:log-group:${name}:*`
-            }))
-        });
-      }
-      case 'CreateLogGroup':
-        logGroups.add(String((JSON.parse(body || '{}') as { logGroupName?: string }).logGroupName ?? ''));
-        return json(200, {});
-      case 'CreateLogStream':
-      case 'PutRetentionPolicy':
-        return json(200, {});
-      case 'PutLogEvents':
-        return json(200, { nextSequenceToken: '1' });
-      case 'DeleteLogGroup':
-        mutations.push({
-          action,
-          parameters: {
-            logGroupName: String((JSON.parse(body || '{}') as { logGroupName?: string }).logGroupName ?? '')
-          }
-        });
-        return json(200, {});
-      case 'GetTags':
-        return json(200, { Tags: [] });
-      // The deployment registry is empty; deleting artifacts lists and removes nothing.
-      case 'ListImages':
-        return json(200, { imageIds: [] });
-      case 'DescribeRepositories':
-        return json(200, { repositories: [] });
-      case 'BatchDeleteImage':
-        mutations.push({ action, parameters: {} });
-        return json(200, { imageIds: [], failures: [] });
-      case 'DescribeBudgets':
-        return json(200, { Budgets: [] });
       default:
         break;
-    }
-    // Lambda function tags are read while the stack's deployed workloads are inventoried.
-    if (request.method === 'GET' && url.pathname.startsWith('/2017-03-31/tags/')) {
-      return json(200, { Tags: {} });
     }
     const requestName = `${request.method} ${url.pathname}${url.search} (${action})`;
     unexpectedRequests.push(requestName);
@@ -343,8 +276,7 @@ export const startAwsFake = async ({
       return state.stack;
     },
     mutations,
-    changeSets,
-    actions,
+    bucketsBeforeDelete,
     unexpectedRequests,
     close: () =>
       new Promise<void>((resolve, reject) => {

@@ -74,6 +74,7 @@ const injectedAgent = (serviceName: string) => ({
     { tool: 'read_file', arguments: { path: 'src/settings.json' } },
     { tool: 'read_file', arguments: { path: 'src/linked' } },
     { tool: 'read_file', arguments: { path: '.env' } },
+    { tool: 'read_file', arguments: { path: 'src/public-settings.txt' } },
     { tool: 'read_file', arguments: { path: '.aws/credentials' } },
     { tool: 'read_file', arguments: { path: '.npmrc' } },
     { tool: 'grep', arguments: { pattern: 'sk_live|password|aws_secret|_authToken|canary', ignoreCase: true } },
@@ -137,6 +138,7 @@ describe('init and what it may touch', () => {
       await symlink(join(sandbox.root, 'outside', 'credentials.txt'), join(sandbox.project, 'src', 'settings.json'));
       await symlink(join(sandbox.root, 'outside'), join(sandbox.project, 'src', 'linked'));
       await symlink(join(sandbox.root, 'outside', 'Procfile'), join(sandbox.project, 'Procfile'));
+      await symlink(join(sandbox.project, '.env'), join(sandbox.project, 'src', 'public-settings.txt'));
       const flyBefore = await readFile(join(sandbox.project, 'fly.toml'), 'utf8');
 
       const init = await runSourceInit({
@@ -151,7 +153,7 @@ describe('init and what it may touch', () => {
       const results = init.agentLog.filter(
         (entry): entry is Extract<AgentLogEntry, { type: 'tool-result' }> => entry.type === 'tool-result'
       );
-      expect(results.length, init.output).toBe(12);
+      expect(results.length, init.output).toBe(13);
       const configText = await readFile(join(sandbox.project, 'stacktape.yml'), 'utf8');
       for (const [name, canary] of Object.entries(CANARIES)) {
         expect(seenByAgent.includes(canary), `${name} reached the agent`).toBe(false);
@@ -169,12 +171,20 @@ describe('init and what it may touch', () => {
       expect(resultOf('.npmrc')).toMatchObject({ reason: 'blocked-by-policy' });
       // Names are the whole signal an environment file gives.
       expect(resultOf('.env')).toMatchObject({ environmentVariableNames: ['DATABASE_URL', 'PAYMENTS_KEY'] });
+      expect(resultOf('src/public-settings.txt')).toMatchObject({
+        environmentVariableNames: ['DATABASE_URL', 'PAYMENTS_KEY']
+      });
+      // Unknown provenance is stripped, but this is an accepted claim, so preserving existing infrastructure
+      // exercises merge and composition rather than merely rejecting the agent's whole response.
+      const submissions = results.filter((entry) => entry.tool === 'submit_facts');
+      expect(submissions.map((entry) => (entry.result as { accepted: boolean }).accepted)).toEqual([true]);
 
       // The database already holds production data elsewhere: it is kept and addressed through a secret,
       // whatever the agent said, and the user is told what to set.
       expect(configText).not.toContain('relational-database');
       expect(configText).toMatch(/name: DATABASE_URL\n\s+value: \$Secret\('database_url'\)/);
       expect(init.output).toContain('external-database-disposition: point-at-existing');
+      expect(init.output).toContain('Run without --headless to change any of them in the browser.');
       expect(init.output).toContain('DATABASE_URL points at the database you already have');
       // The running Fly app is neither touched nor silently treated as replaced.
       expect(await readFile(join(sandbox.project, 'fly.toml'), 'utf8')).toBe(flyBefore);

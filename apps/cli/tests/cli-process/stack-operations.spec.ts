@@ -1,12 +1,8 @@
 /**
- * Diff, rollback and delete choose the right operation (J2.6), through the CLI process.
- *
- * The source CLI (`scripts/dev.ts`) runs as a child process against a loopback control plane, a loopback
- * CloudFormation/STS fake that holds one stack in a chosen state (states such as a failed rollback cannot be produced
- * on demand otherwise), and MiniStack for the deployment bucket, so what the CLI uploads and reads is real S3 state.
- * The tests observe the process exit code and machine-readable output, and what the CLI asked AWS to do: an absent or
- * failed stack must stop the command before any mutation, a destructive command in a non-interactive shell must demand
- * explicit confirmation, and a confirmed delete must delete the stack exactly once and wait for completion.
+ * Source-CLI command safety and recovery. Healthy CloudFormation, STS, S3 and Logs requests use MiniStack;
+ * the CloudFormation wire observer injects only chosen failed states and a rejected recovery. Each command runs
+ * with an isolated HOME, synthetic credentials and the network guard, and artifacts are observed through real S3.
+ * Successful deploy/diff/version rollback/delete effects are covered by the offline deploy loop.
  */
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 import { afterAll, afterEach, beforeAll, describe, expect, test as bunTest } from 'bun:test';
@@ -19,6 +15,14 @@ import {
   PutObjectCommand,
   S3Client
 } from '@aws-sdk/client-s3';
+import {
+  CloudFormationClient,
+  CreateStackCommand,
+  DeleteStackCommand,
+  DescribeStacksCommand,
+  UpdateTerminationProtectionCommand
+} from '@aws-sdk/client-cloudformation';
+import { CreateRepositoryCommand, ECRClient } from '@aws-sdk/client-ecr';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { getGloballyUniqueStackHash } from '@stacktape/naming/stack-identity';
 import { startMiniStack, type MiniStack, type MiniStackAccount } from '@stacktape/ministack/fixture';
@@ -31,7 +35,7 @@ import { join, resolve } from 'node:path';
 import { stringifyToYaml } from '@utils/yaml';
 import { getCfTemplateS3Key } from '../../src/domain/deployment-artifact-manager/artifact-names';
 import { startAwsFake, outputsFromTemplate, type AwsFake, type FakeStackState } from './aws-fake';
-import { FAKE_AWS_ACCOUNT_ID, startControlPlaneFake, type ControlPlaneFake } from './control-plane-fake';
+import { startControlPlaneFake, type ControlPlaneFake } from './control-plane-fake';
 
 const cliRoot = resolve(import.meta.dir, '..', '..');
 const projectDir = join(import.meta.dir, 'fixtures', 'project');
@@ -52,15 +56,31 @@ type CliRun = {
 
 const resources: { close: () => Promise<void> }[] = [];
 const temporaryDirectories: string[] = [];
+const observers: AwsFake[] = [];
 afterEach(async () => {
-  await Promise.all(resources.splice(0).map((resource) => resource.close()));
+  const unexpected = observers.splice(0).flatMap((observer) => observer.unexpectedRequests);
+  for (const resource of resources.splice(0).reverse()) await resource.close();
   await Promise.all(temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
+  expect(unexpected).toEqual([]);
 });
 
-/** One emulator for the file; each scenario gets its own account namespace and deployment bucket in it. */
+/** One emulator for the file; scenarios clean their seeded stack and buckets between runs. */
 let ministack: MiniStack;
 beforeAll(async () => {
   ministack = await startMiniStack({ label: 'cli-process' });
+  // A real deployed stack owns this repository even when it has no container images.
+  const ecr = new ECRClient(ministack.clientConfig());
+  try {
+    await ecr.send(
+      new CreateRepositoryCommand({
+        repositoryName: awsResourceNames.deploymentEcrRepo(
+          getGloballyUniqueStackHash({ region, stackName, accountId: ministack.defaultAccount.accountId })
+        )
+      })
+    );
+  } finally {
+    ecr.destroy();
+  }
 }, 120_000);
 afterAll(async () => {
   await ministack?.stop();
@@ -68,7 +88,7 @@ afterAll(async () => {
 
 /** The bucket the CLI derives for this stack, as Stacktape names it from region, stack name and account. */
 const deploymentBucketName = awsResourceNames.deploymentBucket(
-  getGloballyUniqueStackHash({ region, stackName, accountId: FAKE_AWS_ACCOUNT_ID })
+  getGloballyUniqueStackHash({ region, stackName, accountId: '000000000000' })
 );
 /** The customer's bucket in the deployed template, which a delete must empty before the stack can go. */
 const filesBucketName = `${stackName}-filesbucket`;
@@ -84,10 +104,10 @@ type StackBuckets = {
 };
 
 /** The stack's buckets in MiniStack, the deployment bucket seeded with the objects a deployed stack left there. */
-const createStackBuckets = async (objects: Record<string, string>): Promise<StackBuckets> => {
-  const account = ministack.account();
+const createStackBuckets = async (objects: Record<string, string>, create = true): Promise<StackBuckets> => {
+  const account = ministack.defaultAccount;
   const client = new S3Client(ministack.clientConfig(account));
-  for (const Bucket of Object.values(bucketPhysicalIds)) {
+  for (const Bucket of create ? Object.values(bucketPhysicalIds) : []) {
     await client.send(new CreateBucketCommand({ Bucket, CreateBucketConfiguration: { LocationConstraint: region } }));
   }
   for (const [key, body] of Object.entries(objects)) {
@@ -111,7 +131,7 @@ const createStackBuckets = async (objects: Record<string, string>): Promise<Stac
       );
     },
     close: async () => {
-      // Bucket names are global in the emulator as in AWS; the next scenario needs these names again.
+      // The next scenario needs these names again in the same fixture account.
       for (const Bucket of Object.values(bucketPhysicalIds)) {
         const remaining = await keys(Bucket).catch(() => []);
         if (remaining.length > 0) {
@@ -182,14 +202,15 @@ const cliEnvironment = ({
   NO_COLOR: '1',
   // The scenario's emulator account: the same key the test's own S3 client uses, so both see one bucket.
   ...ministack.childEnvironment(bucket.account, { region }),
-  // Everything but S3 goes to the CloudFormation/STS fake; the fake refuses S3, so misrouting shows up.
-  AWS_ENDPOINT_URL: aws.endpoint,
-  AWS_ENDPOINT_URL_STS: aws.endpoint,
+  // Only CloudFormation uses the wire observer; every other service uses MiniStack.
+  AWS_ENDPOINT_URL: ministack.endpoint,
+  AWS_ENDPOINT_URL_CLOUDFORMATION: aws.endpoint,
   AWS_ENDPOINT_URL_S3: ministack.endpoint,
   STACKTAPE_API_KEY: 'cli-process-fake-do-not-use',
   STP_CUSTOM_TRPC_API_ENDPOINT: controlPlane.endpoint,
   SKIP_LOADING_ENV: '1',
-  STP_DISABLE_TELEMETRY: '1'
+  STP_DISABLE_TELEMETRY: '1',
+  STP_SKIP_COST_DISCOVERY: '1'
 });
 
 /**
@@ -268,20 +289,54 @@ const runCliInTerminal = async ({
 };
 
 const startFakes = async (stack?: FakeStackState, objects: Record<string, string> = {}) => {
-  const controlPlane = await startControlPlaneFake({ projectName });
+  const controlPlane = await startControlPlaneFake({ projectName, awsAccountId: ministack.defaultAccount.accountId });
   resources.push(controlPlane);
-  const bucket = await createStackBuckets(objects);
+  const healthy = stack?.status === 'UPDATE_COMPLETE';
+  if (healthy) {
+    // Only the prerequisites are seeded. The command under test uses the real CloudFormation service.
+    const client = new CloudFormationClient(ministack.clientConfig());
+    resources.push({
+      close: async () => {
+        await client
+          .send(new UpdateTerminationProtectionCommand({ StackName: stackName, EnableTerminationProtection: false }))
+          .catch(() => undefined);
+        await client.send(new DeleteStackCommand({ StackName: stackName })).catch(() => undefined);
+        client.destroy();
+      }
+    });
+    await client.send(
+      new CreateStackCommand({
+        StackName: stackName,
+        TemplateBody: JSON.stringify({
+          Resources: {
+            StpDeploymentBucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: deploymentBucketName } },
+            FilesBucket: { Type: 'AWS::S3::Bucket', Properties: { BucketName: filesBucketName } }
+          },
+          Outputs: Object.fromEntries(Object.entries(stack.outputs).map(([key, value]) => [key, { Value: value }]))
+        })
+      })
+    );
+    for (const deadline = Date.now() + 20_000; ;) {
+      const status = (await client.send(new DescribeStacksCommand({ StackName: stackName }))).Stacks?.[0]?.StackStatus;
+      if (status === 'CREATE_COMPLETE') break;
+      if (Date.now() >= deadline) throw new Error(`Seed stack failed to complete: ${status}`);
+      await Bun.sleep(100);
+    }
+    if (stack.terminationProtection)
+      await client.send(
+        new UpdateTerminationProtectionCommand({ StackName: stackName, EnableTerminationProtection: true })
+      );
+  }
+  const bucket = await createStackBuckets(objects, !healthy);
   resources.push(bucket);
   const aws = await startAwsFake({
+    ...(healthy || !stack ? { forwardEndpoint: ministack.endpoint } : {}),
     region,
     stack,
-    // CloudFormation reads the uploaded template from the URL the CLI passed; here that URL is the emulator's bucket.
-    readTemplate: async (templateUrl) => {
-      if (!templateUrl.startsWith(`${ministack.endpoint}/${deploymentBucketName}/`)) return undefined;
-      return bucket.object(new URL(templateUrl).pathname.replace(`/${deploymentBucketName}/`, ''));
-    }
+    beforeDelete: async () => ({ deployment: await bucket.keys(), customer: await bucket.keys(filesBucketName) })
   });
   resources.push(aws);
+  observers.push(aws);
   return { controlPlane, aws, bucket };
 };
 
@@ -381,29 +436,23 @@ describe('delete', () => {
     expect(run.result?.code).toContain('CONFIRMATION_REQUIRED');
     expect(JSON.stringify(run.result)).toContain('autoConfirmOperation');
     expect(aws.mutations).toEqual([]);
-    expect(aws.stack?.status).toBe('UPDATE_COMPLETE');
+    expect(aws.stack?.status).toBe('CREATE_COMPLETE');
   });
 
-  test('a confirmed delete empties the stack\u2019s buckets, deletes the stack once, waits for completion and records the operation', async () => {
-    const { controlPlane, aws, bucket } = await startFakes(await deployedStack('UPDATE_COMPLETE'));
-    await bucket.put(filesBucketName, 'uploads/customer-file.txt', 'kept until the stack goes');
+  test('confirmed deletion empties customer and deployment buckets before CloudFormation removes them', async () => {
+    const { controlPlane, aws, bucket } = await startFakes(await deployedStack('UPDATE_COMPLETE'), {
+      [getCfTemplateS3Key('v000002')]: 'template'
+    });
+    await bucket.put(filesBucketName, 'uploads/customer-file.txt', 'customer-data');
     const run = await runCli({ args: ['delete', '--autoConfirmOperation'], controlPlane, aws, bucket });
-
     expect(printable(run)).toBe('');
     expect(run.exitCode).toBe(0);
-    // CloudFormation cannot delete a bucket with objects; the CLI empties the stack's buckets first.
-    expect(await bucket.keys(filesBucketName)).toEqual([]);
-    const deleteCalls = aws.mutations.filter(({ action }) => action === 'DeleteStack');
-    expect(deleteCalls).toHaveLength(1);
-    expect(deleteCalls[0].parameters.StackName).toBe(stackName);
-    expect(aws.stack?.status).toBe('DELETE_COMPLETE');
-    // The CLI waited for the deletion: it described the stack again after asking for the delete.
-    const deleteIndex = aws.actions.indexOf('DeleteStack');
-    expect(aws.actions.slice(deleteIndex + 1)).toContain('DescribeStacks');
-    expect(aws.mutations.filter(({ action }) => /^(UpdateStack|CreateStack|CreateChangeSet)$/.test(action))).toEqual(
-      []
-    );
+    // Observe real S3 state before the emulator's CloudFormation provider removes the buckets.
+    expect(aws.bucketsBeforeDelete).toEqual([{ deployment: [], customer: [] }]);
+    expect(aws.mutations.map(({ action }) => action)).toEqual(['DeleteStack']);
+    expect(aws.mutations[0].parameters.StackName).toBe(stackName);
     expect(aws.unexpectedRequests).toEqual([]);
+    expect(aws.stack?.status).toBe('DELETE_COMPLETE');
     const recorded = controlPlane.calls.filter(({ procedure }) => procedure === 'recordStackOperation');
     expect(recorded.length).toBeGreaterThanOrEqual(2);
     expect(controlPlane.unexpectedProcedures).toEqual([]);
@@ -424,8 +473,38 @@ describe('delete', () => {
     // The CLI ends a cancelled operation by signalling its own process tree, so the parent observes SIGTERM (143)
     // rather than status 0 in this source-run wrapper.
     expect([0, 143]).toContain(run.exitCode);
-    expect(aws.mutations.filter(({ action }) => action === 'DeleteStack')).toEqual([]);
-    expect(aws.stack?.status).toBe('UPDATE_COMPLETE');
+    expect(aws.mutations).toEqual([]);
+    expect(aws.stack?.status).toBe('CREATE_COMPLETE');
+  });
+
+  test('Ctrl+C at the delete confirmation leaves the stack and deployment artifacts untouched', async () => {
+    const { controlPlane, aws, bucket } = await startFakes(await deployedStack('UPDATE_COMPLETE'), {
+      [getCfTemplateS3Key('v000002')]: 'keep'
+    });
+    const run = await runCliInTerminal({
+      args: ['delete'],
+      controlPlane,
+      aws,
+      bucket,
+      promptText: `Delete stack ${stackName} and all of its resources?`,
+      answer: '\x03'
+    });
+    expect([0, 130, 143]).toContain(run.exitCode);
+    expect(aws.mutations).toEqual([]);
+    expect(aws.stack?.status).toBe('CREATE_COMPLETE');
+    expect(await bucket.object(getCfTemplateS3Key('v000002'))).toBe('keep');
+  });
+
+  test('termination protection retains deployment artifacts and refuses deletion', async () => {
+    const { controlPlane, aws, bucket } = await startFakes(
+      { ...(await deployedStack('UPDATE_COMPLETE')), terminationProtection: true },
+      { [getCfTemplateS3Key('v000002')]: 'keep' }
+    );
+    const run = await runCli({ args: ['delete', '--autoConfirmOperation'], controlPlane, aws, bucket });
+    expect(run.exitCode).not.toBe(0);
+    expect(printable(run)).toMatch(/termination protection/i);
+    expect(aws.mutations).toEqual([]);
+    expect(await bucket.object(getCfTemplateS3Key('v000002'))).toBe('keep');
   });
 
   test('a stack whose previous delete failed can be deleted again', async () => {
@@ -450,39 +529,18 @@ describe('rollback', () => {
     expect(aws.mutations).toEqual([]);
   });
 
-  test("rolling back to the previous version redeploys that version's template and waits for completion", async () => {
-    const history = await deployedStackWithHistory();
-    const { controlPlane, aws, bucket } = await startFakes(history.stack, history.objects);
-    const run = await runCli({ args: ['rollback', '--targetVersion', 'v000001'], controlPlane, aws, bucket });
-
-    expect(printable(run)).toBe('');
-    expect(run.exitCode).toBe(0);
-    const updates = aws.mutations.filter(({ action }) => action === 'UpdateStack');
-    expect(updates).toHaveLength(1);
-    expect(updates[0].parameters.StackName).toBe(stackName);
-    // The rollback uploads the v000001 template as the new version v000003 and deploys exactly that.
-    const uploadedTemplateKey = getCfTemplateS3Key('v000003');
-    expect(await bucket.keys()).toContain(uploadedTemplateKey);
-    expect(updates[0].parameters.TemplateURL).toBe(
-      `${ministack.endpoint}/${deploymentBucketName}/${uploadedTemplateKey}`
-    );
-    const uploaded = await bucket.object(uploadedTemplateKey);
-    expect(uploaded).toContain('MemorySize: 256');
-    expect(uploaded).toContain('v000003');
-    expect(aws.stack?.status).toBe('UPDATE_COMPLETE');
-    expect(aws.stack?.outputs.StpDeploymentVersion).toBe('v000003');
-    expect(aws.unexpectedRequests).toEqual([]);
-  });
-
   test('a rollback whose target template is missing from the deployment bucket stops before any update', async () => {
     const history = await deployedStackWithHistory();
-    const { controlPlane, aws, bucket } = await startFakes(history.stack, history.objects);
+    const { controlPlane, aws, bucket } = await startFakes(
+      { ...history.stack, status: 'UPDATE_ROLLBACK_COMPLETE' },
+      history.objects
+    );
     await bucket.remove(getCfTemplateS3Key('v000001'));
     const run = await runCli({ args: ['rollback', '--targetVersion', 'v000001'], controlPlane, aws, bucket });
 
     expect(run.exitCode).not.toBe(0);
     expect(printable(run)).toMatch(/v000001/);
-    expect(aws.mutations.filter(({ action }) => action === 'UpdateStack')).toEqual([]);
+    expect(aws.mutations).toEqual([]);
     expect(await bucket.keys()).toEqual([getCfTemplateS3Key('v000002')]);
   });
 
@@ -497,25 +555,6 @@ describe('rollback', () => {
 });
 
 describe('diff', () => {
-  test('a deployed stack gets a change set from the uploaded template and nothing is executed', async () => {
-    const history = await deployedStackWithHistory();
-    const { controlPlane, aws, bucket } = await startFakes(history.stack, history.objects);
-    const run = await runCli({ args: ['diff'], controlPlane, aws, bucket });
-
-    expect(printable(run)).toBe('');
-    expect(run.exitCode).toBe(0);
-    expect(aws.changeSets).toHaveLength(1);
-    const uploadedTemplateKey = getCfTemplateS3Key('v000003');
-    expect(aws.changeSets[0].parameters.StackName).toBe(stackName);
-    expect(aws.changeSets[0].parameters.TemplateURL).toContain(uploadedTemplateKey);
-    expect(await bucket.keys()).toContain(uploadedTemplateKey);
-    expect(aws.mutations.filter(({ action }) => /^(UpdateStack|DeleteStack|ExecuteChangeSet)$/.test(action))).toEqual(
-      []
-    );
-    expect(aws.stack?.status).toBe('UPDATE_COMPLETE');
-    expect(JSON.stringify(run.result)).toContain('ApiFunction');
-  });
-
   test('an absent stack is reported as not deployed before anything is uploaded', async () => {
     const { controlPlane, aws, bucket } = await startFakes(undefined);
     const run = await runCli({ args: ['diff'], controlPlane, aws, bucket });
@@ -525,4 +564,53 @@ describe('diff', () => {
     expect(aws.mutations).toEqual([]);
     expect(await bucket.keys()).toEqual([]);
   });
+});
+
+describe('cf:rollback', () => {
+  for (const failure of [false, true]) {
+    test(
+      failure
+        ? 'failed recovery retains every deployment artifact'
+        : 'recovery continues a failed rollback and removes only failed-version artifacts',
+      async () => {
+        const stack = await deployedStack('UPDATE_ROLLBACK_FAILED');
+        stack.outputs.StpDeploymentVersion = 'v000002';
+        stack.rollbackFailure = failure;
+        const objects = {
+          [getCfTemplateS3Key('v000002')]: 'live-template',
+          [getCfTemplateS3Key('v000003')]: 'failed-template'
+        };
+        const { controlPlane, aws, bucket } = await startFakes(stack, objects);
+        const run = await runCli({
+          args: ['cf:rollback', '--resourcesToSkip', 'ApiFunction', 'ApiFunction'],
+          controlPlane,
+          aws,
+          bucket
+        });
+        expect(aws.mutations.filter(({ action }) => action === 'ContinueUpdateRollback')).toHaveLength(1);
+        expect(
+          aws.mutations.find(({ action }) => action === 'ContinueUpdateRollback')?.parameters[
+            'ResourcesToSkip.member.1'
+          ]
+        ).toBe('ApiFunction');
+        expect(
+          aws.mutations.find(({ action }) => action === 'ContinueUpdateRollback')?.parameters[
+            'ResourcesToSkip.member.2'
+          ]
+        ).toBeUndefined();
+        if (failure) {
+          expect(run.exitCode).not.toBe(0);
+          expect(printable(run)).toContain('Injected rollback refusal');
+          expect(await bucket.keys()).toEqual(Object.keys(objects).toSorted());
+        } else {
+          expect(printable(run)).toBe('');
+          expect(run.exitCode).toBe(0);
+          expect(aws.stack?.status).toBe('UPDATE_ROLLBACK_COMPLETE');
+          expect(await bucket.keys()).toEqual([getCfTemplateS3Key('v000002')]);
+        }
+        expect(await bucket.object(getCfTemplateS3Key('v000002'))).toBe('live-template');
+        expect(aws.unexpectedRequests).toEqual([]);
+      }
+    );
+  }
 });

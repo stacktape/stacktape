@@ -4,7 +4,7 @@
  * Each pipeline is written by the real `writePipeline`, parsed, and its deploy step runs with the current
  * source CLI standing in for the pinned `stacktape` package. The step gets only what that host would give it:
  * on GitHub, the step's own `env` with `${{ secrets.* }}` resolved and the credentials the AWS action exports;
- * on GitLab and Bitbucket, every configured variable. AWS answers from the qualification loopback guard and
+ * on GitLab and Bitbucket, every configured variable. AWS answers from MiniStack and
  * Stacktape from a loopback stub, so nothing leaves the machine. The deploy cannot finish offline; the
  * assertion is that the step's arguments are accepted and that it reaches Stacktape authenticated.
  *
@@ -19,7 +19,8 @@ import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { writePipeline } from '../../src/init/cicd/write-pipeline';
 import type { GitHost } from '../../src/init/cicd/detect-host';
-import { buildOfflineQualificationEnvironment, startOfflineAwsServer } from '../qualification/offline-aws';
+import { startMiniStack } from '@stacktape/ministack/fixture';
+import { buildOfflineQualificationEnvironment } from '../qualification/offline-aws';
 import { runProcess } from '../qualification/process';
 import { createInitSandbox, packageOffline, runSourceInit, type InitSandbox } from './harness';
 
@@ -148,12 +149,15 @@ describe('the pipeline init writes deploys once its secrets are configured', () 
         // builds relative to its own directory, so the shim passes the checkout as the working directory instead.
         await writeFile(
           join(bin, 'stacktape'),
-          `#!/bin/sh\ncheckout="$PWD"\ncd "${cliDirectory}" || exit 1\nexec "${process.execPath}" scripts/dev.ts "$@" --currentWorkingDirectory "$checkout"\n`
+          `#!/bin/sh\ncheckout="$PWD"\ncd "${cliDirectory}" || exit 1\nexec "${process.execPath}" --no-env-file --preload "${join(cliDirectory, 'scripts', 'network-guard-preload.ts')}" scripts/dev.ts "$@" --currentWorkingDirectory "$checkout"\n`
         );
         await chmod(join(bin, 'stacktape'), 0o755);
 
-        const aws = await startOfflineAwsServer();
-        const stacktape = await startStacktapeApiRecorder();
+        const aws = await startMiniStack({ label: `init-pipeline-${host}` });
+        const stacktape = await startStacktapeApiRecorder().catch(async (error) => {
+          await aws.stop();
+          throw error;
+        });
         try {
           const offline = buildOfflineQualificationEnvironment({
             endpoint: aws.endpoint,
@@ -173,6 +177,8 @@ describe('the pipeline init writes deploys once its secrets are configured', () 
             cwd: project,
             env: {
               ...routing,
+              AWS_CONFIG_FILE: process.platform === 'win32' ? 'NUL' : '/dev/null',
+              AWS_SHARED_CREDENTIALS_FILE: process.platform === 'win32' ? 'NUL' : '/dev/null',
               ...step.environment,
               PATH: `${bin}:${offline.PATH ?? ''}`,
               STP_CUSTOM_TRPC_API_ENDPOINT: stacktape.url
@@ -186,8 +192,11 @@ describe('the pipeline init writes deploys once its secrets are configured', () 
           expect(stacktape.requests.length, output).toBeGreaterThan(0);
           expect(stacktape.requests.every((request) => request.apiKey === secrets.STACKTAPE_API_KEY)).toBe(true);
         } finally {
-          await stacktape.close();
-          await aws.close();
+          try {
+            await stacktape.close();
+          } finally {
+            await aws.stop();
+          }
         }
       },
       5 * 60_000

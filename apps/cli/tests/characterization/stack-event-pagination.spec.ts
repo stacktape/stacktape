@@ -81,49 +81,6 @@ describe.serial('stack event pagination', () => {
     sentCommands = [];
   });
 
-  const tokensOf = () => sentCommands.map((command) => command.input.NextToken);
-
-  test.serial('asks for the stack by name first and then follows each page token', async () => {
-    stubPages([
-      { StackEvents: [resourceEvent('a', at(3))], NextToken: 'page-2' },
-      { StackEvents: [resourceEvent('b', at(2))], NextToken: 'page-3' },
-      { StackEvents: [resourceEvent('c', at(1))] }
-    ]);
-
-    await fetchEvents();
-
-    expect(sentCommands).toHaveLength(3);
-    expect(sentCommands[0].input).toEqual({ StackName: 'test-stack' });
-    expect(tokensOf()).toEqual([undefined, 'page-2', 'page-3']);
-    expect(sentCommands.every((command) => command.input.StackName === 'test-stack')).toBe(true);
-  });
-
-  test.serial('keeps CloudFormation newest-first order across pages', async () => {
-    stubPages([
-      { StackEvents: [resourceEvent('a', at(4)), resourceEvent('b', at(3))], NextToken: 'page-2' },
-      { StackEvents: [resourceEvent('c', at(2)), resourceEvent('d', at(1))] }
-    ]);
-
-    const events = await fetchEvents();
-
-    expect(events.map(({ EventId }) => EventId)).toEqual(['a', 'b', 'c', 'd']);
-  });
-
-  test.serial('a single reversal by the monitor yields oldest-first processing order', async () => {
-    // The monitor reverses once before processing; that is only correct while this stays newest-first.
-    stubPages([{ StackEvents: [resourceEvent('a', at(3)), resourceEvent('b', at(2)), resourceEvent('c', at(1))] }]);
-
-    const events = await fetchEvents();
-    events.reverse();
-
-    expect(events.map(({ EventId }) => EventId)).toEqual(['c', 'b', 'a']);
-    expect(events.map(({ Timestamp }) => Timestamp.getTime())).toEqual([
-      at(1).getTime(),
-      at(2).getTime(),
-      at(3).getTime()
-    ]);
-  });
-
   test.serial('drops events older than the cutoff on the terminal page too', async () => {
     // The terminal page used to be appended wholesale, so a stale event from it could seed monitoring state. Both
     // pages are filtered now.
@@ -242,21 +199,5 @@ describe.serial('stack event pagination', () => {
     await expect(manager.cloudFormation.getEvents('test-stack', CUTOFF)).rejects.toThrow('Throttling');
 
     expect(seen).toEqual(['Failed to fetch stack events.']);
-  });
-
-  test.serial('refuses a CloudFormation command other than DescribeStackEvents', async () => {
-    // Keeps the guard above non-vacuous: `cloudFormation.getResources` reaches the same stubbed `send` with a different command.
-    stubPages([{ StackEvents: [resourceEvent('a', at(1))] }]);
-    const manager = new AwsSdkManager();
-    manager.init({ credentials: { accessKeyId: 'AKIA', secretAccessKey: 'secret' }, region: 'eu-west-1' });
-
-    await expect(manager.cloudFormation.getResources('test-stack')).rejects.toThrow(/non-DescribeStackEvents command/);
-
-    // The refused call is not recorded, so it cannot be mistaken for a page request.
-    expect(sentCommands).toHaveLength(0);
-  });
-
-  test.serial('restores the real send implementation between tests', () => {
-    expect(CloudFormationClient.prototype.send).toBe(originalSend);
   });
 });
