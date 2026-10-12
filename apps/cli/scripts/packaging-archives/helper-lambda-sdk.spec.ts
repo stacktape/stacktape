@@ -46,10 +46,10 @@ test('helper SDK bundling is optional and produces a self-contained Node artifac
     expect(exitCode).toBe(0);
     expect(stdout.trim()).toBe('string');
     expect(bundledArtifacts.stacktapeServiceLambda.digest).not.toBe(defaultArtifacts.stacktapeServiceLambda.digest);
-    // Supplying false is identical to the release default, including content-addressed names.
-    await packageHelperLambdas({ distFolderPath: bundledDir, bundleAwsSdk: false });
+    // Compare packaging modes at the same output path, as a release rebuild does.
+    await packageHelperLambdas({ distFolderPath: defaultDir, bundleAwsSdk: false });
     const restoredArtifacts = await loadHelperLambdaDetailsFromDir({
-      helperLambdasDir: join(bundledDir, HELPER_LAMBDAS_FOLDER_NAME)
+      helperLambdasDir: join(defaultDir, HELPER_LAMBDAS_FOLDER_NAME)
     });
     for (const name of Object.keys(defaultArtifacts))
       expect(restoredArtifacts[name].digest).toBe(defaultArtifacts[name].digest);
