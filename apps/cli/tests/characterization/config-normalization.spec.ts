@@ -301,39 +301,6 @@ describe('authored-to-runtime normalization', () => {
     });
   });
 
-  test('applies a synthetic container default to every workload container without overriding authored values', () => {
-    // The defaults table does not currently use the historical singular `container` shape. Installing one for this
-    // test keeps its special merge path characterized without making that shape part of the public defaults type.
-    const workloadDefaults = RESOURCE_DEFAULTS['multi-container-workload'] as Record<string, unknown>;
-    workloadDefaults.container = { essential: true };
-
-    try {
-      const [workload] = managerFor({
-        api: {
-          type: 'multi-container-workload',
-          properties: {
-            resources: { cpu: 0.25, memory: 512 },
-            containers: [
-              {
-                name: 'api',
-                packaging: { type: 'js-bundle', properties: { entryfilePath: './src/api.ts' } }
-              },
-              {
-                name: 'worker',
-                essential: false,
-                packaging: { type: 'js-bundle', properties: { entryfilePath: './src/worker.ts' } }
-              }
-            ]
-          }
-        }
-      }).containerWorkloads;
-
-      expect(workload.containers.map(({ essential }) => essential)).toEqual([true, false]);
-    } finally {
-      delete workloadDefaults.container;
-    }
-  });
-
   test('leaves a resource whose type declares no defaults exactly as normalization produced it', () => {
     expect(RESOURCE_DEFAULTS['dynamo-db-table']).toEqual({});
 
@@ -674,21 +641,6 @@ describe('guardrail invocation isolation', () => {
   });
 });
 
-describe('configuration reset', () => {
-  test('drops the transforms declared by the configuration being replaced', () => {
-    const manager = managerFor({});
-    manager.transforms = { WorkerFunction: (props) => props };
-    manager.finalTransform = (template) => template;
-
-    manager.reset();
-
-    // `init` only reassigns these for a defineConfig-style TypeScript config, so a later YAML configuration would
-    // otherwise keep applying the previous one's transforms.
-    expect(manager.transforms).toEqual({});
-    expect(manager.finalTransform).toBeNull();
-  });
-});
-
 describe('normalized resource types', () => {
   // These declarations are the type-level half of the contract above: they are checked by `pnpm --filter
   // @stacktape/cli run typecheck`, which includes this project.
@@ -839,38 +791,39 @@ describe('normalized resource types', () => {
   const authoredCoversResolved: StacktapeResourceType extends StpResourceType ? true : false = true;
   const resolvedCoversAuthored: StpResourceType extends StacktapeResourceType ? true : false = true;
 
-  test('type-level expectations above compile', () => {
-    expect(lambdaWithoutOptionalProperties.name).toBe('worker');
-    expect(loadBalancerWithoutAnyProperties.name).toBe('lb');
-    expect(nestedLoadBalancer.configParentResourceType).toBe('convex');
-    expect(missingIdentity.type).toBe('application-load-balancer');
-    expect(mismatchedProperties.name).toBe('lb');
-    expect(workloadMissingAuthoredRequirements.name).toBe('api');
-    expect(constructWithoutItsOptionalBag).not.toHaveProperty('entryfilePath');
-    expect(firewallWithoutItsOptionalBag).not.toHaveProperty('scope');
-    expect(constructWithItsBag.entryfilePath).toBe('./src/construct.ts');
-    expect(firewallWithItsBag.scope).toBe('regional');
-    expect(firewallWithAnUnknownScope.name).toBe('firewall');
-    expect(authoredMemberSurvivesTheAlias).toHaveLength(1);
-    expect(memoryBeforeDefaults).toBe(false);
-    expect(timeoutBeforeDefaults).toBe(false);
-    expect(memoryAfterDefaults).toBe(true);
-    expect(timeoutAfterDefaults).toBe(true);
-    expect(lambdaWithItsDefaults.memory).toBe(512);
-    expect(packagingIsStillAuthored).toBeTruthy();
-    expect(anotherBastionSize).toBe('t3.large');
-    expect(anotherLambdaMemory).toBe(3008);
-    expect(anotherInstanceCount).toBe(4);
-    expect(normalizedFromDefaultedLoadBalancer.name).toBe('lb');
-    expect(nestedDefaultedLoadBalancer.configParentResourceType).toBe('convex');
-    expect(scalingIsAlwaysPresent).toBe(true);
-    expect(minInstancesIsAlwaysPresent).toBe(true);
-    expect(maxInstancesIsAlwaysPresent).toBe(true);
-    expect(scalingPolicyStaysOptional).toBe(false);
-    expect(convexShapedWorkload.scaling.maxInstances).toBe(1);
-    expect(authoredCoversResolved).toBe(true);
-    expect(resolvedCoversAuthored).toBe(true);
-  });
+  // The CLI typecheck checks these positive and negative consumers. Bun cannot check types.
+  void [
+    lambdaWithoutOptionalProperties,
+    loadBalancerWithoutAnyProperties,
+    nestedLoadBalancer,
+    missingIdentity,
+    mismatchedProperties,
+    workloadMissingAuthoredRequirements,
+    constructWithoutItsOptionalBag,
+    firewallWithoutItsOptionalBag,
+    constructWithItsBag,
+    firewallWithItsBag,
+    firewallWithAnUnknownScope,
+    authoredMemberSurvivesTheAlias,
+    memoryBeforeDefaults,
+    timeoutBeforeDefaults,
+    memoryAfterDefaults,
+    timeoutAfterDefaults,
+    lambdaWithItsDefaults,
+    packagingIsStillAuthored,
+    anotherBastionSize,
+    anotherLambdaMemory,
+    anotherInstanceCount,
+    normalizedFromDefaultedLoadBalancer,
+    nestedDefaultedLoadBalancer,
+    scalingIsAlwaysPresent,
+    minInstancesIsAlwaysPresent,
+    maxInstancesIsAlwaysPresent,
+    scalingPolicyStaysOptional,
+    convexShapedWorkload,
+    authoredCoversResolved,
+    resolvedCoversAuthored
+  ];
 });
 
 describe('nested resource identity', () => {

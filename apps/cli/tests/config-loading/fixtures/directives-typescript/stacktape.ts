@@ -1,7 +1,9 @@
 /** The TypeScript form of ../directives/stacktape.yml: the same resources, references and stage-dependent values. */
 import {
+  $CfFormat,
   $CfResourceParam,
   $ResourceParam,
+  $Stage,
   defineConfig,
   DynamoDbTable,
   HttpApiGateway,
@@ -20,6 +22,11 @@ export default defineConfig(({ stage, region }) => {
     memory: stages[stage].memory,
     logging: { retentionDays: 7 },
     environment: {
+      FORMATTED_REFERENCE: $CfFormat('{}-{}-{}', $ResourceParam('records', 'name'), $Stage(), 'ready'),
+      FORMATTED_LITERAL: $CfFormat('{}-{}', `it's "ready"`, 0),
+      FORMATTED_NO_VALUES: $CfFormat('literal text'),
+      FORMATTED_BOUNDARIES: $CfFormat('{}-{}-{}', '$Stage() suffix', '$Stage() (prod)', 'C:\\workspace\\'),
+
       STAGE: stage,
       REGION: region,
       GREETING: `hello platform-team from ${stage}`,

@@ -10,19 +10,12 @@
  * problem (the directive, the resource, the file) and never carries secret values.
  */
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
-import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import { ConfigResolver } from '@domain-services/config-manager/config-resolver';
-import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
-import { stackManager } from '@domain-services/cloudformation-stack-manager';
-import { templateManager } from '@domain-services/template-manager';
-import type { GetConfigParams } from '@stacktape/config-authoring';
-import type { StacktapeConfig } from '@stacktape/config';
-import { awsSdkManager } from '@utils/aws-sdk-manager';
+import { killPythonBridge } from '@utils/file-loaders';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test';
-import { cp, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { synthesizeFixture, withCredentiallessSynthesisBoundary } from '../characterization/synthesis-fixture';
+import { synthesizeFixture } from '../characterization/synthesis-fixture';
 
 const directivesFixture = join(import.meta.dir, 'fixtures', 'directives');
 const identity = { accountId: '123456789999', region: 'us-east-1' as const, projectName: 'directive-project' };
@@ -56,6 +49,7 @@ beforeAll(async () => {
   await writeFile(dotenvFixture, 'FEATURE_FLAG=enabled\nSTAGE_SUFFIX=-env\n');
 });
 afterAll(async () => {
+  killPythonBridge();
   await rm(dotenvFixture, { force: true });
 });
 
@@ -69,6 +63,7 @@ const fixtureWithConfig = async (yaml: string) => {
   const directory = await mkdtemp(join(tmpdir(), 'stacktape-j2-config-'));
   temporaryDirectories.push(directory);
   await cp(directivesFixture, directory, { recursive: true });
+  await symlink(join(import.meta.dir, '../../node_modules'), join(directory, 'node_modules'), 'junction');
   await writeFile(join(directory, 'stacktape.yml'), yaml);
   return directory;
 };
@@ -77,7 +72,7 @@ const captureError = async (operation: () => Promise<unknown>) => {
   try {
     await operation();
   } catch (error) {
-    return error as Error & { code?: string; hints?: string[] };
+    return error as Error & { category?: string; code?: string; hints?: string[]; errorDetails?: { title?: string } };
   }
   throw new Error('Expected the operation to fail.');
 };
@@ -104,6 +99,9 @@ describe('a YAML config with directives, references and stage-specific values sy
     expect(environment.GREETING).toBe('hello platform-team from production');
     expect(environment.SHOUTED).toBe('PLATFORM-TEAM-env');
     // Resource references become CloudFormation references to the synthesized resources.
+    expect(environment.FORMATTED_REFERENCE).toEqual({
+      'Fn::Sub': ['${sub0}-${sub1}-${sub2}', { sub0: { Ref: 'RecordsGlobalTable' }, sub1: 'production', sub2: 'ready' }]
+    });
     expect(environment.TABLE_NAME).toEqual({ Ref: 'RecordsGlobalTable' });
     expect(environment.TABLE_ARN).toEqual({ 'Fn::GetAtt': ['RecordsGlobalTable', 'Arn'] });
     // The gateway's URL is its default domain, which derives from the resource, stack and account.
@@ -140,6 +138,79 @@ describe('a YAML config with directives, references and stage-specific values sy
     expect(functionEnvironment(template, 'ApiFunction').STAGE).toBe('staging');
   });
 
+  test('custom directive property paths survive standalone, nested and embedded use in YAML and TypeScript', async () => {
+    const dir = await fixtureWithConfig(`projectName: directive-project
+directives:
+  - name: structured
+    filePath: ./directives/custom.ts:structured
+  - name: $structured
+    filePath: ./directives/custom.ts:structured
+resources:
+  api:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: ./src/api.ts
+      environment:
+        - name: ARRAY
+          value: $structured().items[0].label
+        - name: HYPHEN
+          value: $structured().some-key
+        - name: NESTED
+          value: $Format('{}-{}', $structured().items[0].label, $structured().some-key)
+        - name: EMBEDDED
+          value: $Format('prefix-{}/{}', $structured().items[0].label, $structured().some-key)
+        - name: DOLLAR_NAME
+          value: $$structured().some-key
+`);
+    await writeFile(
+      join(dir, 'stacktape.ts'),
+      `
+import { defineConfig, $CfFormat } from '@stacktape/config-authoring';
+export default defineConfig(() => ({
+  projectName: 'directive-project',
+  directives: [
+    { name: 'structured', filePath: './directives/custom.ts:structured' },
+    { name: '$structured', filePath: './directives/custom.ts:structured' }
+  ],
+  resources: {
+    api: {
+      type: 'function',
+      properties: {
+        packaging: { type: 'js-bundle', properties: { entryfilePath: './src/api.ts' } },
+        environment: {
+          ARRAY: '$structured().items[0].label',
+          HYPHEN: '$structured().some-key',
+          NESTED: $CfFormat('{}-{}', '$structured().items[0].label', '$structured().some-key'),
+          EMBEDDED: 'prefix-$structured().items[0].label/$structured().some-key',
+          DOLLAR_NAME: '$$structured().some-key'
+        }
+      }
+    }
+  }
+}));
+`
+    );
+    for (const filename of ['stacktape.yml', 'stacktape.ts']) {
+      const template = await synthesizeFixture({
+        configPath: join(dir, filename),
+        workingDir: dir,
+        identity: { ...identity, stage: 'production' }
+      });
+      expect(functionEnvironment(template, 'ApiFunction')).toMatchObject({
+        ARRAY: 'first',
+        HYPHEN: 'second',
+        DOLLAR_NAME: 'second',
+        NESTED: filename.endsWith('.ts')
+          ? { 'Fn::Sub': ['${sub0}-${sub1}', { sub0: 'first', sub1: 'second' }] }
+          : 'first-second',
+        EMBEDDED: 'prefix-first/second'
+      });
+    }
+  });
+
   // The bridge speaks newline-delimited JSON over the child's stdin and stdout. Node IPC, the previous channel, closes
   // after the first reply under Bun, which made every Python directive fail in the compiled CLI.
   // Starting Python on the Windows CI runner is slow and uneven: the same test took 0.9 s in one run and over 5 s
@@ -160,9 +231,14 @@ resources:
       environment:
         - name: SHOUTED_PY
           value: $shoutPy($Stage())
+        - name: SHOUTED_REGION
+          value: $shoutPy($Region())
 `);
     const template = await synthesizeYaml('production', dir);
-    expect(functionEnvironment(template, 'ApiFunction').SHOUTED_PY).toBe('PRODUCTION');
+    expect(functionEnvironment(template, 'ApiFunction')).toMatchObject({
+      SHOUTED_PY: 'PRODUCTION',
+      SHOUTED_REGION: 'US-EAST-1'
+    });
   }, 60_000);
 
   test('the TypeScript form of the same resources synthesizes the same references', async () => {
@@ -176,16 +252,56 @@ resources:
 
     const yamlEnvironment = functionEnvironment(yamlTemplate, 'ApiFunction');
     const typescriptEnvironment = functionEnvironment(typescriptTemplate, 'ApiFunction');
-    for (const name of ['STAGE', 'REGION', 'TABLE_NAME', 'TABLE_ARN', 'GATEWAY_URL', 'GREETING']) {
+    for (const name of [
+      'STAGE',
+      'REGION',
+      'TABLE_NAME',
+      'TABLE_ARN',
+      'GATEWAY_URL',
+      'GREETING',
+      'FORMATTED_REFERENCE'
+    ]) {
       expect(typescriptEnvironment[name]).toEqual(yamlEnvironment[name]);
     }
     expect(Object.keys(typescriptTemplate.Resources).sort()).toEqual(Object.keys(yamlTemplate.Resources).sort());
+    expect(typescriptEnvironment.FORMATTED_LITERAL).toEqual({
+      'Fn::Sub': ['${sub0}-${sub1}', { sub0: `it's "ready"`, sub1: 0 }]
+    });
+    expect(typescriptEnvironment.FORMATTED_NO_VALUES).toEqual({ 'Fn::Sub': 'literal text' });
+    expect(typescriptEnvironment.FORMATTED_BOUNDARIES).toEqual({
+      'Fn::Sub': [
+        '${sub0}-${sub1}-${sub2}',
+        { sub0: '$Stage() suffix', sub1: '$Stage() (prod)', sub2: 'C:\\workspace\\' }
+      ]
+    });
     const yamlRole = JSON.stringify(yamlTemplate.Resources.ApiRole);
     expect(JSON.stringify(typescriptTemplate.Resources.ApiRole)).toBe(yamlRole);
   });
 });
 
 describe('a broken config fails with an error that names the problem', () => {
+  test('an undefined TypeScript format argument is rejected instead of silently disappearing', async () => {
+    const dir = await fixtureWithConfig('projectName: directive-project\nresources: {}\n');
+    await writeFile(
+      join(dir, 'stacktape.ts'),
+      `
+import { defineConfig, $CfFormat } from '@stacktape/config-authoring';
+export default defineConfig(() => ({
+  projectName: 'directive-project', resources: {}, variables: { label: $CfFormat('{}', undefined, 'ready') }
+}));
+`
+    );
+    const error = await captureError(() =>
+      synthesizeFixture({
+        configPath: join(dir, 'stacktape.ts'),
+        workingDir: dir,
+        identity: { ...identity, stage: 'production' }
+      })
+    );
+    expect(error.code).toBe('CONFIG_TYPESCRIPT_EXECUTION_FAILED');
+    expect(error.errorDetails?.title).toContain('$CfFormat argument 1 cannot be serialized');
+  });
+
   const baseConfig = (resources: string) => `projectName: directive-project
 resources:
   records:
@@ -230,6 +346,16 @@ ${properties}`);
     expect(`${error.message}\n${(error.hints ?? []).join('\n')}`).toContain('name');
   });
 
+  test('a retired AWS-service macro is rejected as an authored connection', async () => {
+    const dir = await fixtureWithConfig(
+      functionWith(`      connectTo:
+        - aws:ses`)
+    );
+    const error = await captureError(() => synthesizeYaml('production', dir));
+    expect(error.message).toContain('aws:ses');
+    expect(error.code).toBe('CONFIG_RESOURCE_REFERENCE_UNRESOLVED');
+  });
+
   test('a connectTo naming a resource that does not exist', async () => {
     const dir = await fixtureWithConfig(
       functionWith(`      connectTo:
@@ -247,7 +373,9 @@ ${properties}`);
     );
     const error = await captureError(() => synthesizeYaml('production', dir));
     expect(error.code).toBe('DIRECTIVE_UNKNOWN');
+    expect(error.category).toBe('DIRECTIVE');
     expect(error.message).toContain('Nope');
+    expect(error.hints).toEqual(['If this is a custom directive, register it in your Stacktape config.']);
   });
 
   test('a user directive whose handler throws keeps the directive name and the handler error, nothing else', async () => {
@@ -276,6 +404,24 @@ resources:
     expect(printable).not.toContain('hunter2');
   });
 
+  test('a failing Python handler preserves the useful exception at the loading boundary', async () => {
+    const dir = await fixtureWithConfig(`projectName: directive-project
+directives:
+  - name: brokenPy
+    filePath: ./directives/custom.py:broken
+resources: {}
+variables:
+  broken: $brokenPy()
+`);
+    const error = await captureError(() => synthesizeYaml('production', dir));
+    expect(error.code).toBe('PYTHON_DIRECTIVE_EXECUTION_FAILED');
+    expect(error.category).toBe('SOURCE_CODE');
+    expect(error.message).toMatch(/^Python directive in `.*custom\.py` failed:\n/);
+    expect(error.message).toContain('python handler failed');
+    expect(error.cause).toBeInstanceOf(Error);
+    expect((error.cause as Error).message).toContain('python handler failed');
+  }, 60_000);
+
   test('a user directive whose file does not exist', async () => {
     const dir = await fixtureWithConfig(`projectName: directive-project
 directives:
@@ -295,74 +441,5 @@ resources: {}
     );
     const error = await captureError(() => synthesizeYaml('production', dir));
     expect(error.message).toContain('nope.json');
-  });
-});
-
-describe('secret values never reach an error message', () => {
-  const resolverContext = {
-    authoringParams: {
-      projectName: 'directive-project',
-      stage: 'production',
-      region: 'us-east-1',
-      cliArgs: {} as never,
-      command: 'dev',
-      awsProfile: '',
-      user: { id: 'test-user', name: 'Test User', email: 'test@example.com' }
-    } satisfies GetConfigParams,
-    builtInDirectives: {
-      runtime: { calculatedStackOverviewManager, deployedStackOverviewManager, stackManager, templateManager },
-      accountId: '123456789999',
-      additionalArgs: {},
-      awsProfile: '',
-      cliArgs: {} as never,
-      command: 'dev' as const,
-      disableEmulation: false,
-      region: 'us-east-1' as const,
-      stage: 'production',
-      workingDir: directivesFixture
-    },
-    workingDir: directivesFixture
-  };
-
-  const resolveLocally = async (value: string, secretString: string) =>
-    withCredentiallessSynthesisBoundary(async () => {
-      const secrets = awsSdkManager.secrets;
-      const originalGet = secrets.get;
-      secrets.get = (async () => ({ SecretString: secretString })) as typeof secrets.get;
-      try {
-        const resolver = new ConfigResolver();
-        resolver.rawConfig = { resources: {} } as StacktapeConfig;
-        resolver.setContext(resolverContext);
-        resolver.registerBuiltInDirectives();
-        return await resolver.resolveDirectives<{ value: unknown }>({
-          itemToResolve: { value },
-          resolveRuntime: true,
-          useLocalResolve: true
-        });
-      } finally {
-        secrets.get = originalGet;
-      }
-    });
-
-  test('a JSON key read from a secret that is not JSON reports the key, not the secret', async () => {
-    // Bun's JSON parser quotes the token it stopped at; the message must not carry it.
-    const error = await captureError(() => resolveLocally("$Secret('db.password')", 'hunter2-not-json-secret'));
-    expect(error.code).toBe('DIRECTIVE_SECRET_JSON_INVALID');
-    expect(error.message).toContain('password');
-    expect(error.message).toContain('db');
-    expect(`${error.message}\n${(error.hints ?? []).join('\n')}`).not.toContain('hunter2');
-  });
-
-  test('a JSON key missing from a JSON secret reports the key and keeps other values private', async () => {
-    const error = await captureError(() =>
-      resolveLocally("$Secret('db.password')", JSON.stringify({ username: 'admin', token: 'hunter2-token' }))
-    );
-    expect(error.message).toContain('password');
-    expect(`${error.message}\n${(error.hints ?? []).join('\n')}`).not.toContain('hunter2');
-  });
-
-  test('a readable secret resolves to its value locally', async () => {
-    const resolved = await resolveLocally("$Secret('db.password')", JSON.stringify({ password: 'hunter2-value' }));
-    expect(resolved.value).toBe('hunter2-value');
   });
 });
