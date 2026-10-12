@@ -38,10 +38,19 @@ implementation.
 
 ## Run efficiently
 
-- Run `pnpm test:plan` (or `-- --since=<ref>`) and run the lanes it suggests. It matches paths; check what each lane
-  covers. Run `pnpm test:doctor` before a long lane (`-- --for=console` for shared-dev Console work).
+- Run `pnpm test:plan` (or `-- --since=<ref>`) and run the relevant lanes it suggests. Each command reports owning slice
+  IDs, level, tier and prerequisites. The [code registry](../scripts/workspace/test-registry.ts) owns promises, paths,
+  lanes and exact test ownership. Selection also follows direct Console suite imports. Missing private lanes are
+  labelled in public clones. Run `pnpm test:doctor` before a long lane (`-- --for=console` for shared-dev Console work).
+- Public and integrated CI run `pnpm check:static` for instructions, docs, secrets, formatting, lint, workspace rules,
+  generation, types, architecture, dead code and duplicates, then `pnpm test:ci` for the registry's fast, offline `pr`
+  tests. Public Linux CI also validates synthesized templates with `cfn-lint`. Console rules run when initialized. Full
+  suites, application builds, package-install qualification and browsers remain local/release work. `pnpm test:tools`
+  checks ownership and rejects missing scripts, database flags and Playwright projects. Add new tests to their slice's
+  exact `tests` list, or explicitly classify harness/policy tests as tooling.
 - Heavy lanes (packaging, corpus, Console database and browser, MiniStack) are not in per-PR CI. When `test:plan`
-  selects one for your change, you run it. All of them run before each release.
+  selects a `change` lane for your slice, you run it. Candidate qualification also runs those lanes and the registry's
+  `release` lanes. Journey tags group pre-release E2E work; slices own everyday selection.
 - Extend an existing scenario and its helpers before writing new setup code.
   [Existing helpers](testing/e2e.md#helpers-that-exist).
 - Run `pnpm check:public`, or `pnpm check:integrated` with Console initialized, before handoff.
@@ -71,3 +80,7 @@ Normal tests must fail closed against live AWS. Development Console deployments,
 and explicitly named disposable stacks are already authorized. Follow the [live procedure](testing/live-aws.md) for
 account verification, ownership, cost and cleanup, including recovery after interruption. Production deployment,
 migration, publishing and credential rotation require explicit authorization. Never record secret values.
+
+Console PR lanes include offline migration history, package export boundaries and infrastructure contracts plus
+assembled support-template `cfn-lint`. Install `cfn-lint==1.53.3` before running `pnpm test:ci` with Console present; CI
+installs it explicitly. Migration adoption still requires disposable PostgreSQL and stays in the change tier.

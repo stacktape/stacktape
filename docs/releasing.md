@@ -52,6 +52,7 @@ pnpm --filter @stacktape/console-api-app test:runner:cache
 pnpm --filter @stacktape/ui-react test:e2e
 pnpm --filter @stacktape/bitbucket-forge-app test:e2e
 pnpm test:console:browser:offline
+pnpm --filter @stacktape/console-ui test:e2e:sessions
 
 for lane in test:docker-smoke test:node-lambda-e2e test:web-framework-e2e test:es-image-deps-e2e \
   test:directory-inventory-e2e test:lambda-source-map-e2e test:split-assets-e2e; do
@@ -81,6 +82,13 @@ pnpm qualify:projects -- --lanes=runtime
 The extension host lane requires `STP_VSCODE_EXECUTABLE` and the host prerequisites in the
 [extension README](../apps/vscode-extension/README.md). Build CLI dev artifacts before the database sequence with
 `pnpm --filter @stacktape/cli build:dev-artifacts`.
+
+The [slice registry](../scripts/workspace/test-registry.ts) is the lane inventory; qualify its `pr` and `change` lanes
+before the candidate's selected external contracts. CI keeps static checks and runs only the fast `pr` test subset. To
+exercise MCP against the exact extracted binary instead of rebuilding it, run
+`pnpm --filter @stacktape/cli exec bun scripts/test-mcp-executable.ts --candidate-binary=/absolute/path/to/stacktape`
+(use `stacktape.exe` on Windows). This keeps the candidate's sibling payloads in place and isolates its state and HTTP
+fixture.
 
 Repeat supplied-artifact installation on all six native OS/architecture/libc targets. The shell fixtures in
 `test:external-tools` run on Linux/macOS; the Windows artifact must separately exercise its bundled Session Manager
