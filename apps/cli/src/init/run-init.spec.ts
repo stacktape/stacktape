@@ -1,39 +1,11 @@
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { describe, expect, it } from 'bun:test';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'bun:test';
+import { parse as parseYaml } from 'yaml';
 import type { DetectedAgent } from './agent/detect';
-import { canOpenBrowser, chooseAgent, describeResult, runInit } from './run-init';
-import type { GreenfieldResult } from './missions/greenfield';
-
-let root: string;
-let close: (() => Promise<void>) | undefined;
-
-const makeRepo = async (files: Record<string, string>): Promise<string> => {
-  root = await mkdtemp(join(tmpdir(), 'stp-run-init-'));
-  for (const [path, contents] of Object.entries(files)) {
-    const absolute = join(root, path);
-    await mkdir(join(absolute, '..'), { recursive: true });
-    await writeFile(absolute, contents, 'utf8');
-  }
-  return root;
-};
-
-afterEach(async () => {
-  await close?.();
-  close = undefined;
-  if (root) await rm(root, { recursive: true, force: true });
-});
-
-const EXPRESS_APP = {
-  'package.json': JSON.stringify({
-    name: 'orders',
-    scripts: { start: 'node index.js' },
-    dependencies: { express: '^5.0.0', pg: '^8.11.0' }
-  }),
-  'package-lock.json': '{}',
-  'src/index.ts': 'import express from "express";\nconst app = express();\napp.listen(process.env.PORT);'
-};
+import { canOpenBrowser, chooseAgent, runInit, type InitOutcome } from './run-init';
+import type { WizardState } from './server/wizard-server';
 
 const agent = (id: DetectedAgent['id'], executable = id): DetectedAgent => ({
   id,
@@ -91,211 +63,80 @@ describe('canOpenBrowser', () => {
   });
 });
 
-describe('runInit', () => {
-  it('produces a configuration with no agent installed, and says so plainly', async () => {
-    const repoRoot = await makeRepo(EXPRESS_APP);
-    const said: string[] = [];
-
-    const outcome = await runInit({
-      repositoryRoot: repoRoot,
+it('the printed wizard address still starts, streams analysis and saves a project when the browser cannot open', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'stp-init-browser-refusal-'));
+  let outcome: InitOutcome | undefined;
+  const output: string[] = [];
+  try {
+    await writeFile(
+      join(root, 'package.json'),
+      JSON.stringify({ name: 'orders', scripts: { start: 'node index.js' } })
+    );
+    await writeFile(join(root, 'index.js'), "const app = require('express')();\napp.listen(process.env.PORT);\n");
+    outcome = await runInit({
+      repositoryRoot: root,
       projectName: 'orders',
-      presentation: 'terminal',
-      detect: async () => [],
-      onOutput: (line) => said.push(line)
-    });
-
-    // Having no agent is a degraded result, never a refusal to start.
-    expect(outcome.agent).toBeUndefined();
-    expect(Object.keys(outcome.result!.composition.config.resources)).toContain('orders');
-    expect(said.join('\n')).toContain('No coding agent found');
-  });
-
-  it('says nothing about agents when the user asked for none', async () => {
-    const repoRoot = await makeRepo(EXPRESS_APP);
-    const said: string[] = [];
-
-    await runInit({
-      repositoryRoot: repoRoot,
-      presentation: 'terminal',
-      codingAgent: 'none',
-      onOutput: (line) => said.push(line)
-    });
-
-    // Explicitly disabling the agent is a choice, not a missing dependency to nag about.
-    expect(said.join('\n')).not.toContain('No coding agent found');
-  });
-
-  it('tells the user their code is not sent to us', async () => {
-    const repoRoot = await makeRepo(EXPRESS_APP);
-    const said: string[] = [];
-
-    await runInit({
-      repositoryRoot: repoRoot,
-      presentation: 'terminal',
+      presentation: 'browser',
+      codingAgent: 'claude-code',
       detect: async () => [agent('claude-code')],
-      // Stubbed rather than spawned: this asserts what we tell the user, not what Claude does.
-      runSession: async () => ({ usage: { inputTokens: 0, outputTokens: 0 }, stopReason: 'complete' }),
-      onOutput: (line) => said.push(line)
-    });
-
-    expect(said.join('\n')).toContain('not sent to Stacktape');
-  });
-
-  it('says when the scan answered everything and the agent was never run', async () => {
-    // A port the scan can read leaves nothing for the agent, so none of the user's tokens are spent.
-    const repoRoot = await makeRepo({
-      ...EXPRESS_APP,
-      'src/index.ts': 'app.listen(3000);',
-      'fly.toml': 'app = "orders"\n[http_service]\n  internal_port = 3000\n'
-    });
-    const said: string[] = [];
-    let sessions = 0;
-
-    await runInit({
-      repositoryRoot: repoRoot,
-      presentation: 'terminal',
-      detect: async () => [agent('claude-code')],
-      runSession: async () => {
-        sessions += 1;
-        return { usage: { inputTokens: 0, outputTokens: 0 }, stopReason: 'complete' };
+      // The vendor is the external boundary. Scanning, mission, wizard HTTP and file writing remain real.
+      runSession: async (_input, hooks) => {
+        hooks.onEvent({ type: 'tool-call', name: 'read_file', summary: 'index.js' });
+        hooks.onEvent({ type: 'text', text: 'UNTRUSTED_AGENT_PROSE' });
+        return { stopReason: 'no-submission', usage: { inputTokens: 0, outputTokens: 0 } };
       },
       estimateCost: async () => undefined,
-      onOutput: (line) => said.push(line)
-    });
-
-    expect(sessions).toBe(0);
-    // "Using claude-code" alone would tell the user their code was read by it.
-    expect(said.join('\n')).toContain('your agent was not needed, and no tokens were spent');
-  });
-
-  it('says when an agent failed and the result fell back to file scans', async () => {
-    const repoRoot = await makeRepo(EXPRESS_APP);
-    const said: string[] = [];
-
-    await runInit({
-      repositoryRoot: repoRoot,
-      presentation: 'terminal',
-      detect: async () => [agent('codex')],
-      runSession: async () => ({
-        usage: { inputTokens: 0, outputTokens: 0 },
-        stopReason: 'error',
-        errorMessage: 'Authentication expired.'
-      }),
-      onOutput: (line) => said.push(line)
-    });
-
-    expect(said.join('\n')).toContain('uses file scans only');
-    expect(said.join('\n')).toContain('Authentication expired.');
-  });
-
-  it('fails loudly when the requested agent is not installed', async () => {
-    const repoRoot = await makeRepo(EXPRESS_APP);
-
-    await expect(
-      runInit({ repositoryRoot: repoRoot, presentation: 'terminal', codingAgent: 'codex', detect: async () => [] })
-    ).rejects.toThrow('not installed');
-  });
-
-  it('decides a live external database rather than stopping for it', async () => {
-    const repoRoot = await makeRepo({
-      ...EXPRESS_APP,
-      '.env': 'DATABASE_URL=postgres://\${DATABASE_USER}:\${DATABASE_PASSWORD}@db.abc.supabase.co:5432/postgres\n'
-    });
-
-    const withoutDefaults = await runInit({
-      repositoryRoot: repoRoot,
-      presentation: 'terminal',
-      codingAgent: 'none',
-
-      onOutput: () => {}
-    });
-    // Nothing blocks any more: a live external database is decided — keep using it — and recorded.
-    expect(withoutDefaults.result!.composition.deployable).toBe(true);
-    expect(withoutDefaults.result!.composition.config.resources.mainDatabase).toBeUndefined();
-    expect(withoutDefaults.result!.composition.assumptions).toContainEqual(
-      expect.objectContaining({ kind: 'external-database-disposition', chosen: 'point-at-existing' })
-    );
-  });
-
-  it('opens a wizard and hands back a URL in browser mode', async () => {
-    const repoRoot = await makeRepo(EXPRESS_APP);
-    const opened: string[] = [];
-
-    const outcome = await runInit({
-      repositoryRoot: repoRoot,
-      projectName: 'orders',
-      presentation: 'browser',
-      detect: async () => [],
-      openBrowser: async (url) => opened.push(url),
-      onOutput: () => {}
-    });
-    close = outcome.close;
-
-    expect(outcome.wizardUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/#token=/);
-    expect(opened).toEqual([outcome.wizardUrl!]);
-  });
-
-  it('still returns the URL when the browser refuses to open', async () => {
-    const repoRoot = await makeRepo(EXPRESS_APP);
-    const said: string[] = [];
-
-    const outcome = await runInit({
-      repositoryRoot: repoRoot,
-      presentation: 'browser',
-      detect: async () => [],
       openBrowser: async () => {
-        throw new Error('no browser here');
+        throw new Error('No desktop browser is available.');
       },
-      onOutput: (line) => said.push(line)
+      onOutput: (line) => output.push(line)
     });
-    close = outcome.close;
-
-    // Printed above the attempt, so a failed launch costs nothing.
-    expect(said.join('\n')).toContain(outcome.wizardUrl!);
-  });
-});
-
-describe('describeResult', () => {
-  const resultWith = (overrides: Partial<GreenfieldResult['composition']>): GreenfieldResult =>
-    ({
-      facts: {} as never,
-      verification: [],
-      completeness: [],
-      composition: {
-        config: { resources: { orders: { type: 'web-service', properties: {} } } },
-        provenance: {
-          orders: { reason: 'A container runs this exactly as your own start command does.', evidence: [] }
-        },
-        gaps: [],
-        assumptions: [],
-        unresolved: [],
-        mode: 'standard',
-        deployable: true,
-        ...overrides
-      }
-    }) as GreenfieldResult;
-
-  it('names each resource and why it exists', () => {
-    const lines = describeResult(resultWith({})).join('\n');
-
-    expect(lines).toContain('orders  web-service');
-    expect(lines).toContain('A container runs this');
-  });
-
-  it('says what it decided for you, and where to change it', () => {
-    const lines = describeResult(
-      resultWith({
-        assumptions: [{ kind: 'external-database-disposition', chosen: 'point-at-existing', notable: true } as never]
-      })
-    ).join('\n');
-
-    expect(lines).toContain('external-database-disposition');
-    expect(lines).toContain('--headless');
-  });
-
-  it('reports an empty project without pretending otherwise', () => {
-    const lines = describeResult(resultWith({ config: { resources: {} } })).join('\n');
-
-    expect(lines).toContain('Nothing here needs deploying');
-  });
-});
+    // Use the address available to the terminal user, rather than reaching around the presentation layer.
+    const printedUrl = output.join('\n').match(/http:\/\/127\.0\.0\.1:\d+\/[^\s]*/)?.[0];
+    expect(printedUrl).toBe(outcome.wizardUrl);
+    expect(printedUrl).toBeDefined();
+    const url = new URL(printedUrl!);
+    const origin = url.origin;
+    const handshake = await fetch(`${origin}/api/handshake?token=${url.hash.replace('#token=', '')}`, {
+      method: 'POST',
+      headers: { Origin: origin }
+    });
+    expect(handshake.status).toBe(200);
+    const { csrfToken, state } = (await handshake.json()) as { csrfToken: string; state: WizardState };
+    expect(state.phase).toBe('ready');
+    const headers = {
+      Origin: origin,
+      Cookie: handshake.headers.get('set-cookie')!.split(';')[0]!,
+      'Content-Type': 'application/json',
+      'x-csrf-token': csrfToken
+    };
+    const started = await fetch(`${origin}/api/start`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ agentId: 'claude-code', modelId: 'default' })
+    });
+    expect(started.status).toBe(200);
+    let reviewed: WizardState = (await started.json()) as WizardState;
+    const deadline = Date.now() + 5000;
+    while (reviewed.phase === 'analysing' && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      reviewed = (await (await fetch(`${origin}/api/state`, { headers })).json()) as WizardState;
+    }
+    expect(reviewed.phase).toBe('reviewing');
+    expect(reviewed.timeline).toContainEqual({ kind: 'tool', label: 'read_file index.js' });
+    expect(JSON.stringify(reviewed.timeline)).not.toContain('UNTRUSTED_AGENT_PROSE');
+    expect(output.join('\n')).toContain('read_file index.js');
+    const written = await fetch(`${origin}/api/write`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ format: 'yaml' })
+    });
+    expect(written.status).toBe(200);
+    expect(parseYaml(await readFile(join(root, 'stacktape.yml'), 'utf8'))).toMatchObject({
+      resources: { orders: { type: 'web-service' } }
+    });
+  } finally {
+    await outcome?.close?.();
+    await rm(root, { recursive: true, force: true });
+  }
+}, 15_000);

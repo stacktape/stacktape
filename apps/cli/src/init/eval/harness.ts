@@ -212,10 +212,3 @@ export const runEvalCase = async (evalCase: EvalCase, runAgent?: AgentRunner): P
     await rm(root, { recursive: true, force: true });
   }
 };
-
-export const summarise = (scores: readonly EvalScore[]): string => {
-  const passed = scores.filter((score) => score.passed).length;
-  const questions = scores.reduce((total, score) => total + score.questionsAsked, 0);
-  const dropped = scores.reduce((total, score) => total + score.claimsDropped, 0);
-  return `${passed}/${scores.length} cases passed · ${questions} things assumed · ${dropped} claims dropped`;
-};

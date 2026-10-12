@@ -375,10 +375,21 @@ export const lanes: readonly Lane[] = [
     level: 'process',
     tier: 'change',
     tests: ['apps/cli/scripts/qualification/run-starter-packaging.ts'],
-    requires: ['network'],
+    requires: ['docker', 'network'],
     release: 'every-candidate',
     proves: 'Materialized starters package through the current source CLI.',
     selections: ['starter-qualification']
+  },
+  {
+    id: 'init-corpus-cache',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'exec', 'bun', 'test', 'scripts/init-real-project-corpus.spec.ts'],
+    level: 'process',
+    tier: 'pr',
+    tests: ['apps/cli/scripts/init-real-project-corpus.spec.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'Pinned repositories with the same basename keep independent checkouts in the importer corpus.',
+    selections: ['init-corpus']
   },
   {
     id: 'init-agent-rules',
@@ -441,7 +452,9 @@ export const lanes: readonly Lane[] = [
     tier: 'change',
     tests: [
       'apps/cli/scripts/init-e2e/ci-pipelines.spec.ts',
+      'apps/cli/scripts/init-e2e/deploy-consent.spec.ts',
       'apps/cli/scripts/init-e2e/first-deployment.spec.ts',
+      'apps/cli/scripts/init-e2e/packaging-failure.spec.ts',
       'apps/cli/scripts/init-e2e/trust-boundary.spec.ts'
     ],
     requires: ['docker', 'network'],
@@ -709,7 +722,7 @@ export const lanes: readonly Lane[] = [
     level: 'process',
     tier: 'release',
     tests: [],
-    requires: ['network'],
+    requires: ['docker', 'network'],
     release: 'affected-external-contract',
     proves: 'The reviewed project corpus imports, packages and runs through the source CLI.',
     selections: ['project-qualification']
@@ -720,7 +733,7 @@ export const lanes: readonly Lane[] = [
     level: 'process',
     tier: 'release',
     tests: [],
-    requires: ['network'],
+    requires: ['docker', 'network'],
     release: 'affected-external-contract',
     proves: 'The reviewed project corpus imports, packages and runs through the source CLI.',
     selections: ['project-qualification']
@@ -1287,9 +1300,11 @@ export const lanes: readonly Lane[] = [
       'apps/cli/scripts/generate-starter-projects-metadata.spec.ts',
       'apps/cli/scripts/generation/generated-files.spec.ts',
       'apps/cli/scripts/init-e2e/ci-pipelines.spec.ts',
+      'apps/cli/scripts/init-e2e/deploy-consent.spec.ts',
       'apps/cli/scripts/init-e2e/first-deployment.spec.ts',
       'apps/cli/scripts/init-e2e/trust-boundary.spec.ts',
       'apps/cli/scripts/init-real-project-corpus-cases.spec.ts',
+      'apps/cli/scripts/init-real-project-corpus.spec.ts',
       'apps/cli/scripts/init-synthetic-project-corpus-expectations.spec.ts',
       'apps/cli/scripts/install-scripts/checksums.spec.ts',
       'apps/cli/scripts/operations/deployment-script.spec.ts',
@@ -1461,7 +1476,6 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/init/eval/importers-e2e.spec.ts',
       'apps/cli/src/init/eval/sensors.spec.ts',
       'apps/cli/src/init/mcp/session-server.spec.ts',
-      'apps/cli/src/init/missions/greenfield.spec.ts',
       'apps/cli/src/init/preflight/preflight.spec.ts',
       'apps/cli/src/init/pricing.spec.ts',
       'apps/cli/src/init/run-init.spec.ts',
@@ -2059,7 +2073,7 @@ export const lanes: readonly Lane[] = [
     level: 'process',
     tier: 'release',
     tests: ['apps/cli/scripts/qualification/run-project-qualification.ts'],
-    requires: ['network'],
+    requires: ['docker', 'network'],
     release: 'affected-external-contract'
   },
   {
@@ -2152,6 +2166,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/scripts/verify-npm-declarations.spec.ts',
       'apps/cli/scripts/tsconfig-projects.spec.ts',
       'apps/cli/scripts/init-real-project-corpus-cases.spec.ts',
+      'apps/cli/scripts/init-real-project-corpus.spec.ts',
       'apps/cli/scripts/init-synthetic-project-corpus-expectations.spec.ts'
     ],
     requires: [],
@@ -2643,6 +2658,8 @@ export const slices: readonly Slice[] = [
     status: 'active',
     journeys: ['J1'],
     paths: [
+      'apps/cli/scripts/qualification/source-cli-packaging.ts',
+      'apps/cli/scripts/init-real-project-corpus.ts',
       'packages/config-inference/**',
       'packages/config-inference/src/scan/**',
       'packages/config-inference/src/facts/**',
@@ -2655,12 +2672,12 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/cli/scripts/init-e2e/first-deployment.spec.ts',
       'apps/cli/scripts/init-real-project-corpus-cases.spec.ts',
+      'apps/cli/scripts/init-real-project-corpus.spec.ts',
       'apps/cli/scripts/init-synthetic-project-corpus-expectations.spec.ts',
       'apps/cli/src/init/composed-config-semantics.spec.ts',
       'apps/cli/src/init/eval/baseline.spec.ts',
       'apps/cli/src/init/eval/importers-e2e.spec.ts',
       'apps/cli/src/init/eval/sensors.spec.ts',
-      'apps/cli/src/init/missions/greenfield.spec.ts',
       'apps/cli/src/init/run-init.spec.ts',
       'apps/cli/src/utils/git.spec.ts',
       'packages/config-inference/src/compose/assumptions.spec.ts',
@@ -2698,6 +2715,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/qualification/run-project-qualification.ts'
     ],
     lanes: [
+      'init-corpus-cache',
       'config-inference-test',
       'cli',
       'cli-2',
@@ -2738,6 +2756,7 @@ export const slices: readonly Slice[] = [
     status: 'active',
     journeys: ['J1'],
     paths: [
+      'apps/cli/scripts/qualification/source-cli-packaging.ts',
       'apps/cli/src/commands/init/**',
       'apps/cli/src/init/**',
       'apps/cli/src/init/cicd/**',
@@ -2745,6 +2764,8 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/init/preflight/**'
     ],
     tests: [
+      'apps/cli/scripts/init-e2e/deploy-consent.spec.ts',
+      'apps/cli/scripts/init-e2e/packaging-failure.spec.ts',
       'apps/cli/scripts/init-e2e/ci-pipelines.spec.ts',
       'apps/cli/scripts/real-aws/init-canary-client.spec.ts',
       'apps/cli/scripts/real-aws/init-canary-fixtures.spec.ts',
