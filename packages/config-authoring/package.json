@@ -9,6 +9,7 @@
     "./child-resources": "./src/child-resources.ts",
     "./class-config": "./src/class-config.ts",
     "./converter": "./src/converter.ts",
+    "./directive-expressions": "./src/directive-expressions.ts",
     "./resource-metadata": "./src/resource-metadata.ts",
     "./tooling": "./src/tooling.ts"
   },
