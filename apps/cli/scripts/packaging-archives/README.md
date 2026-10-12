@@ -24,6 +24,16 @@ upload code, with local stand-ins for S3, CloudFormation and Docker: they must r
 ones, and rebuild after a mode-only change exactly where the archive changes. It needs Docker and `unzip`. Pass
 `--zip-dir` and `--7z-dir` for tools not on `PATH`; a native tool it cannot find is reported as not qualified.
 
+## Python, Java and Ruby Lambda artifacts
+
+`pnpm --filter @stacktape/packaging run test:language-lambdas` builds locked Python and Ruby projects and Maven/Gradle
+reactors through the real Lambda buildpacks. It extracts their ZIPs with `unzip` and invokes the handlers in official
+Lambda runtime images as an unprivileged user. Python must load a native wheel, its selected extra and production group
+without pytest. Ruby must load the locked native gem from its packaged location without development/test gems. Both Java
+build tools must preserve a sibling library and classpath resource, bind the configured handler, and report an invalid
+handler method usefully. The lane requires Docker and network access for build tools, images and dependencies; it is a
+change/release gate, outside fast PR CI. `pnpm test:packaging-e2e` includes it.
+
 ## Asset replacement
 
 `pnpm --filter @stacktape/cli run test:asset-replacer` runs the service helper's Next.js asset replacer as a stack does.

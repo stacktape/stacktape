@@ -1,8 +1,9 @@
 /**
  * Builds a small project with each Docker-backed buildpack and runs what it produced:
- * - Lambda buildpacks (Go, Go workspace, Python uv.lock and Pipfile, Ruby, Java Maven and Gradle reactors, .NET,
+ * - Lambda buildpacks (Go, Go workspace, Python Pipfile, .NET,
  *   Rust through cargo-lambda) run their artifact in a matching runtime image; the Rust `bootstrap` is invoked through
  *   the runtime interface emulator of `public.ecr.aws/lambda/provided:al2023`;
+ * - Python native wheels, Ruby native gems and Java Lambda reactors live in `lambda-e2e` (test:language-lambdas);
  * - the `js-bundle` image runs its entry file;
  * - the container `buildpack` (Railpack) builds a FastAPI app and a Node.js app, which must answer HTTP. The Node.js
  *   app's build writes a `buildEnvironment` value that the server returns: the value must reach the build, stay out of
@@ -16,10 +17,8 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { buildDotnetLambda } from '../src/buildpacks/dotnet-lambda-buildpack';
 import { buildGoLambda } from '../src/buildpacks/go-lambda-buildpack';
-import { buildJavaLambda } from '../src/buildpacks/java-lambda-buildpack';
 import { buildJsBundleImage } from '../src/buildpacks/js-bundle-image';
 import { buildPythonLambda } from '../src/buildpacks/py-lambda-buildpack';
-import { buildRubyLambda } from '../src/buildpacks/rb-lambda-buildpack';
 import { buildRustLambda } from '../src/buildpacks/rust-lambda-buildpack';
 import { buildUsingRailpack } from '../src/image/railpack';
 import type { BuildDockerImage, PackagingOutput, RunRailpackPrepare } from '../src/runtime-contracts';
@@ -572,44 +571,6 @@ async function buildpackScenarios() {
   }
   record('rust-lambda-provided-al2023', rustOutput);
 
-  console.log('Building synthetic Python uv.lock Lambda artifact...');
-  const pythonRoot = join(projectsRoot, 'python');
-  await write(
-    join(pythonRoot, 'pyproject.toml'),
-    '[project]\nname = "stacktape-smoke"\nversion = "0.1.0"\nrequires-python = ">=3.14"\ndependencies = []\n'
-  );
-  await write(
-    join(pythonRoot, 'uv.lock'),
-    'version = 1\nrevision = 3\nrequires-python = ">=3.14"\n\n[[package]]\nname = "stacktape-smoke"\nversion = "0.1.0"\nsource = { virtual = "." }\n'
-  );
-  await write(join(pythonRoot, 'app', 'handler.py'), 'def handler(event, context):\n    return {"ok": True}\n');
-  await write(join(pythonRoot, 'app', 'template.txt'), 'runtime-template');
-  const pythonDist = join(artifactsRoot, 'python');
-  const pythonOutput = await buildPythonLambda({
-    ...common,
-    cwd: pythonRoot,
-    name: 'synthetic-python',
-    entryfilePath: 'app/handler.py',
-    distFolderPath: pythonDist,
-    pythonVersion: 3.14,
-    python: { packageManagerFile: 'uv.lock' }
-  });
-  await assertFile(join(pythonDist, 'app', 'handler.py'));
-  await assertFile(join(pythonDist, 'app', 'template.txt'));
-  await assertNoGeneratedDockerfile(pythonDist);
-  await assertRunOutput({
-    dockerArgs: [
-      '--mount',
-      `type=bind,source=${pythonDist},target=/artifact,readonly`,
-      'python:3.14-slim',
-      'python',
-      '-c',
-      "import sys; sys.path.insert(0, '/artifact'); from app.handler import handler; print(handler({}, None))"
-    ],
-    expected: "{'ok': True}"
-  });
-  record('python-lambda-uv-lock', pythonOutput);
-
   console.log('Building and executing a synthetic Python Pipfile Lambda artifact...');
   const pipfileRoot = join(projectsRoot, 'python-pipfile');
   await write(
@@ -645,132 +606,6 @@ async function buildpackScenarios() {
     throw new Error('Pipfile dev dependency leaked into the Lambda artifact.');
   }
   record('python-lambda-pipfile', pipfileOutput);
-
-  console.log('Building synthetic Ruby Lambda artifact...');
-  const rubyRoot = join(projectsRoot, 'ruby');
-  await write(join(rubyRoot, 'gems.rb'), 'source "https://rubygems.org"\ngem "base64", "0.3.0"\n');
-  await write(
-    join(rubyRoot, 'src', 'handler.rb'),
-    'require "base64"\ndef handler(event:, context:)\n  { value: Base64.strict_encode64("ruby-runtime-ok") }\nend\n'
-  );
-  const rubyDist = join(artifactsRoot, 'ruby');
-  const rubyOutput = await buildRubyLambda({
-    ...common,
-    cwd: rubyRoot,
-    name: 'synthetic-ruby',
-    entryfilePath: 'src/handler.rb',
-    distFolderPath: rubyDist,
-    rubyVersion: 4
-  });
-  await assertFile(join(rubyDist, 'src', 'handler.rb'));
-  await assertFile(join(rubyDist, 'vendor', 'bundle', 'ruby', '4.0.0', 'specifications', 'base64-0.3.0.gemspec'));
-  await assertNoGeneratedDockerfile(rubyDist);
-  await assertRunOutput({
-    dockerArgs: [
-      '--mount',
-      `type=bind,source=${rubyDist},target=/artifact,readonly`,
-      '--env',
-      'GEM_HOME=/artifact/vendor/bundle/ruby/4.0.0',
-      '--env',
-      'GEM_PATH=/artifact/vendor/bundle/ruby/4.0.0',
-      'ruby:4.0-slim',
-      'ruby',
-      '-e',
-      "require '/artifact/src/handler'; puts handler(event: {}, context: nil)[:value]"
-    ],
-    expected: 'cnVieS1ydW50aW1lLW9r'
-  });
-  record('ruby-lambda', rubyOutput);
-
-  console.log('Building and executing a synthetic zero-config Maven reactor Lambda artifact...');
-  const javaRoot = join(projectsRoot, 'java');
-  await write(
-    join(javaRoot, 'pom.xml'),
-    '<project xmlns="http://maven.apache.org/POM/4.0.0"><modelVersion>4.0.0</modelVersion><groupId>smoke</groupId><artifactId>parent</artifactId><version>1.0.0</version><packaging>pom</packaging><modules><module>lib</module><module>app</module></modules><properties><maven.compiler.release>21</maven.compiler.release></properties></project>\n'
-  );
-  await write(
-    join(javaRoot, 'lib', 'pom.xml'),
-    '<project xmlns="http://maven.apache.org/POM/4.0.0"><modelVersion>4.0.0</modelVersion><parent><groupId>smoke</groupId><artifactId>parent</artifactId><version>1.0.0</version></parent><artifactId>lib</artifactId></project>\n'
-  );
-  await write(
-    join(javaRoot, 'lib', 'src', 'main', 'java', 'smoke', 'Shared.java'),
-    'package smoke; public final class Shared { public static String message() { return "maven-reactor-runtime-ok"; } }\n'
-  );
-  await write(
-    join(javaRoot, 'app', 'pom.xml'),
-    '<project xmlns="http://maven.apache.org/POM/4.0.0"><modelVersion>4.0.0</modelVersion><parent><groupId>smoke</groupId><artifactId>parent</artifactId><version>1.0.0</version></parent><artifactId>app</artifactId><dependencies><dependency><groupId>smoke</groupId><artifactId>lib</artifactId><version>${project.version}</version></dependency></dependencies></project>\n'
-  );
-  await write(
-    join(javaRoot, 'app', 'src', 'main', 'java', 'smoke', 'Handler.java'),
-    'package smoke; public final class Handler { public String handleRequest() { return Shared.message(); } public static void main(String[] args) { System.out.println(Shared.message()); } }\n'
-  );
-  await write(join(javaRoot, 'app', 'src', 'main', 'resources', 'message.txt'), 'java-runtime-resource');
-  const javaDist = join(artifactsRoot, 'java');
-  const javaOutput = await buildJavaLambda({
-    ...common,
-    cwd: javaRoot,
-    name: 'synthetic-java',
-    entryfilePath: 'app/src/main/java/smoke/Handler.java',
-    distFolderPath: javaDist,
-    javaVersion: 21,
-    java: { useMaven: true }
-  });
-  await assertFile(join(javaDist, 'smoke', 'Handler.class'));
-  await assertFile(join(javaDist, 'message.txt'));
-  await assertNoGeneratedDockerfile(javaDist);
-  await assertRunOutput({
-    dockerArgs: [
-      '--mount',
-      `type=bind,source=${javaDist},target=/artifact,readonly`,
-      'amazoncorretto:21',
-      'java',
-      '-cp',
-      '/artifact:/artifact/lib/*',
-      'smoke.Handler'
-    ],
-    expected: 'maven-reactor-runtime-ok'
-  });
-  record('java21-lambda-maven-reactor', javaOutput);
-
-  console.log('Building and executing a synthetic zero-config Gradle reactor Lambda artifact...');
-  const gradleRoot = join(projectsRoot, 'java-gradle');
-  await write(join(gradleRoot, 'settings.gradle'), "rootProject.name = 'stacktape-smoke'\ninclude 'lib', 'app'\n");
-  await write(
-    join(gradleRoot, 'build.gradle'),
-    "subprojects { apply plugin: 'java'; repositories { mavenCentral() } }\n"
-  );
-  await write(join(gradleRoot, 'app', 'build.gradle'), "dependencies { implementation project(':lib') }\n");
-  await write(
-    join(gradleRoot, 'lib', 'src', 'main', 'java', 'smoke', 'Shared.java'),
-    'package smoke; public final class Shared { public static String message() { return "gradle-reactor-runtime-ok"; } }\n'
-  );
-  await write(
-    join(gradleRoot, 'app', 'src', 'main', 'java', 'smoke', 'Handler.java'),
-    'package smoke; public final class Handler { public String handleRequest() { return Shared.message(); } public static void main(String[] args) { System.out.println(Shared.message()); } }\n'
-  );
-  const gradleDist = join(artifactsRoot, 'java-gradle');
-  const gradleOutput = await buildJavaLambda({
-    ...common,
-    cwd: gradleRoot,
-    name: 'synthetic-java-gradle',
-    entryfilePath: 'app/src/main/java/smoke/Handler.java',
-    distFolderPath: gradleDist,
-    javaVersion: 21,
-    java: { useMaven: false }
-  });
-  await assertRunOutput({
-    dockerArgs: [
-      '--mount',
-      `type=bind,source=${gradleDist},target=/artifact,readonly`,
-      'amazoncorretto:21',
-      'java',
-      '-cp',
-      '/artifact:/artifact/lib/*',
-      'smoke.Handler'
-    ],
-    expected: 'gradle-reactor-runtime-ok'
-  });
-  record('java21-lambda-gradle-reactor', gradleOutput);
 
   console.log('Building and executing a synthetic .NET ancestor-config and ProjectReference Lambda artifact...');
   const dotnetRoot = join(projectsRoot, 'dotnet');

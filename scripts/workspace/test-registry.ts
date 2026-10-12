@@ -483,6 +483,21 @@ export const lanes: readonly Lane[] = [
     selections: ['vscode-host']
   },
   {
+    id: 'language-lambdas',
+    command: ['pnpm', '--filter', '@stacktape/packaging', 'run', 'test:language-lambdas'],
+    level: 'process',
+    tier: 'change',
+    tests: [
+      'packages/packaging/scripts/lambda-e2e/python.test.ts',
+      'packages/packaging/scripts/lambda-e2e/java.test.ts',
+      'packages/packaging/scripts/lambda-e2e/ruby.test.ts'
+    ],
+    requires: ['docker', 'network'],
+    release: 'every-candidate',
+    proves:
+      'Python wheels, Java reactor handlers and Ruby native gems execute from their ZIPs in official Lambda runtimes.'
+  },
+  {
     id: 'packaging-images',
     command: ['pnpm', '--filter', '@stacktape/packaging', 'run', 'test:docker-smoke'],
     level: 'process',
@@ -3313,12 +3328,19 @@ export const slices: readonly Slice[] = [
     promise: 'Python projects package with correct dependencies.',
     status: 'active',
     journeys: ['J3'],
-    paths: ['packages/packaging/src/bundlers/py/**', 'packages/packaging/src/buildpacks/**'],
-    tests: ['packages/packaging/src/bundlers/py/utils.test.ts'],
+    paths: [
+      'packages/packaging/scripts/e2e-helpers.ts',
+      'packages/packaging/scripts/lambda-e2e/harness.ts',
+      'packages/packaging/src/docker/dockerfiles.ts',
+      'packages/packaging/scripts/lambda-e2e/fixtures/python/**',
+      'packages/packaging/src/bundlers/py/**',
+      'packages/packaging/src/buildpacks/py-lambda-buildpack.ts'
+    ],
+    tests: ['packages/packaging/scripts/lambda-e2e/python.test.ts', 'packages/packaging/src/bundlers/py/utils.test.ts'],
     lanes: [
       'packaging-test',
+      'language-lambdas',
       'packaging-images',
-      'packaging-images-2',
       'project-qualification',
       'project-qualification-2'
     ],
@@ -3353,15 +3375,17 @@ export const slices: readonly Slice[] = [
     promise: 'Java builds preserve modules, resources and entrypoints.',
     status: 'active',
     journeys: ['J3'],
-    paths: ['packages/packaging/src/bundlers/java/**'],
-    tests: ['packages/packaging/src/bundlers/java/index.test.ts'],
-    lanes: [
-      'packaging-test',
-      'packaging-images',
-      'packaging-images-2',
-      'project-qualification',
-      'project-qualification-2'
+    paths: [
+      'packages/packaging/scripts/e2e-helpers.ts',
+      'packages/packaging/scripts/lambda-e2e/harness.ts',
+      'packages/packaging/src/docker/dockerfiles.ts',
+      'packages/packaging/src/buildpacks/project-root.ts',
+      'packages/packaging/src/buildpacks/java-lambda-buildpack.ts',
+      'packages/packaging/scripts/lambda-e2e/fixtures/java-*/**',
+      'packages/packaging/src/bundlers/java/**'
     ],
+    tests: ['packages/packaging/scripts/lambda-e2e/java.test.ts', 'packages/packaging/src/bundlers/java/index.test.ts'],
+    lanes: ['packaging-test', 'language-lambdas', 'project-qualification', 'project-qualification-2'],
     contributors: ['S27']
   },
   {
@@ -3385,15 +3409,17 @@ export const slices: readonly Slice[] = [
     promise: 'Ruby artifacts resolve their gems and handler.',
     status: 'active',
     journeys: ['J3'],
-    paths: ['packages/packaging/src/bundlers/ruby/**'],
-    tests: [],
-    lanes: [
-      'packaging-test',
-      'packaging-images',
-      'packaging-images-2',
-      'project-qualification',
-      'project-qualification-2'
+    paths: [
+      'packages/packaging/scripts/e2e-helpers.ts',
+      'packages/packaging/scripts/lambda-e2e/harness.ts',
+      'packages/packaging/src/docker/dockerfiles.ts',
+      'packages/packaging/src/buildpacks/project-root.ts',
+      'packages/packaging/src/buildpacks/rb-lambda-buildpack.ts',
+      'packages/packaging/scripts/lambda-e2e/fixtures/ruby/**',
+      'packages/packaging/src/bundlers/ruby/**'
     ],
+    tests: ['packages/packaging/scripts/lambda-e2e/ruby.test.ts'],
+    lanes: ['packaging-test', 'language-lambdas', 'project-qualification', 'project-qualification-2'],
     contributors: ['S27']
   },
   {

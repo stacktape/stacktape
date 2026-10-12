@@ -13,6 +13,13 @@ export const write = async (path: string, contents: string | Uint8Array) => {
   await Bun.write(path, contents);
 };
 
+const removeLambdaContainer = async (name: string) => {
+  // --rm may already have removed a failed runtime. Only a successful listing proves absence.
+  await run('docker', ['rm', '--force', name], undefined, undefined, 5_000).catch(() => undefined);
+  const remaining = await run('docker', ['ps', '-aq', '--filter', `name=^/${name}$`], undefined, undefined, 5_000);
+  if (remaining.stdout.trim()) throw new Error(`Lambda container ${name} survived cleanup.`);
+};
+
 /**
  * Invokes `index.handler` of an extracted function in a local Lambda Node.js image (never pulled; `runtimeImage` and
  * `handler` select another local Lambda image and handler), with the function at
@@ -27,7 +34,9 @@ export const invokeInLambdaImage = async <Response = unknown>({
   environment = {},
   nodeVersion = 24,
   runtimeImage = `public.ecr.aws/lambda/nodejs:${nodeVersion}`,
-  handler = 'index.handler'
+  handler = 'index.handler',
+  user,
+  timeoutMs = 60_000
 }: {
   functionDirectory: string;
   layerDirectory?: string | undefined;
@@ -38,6 +47,8 @@ export const invokeInLambdaImage = async <Response = unknown>({
   /** Another local Lambda base image, for example `public.ecr.aws/lambda/provided:al2023` with handler `bootstrap`. */
   runtimeImage?: string;
   handler?: string;
+  user?: string;
+  timeoutMs?: number;
 }): Promise<Response> => {
   const name = `stp-e2e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   try {
@@ -48,11 +59,11 @@ export const invokeInLambdaImage = async <Response = unknown>({
       '--platform',
       'linux/amd64',
       '--detach',
-      '--rm',
       '--name',
       name,
       '--label',
       containerLabel,
+      ...(user ? ['--user', user] : []),
       '--publish',
       '127.0.0.1::8080',
       '--mount',
@@ -62,31 +73,36 @@ export const invokeInLambdaImage = async <Response = unknown>({
       runtimeImage,
       handler
     ]);
+    const deadline = Date.now() + timeoutMs;
     let lastError: unknown;
-    for (let attempt = 0; attempt < 120; attempt += 1) {
+    while (Date.now() < deadline) {
       try {
         // oxlint-disable-next-line no-await-in-loop -- Polls the runtime until it answers.
-        const port = (await run('docker', ['port', name, '8080/tcp'])).stdout.trim().match(/:(\d+)$/)?.[1];
+        const port = (await run('docker', ['port', name, '8080/tcp'], undefined, undefined, 5_000)).stdout
+          .trim()
+          .match(/:(\d+)$/)?.[1];
         if (port) {
           // oxlint-disable-next-line no-await-in-loop -- Polls the runtime until it answers.
           const response = await fetch(`http://127.0.0.1:${port}/2015-03-31/functions/function/invocations`, {
             method: 'POST',
-            body: JSON.stringify(event)
+            body: JSON.stringify(event),
+            signal: AbortSignal.timeout(Math.max(1, deadline - Date.now()))
           });
-          // oxlint-disable-next-line no-await-in-loop -- Polls the runtime until it answers.
+          // oxlint-disable-next-line no-await-in-loop -- Reads the response within the invocation deadline.
           const body = await response.text();
           if (response.ok) return JSON.parse(body) as Response;
-          lastError = new Error(`HTTP ${response.status}: ${body}`);
+          throw new Error(`HTTP ${response.status}: ${body}`);
         }
       } catch (error) {
         lastError = error;
       }
       // oxlint-disable-next-line no-await-in-loop -- Polls the runtime until it answers.
-      await Bun.sleep(250);
+      await Bun.sleep(Math.min(250, Math.max(0, deadline - Date.now())));
     }
-    throw new Error(`The Lambda runtime did not answer: ${String(lastError)}`);
+    const logs = await run('docker', ['logs', name], undefined, undefined, 5_000);
+    throw new Error(`The Lambda runtime did not answer: ${String(lastError)}\n${logs.stdout}${logs.stderr}`);
   } finally {
-    await run('docker', ['rm', '--force', name]).catch(() => undefined);
+    await removeLambdaContainer(name);
   }
 };
 
@@ -160,7 +176,13 @@ export const createChecks = () => {
   return { results, check };
 };
 
-export const run = async (command: string, args: string[], cwd?: string, env?: Record<string, string | undefined>) => {
+export const run = async (
+  command: string,
+  args: string[],
+  cwd?: string,
+  env?: Record<string, string | undefined>,
+  timeoutMs = 240_000
+) => {
   const child = Bun.spawn(
     process.platform === 'win32' && ['pnpm', 'npm', 'npx', 'yarn'].includes(command.toLowerCase())
       ? ['cmd.exe', '/d', '/s', '/c', command, ...args]
@@ -172,11 +194,19 @@ export const run = async (command: string, args: string[], cwd?: string, env?: R
       stderr: 'pipe'
     }
   );
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
-    child.exited
-  ]);
+  const timer = setTimeout(() => child.kill(), timeoutMs);
+  let stdout: string;
+  let stderr: string;
+  let exitCode: number;
+  try {
+    [stdout, stderr, exitCode] = await Promise.all([
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+      child.exited
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
   if (exitCode !== 0) {
     throw new Error(`${command} ${args.join(' ')} failed (${exitCode}).\n${stderr || stdout}`);
   }
