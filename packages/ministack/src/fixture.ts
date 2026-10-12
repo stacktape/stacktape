@@ -193,6 +193,17 @@ export const startMiniStack = async ({
     }
   };
   try {
+    // The image is Linux-only. A Windows-containers daemon (GitHub's windows-latest) fails later with an unhelpful
+    // "invalid CapAdd" error; say what is actually missing.
+    const daemonOs = docker(['info', '--format', '{{.OSType}}'], { allowFailure: true });
+    if (daemonOs.exitCode !== 0) {
+      throw new MiniStackError(`Docker is not available: ${daemonOs.stderr || 'docker info failed'}.`);
+    }
+    if (daemonOs.stdout !== 'linux') {
+      throw new MiniStackError(
+        `MiniStack needs a Docker daemon that runs Linux containers; this one runs ${daemonOs.stdout}.`
+      );
+    }
     docker(
       [
         'run',
