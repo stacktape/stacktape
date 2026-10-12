@@ -1,4 +1,12 @@
+import { isDirectiveExpression } from '@stacktape/config-authoring/directive-expressions';
 import { isAlphanumeric } from '@utils/misc';
+
+// A quote after an even run of backslashes closes the string; an odd run escapes it.
+const isEscapedCharacter = (input: string, index: number) => {
+  let backslashes = 0;
+  for (let cursor = index - 1; cursor >= 0 && input[cursor] === '\\'; cursor--) backslashes++;
+  return backslashes % 2 === 1;
+};
 
 export const startsLikeDirective = (str: string) => {
   return /^\$(.*)\(/.test(str);
@@ -12,29 +20,7 @@ export const startsLikeGetParamDirective = (str: string) => {
   return str.startsWith('$ResourceParam');
 };
 
-export const getIsDirective = (node: any) => {
-  if (typeof node !== 'string') {
-    return false;
-  }
-
-  if (!startsLikeDirective(node)) {
-    return false;
-  }
-  if (!node.includes(')')) {
-    return false;
-  }
-  const firstPathCharacter = node[node.lastIndexOf(')') + 1];
-  if (firstPathCharacter !== undefined && firstPathCharacter !== '.') {
-    return false;
-  }
-  // const directivePathToProp = getDirectivePathToProp(node);
-  // @todo
-  // if (directivePathToProp.length && !directivePathToProp.join('').match(/^[$A-Z_][0-9A-Z_$]*\$/i)) {
-  //   console.log('node', node);
-  //   return false;
-  // }
-  return true;
-};
+export const getIsDirective = (node: unknown): boolean => typeof node === 'string' && isDirectiveExpression(node);
 
 export const getDirectivePathToProp = (rawDirective: string): string[] => {
   const parts = rawDirective.split(')');
@@ -97,11 +83,11 @@ export const getEmbeddedDirectives = (value: string): Array<{ definition: string
 
     for (let i = idx; i < str.length; i++) {
       const char = str[i];
-      const prevChar = i > 0 ? str[i - 1] : '';
+      const escaped = (char === "'" || char === '"') && isEscapedCharacter(str, i);
 
-      if (char === "'" && prevChar !== '\\' && !inDoubleQuote) {
+      if (char === "'" && !escaped && !inDoubleQuote) {
         inSingleQuote = !inSingleQuote;
-      } else if (char === '"' && prevChar !== '\\' && !inSingleQuote) {
+      } else if (char === '"' && !escaped && !inSingleQuote) {
         inDoubleQuote = !inDoubleQuote;
       }
 
@@ -203,12 +189,12 @@ const findNextDelimiter = (
 
   while (i < str.length) {
     const char = str[i];
-    const prevChar = i > 0 ? str[i - 1] : '';
+    const escaped = (char === "'" || char === '"') && isEscapedCharacter(str, i);
 
     // Handle quote state (ignore escaped quotes)
-    if (char === "'" && prevChar !== '\\' && !inDoubleQuote) {
+    if (char === "'" && !escaped && !inDoubleQuote) {
       inSingleQuote = !inSingleQuote;
-    } else if (char === '"' && prevChar !== '\\' && !inSingleQuote) {
+    } else if (char === '"' && !escaped && !inSingleQuote) {
       inDoubleQuote = !inDoubleQuote;
     }
 
@@ -257,11 +243,11 @@ const parseParamValue = (param: string): DirectiveParam | null => {
 
     for (let i = directiveStart; i < trimmed.length; i++) {
       const char = trimmed[i];
-      const prevChar = i > 0 ? trimmed[i - 1] : '';
+      const escaped = (char === "'" || char === '"') && isEscapedCharacter(trimmed, i);
 
-      if (char === "'" && prevChar !== '\\' && !inDoubleQuote) {
+      if (char === "'" && !escaped && !inDoubleQuote) {
         inSingleQuote = !inSingleQuote;
-      } else if (char === '"' && prevChar !== '\\' && !inSingleQuote) {
+      } else if (char === '"' && !escaped && !inSingleQuote) {
         inDoubleQuote = !inDoubleQuote;
       }
 
@@ -315,7 +301,12 @@ const parseParamValue = (param: string): DirectiveParam | null => {
     return { value: trimmed.substring(1, trimmed.length - 1) };
   }
   if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
-    return { value: trimmed.substring(1, trimmed.length - 1) };
+    try {
+      return { value: JSON.parse(trimmed) };
+    } catch {
+      // Keep accepting historical quoted values with literal, non-JSON escapes.
+      return { value: trimmed.substring(1, trimmed.length - 1) };
+    }
   }
 
   // If we can't parse it, return it as-is (might be an identifier or other value)
@@ -339,11 +330,11 @@ export const getDirectiveParams = (directiveName: string, str: string): Directiv
 
   for (let i = startIdx + directivePrefix.length - 1; i < str.length; i++) {
     const char = str[i];
-    const prevChar = i > 0 ? str[i - 1] : '';
+    const escaped = (char === "'" || char === '"') && isEscapedCharacter(str, i);
 
-    if (char === "'" && prevChar !== '\\' && !inDoubleQuote) {
+    if (char === "'" && !escaped && !inDoubleQuote) {
       inSingleQuote = !inSingleQuote;
-    } else if (char === '"' && prevChar !== '\\' && !inSingleQuote) {
+    } else if (char === '"' && !escaped && !inSingleQuote) {
       inDoubleQuote = !inDoubleQuote;
     }
 

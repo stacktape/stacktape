@@ -98,6 +98,9 @@ describe('a YAML config with directives, references and stage-specific values sy
     expect(environment.GREETING).toBe('hello platform-team from production');
     expect(environment.SHOUTED).toBe('PLATFORM-TEAM-env');
     // Resource references become CloudFormation references to the synthesized resources.
+    expect(environment.FORMATTED_REFERENCE).toEqual({
+      'Fn::Sub': ['${sub0}-${sub1}-${sub2}', { sub0: { Ref: 'RecordsGlobalTable' }, sub1: 'production', sub2: 'ready' }]
+    });
     expect(environment.TABLE_NAME).toEqual({ Ref: 'RecordsGlobalTable' });
     expect(environment.TABLE_ARN).toEqual({ 'Fn::GetAtt': ['RecordsGlobalTable', 'Arn'] });
     // The gateway's URL is its default domain, which derives from the resource, stack and account.
@@ -175,10 +178,28 @@ resources:
 
     const yamlEnvironment = functionEnvironment(yamlTemplate, 'ApiFunction');
     const typescriptEnvironment = functionEnvironment(typescriptTemplate, 'ApiFunction');
-    for (const name of ['STAGE', 'REGION', 'TABLE_NAME', 'TABLE_ARN', 'GATEWAY_URL', 'GREETING']) {
+    for (const name of [
+      'STAGE',
+      'REGION',
+      'TABLE_NAME',
+      'TABLE_ARN',
+      'GATEWAY_URL',
+      'GREETING',
+      'FORMATTED_REFERENCE'
+    ]) {
       expect(typescriptEnvironment[name]).toEqual(yamlEnvironment[name]);
     }
     expect(Object.keys(typescriptTemplate.Resources).sort()).toEqual(Object.keys(yamlTemplate.Resources).sort());
+    expect(typescriptEnvironment.FORMATTED_LITERAL).toEqual({
+      'Fn::Sub': ['${sub0}-${sub1}', { sub0: `it's "ready"`, sub1: 0 }]
+    });
+    expect(typescriptEnvironment.FORMATTED_NO_VALUES).toEqual({ 'Fn::Sub': 'literal text' });
+    expect(typescriptEnvironment.FORMATTED_BOUNDARIES).toEqual({
+      'Fn::Sub': [
+        '${sub0}-${sub1}-${sub2}',
+        { sub0: '$Stage() suffix', sub1: '$Stage() (prod)', sub2: 'C:\\workspace\\' }
+      ]
+    });
     const yamlRole = JSON.stringify(yamlTemplate.Resources.ApiRole);
     expect(JSON.stringify(typescriptTemplate.Resources.ApiRole)).toBe(yamlRole);
   });

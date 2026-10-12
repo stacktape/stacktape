@@ -1,3 +1,5 @@
+import { isDirectiveExpression } from './directive-expressions.js';
+
 /**
  * Returns a reference to a resource parameter.
  * @param resourceName - The name of the resource as specified in the Stacktape config.
@@ -48,8 +50,14 @@ export const $SsmParam = (paramName: string) => {
  * $CfFormat('{}-mydomain.com', 'foo') results in foo-mydomain.com.
  * `$CfFormat('{}.mydomain.com', $Stage())` results in `staging.mydomain.com` if the stage is staging.
  */
-export const $CfFormat = (interpolatedString: string, ...values: any[]) => {
-  return `$CfFormat('${interpolatedString}', '${values.join(',')}')`;
+export const $CfFormat = (interpolatedString: string, ...values: unknown[]) => {
+  const params = [
+    JSON.stringify(interpolatedString),
+    ...values.map((value) =>
+      typeof value === 'string' && isDirectiveExpression(value) ? value : JSON.stringify(value)
+    )
+  ];
+  return `$CfFormat(${params.join(',')})`;
 };
 
 /**
