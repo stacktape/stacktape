@@ -163,6 +163,7 @@ export const buildConvexNestedResources = ({
     versioning: convex.storage?.versioning ?? false,
     lifecycleRules: convex.storage?.lifecycleRules,
     cors: {
+      enabled: true,
       corsRules: [
         {
           allowedOrigins: ['*'],

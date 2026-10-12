@@ -140,3 +140,29 @@ pnpm --filter @stacktape/cli run test:real-aws-init-canary -- --cleanup-only
 
 Cleanup verifies the recorded account, stack identity, owner and creation time before deleting anything. Investigate a
 refusal; do not edit the state file to bypass it.
+
+## AppSync endpoint canary
+
+This synthesizes the authored Lambda/AppSync family through configuration validation, resource resolution and template
+finalization, then deploys the resulting family with CloudFormation. The Lambda uses a small inline handler so the
+assertion covers endpoint delivery and the generated service role. An unsigned request must receive 401; a signed
+request with a variable must return the exact resolver result. Cleanup checks the recorded stack, API, Lambda, roles and
+log groups, including exact owned log groups recreated by late service log delivery.
+
+The profile is fixed to `stacktape-e2e` and the region to `eu-west-1`. Verify its account with STS before supplying the
+expected ID. Choose a unique project, owner and absolute state path; keep that state for recovery.
+
+```sh
+export STP_ENDPOINT_CANARY_DEPLOY=1
+export STP_ENDPOINT_CANARY_CONFIRM_DISPOSABLE=this-is-a-disposable-test-account
+export STP_ENDPOINT_CANARY_EXPECTED_ACCOUNT_ID='<verified 12-digit account id>'
+export STP_ENDPOINT_CANARY_PROJECT="v4endpoint-$(date -u +%s)"
+export STP_ENDPOINT_CANARY_OWNER="local-endpoint-$(date -u +%s)"
+export STP_ENDPOINT_CANARY_STATE_FILE="$(pwd)/.stacktape/endpoint-${STP_ENDPOINT_CANARY_PROJECT}.json"
+mkdir -p .stacktape
+pnpm --filter @stacktape/cli run test:real-aws-endpoint
+```
+
+If interrupted, use the same variables and run
+`pnpm --filter @stacktape/cli run test:real-aws-endpoint -- --cleanup-only`. A refused account or existing-name
+preflight grants no cleanup authority. A recovery state mismatch stops deletion.

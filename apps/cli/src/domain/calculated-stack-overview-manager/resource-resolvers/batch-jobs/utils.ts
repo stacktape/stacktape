@@ -422,12 +422,18 @@ export const getBatchStateMachine = (
   region: AWSRegion,
   accountId: string
 ) => {
-  return cfnResource('AWS::StepFunctions::StateMachine', {
+  const stateMachine = cfnResource('AWS::StepFunctions::StateMachine', {
     StateMachineName: awsResourceNames.batchStateMachine(name, stackName),
     RoleArn: getAtt(cfLogicalNames.batchStateMachineExecutionRole(), 'Arn'),
     StateMachineType: 'STANDARD',
     DefinitionString: getBatchStateMachineDefinitionString(name, workload, stackName, region, accountId)
   });
+  // The ASL definition contains physical ARNs, so CloudFormation cannot infer these dependencies.
+  stateMachine.DependsOn = [
+    cfLogicalNames.batchJobDefinition(name),
+    cfLogicalNames.batchJobQueue(Boolean(workload.useSpotInstances), Boolean(workload.resources.gpu))
+  ];
+  return stateMachine;
 };
 
 export const getBachJobLogGroup = ({
