@@ -119,7 +119,7 @@ export const getStacktapeServiceLambdaEnvironment = ({
       name: 'ISSUE_MAX_LOG_AGE_MS',
       value: String(10 * 60 * 1000)
     },
-    ...(IS_DEV ? [{ name: 'DEV_MODE', value: IS_DEV }] : [])
+    ...(IS_DEV ? [{ name: 'DEV_MODE', value: String(IS_DEV) }] : [])
   ];
 };
 
