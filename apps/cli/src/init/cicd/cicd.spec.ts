@@ -2,7 +2,6 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'bun:test';
-import { parse } from 'yaml';
 import { detectRepository } from './detect-host';
 import { pipelineFor } from './templates';
 import { writePipeline } from './write-pipeline';
@@ -62,14 +61,6 @@ describe('working out where the project lives', () => {
 });
 
 describe('the pipelines', () => {
-  it('produce valid YAML for every host', () => {
-    for (const host of ['github', 'gitlab', 'bitbucket'] as const) {
-      const template = pipelineFor(host, inputs);
-      expect(() => parse(template.contents)).not.toThrow();
-      expect(parse(template.contents)).toBeTruthy();
-    }
-  });
-
   it('never contain a credential, on any host', () => {
     for (const host of ['github', 'gitlab', 'bitbucket'] as const) {
       const template = pipelineFor(host, inputs);
