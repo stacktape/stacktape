@@ -20,17 +20,19 @@ const git = (cwd: string, ...args: string[]) =>
     stdio: ['ignore', 'pipe', 'pipe']
   }).trim();
 
-test('a change to the MiniStack fixture selects every lane that runs on the emulator', () => {
-  const ids = new Set(createTestPlan(['packages/ministack/src/fixture.ts']).map(({ id }) => id));
-  for (const lane of [
-    'ministack-fixture',
-    'ministack-deploy',
-    'cli-stack-operations',
-    'artifact-upload-2',
-    'console-database-console-access'
-  ]) {
-    assert.ok(ids.has(lane), `${lane} is not selected for a fixture change`);
+test('a change to the MiniStack fixture or the CLI network guard selects every lane that runs on the emulator', () => {
+  for (const path of ['packages/ministack/src/fixture.ts', 'apps/cli/scripts/network-guard-preload.ts']) {
+    const ids = new Set(createTestPlan([path]).map(({ id }) => id));
+    for (const lane of [
+      'ministack-deploy',
+      'cli-stack-operations',
+      'artifact-upload-2',
+      'console-database-console-access'
+    ]) {
+      assert.ok(ids.has(lane), `${lane} is not selected for a change to ${path}`);
+    }
   }
+  assert.ok(createTestPlan(['packages/ministack/src/fixture.ts']).some(({ id }) => id === 'ministack-fixture'));
 });
 
 test('helper-Lambda, packaging and delete changes select the offline deploy loop', () => {

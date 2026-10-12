@@ -2805,7 +2805,8 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/shared-resource-stack-manager/index.ts',
       'apps/cli/src/utils/stack-info-map-diff.ts',
       'apps/cli/tests/ministack/**',
-      'packages/ministack/**'
+      'packages/ministack/**',
+      'apps/cli/scripts/network-guard-preload.ts'
     ],
     tests: [
       'apps/cli/src/aws/cloudformation.spec.ts',
@@ -2846,7 +2847,8 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/cf-rollback/**',
       'apps/cli/src/commands/diff/**',
       'apps/cli/src/domain/cloudformation-stack-manager/**',
-      'packages/ministack/**'
+      'packages/ministack/**',
+      'apps/cli/scripts/network-guard-preload.ts'
     ],
     tests: ['apps/cli/tests/cli-process/stack-operations.spec.ts'],
     lanes: [
@@ -3364,7 +3366,8 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/deployment-artifact-manager/**',
       'apps/cli/scripts/packaging-archives/layer-upload-ministack-acceptance.ts',
       'apps/cli/src/aws/s3-upload-options.ts',
-      'packages/ministack/**'
+      'packages/ministack/**',
+      'apps/cli/scripts/network-guard-preload.ts'
     ],
     tests: [
       'apps/cli/scripts/packaging-archives/layer-upload-acceptance.ts',
@@ -3911,6 +3914,7 @@ export const slices: readonly Slice[] = [
     journeys: ['J5'],
     paths: [
       'packages/ministack/**',
+      'apps/cli/scripts/network-guard-preload.ts',
       'apps/cli/src/commands/secret-*/**',
       'apps/cli/src/commands/param-*/**',
       'apps/console/ui/src/aws/secrets*.ts',
