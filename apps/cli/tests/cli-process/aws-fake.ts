@@ -35,6 +35,23 @@ export type AwsFake = {
   close: () => Promise<void>;
 };
 
+// Only these read operations belong to the command scenarios. Everything else must be an explicitly observed
+// mutation or is refused before forwarding, including registry reads not needed by these stacks.
+const reads = new Set(['DescribeStacks', 'ListStackResources', 'GetTemplate', 'DescribeStackEvents']);
+const writes = new Set([
+  'CreateStack',
+  'UpdateStack',
+  'DeleteStack',
+  'CreateChangeSet',
+  'ExecuteChangeSet',
+  'DeleteChangeSet',
+  'UpdateTerminationProtection',
+  'SetStackPolicy',
+  'CancelUpdateStack',
+  'RollbackStack',
+  'ContinueUpdateRollback'
+]);
+
 const escapeXml = (value: string) =>
   value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -154,9 +171,13 @@ export const startAwsFake = async ({
       response.writeHead(status, { 'content-type': 'text/xml; charset=utf-8' });
       response.end(document);
     };
+    if (writes.has(action)) mutations.push({ action, parameters });
+    if (!reads.has(action) && !writes.has(action)) {
+      const requestName = `${request.method} ${url.pathname}${url.search} (${action})`;
+      unexpectedRequests.push(requestName);
+      return xml(501, cloudFormationError('CLI_PROCESS_FAKE_REFUSED', `The observer refuses ${requestName}.`));
+    }
     if (forwardEndpoint) {
-      if (/^(DeleteStack|UpdateStack|CreateStack|ExecuteChangeSet)$/.test(action))
-        mutations.push({ action, parameters });
       const forwarded = await fetch(`${forwardEndpoint}${request.url ?? '/'}`, {
         method: request.method,
         headers: {
@@ -218,14 +239,12 @@ export const startAwsFake = async ({
           ? xml(200, stackEventsXml(region, state.stack))
           : xml(400, cloudFormationError('ValidationError', `Stack with id ${form.get('StackName')} does not exist`));
       case 'DeleteStack':
-        mutations.push({ action, parameters });
         if (state.stack) {
           state.stack.status = 'DELETE_IN_PROGRESS';
         }
         return xml(200, wrapResult('DeleteStack', ''));
       case 'RollbackStack':
       case 'ContinueUpdateRollback':
-        mutations.push({ action, parameters });
         if (!state.stack || state.stack.rollbackFailure) {
           return xml(400, cloudFormationError('ValidationError', 'Injected rollback refusal.'));
         }
@@ -235,7 +254,6 @@ export const startAwsFake = async ({
       case 'UpdateStack':
       case 'CreateStack':
       case 'CancelUpdateStack':
-        mutations.push({ action, parameters });
         return xml(400, cloudFormationError('ValidationError', `The CLI-process fake does not execute ${action}.`));
       default:
         break;

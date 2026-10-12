@@ -6,7 +6,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import {
   CloudFormationClient,
   DescribeStackEventsCommand,
@@ -95,6 +95,7 @@ export const writeProjectFiles = async (
   files: Record<string, string | Record<string, unknown>>
 ) => {
   for (const [name, content] of Object.entries(files)) {
+    await mkdir(dirname(join(project.directory, name)), { recursive: true });
     await writeFile(
       join(project.directory, name),
       typeof content === 'string' ? content : `${JSON.stringify(content, null, 2)}\n`

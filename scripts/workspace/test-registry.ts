@@ -253,6 +253,7 @@ export const lanes: readonly Lane[] = [
       'src/utils/stack-info-map-diff.spec.ts',
       'src/commands/deploy/ec2-runner-config-path.spec.ts',
       'src/aws/cloudformation.spec.ts',
+      'src/aws/ecs-contracts.spec.ts',
       'src/domain/shared-resource-stack-manager/index.spec.ts',
       'tests/characterization/lambda-version-publication.spec.ts',
       'tests/characterization/cloudformation-stack-operations.spec.ts',
@@ -265,6 +266,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/utils/stack-info-map-diff.spec.ts',
       'apps/cli/src/commands/deploy/ec2-runner-config-path.spec.ts',
       'apps/cli/src/aws/cloudformation.spec.ts',
+      'apps/cli/src/aws/ecs-contracts.spec.ts',
       'apps/cli/src/domain/shared-resource-stack-manager/index.spec.ts',
       'apps/cli/tests/characterization/lambda-version-publication.spec.ts',
       'apps/cli/tests/characterization/cloudformation-stack-operations.spec.ts',
@@ -273,7 +275,7 @@ export const lanes: readonly Lane[] = [
     requires: [],
     release: 'every-candidate',
     proves:
-      'Change plans, replacement risks, version publication and malformed service responses preserve deployment safety.',
+      'Change plans, replacement risks, ECS mapping contracts, version publication and malformed service responses preserve deployment safety.',
     selections: ['deployment-rules']
   },
   {
@@ -2981,6 +2983,7 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/cli/src/aws/cloudformation.spec.ts',
+      'apps/cli/src/aws/ecs-contracts.spec.ts',
       'apps/cli/src/commands/deploy/ec2-runner-config-path.spec.ts',
       'apps/cli/src/domain/deployment-change-plan/index.spec.ts',
       'apps/cli/src/domain/shared-resource-stack-manager/index.spec.ts',

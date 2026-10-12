@@ -12,6 +12,7 @@ import assert from 'node:assert/strict';
 import { mkdir, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { GetFunctionConfigurationCommand, InvokeCommand } from '@aws-sdk/client-lambda';
 import { CloudFormationClient, type StackResourceSummary } from '@aws-sdk/client-cloudformation';
 import { parseYaml } from '../../src/utils/yaml';
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
@@ -170,6 +171,49 @@ describe('offline deploy loop against MiniStack', () => {
               await clients.s3.send(
                 new PutObjectCommand({ Bucket: bucket, Key: 'added-since-v1', Body: 'remove-on-rollback' })
               );
+              const manifestKey = 'bucket-sync-manifest/v000001.json';
+              const savedManifest = await clients.s3.send(
+                new GetObjectCommand({ Bucket: deploymentBucket, Key: manifestKey })
+              );
+              const manifestBody = await savedManifest.Body!.transformToString();
+              await clients.s3.send(
+                new PutObjectCommand({
+                  Bucket: deploymentBucket,
+                  Key: manifestKey,
+                  Body: JSON.stringify({ [bucket]: [{ key: 'probe-state', versionId: 'removed-object-version' }] })
+                })
+              );
+              try {
+                const partial = await runSourceCli({ project, step, ministack, logName: 'rollback-content-warning' });
+                assert.equal(
+                  partial.exitCode,
+                  0,
+                  `bucket restore failure turned a completed rollback into failure: ${partial.tail}`
+                );
+                assert.ok(!partial.timedOut, 'rollback hung after content restore failed');
+                assert.match(partial.tail, /Could not restore bucket-synced content/);
+                assert.match(
+                  await getStackTemplate(cloudFormation, project.stackName),
+                  /StpDeploymentVersion:\s*\n\s*Value: v000004/
+                );
+                const functionName = lookups(previous).physical('HandlerFunction');
+                assert.equal(
+                  (await clients.lambda.send(new GetFunctionConfigurationCommand({ FunctionName: functionName })))
+                    .MemorySize,
+                  256
+                );
+                const invoked = await clients.lambda.send(
+                  new InvokeCommand({ FunctionName: functionName, Payload: Buffer.from('{}') })
+                );
+                assert.equal(invoked.FunctionError, undefined);
+                assert.equal(JSON.parse(Buffer.from(invoked.Payload!).toString()).body, 'ministack-v1');
+                const unrestored = await clients.s3.send(new GetObjectCommand({ Bucket: bucket, Key: 'probe-state' }));
+                assert.equal(await unrestored.Body!.transformToString(), 'changed-since-v1');
+              } finally {
+                await clients.s3.send(
+                  new PutObjectCommand({ Bucket: deploymentBucket, Key: manifestKey, Body: manifestBody })
+                );
+              }
             }
             if (step === 'diff') {
               const proposed = family.config(1);
@@ -225,8 +269,10 @@ describe('offline deploy loop against MiniStack', () => {
               checks.push('diff leaves the deployed template and resources untouched');
             }
             if (step === 'rollback') {
-              assert.match(template, /StpDeploymentVersion:\s*\n\s*Value: v000004/, 'rollback records a new version');
-              checks.push('v000001 redeployed as v000004');
+              assert.match(template, /StpDeploymentVersion:\s*\n\s*Value: v000005/, 'rollback records a new version');
+              checks.push(
+                'content restore failure warns after a successful v000004 rollback; retry restores v000001 as v000005'
+              );
             }
             if (step === 'unchanged') {
               assert.deepEqual(
@@ -267,17 +313,16 @@ describe('offline deploy loop against MiniStack', () => {
             if (family.name === 'bucket-queue-table-function' && step === 'create') {
               const bucket = context.physical('BucketBucket');
               const saved = await clients.s3.send(
-                new PutObjectCommand({ Bucket: bucket, Key: 'probe-state', Body: 'survives-update' })
-              );
-              const savedBucketVersion = saved.VersionId;
-              assert.ok(savedBucketVersion, 'the old bucket object has no version');
-              await clients.s3.send(
-                new PutObjectCommand({
+                new GetObjectCommand({
                   Bucket: context.physical('StpDeploymentBucket'),
-                  Key: 'bucket-sync-manifest/v000001.json',
-                  Body: JSON.stringify({ [bucket]: [{ key: 'probe-state', versionId: savedBucketVersion }] })
+                  Key: 'bucket-sync-manifest/v000001.json'
                 })
               );
+              const manifest = JSON.parse(await saved.Body!.transformToString());
+              const current = await clients.s3.send(new GetObjectCommand({ Bucket: bucket, Key: 'probe-state' }));
+              assert.ok(current.VersionId, 'the synced object has no version');
+              assert.deepEqual(manifest, { [bucket]: [{ key: 'probe-state', versionId: current.VersionId }] });
+              checks.push('deploy saves the synced bucket manifest with real object version IDs');
             }
             if (step === 'rollback') {
               await assert.rejects(
@@ -363,6 +408,63 @@ describe('failed deployment artifacts', () => {
   }
 });
 
+test('repairing UPDATE_FAILED removes abandoned attempts while retaining the deployed archive and previous version', async () => {
+  const { synthesizeFixture } = await import('../characterization/synthesis-fixture');
+  const { deploymentArtifactManager } = await import('../../src/domain/deployment-artifact-manager');
+  const { stackManager } = await import('../../src/domain/cloudformation-stack-manager');
+  const { performFullDeploy } = await import('../../src/commands/deploy');
+  const { buildLambdaS3Key } = await import('../../src/domain/deployment-artifact-manager/artifact-names');
+  const { CreateBucketCommand, ListObjectsV2Command } = await import('@aws-sdk/client-s3');
+  const account = ministack.account();
+  const s3 = new S3Client(ministack.clientConfig(account));
+  const bucket = `t06-repair-${account.accountId}`;
+  const configPath = join(out, 'repair-config.yml');
+  await writeFile(configPath, 'resources: {}\n');
+  try {
+    await synthesizeFixture({ configPath, workingDir: out, localAws: ministack.clientConfig(account) });
+    await s3.send(new CreateBucketCommand({ Bucket: bucket }));
+    const previous = buildLambdaS3Key('handler', 'v000002', 'previous');
+    const abandoned = buildLambdaS3Key('handler', 'v000003', 'abandoned');
+    const deployed = buildLambdaS3Key('handler', 'v000003', 'deployed');
+    const template = getCfTemplateS3Key('v000003');
+    for (const Key of [previous, abandoned, deployed, template]) {
+      await s3.send(new PutObjectCommand({ Bucket: bucket, Key, Body: Key }));
+    }
+    stackManager.existingStackDetails = {
+      StackName: 'artifact-repair',
+      CreationTime: new Date(),
+      StackStatus: 'UPDATE_FAILED',
+      stackOutput: { StpDeploymentVersion: 'v000002' }
+    };
+    deploymentArtifactManager.deploymentBucketName = bucket;
+    deploymentArtifactManager.previousObjects = [];
+    deploymentArtifactManager.previousImages = [];
+    deploymentArtifactManager.successfullyCreatedObjects = [];
+    deploymentArtifactManager.successfullyUploadedImages = [];
+    deploymentArtifactManager.previouslyUploadedS3KeysUsedInDeployment = [deployed];
+    deploymentArtifactManager.previouslyUploadedImageTagsUsedInDeployment = [];
+    await deploymentArtifactManager.loadPreviousBucketObjects(bucket, 'update');
+    await performFullDeploy({
+      deploymentArtifacts: deploymentArtifactManager,
+      stack: {
+        existingStackDetails: stackManager.existingStackDetails,
+        isAutoRollbackEnabled: true,
+        deployStack: async () => ({ warningMessages: [] })
+      },
+      tui: { warn: () => {} }
+    });
+    const keys = ((await s3.send(new ListObjectsV2Command({ Bucket: bucket }))).Contents ?? [])
+      .map(({ Key }) => Key)
+      .toSorted();
+    expect(keys).toEqual([previous, deployed, template].toSorted());
+    expect(
+      await (await s3.send(new GetObjectCommand({ Bucket: bucket, Key: deployed }))).Body!.transformToString()
+    ).toBe(deployed);
+  } finally {
+    s3.destroy();
+  }
+}, 60_000);
+
 // Shared resources reuse the real stack adapter, rather than a second in-memory CloudFormation implementation.
 test('shared-stack upgrades preserve ownership, customer data and newer contracts', async () => {
   const { SharedResourceStackManager } = await import('../../src/domain/shared-resource-stack-manager');
@@ -375,9 +477,16 @@ test('shared-stack upgrades preserve ownership, customer data and newer contract
       throw error;
     }
   });
+  const stackName = `t06-shared-${Date.now()}`;
+  const roleArn = 'arn:aws:iam::000000000000:role/shared-deployment';
   const manager = new SharedResourceStackManager({
     adapter: {
-      get: async (stackName) => (await cf.getDetails(stackName)) ?? undefined,
+      get: async (name) => {
+        const details = await cf.getDetails(name);
+        // Deliberately inject stored-role metadata: MiniStack accepts RoleARN on create but omits it in DescribeStacks.
+        // All stack templates, parameters, resource updates and queue effects still use the real adapter and emulator.
+        return details && name === `${stackName}-role` ? { ...details, RoleARN: roleArn } : (details ?? undefined);
+      },
       create: ({ stackName, template, parameters, tags, roleArn }) =>
         cf.createSharedStack(template, { StackName: stackName, Parameters: parameters, Tags: tags, RoleARN: roleArn }),
       update: ({ stackName, template, parameters, tags }) =>
@@ -386,7 +495,6 @@ test('shared-stack upgrades preserve ownership, customer data and newer contract
     pollIntervalMs: 50,
     maxWaitMs: 20_000
   });
-  const stackName = `t06-shared-${Date.now()}`;
   const requirement = (contractVersion: number, visibility: string) => ({
     kind: 'queue',
     ownershipKey: 'customer-owned-queue',
@@ -440,6 +548,31 @@ test('shared-stack upgrades preserve ownership, customer data and newer contract
       manager.ensure({ ...requirement(3, '120'), roleArn: 'arn:aws:iam::000000000000:role/different' })
     ).rejects.toMatchObject({ code: 'SHARED_STACK_ROLE_MISMATCH' });
     expect((await cf.getDetails(stackName))?.stackOutput.ContractVersion).toBe('2');
+    expect((await manager.ensure({ ...requirement(2, '90'), roleArn })).action).toBe('reuse');
+    const withRole = (version: number, visibility: string) => ({
+      ...requirement(version, visibility),
+      stackName: `${stackName}-role`,
+      roleArn
+    });
+    expect((await manager.ensure(withRole(1, '60'))).action).toBe('create');
+    expect((await manager.ensure({ ...withRole(1, '60'), roleArn: undefined })).action).toBe('reuse');
+    for (const requestedRole of [undefined, 'arn:aws:iam::000000000000:role/other']) {
+      await expect(manager.ensure({ ...withRole(2, '90'), roleArn: requestedRole })).rejects.toMatchObject({
+        code: 'SHARED_STACK_ROLE_MISMATCH'
+      });
+      expect((await cf.getDetails(`${stackName}-role`))?.stackOutput.ContractVersion).toBe('1');
+    }
+    const [roleQueue] = await cf.getResources(`${stackName}-role`);
+    expect((await manager.ensure(withRole(2, '90'))).action).toBe('upgrade');
+    expect((await cf.getResources(`${stackName}-role`))[0].PhysicalResourceId).toBe(roleQueue.PhysicalResourceId);
+    const roleQueueUrl = new URL(new URL(roleQueue.PhysicalResourceId!).pathname, ministack.endpoint).href;
+    expect(
+      (
+        await clients.sqs.send(
+          new GetQueueAttributesCommand({ QueueUrl: roleQueueUrl, AttributeNames: ['VisibilityTimeout'] })
+        )
+      ).Attributes?.VisibilityTimeout
+    ).toBe('90');
     const mergeParameters = ({ existing }: { existing: Record<string, string> }) => existing;
     expect((await manager.ensure({ ...requirement(2, ''), mergeParameters })).action).toBe('reuse');
     await expect(
@@ -455,6 +588,7 @@ test('shared-stack upgrades preserve ownership, customer data and newer contract
       manager.ensureAll([requirement(2, '90'), { ...requirement(2, '90'), ownershipKey: 'other' }])
     ).rejects.toMatchObject({ code: 'SHARED_STACK_DEFINITION_CONFLICT' });
   } finally {
+    await cf.delete(`${stackName}-role`, {});
     await cf.delete(`${stackName}-foreign`, {});
     await cf.delete(stackName, {});
     sdk.destroy();

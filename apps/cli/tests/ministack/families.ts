@@ -136,8 +136,8 @@ const assertFunctionRuns = async (context: EffectContext, functionName: string) 
   context.checks.push(`${functionName} executes version ${context.version} with its memory setting`);
 };
 
-const assertBucketKeepsData = async (context: EffectContext, bucket: string) => {
-  if (context.step === 'create') {
+const assertBucketKeepsData = async (context: EffectContext, bucket: string, synced = false) => {
+  if (!synced && context.step === 'create') {
     await context.clients.s3.send(
       new PutObjectCommand({ Bucket: bucket, Key: 'probe-state', Body: 'survives-update' })
     );
@@ -197,7 +197,10 @@ export const families: Family[] = [
     name: 'bucket-queue-table-function',
     config: (version) => ({
       resources: {
-        bucket: { type: 'bucket', properties: { versioning: true } },
+        bucket: {
+          type: 'bucket',
+          properties: { versioning: true, directoryUpload: { directoryPath: 'sync-content' } }
+        },
         queue: { type: 'sqs-queue', properties: { visibilityTimeoutSeconds: version === 1 ? 60 : 90 } },
         table: {
           type: 'dynamo-db-table',
@@ -209,13 +212,13 @@ export const families: Family[] = [
         })
       }
     }),
-    files: (version) => ({ 'handler.ts': handlerSource(version) }),
+    files: (version) => ({ 'handler.ts': handlerSource(version), 'sync-content/probe-state': 'survives-update' }),
     assertEffects: async (context) => {
       const functionName = context.physical('HandlerFunction');
       await assertFunctionRuns(context, functionName);
       // The stack also holds Stacktape's deployment bucket; only the configured bucket is the customer's.
       const bucket = context.physical('BucketBucket');
-      await assertBucketKeepsData(context, bucket);
+      await assertBucketKeepsData(context, bucket, true);
       const [queue] = context.physicalOfType('AWS::SQS::Queue');
       assert.ok(queue, 'the stack has no queue');
       const url = queueUrl(context.endpoint, queue);

@@ -56,9 +56,12 @@ type CliRun = {
 
 const resources: { close: () => Promise<void> }[] = [];
 const temporaryDirectories: string[] = [];
+const observers: AwsFake[] = [];
 afterEach(async () => {
+  const unexpected = observers.splice(0).flatMap((observer) => observer.unexpectedRequests);
   for (const resource of resources.splice(0).reverse()) await resource.close();
   await Promise.all(temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
+  expect(unexpected).toEqual([]);
 });
 
 /** One emulator for the file; scenarios clean their seeded stack and buckets between runs. */
@@ -333,6 +336,7 @@ const startFakes = async (stack?: FakeStackState, objects: Record<string, string
     beforeDelete: async () => ({ deployment: await bucket.keys(), customer: await bucket.keys(filesBucketName) })
   });
   resources.push(aws);
+  observers.push(aws);
   return { controlPlane, aws, bucket };
 };
 
@@ -445,6 +449,9 @@ describe('delete', () => {
     expect(run.exitCode).toBe(0);
     // Observe real S3 state before the emulator's CloudFormation provider removes the buckets.
     expect(aws.bucketsBeforeDelete).toEqual([{ deployment: [], customer: [] }]);
+    expect(aws.mutations.map(({ action }) => action)).toEqual(['DeleteStack']);
+    expect(aws.mutations[0].parameters.StackName).toBe(stackName);
+    expect(aws.unexpectedRequests).toEqual([]);
     expect(aws.stack?.status).toBe('DELETE_COMPLETE');
     const recorded = controlPlane.calls.filter(({ procedure }) => procedure === 'recordStackOperation');
     expect(recorded.length).toBeGreaterThanOrEqual(2);
@@ -466,7 +473,7 @@ describe('delete', () => {
     // The CLI ends a cancelled operation by signalling its own process tree, so the parent observes SIGTERM (143)
     // rather than status 0 in this source-run wrapper.
     expect([0, 143]).toContain(run.exitCode);
-    expect(aws.mutations.filter(({ action }) => action === 'DeleteStack')).toEqual([]);
+    expect(aws.mutations).toEqual([]);
     expect(aws.stack?.status).toBe('CREATE_COMPLETE');
   });
 
@@ -533,7 +540,7 @@ describe('rollback', () => {
 
     expect(run.exitCode).not.toBe(0);
     expect(printable(run)).toMatch(/v000001/);
-    expect(aws.mutations.filter(({ action }) => action === 'UpdateStack')).toEqual([]);
+    expect(aws.mutations).toEqual([]);
     expect(await bucket.keys()).toEqual([getCfTemplateS3Key('v000002')]);
   });
 
