@@ -2818,6 +2818,8 @@ export const slices: readonly Slice[] = [
     journeys: ['J2'],
     paths: [
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/multi-container-workloads/utils.ts',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/batch-jobs/utils.ts',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/batch-jobs/index.ts',
       'apps/cli/src/aws/sdk-manager/index.ts',
       'apps/cli/tests/characterization/synthesis-fixture.ts',
       'packages/ministack/src/fixture.ts',

@@ -188,6 +188,7 @@ test('container secrets synthesize scoped runtime selectors and rotation changes
     name: 'application-token',
     value: JSON.stringify({ token: 'synthetic-private-first' })
   });
+  const plainSecret = await sdk.secrets.create({ name: 'whole-token', value: 'synthetic-private-whole' });
   await sdk.parameterStore.put({ name: '/application/token', value: 'synthetic-ssm-first', encrypted: true });
   await writeFile(
     join(directory, 'stacktape.yml'),
@@ -207,10 +208,37 @@ test('container secrets synthesize scoped runtime selectors and rotation changes
               valueFrom: $Secret('application-token.token')
             - name: PARAMETER
               valueFrom: $SsmParam('/application/token')
+        - name: secretOnly
+          packaging:
+            type: prebuilt-image
+            properties:
+              image: example.invalid/image:tag
+          secrets:
+            - name: WHOLE_TOKEN
+              valueFrom: $Secret('whole-token')
+  job:
+    type: batch-job
+    properties:
+      resources: { cpu: 1, memory: 2048 }
+      container:
+        packaging:
+          type: prebuilt-image
+          properties:
+            image: example.invalid/image:tag
+        secrets:
+          - name: TOKEN
+            valueFrom: $Secret('application-token.token')
+          - name: PARAMETER
+            valueFrom: $SsmParam('/application/token')
 `
   );
   const synthesize = () =>
-    synthesizeFixture({ configPath: join(directory, 'stacktape.yml'), workingDir: directory, localAws: config });
+    synthesizeFixture({
+      configPath: join(directory, 'stacktape.yml'),
+      workingDir: directory,
+      identity: { accountId: config.credentials.accessKeyId },
+      localAws: config
+    });
   await expect(
     synthesizeFixture({
       configPath: join(directory, 'stacktape.yml'),
@@ -240,6 +268,63 @@ test('container secrets synthesize scoped runtime selectors and rotation changes
     Name: 'TOKEN',
     ValueFrom: `${firstSecret.ARN}:token::${secondSecret.VersionId}`
   });
+  expect(containers(first)[1].Secrets).toEqual([
+    { Name: 'WHOLE_TOKEN', ValueFrom: `${plainSecret.ARN}:::${plainSecret.VersionId}` }
+  ]);
+  for (const template of [first, second]) {
+    expect(
+      Object.keys(containers(template)[1].DockerLabels || {}).filter((key) =>
+        key.startsWith('stacktape.ssm-secret-version.')
+      )
+    ).toEqual([]);
+    expect(
+      Object.keys(containers(template)[0].DockerLabels).filter((key) => key.startsWith('stacktape.ssm-secret-version.'))
+    ).toEqual(['stacktape.ssm-secret-version.0']);
+  }
+  const batch = (template: typeof first) =>
+    (
+      template.Resources.JobJobDefinition as {
+        Properties: {
+          Parameters: Record<string, string>;
+          ContainerProperties: { Secrets: unknown; ExecutionRoleArn: unknown };
+        };
+      }
+    ).Properties;
+  expect(batch(first).ContainerProperties.Secrets).toEqual(containers(first)[0].Secrets);
+  expect(batch(second).ContainerProperties.Secrets).toEqual(containers(second)[0].Secrets);
+  expect(batch(first).Parameters).toEqual({ 'stacktape.ssm-secret-version.0': '1' });
+  expect(batch(second).Parameters).toEqual({ 'stacktape.ssm-secret-version.0': '2' });
+  expect(batch(second).ContainerProperties.ExecutionRoleArn).toEqual({ 'Fn::GetAtt': ['JobRole', 'Arn'] });
+  const batchRole = second.Resources.JobRole as {
+    Properties: {
+      Policies: { PolicyDocument: { Statement: { Effect: string; Action: string | string[]; Resource: unknown }[] } }[];
+    };
+  };
+  const batchAccess = batchRole.Properties.Policies.flatMap(({ PolicyDocument }) => PolicyDocument.Statement);
+  expect(batchAccess.flatMap(({ Action }) => Action)).not.toContain('*');
+  expect(
+    batchAccess.filter(({ Action }) => [Action].flat().some((action) => /^(ssm|secretsmanager):/.test(action)))
+  ).toEqual([
+    {
+      Effect: 'Allow',
+      Action: ['secretsmanager:GetSecretValue'],
+      Resource: [
+        {
+          'Fn::Sub': [
+            'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${SecretName}-*',
+            { SecretName: 'application-token' }
+          ]
+        }
+      ]
+    },
+    {
+      Effect: 'Allow',
+      Action: ['ssm:GetParameters'],
+      Resource: [
+        { 'Fn::Sub': 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/application/token' }
+      ]
+    }
+  ]);
   expect(containers(first)[0].DockerLabels['stacktape.ssm-secret-version.0']).toBe('1');
   expect(containers(second)[0].DockerLabels['stacktape.ssm-secret-version.0']).toBe('2');
   const execution = second.Resources.StpEcsExecutionRole as {
@@ -265,6 +350,12 @@ test('container secrets synthesize scoped runtime selectors and rotation changes
           'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${SecretName}-*',
           { SecretName: 'application-token' }
         ]
+      },
+      {
+        'Fn::Sub': [
+          'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${SecretName}-*',
+          { SecretName: 'whole-token' }
+        ]
       }
     ]
   ]);
@@ -283,6 +374,7 @@ test('container secrets synthesize scoped runtime selectors and rotation changes
   ).toEqual(['secretsmanager:GetSecretValue', 'ssm:GetParameters']);
   const printable = JSON.stringify({ first, second, config: configManager.config });
   for (const secret of [
+    'synthetic-private-whole',
     'synthetic-private-first',
     'synthetic-private-second',
     'synthetic-ssm-first',
