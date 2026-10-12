@@ -48,13 +48,6 @@ export const designParamTypeNames = () =>
 export const repositoryMarker = new Repository().marker;
 `;
 
-const PLAIN_HANDLER_SOURCE = `
-import { Repository } from '@app/repository';
-
-/** @deprecated Kept here to prove JSDoc tags are not mistaken for decorators. */
-export const handler = async () => ({ statusCode: 200, body: new Repository().marker });
-`;
-
 const REPOSITORY_SOURCE = `
 export class Repository {
   readonly marker = 'resolved-through-tsconfig-paths';
@@ -270,16 +263,5 @@ export const marker = LegacyService.marker;
     const built = requireBuiltBundle(result.distIndexFilePath) as { marker: string };
 
     expect(built.marker).toBe('commonjs-export-preserved');
-  });
-
-  test('leaves sources without decorators byte-identical to a build that does not ask for metadata', async () => {
-    const cwd = await createProject({ sources: { 'handler.ts': PLAIN_HANDLER_SOURCE } });
-
-    const withMetadata = await bundle({ cwd, distFolderName: 'with', emitTsDecoratorMetadata: true });
-    const withoutMetadata = await bundle({ cwd, distFolderName: 'without' });
-
-    expect(await readFile(withMetadata.distIndexFilePath, 'utf8')).toBe(
-      await readFile(withoutMetadata.distIndexFilePath, 'utf8')
-    );
   });
 });

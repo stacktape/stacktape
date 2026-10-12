@@ -24,6 +24,7 @@ import { PublishCommand, SNSClient } from '@aws-sdk/client-sns';
 import { GetQueueAttributesCommand, SendMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
 import type { MiniStack } from '@stacktape/ministack/fixture';
 import type { DeployStep } from './harness';
+import { splitLambdaFamily } from './split-lambda-family';
 
 export type Version = 1 | 2;
 
@@ -159,6 +160,7 @@ const removeProbeObjects = async (
 };
 
 export const families: Family[] = [
+  splitLambdaFamily,
   {
     name: 'lambda-http-api',
     knownGap:

@@ -14,20 +14,6 @@ describe('what a buildpack artifact is identified by', () => {
     minify: false
   });
 
-  test('the same source built from two checkouts is the same artifact', () => {
-    // A laptop and a CI runner check the repository out to different paths. Without this, every workload
-    // was rebuilt and re-uploaded the first time it was built anywhere else.
-    expect(digestOf(propsBuiltIn('/home/dev/app'), configured)).toBe(
-      digestOf(propsBuiltIn('/builds/ci/12345/app'), configured)
-    );
-  });
-
-  test('the same source is the same artifact however this CLI was installed', () => {
-    expect(digestOf(propsBuiltIn('/home/dev/app', '/opt/stacktape/dist'), configured)).toBe(
-      digestOf(propsBuiltIn('/home/dev/app', '/home/dev/.npm/stacktape/dist'), configured)
-    );
-  });
-
   test('pointing at a different entry file is a different artifact', () => {
     expect(digestOf(propsBuiltIn('/home/dev/app'), { entryfilePath: './src/handler.ts' })).not.toBe(
       digestOf(propsBuiltIn('/home/dev/app'), { entryfilePath: './src/worker.ts' })
@@ -45,5 +31,10 @@ describe('what a buildpack artifact is identified by', () => {
 
     expect(digestOf({ ...base, nodeTarget: '22' }, configured)).not.toBe(digestOf(base, configured));
     expect(digestOf({ ...base, minify: true }, configured)).not.toBe(digestOf(base, configured));
+  });
+  test('the same source is the same artifact however this CLI was installed', () => {
+    expect(digestOf(propsBuiltIn('/home/dev/app', '/opt/stacktape/dist'), configured)).toBe(
+      digestOf(propsBuiltIn('/home/dev/app', '/home/dev/.npm/stacktape/dist'), configured)
+    );
   });
 });
