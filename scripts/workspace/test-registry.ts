@@ -2748,6 +2748,9 @@ export const slices: readonly Slice[] = [
     status: 'active',
     journeys: ['J2'],
     paths: [
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/functions/**',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/role-helpers.ts',
+      'apps/cli/tests/characterization/synthesis-fixture.ts',
       'packages/config/src/**',
       'apps/cli/src/domain/config-manager/**',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/databases/**',
@@ -2814,6 +2817,10 @@ export const slices: readonly Slice[] = [
     status: 'active',
     journeys: ['J2'],
     paths: [
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/multi-container-workloads/utils.ts',
+      'apps/cli/src/aws/sdk-manager/index.ts',
+      'apps/cli/tests/characterization/synthesis-fixture.ts',
+      'packages/ministack/src/fixture.ts',
       'apps/cli/src/domain/config-manager/**',
       'apps/cli/src/domain/stack-info/**',
       'apps/cli/src/aws/redact-request-input.ts',
