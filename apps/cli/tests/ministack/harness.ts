@@ -26,7 +26,7 @@ export const STAGE = 'local';
 /** A deploy step must finish well inside this; a hung CLI is a failure, not a wait. */
 const CLI_DEADLINE_MS = 180_000;
 
-export type DeployStep = 'create' | 'update' | 'unchanged' | 'delete';
+export type DeployStep = 'create' | 'update' | 'unchanged' | 'diff' | 'rollback' | 'delete';
 
 type JsonlRecord = { type?: string; data?: { result?: Record<string, unknown> } };
 
@@ -119,11 +119,13 @@ const parseTerminalResult = (stdout: string) =>
 export const runSourceCli = async ({
   project,
   step,
-  ministack
+  ministack,
+  logName = step
 }: {
   project: FamilyProject;
   step: DeployStep;
   ministack: MiniStack;
+  logName?: string;
 }): Promise<CliStepResult> => {
   const invocationId = `${project.projectName}-${step}-${randomUUID().slice(0, 8)}`;
   const account = ministack.defaultAccount;
@@ -146,7 +148,7 @@ export const runSourceCli = async ({
     '--preload',
     join(import.meta.dir, 'offline-preload.ts'),
     join(cliRoot, 'scripts', 'dev.ts'),
-    step === 'delete' ? 'delete' : 'deploy',
+    step === 'delete' || step === 'diff' || step === 'rollback' ? step : 'deploy',
     '--stage',
     STAGE,
     '--region',
@@ -157,7 +159,8 @@ export const runSourceCli = async ({
     'cli-process-account',
     '--currentWorkingDirectory',
     project.directory,
-    '--autoConfirmOperation',
+    ...(step === 'diff' || step === 'rollback' ? [] : ['--autoConfirmOperation']),
+    ...(step === 'rollback' ? ['--targetVersion', 'v000001'] : []),
     '--outputFormat',
     'jsonl'
   ];
@@ -175,7 +178,7 @@ export const runSourceCli = async ({
   ]);
   clearTimeout(timer);
   const ms = Math.round(performance.now() - started);
-  const logPath = join(project.directory, `${step}.log`);
+  const logPath = join(project.directory, `${logName}.log`);
   await writeFile(logPath, `${stdout}\n${stderr}`);
   const result = parseTerminalResult(stdout)?.data?.result;
   return {

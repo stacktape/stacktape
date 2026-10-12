@@ -58,7 +58,7 @@ export const destroyEffectClients = (clients: EffectClients) => {
 
 export type EffectContext = {
   step: Exclude<DeployStep, 'delete'>;
-  /** The config version deployed: 1 after create, 2 after update and the unchanged redeploy. */
+  /** The config version deployed: 1 after create/rollback; 2 after update, unchanged redeploy and diff. */
   version: Version;
   endpoint: string;
   resources: StackResourceSummary[];
@@ -197,7 +197,7 @@ export const families: Family[] = [
     name: 'bucket-queue-table-function',
     config: (version) => ({
       resources: {
-        bucket: { type: 'bucket' },
+        bucket: { type: 'bucket', properties: { versioning: true } },
         queue: { type: 'sqs-queue', properties: { visibilityTimeoutSeconds: version === 1 ? 60 : 90 } },
         table: {
           type: 'dynamo-db-table',
@@ -239,8 +239,7 @@ export const families: Family[] = [
       const marker = `queue-${context.step}-${context.version}`;
       await context.clients.sqs.send(new SendMessageCommand({ QueueUrl: url, MessageBody: marker }));
       await awaitLogLine(context, functionName, marker, 'an SQS message');
-    },
-    beforeDelete: (context) => removeProbeObjects(context, ['probe-state'])
+    }
   },
   {
     name: 'sns-fan-out',

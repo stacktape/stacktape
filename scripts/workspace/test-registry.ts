@@ -231,6 +231,42 @@ export const lanes: readonly Lane[] = [
     selections: ['synthesis-families']
   },
   {
+    id: 'deployment-rules',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/cli',
+      'exec',
+      'bun',
+      'test',
+      'src/domain/deployment-change-plan/index.spec.ts',
+      'src/utils/stack-info-map-diff.spec.ts',
+      'src/commands/deploy/ec2-runner-config-path.spec.ts',
+      'src/aws/cloudformation.spec.ts',
+      'src/domain/shared-resource-stack-manager/index.spec.ts',
+      'tests/characterization/lambda-version-publication.spec.ts',
+      'tests/characterization/cloudformation-stack-operations.spec.ts',
+      'tests/characterization/stack-event-pagination.spec.ts'
+    ],
+    level: 'focused',
+    tier: 'pr',
+    tests: [
+      'apps/cli/src/domain/deployment-change-plan/index.spec.ts',
+      'apps/cli/src/utils/stack-info-map-diff.spec.ts',
+      'apps/cli/src/commands/deploy/ec2-runner-config-path.spec.ts',
+      'apps/cli/src/aws/cloudformation.spec.ts',
+      'apps/cli/src/domain/shared-resource-stack-manager/index.spec.ts',
+      'apps/cli/tests/characterization/lambda-version-publication.spec.ts',
+      'apps/cli/tests/characterization/cloudformation-stack-operations.spec.ts',
+      'apps/cli/tests/characterization/stack-event-pagination.spec.ts'
+    ],
+    requires: [],
+    release: 'every-candidate',
+    proves:
+      'Change plans, replacement risks, version publication and malformed service responses preserve deployment safety.',
+    selections: ['deployment-rules']
+  },
+  {
     id: 'cli-stack-operations',
     command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:cli-process'],
     level: 'process',
@@ -239,7 +275,7 @@ export const lanes: readonly Lane[] = [
     requires: ['docker', 'network'],
     release: 'every-candidate',
     proves:
-      'The CLI process refuses unsafe operations, performs confirmed deletion and keeps its deployment bucket in MiniStack.',
+      'The CLI process cancels destructive prompts, enforces termination protection and recovers failed rollbacks while observing artifacts in MiniStack.',
     selections: ['cli-stack-operations']
   },
   {
@@ -563,7 +599,7 @@ export const lanes: readonly Lane[] = [
     requires: ['docker', 'network'],
     release: 'every-candidate',
     proves:
-      'The source CLI creates, updates, redeploys unchanged and deletes each resource family on MiniStack with the effects observed through the real SDK.',
+      'The source CLI creates, updates, redeploys unchanged, previews, rolls back and deletes on MiniStack; real SDKs observe runtime, data and artifacts.',
     selections: ['ministack-deploy']
   },
   {
@@ -1378,10 +1414,8 @@ export const lanes: readonly Lane[] = [
       'apps/cli/tests/characterization/aws-cloudfront.spec.ts',
       'apps/cli/tests/characterization/aws-cost-management.spec.ts',
       'apps/cli/tests/characterization/aws-domains.spec.ts',
-      'apps/cli/tests/characterization/aws-ec2.spec.ts',
       'apps/cli/tests/characterization/aws-ecr.spec.ts',
       'apps/cli/tests/characterization/aws-ecs.spec.ts',
-      'apps/cli/tests/characterization/aws-lambda.spec.ts',
       'apps/cli/tests/characterization/aws-observability.spec.ts',
       'apps/cli/tests/characterization/aws-retry-http.spec.ts',
       'apps/cli/tests/characterization/aws-sdk-client-construction.spec.ts',
@@ -1417,7 +1451,6 @@ export const lanes: readonly Lane[] = [
       'apps/cli/tests/characterization/s3-operations.spec.ts',
       'apps/cli/tests/characterization/sql-read-only.spec.ts',
       'apps/cli/tests/characterization/stack-event-pagination.spec.ts',
-      'apps/cli/tests/characterization/stack-lifecycle-operations.spec.ts',
       'apps/cli/tests/characterization/synthesis-contract.spec.ts',
       'apps/cli/tests/characterization/template-finalization-idempotence.spec.ts',
       'apps/cli/tests/characterization/trpc-auth-surfaces.spec.ts',
@@ -2859,20 +2892,17 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/cli/src/aws/cloudformation.spec.ts',
       'apps/cli/src/commands/deploy/ec2-runner-config-path.spec.ts',
-      'apps/cli/src/domain/cloudformation-registry-manager/index.spec.ts',
       'apps/cli/src/domain/deployment-change-plan/index.spec.ts',
       'apps/cli/src/domain/shared-resource-stack-manager/index.spec.ts',
       'apps/cli/src/utils/stack-info-map-diff.spec.ts',
-      'apps/cli/tests/characterization/aws-ec2.spec.ts',
       'apps/cli/tests/characterization/aws-ecs.spec.ts',
-      'apps/cli/tests/characterization/aws-lambda.spec.ts',
       'apps/cli/tests/characterization/cloudformation-stack-operations.spec.ts',
       'apps/cli/tests/characterization/lambda-version-publication.spec.ts',
       'apps/cli/tests/characterization/stack-event-pagination.spec.ts',
-      'apps/cli/tests/characterization/stack-lifecycle-operations.spec.ts',
       'apps/cli/tests/ministack/deploy-loop.spec.ts'
     ],
     lanes: [
+      'deployment-rules',
       'synthesis',
       'synthesis-2',
       'data-safety',
