@@ -1,5 +1,6 @@
+import { lanes as registeredLanes, slices, matchesSlicePath, laneIdsForSelection, type Lane } from './test-registry.ts';
 import { spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { access } from 'node:fs/promises';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,13 +13,15 @@ export type TestPlanOptions = {
   since?: string;
 };
 
-export type TestLane = {
+export type TestLane = Lane & {
   commands: string[];
-  id: string;
-  proves: string;
+  slices: string[];
+  available: boolean;
 };
 
-type Rule = TestLane & {
+type Rule = {
+  id: string;
+  lanes: string[];
   matches: (path: string, suiteDependencies: Map<string, Set<string>>) => boolean;
 };
 
@@ -116,8 +119,7 @@ const isDatabaseSharedPath = (path: string) =>
 
 const databaseRules: Rule[] = databaseSuites.map(([flag, feature, , publicFeature]) => ({
   id: `console-database-${flag}`,
-  proves: `Real ${flag} services and persistence through the isolated PostgreSQL feature suite.`,
-  commands: [`pnpm --filter @stacktape/console-api-app test:db --${flag}`],
+  lanes: laneIdsForSelection(`console-database-${flag}`),
   matches: (path, dependencies) =>
     isDatabaseSharedPath(path) ||
     (path.startsWith('apps/console/api/') &&
@@ -127,19 +129,14 @@ const databaseRules: Rule[] = databaseSuites.map(([flag, feature, , publicFeatur
     (publicFeature?.test(path) ?? false)
 }));
 
-const packagingSuites: [id: string, scripts: string[], feature: RegExp][] = [
-  ['packaging-images', ['test:docker-smoke', 'test:es-image-deps-e2e'], /image|docker|railpack|js-bundle-image/],
-  [
-    'packaging-lambdas',
-    ['test:node-lambda-e2e', 'test:lambda-source-map-e2e', 'test:split-assets-e2e', 'test:directory-inventory-e2e'],
-    /lambda|bundlers|split|artifact|source-map|directory-inventory/
-  ],
-  ['packaging-web', ['test:web-framework-e2e'], /web|hosting/]
+const packagingSuites: [id: string, feature: RegExp][] = [
+  ['packaging-images', /image|docker|railpack|js-bundle-image/],
+  ['packaging-lambdas', /lambda|bundlers|split|artifact|source-map|directory-inventory/],
+  ['packaging-web', /web|hosting/]
 ];
-const packagingRules: Rule[] = packagingSuites.map(([id, scripts, feature]) => ({
+const packagingRules: Rule[] = packagingSuites.map(([id, feature]) => ({
   id,
-  proves: 'Built artifacts execute in their target runtimes.',
-  commands: scripts.map((script) => `pnpm --filter @stacktape/packaging run ${script}`),
+  lanes: laneIdsForSelection(id),
   matches: (path: string) =>
     (path.startsWith('packages/packaging/') &&
       (feature.test(path) || /\/(package\.json|src\/(fs|es|runtime-contracts)|scripts\/e2e-helpers)/.test(path))) ||
@@ -148,60 +145,21 @@ const packagingRules: Rule[] = packagingSuites.map(([id, scripts, feature]) => (
 
 // Console browser specs that no general lane runs. A changed spec selects the package script that runs it; each script
 // checks the shared-dev reservation, and `pnpm dev:console` marks the specs that need full local mode.
-const consoleBrowserSpecs: [spec: string, commands: string[], proves: string][] = [
-  [
-    'admin',
-    ['test:e2e:admin:dev-api'],
-    'The Admin sees the intended organization, the connection-management menu and a real AWS metadata read.'
-  ],
-  [
-    'project-access',
-    ['test:e2e:project-access:dev-api'],
-    'A project-scoped Developer opens the allowed project and is denied the other one, through the dev API.'
-  ],
-  [
-    'issues',
-    ['test:e2e:issues:dev-api'],
-    'A recorded issue of the acceptance stack shows redacted values, counts and scoped visibility.'
-  ],
-  [
-    'security',
-    ['pnpm dev:console', 'test:e2e:security'],
-    'Security findings of a deployed stack, Admin ignore/reopen, and no access for a scoped Developer.'
-  ],
-  [
-    'runners',
-    ['pnpm dev:console', 'test:e2e:runners'],
-    'Runner listing, settings persistence and Admin-only terminal access, without AWS resources.'
-  ],
-  [
-    'runners-live',
-    ['pnpm dev:console', 'test:e2e:runners-live'],
-    'Cost-bearing: a real runner terminal and telemetry, then verified project deletion.'
-  ],
-  [
-    'git-provider-writes-live',
-    ['pnpm dev:console', 'test:e2e:git-provider-writes-live'],
-    'Writes to provider fixture repositories: security-fix branches and pull requests, then cleanup.'
-  ],
-  [
-    'incident-assessment-live',
-    ['test:e2e:incident-assessment-live'],
-    'Cost-bearing: the AI assessment of a real incident on deployed dev code, then cleanup.'
-  ],
-  [
-    'incident-run-live',
-    ['test:e2e:incident-run-live'],
-    'Cost-bearing: a hosted incident run on a real runner with deployed dev code, then cleanup.'
-  ]
+const consoleBrowserSpecs = [
+  'admin',
+  'project-access',
+  'issues',
+  'security',
+  'runners',
+  'runners-live',
+  'git-provider-writes-live',
+  'incident-assessment-live',
+  'incident-run-live'
 ];
 const browserSpecPath = (spec: string) => `apps/console/ui/e2e/${spec}.spec.ts`;
-const consoleBrowserSpecRules: Rule[] = consoleBrowserSpecs.map(([spec, commands, proves]) => ({
+const consoleBrowserSpecRules: Rule[] = consoleBrowserSpecs.map((spec) => ({
   id: `console-browser-${spec}`,
-  proves,
-  commands: commands.map((command) =>
-    command.startsWith('pnpm ') ? command : `pnpm --filter @stacktape/console-ui ${command}`
-  ),
+  lanes: laneIdsForSelection(`console-browser-${spec}`),
   matches: (path) => path === browserSpecPath(spec)
 }));
 const isOfflineBrowserPath = (path: string) =>
@@ -211,46 +169,52 @@ const isOfflineBrowserPath = (path: string) =>
 
 const RULES: Rule[] = [
   {
+    id: 'console-browser-privacy',
+    lanes: laneIdsForSelection('console-browser-privacy'),
+    matches: (path) =>
+      /^apps\/console\/ui\/(scripts\/(qualify-browser-privacy|browser-target|browser-sessions|e2e-credentials)|e2e\/(privacy-probe\.spec|fixtures)|playwright)/.test(
+        path
+      )
+  },
+  {
+    id: 'console-browser-sessions',
+    lanes: laneIdsForSelection('console-browser-sessions'),
+    matches: (path) =>
+      /^apps\/console\/ui\/(scripts\/(browser-sessions|e2e-credentials|browser-target)|e2e\/fixtures|playwright)/.test(
+        path
+      )
+  },
+  {
     id: 'agent-instructions',
-    proves: 'Agent guidance stays synchronized and repository prose is formatted.',
-    commands: ['pnpm check:instructions', 'pnpm fmt:check'],
+    lanes: laneIdsForSelection('agent-instructions'),
     matches: (path) =>
       path === 'AGENTS.md' || path.endsWith('/AGENTS.md') || path.startsWith('.agents/') || path === 'docs/testing.md'
   },
   {
     id: 'workspace-tools',
-    proves: 'Workspace orchestration helpers behave as tested and remain type-safe.',
-    commands: ['pnpm test:tools', 'pnpm typecheck:tools'],
+    lanes: laneIdsForSelection('workspace-tools'),
     matches: (path) => path.startsWith('scripts/workspace/') || path === 'package.json'
   },
   {
     id: 'cli',
-    proves: 'The current CLI source and its process entrypoints preserve command behavior.',
-    commands: [
-      'pnpm --filter @stacktape/cli test:src',
-      'pnpm --filter @stacktape/cli test:cli-smoke',
-      'pnpm --filter @stacktape/cli typecheck'
-    ],
+    lanes: laneIdsForSelection('cli'),
     matches: (path) => path.startsWith('apps/cli/') && !path.includes('/starter-projects/')
   },
   {
     id: 'naming',
-    proves: 'Stable resource names, logical IDs, hashes and their consumers preserve compatibility.',
-    commands: ['pnpm --filter @stacktape/naming test', 'pnpm --filter @stacktape/naming typecheck'],
+    lanes: laneIdsForSelection('naming'),
     matches: (path) => path.startsWith('packages/naming/')
   },
   {
     id: 'synthesis',
-    proves: 'Config resolution and synthesized infrastructure preserve semantic contracts.',
-    commands: ['pnpm --filter @stacktape/cli test:characterization', 'pnpm --filter @stacktape/cli generate:check'],
+    lanes: laneIdsForSelection('synthesis'),
     matches: (path) =>
       hasPart(path, /^apps\/cli\/(src\/(domain|config|resource-reference)|tests\/characterization)/) ||
       hasPart(path, /^packages\/(cloudformation|config|config-authoring|naming)\//)
   },
   {
     id: 'data-safety',
-    proves: 'Equivalent v3 and v4 configurations preserve stateful resources through the real change plan.',
-    commands: ['pnpm --filter @stacktape/cli run test:data-safety'],
+    lanes: laneIdsForSelection('data-safety'),
     matches: (path) =>
       /^apps\/cli\/(src\/(domain\/(template-manager|calculated-stack-overview-manager|deployment-change-plan)|utils\/stack-info-map-diff)|tests\/data-safety)/.test(
         path
@@ -258,8 +222,7 @@ const RULES: Rule[] = [
   },
   {
     id: 'config-loading',
-    proves: 'YAML, TypeScript and user directives resolve through the production loader without leaking secrets.',
-    commands: ['pnpm --filter @stacktape/cli run test:config-loading'],
+    lanes: laneIdsForSelection('config-loading'),
     matches: (path) =>
       /^apps\/cli\/(src\/(domain\/config-manager|utils\/(file-loaders|python-bridge))|tests\/config-loading)/.test(
         path
@@ -267,11 +230,7 @@ const RULES: Rule[] = [
   },
   {
     id: 'synthesis-families',
-    proves: 'Resource families synthesize connected templates accepted by cfn-lint.',
-    commands: [
-      'pnpm --filter @stacktape/cli run test:synthesis-families',
-      'pnpm --filter @stacktape/cli run test:synthesis-families:cfn-lint'
-    ],
+    lanes: laneIdsForSelection('synthesis-families'),
     matches: (path) =>
       /^apps\/cli\/(src\/domain\/(template-manager|calculated-stack-overview-manager)|tests\/synthesis-families)/.test(
         path
@@ -279,8 +238,7 @@ const RULES: Rule[] = [
   },
   {
     id: 'cli-stack-operations',
-    proves: 'The CLI process refuses unsafe operations and performs confirmed deletion.',
-    commands: ['pnpm --filter @stacktape/cli run test:cli-process'],
+    lanes: laneIdsForSelection('cli-stack-operations'),
     matches: (path) =>
       /^apps\/cli\/(src\/(commands\/(delete|rollback|diff)|domain\/(cloudformation-stack-manager|deployment-change-plan))|tests\/cli-process)/.test(
         path
@@ -288,8 +246,7 @@ const RULES: Rule[] = [
   },
   {
     id: 'cli-operations',
-    proves: 'CLI output, diagnostics, sessions and operational commands work through real processes.',
-    commands: ['pnpm --filter @stacktape/cli run test:operations'],
+    lanes: laneIdsForSelection('cli-operations'),
     matches: (path) =>
       /^apps\/cli\/(scripts\/operations\/|src\/(commands\/|aws\/|app\/tui-manager\/|utils\/(bastion|session|tunnel|script)))/.test(
         path
@@ -297,8 +254,7 @@ const RULES: Rule[] = [
   },
   {
     id: 'cli-operations-database',
-    proves: 'CLI query commands return real database results and enforce read-only access.',
-    commands: ['pnpm --filter @stacktape/cli run test:operations:db'],
+    lanes: laneIdsForSelection('cli-operations-database'),
     matches: (path) =>
       /^apps\/cli\/(scripts\/operations\/(queries|fixtures)|src\/(commands\/query|domain\/debug-services\/db-client))/.test(
         path
@@ -306,8 +262,7 @@ const RULES: Rule[] = [
   },
   {
     id: 'cli-packaged-lambda',
-    proves: 'CLI-packaged Node functions, layers, source maps and cache identities survive runtime invocation.',
-    commands: ['pnpm --filter @stacktape/cli run test:node-lambda'],
+    lanes: laneIdsForSelection('cli-packaged-lambda'),
     matches: (path) =>
       /^packages\/packaging\/src\/(bundlers\/es|split-bundler|artifact)/.test(path) ||
       /^apps\/cli\/(scripts\/packaging-archives\/(node-lambda|lambda-runtime|acceptance-helpers)|src\/(domain\/packaging|config\/random))/.test(
@@ -316,8 +271,7 @@ const RULES: Rule[] = [
   },
   {
     id: 'cli-packaged-web',
-    proves: 'CLI-packaged SSR starters serve dynamic routes, cookies and assets in the Lambda runtime.',
-    commands: ['pnpm --filter @stacktape/cli run test:ssr-web'],
+    lanes: laneIdsForSelection('cli-packaged-web'),
     matches: (path) =>
       path.startsWith('packages/packaging/src/web/') ||
       /^apps\/cli\/(scripts\/packaging-archives\/(ssr-web|lambda-runtime|acceptance-helpers)|starter-projects\/|src\/commands\/package)/.test(
@@ -326,8 +280,7 @@ const RULES: Rule[] = [
   },
   {
     id: 'helper-lambda-runtime',
-    proves: 'Built CDN helper archives handle real CloudFront events in their Lambda runtime.',
-    commands: ['pnpm --filter @stacktape/cli run test:helper-lambda-runtime'],
+    lanes: laneIdsForSelection('helper-lambda-runtime'),
     matches: (path) =>
       /^apps\/cli\/(helper-lambdas\/|scripts\/(packaging-archives\/(helper-lambda|lambda-runtime|acceptance-helpers)|build-helper-lambdas))/.test(
         path
@@ -335,14 +288,12 @@ const RULES: Rule[] = [
   },
   {
     id: 'cli-runtime-acceptances',
-    proves: 'CLI-packaged functions, SSR starters and helper archives execute in their Lambda runtimes.',
-    commands: ['pnpm --filter @stacktape/cli run test:runtime-acceptances'],
+    lanes: laneIdsForSelection('cli-runtime-acceptances'),
     matches: (path) => /^apps\/cli\/scripts\/qualification\/run-project-qualification\.ts$/.test(path)
   },
   {
     id: 'starter-qualification',
-    proves: 'Materialized starters package through the current source CLI.',
-    commands: ['pnpm --filter @stacktape/cli run qualify:starters'],
+    lanes: laneIdsForSelection('starter-qualification'),
     matches: (path) =>
       /^apps\/cli\/(starter-projects\/|starter-projects-metadata|scripts\/(starter-projects|qualification)|src\/(init\/|commands\/init\/|domain\/packaging))/.test(
         path
@@ -350,8 +301,7 @@ const RULES: Rule[] = [
   },
   {
     id: 'init-e2e',
-    proves: 'Terminal init writes a configuration that synthesizes and packages into a runnable artifact.',
-    commands: ['pnpm --filter @stacktape/cli test:init:e2e'],
+    lanes: laneIdsForSelection('init-e2e'),
     matches: (path) =>
       /^apps\/cli\/(src\/(init\/|commands\/init\/)|tests\/init-e2e\/|scripts\/(init-e2e\/|test-init-e2e|init-.*project-corpus|validate-synthetic-project-corpus))/.test(
         path
@@ -359,8 +309,7 @@ const RULES: Rule[] = [
   },
   {
     id: 'local-dev-live',
-    proves: 'Owned live dev sessions rebuild and leave no owned processes, containers or ports.',
-    commands: ['pnpm test:aws --aws-scenario=dev-mode-local-loop'],
+    lanes: laneIdsForSelection('local-dev-live'),
     matches: (path) =>
       /^apps\/cli\/(src\/(commands\/(dev|dev-stop)\/|domain\/debug-services\/)|scripts\/real-aws\/dev-mode-canary|_test-stacks\/dev-mode\/)/.test(
         path
@@ -368,23 +317,18 @@ const RULES: Rule[] = [
   },
   {
     id: 'mcp-executable',
-    proves: 'The shipped MCP executable serves docs and dispatches cancellable, redacted CLI children.',
-    commands: ['pnpm --filter @stacktape/cli run test:mcp-executable'],
+    lanes: laneIdsForSelection('mcp-executable'),
     matches: (path) => /^apps\/cli\/(src\/(mcp\/|commands\/mcp)|scripts\/test-mcp|@generated\/llm-docs\/)/.test(path)
   },
   {
     id: 'vscode-host',
-    proves: 'VS Code activates the installed extension and shows real schema diagnostics and CodeLens.',
-    commands: ['pnpm --filter vscode-stacktape run test:host'],
+    lanes: laneIdsForSelection('vscode-host'),
     matches: (path) => path.startsWith('apps/vscode-extension/')
   },
   ...packagingRules,
   {
     id: 'packaging-archives',
-    proves: 'Lambda archives, asset replacement, Docker preparation and fresh source installation work.',
-    commands: ['test:lambda-archives', 'test:asset-replacer', 'test:docker-preparation', 'test:fresh-install'].map(
-      (script) => `pnpm --filter @stacktape/cli run ${script}`
-    ),
+    lanes: laneIdsForSelection('packaging-archives'),
     matches: (path) =>
       path.startsWith('packages/packaging/src/artifact/') ||
       /^apps\/cli\/(src\/(packaging|domain\/packaging|utils\/zip)|scripts\/packaging-archives|helper-lambdas\/stacktapeServiceLambda\/custom-resources\/resolvers\/asset-replacer)/.test(
@@ -393,19 +337,14 @@ const RULES: Rule[] = [
   },
   {
     id: 'external-tools',
-    proves: 'Pinned downloads, checksums, extraction and offline reuse work through real child processes.',
-    commands: ['pnpm --filter @stacktape/cli run test:external-tools'],
+    lanes: laneIdsForSelection('external-tools'),
     matches: (path) =>
       /^apps\/cli\/(src\/(utils|config)\/external-tools|scripts\/(external-tools-e2e|pin-external-tools))/.test(path) ||
       path.endsWith('/railpack-command.ts')
   },
   {
     id: 'release-installation',
-    proves: 'The actual release package and binary can be installed and invoked.',
-    commands: [
-      'pnpm --filter @stacktape/cli run test:release-artifact',
-      'pnpm --filter @stacktape/cli run test:release-security'
-    ],
+    lanes: laneIdsForSelection('release-installation'),
     matches: (path) =>
       /^apps\/cli\/(package\.json|scripts\/(release\/|install-scripts\/|build-|verify-release-artifact|verify-npm-declarations|platform-runtime))/.test(
         path
@@ -413,11 +352,7 @@ const RULES: Rule[] = [
   },
   {
     id: 'artifact-upload',
-    proves: 'Layer upload and retention work against the SDK wire protocol and MiniStack.',
-    commands: [
-      'pnpm --filter @stacktape/cli run test:layer-upload',
-      'pnpm --filter @stacktape/cli run test:layer-upload:ministack'
-    ],
+    lanes: laneIdsForSelection('artifact-upload'),
     matches: (path) =>
       /^apps\/cli\/(src\/domain\/deployment-artifact-manager\/|scripts\/packaging-archives\/(layer-upload|lambda-runtime|acceptance-helpers))/.test(
         path
@@ -425,11 +360,7 @@ const RULES: Rule[] = [
   },
   {
     id: 'project-qualification',
-    proves: 'The reviewed project corpus imports, packages and runs through the source CLI.',
-    commands: [
-      'pnpm qualify:projects -- --preset=release --lanes=import,package --allow-host-project-code',
-      'pnpm qualify:projects -- --lanes=runtime'
-    ],
+    lanes: laneIdsForSelection('project-qualification'),
     matches: (path) =>
       /^apps\/cli\/(src\/(init|packaging|domain\/packaging|domain\/config-manager)|scripts\/qualification|starter-projects-metadata)/.test(
         path
@@ -437,27 +368,19 @@ const RULES: Rule[] = [
   },
   {
     id: 'init-corpus',
-    proves: 'Real and synthetic importer corpus contracts and native fixture builds pass.',
-    commands: [
-      'test:init:real-project-corpus',
-      'test:init:synthetic-project-corpus',
-      'test:init:synthetic-project-corpus:native'
-    ].map((script) => `pnpm --filter @stacktape/cli run ${script}`),
+    lanes: laneIdsForSelection('init-corpus'),
     matches: (path) =>
       /^apps\/cli\/(src\/init\/|scripts\/(init-.*project-corpus|validate-synthetic-project-corpus))/.test(path) ||
       path.startsWith('packages/config-inference/')
   },
   {
     id: 'console-api',
-    proves: 'Console API code and the real Fastify/tRPC adapter preserve their contracts.',
-    commands: ['pnpm --filter @stacktape/console-api-app test', 'pnpm --filter @stacktape/console-api-app typecheck'],
+    lanes: laneIdsForSelection('console-api'),
     matches: (path) => path.startsWith('apps/console/api/')
   },
   {
     id: 'console-database',
-    proves:
-      'Migration/adoption coverage on isolated PostgreSQL. Add real-query tests for changed constraints, transactions, or queries; this command does not cover them automatically.',
-    commands: ['pnpm --filter @stacktape/console-api-app test:db'],
+    lanes: laneIdsForSelection('console-database'),
     matches: (path) =>
       path.startsWith('apps/console/api/prisma/') ||
       /^apps\/console\/api\/scripts\/(migrate-db|run-db-integration)/.test(path) ||
@@ -466,11 +389,7 @@ const RULES: Rule[] = [
   ...databaseRules,
   {
     id: 'console-runner-runtime',
-    proves: 'Generated runner jobs execute in Docker and preserve incremental Buildx cache between jobs.',
-    commands: [
-      'pnpm --filter @stacktape/console-api-app test:runner:scripts',
-      'pnpm --filter @stacktape/console-api-app test:runner:cache'
-    ],
+    lanes: laneIdsForSelection('console-runner-runtime'),
     matches: (path) =>
       /^apps\/console\/api\/(scripts\/runner-|infrastructure\/ec2-runner-image\/|src\/services\/(remote-deploy\/ec2\/|incident-agent-runner-job))/.test(
         path
@@ -478,44 +397,28 @@ const RULES: Rule[] = [
   },
   {
     id: 'shared-ui-browser',
-    proves:
-      'The shared Dialog and Button preserve keyboard, focus, dismissal and disabled behavior in an isolated synthetic browser app.',
-    commands: ['pnpm --filter @stacktape/ui-react test:e2e'],
+    lanes: laneIdsForSelection('shared-ui-browser'),
     matches: (path) => path.startsWith('packages/ui-react/')
   },
   {
     id: 'console-ui',
-    proves: 'Console UI helpers compile and the production bundle is valid.',
-    commands: [
-      'pnpm --filter @stacktape/console-ui test',
-      'pnpm --filter @stacktape/console-ui typecheck',
-      'pnpm exec turbo run build --filter=@stacktape/console-ui'
-    ],
+    lanes: laneIdsForSelection('console-ui'),
     matches: (path) => path.startsWith('apps/console/ui/') || path.startsWith('packages/ui-react/')
   },
   {
     id: 'bitbucket-forge-browser',
-    proves:
-      'The packaged Forge UI loads beneath a nested resource URL and handles pairing, retry and existing connections. Live Forge installation and pairing remain separate acceptance steps.',
-    commands: [
-      'pnpm --filter @stacktape/bitbucket-forge-app test:e2e',
-      'pnpm --filter @stacktape/bitbucket-forge-app typecheck'
-    ],
+    lanes: laneIdsForSelection('bitbucket-forge-browser'),
     matches: (path) => path.startsWith('apps/console/bitbucket-forge/')
   },
   {
     id: 'console-browser-local-api',
-    proves:
-      'Authenticated projects navigation through the local API. Extend the browser scenario to cover the changed customer flow and its durable result.',
-    commands: ['pnpm dev:console', 'pnpm --filter @stacktape/console-ui test:e2e'],
+    lanes: laneIdsForSelection('console-browser-local-api'),
     matches: (path) =>
       path.startsWith('apps/console/api/src/') || path.startsWith('packages/console-api/') || isConsoleStartupPath(path)
   },
   {
     id: 'console-browser-isolated',
-    proves:
-      'Issue-state persistence and tenant denial through the real UI, local HTTP router and disposable PostgreSQL.',
-    commands: ['pnpm --filter @stacktape/console-api-app test:db --isolated-browser'],
+    lanes: laneIdsForSelection('console-browser-isolated'),
     matches: (path) =>
       isDatabaseSharedPath(path) ||
       path.startsWith('apps/console/api/src/issues/') ||
@@ -528,24 +431,20 @@ const RULES: Rule[] = [
   },
   {
     id: 'console-browser-dev-api',
-    proves:
-      'Authenticated projects navigation against the dev API. Extend the browser scenario to cover the changed customer flow.',
-    commands: ['pnpm test:console:browser:dev-api'],
+    lanes: laneIdsForSelection('console-browser-dev-api'),
     matches: (path) =>
       path.startsWith('apps/console/ui/src/') ||
       (path.startsWith('apps/console/ui/e2e/') &&
         !path.startsWith('apps/console/ui/e2e/isolated-') &&
         !isOfflineBrowserPath(path) &&
-        !consoleBrowserSpecs.some(([spec]) => path === browserSpecPath(spec))) ||
+        !consoleBrowserSpecs.some((spec) => path === browserSpecPath(spec))) ||
       (/^apps\/console\/ui\/playwright.*\.ts$/.test(path) && path !== 'apps/console/ui/playwright.offline.config.ts') ||
       path.startsWith('packages/ui-react/')
   },
   ...consoleBrowserSpecRules,
   {
     id: 'console-browser-offline',
-    proves:
-      'Console pages and sign-in screens work in Chromium with synthetic API and Cognito responses, without credentials or network.',
-    commands: ['pnpm test:console:browser:offline'],
+    lanes: laneIdsForSelection('console-browser-offline'),
     matches: (path) =>
       isOfflineBrowserPath(path) ||
       path.startsWith('apps/console/ui/src/') ||
@@ -556,9 +455,7 @@ const RULES: Rule[] = [
   },
   {
     id: 'console-deployed-dev',
-    proves:
-      'Deployment makes changed dev code reachable; it is NOT a behavior test. Then send a real event and verify the resulting deployment, job, or recorded failure.',
-    commands: ['pnpm deploy:console:dev'],
+    lanes: laneIdsForSelection('console-deployed-dev'),
     matches: (path) =>
       hasPart(
         path,
@@ -567,8 +464,7 @@ const RULES: Rule[] = [
   },
   {
     id: 'live-aws',
-    proves: 'AWS interprets the changed infrastructure/runtime contract and owned resources are removed afterward.',
-    commands: ['pnpm test:aws --aws-scenario=<explicit-scenario>'],
+    lanes: laneIdsForSelection('live-aws'),
     matches: (path) =>
       hasPart(path, /^apps\/console\/api\/(stacktape\.ts|infrastructure)/) ||
       hasPart(path, /^apps\/cli\/(src\/aws|scripts\/real-aws|helper-lambdas)/) ||
@@ -576,18 +472,12 @@ const RULES: Rule[] = [
   },
   {
     id: 'website',
-    proves: 'The public website type-checks and produces a deployable static build.',
-    commands: ['pnpm --filter @stacktape/website typecheck', 'pnpm --filter @stacktape/website build'],
+    lanes: laneIdsForSelection('website'),
     matches: (path) => path.startsWith('apps/website/')
   },
   {
     id: 'docs',
-    proves: 'Documentation source compiles and renders through its application build.',
-    commands: [
-      'pnpm --filter @stacktape/docs typecheck',
-      'pnpm --filter @stacktape/docs build',
-      'pnpm --filter @stacktape/docs run test:build-contracts'
-    ],
+    lanes: laneIdsForSelection('docs'),
     matches: (path) => path.startsWith('apps/docs/')
   }
 ];
@@ -707,18 +597,55 @@ export const createTestPlan = (paths: string[], root = workspaceRoot): TestLane[
     (path) => path === 'apps/console' || path.startsWith('apps/console/') || isConsoleStartupPath(path)
   );
   const suiteDependencies = includesConsole ? readDatabaseSuiteDependencies(root) : new Map<string, Set<string>>();
-  let lanes = RULES.filter((rule) => paths.some((path) => rule.matches(path, suiteDependencies))).map(
-    ({ matches: _, ...lane }) => lane
+  const selectedSlices = slices.filter(
+    (slice) => slice.status === 'active' && paths.some((path) => matchesSlicePath(slice, path))
   );
-  if (lanes.some(({ id }) => id === 'console-browser-local-api')) {
-    lanes = lanes.filter(({ id }) => id !== 'console-browser-dev-api');
+  const selected = new Map<string, Set<string>>();
+  const changedPaths = new Set(paths);
+  const add = (id: string, owners: string[]) => {
+    const ids = selected.get(id) ?? new Set<string>();
+    for (const owner of owners) ids.add(owner);
+    selected.set(id, ids);
+  };
+  for (const slice of selectedSlices) {
+    const changedTests = new Set(slice.tests.filter((path) => changedPaths.has(path)));
+    const changedSource = paths.some((path) => !slice.tests.includes(path) && matchesSlicePath(slice, path));
+    for (const id of slice.lanes) {
+      if (slice.id === 'S71' && (id.startsWith('console-browser') || id.endsWith('-gate'))) continue;
+      const lane = registeredLanes.find((candidate) => candidate.id === id)!;
+      if (
+        changedSource ||
+        lane.tests.some((test) => [...changedTests].some((path) => test === path || path.startsWith(`${test}/`)))
+      )
+        add(id, [slice.id]);
+    }
   }
-  lanes.push({
-    id: includesConsole ? 'integrated-gate' : 'public-gate',
-    proves: 'Repository-wide architecture, generation, lint, type, test, build, and artifact contracts pass.',
-    commands: [includesConsole ? 'pnpm check:integrated' : 'pnpm check:public']
-  });
-  return lanes;
+  // Keep the existing path and direct suite-import rules as additional selection edges.
+  for (const rule of RULES) {
+    if (!paths.some((path) => rule.matches(path, suiteDependencies))) continue;
+    for (const id of rule.lanes) {
+      const affectedOwners = selectedSlices.filter((slice) => slice.lanes.includes(id));
+      const owners = (
+        affectedOwners.length
+          ? affectedOwners
+          : slices.filter((slice) => slice.status === 'active' && slice.lanes.includes(id))
+      ).map((slice) => slice.id);
+      add(id, owners);
+    }
+  }
+  if (selected.has('console-browser-local-api')) selected.delete('console-browser-dev-api');
+  const gate = includesConsole ? 'integrated-gate' : 'public-gate';
+  add(gate, ['S71']);
+  const hasConsole = existsSync(resolve(root, 'apps/console/api/package.json'));
+  return registeredLanes
+    .filter((lane) => selected.has(lane.id))
+    .map((lane) =>
+      Object.assign({}, lane, {
+        commands: [lane.command.join(' ')],
+        slices: [...selected.get(lane.id)!].toSorted(),
+        available: !lane.requires.includes('console') || hasConsole
+      })
+    );
 };
 
 const main = async () => {
@@ -733,7 +660,11 @@ const main = async () => {
   for (const path of paths) console.info(`  ${path}`);
   console.info('\nRecommended evidence:');
   for (const lane of lanes) {
-    console.info(`\n${lane.id}: ${lane.proves}`);
+    console.info(
+      `\n${lane.id} [${lane.slices.join(', ')} · ${lane.level} · ${lane.tier}]: ${lane.proves ?? 'Registered slice evidence.'}`
+    );
+    if (!lane.available) console.info('  Requires the private Console checkout.');
+    if (lane.requires.length) console.info(`  Requires: ${lane.requires.join(', ')}`);
     for (const command of lane.commands) console.info(`  ${command}`);
   }
   console.info(

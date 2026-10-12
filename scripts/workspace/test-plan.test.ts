@@ -166,7 +166,10 @@ test('offline browser specs and their fixtures select the offline lane, not a sh
     const ids = createTestPlan([path]).map(({ id }) => id);
     assert.ok(ids.includes('console-browser-offline'), path);
     assert.deepEqual(
-      ids.filter((id) => id.startsWith('console-browser-') && id !== 'console-browser-offline'),
+      ids.filter(
+        (id) =>
+          id.startsWith('console-browser-') && id !== 'console-browser-offline' && id !== 'console-browser-sessions'
+      ),
       [],
       path
     );
@@ -212,6 +215,10 @@ test('CLI plans heavy evidence from a real changed public/private checkout', asy
   const consoleRoot = join(root, 'apps', 'console');
   await mkdir(join(root, 'scripts', 'workspace'), { recursive: true });
   await copyFile(new URL('./test-plan.ts', import.meta.url), join(root, 'scripts', 'workspace', 'test-plan.ts'));
+  await copyFile(
+    new URL('./test-registry.ts', import.meta.url),
+    join(root, 'scripts', 'workspace', 'test-registry.ts')
+  );
   await mkdir(join(consoleRoot, 'api', 'prisma'), { recursive: true });
   git(root, 'init');
   git(consoleRoot, 'init');
@@ -538,5 +545,106 @@ test('unrelated presentation changes do not select batch 1 database, init or Doc
     assert.ok(!commands.some((command) => command.includes('test:db --')));
     assert.ok(!commands.some((command) => command.includes('test:operations:db')));
     assert.ok(!commands.some((command) => command.includes('test:init:e2e')));
+  }
+});
+
+test('recommendations report one de-duplicated command with slice IDs, level, tier and private availability', async (context) => {
+  const root = await mkdtemp(join(tmpdir(), 'slice-plan-public-'));
+  context.after(() => rm(root, { recursive: true, force: true }));
+  const plan = createTestPlan(['packages/pricing/src/pricing.ts', 'apps/console/ui/src/aws/traces-commands.ts'], root);
+  assert.equal(new Set(plan.map((l) => JSON.stringify(l.command))).size, plan.length);
+  const rules = plan.find((l) => l.id === 'pricing-test')!;
+  assert.ok(rules.slices.includes('S42'));
+  assert.equal(rules.tier, 'pr');
+  assert.equal(rules.level, 'focused');
+  assert.equal(rules.available, true);
+  const insights = plan.find((l) => l.id === 'console-database-insights')!;
+  assert.ok(insights.slices.includes('S42'));
+  assert.equal(insights.tier, 'change');
+  assert.equal(insights.level, 'api-db');
+  assert.equal(insights.available, false);
+  assert.deepEqual(insights.requires, ['console', 'docker', 'network']);
+});
+test('specialized browser projects are selected by their implementing slice paths', () => {
+  for (const [path, command, slice] of [
+    [
+      'apps/console/ui/src/pages/SecurityPage/Findings.tsx',
+      'pnpm --filter @stacktape/console-ui test:e2e:security',
+      'S62'
+    ],
+    ['apps/console/api/src/services/runners/index.ts', 'pnpm --filter @stacktape/console-ui test:e2e:runners', 'S47'],
+    [
+      'apps/console/ui/src/pages/IssuesPage/index.tsx',
+      'pnpm --filter @stacktape/console-ui test:e2e:issues:dev-api',
+      'S55'
+    ]
+  ]) {
+    const selected = createTestPlan([path!]).find((l) => l.commands.includes(command!));
+    assert.ok(selected, path!);
+    assert.ok(selected.slices.includes(slice!));
+    assert.equal(selected.level, 'browser');
+    assert.equal(selected.tier, 'release');
+  }
+});
+test('session tooling selects the previously dormant Chromium command', () => {
+  for (const path of [
+    'apps/console/ui/scripts/browser-sessions.ts',
+    'apps/console/ui/scripts/browser-sessions.test.ts',
+    'apps/console/ui/e2e/fixtures.ts',
+    'apps/console/ui/playwright.config.ts'
+  ]) {
+    const lane = createTestPlan([path]).find((l) => l.id === 'console-browser-sessions');
+    assert.ok(lane, path!);
+    assert.equal(lane.tier, 'change');
+    assert.equal(lane.level, 'browser');
+    assert.ok(lane.slices.includes('S71'));
+  }
+});
+test('dormant trace and resource-map rules are owned and selected', () => {
+  for (const [path, slice] of [
+    ['apps/console/ui/src/aws/traces-commands.test.ts', 'S64'],
+    ['apps/console/ui/src/pages/ProjectsPage/StageDetails/cloudformation-resources.test.ts', 'S46']
+  ]) {
+    const lane = createTestPlan([path!]).find((l) => l.id === 'console-ui');
+    assert.ok(lane, path!);
+    assert.ok(lane.tests.includes(path!));
+    assert.ok(lane.slices.includes(slice!));
+    assert.equal(lane.tier, 'pr');
+  }
+});
+
+test('migration adoption and browser privacy remain selected change lanes before release', () => {
+  for (const path of ['apps/console/api/prisma/migration-adoption.test.ts', 'apps/console/api/scripts/migrate-db.ts']) {
+    const lane = createTestPlan([path]).find((candidate) => candidate.id === 'console-database');
+    assert.ok(lane, path);
+    assert.equal(lane.tier, 'change');
+    assert.equal(lane.release, 'every-candidate');
+    assert.ok(lane.requires.includes('docker'));
+  }
+  for (const path of [
+    'apps/console/ui/scripts/qualify-browser-privacy.ts',
+    'apps/console/ui/e2e/privacy-probe.spec.ts',
+    'apps/console/ui/playwright.offline.config.ts',
+    'apps/console/ui/e2e/fixtures.ts'
+  ]) {
+    const lane = createTestPlan([path]).find((candidate) => candidate.id === 'console-ui-test-e2e-privacy');
+    assert.ok(lane, path);
+    assert.equal(lane.tier, 'change');
+    assert.equal(lane.release, 'every-candidate');
+    assert.ok(lane.requires.includes('chromium'));
+  }
+});
+
+test('offline Console contracts and assembled template validation are selected PR lanes', () => {
+  for (const [path, id] of [
+    ['apps/console/api/package-exports.test.ts', 'console-offline-contracts'],
+    ['apps/console/api/prisma/migration-history.test.ts', 'console-offline-contracts'],
+    ['apps/console/api/stacktape.test.ts', 'console-support-template'],
+    ['apps/console/api/stacktape.ts', 'console-support-template']
+  ]) {
+    const lane = createTestPlan([path!]).find((candidate) => candidate.id === id);
+    assert.ok(lane, `${path} selects ${id}`);
+    assert.equal(lane.tier, 'pr');
+    assert.ok(lane.slices.includes('S68'));
   }
 });

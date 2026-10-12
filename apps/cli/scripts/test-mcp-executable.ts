@@ -3,7 +3,7 @@ import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/pr
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { Client } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 import { getPlatform } from '@utils/bin-executable';
@@ -100,12 +100,24 @@ const verify = async () => {
     );
     const platform = getPlatform();
     // The same builder and compressed corpus used by release archives; never the source MCP shortcut in dev.ts.
-    const install = await buildBinaryFile({ distFolderPath: directory, platform, version: packageJson.version });
-    await copyMcpDocs({ distFolderPath: install });
-    await cp(join(process.cwd(), '__stacktape-dist/dev/helper-lambdas'), join(install, 'helper-lambdas'), {
-      recursive: true
-    });
-    const binary = join(install, platform === 'win' ? 'stacktape.exe' : 'stacktape');
+    const candidateArgument = process.argv.slice(2).find((argument) => argument.startsWith('--candidate-binary='));
+    assert(
+      process.argv.slice(2).every((argument) => argument === candidateArgument),
+      'Use only --candidate-binary=<extracted release binary>.'
+    );
+    const candidateBinary = candidateArgument
+      ? resolve(candidateArgument.slice('--candidate-binary='.length))
+      : undefined;
+    const install = candidateBinary
+      ? undefined
+      : await buildBinaryFile({ distFolderPath: directory, platform, version: packageJson.version });
+    if (install) {
+      await copyMcpDocs({ distFolderPath: install });
+      await cp(join(process.cwd(), '__stacktape-dist/dev/helper-lambdas'), join(install, 'helper-lambdas'), {
+        recursive: true
+      });
+    }
+    const binary = candidateBinary ?? join(install!, platform === 'win' ? 'stacktape.exe' : 'stacktape');
     const env = {
       PATH: process.env.PATH ?? '',
       ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}),
@@ -160,6 +172,43 @@ const verify = async () => {
     const docs = await call('stacktape_docs', { action: 'get', route: references[0].route, propertyName: 'timeout' });
     assert.equal(docs.ok, true);
     assert.match(String(docs.data?.content), /timeout\?: number/);
+    const headingDocs = await call('stacktape_docs', {
+      action: 'get',
+      route: references[0].route,
+      headingPath: references[0].headingPath
+    });
+    assert.equal(headingDocs.ok, true);
+    const fallbackDocs = await call('stacktape_docs', {
+      action: 'get',
+      route: references[0].route,
+      definitionName: 'timeout'
+    });
+    assert.equal(fallbackDocs.ok, true);
+    assert.equal(fallbackDocs.data?.selectorFallback, 'definitionName-as-propertyName');
+    const listed = await call('stacktape_cli', { action: 'list', category: 'deployment' });
+    assert((listed.data?.commands as Array<{ command: string }>).some((command) => command.command === 'deploy'));
+    const plan = await call('stacktape_cli', {
+      action: 'plan',
+      command: 'diff',
+      stage: 'production',
+      region: 'eu-west-1',
+      projectName: 'docs'
+    });
+    assert.equal(plan.ok, true);
+    assert.equal(plan.data?.command, 'diff');
+    assert.equal((plan.data?.args as Record<string, unknown>).configPath, 'stacktape.ts');
+    assert.equal((plan.data?.args as Record<string, unknown>).projectName, 'docs');
+    assert.equal(
+      (
+        await call('stacktape_cli', {
+          action: 'run',
+          command: 'dev',
+          args: { stage: 'dev', region: 'us-east-1' },
+          confirm: true
+        })
+      ).code,
+      'UNSUPPORTED_COMMAND'
+    );
     const scan = await call('stacktape_project', { action: 'scan' });
     assert.equal(scan.ok, true);
     assert.deepEqual(scan.data?.suggestedDefaults, { configPath: 'stacktape.ts', currentWorkingDirectory: '.' });
