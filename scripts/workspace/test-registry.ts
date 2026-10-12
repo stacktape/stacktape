@@ -407,6 +407,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/scripts/init-e2e/ci-pipelines.spec.ts',
       'apps/cli/scripts/init-e2e/deploy-consent.spec.ts',
       'apps/cli/scripts/init-e2e/first-deployment.spec.ts',
+      'apps/cli/scripts/init-e2e/packaging-failure.spec.ts',
       'apps/cli/scripts/init-e2e/trust-boundary.spec.ts'
     ],
     requires: ['docker', 'network'],
@@ -2715,6 +2716,7 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/cli/scripts/init-e2e/deploy-consent.spec.ts',
+      'apps/cli/scripts/init-e2e/packaging-failure.spec.ts',
       'apps/cli/scripts/init-e2e/ci-pipelines.spec.ts',
       'apps/cli/scripts/real-aws/init-canary-client.spec.ts',
       'apps/cli/scripts/real-aws/init-canary-fixtures.spec.ts',

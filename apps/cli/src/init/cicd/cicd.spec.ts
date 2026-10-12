@@ -2,6 +2,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'bun:test';
+import { parse as parseYaml } from 'yaml';
 import { detectRepository } from './detect-host';
 import { pipelineFor } from './templates';
 import { writePipeline } from './write-pipeline';
@@ -79,11 +80,23 @@ describe('the pipelines', () => {
   it('deploys the configuration it was given, to the stage it was given', () => {
     for (const host of ['github', 'gitlab', 'bitbucket'] as const) {
       const contents = pipelineFor(host, inputs).contents;
-      expect(contents).toContain('--configPath stacktape.yml');
-      expect(contents).toContain('--stage production');
-      expect(contents).toContain('--region eu-west-1');
+      const pipeline = parseYaml(contents) as {
+        jobs?: { deploy: { steps: Array<{ run?: string }> } };
+        deploy?: { script: string[] };
+        pipelines?: { branches: { main: Array<{ step: { script: string[] } }> } };
+      };
+      const commands =
+        host === 'github'
+          ? pipeline.jobs!.deploy.steps.flatMap(({ run }) => (run === undefined ? [] : [run]))
+          : host === 'gitlab'
+            ? pipeline.deploy!.script
+            : pipeline.pipelines!.branches.main[0]!.step.script;
+      const deploy = commands.find((command) => command.trim().startsWith('stacktape deploy'));
+      expect(deploy).toContain('--configPath stacktape.yml');
+      expect(deploy).toContain('--stage production');
+      expect(deploy).toContain('--region eu-west-1');
       // Nothing in CI can answer a prompt.
-      expect(contents).toContain('--autoConfirmOperation');
+      expect(deploy).toContain('--autoConfirmOperation');
     }
   });
 

@@ -184,6 +184,7 @@ describe('init and what it may touch', () => {
       expect(configText).not.toContain('relational-database');
       expect(configText).toMatch(/name: DATABASE_URL\n\s+value: \$Secret\('database_url'\)/);
       expect(init.output).toContain('external-database-disposition: point-at-existing');
+      expect(init.output).toContain('Run without --headless to change any of them in the browser.');
       expect(init.output).toContain('DATABASE_URL points at the database you already have');
       // The running Fly app is neither touched nor silently treated as replaced.
       expect(await readFile(join(sandbox.project, 'fly.toml'), 'utf8')).toBe(flyBefore);

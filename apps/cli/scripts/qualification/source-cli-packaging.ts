@@ -20,8 +20,14 @@ export const cliDirectory = resolve(import.meta.dir, '..', '..');
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
 
-export const errorText = (error: unknown) =>
-  outputTail(redactOutput(error instanceof Error ? (error.stack ?? error.message) : String(error)), 12_000);
+export const errorText = (error: unknown): string => {
+  const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
+  const details =
+    error instanceof AggregateError
+      ? [message, ...error.errors.map((cause: unknown) => errorText(cause).slice(0, 4_000))].join('\nCaused by: ')
+      : message;
+  return outputTail(redactOutput(details), 12_000);
+};
 
 const exists = (path: string) =>
   access(path).then(
@@ -107,192 +113,213 @@ export const packageWithSourceCli = async ({
   const parameterClient = new SSMClient(
     ministack.clientConfig(account, { region: THIRD_PARTY_PROVIDER_CREDENTIALS_REGION })
   );
-  try {
-    const environment = {
-      ...buildOfflineQualificationEnvironment({
-        endpoint: ministack.endpoint,
-        invocationId,
-        homeDirectory: isolatedHome
-      }),
-      ...ministack.childEnvironment(account),
-      AWS_ENDPOINT_URL_COST_EXPLORER: offlineServer.endpoint,
-      AWS_ENDPOINT_URL_BUDGETS: offlineServer.endpoint,
-      AWS_ENDPOINT_URL_CLOUDTRAIL: offlineServer.endpoint
-    };
-    const configText = await readFile(configPath, 'utf8');
-    const keysBySecret = new Map<string, Set<string>>();
-    for (const match of configText.matchAll(/\$Secret\(['"]([^'"]+)['"]\)/g)) {
-      const reference = match[1]!;
-      const separator = reference.indexOf('.');
-      const name = separator === -1 ? reference : reference.slice(0, separator);
-      const keys = keysBySecret.get(name) ?? new Set<string>();
-      if (separator !== -1) keys.add(reference.slice(separator + 1));
-      keysBySecret.set(name, keys);
-    }
-    const seeded = new Map<string, string>();
-    const secretCanary = `qualification-secret-canary-${invocationId}`;
-    for (const [name, keys] of keysBySecret) {
-      const value =
-        keys.size === 0
-          ? secretCanary
-          : JSON.stringify(Object.fromEntries([...keys].map((key) => [key, secretCanary])));
-      await secretClient.send(new CreateSecretCommand({ Name: name, SecretString: value }));
-      seeded.set(name, value);
-    }
-    // Provider credentials are prerequisites only: validation never calls Atlas or Upstash.
-    for (const credentialsIdentifier of [
-      MONGODB_PROVIDER_DEFAULT_CREDENTIALS_ID,
-      UPSTASH_PROVIDER_DEFAULT_CREDENTIALS_ID
-    ]) {
-      await parameterClient.send(
-        new PutParameterCommand({
-          Name: getSsmParameterNameForThirdPartyCredentials({
-            credentialsIdentifier,
-            region: THIRD_PARTY_PROVIDER_CREDENTIALS_REGION
-          }),
-          Type: 'SecureString',
-          Value: JSON.stringify({
-            publicKey: secretCanary,
-            privateKey: secretCanary,
-            organizationId: 'qualification',
-            accountEmail: 'qualification@example.test',
-            apiKey: secretCanary
-          })
-        })
-      );
-    }
-    const initialUnexpectedRequests = offlineServer.unexpectedRequests.length;
-    const args = [
-      '--no-env-file',
-      '--preload',
-      join(cliDirectory, 'scripts', 'network-guard-preload.ts'),
-      join(cliDirectory, 'scripts', 'dev.ts'),
-      ...(command === 'package' ? ['package'] : ['validate', '--withPackage']),
-      '--configPath',
-      configPath,
-      '--currentWorkingDirectory',
-      projectRoot,
-      '--projectName',
-      projectName,
-      '--stage',
-      'qualification',
-      '--region',
-      'eu-west-1',
-      '--agent',
-      ...(command === 'package' ? [] : ['--outFile', templatePath])
-    ];
-    const processResult = await runProcess({
-      command: process.execPath,
-      args,
-      cwd: cliDirectory,
-      env: environment,
-      timeoutMs: 45 * 60_000
-    });
-    const stacks = await cloudformation.send(new ListStacksCommand({}));
-    if (stacks.StackSummaries?.length) throw new Error('Packaging created CloudFormation stacks.');
-    const blockedRequests = offlineServer.unexpectedRequests.slice(initialUnexpectedRequests);
-    if (processResult.timedOut) throw new Error('Source CLI packaging exceeded 45 minutes.');
-    if (processResult.stdoutTruncated) {
-      throw new Error('Source CLI JSONL exceeded the 32 MiB qualification capture limit.');
-    }
-    let parsed: ReturnType<typeof parseCliJsonl>;
+  // Settle packaging before stopping the fixture, so a cleanup failure cannot replace its diagnostic.
+  const outcome = await (async () => {
     try {
-      parsed = parseCliJsonl(processResult.stdout, 'validate --withPackage');
-    } catch (error) {
-      throw new Error(
-        `Source CLI packaging exited with ${String(processResult.exitCode)} without a valid result contract.\n${errorText(error)}\n${outputTail(
-          `${processResult.stdout}\n${processResult.stderr}`,
-          12_000
-        )}`
-      );
-    }
-    if (processResult.exitCode !== 0 || !parsed.result.ok || parsed.result.code !== 'OK') {
-      throw new Error(
-        `Source CLI packaging failed (${String(processResult.exitCode)}): ${parsed.result.code}: ${parsed.result.message}\n${outputTail(
-          `${processResult.stdout}\n${processResult.stderr}`,
-          12_000
-        )}`
-      );
-    }
-    if (blockedRequests.length > 0) {
-      throw new Error(`Packaging attempted blocked network calls: ${blockedRequests.join(', ')}.`);
-    }
-
-    const commandResult = isRecord(parsed.result.data) ? parsed.result.data.result : undefined;
-    const describeWorkloads = (workloads: unknown[]) =>
-      workloads.map((workload) =>
-        isRecord(workload)
-          ? {
-              jobName: workload.jobName,
-              digest: workload.digest,
-              skipped: workload.skipped,
-              size: workload.size,
-              ...(typeof workload.artifactPath === 'string' ? { artifactPath: workload.artifactPath } : {})
-            }
-          : workload
-      );
-    if (command === 'package') {
-      if (!Array.isArray(commandResult)) {
-        throw new Error(
-          `The package command did not return its packaged workloads.\n${outputTail(`${processResult.stdout}\n${processResult.stderr}`, 12_000)}`
+      const environment = {
+        ...buildOfflineQualificationEnvironment({
+          endpoint: ministack.endpoint,
+          invocationId,
+          homeDirectory: isolatedHome
+        }),
+        ...ministack.childEnvironment(account),
+        AWS_ENDPOINT_URL_COST_EXPLORER: offlineServer.endpoint,
+        AWS_ENDPOINT_URL_BUDGETS: offlineServer.endpoint,
+        AWS_ENDPOINT_URL_CLOUDTRAIL: offlineServer.endpoint
+      };
+      const configText = await readFile(configPath, 'utf8');
+      const keysBySecret = new Map<string, Set<string>>();
+      for (const match of configText.matchAll(/\$Secret\(['"]([^'"]+)['"]\)/g)) {
+        const reference = match[1]!;
+        const separator = reference.indexOf('.');
+        const name = separator === -1 ? reference : reference.slice(0, separator);
+        const keys = keysBySecret.get(name) ?? new Set<string>();
+        if (separator !== -1) keys.add(reference.slice(separator + 1));
+        keysBySecret.set(name, keys);
+      }
+      const seeded = new Map<string, string>();
+      const secretCanary = `qualification-secret-canary-${invocationId}`;
+      for (const [name, keys] of keysBySecret) {
+        const value =
+          keys.size === 0
+            ? secretCanary
+            : JSON.stringify(Object.fromEntries([...keys].map((key) => [key, secretCanary])));
+        await secretClient.send(new CreateSecretCommand({ Name: name, SecretString: value }));
+        seeded.set(name, value);
+      }
+      // Provider credentials are prerequisites only: validation never calls Atlas or Upstash.
+      for (const credentialsIdentifier of [
+        MONGODB_PROVIDER_DEFAULT_CREDENTIALS_ID,
+        UPSTASH_PROVIDER_DEFAULT_CREDENTIALS_ID
+      ]) {
+        await parameterClient.send(
+          new PutParameterCommand({
+            Name: getSsmParameterNameForThirdPartyCredentials({
+              credentialsIdentifier,
+              region: THIRD_PARTY_PROVIDER_CREDENTIALS_REGION
+            }),
+            Type: 'SecureString',
+            Value: JSON.stringify({
+              publicKey: secretCanary,
+              privateKey: secretCanary,
+              organizationId: 'qualification',
+              accountEmail: 'qualification@example.test',
+              apiKey: secretCanary
+            })
+          })
         );
       }
+      const initialUnexpectedRequests = offlineServer.unexpectedRequests.length;
+      const args = [
+        '--no-env-file',
+        '--preload',
+        join(cliDirectory, 'scripts', 'network-guard-preload.ts'),
+        join(cliDirectory, 'scripts', 'dev.ts'),
+        ...(command === 'package' ? ['package'] : ['validate', '--withPackage']),
+        '--configPath',
+        configPath,
+        '--currentWorkingDirectory',
+        projectRoot,
+        '--projectName',
+        projectName,
+        '--stage',
+        'qualification',
+        '--region',
+        'eu-west-1',
+        '--agent',
+        ...(command === 'package' ? [] : ['--outFile', templatePath])
+      ];
+      const processResult = await runProcess({
+        command: process.execPath,
+        args,
+        cwd: cliDirectory,
+        env: environment,
+        timeoutMs: 45 * 60_000
+      });
+      const stacks = await cloudformation.send(new ListStacksCommand({}));
+      if (stacks.StackSummaries?.length) throw new Error('Packaging created CloudFormation stacks.');
+      const blockedRequests = offlineServer.unexpectedRequests.slice(initialUnexpectedRequests);
+      if (processResult.timedOut) throw new Error('Source CLI packaging exceeded 45 minutes.');
+      if (processResult.stdoutTruncated) {
+        throw new Error('Source CLI JSONL exceeded the 32 MiB qualification capture limit.');
+      }
+      let parsed: ReturnType<typeof parseCliJsonl>;
+      try {
+        parsed = parseCliJsonl(processResult.stdout, 'validate --withPackage');
+      } catch (error) {
+        throw new Error(
+          `Source CLI packaging exited with ${String(processResult.exitCode)} without a valid result contract.\n${errorText(error)}\n${outputTail(
+            `${processResult.stdout}\n${processResult.stderr}`,
+            12_000
+          )}`
+        );
+      }
+      if (processResult.exitCode !== 0 || !parsed.result.ok || parsed.result.code !== 'OK') {
+        throw new Error(
+          `Source CLI packaging failed (${String(processResult.exitCode)}): ${parsed.result.code}: ${parsed.result.message}\n${outputTail(
+            `${processResult.stdout}\n${processResult.stderr}`,
+            12_000
+          )}`
+        );
+      }
+      if (blockedRequests.length > 0) {
+        throw new Error(`Packaging attempted blocked network calls: ${blockedRequests.join(', ')}.`);
+      }
+
+      const commandResult = isRecord(parsed.result.data) ? parsed.result.data.result : undefined;
+      const describeWorkloads = (workloads: unknown[]) =>
+        workloads.map((workload) =>
+          isRecord(workload)
+            ? {
+                jobName: workload.jobName,
+                digest: workload.digest,
+                skipped: workload.skipped,
+                size: workload.size,
+                ...(typeof workload.artifactPath === 'string' ? { artifactPath: workload.artifactPath } : {})
+              }
+            : workload
+        );
+      if (command === 'package') {
+        if (!Array.isArray(commandResult)) {
+          throw new Error(
+            `The package command did not return its packaged workloads.\n${outputTail(`${processResult.stdout}\n${processResult.stderr}`, 12_000)}`
+          );
+        }
+        return {
+          accountId: account.accountId,
+          processResult,
+          invocationId,
+          details: {
+            validationContract: 'package-result' as const,
+            checked: { config: true, resources: false, template: false, packaging: true, cloudformation: false },
+            packagedWorkloads: describeWorkloads(commandResult),
+            blockedNetworkRequests: blockedRequests,
+            templatePath
+          }
+        };
+      }
+      const structuredResult = isRecord(commandResult) ? commandResult : undefined;
+      const structuredChecks =
+        structuredResult !== undefined && isRecord(structuredResult.checked) ? structuredResult.checked : undefined;
+      const hasStructuredContract = structuredResult?.valid === true && structuredChecks !== undefined;
+      const packagingCompleted = parsed.events.some(
+        (event) => event.type === 'event' && event.eventType === 'PACKAGE_ARTIFACTS' && event.status === 'completed'
+      );
+      const templateText = await readFile(templatePath, 'utf8');
+      if (templateText.includes(secretCanary)) throw new Error('Packaging exposed a seeded secret in its template.');
+      for (const [name, value] of seeded) {
+        const stored = await secretClient.send(new GetSecretValueCommand({ SecretId: name }));
+        if (stored.SecretString !== value) throw new Error(`Packaging changed the stored secret ${name}.`);
+      }
+      if (!hasStructuredContract && (!packagingCompleted || templateText.trim().length === 0)) {
+        throw new Error(
+          'Validate returned neither its structured success contract nor completed packaging and a template.'
+        );
+      }
+      if (hasStructuredContract && (structuredChecks?.packaging !== true || structuredChecks.template !== true)) {
+        throw new Error('Validate did not check both packaging and the synthesized template.');
+      }
+      const workloads =
+        hasStructuredContract && Array.isArray(structuredResult.packagedWorkloads)
+          ? structuredResult.packagedWorkloads
+          : [];
       return {
         accountId: account.accountId,
         processResult,
         invocationId,
         details: {
-          validationContract: 'package-result' as const,
-          checked: { config: true, resources: false, template: false, packaging: true, cloudformation: false },
-          packagedWorkloads: describeWorkloads(commandResult),
+          validationContract: hasStructuredContract ? 'structured-result' : 'completed-events-and-template',
+          checked: hasStructuredContract
+            ? structuredChecks
+            : { config: true, resources: true, template: true, packaging: true, cloudformation: false },
+          packagedWorkloads: describeWorkloads(workloads),
           blockedNetworkRequests: blockedRequests,
           templatePath
         }
       };
+    } finally {
+      cloudformation.destroy();
+      secretClient.destroy();
+      parameterClient.destroy();
     }
-    const structuredResult = isRecord(commandResult) ? commandResult : undefined;
-    const structuredChecks =
-      structuredResult !== undefined && isRecord(structuredResult.checked) ? structuredResult.checked : undefined;
-    const hasStructuredContract = structuredResult?.valid === true && structuredChecks !== undefined;
-    const packagingCompleted = parsed.events.some(
-      (event) => event.type === 'event' && event.eventType === 'PACKAGE_ARTIFACTS' && event.status === 'completed'
-    );
-    const templateText = await readFile(templatePath, 'utf8');
-    if (templateText.includes(secretCanary)) throw new Error('Packaging exposed a seeded secret in its template.');
-    for (const [name, value] of seeded) {
-      const stored = await secretClient.send(new GetSecretValueCommand({ SecretId: name }));
-      if (stored.SecretString !== value) throw new Error(`Packaging changed the stored secret ${name}.`);
-    }
-    if (!hasStructuredContract && (!packagingCompleted || templateText.trim().length === 0)) {
-      throw new Error(
-        'Validate returned neither its structured success contract nor completed packaging and a template.'
+  })().then(
+    (result) => ({ ok: true, result }) as const,
+    (error: unknown) => ({ ok: false, error }) as const
+  );
+  try {
+    await ministack.stop();
+  } catch (cleanupError) {
+    if (outcome.ok === false) {
+      throw new AggregateError(
+        [outcome.error, cleanupError],
+        'Source CLI packaging failed and MiniStack cleanup failed.',
+        {
+          cause: outcome.error
+        }
       );
     }
-    if (hasStructuredContract && (structuredChecks?.packaging !== true || structuredChecks.template !== true)) {
-      throw new Error('Validate did not check both packaging and the synthesized template.');
-    }
-    const workloads =
-      hasStructuredContract && Array.isArray(structuredResult.packagedWorkloads)
-        ? structuredResult.packagedWorkloads
-        : [];
-    return {
-      accountId: account.accountId,
-      processResult,
-      invocationId,
-      details: {
-        validationContract: hasStructuredContract ? 'structured-result' : 'completed-events-and-template',
-        checked: hasStructuredContract
-          ? structuredChecks
-          : { config: true, resources: true, template: true, packaging: true, cloudformation: false },
-        packagedWorkloads: describeWorkloads(workloads),
-        blockedNetworkRequests: blockedRequests,
-        templatePath
-      }
-    };
-  } finally {
-    cloudformation.destroy();
-    secretClient.destroy();
-    parameterClient.destroy();
-    await ministack.stop();
+    throw cleanupError;
   }
+  if (outcome.ok === false) throw outcome.error;
+  return outcome.result;
 };

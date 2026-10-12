@@ -195,6 +195,11 @@ describe('stacktape init in the terminal: existing repository to a running artif
 
       const configText = await readFile(join(sandbox.project, 'stacktape.yml'), 'utf8');
       expect(validateConfigYaml(configText).errors).toEqual([]);
+      const written = parseYaml(configText) as { resources: Record<string, { type: string }> };
+      expect(Object.keys(written.resources)).toHaveLength(1);
+      for (const [name, resource] of Object.entries(written.resources)) {
+        expect(init.output).toContain(`${name}  ${resource.type}`);
+      }
       // The agent's classification reached the file as a secret reference, never as a value.
       expect(configText).toMatch(/name: PAYMENTS_API_TOKEN\n\s+value: \$Secret\('payments_api_token'\)/);
       // The price shown is the price of the file that was written.
