@@ -91,7 +91,9 @@ export const invokeInLambdaImage = async <Response = unknown>({
           // oxlint-disable-next-line no-await-in-loop -- Reads the response within the invocation deadline.
           const body = await response.text();
           if (response.ok) return JSON.parse(body) as Response;
-          throw new Error(`HTTP ${response.status}: ${body}`);
+          // The runtime answered: an invocation error is terminal, not a readiness retry.
+          lastError = new Error(`HTTP ${response.status}: ${body}`);
+          break;
         }
       } catch (error) {
         lastError = error;
