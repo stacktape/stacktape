@@ -61,7 +61,8 @@
     "typecheck:tools": "tsc -p tsconfig.json",
     "audit:deadcode": "knip",
     "check:docs": "node scripts/workspace/check-docs.ts",
-    "test:ci": "bun --no-env-file scripts/workspace/test-ci.ts"
+    "test:ci": "bun --no-env-file scripts/workspace/test-ci.ts",
+    "check:static": "pnpm check:instructions && pnpm check:docs && pnpm check:secrets && pnpm fmt:check && pnpm lint && pnpm check:workspace && pnpm check:patterns && pnpm generate:check && turbo run typecheck && pnpm typecheck:tools && pnpm check:architecture && pnpm check:deadcode && pnpm check:duplicates"
   },
   "devDependencies": {
     "@ast-grep/cli": "catalog:",

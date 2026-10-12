@@ -84,8 +84,8 @@ The extension host lane requires `STP_VSCODE_EXECUTABLE` and the host prerequisi
 `pnpm --filter @stacktape/cli build:dev-artifacts`.
 
 The [slice registry](../scripts/workspace/test-registry.ts) is the lane inventory; qualify its `pr` and `change` lanes
-before the candidate's selected external contracts. CI runs only the fast `pr` subset. To exercise MCP against the exact
-extracted binary instead of rebuilding it, run
+before the candidate's selected external contracts. CI keeps static checks and runs only the fast `pr` test subset. To
+exercise MCP against the exact extracted binary instead of rebuilding it, run
 `pnpm --filter @stacktape/cli exec bun scripts/test-mcp-executable.ts --candidate-binary=/absolute/path/to/stacktape`
 (use `stacktape.exe` on Windows). This keeps the candidate's sibling payloads in place and isolates its state and HTTP
 fixture.

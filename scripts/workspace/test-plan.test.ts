@@ -612,3 +612,25 @@ test('dormant trace and resource-map rules are owned and selected', () => {
     assert.equal(lane.tier, 'pr');
   }
 });
+
+test('migration adoption and browser privacy remain selected change lanes before release', () => {
+  for (const path of ['apps/console/api/prisma/migration-adoption.test.ts', 'apps/console/api/scripts/migrate-db.ts']) {
+    const lane = createTestPlan([path]).find((candidate) => candidate.id === 'console-database');
+    assert.ok(lane, path);
+    assert.equal(lane.tier, 'change');
+    assert.equal(lane.release, 'every-candidate');
+    assert.ok(lane.requires.includes('docker'));
+  }
+  for (const path of [
+    'apps/console/ui/scripts/qualify-browser-privacy.ts',
+    'apps/console/ui/e2e/privacy-probe.spec.ts',
+    'apps/console/ui/playwright.offline.config.ts',
+    'apps/console/ui/e2e/fixtures.ts'
+  ]) {
+    const lane = createTestPlan([path]).find((candidate) => candidate.id === 'console-ui-test-e2e-privacy');
+    assert.ok(lane, path);
+    assert.equal(lane.tier, 'change');
+    assert.equal(lane.release, 'every-candidate');
+    assert.ok(lane.requires.includes('chromium'));
+  }
+});

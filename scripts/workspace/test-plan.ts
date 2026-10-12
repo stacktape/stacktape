@@ -169,6 +169,14 @@ const isOfflineBrowserPath = (path: string) =>
 
 const RULES: Rule[] = [
   {
+    id: 'console-browser-privacy',
+    lanes: laneIdsForSelection('console-browser-privacy'),
+    matches: (path) =>
+      /^apps\/console\/ui\/(scripts\/(qualify-browser-privacy|browser-target|browser-sessions|e2e-credentials)|e2e\/(privacy-probe\.spec|fixtures)|playwright)/.test(
+        path
+      )
+  },
+  {
     id: 'console-browser-sessions',
     lanes: laneIdsForSelection('console-browser-sessions'),
     matches: (path) =>

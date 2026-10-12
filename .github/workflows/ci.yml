@@ -32,4 +32,23 @@ jobs:
         with:
           bun-version: 1.4.1
       - run: pnpm install --frozen-lockfile
+      - run: pnpm check:static
       - run: pnpm test:ci
+      - name: Set up CloudFormation validation
+        if: runner.os == 'Linux'
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+      - name: Validate synthesized CloudFormation
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          python -m pip install --disable-pip-version-check cfn-lint==1.53.3
+          template_path="$RUNNER_TEMP/stacktape-dense-application.json"
+          STACKTAPE_SYNTHESIS_TEMPLATE_OUTPUT="$template_path" \
+            pnpm --filter @stacktape/cli exec bun test tests/characterization/synthesis-contract.spec.ts
+          cfn-lint --template "$template_path" --regions eu-west-1 --non-zero-exit-code error
+          support_template_path="$RUNNER_TEMP/stacktape-dev-support.json"
+          STACKTAPE_TEST_SUPPORT_TEMPLATE="$support_template_path" \
+            pnpm --filter @stacktape/cli exec bun test tests/characterization/dev-support-template.spec.ts
+          cfn-lint --template "$support_template_path" --regions eu-west-1 --non-zero-exit-code error

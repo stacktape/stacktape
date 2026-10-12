@@ -2260,6 +2260,7 @@ export const lanes: readonly Lane[] = [
   },
   {
     id: 'console-ui-test-e2e-privacy',
+    selections: ['console-browser-privacy'],
     command: ['pnpm', '--filter', '@stacktape/console-ui', 'run', 'test:e2e:privacy'],
     level: 'browser',
     tier: 'change',

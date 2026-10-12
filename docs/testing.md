@@ -42,9 +42,12 @@ implementation.
   IDs, level, tier and prerequisites. The [code registry](../scripts/workspace/test-registry.ts) owns promises, paths,
   lanes and exact test ownership. Selection also follows direct Console suite imports. Missing private lanes are
   labelled in public clones. Run `pnpm test:doctor` before a long lane (`-- --for=console` for shared-dev Console work).
-- CI runs only `pnpm test:ci`: the registry's fast, offline `pr` tier, including private rules when Console is present.
-  `pnpm test:tools` checks ownership and rejects missing scripts, database flags and Playwright projects. Add new tests
-  to their slice's exact `tests` list, or explicitly classify harness/policy tests as tooling.
+- Public and integrated CI run `pnpm check:static` for instructions, docs, secrets, formatting, lint, workspace rules,
+  generation, types, architecture, dead code and duplicates, then `pnpm test:ci` for the registry's fast, offline `pr`
+  tests. Public Linux CI also validates synthesized templates with `cfn-lint`. Console rules run when initialized. Full
+  suites, application builds, package-install qualification and browsers remain local/release work. `pnpm test:tools`
+  checks ownership and rejects missing scripts, database flags and Playwright projects. Add new tests to their slice's
+  exact `tests` list, or explicitly classify harness/policy tests as tooling.
 - Heavy lanes (packaging, corpus, Console database and browser, MiniStack) are not in per-PR CI. When `test:plan`
   selects a `change` lane for your slice, you run it. Candidate qualification also runs those lanes and the registry's
   `release` lanes. Journey tags group pre-release E2E work; slices own everyday selection.

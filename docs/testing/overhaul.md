@@ -25,8 +25,13 @@ Console source; those lanes report the missing checkout.
 
 Levels are `focused`, `process`, `api-db`, `browser` and `live-aws`. Docker, Chromium, Console, AWS, network and
 shared-dev reservations are explicit prerequisites. Every `pr` and `change` lane also runs before release. CI has no
-heavy-lane or nightly substitute; the implementer owns selected change evidence. The ownership check in
-`pnpm test:tools` rejects unowned tests, empty active slices and missing scripts, database flags or Playwright projects.
+heavy-test or nightly substitute; the implementer owns selected change evidence. Both CI workflows retain
+`pnpm check:static` (instructions, docs, secrets, format/lint, workspace/pattern rules, generated parity, types,
+architecture, dead code and duplicates) before `pnpm test:ci`. Public Linux also runs `cfn-lint` on the dense and
+local-dev support templates. Full suites, application builds, package-install qualification and shared-UI browsers stay
+in the unchanged local/release gates. Console migration adoption and browser privacy are selected `change` lanes and
+also run before release. The ownership check in `pnpm test:tools` rejects unowned tests, empty active slices and missing
+scripts, database flags or Playwright projects.
 
 ## Work one slice at a time
 
