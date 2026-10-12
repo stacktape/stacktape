@@ -14,6 +14,7 @@ import { domainManager } from '@domain-services/domain-manager';
 import { ec2Manager } from '@domain-services/ec2-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { finalizeTemplate } from '@domain-services/template-manager/finalize';
+import { assertLocalAwsEndpoint, type MiniStackClientConfig } from '@stacktape/ministack/fixture';
 import type { StackContext } from '@domain-services/stack-context';
 import type { CompiledStacktapeConfig } from '@stacktape/config-authoring';
 import type { SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regions';
@@ -48,7 +49,8 @@ export const synthesizeFixture = async ({
   beforeFinalize,
   command = 'synth',
   remoteResources,
-  identity: identityOverride
+  identity: identityOverride,
+  localAws
 }: {
   /** An already compiled TypeScript-style config. Mutually exclusive with `configPath`. */
   compiledConfig?: CompiledStacktapeConfig;
@@ -60,6 +62,8 @@ export const synthesizeFixture = async ({
   command?: 'dev' | 'synth';
   remoteResources?: string[];
   identity?: Partial<SynthesisIdentity>;
+  /** Explicit synthetic clients for runtime directives; every other network request stays forbidden. */
+  localAws?: MiniStackClientConfig;
 }) => {
   if (!compiledConfig === !configPath) {
     throw new Error('synthesizeFixture needs exactly one of compiledConfig or configPath.');
@@ -70,6 +74,10 @@ export const synthesizeFixture = async ({
   const globallyUniqueStackHash = identityOverride
     ? getGloballyUniqueStackHash({ region: identity.region, stackName, accountId: identity.accountId })
     : 'xxxxxxxx';
+  if (localAws) {
+    assertLocalAwsEndpoint(localAws.endpoint);
+    awsSdkManager.init({ ...localAws, region: identity.region, plugins: [] });
+  }
   return withCredentiallessSynthesisBoundary(async () => {
     calculatedStackOverviewManager.reset();
     configManager.reset();
@@ -187,7 +195,7 @@ export const synthesizeFixture = async ({
     beforeFinalize?.();
     await finalizeTemplate();
     return templateManager.getTemplate();
-  });
+  }, localAws?.endpoint);
 };
 
 const protectedAwsEnvironment = [
@@ -200,7 +208,11 @@ const protectedAwsEnvironment = [
   'AWS_EC2_METADATA_DISABLED'
 ] as const;
 
-export const withCredentiallessSynthesisBoundary = async <Result>(operation: () => Promise<Result>) => {
+export const withCredentiallessSynthesisBoundary = async <Result>(
+  operation: () => Promise<Result>,
+  localAwsEndpoint?: string
+) => {
+  if (localAwsEndpoint) assertLocalAwsEndpoint(localAwsEndpoint);
   if (!awsSdkManager.isInitialized) {
     awsSdkManager.init({
       credentials: { accessKeyId: 'characterization-forbidden', secretAccessKey: 'characterization-forbidden' },
@@ -229,8 +241,11 @@ export const withCredentiallessSynthesisBoundary = async <Result>(operation: () 
   process.env.AWS_CONFIG_FILE = '__stacktape_characterization_missing_config__';
   process.env.AWS_EC2_METADATA_DISABLED = 'true';
   globalThis.fetch = Object.assign(
-    async (input: Parameters<typeof fetch>[0]) => {
+    async (input: Parameters<typeof fetch>[0], options?: Parameters<typeof fetch>[1]) => {
       const destination = input instanceof Request ? input.url : String(input);
+      if (localAwsEndpoint && new URL(destination).origin === localAwsEndpoint) {
+        return originalFetch(input, { ...options, redirect: 'error' });
+      }
       throw new Error(`Unclassified network request during credential-free synthesis: ${destination}`);
     },
     {
