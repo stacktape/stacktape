@@ -38,6 +38,21 @@ test.each(['http://127.0.0.1:4566', 'http://localhost:4566/', 'http://[::1]:4566
   }
 );
 
+test('a rollback or diff of another version uses the same local endpoint as a deploy', () => {
+  delete process.env.AWS_IGNORE_CONFIGURED_ENDPOINT_URLS;
+  process.env.AWS_ENDPOINT_URL = 'http://127.0.0.1:4566';
+  delete process.env.AWS_ENDPOINT_URL_S3;
+  deploymentArtifactManager.deploymentBucketName = 'deployment-bucket';
+  expect(deploymentArtifactManager.getCloudformationTemplateUrlForVersion('v000007')).toBe(
+    'http://127.0.0.1:4566/deployment-bucket/cf-template/v000007.yml'
+  );
+  delete process.env.AWS_ENDPOINT_URL;
+  globalStateManager.rawArgs = { region: 'eu-west-1' };
+  expect(deploymentArtifactManager.getCloudformationTemplateUrlForVersion('v000007')).toBe(
+    'https://deployment-bucket.s3.eu-west-1.amazonaws.com/cf-template/v000007.yml'
+  );
+});
+
 test('the S3 endpoint overrides the global endpoint, including its path prefix', () => {
   delete process.env.AWS_IGNORE_CONFIGURED_ENDPOINT_URLS;
   process.env.AWS_ENDPOINT_URL = 'http://localhost:4566';

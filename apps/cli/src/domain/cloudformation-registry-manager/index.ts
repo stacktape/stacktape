@@ -70,6 +70,9 @@ class CloudformationRegistryManager {
   }
 
   loadPrivateTypesAndPackages = async (requiredModuleTypes: StpCfInfrastructureModuleType[]) => {
+    // Most stacks use no private type; listing the registry and its package bucket is then a wasted round trip,
+    // and an emulator without the registry API would refuse it.
+    if (requiredModuleTypes.length === 0) return;
     requiredModuleTypes.forEach((infrastructureModuleType) => {
       this.checkCloudformationPrivateTypesController({ infrastructureModuleType });
     });

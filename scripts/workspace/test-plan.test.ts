@@ -20,6 +20,36 @@ const git = (cwd: string, ...args: string[]) =>
     stdio: ['ignore', 'pipe', 'pipe']
   }).trim();
 
+test('a change to the MiniStack fixture or the CLI network guard selects every lane that runs on the emulator', () => {
+  for (const path of ['packages/ministack/src/fixture.ts', 'apps/cli/scripts/network-guard-preload.ts']) {
+    const ids = new Set(createTestPlan([path]).map(({ id }) => id));
+    for (const lane of [
+      'ministack-deploy',
+      'cli-stack-operations',
+      'artifact-upload-2',
+      'console-database-console-access'
+    ]) {
+      assert.ok(ids.has(lane), `${lane} is not selected for a change to ${path}`);
+    }
+  }
+  assert.ok(createTestPlan(['packages/ministack/src/fixture.ts']).some(({ id }) => id === 'ministack-fixture'));
+});
+
+test('helper-Lambda, packaging and delete changes select the offline deploy loop', () => {
+  for (const path of [
+    'apps/cli/helper-lambdas/stacktape-service-lambda/index.ts',
+    'packages/packaging/src/split-bundler/index.ts',
+    'packages/packaging/src/artifact/hashing.ts',
+    'apps/cli/src/commands/delete/index.ts',
+    'apps/cli/src/commands/deploy/index.ts'
+  ]) {
+    assert.ok(
+      createTestPlan([path]).some(({ id }) => id === 'ministack-deploy'),
+      `${path} does not select ministack-deploy`
+    );
+  }
+});
+
 test('committed Console gitlinks expand into the real changed and deleted private paths', async (context) => {
   const root = await mkdtemp(join(tmpdir(), 'stacktape-j13-test-plan-'));
   context.after(() => rm(root, { recursive: true, force: true }));

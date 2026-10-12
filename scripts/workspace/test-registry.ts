@@ -210,12 +210,13 @@ export const lanes: readonly Lane[] = [
   {
     id: 'cli-stack-operations',
     command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:cli-process'],
-    level: 'focused',
+    level: 'process',
     tier: 'change',
     tests: ['apps/cli/tests/cli-process'],
-    requires: [],
+    requires: ['docker', 'network'],
     release: 'every-candidate',
-    proves: 'The CLI process refuses unsafe operations and performs confirmed deletion.',
+    proves:
+      'The CLI process refuses unsafe operations, performs confirmed deletion and keeps its deployment bucket in MiniStack.',
     selections: ['cli-stack-operations']
   },
   {
@@ -529,6 +530,29 @@ export const lanes: readonly Lane[] = [
     release: 'every-candidate',
     proves: 'Layer upload and retention work against the SDK wire protocol and MiniStack.',
     selections: ['artifact-upload']
+  },
+  {
+    id: 'ministack-deploy',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:ministack:deploy'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/tests/ministack/deploy-loop.spec.ts'],
+    requires: ['docker', 'network'],
+    release: 'every-candidate',
+    proves:
+      'The source CLI creates, updates, redeploys unchanged and deletes each resource family on MiniStack with the effects observed through the real SDK.',
+    selections: ['ministack-deploy']
+  },
+  {
+    id: 'ministack-fixture',
+    command: ['pnpm', '--filter', '@stacktape/ministack', 'test:fixture'],
+    level: 'process',
+    tier: 'change',
+    tests: ['packages/ministack/src/fixture.test.ts'],
+    requires: ['docker', 'network'],
+    release: 'every-candidate',
+    proves: 'The shared MiniStack fixture starts ready, isolates accounts, blocks egress and verifies its cleanup.',
+    selections: ['ministack-fixture']
   },
   {
     id: 'project-qualification',
@@ -2004,15 +2028,6 @@ export const lanes: readonly Lane[] = [
     release: 'every-candidate'
   },
   {
-    id: 'cli-test-floci-feasibility',
-    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:floci:feasibility'],
-    level: 'process',
-    tier: 'change',
-    tests: ['apps/cli/scripts/floci/feasibility-spike.ts'],
-    requires: ['docker', 'network'],
-    release: 'every-candidate'
-  },
-  {
     id: 'cli-test-helper-lambdas',
     command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:helper-lambdas'],
     level: 'focused',
@@ -2756,7 +2771,7 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/services/default-domain-aws.test.ts',
       'apps/console/ui/src/pages/DomainsPage/domains.test.ts'
     ],
-    lanes: ['synthesis', 'synthesis-2', 'helper-lambda-runtime', 'cli-operations']
+    lanes: ['ministack-deploy', 'synthesis', 'synthesis-2', 'helper-lambda-runtime', 'cli-operations']
   },
   {
     id: 'S12',
@@ -2785,13 +2800,18 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/deploy/**',
       'apps/cli/src/domain/deployment-change-plan/**',
       'apps/cli/src/domain/cloudformation-stack-manager/**',
+      'apps/cli/src/domain/cloudformation-registry-manager/**',
       'apps/cli/src/aws/cloudformation.ts',
       'apps/cli/src/domain/shared-resource-stack-manager/index.ts',
-      'apps/cli/src/utils/stack-info-map-diff.ts'
+      'apps/cli/src/utils/stack-info-map-diff.ts',
+      'apps/cli/tests/ministack/**',
+      'packages/ministack/**',
+      'apps/cli/scripts/network-guard-preload.ts'
     ],
     tests: [
       'apps/cli/src/aws/cloudformation.spec.ts',
       'apps/cli/src/commands/deploy/ec2-runner-config-path.spec.ts',
+      'apps/cli/src/domain/cloudformation-registry-manager/index.spec.ts',
       'apps/cli/src/domain/deployment-change-plan/index.spec.ts',
       'apps/cli/src/domain/shared-resource-stack-manager/index.spec.ts',
       'apps/cli/src/utils/stack-info-map-diff.spec.ts',
@@ -2801,12 +2821,15 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/characterization/cloudformation-stack-operations.spec.ts',
       'apps/cli/tests/characterization/lambda-version-publication.spec.ts',
       'apps/cli/tests/characterization/stack-event-pagination.spec.ts',
-      'apps/cli/tests/characterization/stack-lifecycle-operations.spec.ts'
+      'apps/cli/tests/characterization/stack-lifecycle-operations.spec.ts',
+      'apps/cli/tests/ministack/deploy-loop.spec.ts'
     ],
     lanes: [
       'synthesis',
       'synthesis-2',
       'data-safety',
+      'ministack-deploy',
+      'ministack-fixture',
       'console-database-cli-console',
       'live-aws',
       'cli-test-real-aws-alias-canary'
@@ -2823,10 +2846,19 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/rollback/**',
       'apps/cli/src/commands/cf-rollback/**',
       'apps/cli/src/commands/diff/**',
-      'apps/cli/src/domain/cloudformation-stack-manager/**'
+      'apps/cli/src/domain/cloudformation-stack-manager/**',
+      'packages/ministack/**',
+      'apps/cli/scripts/network-guard-preload.ts'
     ],
     tests: ['apps/cli/tests/cli-process/stack-operations.spec.ts'],
-    lanes: ['cli-stack-operations', 'synthesis', 'synthesis-2', 'live-aws', 'cli-test-real-aws-alias-canary']
+    lanes: [
+      'cli-stack-operations',
+      'ministack-deploy',
+      'synthesis',
+      'synthesis-2',
+      'live-aws',
+      'cli-test-real-aws-alias-canary'
+    ]
   },
   {
     id: 'S15',
@@ -3059,6 +3091,7 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/split-bundler/layer-builder.test.ts'
     ],
     lanes: [
+      'ministack-deploy',
       'cli',
       'cli-2',
       'cli-3',
@@ -3311,6 +3344,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/packaging-archives/helper-lambda-sdk.spec.ts'
     ],
     lanes: [
+      'ministack-deploy',
       'packaging-test',
       'packaging-archives',
       'packaging-archives-2',
@@ -3331,14 +3365,17 @@ export const slices: readonly Slice[] = [
     paths: [
       'apps/cli/src/domain/deployment-artifact-manager/**',
       'apps/cli/scripts/packaging-archives/layer-upload-ministack-acceptance.ts',
-      'apps/cli/src/aws/s3-upload-options.ts'
+      'apps/cli/src/aws/s3-upload-options.ts',
+      'packages/ministack/**',
+      'apps/cli/scripts/network-guard-preload.ts'
     ],
     tests: [
       'apps/cli/scripts/packaging-archives/layer-upload-acceptance.ts',
       'apps/cli/scripts/packaging-archives/layer-upload-ministack-acceptance.ts',
       'apps/cli/src/aws/s3-upload-options.spec.ts',
       'apps/cli/src/domain/deployment-artifact-manager/retention.test.ts',
-      'apps/cli/src/domain/deployment-artifact-manager/template-url.spec.ts'
+      'apps/cli/src/domain/deployment-artifact-manager/template-url.spec.ts',
+      'apps/cli/src/domain/deployment-artifact-manager/utils.spec.ts'
     ],
     lanes: ['artifact-upload', 'artifact-upload-2', 'cli', 'cli-2', 'cli-3']
   },
@@ -3876,6 +3913,8 @@ export const slices: readonly Slice[] = [
     status: 'active',
     journeys: ['J5'],
     paths: [
+      'packages/ministack/**',
+      'apps/cli/scripts/network-guard-preload.ts',
       'apps/cli/src/commands/secret-*/**',
       'apps/cli/src/commands/param-*/**',
       'apps/console/ui/src/aws/secrets*.ts',
@@ -4387,7 +4426,6 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/scripts/copy-stacktape-config-schema.ts',
       'apps/docs/scripts/validate-built-examples.ts',
       'apps/docs/scripts/validate-built-site.ts',
-      'apps/cli/scripts/floci/feasibility-spike.ts',
       'apps/cli/scripts/verify-npm-declarations.ts',
       'apps/cli/scripts/real-aws/packaging-canary.ts',
       'apps/cli/scripts/real-aws/alias-publication-canary.ts',
@@ -4409,7 +4447,6 @@ export const slices: readonly Slice[] = [
       'agent-instructions',
       'agent-instructions-2',
       'cli-test',
-      'cli-test-floci-feasibility',
       'cli-test-perf-tools',
       'cli-test-qualification',
       'console-api-app-test-fixtures',
@@ -4475,6 +4512,7 @@ export const slices: readonly Slice[] = [
 
 // Harness, benchmark and repository-policy tests have explicit tooling ownership.
 export const toolingTests: readonly string[] = [
+  'packages/ministack/src/fixture.test.ts',
   'apps/cli/scripts/analyze-bundle.spec.ts',
   'apps/cli/scripts/generate-starter-projects-metadata.spec.ts',
   'apps/cli/scripts/generation/generated-files.spec.ts',

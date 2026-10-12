@@ -152,18 +152,20 @@ SHA-256. A given `--out` must be new or empty; both tools refuse existing conten
 the Git source before and after measuring and fail when it changed or could not be read. Run measurements one at a time,
 with no other build or test running and no edits to the measured source.
 
-## MiniStack S3 pilot
+## MiniStack S3 lane
 
 The opt-in `pnpm --filter @stacktape/cli run test:layer-upload:ministack` lane exercises the CLI's real S3 SDK path. It
-needs Docker and runs a pinned [MiniStack](https://ministack.org/) image in a disposable container on a loopback port.
-The runner creates isolated buckets with dummy credentials, rejects a non-local endpoint, and blocks all other AWS
-requests from the deploy worker. It compares stored layer and function ZIP bytes with the generated ZIPs, checks changed
-and unchanged layer uploads, and verifies that an unchanged deployment uploads only its new template files. An A/B/A
-function edit then exercises real retention deletion: the reused A object must survive while an obsolete template is
-removed. A missing local bucket makes a layer SDK upload fail without a success result. The runner removes the container
-in `finally`, verifies its removal, and writes a source-bound `report.json` and worker logs under ignored
-`apps/cli/.stacktape/` output. Pass `--out <empty-directory>` to keep the evidence elsewhere. This lane is not part of
-the default gate because it needs Docker; a missing Docker daemon fails the opt-in command.
+needs Docker and starts the pinned [MiniStack](https://ministack.org/) image through the shared
+`@stacktape/ministack/fixture` in a disposable container on a loopback port, the same fixture the offline deploy loop
+(`test:ministack:deploy`, `apps/cli/tests/ministack`) and the Console database suites use. The runner creates isolated
+buckets with synthetic credentials, rejects a non-local endpoint, and blocks all other AWS requests from the deploy
+worker. It compares stored layer and function ZIP bytes with the generated ZIPs, checks changed and unchanged layer
+uploads, and verifies that an unchanged deployment uploads only its new template files. An A/B/A function edit then
+exercises real retention deletion: the reused A object must survive while an obsolete template is removed. A missing
+local bucket makes a layer SDK upload fail without a success result. The runner removes the container in `finally`,
+verifies its removal, and writes a source-bound `report.json` and worker logs under ignored `apps/cli/.stacktape/`
+output. Pass `--out <empty-directory>` to keep the evidence elsewhere. This lane is not part of the default gate because
+it needs Docker; a missing Docker daemon fails the opt-in command.
 
 Use an emulator only for the services and operations a test actually exercises. Run the current application code through
 normal AWS clients, point them at an owned local endpoint, assert service state or a durable application result, and
