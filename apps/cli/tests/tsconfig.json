@@ -4,6 +4,7 @@
     "../src/environment.d.ts",
     "./characterization/**/*.ts",
     "./data-safety/**/*.ts",
-    "./synthesis-families/**/*.ts"
+    "./synthesis-families/**/*.ts",
+    "./ministack/**/*.ts"
   ]
 }

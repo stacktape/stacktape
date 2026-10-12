@@ -150,8 +150,12 @@ const main = async () => {
   const uploadedKeys: string[] = [];
 
   awsSdkManager.init({
+    // The emulator lane passes the fixture's synthetic credentials; the emulator scopes buckets by that account.
     credentials: request.localAwsEndpoint
-      ? { accessKeyId: 'test', secretAccessKey: 'test' }
+      ? {
+          accessKeyId: process.env.AWS_ACCESS_KEY_ID || 'test',
+          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'test'
+        }
       : { accessKeyId: 'acceptance-forbidden', secretAccessKey: 'acceptance-forbidden' },
     region: REGION,
     endpoint: request.localAwsEndpoint ?? 'http://127.0.0.1:9',

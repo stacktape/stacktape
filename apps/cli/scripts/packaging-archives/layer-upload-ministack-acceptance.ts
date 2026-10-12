@@ -3,15 +3,15 @@
  * cache and retention in more depth; this lane checks the same deploy path through real S3 SDK requests.
  *
  * Run with `pnpm --filter @stacktape/cli run test:layer-upload:ministack` with Docker available.
- * The script owns a disposable MiniStack container on a loopback port, uses dummy credentials, and stops it in finally.
- * It writes a source-bound report and leaves the fixture and logs in an ignored output directory.
+ * The shared MiniStack fixture owns the disposable container on a loopback port with synthetic credentials and stops
+ * it in finally. The script writes a source-bound report and leaves the fixture and logs in an ignored output directory.
  */
 import assert from 'node:assert/strict';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { chmod, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { setTimeout as delay } from 'node:timers/promises';
 import { CreateBucketCommand, GetObjectCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
+import { MINISTACK_IMAGE, startMiniStack, stopMiniStackOnSignals, type MiniStack } from '@stacktape/ministack/fixture';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import yargsParser from 'yargs-parser';
 import { claimOutputDirectory, createSourceTracker, describeSourceIdentity } from '../perf/measurement-context';
@@ -21,7 +21,6 @@ import { NATIVE_TOOL, type SplitProjectFixture, writeSplitProjectFixture } from 
 const CLI_ROOT = resolve(import.meta.dir, '..', '..');
 const REPO_ROOT = resolve(CLI_ROOT, '..', '..');
 const WORKER = join(import.meta.dir, 'deploy-artifacts-worker.ts');
-const IMAGE = 'ministackorg/ministack:1.5.17@sha256:11d7308bfc75029d55625b9525e84a2401431ed1ff2148c6311800ff5009ae9c';
 const REGION = 'eu-west-1';
 const BUCKET = awsResourceNames.deploymentBucket('acceptx1');
 const RETENTION_HASH = 'retentx1';
@@ -31,27 +30,6 @@ const FAILURE_BUCKET = awsResourceNames.deploymentBucket(FAILURE_HASH);
 const MISSING_BUCKET = awsResourceNames.deploymentBucket('missingx1');
 const WORKER_TIMEOUT_MS = 120_000;
 const sha256 = (value: Uint8Array) => createHash('sha256').update(value).digest('hex');
-
-const docker = (args: string[]) =>
-  Bun.spawnSync(['docker', ...args], { stdout: 'pipe', stderr: 'pipe', timeout: 120_000 });
-
-const waitForHealth = async (endpoint: string, container: string) => {
-  const deadline = Date.now() + 30_000;
-  while (Date.now() < deadline) {
-    const state = docker(['inspect', '--format', '{{.State.Running}}', container]);
-    if (state.exitCode !== 0 || state.stdout.toString().trim() !== 'true') {
-      throw new Error('MiniStack exited before becoming ready');
-    }
-    try {
-      const response = await fetch(`${endpoint}/_ministack/health`, { signal: AbortSignal.timeout(500) });
-      if (response.ok) return;
-    } catch {
-      // The listener is still starting.
-    }
-    await delay(100);
-  }
-  throw new Error('MiniStack did not become healthy within 30 seconds');
-};
 
 const main = async () => {
   const args = yargsParser(process.argv.slice(2), { string: ['out'] });
@@ -65,10 +43,8 @@ const main = async () => {
     excludePaths: [out]
   });
   assert.ok(source.before.available, `Cannot identify source: ${source.before.reason}`);
-  const container = `stacktape-ministack-upload-${randomUUID().slice(0, 12)}`;
   const report: Record<string, unknown> = {
     sourceBefore: source.before,
-    image: IMAGE,
     region: REGION,
     bucket: BUCKET,
     retentionBucket: RETENTION_BUCKET,
@@ -78,27 +54,18 @@ const main = async () => {
   };
   const scenarios = report.scenarios as Array<Record<string, unknown>>;
   let failure: unknown;
-  let started = false;
+  let ministack: MiniStack | undefined;
+  let releaseSignals = () => {};
   try {
-    const run = docker(['run', '--detach', '--rm', '--name', container, '--publish', '127.0.0.1::4566', IMAGE]);
-    assert.equal(run.exitCode, 0, `MiniStack container failed to start: ${run.stderr.toString()}`);
-    started = true;
-    const portResult = docker(['port', container, '4566/tcp']);
-    assert.equal(portResult.exitCode, 0, portResult.stderr.toString());
-    const port = portResult.stdout.toString().match(/127\.0\.0\.1:(\d+)/)?.[1];
-    assert.ok(port, 'MiniStack did not publish a loopback port');
-    const endpoint = `http://127.0.0.1:${port}`;
+    ministack = await startMiniStack({ label: 'layer-upload', region: REGION });
+    releaseSignals = stopMiniStackOnSignals(ministack);
+    const { endpoint } = ministack;
+    report.image = ministack.image;
+    report.imageId = ministack.imageId;
     report.endpoint = endpoint;
-    const image = docker(['image', 'inspect', IMAGE, '--format', '{{.Id}}']);
-    assert.equal(image.exitCode, 0, image.stderr.toString());
-    report.imageId = image.stdout.toString().trim();
-    await waitForHealth(endpoint, container);
-    const client = new S3Client({
-      endpoint,
-      region: REGION,
-      forcePathStyle: true,
-      credentials: { accessKeyId: 'test', secretAccessKey: 'test' }
-    });
+    report.fixtureStartupMs = ministack.startupMs;
+    // The workers below get the same account through `childEnvironment`, so they see these buckets.
+    const client = new S3Client(ministack.clientConfig());
     try {
       await client.send(
         new CreateBucketCommand({ Bucket: BUCKET, CreateBucketConfiguration: { LocationConstraint: REGION } })
@@ -126,7 +93,7 @@ const main = async () => {
       ];
       const rejected = Bun.spawnSync(rejectedCommand, {
         cwd: fixture.project,
-        env: { HOME: process.env.HOME ?? '', PATH: fixture.dockerDirectory, AWS_EC2_METADATA_DISABLED: 'true' },
+        env: { HOME: process.env.HOME ?? '', PATH: fixture.dockerDirectory, ...ministack.childEnvironment() },
         stdout: 'pipe',
         stderr: 'pipe',
         timeout: WORKER_TIMEOUT_MS
@@ -188,7 +155,7 @@ const main = async () => {
             STP_FAKE_DOCKER_INSTALL: projectFixture.dockerInstall,
             STP_FAKE_DOCKER_LOG: join(out, `${label}.docker.log`),
             STP_INVOCATION_ID: label,
-            AWS_EC2_METADATA_DISABLED: 'true'
+            ...ministack!.childEnvironment()
           },
           stdout: 'pipe',
           stderr: 'pipe',
@@ -361,7 +328,7 @@ const main = async () => {
           STP_FAKE_DOCKER_INSTALL: failureFixture.dockerInstall,
           STP_FAKE_DOCKER_LOG: join(out, '07-failed-layer-upload.docker.log'),
           STP_INVOCATION_ID: '07-failed-layer-upload',
-          AWS_EC2_METADATA_DISABLED: 'true'
+          ...ministack.childEnvironment()
         },
         stdout: 'pipe',
         stderr: 'pipe',
@@ -383,16 +350,16 @@ const main = async () => {
     failure = error;
     report.failure = error instanceof Error ? (error.stack ?? error.message) : String(error);
   } finally {
-    if (started) {
-      const logs = docker(['logs', container]);
-      await writeFile(join(out, 'ministack.log'), `${logs.stdout.toString()}${logs.stderr.toString()}`);
-      const stop = docker(['rm', '--force', container]);
-      const inspect = docker(['inspect', container]);
-      report.cleanup =
-        stop.exitCode === 0 && inspect.exitCode !== 0
-          ? 'MiniStack container removed; in-memory AWS state discarded'
-          : `MiniStack cleanup failed: ${stop.stderr.toString()} ${inspect.stdout.toString()}`;
-      if (stop.exitCode !== 0 || inspect.exitCode === 0) failure ??= new Error(String(report.cleanup));
+    releaseSignals();
+    if (ministack) {
+      await writeFile(join(out, 'ministack.log'), ministack.logs());
+      try {
+        await ministack.stop();
+        report.cleanup = 'MiniStack container and volumes removed; in-memory AWS state discarded';
+      } catch (error) {
+        report.cleanup = `MiniStack cleanup failed: ${String(error)}`;
+        failure ??= error;
+      }
     } else {
       report.cleanup = 'No container started';
     }
@@ -402,7 +369,7 @@ const main = async () => {
   }
   assert.equal(report.sourceCheck, 'unchanged', 'Source changed during the acceptance');
   if (failure) throw failure;
-  console.info(`MiniStack layer upload passed against ${IMAGE}; ${describeSourceIdentity(source.before)}`);
+  console.info(`MiniStack layer upload passed against ${MINISTACK_IMAGE}; ${describeSourceIdentity(source.before)}`);
   console.info(`Evidence: ${join(out, 'report.json')}`);
 };
 

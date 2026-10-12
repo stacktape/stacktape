@@ -1,8 +1,9 @@
 /**
  * A loopback AWS endpoint for CLI-process tests: STS identity, one CloudFormation stack whose state the test chooses,
- * an empty deployment bucket, and empty answers for the read-only lookups a stack operation makes. Every mutation
- * (DeleteStack, UpdateStack, ...) is recorded; anything unknown is refused with HTTP 501 and recorded, so the test can
- * assert both what the CLI did and that it did nothing else.
+ * and empty answers for the read-only lookups a stack operation makes. Every mutation (DeleteStack, UpdateStack, ...)
+ * is recorded; anything unknown is refused with HTTP 501 and recorded, so the test can assert both what the CLI did
+ * and that it did nothing else. S3 is not answered here: the deployment bucket lives in MiniStack, which the test
+ * selects for the CLI through `AWS_ENDPOINT_URL_S3`, so an S3 request arriving here is an unexpected request.
  */
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 import { randomUUID } from 'node:crypto';
@@ -18,8 +19,8 @@ export type FakeStackState = {
   outputs: Record<string, string>;
   /** Set to make the stack vanish on the next DescribeStacks after a DeleteStack. */
   deleteCompletesImmediately?: boolean;
-  /** Objects present in the deployment bucket, by key; templates of earlier versions for a rollback to read. */
-  bucketObjects?: Record<string, string>;
+  /** Physical IDs by logical ID where the CLI reads them (the deployment bucket); others are the lowercased logical ID. */
+  physicalIds?: Record<string, string>;
 };
 
 export type AwsFake = {
@@ -28,8 +29,6 @@ export type AwsFake = {
   stack: FakeStackState | undefined;
   /** CloudFormation actions that change state, in order, with their parameters. */
   mutations: { action: string; parameters: Record<string, string> }[];
-  /** Objects written to the deployment bucket, by key. */
-  uploads: Record<string, string>;
   changeSets: { name: string; parameters: Record<string, string> }[];
   actions: string[];
   unexpectedRequests: string[];
@@ -97,7 +96,7 @@ const listStackResourcesXml = (stack: FakeStackState) => {
   const members = Object.entries(stack.template.Resources)
     .map(
       ([logicalId, resource]) =>
-        `<member><LogicalResourceId>${logicalId}</LogicalResourceId><PhysicalResourceId>${logicalId.toLowerCase()}</PhysicalResourceId><ResourceType>${resource.Type}</ResourceType><ResourceStatus>${
+        `<member><LogicalResourceId>${logicalId}</LogicalResourceId><PhysicalResourceId>${stack.physicalIds?.[logicalId] ?? logicalId.toLowerCase()}</PhysicalResourceId><ResourceType>${resource.Type}</ResourceType><ResourceStatus>${
           stack.status.startsWith('DELETE') ? 'DELETE_IN_PROGRESS' : 'CREATE_COMPLETE'
         }</ResourceStatus><LastUpdatedTimestamp>2026-10-02T10:00:00.000Z</LastUpdatedTimestamp></member>`
     )
@@ -122,19 +121,20 @@ const stackEventsXml = (region: string, stack: FakeStackState) =>
 
 export const startAwsFake = async ({
   region = 'eu-west-1',
-  stack
+  stack,
+  readTemplate
 }: {
   region?: string;
   stack?: FakeStackState;
+  /** Reads the template the CLI uploaded under a `TemplateURL`, the way CloudFormation fetches it from S3. */
+  readTemplate: (templateUrl: string) => Promise<string | undefined>;
 }): Promise<AwsFake> => {
   const state: { stack: FakeStackState | undefined } = { stack };
   const mutations: AwsFake['mutations'] = [];
   const actions: string[] = [];
   const unexpectedRequests: string[] = [];
   const logGroups = new Set<string>();
-  const uploads: Record<string, string> = {};
   const changeSets: AwsFake['changeSets'] = [];
-  const bucketObjects: Record<string, string> = { ...(stack?.bucketObjects ?? {}) };
   let deleteObserved = 0;
   let updateObserved = 0;
 
@@ -224,10 +224,8 @@ export const startAwsFake = async ({
           );
         }
         // The new template is what the CLI uploaded under the URL it passed; its outputs become the stack's.
-        const templateUrl = form.get('TemplateURL') ?? '';
-        const uploadedKey = Object.keys(uploads).find((key) => templateUrl.endsWith(key));
-        if (uploadedKey) {
-          const uploaded = uploads[uploadedKey];
+        const uploaded = await readTemplate(form.get('TemplateURL') ?? '');
+        if (uploaded !== undefined) {
           const parsed = uploaded.trimStart().startsWith('{')
             ? (JSON.parse(uploaded) as CloudFormationTemplate)
             : undefined;
@@ -327,73 +325,6 @@ export const startAwsFake = async ({
     if (request.method === 'GET' && url.pathname.startsWith('/2017-03-31/tags/')) {
       return json(200, { Tags: {} });
     }
-    // S3 on the deployment bucket: the configured objects plus whatever the CLI uploads; deletions succeed.
-    const objectKey = decodeURIComponent(url.pathname.replace(/^\/[^/]+\//, ''));
-    if (request.method === 'GET' && url.searchParams.has('list-type')) {
-      const keys = Object.keys(bucketObjects);
-      return xml(
-        200,
-        `<?xml version="1.0" encoding="UTF-8"?><ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>bucket</Name><KeyCount>${keys.length}</KeyCount><MaxKeys>1000</MaxKeys><IsTruncated>false</IsTruncated>${keys
-          .map(
-            (key) =>
-              `<Contents><Key>${escapeXml(key)}</Key><LastModified>2026-10-02T10:00:00.000Z</LastModified><ETag>&quot;${key.length}&quot;</ETag><Size>${bucketObjects[key].length}</Size><StorageClass>STANDARD</StorageClass></Contents>`
-          )
-          .join('')}</ListBucketResult>`
-      );
-    }
-    if (request.method === 'PUT' && objectKey && !url.searchParams.has('tagging')) {
-      uploads[objectKey] = body;
-      bucketObjects[objectKey] = body;
-      response.writeHead(200, { etag: '"uploaded"' });
-      return response.end();
-    }
-    if (
-      request.method === 'GET' &&
-      objectKey &&
-      bucketObjects[objectKey] !== undefined &&
-      !url.searchParams.has('list-type') &&
-      !url.searchParams.has('versions') &&
-      !url.searchParams.has('tagging')
-    ) {
-      response.writeHead(200, { 'content-type': 'application/octet-stream' });
-      return response.end(bucketObjects[objectKey]);
-    }
-    if (request.method === 'GET' && url.searchParams.has('versions')) {
-      return xml(
-        200,
-        `<?xml version="1.0" encoding="UTF-8"?><ListVersionsResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>bucket</Name><MaxKeys>1000</MaxKeys><IsTruncated>false</IsTruncated></ListVersionsResult>`
-      );
-    }
-    if (
-      request.method === 'GET' &&
-      objectKey &&
-      !url.searchParams.has('list-type') &&
-      !url.searchParams.has('versions') &&
-      !url.searchParams.has('tagging')
-    ) {
-      // A missing object is an ordinary S3 answer (best-effort reads such as the bucket-sync manifest expect it).
-      response.writeHead(404, { 'content-type': 'application/xml' });
-      return response.end(
-        `<?xml version="1.0" encoding="UTF-8"?><Error><Code>NoSuchKey</Code><Message>The specified key does not exist.</Message><Key>${escapeXml(objectKey)}</Key><RequestId>${randomUUID()}</RequestId></Error>`
-      );
-    }
-    if (request.method === 'HEAD') {
-      if (objectKey && bucketObjects[objectKey] === undefined) {
-        response.writeHead(404);
-        return response.end();
-      }
-      response.writeHead(200, { 'content-length': String(objectKey ? bucketObjects[objectKey].length : 0) });
-      return response.end();
-    }
-    if (request.method === 'DELETE' || (request.method === 'POST' && url.searchParams.has('delete'))) {
-      mutations.push({ action: `S3 ${request.method} ${url.pathname}`, parameters: {} });
-      response.writeHead(request.method === 'DELETE' ? 204 : 200, { 'content-type': 'text/xml' });
-      return response.end(
-        request.method === 'DELETE'
-          ? ''
-          : `<?xml version="1.0" encoding="UTF-8"?><DeleteResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"></DeleteResult>`
-      );
-    }
     const requestName = `${request.method} ${url.pathname}${url.search} (${action})`;
     unexpectedRequests.push(requestName);
     response.writeHead(501, { 'content-type': 'application/json' });
@@ -412,7 +343,6 @@ export const startAwsFake = async ({
       return state.stack;
     },
     mutations,
-    uploads,
     changeSets,
     actions,
     unexpectedRequests,
