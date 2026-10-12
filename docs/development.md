@@ -138,6 +138,20 @@ pnpm dev:cli validate --withPackage --configPath <config> --stage dev --region e
 `--remoteResources` only when you intentionally want a local workload to use deployed resources. Agent mode exposes a
 loopback control API; `dev:stop` closes it and can clean containers left by a crashed session.
 
+For deployment tests against a local AWS emulator, set `AWS_ENDPOINT_URL` to its loopback HTTP(S) URL and use synthetic
+credentials. `AWS_ENDPOINT_URL_S3` takes precedence for CloudFormation template URLs, which use path-style bucket
+addressing with an endpoint override. Without overrides, AWS template URLs keep their existing format.
+
+Emulators without billing support can opt into `STP_SKIP_COST_DISCOVERY=1`. This skips budget and cost-tag discovery
+only when the global endpoint and all configured service overrides are loopback (`localhost`, `127.0.0.0/8`, or `::1`)
+and `AWS_IGNORE_CONFIGURED_ENDPOINT_URLS` is not true. Other targets reject the opt-in. Stacks that require private
+CloudFormation types still discover their registry packages and registered versions.
+
+To package helpers for a runtime without an AWS SDK, run
+`pnpm --filter @stacktape/cli exec bun scripts/package-helper-lambdas.ts --dev --bundle-aws-sdk`. Normal helper and
+release packaging leave SDK imports external. Rebuild with `pnpm --filter @stacktape/cli build:dev-artifacts` after
+emulator testing to restore normal development artifacts.
+
 ## Worktrees and Console
 
 Let Codex or Claude Code create worktrees. Public-only tasks can leave `apps/console` uninitialized. A Console task

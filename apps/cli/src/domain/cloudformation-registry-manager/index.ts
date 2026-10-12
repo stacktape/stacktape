@@ -70,6 +70,7 @@ class CloudformationRegistryManager {
   }
 
   loadPrivateTypesAndPackages = async (requiredModuleTypes: StpCfInfrastructureModuleType[]) => {
+    if (requiredModuleTypes.length === 0) return;
     requiredModuleTypes.forEach((infrastructureModuleType) => {
       this.checkCloudformationPrivateTypesController({ infrastructureModuleType });
     });

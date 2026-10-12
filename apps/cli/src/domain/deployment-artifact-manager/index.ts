@@ -168,6 +168,10 @@ class DeploymentArtifactManager {
   }
 
   get cloudformationTemplateUrl() {
+    const endpoint = process.env.AWS_ENDPOINT_URL_S3 || process.env.AWS_ENDPOINT_URL;
+    if (endpoint) {
+      return `${endpoint.replace(/\/$/, '')}/${this.deploymentBucketName}/${getCfTemplateS3Key(stackManager.nextVersion)}`;
+    }
     return getCloudformationTemplateUrl(this.deploymentBucketName, globalStateManager.region, stackManager.nextVersion);
   }
 

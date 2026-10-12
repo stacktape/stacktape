@@ -195,7 +195,10 @@ export class AwsCloudFormationStacks {
       this.#createClient()
         .send(new ListStackResourcesCommand({ StackName: stackName, ...(nextToken ? { NextToken: nextToken } : {}) }))
         .catch((error) => {
-          if (error.message.startsWith('Stack with id') && error.message.endsWith('does not exist')) {
+          if (
+            (error.message.startsWith('Stack with id') && error.message.endsWith('does not exist')) ||
+            /^Stack \[.+\] does not exist$/.test(error.message)
+          ) {
             return {} as ListStackResourcesCommandOutput;
           }
           return handleError(error);
@@ -229,7 +232,10 @@ export class AwsCloudFormationStacks {
     const stackDescription = await this.#createClient(region)
       .send(new DescribeStacksCommand({ StackName: stackName }))
       .catch((error) => {
-        if (error.message.startsWith('Stack with id') && error.message.endsWith('does not exist')) {
+        if (
+          (error.message.startsWith('Stack with id') && error.message.endsWith('does not exist')) ||
+          /^Stack \[.+\] does not exist$/.test(error.message)
+        ) {
           return null;
         }
         return handleError(error);

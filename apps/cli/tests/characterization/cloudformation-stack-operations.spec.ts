@@ -19,6 +19,30 @@ const capabilityWith = (send: Send) =>
   });
 
 describe('CloudFormation stack operations', () => {
+  test.each(['Stack with id example does not exist', 'Stack [example] does not exist'])(
+    'treats a missing stack as empty: %s',
+    async (message) => {
+      const cloudFormation = capabilityWith((async () => {
+        throw new Error(message);
+      }) as Send);
+      await expect(cloudFormation.getDetails('example')).resolves.toBeNull();
+      await expect(cloudFormation.getResources('example')).resolves.toEqual([]);
+    }
+  );
+
+  test.each(['AccessDenied', 'Stack [example] does not exist: permission denied'])(
+    'preserves other failures: %s',
+    async (message) => {
+      const cloudFormation = capabilityWith((async () => {
+        throw new Error(message);
+      }) as Send);
+      await expect(cloudFormation.getDetails('example')).rejects.toThrow('Could not fetch existing stack information.');
+      await expect(cloudFormation.getResources('example')).rejects.toThrow(
+        'Could not fetch existing stack information.'
+      );
+    }
+  );
+
   test('serializes the synthesized template without changing the stack parameters', async () => {
     let command: CreateStackCommand | undefined;
     const cloudFormation = capabilityWith((async (candidate: CreateStackCommand) => {
