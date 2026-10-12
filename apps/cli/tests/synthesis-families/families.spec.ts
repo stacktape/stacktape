@@ -217,6 +217,19 @@ describe('Convex family', () => {
       expect(ingress.every((rule) => rule.SourceSecurityGroupId !== undefined && rule.CidrIp === undefined)).toBe(true);
     }
     expect(resourcesOfType(template, 'AWS::S3::Bucket').length).toBeGreaterThanOrEqual(6);
+    const browserBuckets = resourcesOfType(template, 'AWS::S3::Bucket').filter(([id]) => id.startsWith('Backend'));
+    expect(browserBuckets).toHaveLength(5);
+    for (const [, bucket] of browserBuckets) {
+      expect(bucket.Properties?.CorsConfiguration).toEqual({
+        CorsRules: [
+          {
+            AllowedOrigins: ['*'],
+            AllowedMethods: ['GET', 'PUT', 'POST', 'DELETE', 'HEAD'],
+            AllowedHeaders: ['*']
+          }
+        ]
+      });
+    }
 
     // Two ECS services: the backend (cloud API + site origins) and the dashboard.
     const services = resourcesOfType(template, 'AWS::ECS::Service');

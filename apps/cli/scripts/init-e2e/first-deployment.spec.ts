@@ -4,7 +4,7 @@
  *
  * Every step is the current source CLI as a child process. The only stand-ins are external: the Claude Code
  * binary (a recorded transcript that still talks to the real init MCP server) and Stacktape's anonymous price
- * API (a loopback stub). Packaging uses the project-qualification loopback AWS guard, and the image runs in the
+ * API (a loopback stub). Packaging uses the shared MiniStack AWS fixture, and the image runs in the
  * local Docker daemon with the environment and port its synthesized task definition declares.
  *
  * Run with `pnpm --filter @stacktape/cli test:init:e2e`. Needs Docker and the dev helper artifacts
@@ -13,7 +13,7 @@
 
 import { afterEach, beforeAll, describe, expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
-import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { validateConfigYaml } from '../code-generation/validate-config-string';
@@ -172,16 +172,34 @@ describe('stacktape init in the terminal: existing repository to a running artif
       });
       // Tool answers came from the real files through the real MCP server.
       const results = toolResults(init.agentLog);
+      expect(results.find((entry) => entry.tool === 'get_project_brief')?.result).toMatchObject({
+        brief: {
+          services: [
+            expect.objectContaining({
+              name: serviceName,
+              path: '.',
+              source: 'probe',
+              startCommand: 'npm run start'
+            })
+          ]
+        }
+      });
       expect(JSON.stringify(results.find((entry) => entry.tool === 'read_file')?.result)).toContain("PORT = '8080'");
       expect(results.find((entry) => entry.tool === 'submit_facts')?.result).toEqual({ accepted: true });
 
       expect(init.output).toContain('Using claude-code');
+      expect(init.output).toContain('A container runs this exactly as your own start command does');
       expect(init.output).toContain('not sent to Stacktape');
       expect(init.output).toContain('About $42/mo in eu-west-1');
       expect(init.output).toContain(`Wrote ${join(sandbox.project, 'stacktape.yml')}`);
 
       const configText = await readFile(join(sandbox.project, 'stacktape.yml'), 'utf8');
       expect(validateConfigYaml(configText).errors).toEqual([]);
+      const written = parseYaml(configText) as { resources: Record<string, { type: string }> };
+      expect(Object.keys(written.resources)).toHaveLength(1);
+      for (const [name, resource] of Object.entries(written.resources)) {
+        expect(init.output).toContain(`${name}  ${resource.type}`);
+      }
       // The agent's classification reached the file as a secret reference, never as a value.
       expect(configText).toMatch(/name: PAYMENTS_API_TOKEN\n\s+value: \$Secret\('payments_api_token'\)/);
       // The price shown is the price of the file that was written.
@@ -197,6 +215,7 @@ describe('stacktape init in the terminal: existing repository to a running artif
 
       const jobName = packaged.packagedWorkloads[0]!.jobName;
       const container = containerDefinitionFor(packaged.template, jobName);
+      expect(container.Image).toContain(packaged.accountId);
       // The key reaches the task as a Secrets Manager reference that AWS resolves; its value is never in the template.
       expect(container.Environment).toContainEqual({
         Name: 'PAYMENTS_API_TOKEN',
@@ -435,6 +454,60 @@ describe('stacktape init in the terminal: existing repository to a running artif
     3 * 60_000
   );
 
+  test('a complete scan spends no agent tokens, an empty project is described honestly, and a missing requested agent fails before writing', async () => {
+    const complete = await sandboxFor({ files: () => ({ 'index.html': '<!doctype html><html>hello</html>' }) });
+    const scanned = await runSourceInit({ sandbox: complete, args: ['--codingAgent', 'claude-code'] });
+    expect(scanned.exitCode, scanned.output).toBe(0);
+    expect(scanned.output).toContain('your agent was not needed, and no tokens were spent');
+    expect(scanned.agentLog.filter((entry) => entry.type !== 'exit')).toEqual([]);
+    expect(await readFile(join(complete.project, 'stacktape.yml'), 'utf8')).toContain('type: hosting-bucket');
+
+    const empty = await sandboxFor({ files: () => ({ 'README.md': '# Nothing to deploy\n' }) });
+    const nothing = await runSourceInit({ sandbox: empty, args: ['--codingAgent', 'none'] });
+    expect(nothing.exitCode, nothing.output).toBe(0);
+    expect(nothing.output).toContain('Nothing here needs deploying');
+    expect(nothing.output).not.toContain('No coding agent found');
+
+    const missing = await sandboxFor({ files: ordersApi });
+    // Keep unavailable providers first on PATH so detection cannot expose the developer's live coding agents.
+    for (const executable of ['claude', 'codex', 'copilot']) {
+      const path = join(missing.bin, process.platform === 'win32' ? `${executable}.cmd` : executable);
+      await writeFile(path, process.platform === 'win32' ? '@exit /b 1\r\n' : '#!/bin/sh\nexit 1\n');
+      if (process.platform !== 'win32') await chmod(path, 0o755);
+    }
+    const fallback = await runSourceInit({ sandbox: missing });
+    expect(fallback.exitCode, fallback.output).toBe(0);
+    expect(fallback.output).toContain('No coding agent found');
+    expect(validateConfigYaml(await readFile(join(missing.project, 'stacktape.yml'), 'utf8')).errors).toEqual([]);
+    expect(fallback.agentLog).toEqual([]);
+    await rm(join(missing.project, 'stacktape.yml'));
+    const declined = await runSourceInit({ sandbox: missing, args: ['--codingAgent', 'claude-code'] });
+    expect(declined.exitCode, declined.output).not.toBe(0);
+    expect(declined.output).toContain('not installed');
+    expect(existsSync(join(missing.project, 'stacktape.yml'))).toBe(false);
+  }, 60_000);
+
+  test('every supported handwritten config filename survives init in either output format', async () => {
+    for (const existingName of ['stacktape.yml', 'stacktape.yaml', 'stacktape.ts']) {
+      for (const format of ['yaml', 'typescript']) {
+        const handwritten = existingName.endsWith('.ts')
+          ? 'export default {}; // authored\n'
+          : '# authored\nresources: {}\n';
+        const sandbox = await sandboxFor({
+          files: () => ({ 'index.html': '<!doctype html><html>hello</html>', [existingName]: handwritten })
+        });
+        const initialized = await runSourceInit({ sandbox, args: ['--codingAgent', 'none', '--configFormat', format] });
+        expect(initialized.exitCode, initialized.output).toBe(0);
+        expect(await readFile(join(sandbox.project, existingName), 'utf8')).toBe(handwritten);
+        const generated = `stacktape.generated.${format === 'yaml' ? 'yml' : 'ts'}`;
+        expect(initialized.output).toContain(`Wrote ${join(sandbox.project, generated)}`);
+        expect((await readdir(sandbox.project)).filter((name) => name.startsWith('stacktape')).toSorted()).toEqual(
+          [existingName, generated].toSorted()
+        );
+      }
+    }
+  }, 60_000);
+
   test(
     'an existing stacktape.yml is never touched, and a repeated run refreshes only the file init owns',
     async () => {
@@ -634,7 +707,46 @@ describe('stacktape init in the terminal: existing repository to a running artif
           repositoryRoot: sandbox.project,
           projectName: 'tryout'
         });
-        return runPreflight({ repositoryRoot: sandbox.project, facts, composition, runners: createPreflightRunners() });
+        const result = await runPreflight({
+          repositoryRoot: sandbox.project,
+          facts,
+          composition,
+          runners: createPreflightRunners()
+        });
+        const containers = await runProcess({
+          command: 'docker',
+          args: ['ps', '--all', '--format', '{{.Names}}'],
+          cwd: sandbox.project,
+          env: { PATH: process.env.PATH },
+          timeoutMs: 10_000
+        });
+        expect(containers.exitCode, containers.stderr).toBe(0);
+        const owned = containers.stdout.split('\n').filter((name) => name.includes(sandbox.id));
+        try {
+          expect(owned).toEqual([]);
+        } finally {
+          // The assertion must still leave a clean machine when the product cleanup is deliberately broken.
+          if (owned.length > 0) {
+            const cleanup = await runProcess({
+              command: 'docker',
+              args: ['rm', '--force', ...owned],
+              cwd: sandbox.project,
+              env: { PATH: process.env.PATH },
+              timeoutMs: 10_000
+            });
+            expect(cleanup.exitCode, cleanup.stderr).toBe(0);
+            const remaining = await runProcess({
+              command: 'docker',
+              args: ['ps', '--all', '--format', '{{.Names}}'],
+              cwd: sandbox.project,
+              env: { PATH: process.env.PATH },
+              timeoutMs: 10_000
+            });
+            expect(remaining.exitCode, remaining.stderr).toBe(0);
+            expect(remaining.stdout.split('\n').filter((name) => name.includes(sandbox.id))).toEqual([]);
+          }
+        }
+        return result;
       };
       const service = (id: string, listen: string) => ({
         'package.json': `${JSON.stringify({ name: `tryout-${id}`, private: true, scripts: { start: 'node src/server.js' }, dependencies: { express: '5.1.0' } })}\n`,
@@ -651,6 +763,16 @@ describe('stacktape init in the terminal: existing repository to a running artif
       const fixedPortResult = await tryOut(fixedPort);
       expect(fixedPortResult.services).toEqual([
         expect.objectContaining({ status: 'passed', reason: 'Listening on port 4000, as configured.' })
+      ]);
+      const failedBoot = await sandboxFor({
+        files: (id) => service(id, "throw new Error('BOOT_SECRET is not set');\napp.listen(3000);")
+      });
+      const failedBootResult = await tryOut(failedBoot);
+      expect(failedBootResult.services).toEqual([
+        expect.objectContaining({
+          status: 'failed',
+          observations: expect.objectContaining({ missingEnvironmentVariables: ['BOOT_SECRET'] })
+        })
       ]);
     },
     6 * 60_000

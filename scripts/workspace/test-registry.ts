@@ -209,6 +209,53 @@ export const lanes: readonly Lane[] = [
     selections: ['config-loading']
   },
   {
+    id: 'compute-events',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:compute-events'],
+    level: 'focused',
+    tier: 'pr',
+    tests: ['apps/cli/tests/synthesis-families/compute-events.spec.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves:
+      'Scheduled Batch triggers, retry workflows, deployment dependencies and scoped workload access survive real synthesis.',
+    selections: ['compute-events']
+  },
+  {
+    id: 'endpoint-synthesis',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:endpoint-synthesis'],
+    level: 'focused',
+    tier: 'pr',
+    tests: ['apps/cli/tests/synthesis-families/endpoints.spec.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'The authored AppSync endpoint has a Lambda data source, scoped service role and schema dependencies.',
+    selections: ['endpoint-synthesis']
+  },
+  {
+    id: 'console-domains-ministack',
+    command: ['pnpm', '--filter', '@stacktape/console-ui', 'run', 'test:domains:ministack'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/console/ui/scripts/domains-ministack.test.ts'],
+    requires: ['console', 'docker', 'network'],
+    release: 'every-candidate',
+    proves:
+      'Domain page services create zones with distinct caller references and persist DNS records and regional/edge certificates through the real SDK on MiniStack.',
+    selections: ['console-domains-ministack']
+  },
+  {
+    id: 'appsync-endpoint-live',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:real-aws-endpoint'],
+    level: 'live-aws',
+    tier: 'release',
+    tests: ['apps/cli/scripts/real-aws/appsync-endpoint-canary.ts'],
+    requires: ['aws', 'network'],
+    release: 'affected-external-contract',
+    proves:
+      'A signed AppSync request reaches the generated Lambda data source, unsigned access is denied and owned resources are verified absent.',
+    selections: ['appsync-endpoint-live']
+  },
+  {
     id: 'config-loading-ministack',
     command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:config-loading:ministack'],
     level: 'process',
@@ -337,10 +384,10 @@ export const lanes: readonly Lane[] = [
   {
     id: 'helper-lambda-runtime',
     command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:helper-lambda-runtime'],
-    level: 'focused',
+    level: 'process',
     tier: 'change',
     tests: ['apps/cli/scripts/packaging-archives/helper-lambda-runtime-acceptance.ts'],
-    requires: [],
+    requires: ['docker', 'network'],
     release: 'every-candidate',
     proves: 'Built CDN helper archives handle real CloudFront events in their Lambda runtime.',
     selections: ['helper-lambda-runtime']
@@ -366,10 +413,21 @@ export const lanes: readonly Lane[] = [
     level: 'process',
     tier: 'change',
     tests: ['apps/cli/scripts/qualification/run-starter-packaging.ts'],
-    requires: ['network'],
+    requires: ['docker', 'network'],
     release: 'every-candidate',
     proves: 'Materialized starters package through the current source CLI.',
     selections: ['starter-qualification']
+  },
+  {
+    id: 'init-corpus-cache',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'exec', 'bun', 'test', 'scripts/init-real-project-corpus.spec.ts'],
+    level: 'process',
+    tier: 'pr',
+    tests: ['apps/cli/scripts/init-real-project-corpus.spec.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'Pinned repositories with the same basename keep independent checkouts in the importer corpus.',
+    selections: ['init-corpus']
   },
   {
     id: 'init-agent-rules',
@@ -432,7 +490,9 @@ export const lanes: readonly Lane[] = [
     tier: 'change',
     tests: [
       'apps/cli/scripts/init-e2e/ci-pipelines.spec.ts',
+      'apps/cli/scripts/init-e2e/deploy-consent.spec.ts',
       'apps/cli/scripts/init-e2e/first-deployment.spec.ts',
+      'apps/cli/scripts/init-e2e/packaging-failure.spec.ts',
       'apps/cli/scripts/init-e2e/trust-boundary.spec.ts'
     ],
     requires: ['docker', 'network'],
@@ -665,7 +725,11 @@ export const lanes: readonly Lane[] = [
     command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:ministack:deploy'],
     level: 'process',
     tier: 'change',
-    tests: ['apps/cli/tests/ministack/deploy-loop.spec.ts'],
+    tests: [
+      'apps/cli/tests/ministack/deploy-loop.spec.ts',
+      'apps/cli/tests/ministack/domain-cache.spec.ts',
+      'apps/cli/tests/ministack/domain-add.spec.ts'
+    ],
     requires: ['docker', 'network'],
     release: 'every-candidate',
     proves:
@@ -696,7 +760,7 @@ export const lanes: readonly Lane[] = [
     level: 'process',
     tier: 'release',
     tests: [],
-    requires: ['network'],
+    requires: ['docker', 'network'],
     release: 'affected-external-contract',
     proves: 'The reviewed project corpus imports, packages and runs through the source CLI.',
     selections: ['project-qualification']
@@ -707,7 +771,7 @@ export const lanes: readonly Lane[] = [
     level: 'process',
     tier: 'release',
     tests: [],
-    requires: ['network'],
+    requires: ['docker', 'network'],
     release: 'affected-external-contract',
     proves: 'The reviewed project corpus imports, packages and runs through the source CLI.',
     selections: ['project-qualification']
@@ -1274,9 +1338,11 @@ export const lanes: readonly Lane[] = [
       'apps/cli/scripts/generate-starter-projects-metadata.spec.ts',
       'apps/cli/scripts/generation/generated-files.spec.ts',
       'apps/cli/scripts/init-e2e/ci-pipelines.spec.ts',
+      'apps/cli/scripts/init-e2e/deploy-consent.spec.ts',
       'apps/cli/scripts/init-e2e/first-deployment.spec.ts',
       'apps/cli/scripts/init-e2e/trust-boundary.spec.ts',
       'apps/cli/scripts/init-real-project-corpus-cases.spec.ts',
+      'apps/cli/scripts/init-real-project-corpus.spec.ts',
       'apps/cli/scripts/init-synthetic-project-corpus-expectations.spec.ts',
       'apps/cli/scripts/install-scripts/checksums.spec.ts',
       'apps/cli/scripts/operations/deployment-script.spec.ts',
@@ -1400,7 +1466,6 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/appsync-apis/utils.spec.ts',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/dsql-databases/index.spec.ts',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/functions/events/kafka-topic/index.spec.ts',
-      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/functions/events/websocket-api-gateway/index.spec.ts',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/kafka-clusters/index.spec.ts',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/websocket-api-gateways/utils.spec.ts',
       'apps/cli/src/domain/config-manager/container-secrets.spec.ts',
@@ -1418,7 +1483,6 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/domain/config-manager/utils/websocket-api-gateways.spec.ts',
       'apps/cli/src/domain/deployment-artifact-manager/retention.test.ts',
       'apps/cli/src/domain/deployment-change-plan/index.spec.ts',
-      'apps/cli/src/domain/domain-manager/index.test.ts',
       'apps/cli/src/domain/email-sender-manager/bindings-fingerprint.spec.ts',
       'apps/cli/src/domain/email-sender-manager/identity.spec.ts',
       'apps/cli/src/domain/email-sender-manager/template.spec.ts',
@@ -1450,7 +1514,6 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/init/eval/importers-e2e.spec.ts',
       'apps/cli/src/init/eval/sensors.spec.ts',
       'apps/cli/src/init/mcp/session-server.spec.ts',
-      'apps/cli/src/init/missions/greenfield.spec.ts',
       'apps/cli/src/init/preflight/preflight.spec.ts',
       'apps/cli/src/init/pricing.spec.ts',
       'apps/cli/src/init/run-init.spec.ts',
@@ -2045,7 +2108,7 @@ export const lanes: readonly Lane[] = [
     level: 'process',
     tier: 'release',
     tests: ['apps/cli/scripts/qualification/run-project-qualification.ts'],
-    requires: ['network'],
+    requires: ['docker', 'network'],
     release: 'affected-external-contract'
   },
   {
@@ -2138,6 +2201,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/scripts/verify-npm-declarations.spec.ts',
       'apps/cli/scripts/tsconfig-projects.spec.ts',
       'apps/cli/scripts/init-real-project-corpus-cases.spec.ts',
+      'apps/cli/scripts/init-real-project-corpus.spec.ts',
       'apps/cli/scripts/init-synthetic-project-corpus-expectations.spec.ts'
     ],
     requires: [],
@@ -2629,6 +2693,8 @@ export const slices: readonly Slice[] = [
     status: 'active',
     journeys: ['J1'],
     paths: [
+      'apps/cli/scripts/qualification/source-cli-packaging.ts',
+      'apps/cli/scripts/init-real-project-corpus.ts',
       'packages/config-inference/**',
       'packages/config-inference/src/scan/**',
       'packages/config-inference/src/facts/**',
@@ -2641,12 +2707,12 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/cli/scripts/init-e2e/first-deployment.spec.ts',
       'apps/cli/scripts/init-real-project-corpus-cases.spec.ts',
+      'apps/cli/scripts/init-real-project-corpus.spec.ts',
       'apps/cli/scripts/init-synthetic-project-corpus-expectations.spec.ts',
       'apps/cli/src/init/composed-config-semantics.spec.ts',
       'apps/cli/src/init/eval/baseline.spec.ts',
       'apps/cli/src/init/eval/importers-e2e.spec.ts',
       'apps/cli/src/init/eval/sensors.spec.ts',
-      'apps/cli/src/init/missions/greenfield.spec.ts',
       'apps/cli/src/init/run-init.spec.ts',
       'apps/cli/src/utils/git.spec.ts',
       'packages/config-inference/src/compose/assumptions.spec.ts',
@@ -2684,6 +2750,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/qualification/run-project-qualification.ts'
     ],
     lanes: [
+      'init-corpus-cache',
       'config-inference-test',
       'cli',
       'cli-2',
@@ -2724,6 +2791,7 @@ export const slices: readonly Slice[] = [
     status: 'active',
     journeys: ['J1'],
     paths: [
+      'apps/cli/scripts/qualification/source-cli-packaging.ts',
       'apps/cli/src/commands/init/**',
       'apps/cli/src/init/**',
       'apps/cli/src/init/cicd/**',
@@ -2731,6 +2799,8 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/init/preflight/**'
     ],
     tests: [
+      'apps/cli/scripts/init-e2e/deploy-consent.spec.ts',
+      'apps/cli/scripts/init-e2e/packaging-failure.spec.ts',
       'apps/cli/scripts/init-e2e/ci-pipelines.spec.ts',
       'apps/cli/scripts/real-aws/init-canary-client.spec.ts',
       'apps/cli/scripts/real-aws/init-canary-fixtures.spec.ts',
@@ -2815,6 +2885,8 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/config-manager/**',
       'apps/cli/src/domain/calculated-stack-overview-manager/synthesize.ts',
       'apps/cli/src/domain/template-manager/**',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/batch-jobs/**',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/state-machines/**',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/connect-to-helper.ts',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/log-groups.ts',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/role-helpers.ts',
@@ -2833,7 +2905,6 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/role-helpers.spec.ts',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/agentcore/index.spec.ts',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/functions/events/kafka-topic/index.spec.ts',
-      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/functions/events/websocket-api-gateway/index.spec.ts',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/kafka-clusters/index.spec.ts',
       'apps/cli/src/domain/config-manager/utils/agentcore.spec.ts',
       'apps/cli/src/domain/config-manager/utils/email-senders.spec.ts',
@@ -2850,9 +2921,11 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/characterization/synthesis-contract.spec.ts',
       'apps/cli/tests/characterization/template-finalization-idempotence.spec.ts',
       'apps/cli/tests/synthesis-families/families.spec.ts',
+      'apps/cli/tests/synthesis-families/compute-events.spec.ts',
       'apps/cli/tests/characterization/service-lambda-environment.spec.ts'
     ],
     lanes: [
+      'compute-events',
       'synthesis',
       'synthesis-2',
       'synthesis-families',
@@ -2922,15 +2995,29 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/config-manager/utils/appsync-apis.spec.ts',
       'apps/cli/src/domain/config-manager/utils/nextjs-webs.spec.ts',
       'apps/cli/src/domain/config-manager/utils/websocket-api-gateways.spec.ts',
-      'apps/cli/src/domain/domain-manager/index.test.ts',
+      'apps/cli/tests/ministack/domain-cache.spec.ts',
+      'apps/cli/tests/ministack/domain-add.spec.ts',
       'apps/cli/src/utils/domains.test.ts',
       'apps/cli/tests/characterization/aws-cloudfront.spec.ts',
       'apps/cli/tests/characterization/aws-domains.spec.ts',
       'apps/cli/tests/characterization/nextjs-materialization.spec.ts',
       'apps/console/api/src/services/default-domain-aws.test.ts',
-      'apps/console/ui/src/pages/DomainsPage/domains.test.ts'
+      'apps/console/ui/src/pages/DomainsPage/domains.test.ts',
+      'apps/console/ui/scripts/domains-ministack.test.ts',
+      'apps/cli/tests/synthesis-families/endpoints.spec.ts',
+      'apps/cli/scripts/real-aws/appsync-endpoint-canary.ts'
     ],
-    lanes: ['ministack-deploy', 'synthesis', 'synthesis-2', 'helper-lambda-runtime', 'cli-operations']
+    lanes: [
+      'console-domains-ministack',
+      'endpoint-synthesis',
+      'appsync-endpoint-live',
+      'synthesis-families-2',
+      'ministack-deploy',
+      'synthesis',
+      'synthesis-2',
+      'helper-lambda-runtime',
+      'cli-operations'
+    ]
   },
   {
     id: 'S12',

@@ -19,7 +19,7 @@ import { parse as parseYaml } from 'yaml';
 import type { StackPriceEstimationResponse } from '@stacktape/console-api/anonymous';
 import { buildOfflineQualificationEnvironment, startOfflineAwsServer } from '../qualification/offline-aws';
 import { runProcess, type ProcessResult } from '../qualification/process';
-import { parseCliJsonl } from '../verify-source-cli-aws-readonly';
+import { packageWithSourceCli, isRecord } from '../qualification/source-cli-packaging';
 import type { AgentLogEntry, AgentScript } from './recorded-agent-cli';
 
 const cliDirectory = join(import.meta.dir, '..', '..');
@@ -219,7 +219,17 @@ export const runSourceInit = async ({
   try {
     const result = await runProcess({
       command: process.execPath,
-      args: [devEntry, 'init', '--headless', '--projectDirectory', sandbox.project, ...args],
+      args: [
+        '--no-env-file',
+        '--preload',
+        join(cliDirectory, 'scripts', 'network-guard-preload.ts'),
+        devEntry,
+        'init',
+        '--headless',
+        '--projectDirectory',
+        sandbox.project,
+        ...args
+      ],
       cwd: cliDirectory,
       env: cliEnvironment({ sandbox, apiUrl: api.url }),
       timeoutMs: 4 * 60_000
@@ -287,27 +297,32 @@ export const interruptSourceInitDuringAnalysis = async ({
   const api = await startStacktapeApiStub({ flatMonthlyCost: 1 });
   const child = spawn(
     process.execPath,
-    evaluation
-      ? [
-          join(cliDirectory, 'scripts/init-model-quality.ts'),
-          '--live',
-          '--provider',
-          provider,
-          '--model',
-          'recorded',
-          '--out',
-          join(sandbox.root, 'model-quality.json')
-        ]
-      : [
-          ...(hardExit ? ['--preload', exitPreload] : []),
-          devEntry,
-          'init',
-          '--headless',
-          '--codingAgent',
-          provider,
-          '--projectDirectory',
-          sandbox.project
-        ],
+    [
+      '--no-env-file',
+      '--preload',
+      join(cliDirectory, 'scripts', 'network-guard-preload.ts'),
+      ...(evaluation
+        ? [
+            join(cliDirectory, 'scripts/init-model-quality.ts'),
+            '--live',
+            '--provider',
+            provider,
+            '--model',
+            'recorded',
+            '--out',
+            join(sandbox.root, 'model-quality.json')
+          ]
+        : [
+            ...(hardExit ? ['--preload', exitPreload] : []),
+            devEntry,
+            'init',
+            '--headless',
+            '--codingAgent',
+            provider,
+            '--projectDirectory',
+            sandbox.project
+          ])
+    ],
     {
       cwd: cliDirectory,
       env: cliEnvironment({ sandbox, apiUrl: api.url }),
@@ -388,13 +403,14 @@ export const lockPnpmDependencies = async (sandbox: InitSandbox) => {
 };
 
 export type PackagedProject = {
+  accountId: string;
   templatePath: string;
   template: Record<string, any>;
   packagedWorkloads: Array<{ jobName: string; digest: string }>;
 };
 
 /**
- * `validate --withPackage` from the current source with AWS answered by the qualification loopback guard:
+ * `validate --withPackage` from the current source with the real AWS SDK against MiniStack:
  * builds every workload and synthesizes the template, exactly as the project-qualification package lane does.
  */
 export const packageOffline = async ({
@@ -406,58 +422,31 @@ export const packageOffline = async ({
   configFile: string;
   projectName: string;
 }): Promise<PackagedProject> => {
-  const guard = await startOfflineAwsServer();
+  const unsupported = await startOfflineAwsServer();
   const templatePath = join(sandbox.root, 'compiled-template.yml');
   try {
-    // Secrets a first deploy expects the user to create: the guard answers exactly these with a placeholder.
-    const configText = await readFile(join(sandbox.project, configFile), 'utf8');
-    guard.registerSecretReferences([...configText.matchAll(/\$Secret\(['"]([^'"]+)['"]\)/g)].map((match) => match[1]!));
-    const environment = buildOfflineQualificationEnvironment({
-      endpoint: guard.endpoint,
-      invocationId: `j1-package-${sandbox.id}`,
-      homeDirectory: sandbox.home
+    const packaged = await packageWithSourceCli({
+      label: `init-${sandbox.id}`,
+      projectName,
+      projectRoot: sandbox.project,
+      homeDirectory: sandbox.home,
+      configPath: join(sandbox.project, configFile),
+      templatePath,
+      offlineServer: unsupported
     });
-    const result = await runProcess({
-      command: process.execPath,
-      args: [
-        devEntry,
-        'validate',
-        '--withPackage',
-        '--configPath',
-        join(sandbox.project, configFile),
-        '--currentWorkingDirectory',
-        sandbox.project,
-        '--projectName',
-        projectName,
-        '--stage',
-        'qualification',
-        '--region',
-        'eu-west-1',
-        '--agent',
-        '--outFile',
-        templatePath
-      ],
-      cwd: cliDirectory,
-      env: environment,
-      timeoutMs: 8 * 60_000
-    });
-    const parsed = parseCliJsonl(result.stdout, 'validate --withPackage');
-    if (result.exitCode !== 0 || !parsed.result.ok) {
-      throw new Error(
-        `validate --withPackage failed (${String(result.exitCode)}): ${parsed.result.code}: ${parsed.result.message}\n${JSON.stringify((parsed.result.data as { hints?: unknown } | undefined)?.hints ?? [])}\n${result.stderr.slice(-4_000)}`
-      );
-    }
-    if (guard.unexpectedRequests.length > 0) {
-      throw new Error(`Packaging attempted blocked network calls: ${guard.unexpectedRequests.join(', ')}.`);
-    }
-    const data = parsed.result.data as { result?: { packagedWorkloads?: PackagedProject['packagedWorkloads'] } };
     return {
+      accountId: packaged.accountId,
       templatePath,
       template: parseYaml(await readFile(templatePath, 'utf8')) as Record<string, any>,
-      packagedWorkloads: data.result?.packagedWorkloads ?? []
+      packagedWorkloads: packaged.details.packagedWorkloads.map((workload) => {
+        if (!isRecord(workload) || typeof workload.jobName !== 'string' || typeof workload.digest !== 'string') {
+          throw new Error('Packaging did not return a workload name and digest.');
+        }
+        return { jobName: workload.jobName, digest: workload.digest };
+      })
     };
   } finally {
-    await guard.close();
+    await unsupported.close();
   }
 };
 
