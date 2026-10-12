@@ -209,6 +209,16 @@ export const lanes: readonly Lane[] = [
     selections: ['config-loading']
   },
   {
+    id: 'config-loading-ministack',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:config-loading:ministack'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/tests/config-loading-ministack/secrets.spec.ts'],
+    requires: ['docker'],
+    release: 'every-candidate',
+    proves: 'Real Secret and SSM directives resolve versioned AWS values and safe errors against MiniStack.'
+  },
+  {
     id: 'synthesis-families',
     command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:synthesis-families'],
     level: 'focused',
@@ -360,11 +370,69 @@ export const lanes: readonly Lane[] = [
     selections: ['starter-qualification']
   },
   {
+    id: 'init-agent-rules',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/cli',
+      'exec',
+      'bun',
+      'test',
+      'src/init/agent',
+      'src/init/eval/model-quality.spec.ts'
+    ],
+    level: 'focused',
+    tier: 'pr',
+    tests: ['apps/cli/src/init/agent', 'apps/cli/src/init/eval/model-quality.spec.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves:
+      'Agent security arguments, vendor parsing, retry policy and the model-quality rubric preserve import constraints.'
+  },
+  {
+    id: 'init-codex-process',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'test:init:codex'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/scripts/init-e2e/codex-import.spec.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves:
+      'Recorded Codex completes init through MCP and saves only verified facts; refusal, malformed facts and cancellation remain safe.'
+  },
+  {
+    id: 'init-model-quality',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/cli',
+      'test:init:model-quality',
+      '--live',
+      '--provider',
+      'codex',
+      '--model',
+      'gpt-6.1-sol',
+      '--out',
+      '.stacktape/init-model-quality.json'
+    ],
+    level: 'process',
+    tier: 'release',
+    tests: ['apps/cli/scripts/init-model-quality.ts'],
+    requires: ['network'],
+    release: 'affected-external-contract',
+    proves:
+      'A named live model contributes cited facts on a sanitized corpus without forbidden actions or secret disclosure.'
+  },
+  {
     id: 'init-e2e',
     command: ['pnpm', '--filter', '@stacktape/cli', 'test:init:e2e'],
     level: 'process',
     tier: 'change',
-    tests: ['apps/cli/scripts/init-e2e'],
+    tests: [
+      'apps/cli/scripts/init-e2e/ci-pipelines.spec.ts',
+      'apps/cli/scripts/init-e2e/first-deployment.spec.ts',
+      'apps/cli/scripts/init-e2e/trust-boundary.spec.ts'
+    ],
     requires: ['docker', 'network'],
     release: 'every-candidate',
     proves: 'Terminal init writes a configuration that synthesizes and packages into a runnable artifact.',
@@ -2516,12 +2584,22 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/characterization/config-normalization.spec.ts',
       'apps/cli/tests/characterization/config-runtime.spec.ts',
       'apps/cli/tests/config-loading/directives.spec.ts',
+      'apps/cli/tests/config-loading/conversion.spec.ts',
+      'apps/cli/tests/config-loading-ministack/secrets.spec.ts',
       'packages/config-authoring/src/config.spec.ts',
       'packages/config-authoring/src/converter.spec.ts',
       'packages/config-authoring/src/resource-types.acceptance.ts',
       'packages/config-authoring/src/type-properties.acceptance.ts'
     ],
-    lanes: ['config-loading', 'synthesis', 'synthesis-2', 'config-authoring-test', 'init-e2e', 'cli-test-config-unit'],
+    lanes: [
+      'config-loading',
+      'config-loading-ministack',
+      'synthesis',
+      'synthesis-2',
+      'config-authoring-test',
+      'init-e2e',
+      'cli-test-config-unit'
+    ],
     contributors: ['S04']
   },
   {
@@ -2708,14 +2786,22 @@ export const slices: readonly Slice[] = [
     promise: 'Model-assisted import is useful and constrained.',
     status: 'active',
     journeys: ['J1'],
-    paths: ['apps/cli/src/init/agent/**', 'apps/cli/src/init/eval/**'],
+    paths: [
+      'apps/cli/src/init/agent/**',
+      'apps/cli/src/init/eval/**',
+      'apps/cli/scripts/init-e2e/codex-import.spec.ts',
+      'apps/cli/scripts/init-model-quality.ts'
+    ],
     tests: [
+      'apps/cli/scripts/init-e2e/codex-import.spec.ts',
+      'apps/cli/scripts/init-model-quality.ts',
+      'apps/cli/src/init/eval/model-quality.spec.ts',
       'apps/cli/src/init/agent/session-runner.spec.ts',
       'apps/cli/src/init/agent/transports/claude-cli.spec.ts',
       'apps/cli/src/init/agent/transports/codex-cli.spec.ts',
       'apps/cli/src/init/agent/transports/replay.spec.ts'
     ],
-    lanes: ['cli', 'cli-2', 'cli-3', 'init-e2e'],
+    lanes: ['init-agent-rules', 'init-codex-process', 'init-model-quality', 'cli', 'cli-2', 'cli-3', 'init-e2e'],
     contributors: ['S04', 'S05']
   },
   {

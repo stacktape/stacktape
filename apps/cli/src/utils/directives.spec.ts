@@ -414,3 +414,16 @@ describe('getDirectiveParams', () => {
     });
   });
 });
+
+describe('JSON-quoted directive arguments', () => {
+  test.each([
+    ['$Format("it\'s \\"ready\\"")', 'it\'s "ready"'],
+    ['$Format("first\\nsecond")', 'first\nsecond'],
+    ['$Format("C:\\\\workspace\\\\app")', 'C:\\workspace\\app'],
+    ['$Format("\\u00e9")', 'é'],
+    ['$Format("C:\\\\workspace\\\\")', 'C:\\workspace\\'],
+    ['$Format("C:\\legacy")', 'C:\\legacy']
+  ])('decodes %s as its literal value', (definition, value) => {
+    expect(getDirectiveParams('Format', definition)).toEqual([{ value }]);
+  });
+});

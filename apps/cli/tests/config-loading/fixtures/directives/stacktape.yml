@@ -20,6 +20,8 @@ resources:
       logging:
         retentionDays: $Var().retentionDays
       environment:
+        - name: FORMATTED_REFERENCE
+          value: $CfFormat('{}-{}-{}', $ResourceParam('records', 'name'), $Stage(), 'ready')
         - name: STAGE
           value: $Stage()
         - name: REGION

@@ -13,7 +13,7 @@
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
-import { existsSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 import { agentSubmissionSchema, type AgentSubmission } from '@stacktape/config-inference/facts/agent-submission';
 import { initSessionEnvVars } from '../mcp/session-server';
 import {
@@ -158,8 +158,22 @@ export const runAgentSession = async (
   hooks: SessionHooks,
   options: RunSessionOptions
 ): Promise<SessionOutcome> => {
+  if (input.signal?.aborted) throw new DOMException('Agent analysis cancelled.', 'AbortError');
   const spawner = options.spawner ?? spawnProcess;
   const paths = await prepareSession(input);
+  const cancellation = new AbortController();
+  const signals = ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGQUIT'] as const;
+  const callerHandlesSignal = new Set(signals.filter((signal) => process.listenerCount(signal) > 0));
+  // The CLI's signal handler ends the process tree without waiting for this session's
+  // promise. Remove the repository brief and any stray patches before that exit.
+  const onExitSignal = (signal: (typeof signals)[number]) => {
+    cancellation.abort();
+    rmSync(paths.directory, { recursive: true, force: true });
+    // Preserve default termination unless the caller owns a signal handler.
+    if (!callerHandlesSignal.has(signal)) process.kill(process.pid, signal);
+  };
+  const signalHandlers = signals.map((signal) => ({ signal, handler: () => onExitSignal(signal) }));
+  for (const { signal, handler } of signalHandlers) process.once(signal, handler);
 
   try {
     const isClaude = options.provider === 'claude-code';
@@ -199,8 +213,15 @@ export const runAgentSession = async (
       cwd: isClaude ? input.repositoryRoot : paths.scratchDirectory,
       stdin,
       timeoutMs: input.budget.wallClockMs,
-      ...(input.signal === undefined ? {} : { signal: input.signal })
+      signal: input.signal === undefined ? cancellation.signal : AbortSignal.any([input.signal, cancellation.signal])
     });
+
+    if (cancellation.signal.aborted || input.signal?.aborted) {
+      // A process signal without a caller-owned AbortSignal belongs to CLI shutdown.
+      // Do not resume the mission (and write a fallback config) while its exit handler drains.
+      if (!input.signal?.aborted) await new Promise<never>(() => {});
+      throw new DOMException('Agent analysis cancelled.', 'AbortError');
+    }
 
     const emit = (events: readonly AgentEvent[]) => {
       for (const event of events) hooks.onEvent(event);
@@ -240,6 +261,7 @@ export const runAgentSession = async (
       ...(parsed.errorMessage === undefined ? {} : { errorMessage: parsed.errorMessage })
     };
   } finally {
+    for (const { signal, handler } of signalHandlers) process.off(signal, handler);
     // Always, including on a thrown transport error: the scratch directory may hold whatever Codex
     // decided to patch, and the session files describe the user's project.
     await rm(paths.directory, { recursive: true, force: true });
@@ -260,6 +282,8 @@ export const runAgentSessionWithRetry = async (
     try {
       return await runAgentSession(input, hooks, options);
     } catch (error) {
+      // Cancellation must unwind the mission, rather than composing a scan-only config after Ctrl+C.
+      if (error instanceof DOMException && error.name === 'AbortError') throw error;
       const transportError = error instanceof TransportError ? error : undefined;
       if (transportError === undefined || !transportError.retryable || attempt >= delays.length) {
         return {
