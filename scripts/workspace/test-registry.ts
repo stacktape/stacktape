@@ -191,7 +191,7 @@ export const lanes: readonly Lane[] = [
     level: 'process',
     tier: 'change',
     tests: ['apps/cli/tests/generated-access/access.spec.ts'],
-    requires: ['docker'],
+    requires: ['docker', 'network'],
     release: 'every-candidate',
     proves:
       'MiniStack stores reconciled IAM policies and versioned secrets; container synthesis pins secret selectors without values.',
