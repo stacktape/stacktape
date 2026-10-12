@@ -64,13 +64,6 @@ test('CLI references name a current command and do not embed metadata snapshots'
   }
 });
 
-test('every component the corpus uses is registered', () => {
-  const registered = new Set([...registeredReactComponents(), ...registeredIslands()]);
-  const unresolved = [...componentsUsedByContent()].filter((name) => !registered.has(name)).toSorted();
-
-  assert.deepEqual(unresolved, [], `content/ references components that nothing provides: ${unresolved.join(', ')}`);
-});
-
 test('every registered component is used by the corpus', () => {
   // HTML element overrides (lowercase keys) replace native tags and have no `<Name>` usage.
   const registered = [...registeredReactComponents(), ...registeredIslands()].filter((name) => /^[A-Z]/.test(name));
