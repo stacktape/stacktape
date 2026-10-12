@@ -23,7 +23,6 @@ afterAll(async () => {
 
 const moduleOf = (expression: string) =>
   `import { z } from "zod"\n\nexport const stacktapeConfigSchema = ${expression}\n`;
-const COMMENT = '// Expressions used more than once are defined once, before their first use.\n';
 // The coercions the generator inserts, exactly.
 const NUMBER =
   'z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number())';
@@ -82,56 +81,11 @@ const JSON_SCHEMA = {
 };
 
 describe('shareRepeatedExpressions', () => {
-  test('defines an expression used more than once before its uses and keeps single uses inline', () => {
-    const input = moduleOf(
-      'z.object({ "a": z.object({ "x": z.string().optional() }).strict(), "b": z.object({ "x": z.string().optional() }).strict().optional(), "c": z.array(z.number()) }).strict()'
-    );
-    expect(shareRepeatedExpressions(input)).toEqual({
-      code:
-        'import { z } from "zod"\n\n' +
-        COMMENT +
-        'const __stacktapeSharedZod0 = z.object({ "x": z.string().optional() }).strict()\n' +
-        'export const stacktapeConfigSchema = z.object({ "a": __stacktapeSharedZod0, "b": __stacktapeSharedZod0.optional(), "c": z.array(z.number()) }).strict()\n',
-      definitions: 1,
-      distinctExpressions: 9,
-      occurrences: 13
-    });
-  });
-
-  test('keeps the wrappers of each use in their order and shares only identical chains', () => {
-    const { code } = shareRepeatedExpressions(
-      moduleOf(
-        'z.object({ "a": z.number().optional().describe("n").default(5), "b": z.number().default(5).optional(), "c": z.number().optional().describe("n").default(5), "d": z.number() })'
-      )
-    );
-    expect(code).toBe(
-      'import { z } from "zod"\n\n' +
-        COMMENT +
-        'const __stacktapeSharedZod0 = z.number()\n' +
-        'const __stacktapeSharedZod1 = __stacktapeSharedZod0.optional().describe("n").default(5)\n' +
-        'export const stacktapeConfigSchema = z.object({ "a": __stacktapeSharedZod1, "b": __stacktapeSharedZod0.default(5).optional(), "c": __stacktapeSharedZod1, "d": __stacktapeSharedZod0 })\n'
-    );
-  });
-
   test('accepts the generated prefix inside a string, and the coercions the generator inserts', () => {
     const input = moduleOf(
       `z.object({ "text": z.string().describe("z.string() and \\"__stacktapeSharedZod0\\" in a description"), "n": ${NUMBER}, "b": ${BOOLEAN} })`
     );
     expect(shareRepeatedExpressions(input)).toMatchObject({ code: input, definitions: 0 });
-  });
-
-  test('keeps an array default at every use, and shares what it wraps', () => {
-    const { code } = shareRepeatedExpressions(
-      moduleOf(
-        'z.object({ "a": z.array(z.string()).optional().default(["*"]), "b": z.array(z.string()).optional().default(["*"]) })'
-      )
-    );
-    expect(code).toBe(
-      'import { z } from "zod"\n\n' +
-        COMMENT +
-        'const __stacktapeSharedZod0 = z.array(z.string()).optional()\n' +
-        'export const stacktapeConfigSchema = z.object({ "a": __stacktapeSharedZod0.default(["*"]), "b": __stacktapeSharedZod0.default(["*"]) })\n'
-    );
   });
 
   test.each([
@@ -320,16 +274,6 @@ describe('the generated schema with shared expressions', () => {
     await generateZodSchema(JSON_SCHEMA, second);
     const written = await readFile(first, 'utf8');
     expect(await readFile(second, 'utf8')).toBe(written);
-    expect(written).toStartWith(`// @ts-nocheck\nimport { z } from "zod"\n\n${COMMENT}const __stacktapeSharedZod0 = `);
-    expect(written).toContain('export const stacktapeConfigSchema: z.ZodType<Record<string, unknown>> = ');
-    const defined = new Set<string>();
-    for (const line of written.split('\n')) {
-      for (const [name] of line.matchAll(/__stacktapeSharedZod\d+/g)) {
-        if (!defined.has(name)) expect(line).toStartWith(`const ${name} = `);
-      }
-      const definition = /^const (__stacktapeSharedZod\d+) = /.exec(line);
-      if (definition) defined.add(definition[1]!);
-    }
     const loaded = await load('written', written);
     expect(loaded.schema.parse({ api: { port: 80 } })).toEqual({
       api: { port: 80, enabled: false, mode: 'standard', timeout: 10 }

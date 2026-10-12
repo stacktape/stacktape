@@ -56,52 +56,15 @@ const DEFAULT_CONFIG_PARAMS: GetConfigParams = {
   user: { id: '123', name: 'John Doe', email: 'john.doe@example.com' }
 };
 
-/** Regex to match directive strings like $Secret('value') or $Param('name', 'default') */
-const DIRECTIVE_REGEX = /^\$([a-z]+)\(.*\)$/i;
-
-/** YAML directive names that differ from SDK export names */
-const DIRECTIVE_YAML_TO_SDK: Record<string, string> = {
-  $Format: '$CfFormat',
-  $StackOutput: '$CfStackOutput'
-};
-
-/** Check if a string is a directive */
-const isDirective = (value: unknown): value is string => {
-  return typeof value === 'string' && DIRECTIVE_REGEX.test(value);
-};
-
-/** Extract directive name from directive string */
-const getDirectiveName = (directive: string): string => {
-  const match = directive.match(DIRECTIVE_REGEX);
-  return match ? `$${match[1]}` : '';
-};
-
-/** Generate code for a directive, mapping YAML names to SDK export names */
-const generateDirectiveCode = (directive: string, imports: Set<string>): string => {
-  const yamlName = getDirectiveName(directive);
-  if (!yamlName) return directive;
-
-  const sdkName = DIRECTIVE_YAML_TO_SDK[yamlName] || yamlName;
-  imports.add(sdkName);
-
-  if (sdkName !== yamlName) {
-    return directive.replace(yamlName, sdkName);
-  }
-  return directive;
-};
-
-/** Generate code for any value, handling directives */
-const generateValueCode = (value: unknown, imports: Set<string>): string => {
-  if (isDirective(value)) {
-    return generateDirectiveCode(value, imports);
-  }
+/** Keep directives as configuration values so the CLI resolves their original syntax and phase. */
+const generateValueCode = (value: unknown): string => {
   if (Array.isArray(value)) {
-    const items = value.map((v) => generateValueCode(v, imports));
+    const items = value.map((v) => generateValueCode(v));
     return `[${items.join(', ')}]`;
   }
   if (value && typeof value === 'object') {
     const entries = Object.entries(value as Record<string, unknown>).map(
-      ([k, v]) => `${JSON.stringify(k)}: ${generateValueCode(v, imports)}`
+      ([k, v]) => `${JSON.stringify(k)}: ${generateValueCode(v)}`
     );
     return `{ ${entries.join(', ')} }`;
   }
@@ -395,11 +358,7 @@ const generatePropsCode = (
       for (const item of value as Array<{ name: string; value: string }>) {
         if (item.name && item.value !== undefined) {
           const val = item.value;
-          if (isDirective(val)) {
-            envEntries.push(`${JSON.stringify(item.name)}: ${generateDirectiveCode(val, imports)}`);
-          } else {
-            envEntries.push(`${JSON.stringify(item.name)}: ${JSON.stringify(String(val))}`);
-          }
+          envEntries.push(`${JSON.stringify(item.name)}: ${JSON.stringify(String(val))}`);
         }
       }
       entries.push(`${k}: { ${envEntries.join(', ')} }`);
@@ -449,14 +408,8 @@ const generatePropsCode = (
       continue;
     }
 
-    // Handle directive strings
-    if (isDirective(value)) {
-      entries.push(`${k}: ${generateDirectiveCode(value, imports)}`);
-      continue;
-    }
-
     // Default: stringify
-    entries.push(`${k}: ${generateValueCode(value, imports)}`);
+    entries.push(`${k}: ${generateValueCode(value)}`);
   }
 
   if (entries.length === 0) return '{}';
@@ -518,9 +471,7 @@ const generateArrayCode = (
   const eventTypeMap = getEventTypeMapping(resourceType);
 
   for (const item of arr) {
-    if (isDirective(item)) {
-      items.push(generateDirectiveCode(item, imports));
-    } else if (isTypedProperty(item)) {
+    if (isTypedProperty(item)) {
       // Determine type map based on the type field
       const typed = item as Record<string, unknown>;
       const type = typed.type as string;
@@ -539,7 +490,7 @@ const generateArrayCode = (
       const objCode = generatePropsCode(item as Record<string, unknown>, imports, indent, resourceNames, resourceType);
       items.push(objCode);
     } else {
-      items.push(generateValueCode(item, imports));
+      items.push(generateValueCode(item));
     }
   }
 
