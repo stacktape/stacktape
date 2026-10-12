@@ -6,6 +6,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { tagNames } from '@stacktape/naming/tag-names';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
+import { allAwsEndpointsAreLoopback } from '@utils/local-aws-endpoint';
 import { CliError } from '@utils/errors';
 import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
@@ -17,28 +18,7 @@ class BudgetManager {
 
   private get skipsLocalCostDiscovery() {
     if (process.env.STP_SKIP_COST_DISCOVERY !== '1') return false;
-    let isLoopback = false;
-    try {
-      const endpoints = [
-        process.env.AWS_ENDPOINT_URL ?? '',
-        ...Object.entries(process.env)
-          .filter(([name, value]) => name.startsWith('AWS_ENDPOINT_URL_') && value)
-          .map(([, value]) => value)
-      ];
-      isLoopback =
-        process.env.AWS_IGNORE_CONFIGURED_ENDPOINT_URLS?.toLowerCase() !== 'true' &&
-        endpoints.every((value) => {
-          const endpoint = new URL(value);
-          return (
-            ['http:', 'https:'].includes(endpoint.protocol) &&
-            (endpoint.hostname === 'localhost' ||
-              endpoint.hostname === '[::1]' ||
-              /^127(?:\.\d{1,3}){3}$/.test(endpoint.hostname))
-          );
-        });
-    } catch {
-      // An absent or invalid endpoint must never disable discovery against AWS.
-    }
+    const isLoopback = allAwsEndpointsAreLoopback();
     if (!isLoopback) {
       throw new CliError({
         category: 'CONFIG',

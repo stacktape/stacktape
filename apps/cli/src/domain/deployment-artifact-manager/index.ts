@@ -32,6 +32,7 @@ import {
   getStpTemplateS3Key
 } from '@domain-services/deployment-artifact-manager/artifact-names';
 import { dockerLogin, pushDockerImage, tagDockerImage } from '@utils/docker';
+import { getLocalS3Endpoint } from '@utils/local-aws-endpoint';
 import { processConcurrently } from '@utils/misc';
 import { outputNames } from '@stacktape/naming/stack-output-names';
 import { parseYaml, stringifyToYaml } from '@utils/yaml';
@@ -168,9 +169,9 @@ class DeploymentArtifactManager {
   }
 
   get cloudformationTemplateUrl() {
-    const endpoint = process.env.AWS_ENDPOINT_URL_S3 || process.env.AWS_ENDPOINT_URL;
-    if (endpoint) {
-      return `${endpoint.replace(/\/$/, '')}/${this.deploymentBucketName}/${getCfTemplateS3Key(stackManager.nextVersion)}`;
+    const localEndpoint = getLocalS3Endpoint();
+    if (localEndpoint) {
+      return `${localEndpoint}/${this.deploymentBucketName}/${getCfTemplateS3Key(stackManager.nextVersion)}`;
     }
     return getCloudformationTemplateUrl(this.deploymentBucketName, globalStateManager.region, stackManager.nextVersion);
   }
