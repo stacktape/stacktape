@@ -211,6 +211,13 @@ test('container secrets synthesize scoped runtime selectors and rotation changes
   );
   const synthesize = () =>
     synthesizeFixture({ configPath: join(directory, 'stacktape.yml'), workingDir: directory, localAws: config });
+  await expect(
+    synthesizeFixture({
+      configPath: join(directory, 'stacktape.yml'),
+      workingDir: directory,
+      localAws: { ...config, endpoint: 'https://sts.amazonaws.com' }
+    })
+  ).rejects.toThrow('is not a loopback emulator');
   const first = await synthesize();
   const secondSecret = await sdk.secrets.update({
     secretId: firstSecret.ARN!,
