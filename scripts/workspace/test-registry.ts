@@ -175,6 +175,29 @@ export const lanes: readonly Lane[] = [
     selections: ['data-safety']
   },
   {
+    id: 'data-connections',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:data-connections'],
+    level: 'focused',
+    tier: 'pr',
+    tests: ['apps/cli/tests/data-connections/connections.spec.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'Real synthesis wires stream events, filesystem mounts, DSQL metadata and scoped data permissions.',
+    selections: ['data-connections']
+  },
+  {
+    id: 'generated-access',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:generated-access'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/tests/generated-access/access.spec.ts'],
+    requires: ['docker'],
+    release: 'every-candidate',
+    proves:
+      'MiniStack stores reconciled IAM policies and versioned secrets; container synthesis pins secret selectors without values.',
+    selections: ['generated-access']
+  },
+  {
     id: 'config-loading',
     command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:config-loading'],
     level: 'focused',
@@ -1358,7 +1381,6 @@ export const lanes: readonly Lane[] = [
       'apps/cli/tests/characterization/aws-ec2.spec.ts',
       'apps/cli/tests/characterization/aws-ecr.spec.ts',
       'apps/cli/tests/characterization/aws-ecs.spec.ts',
-      'apps/cli/tests/characterization/aws-iam.spec.ts',
       'apps/cli/tests/characterization/aws-lambda.spec.ts',
       'apps/cli/tests/characterization/aws-observability.spec.ts',
       'apps/cli/tests/characterization/aws-retry-http.spec.ts',
@@ -2728,14 +2750,27 @@ export const slices: readonly Slice[] = [
     paths: [
       'packages/config/src/**',
       'apps/cli/src/domain/config-manager/**',
-      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/dsql-databases/index.ts'
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/databases/**',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/open-search/**',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/upstash-redis/**',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/dsql-databases/**',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/redis-clusters/**',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/dynamo-db-tables/**',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/buckets/**',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/efs-filesystems/**',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/kinesis-streams/**',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/kafka-clusters/**',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/mongo-db-atlas-clusters/**',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/connect-to-helper.ts',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/efs.ts'
     ],
     tests: [
+      'apps/cli/tests/data-connections/connections.spec.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/kafka-bootstrap-brokers.spec.ts',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/dsql-databases/index.spec.ts',
       'apps/cli/src/domain/config-manager/container-secrets.spec.ts'
     ],
-    lanes: ['synthesis', 'synthesis-2', 'data-safety', 'config-loading', 'cli-operations-database'],
+    lanes: ['data-connections', 'synthesis', 'synthesis-2', 'data-safety', 'config-loading', 'cli-operations-database'],
     contributors: ['S03', 'S09', 'S17']
   },
   {
@@ -2781,14 +2816,18 @@ export const slices: readonly Slice[] = [
     paths: [
       'apps/cli/src/domain/config-manager/**',
       'apps/cli/src/domain/stack-info/**',
-      'apps/cli/src/aws/redact-request-input.ts'
+      'apps/cli/src/aws/redact-request-input.ts',
+      'apps/cli/src/aws/iam.ts',
+      'apps/cli/src/aws/secrets.ts',
+      'apps/cli/src/aws/parameter-store.ts',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/role-helpers.ts'
     ],
     tests: [
+      'apps/cli/tests/generated-access/access.spec.ts',
       'apps/cli/src/aws/redact-request-input.spec.ts',
-      'apps/cli/tests/characterization/aws-iam.spec.ts',
       'apps/cli/tests/characterization/aws-secrets.spec.ts'
     ],
-    lanes: ['synthesis', 'synthesis-2', 'config-loading', 'console-database-cli-console'],
+    lanes: ['generated-access', 'synthesis', 'synthesis-2', 'config-loading', 'console-database-cli-console'],
     contributors: ['S09', 'S18', 'S46']
   },
   {
