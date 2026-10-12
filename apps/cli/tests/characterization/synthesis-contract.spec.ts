@@ -60,6 +60,7 @@ const createDenseConfig = ({
   includeAppsync = false,
   includeDsql = false,
   includeWebsocket = false,
+  websocketIamConnect = false,
   includeKafka = false,
   kafkaConnectTo = true,
   kafkaRemoteInDev = false,
@@ -72,6 +73,7 @@ const createDenseConfig = ({
   includeAppsync?: boolean;
   includeDsql?: boolean;
   includeWebsocket?: boolean;
+  websocketIamConnect?: boolean;
   includeKafka?: boolean;
   kafkaConnectTo?: boolean;
   kafkaRemoteInDev?: boolean;
@@ -280,7 +282,9 @@ const createDenseConfig = ({
         new WebSocketApiIntegration({
           websocketApiGatewayName: realtime,
           routeKey: '$connect',
-          authorizer: { type: 'lambda', properties: { functionName: audit } }
+          authorizer: websocketIamConnect
+            ? { type: 'aws-iam' }
+            : { type: 'lambda', properties: { functionName: audit } }
         }),
         new WebSocketApiIntegration({
           websocketApiGatewayName: realtime,
@@ -357,6 +361,7 @@ export const synthesizeDenseFixture = async ({
   beforeFinalize,
   command = 'synth',
   includeWebsocket,
+  websocketIamConnect,
   includeAppsync,
   includeDsql,
   includeKafka,
@@ -373,6 +378,7 @@ export const synthesizeDenseFixture = async ({
   beforeFinalize?: () => void;
   command?: 'dev' | 'synth';
   includeWebsocket?: boolean;
+  websocketIamConnect?: boolean;
   includeAppsync?: boolean;
   includeDsql?: boolean;
   includeKafka?: boolean;
@@ -393,6 +399,7 @@ export const synthesizeDenseFixture = async ({
       kafkaConnectTo,
       kafkaRemoteInDev,
       includeWebsocket,
+      websocketIamConnect,
       infrequentAccessWorkerLogs,
       subscribeToWorkerLogs,
       includeUptimeCheck,
@@ -1497,6 +1504,12 @@ describe('full synthesis contract', () => {
         ]
       }
     ]);
+    const iamTemplate = await synthesizeDenseFixture({ includeWebsocket: true, websocketIamConnect: true });
+    expect(iamTemplate.Resources[connectRouteLogicalName]).toMatchObject({
+      Type: 'AWS::ApiGatewayV2::Route',
+      Properties: { AuthorizationType: 'AWS_IAM' }
+    });
+    expect(iamTemplate.Resources[cfLogicalNames.websocketApiAuthorizer('realtime')]).toBeUndefined();
   });
 
   test('applies resource and final transforms during real template finalization', () => {
