@@ -162,7 +162,7 @@ export const families: Family[] = [
   {
     name: 'lambda-http-api',
     knownGap:
-      "MiniStack's Ref of AWS::ApiGatewayV2::Stage returns `<apiId>/<stageName>`, and Stacktape passes that Ref as the Stage of the default-domain ApiMapping; MiniStack then fails the mapping with BadRequestException 'Invalid stage identifier specified' (AWS returns the stage name). No upstream issue yet; see the handoff.",
+      "MiniStack's Ref of AWS::ApiGatewayV2::Stage returns `<apiId>/<stageName>`, and Stacktape passes that Ref as the Stage of the default-domain ApiMapping; MiniStack then fails the mapping with BadRequestException 'Invalid stage identifier specified' (AWS returns the stage name). ministackorg/ministack#2164.",
     config: (version) => ({
       resources: {
         gateway: { type: 'http-api-gateway' },

@@ -4744,10 +4744,7 @@ export const toolingTests: readonly string[] = [
 ];
 
 // Add the kit agent's implemented lane here and attach it to these slices. Placeholders are not runnable lanes.
-export const pendingMiniStackLanes = [
-  { id: 'ministack-static-content-sync', slices: ['S31'] },
-  { id: 'ministack-deploy-lifecycle', slices: ['S09', 'S13', 'S14'] }
-] as const;
+export const pendingMiniStackLanes = [{ id: 'ministack-static-content-sync', slices: ['S31'] }] as const;
 
 export const laneIdsForSelection = (selection: string): string[] =>
   lanes.filter((lane) => lane.selections?.includes(selection)).map((lane) => lane.id);
