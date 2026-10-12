@@ -22,16 +22,7 @@ import {
 
 import type { StacktapeConfig } from '@stacktape/config';
 import get from 'lodash/get';
-import {
-  $ResourceParam,
-  $Stage,
-  type CloudFormationTemplate,
-  type GetConfigParams,
-  defineConfig,
-  DynamoDbTable,
-  LambdaFunction,
-  JsBundleLambdaPackaging
-} from '@stacktape/config-authoring';
+import type { CloudFormationTemplate, GetConfigParams } from '@stacktape/config-authoring';
 import { resolveNodeVersion } from '@stacktape/packaging/bundlers/node-version';
 import { getTypescriptExport } from '@utils/file-loaders';
 
@@ -303,6 +294,8 @@ describe('configuration runtime contract', () => {
     manager.transforms.FirstFunction = (properties) => properties;
     manager.finalTransform = (template) => template;
     manager.reset();
+    expect(manager.transforms).toEqual({});
+    expect(manager.finalTransform).toBeNull();
 
     await initialize({
       accountId: '222222222222',
@@ -552,65 +545,6 @@ describe('configuration runtime contract', () => {
     ]);
   });
 
-  test('transforms class-based config to a plain, valid Stacktape configuration', () => {
-    const definedConfig = defineConfig(({ stage }) => {
-      const records = new DynamoDbTable({
-        primaryKey: {
-          partitionKey: { name: 'id', type: 'string' }
-        }
-      });
-      const worker = new LambdaFunction({
-        packaging: new JsBundleLambdaPackaging({
-          entryfilePath: './src/handler.ts'
-        }),
-        connectTo: [records],
-        environment: {
-          STAGE: $Stage(),
-          TABLE_NAME: $ResourceParam('records', 'name')
-        }
-      });
-
-      return {
-        resources: { records, worker },
-        stackConfig: {
-          outputs: [{ name: 'deployedStage', value: stage }]
-        }
-      };
-    });
-
-    const { config } = definedConfig({
-      projectName: 'characterization',
-      stage: 'test',
-      region: 'eu-west-1',
-      cliArgs: {} as any,
-      command: 'synth',
-      awsProfile: '',
-      user: { id: 'test-user', name: 'Test User', email: 'test@example.com' }
-    });
-
-    expect(config).toEqual(
-      expect.objectContaining({
-        resources: expect.objectContaining({
-          records: expect.objectContaining({ type: 'dynamo-db-table' }),
-          worker: expect.objectContaining({
-            type: 'function',
-            properties: expect.objectContaining({
-              connectTo: ['records'],
-              environment: [
-                { name: 'STAGE', value: '$Stage()' },
-                { name: 'TABLE_NAME', value: "$ResourceParam('records','name')" }
-              ]
-            })
-          })
-        }),
-        stackConfig: {
-          outputs: [{ name: 'deployedStage', value: 'test' }]
-        }
-      })
-    );
-    expect(validateConfigWithZod({ config, configPath: 'stacktape.ts' })).toEqual({ valid: true });
-  });
-
   test('executes the production config-loading sequence once while retaining executable transforms', async () => {
     const previousPresetConfig = globalStateManager.presetConfig;
     const previousLocalTargetAwsAccount = globalStateManager.localTargetAwsAccount;
@@ -694,26 +628,6 @@ describe('configuration runtime contract', () => {
       }
       await rm(tempDirectory, { recursive: true, force: true });
     }
-  });
-
-  test('resolves directives returned by other directives to a fixed point', async () => {
-    const resolver = new ConfigResolver();
-    resolver.rawConfig = { resources: {} } as StacktapeConfig;
-    resolver.setContext(fixtureResolverContext);
-    resolver.registerBuiltInDirectives();
-    resolver.registerDirective({
-      name: 'Characterization',
-      isRuntime: false,
-      requiredParams: {},
-      resolveFunction: () => () => "$Format('{}-{}', 'prefix', $Stage())"
-    });
-
-    await expect(
-      resolver.resolveDirectives({
-        itemToResolve: { value: '$Characterization()' },
-        resolveRuntime: true
-      })
-    ).resolves.toEqual({ value: 'prefix-explicit-directive-stage' });
   });
 
   test('resolves a chain of directives returned by other directives to a fixed point', async () => {
@@ -1011,20 +925,6 @@ describe('configuration runtime contract', () => {
 
     expect(await resolve()).toEqual(firstResolution);
     expect(reusableCalls).toBe(1);
-  });
-
-  test('reports unknown directives with a stable semantic error code', () => {
-    const resolver = new ConfigResolver();
-    resolver.setContext(fixtureResolverContext);
-    resolver.registerBuiltInDirectives();
-
-    expect(() => resolver.getDirectiveInfo('$DoesNotExist()')).toThrow(
-      expect.objectContaining({
-        category: 'DIRECTIVE',
-        code: 'DIRECTIVE_UNKNOWN',
-        hints: ['If this is a custom directive, register it in your Stacktape config.']
-      })
-    );
   });
 
   test('rejects misspelled resource types at the schema boundary', () => {

@@ -186,6 +186,16 @@ export const lanes: readonly Lane[] = [
     selections: ['config-loading']
   },
   {
+    id: 'config-loading-ministack',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:config-loading:ministack'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/tests/config-loading-ministack/secrets.spec.ts'],
+    requires: ['docker'],
+    release: 'every-candidate',
+    proves: 'Real Secret and SSM directives resolve versioned AWS values and safe errors against MiniStack.'
+  },
+  {
     id: 'synthesis-families',
     command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:synthesis-families'],
     level: 'focused',
@@ -2461,12 +2471,22 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/characterization/config-normalization.spec.ts',
       'apps/cli/tests/characterization/config-runtime.spec.ts',
       'apps/cli/tests/config-loading/directives.spec.ts',
+      'apps/cli/tests/config-loading/conversion.spec.ts',
+      'apps/cli/tests/config-loading-ministack/secrets.spec.ts',
       'packages/config-authoring/src/config.spec.ts',
       'packages/config-authoring/src/converter.spec.ts',
       'packages/config-authoring/src/resource-types.acceptance.ts',
       'packages/config-authoring/src/type-properties.acceptance.ts'
     ],
-    lanes: ['config-loading', 'synthesis', 'synthesis-2', 'config-authoring-test', 'init-e2e', 'cli-test-config-unit'],
+    lanes: [
+      'config-loading',
+      'config-loading-ministack',
+      'synthesis',
+      'synthesis-2',
+      'config-authoring-test',
+      'init-e2e',
+      'cli-test-config-unit'
+    ],
     contributors: ['S04']
   },
   {

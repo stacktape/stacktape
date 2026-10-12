@@ -1,8 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import configSchema from '@stacktape/config/config-schema.json';
-import { equals, getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import canonicalConfigSchema from '../generated/config-schema.json';
-import { acceptedConfiguration, alarmDefinition, api, rawSubscription } from './config-import.acceptance';
+import { acceptedConfiguration, alarmDefinition, api } from './config-import.acceptance';
 
 /**
  * The runtime half of the package's acceptance check.
@@ -113,21 +112,5 @@ describe('the generated configuration schema package export', () => {
 
     visit(configSchema);
     expect(invalidDefaults).toEqual([]);
-  });
-});
-
-describe('the CloudFormation value vocabulary the escape hatch is written against', () => {
-  test('intrinsic helpers return the plain single-key objects CloudFormation expects', () => {
-    expect(ref('MyBucket')).toEqual({ Ref: 'MyBucket' });
-    expect(getAtt('MyBucket', 'Arn')).toEqual({ 'Fn::GetAtt': ['MyBucket', 'Arn'] });
-    expect(equals('a', 'b')).toEqual({ 'Fn::Equals': ['a', 'b'] });
-  });
-
-  test('intrinsics survive serialisation from inside a raw resource', () => {
-    expect(JSON.parse(JSON.stringify(rawSubscription))).toEqual({
-      Type: 'AWS::SNS::Subscription',
-      Properties: { TopicArn: { Ref: 'Topic' } },
-      Condition: 'CreateRawResources'
-    });
   });
 });

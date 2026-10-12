@@ -10,19 +10,12 @@
  * problem (the directive, the resource, the file) and never carries secret values.
  */
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
-import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import { ConfigResolver } from '@domain-services/config-manager/config-resolver';
-import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
-import { stackManager } from '@domain-services/cloudformation-stack-manager';
-import { templateManager } from '@domain-services/template-manager';
-import type { GetConfigParams } from '@stacktape/config-authoring';
-import type { StacktapeConfig } from '@stacktape/config';
-import { awsSdkManager } from '@utils/aws-sdk-manager';
+import { killPythonBridge } from '@utils/file-loaders';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test';
 import { cp, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { synthesizeFixture, withCredentiallessSynthesisBoundary } from '../characterization/synthesis-fixture';
+import { synthesizeFixture } from '../characterization/synthesis-fixture';
 
 const directivesFixture = join(import.meta.dir, 'fixtures', 'directives');
 const identity = { accountId: '123456789999', region: 'us-east-1' as const, projectName: 'directive-project' };
@@ -56,6 +49,7 @@ beforeAll(async () => {
   await writeFile(dotenvFixture, 'FEATURE_FLAG=enabled\nSTAGE_SUFFIX=-env\n');
 });
 afterAll(async () => {
+  killPythonBridge();
   await rm(dotenvFixture, { force: true });
 });
 
@@ -160,9 +154,14 @@ resources:
       environment:
         - name: SHOUTED_PY
           value: $shoutPy($Stage())
+        - name: SHOUTED_REGION
+          value: $shoutPy($Region())
 `);
     const template = await synthesizeYaml('production', dir);
-    expect(functionEnvironment(template, 'ApiFunction').SHOUTED_PY).toBe('PRODUCTION');
+    expect(functionEnvironment(template, 'ApiFunction')).toMatchObject({
+      SHOUTED_PY: 'PRODUCTION',
+      SHOUTED_REGION: 'US-EAST-1'
+    });
   }, 60_000);
 
   test('the TypeScript form of the same resources synthesizes the same references', async () => {
@@ -230,6 +229,16 @@ ${properties}`);
     expect(`${error.message}\n${(error.hints ?? []).join('\n')}`).toContain('name');
   });
 
+  test('a retired AWS-service macro is rejected as an authored connection', async () => {
+    const dir = await fixtureWithConfig(
+      functionWith(`      connectTo:
+        - aws:ses`)
+    );
+    const error = await captureError(() => synthesizeYaml('production', dir));
+    expect(error.message).toContain('aws:ses');
+    expect(error.code).toBe('CONFIG_RESOURCE_REFERENCE_UNRESOLVED');
+  });
+
   test('a connectTo naming a resource that does not exist', async () => {
     const dir = await fixtureWithConfig(
       functionWith(`      connectTo:
@@ -248,6 +257,7 @@ ${properties}`);
     const error = await captureError(() => synthesizeYaml('production', dir));
     expect(error.code).toBe('DIRECTIVE_UNKNOWN');
     expect(error.message).toContain('Nope');
+    expect(error.hints).toEqual(['If this is a custom directive, register it in your Stacktape config.']);
   });
 
   test('a user directive whose handler throws keeps the directive name and the handler error, nothing else', async () => {
@@ -276,6 +286,20 @@ resources:
     expect(printable).not.toContain('hunter2');
   });
 
+  test('a failing Python handler preserves the useful exception at the loading boundary', async () => {
+    const dir = await fixtureWithConfig(`projectName: directive-project
+directives:
+  - name: brokenPy
+    filePath: ./directives/custom.py:broken
+resources: {}
+variables:
+  broken: $brokenPy()
+`);
+    const error = await captureError(() => synthesizeYaml('production', dir));
+    expect(error.code).toBe('PYTHON_DIRECTIVE_EXECUTION_FAILED');
+    expect(error.message).toContain('python handler failed');
+  }, 60_000);
+
   test('a user directive whose file does not exist', async () => {
     const dir = await fixtureWithConfig(`projectName: directive-project
 directives:
@@ -295,74 +319,5 @@ resources: {}
     );
     const error = await captureError(() => synthesizeYaml('production', dir));
     expect(error.message).toContain('nope.json');
-  });
-});
-
-describe('secret values never reach an error message', () => {
-  const resolverContext = {
-    authoringParams: {
-      projectName: 'directive-project',
-      stage: 'production',
-      region: 'us-east-1',
-      cliArgs: {} as never,
-      command: 'dev',
-      awsProfile: '',
-      user: { id: 'test-user', name: 'Test User', email: 'test@example.com' }
-    } satisfies GetConfigParams,
-    builtInDirectives: {
-      runtime: { calculatedStackOverviewManager, deployedStackOverviewManager, stackManager, templateManager },
-      accountId: '123456789999',
-      additionalArgs: {},
-      awsProfile: '',
-      cliArgs: {} as never,
-      command: 'dev' as const,
-      disableEmulation: false,
-      region: 'us-east-1' as const,
-      stage: 'production',
-      workingDir: directivesFixture
-    },
-    workingDir: directivesFixture
-  };
-
-  const resolveLocally = async (value: string, secretString: string) =>
-    withCredentiallessSynthesisBoundary(async () => {
-      const secrets = awsSdkManager.secrets;
-      const originalGet = secrets.get;
-      secrets.get = (async () => ({ SecretString: secretString })) as typeof secrets.get;
-      try {
-        const resolver = new ConfigResolver();
-        resolver.rawConfig = { resources: {} } as StacktapeConfig;
-        resolver.setContext(resolverContext);
-        resolver.registerBuiltInDirectives();
-        return await resolver.resolveDirectives<{ value: unknown }>({
-          itemToResolve: { value },
-          resolveRuntime: true,
-          useLocalResolve: true
-        });
-      } finally {
-        secrets.get = originalGet;
-      }
-    });
-
-  test('a JSON key read from a secret that is not JSON reports the key, not the secret', async () => {
-    // Bun's JSON parser quotes the token it stopped at; the message must not carry it.
-    const error = await captureError(() => resolveLocally("$Secret('db.password')", 'hunter2-not-json-secret'));
-    expect(error.code).toBe('DIRECTIVE_SECRET_JSON_INVALID');
-    expect(error.message).toContain('password');
-    expect(error.message).toContain('db');
-    expect(`${error.message}\n${(error.hints ?? []).join('\n')}`).not.toContain('hunter2');
-  });
-
-  test('a JSON key missing from a JSON secret reports the key and keeps other values private', async () => {
-    const error = await captureError(() =>
-      resolveLocally("$Secret('db.password')", JSON.stringify({ username: 'admin', token: 'hunter2-token' }))
-    );
-    expect(error.message).toContain('password');
-    expect(`${error.message}\n${(error.hints ?? []).join('\n')}`).not.toContain('hunter2');
-  });
-
-  test('a readable secret resolves to its value locally', async () => {
-    const resolved = await resolveLocally("$Secret('db.password')", JSON.stringify({ password: 'hunter2-value' }));
-    expect(resolved.value).toBe('hunter2-value');
   });
 });
