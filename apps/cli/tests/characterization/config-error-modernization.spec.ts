@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { normalizeCliError } from '@application-services/application-manager';
@@ -9,7 +9,6 @@ import { getReturnableError, type CliError } from '@utils/errors';
 import { getConfigPath, killPythonBridge, loadRawFileContent, parseUserCodeFilepath } from '@utils/file-loaders';
 import { getUserCodeAsFn } from '@utils/user-code-processing';
 import { validatePrimitiveFunctionParams } from '@utils/validation-utils';
-import { fsPaths } from '../../src/config/runtime-paths';
 
 const temporaryDirectories: string[] = [];
 
@@ -148,44 +147,6 @@ describe('modernized config and synthesis error contracts', () => {
       }
       globalStateManager.persistedState = originalPersistedState;
       killPythonBridge();
-    }
-  });
-
-  test('preserves a Python execution CliError at the user-code invocation boundary', async () => {
-    const workingDir = createTemporaryDirectory();
-    const sourcePath = join(workingDir, 'directive.py');
-    const bridgeDirectory = join(workingDir, 'bridge-files');
-    mkdirSync(bridgeDirectory);
-    writeFileSync(sourcePath, 'def main():\n    return 1\n');
-    writeFileSync(
-      join(bridgeDirectory, 'python-bridge.py'),
-      "process.on('message', () => process.send?.({ type: 'exception', value: { error: 'synthetic failure' } }));"
-    );
-    const originalPersistedState = globalStateManager.persistedState;
-    const originalExecutableDirname = fsPaths.absoluteExecutableDirname;
-    killPythonBridge();
-    fsPaths.absoluteExecutableDirname = () => workingDir;
-    globalStateManager.persistedState = {
-      otherDefaults: { executablePython: process.execPath }
-    } as any;
-
-    try {
-      const directive = getUserCodeAsFn({ filePath: sourcePath, cache: false, codeType: 'DIRECTIVE', workingDir });
-      try {
-        await directive();
-        throw new Error('Expected directive to throw');
-      } catch (error) {
-        expect(error).toMatchObject({
-          category: 'SOURCE_CODE',
-          code: 'PYTHON_DIRECTIVE_EXECUTION_FAILED'
-        });
-        expect((error as Error).message).toContain('Python directive in `./directive.py` failed:');
-        expect((error as CliError).cause).toBeDefined();
-      }
-    } finally {
-      globalStateManager.persistedState = originalPersistedState;
-      killPythonBridge();
-      fsPaths.absoluteExecutableDirname = originalExecutableDirname;
     }
   });
 

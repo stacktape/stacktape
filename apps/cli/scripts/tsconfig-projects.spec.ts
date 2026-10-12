@@ -94,9 +94,13 @@ describe('TypeScript project ownership', () => {
     expect(testsConfig.include).toEqual([
       '../src/environment.d.ts',
       './characterization/**/*.ts',
+      './config-loading/**/*.ts',
+      './config-loading-ministack/**/*.ts',
       './data-safety/**/*.ts',
       './synthesis-families/**/*.ts',
-      './ministack/**/*.ts'
+      './ministack/**/*.ts',
+      './data-connections/**/*.ts',
+      './generated-access/**/*.ts'
     ]);
     expect(generatedConfig.include).toEqual(['./schemas/validate-config-zod.ts']);
     expect(generatedValidator).toStartWith('// @ts-nocheck\n');

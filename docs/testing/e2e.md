@@ -121,6 +121,31 @@ report the container removed.
 Local token issuance proves our verification and authorization, not Cognito's hosted login, refresh or federation. Keep
 those, provider callbacks, AWS execution and deployed configuration in the shared-dev and live lanes.
 
+## Init model qualification
+
+Routine import tests use scripted provider processes and the real init MCP server. The Codex lane is
+`pnpm --filter @stacktape/cli test:init:codex`; it requires no Docker, credentials or external network. The transport
+and model-rubric contracts run in the fast `init-agent-rules` lane.
+
+When changing the init prompt, model selection or vendor protocol, qualify the affected provider separately with the
+small synthetic corpus in `apps/cli/src/init/eval/model-quality.ts`:
+
+```sh
+pnpm --filter @stacktape/cli test:init:model-quality --live --provider codex --model <model-id> --out .stacktape/init-model-quality.json
+```
+
+Use `--provider claude-code` for Claude. The installed provider CLI uses its existing sign-in, and each of the two cases
+has a 90-second deadline with no retries. The explicit `--live` flag is required; a normal test command cannot spend
+provider allowance. The release registry shows a Codex command, but qualification must name the model actually selected
+for the candidate and cover each affected provider. No AWS calls or deployment occur.
+
+The rubric requires an accepted, cited contribution beyond the scan, the expected resource and secret-reference wiring,
+no invented dependencies, no unverified claims, no secret canary in raw provider output, no vendor shell/patch/web
+actions and unchanged repository files. It scores facts and composition, never exact prose. Reports contain metadata,
+prompt hashes, scan-only baseline scores and model scores; raw prompts and transcripts are not written. Compare a prior
+report with `--compare <previous-report.json>` on the same corpus. Repeat an ambiguous failure explicitly and keep both
+reports; do not turn repetition into automatic retries or discard a refusal as a passing scan result.
+
 ## Browser tests
 
 Use Playwright Test with Chromium. Reuse the worker's browser, and give each test a fresh context.
