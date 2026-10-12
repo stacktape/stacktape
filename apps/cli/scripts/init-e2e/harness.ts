@@ -267,13 +267,23 @@ export const runScriptedModelQuality = async (sandbox: InitSandbox, agent: Agent
 export const interruptSourceInitDuringAnalysis = async ({
   sandbox,
   provider = 'claude-code',
-  evaluation = false
+  evaluation = false,
+  signal = evaluation ? 'SIGTERM' : 'SIGINT',
+  hardExit = false
 }: {
   sandbox: InitSandbox;
   provider?: 'claude-code' | 'codex';
   evaluation?: boolean;
+  signal?: 'SIGINT' | 'SIGTERM' | 'SIGHUP' | 'SIGQUIT';
+  hardExit?: boolean;
 }) => {
-  await writeFile(sandbox.agentScript, JSON.stringify({ behavior: 'hang' } satisfies AgentScript));
+  await writeFile(
+    sandbox.agentScript,
+    JSON.stringify({ behavior: 'hang', ignoreSigterm: hardExit } satisfies AgentScript)
+  );
+  const exitPreload = join(sandbox.root, 'exit-on-signal.ts');
+  if (hardExit)
+    await writeFile(exitPreload, `process.once(${JSON.stringify(signal)}, () => setImmediate(() => process.exit(0)));`);
   const api = await startStacktapeApiStub({ flatMonthlyCost: 1 });
   const child = spawn(
     process.execPath,
@@ -288,7 +298,16 @@ export const interruptSourceInitDuringAnalysis = async ({
           '--out',
           join(sandbox.root, 'model-quality.json')
         ]
-      : [devEntry, 'init', '--headless', '--codingAgent', provider, '--projectDirectory', sandbox.project],
+      : [
+          ...(hardExit ? ['--preload', exitPreload] : []),
+          devEntry,
+          'init',
+          '--headless',
+          '--codingAgent',
+          provider,
+          '--projectDirectory',
+          sandbox.project
+        ],
     {
       cwd: cliDirectory,
       env: cliEnvironment({ sandbox, apiUrl: api.url }),
@@ -317,7 +336,7 @@ export const interruptSourceInitDuringAnalysis = async ({
     }
     if (invocation === undefined) throw new Error(`The agent session never connected.\n${output}`);
 
-    process.kill(child.pid!, evaluation ? 'SIGTERM' : 'SIGINT');
+    process.kill(child.pid!, signal);
     const exit = await Promise.race([
       exited,
       new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 30_000))

@@ -30,7 +30,7 @@ export type AgentScript =
       scratchWrite?: boolean;
     }
   /** Connects to the MCP server, then waits until it is killed: a session the user cancels mid-analysis. */
-  | { behavior: 'hang' }
+  | { behavior: 'hang'; ignoreSigterm?: boolean }
   /** Exits without a transcript, as a crashed or throttled CLI does. */
   | { behavior: 'fail'; exitCode: number; stderr: string };
 
@@ -148,6 +148,7 @@ const main = async (): Promise<number> => {
   log({ type: 'tools', names: listed.tools.map((tool) => tool.name) });
 
   if (script.behavior === 'hang') {
+    if (script.ignoreSigterm) process.on('SIGTERM', () => {});
     // Killed by whoever owns the session. Nothing else ends this process.
     await new Promise<void>(() => {
       setInterval(() => {}, 60_000);

@@ -189,6 +189,14 @@ export const spawnProcess: Spawner = async ({ command, args, cwd, stdin, timeout
     let stderr = '';
     let timedOut = false;
     let termination: Promise<void> | undefined;
+    const forceStopChild = () => {
+      if (process.platform === 'win32') return terminateChild(child);
+      if (child.pid !== undefined) {
+        try {
+          process.kill(-child.pid, 'SIGKILL');
+        } catch {}
+      }
+    };
 
     const stopChild = () => {
       if (termination) return termination;
@@ -209,9 +217,7 @@ export const spawnProcess: Spawner = async ({ command, args, cwd, stdin, timeout
         } catch {}
         termination = new Promise<void>((resolveTermination) => {
           setTimeout(() => {
-            try {
-              process.kill(-child.pid!, 'SIGKILL');
-            } catch {}
+            forceStopChild();
             resolveTermination();
           }, 1_000);
         });
@@ -226,10 +232,12 @@ export const spawnProcess: Spawner = async ({ command, args, cwd, stdin, timeout
     timer.unref?.();
 
     const onAbort = () => {
-      void stopChild();
+      // Process shutdown can exit before a grace-period timer runs. Cancellation must
+      // stop our read-only analysis processes before returning to that exit handler.
+      forceStopChild();
     };
     signal?.addEventListener('abort', onAbort, { once: true });
-    if (signal?.aborted) stopChild();
+    if (signal?.aborted) onAbort();
 
     child.stdout?.on('data', (chunk: Buffer) => {
       stdout += chunk.toString();

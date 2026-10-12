@@ -359,7 +359,11 @@ export const lanes: readonly Lane[] = [
     command: ['pnpm', '--filter', '@stacktape/cli', 'test:init:e2e'],
     level: 'process',
     tier: 'change',
-    tests: ['apps/cli/scripts/init-e2e'],
+    tests: [
+      'apps/cli/scripts/init-e2e/ci-pipelines.spec.ts',
+      'apps/cli/scripts/init-e2e/first-deployment.spec.ts',
+      'apps/cli/scripts/init-e2e/trust-boundary.spec.ts'
+    ],
     requires: ['docker', 'network'],
     release: 'every-candidate',
     proves: 'Terminal init writes a configuration that synthesizes and packages into a runnable artifact.',

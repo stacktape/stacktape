@@ -162,22 +162,18 @@ export const runAgentSession = async (
   const spawner = options.spawner ?? spawnProcess;
   const paths = await prepareSession(input);
   const cancellation = new AbortController();
-  const callerHandlesSignal = {
-    SIGINT: process.listenerCount('SIGINT') > 0,
-    SIGTERM: process.listenerCount('SIGTERM') > 0
-  };
+  const signals = ['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGQUIT'] as const;
+  const callerHandlesSignal = new Set(signals.filter((signal) => process.listenerCount(signal) > 0));
   // The CLI's signal handler ends the process tree without waiting for this session's
   // promise. Remove the repository brief and any stray patches before that exit.
-  const onExitSignal = (signal: 'SIGINT' | 'SIGTERM') => {
+  const onExitSignal = (signal: (typeof signals)[number]) => {
     cancellation.abort();
     rmSync(paths.directory, { recursive: true, force: true });
     // Preserve default termination unless the caller owns a signal handler.
-    if (!callerHandlesSignal[signal]) process.kill(process.pid, signal);
+    if (!callerHandlesSignal.has(signal)) process.kill(process.pid, signal);
   };
-  const onSigint = () => onExitSignal('SIGINT');
-  const onSigterm = () => onExitSignal('SIGTERM');
-  process.once('SIGINT', onSigint);
-  process.once('SIGTERM', onSigterm);
+  const signalHandlers = signals.map((signal) => ({ signal, handler: () => onExitSignal(signal) }));
+  for (const { signal, handler } of signalHandlers) process.once(signal, handler);
 
   try {
     const isClaude = options.provider === 'claude-code';
@@ -265,8 +261,7 @@ export const runAgentSession = async (
       ...(parsed.errorMessage === undefined ? {} : { errorMessage: parsed.errorMessage })
     };
   } finally {
-    process.off('SIGINT', onSigint);
-    process.off('SIGTERM', onSigterm);
+    for (const { signal, handler } of signalHandlers) process.off(signal, handler);
     // Always, including on a thrown transport error: the scratch directory may hold whatever Codex
     // decided to patch, and the session files describe the user's project.
     await rm(paths.directory, { recursive: true, force: true });

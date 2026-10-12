@@ -107,6 +107,16 @@ test('Codex repairs refused facts and completes init with only cited contributio
   });
   expect(init.exitCode, init.output).toBe(0);
   const results = toolResults(init.agentLog);
+  expect(results.find((entry) => entry.tool === 'get_project_brief')?.result).toMatchObject({
+    brief: { services: [expect.objectContaining({ name: 'billing', path: '.' })] },
+    fileCount: 4
+  });
+  expect(
+    results.find((entry) => entry.tool === 'read_file' && entry.arguments.path === 'src/config.js')?.result
+  ).toMatchObject({
+    path: 'src/config.js',
+    content: expect.stringContaining("const { PAYMENTS_API_TOKEN, PORT = '8080' } = process.env;")
+  });
   expect(
     results
       .filter((entry) => entry.tool === 'submit_facts')
@@ -195,19 +205,36 @@ test.each(failures)(
   90_000
 );
 
-test('cancelling Codex stops it and its MCP server without saving config or session state', async () => {
+test.each(['SIGINT', 'SIGTERM', 'SIGHUP', 'SIGQUIT'] as const)(
+  'cancelling Codex with %s stops it and its MCP server without saving config or session state',
+  async (signal) => {
+    const sandbox = await newSandbox();
+    const interrupted = await interruptSourceInitDuringAnalysis({ sandbox, provider: 'codex', signal });
+    expect(interrupted.exit, interrupted.output).toBeDefined();
+    expect(interrupted.survivors).toEqual([]);
+    expect(interrupted.output).toContain(`Received ${signal}`);
+    expect(existsSync(configPath(sandbox))).toBe(false);
+    expect(existsSync(join(sandbox.project, 'stacktape.generated.yml'))).toBe(false);
+    const invocation = (await sandbox.readAgentLog()).find(
+      (entry): entry is Extract<AgentLogEntry, { type: 'invocation' }> => entry.type === 'invocation'
+    );
+    expect(invocation).toBeDefined();
+    expect(existsSync(dirname(invocation!.cwd))).toBe(false);
+  },
+  90_000
+);
+
+test('a hard exit after cancellation stops a provider that ignores SIGTERM and removes session state', async () => {
   const sandbox = await newSandbox();
-  const interrupted = await interruptSourceInitDuringAnalysis({ sandbox, provider: 'codex' });
-  expect(interrupted.exit, interrupted.output).toBeDefined();
+  const interrupted = await interruptSourceInitDuringAnalysis({ sandbox, provider: 'codex', hardExit: true });
+  expect(interrupted.exit?.code, interrupted.output).toBe(0);
   expect(interrupted.survivors).toEqual([]);
-  expect(interrupted.output).toContain('Received SIGINT');
-  expect(existsSync(configPath(sandbox))).toBe(false);
-  expect(existsSync(join(sandbox.project, 'stacktape.generated.yml'))).toBe(false);
   const invocation = (await sandbox.readAgentLog()).find(
     (entry): entry is Extract<AgentLogEntry, { type: 'invocation' }> => entry.type === 'invocation'
   );
   expect(invocation).toBeDefined();
   expect(existsSync(dirname(invocation!.cwd))).toBe(false);
+  expect(existsSync(configPath(sandbox))).toBe(false);
 }, 90_000);
 
 test('cancelling standalone model qualification stops the provider tree and does not start the next case', async () => {
