@@ -11,7 +11,12 @@ import type { StackResourceSummary } from '@aws-sdk/client-cloudformation';
 import { CloudWatchLogsClient, FilterLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
 import { DescribeTableCommand, DynamoDBClient, GetItemCommand, PutItemCommand } from '@aws-sdk/client-dynamodb';
 import { DescribeEventBusCommand, EventBridgeClient } from '@aws-sdk/client-eventbridge';
-import { GetFunctionConfigurationCommand, InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda';
+import {
+  GetFunctionConfigurationCommand,
+  GetLayerVersionByArnCommand,
+  InvokeCommand,
+  LambdaClient
+} from '@aws-sdk/client-lambda';
 import {
   DeleteObjectCommand,
   GetBucketNotificationConfigurationCommand,
@@ -372,6 +377,8 @@ export const absenceProbes: Record<string, (clients: EffectClients, endpoint: st
     'AWS::S3::Bucket': (clients, _endpoint, id) => clients.s3.send(new HeadBucketCommand({ Bucket: id })),
     'AWS::DynamoDB::GlobalTable': (clients, _endpoint, id) =>
       clients.dynamo.send(new DescribeTableCommand({ TableName: id })),
+    'AWS::Lambda::LayerVersion': (clients, _endpoint, id) =>
+      clients.lambda.send(new GetLayerVersionByArnCommand({ Arn: id })),
     'AWS::Lambda::Function': (clients, _endpoint, id) =>
       clients.lambda.send(new GetFunctionConfigurationCommand({ FunctionName: id })),
     'AWS::Events::EventBus': (clients, _endpoint, id) => clients.events.send(new DescribeEventBusCommand({ Name: id })),

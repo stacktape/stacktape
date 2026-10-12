@@ -61,6 +61,14 @@ supports, Windows included (Docker is required for MiniStack); `--import <dir>` 
 directory on Linux. A Windows packaging job is the export phase on a Windows runner with the directory uploaded as an
 artifact, and the import phase on a Linux runner that downloads it.
 
+## Native Node installation cache
+
+`pnpm --filter @stacktape/packaging run test:node-lambda-e2e` builds and executes split/native artifacts with five
+package managers. It also reuses a completed native install with further builds disabled and installs
+architecture-specific bcrypt bytes for x64 and arm64 in one cache root, then loads each in its matching Node runtime.
+Docker must already support both `linux/amd64` and `linux/arm64` builds and execution (native or through configured
+emulation). The lane needs dependency-download network and never configures host emulation or contacts AWS.
+
 ## SSR starters in the Lambda runtime
 
 `pnpm --filter @stacktape/cli run test:ssr-web` materializes each SSR starter (Astro, Nuxt, SolidStart, SvelteKit,

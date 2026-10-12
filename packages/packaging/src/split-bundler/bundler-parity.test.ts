@@ -13,7 +13,7 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { afterEach, describe, expect, test } from 'bun:test';
-import { cp, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
@@ -74,6 +74,7 @@ const splitBundle = async ({
 }: {
   root: string;
   entries: string[];
+  tsConfigPath?: string;
   isLambda?: boolean;
   nodeTarget?: number | string;
   bundleAwsSdk?: boolean;
@@ -295,3 +296,72 @@ test('dependency rules select bundled bytes or runtime modules on both build pat
     }
   }
 }, 30_000);
+
+test('aliased sources and Node builtins execute from portable single and split artifacts', async () => {
+  const artifacts: Record<string, Buffer>[] = [];
+  for (let checkout = 0; checkout < 2; checkout++) {
+    const root = await createRoot();
+    await mkdir(join(root, 'src'));
+    // A real installed package shadows this name. The authored path must win over package resolution.
+    await writePackage({
+      root,
+      name: '@app/shared',
+      files: { 'index.js': "exports.marker = 'shadow-package'; exports.payload = 'wrong';" }
+    });
+    const tsConfigPath = join(root, 'tsconfig.json');
+    await writeFile(
+      tsConfigPath,
+      JSON.stringify({ compilerOptions: { baseUrl: '.', paths: { '@app/*': ['src/*'] } } })
+    );
+    await writeFile(
+      join(root, 'src/shared.ts'),
+      "export const marker = 'aliased-source'; export const payload = 'shared'.repeat(4096);"
+    );
+    for (const name of ['api', 'worker']) {
+      await writeFile(
+        join(root, `src/${name}.ts`),
+        "import { marker, payload } from '@app/shared'; import { basename } from 'node:path'; export const handler = () => ({ marker, size: payload.length, file: basename('/runtime/value') });"
+      );
+    }
+    await buildEsCode({
+      sourcePath: join(root, 'src/api.ts'),
+      distPath: join(root, 'single/index.js'),
+      cwd: root,
+      tsConfigPath,
+      externals: [],
+      outputModuleFormat: 'esm',
+      sourceMaps: 'external',
+      sourceMapBannerType: 'disabled',
+      createPackagingError
+    });
+    await splitBundle({ root, entries: ['api', 'worker'], tsConfigPath });
+    const bytes: Record<string, Buffer> = {};
+    for (const [kind, source] of [
+      ['single', join(root, 'single')],
+      ['split', join(root, 'dist/api')]
+    ] as const) {
+      for (const relative of (await readdir(source, { recursive: true, withFileTypes: true })).filter((entry) =>
+        entry.isFile()
+      )) {
+        const path = join(relative.parentPath, relative.name);
+        bytes[`${kind}/${path.slice(source.length + 1).replaceAll('\\', '/')}`] = await readFile(path);
+      }
+      const runtime = await mkdtemp(join(tmpdir(), 'stacktape-portable-artifact-'));
+      temporaryDirectories.push(runtime);
+      await cp(source, runtime, { recursive: true });
+      const execution = spawnSync(
+        process.env.npm_node_execpath || 'node',
+        [
+          '--input-type=module',
+          '--eval',
+          `import { handler } from ${JSON.stringify(pathToFileURL(join(runtime, 'index.js')).href)}; console.log(JSON.stringify(handler()));`
+        ],
+        { cwd: runtime, encoding: 'utf8', timeout: 10_000 }
+      );
+      expect(execution.status, `${kind}: ${execution.stderr}`).toBe(0);
+      expect(JSON.parse(execution.stdout)).toEqual({ marker: 'aliased-source', size: 24576, file: 'value' });
+    }
+    artifacts.push(bytes);
+  }
+  expect(artifacts[1]).toEqual(artifacts[0]);
+});

@@ -53,6 +53,15 @@ describe('assignChunksToLayers', () => {
         maxLayers: 1 + nextInt(3),
         maxLayerSize: 5 + nextInt(20)
       };
+      // With every chunk eligible and enough space in one layer, leaving bytes in each function
+      // would waste the sharing the customer enabled. This also prevents a vacuous "layer nothing" pass.
+      const roomy = assignChunksToLayers(analysis, {
+        minUsageCount: 1,
+        minChunkSize: 1,
+        maxLayers: 1,
+        maxLayerSize: analysis.reduce((sum, entry) => sum + entry.sizeBytes, 0)
+      });
+      expect(names(roomy.layeredChunks)).toEqual(names(analysis));
       const result = assignChunksToLayers(analysis, config);
       const layered = new Set(result.layeredChunks.map(({ chunkName }) => chunkName));
 

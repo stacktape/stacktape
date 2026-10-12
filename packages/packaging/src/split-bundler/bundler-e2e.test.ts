@@ -5,6 +5,7 @@ import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { buildEsCode } from '../bundlers/es';
 import { buildSplitBundle } from './bundler';
 import type { PackagingErrorDetails } from './types';
 
@@ -203,6 +204,18 @@ describe('split bundler end-to-end regressions', () => {
       join(root, 'b.ts'),
       "import missing from 'not-installed-anywhere'; export const handler = () => missing;"
     );
+    await expect(
+      buildEsCode({
+        sourcePath: join(root, 'b.ts'),
+        distPath: join(root, 'single-b/index.js'),
+        cwd: root,
+        externals: [],
+        outputModuleFormat: 'esm',
+        sourceMaps: 'disabled',
+        sourceMapBannerType: 'disabled',
+        createPackagingError
+      })
+    ).rejects.toThrow('not-installed-anywhere');
     await expect(
       buildSplitBundle({
         entrypoints: [

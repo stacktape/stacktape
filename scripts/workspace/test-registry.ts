@@ -573,7 +573,8 @@ export const lanes: readonly Lane[] = [
     tests: ['packages/packaging/scripts/synthetic-node-lambda-e2e.ts'],
     requires: ['docker', 'network'],
     release: 'every-candidate',
-    proves: 'Built artifacts execute in their target runtimes.',
+    proves:
+      'Node artifacts execute with shared/native layers; native installations isolate architectures and reuse completed bytes.',
     selections: ['packaging-lambdas']
   },
   {
