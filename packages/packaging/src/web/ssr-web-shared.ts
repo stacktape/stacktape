@@ -580,6 +580,8 @@ export const createSsrWebArtifacts = async ({
           const serverWithinCopied = join(buildOutputPath, buildConfig.serverOutputPath);
           if (await pathExists(serverWithinCopied)) {
             await copy(serverWithinCopied, join(buildOutputPath, '__server-output'));
+            // The parent is published to S3. Keep the private server output only in the Lambda artifact.
+            await remove(serverWithinCopied);
           }
         } else {
           // Independent paths - copy both
