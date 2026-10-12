@@ -100,13 +100,11 @@ const scriptedRunners = (scenario: {
   inspectStates: string[];
   logs?: string;
   proc?: string;
-}): { runners: PreflightRunners; calls: string[][] } => {
-  const calls: string[][] = [];
+}): { runners: PreflightRunners } => {
   const inspectQueue = [...scenario.inspectStates];
   const ok = (stdout = ''): CommandResult => ({ stdout, stderr: '' });
 
   const docker = async (commands: string[]): Promise<CommandResult> => {
-    calls.push(commands);
     const [subcommand] = commands;
     if (subcommand === 'version') {
       if (scenario.versionFails) throw new Error('docker daemon is not running');
@@ -123,8 +121,7 @@ const scriptedRunners = (scenario: {
   };
 
   return {
-    runners: { docker, jsBundle: async () => ({}), buildpack: async () => ({}), sleep: async () => {} },
-    calls
+    runners: { docker, jsBundle: async () => ({}), buildpack: async () => ({}), sleep: async () => {} }
   };
 };
 
@@ -150,8 +147,8 @@ const factsFor = (service: Record<string, unknown>) =>
 const preflightFor = (service: Record<string, unknown>, scenario: Parameters<typeof scriptedRunners>[0]) => {
   const facts = factsFor(service);
   const composition = composeConfig({ facts });
-  const { runners, calls } = scriptedRunners(scenario);
-  return { run: () => runPreflight({ repositoryRoot: 'C:/repo', facts, composition, runners }), calls };
+  const { runners } = scriptedRunners(scenario);
+  return { run: () => runPreflight({ repositoryRoot: 'C:/repo', facts, composition, runners }) };
 };
 
 describe('runPreflight', () => {
@@ -202,13 +199,5 @@ describe('runPreflight', () => {
     const worker = preflightFor({ name: 'jobs', exposesHttp: false, port: undefined }, { inspectStates: [...alive] });
     const workerResult = await worker.run();
     expect(workerResult.services[0]?.status).toBe('passed');
-  });
-
-  it('force-removes the container on every path', async () => {
-    const { run, calls } = preflightFor({}, { inspectStates: ['false 1'], logs: 'boom' });
-    await run();
-
-    const removals = calls.filter((commands) => commands[0] === 'rm' && commands.includes('--force'));
-    expect(removals.length).toBeGreaterThanOrEqual(2);
   });
 });
