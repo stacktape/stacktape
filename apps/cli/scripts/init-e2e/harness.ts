@@ -56,6 +56,7 @@ const removeImages = async (images: readonly string[]) => {
 export type InitSandbox = {
   /** Short random suffix, unique per scenario. Fixtures put it in package names so image tags never collide. */
   id: string;
+  provider: 'claude-code' | 'codex';
   root: string;
   project: string;
   home: string;
@@ -69,11 +70,13 @@ export type InitSandbox = {
 
 export const createInitSandbox = async ({
   files,
-  projectDirectoryName = 'project'
+  projectDirectoryName = 'project',
+  provider = 'claude-code'
 }: {
   files: (id: string) => Record<string, string>;
   /** A function when the directory name becomes a resource name, so the image tag carries the sandbox id. */
   projectDirectoryName?: string | ((id: string) => string);
+  provider?: 'claude-code' | 'codex';
 }): Promise<InitSandbox> => {
   const id = randomBytes(3).toString('hex');
   const root = await mkdtemp(join(tmpdir(), `stacktape-j1-init-${id}-`));
@@ -96,16 +99,18 @@ export const createInitSandbox = async ({
   }
 
   // The vendor CLI is found on PATH, exactly as `detectAgents` looks for it.
+  const executable = provider === 'codex' ? 'codex' : 'claude';
   if (process.platform === 'win32') {
-    await writeFile(join(bin, 'claude.cmd'), `@"${process.execPath}" "${standIn}" %*\r\n`, 'utf8');
+    await writeFile(join(bin, `${executable}.cmd`), `@"${process.execPath}" "${standIn}" %*\r\n`, 'utf8');
   } else {
-    await writeFile(join(bin, 'claude'), `#!/bin/sh\nexec "${process.execPath}" "${standIn}" "$@"\n`, 'utf8');
-    await chmod(join(bin, 'claude'), 0o755);
+    await writeFile(join(bin, executable), `#!/bin/sh\nexec "${process.execPath}" "${standIn}" "$@"\n`, 'utf8');
+    await chmod(join(bin, executable), 0o755);
   }
 
   const agentLog = join(root, 'agent-log.jsonl');
   return {
     id,
+    provider,
     root,
     project,
     home,
@@ -189,6 +194,7 @@ const cliEnvironment = ({ sandbox, apiUrl }: { sandbox: InitSandbox; apiUrl: str
     ...environment,
     PATH: `${sandbox.bin}${pathSeparator}${environment.PATH ?? ''}`,
     STP_CUSTOM_TRPC_API_ENDPOINT: apiUrl,
+    STACKTAPE_TEST_AGENT_PROVIDER: sandbox.provider,
     STACKTAPE_TEST_AGENT_SCRIPT: sandbox.agentScript,
     STACKTAPE_TEST_AGENT_LOG: sandbox.agentLog
   };
@@ -233,16 +239,75 @@ const isAlive = (pid: number) => {
   }
 };
 
+/** Qualify the evaluator's real process with a scripted provider, never a live model. */
+export const runScriptedModelQuality = async (sandbox: InitSandbox, agent: AgentScript, live = true) => {
+  await writeFile(sandbox.agentScript, JSON.stringify(agent));
+  return runProcess({
+    command: process.execPath,
+    args: [
+      join(cliDirectory, 'scripts/init-model-quality.ts'),
+      ...(live ? ['--live'] : []),
+      '--provider',
+      'codex',
+      '--model',
+      'recorded',
+      '--out',
+      join(sandbox.root, 'model-quality.json')
+    ],
+    cwd: cliDirectory,
+    env: cliEnvironment({ sandbox, apiUrl: 'http://127.0.0.1:1' }),
+    timeoutMs: 4 * 60_000
+  });
+};
+
 /**
  * Start init, wait until the agent session is connected to its MCP server, then send SIGINT to the CLI
  * process alone, the way a supervisor or `kill -INT` does. Returns what was left running afterwards.
  */
-export const interruptSourceInitDuringAnalysis = async ({ sandbox }: { sandbox: InitSandbox }) => {
-  await writeFile(sandbox.agentScript, JSON.stringify({ behavior: 'hang' } satisfies AgentScript));
+export const interruptSourceInitDuringAnalysis = async ({
+  sandbox,
+  provider = 'claude-code',
+  evaluation = false,
+  signal = evaluation ? 'SIGTERM' : 'SIGINT',
+  hardExit = false
+}: {
+  sandbox: InitSandbox;
+  provider?: 'claude-code' | 'codex';
+  evaluation?: boolean;
+  signal?: 'SIGINT' | 'SIGTERM' | 'SIGHUP' | 'SIGQUIT';
+  hardExit?: boolean;
+}) => {
+  await writeFile(
+    sandbox.agentScript,
+    JSON.stringify({ behavior: 'hang', ignoreSigterm: hardExit } satisfies AgentScript)
+  );
+  const exitPreload = join(sandbox.root, 'exit-on-signal.ts');
+  if (hardExit)
+    await writeFile(exitPreload, `process.once(${JSON.stringify(signal)}, () => setImmediate(() => process.exit(0)));`);
   const api = await startStacktapeApiStub({ flatMonthlyCost: 1 });
   const child = spawn(
     process.execPath,
-    [devEntry, 'init', '--headless', '--codingAgent', 'claude-code', '--projectDirectory', sandbox.project],
+    evaluation
+      ? [
+          join(cliDirectory, 'scripts/init-model-quality.ts'),
+          '--live',
+          '--provider',
+          provider,
+          '--model',
+          'recorded',
+          '--out',
+          join(sandbox.root, 'model-quality.json')
+        ]
+      : [
+          ...(hardExit ? ['--preload', exitPreload] : []),
+          devEntry,
+          'init',
+          '--headless',
+          '--codingAgent',
+          provider,
+          '--projectDirectory',
+          sandbox.project
+        ],
     {
       cwd: cliDirectory,
       env: cliEnvironment({ sandbox, apiUrl: api.url }),
@@ -271,7 +336,7 @@ export const interruptSourceInitDuringAnalysis = async ({ sandbox }: { sandbox: 
     }
     if (invocation === undefined) throw new Error(`The agent session never connected.\n${output}`);
 
-    process.kill(child.pid!, 'SIGINT');
+    process.kill(child.pid!, signal);
     const exit = await Promise.race([
       exited,
       new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 30_000))

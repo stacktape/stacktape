@@ -48,6 +48,28 @@ describe('combineCodexPrompt', () => {
 const lines = (...events: unknown[]): string[] => events.map((event) => JSON.stringify(event));
 
 describe('parseCodexStream', () => {
+  it('renders Codex item.completed MCP calls and assistant messages without duplicating item.started', () => {
+    const item = {
+      id: 'item_0',
+      type: 'mcp_tool_call',
+      server: INIT_MCP_SERVER_NAME,
+      tool: 'read_file',
+      arguments: { path: 'src/server.js' },
+      status: 'completed'
+    };
+    const parsed = parseCodexStream(
+      lines(
+        { type: 'item.started', item: { ...item, status: 'in_progress' } },
+        { type: 'item.completed', item },
+        { type: 'item.completed', item: { id: 'item_1', type: 'agent_message', text: 'Reading the server.' } },
+        { type: 'turn.completed' }
+      )
+    );
+    expect(parsed.events).toEqual([
+      { type: 'tool-call', name: 'read_file', summary: 'src/server.js' },
+      { type: 'text', text: 'Reading the server.' }
+    ]);
+  });
   it('reports a completed turn', () => {
     const parsed = parseCodexStream(lines({ type: 'turn.completed', usage: { input_tokens: 500, output_tokens: 60 } }));
 

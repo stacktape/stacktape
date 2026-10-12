@@ -1,5 +1,5 @@
 /**
- * A recorded stand-in for the Claude Code CLI, for driving `stacktape init` end to end without a model.
+ * A scripted stand-in for the Claude Code and Codex CLIs, for driving `stacktape init` end to end without a model.
  *
  * The init flow treats the vendor CLI as an external process: it finds `claude` on PATH, spawns it with a
  * generated MCP config, and reads a stream-json transcript back. This stand-in sits exactly at that boundary.
@@ -13,7 +13,7 @@
  */
 
 import { spawn, type ChildProcess } from 'node:child_process';
-import { appendFileSync, readFileSync } from 'node:fs';
+import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 
 export type ScriptedToolCall = { tool: string; arguments: Record<string, unknown> };
 
@@ -24,9 +24,13 @@ export type AgentScript =
       /** Claude Code's final result event. `success` is a completed session. */
       result?: { subtype: 'success' | 'error_max_turns' | 'error_during_execution'; message?: string };
       usage?: { inputTokens: number; outputTokens: number; costUsd?: number };
+      /** Deliberate malformed vendor output, before the terminal event. */
+      malformedStream?: boolean;
+      /** Exercise containment of Codex's built-in patch tool in the disposable cwd. */
+      scratchWrite?: boolean;
     }
   /** Connects to the MCP server, then waits until it is killed: a session the user cancels mid-analysis. */
-  | { behavior: 'hang' }
+  | { behavior: 'hang'; ignoreSigterm?: boolean }
   /** Exits without a transcript, as a crashed or throttled CLI does. */
   | { behavior: 'fail'; exitCode: number; stderr: string };
 
@@ -96,8 +100,11 @@ const emit = (event: Record<string, unknown>) => process.stdout.write(`${JSON.st
 
 const main = async (): Promise<number> => {
   const argv = process.argv.slice(2);
+  const isCodex = argv[0] === 'exec';
   if (argv[0] === '--version') {
-    process.stdout.write('2.1.0 (Claude Code)\n');
+    process.stdout.write(
+      process.env.STACKTAPE_TEST_AGENT_PROVIDER === 'codex' ? 'codex-cli 0.157.0\n' : '2.1.0 (Claude Code)\n'
+    );
     return 0;
   }
 
@@ -110,13 +117,18 @@ const main = async (): Promise<number> => {
     return script.exitCode;
   }
 
-  const mcpConfigPath = flagValue(argv, '--mcp-config');
-  if (mcpConfigPath === undefined) throw new Error('Claude Code stand-in started without --mcp-config.');
-  const serverConfig = (
-    JSON.parse(readFileSync(mcpConfigPath, 'utf8')) as {
-      mcpServers: Record<string, { command: string; args: string[]; env: Record<string, string> }>;
-    }
-  ).mcpServers[MCP_SERVER_NAME];
+  type ServerConfig = { command: string; args: string[]; env: Record<string, string> };
+  const serverConfig = isCodex
+    ? (
+        Bun.TOML.parse(argv.filter((_value, index) => argv[index - 1] === '-c').join('\n')) as {
+          mcp_servers: Record<string, ServerConfig>;
+        }
+      ).mcp_servers[MCP_SERVER_NAME]
+    : (
+        JSON.parse(readFileSync(flagValue(argv, '--mcp-config')!, 'utf8')) as {
+          mcpServers: Record<string, ServerConfig>;
+        }
+      ).mcpServers[MCP_SERVER_NAME];
   if (serverConfig === undefined) throw new Error(`The MCP config does not define "${MCP_SERVER_NAME}".`);
 
   const server = spawn(serverConfig.command, serverConfig.args, {
@@ -136,6 +148,7 @@ const main = async (): Promise<number> => {
   log({ type: 'tools', names: listed.tools.map((tool) => tool.name) });
 
   if (script.behavior === 'hang') {
+    if (script.ignoreSigterm) process.on('SIGTERM', () => {});
     // Killed by whoever owns the session. Nothing else ends this process.
     await new Promise<void>(() => {
       setInterval(() => {}, 60_000);
@@ -143,20 +156,45 @@ const main = async (): Promise<number> => {
     return 0;
   }
 
+  if (script.scratchWrite) writeFileSync('agent-patch.txt', 'a stray built-in patch');
+  if (script.malformedStream) process.stdout.write('not json\n{"type":\n');
+
   emit({ type: 'system', subtype: 'init', tools: listed.tools.map((tool) => `mcp__${MCP_SERVER_NAME}__${tool.name}`) });
   for (const call of script.calls) {
-    emit({
-      type: 'assistant',
-      message: {
-        role: 'assistant',
-        content: [{ type: 'tool_use', name: `mcp__${MCP_SERVER_NAME}__${call.tool}`, input: call.arguments }]
-      }
-    });
+    if (!isCodex)
+      emit({
+        type: 'assistant',
+        message: {
+          role: 'assistant',
+          content: [{ type: 'tool_use', name: `mcp__${MCP_SERVER_NAME}__${call.tool}`, input: call.arguments }]
+        }
+      });
     const response = (await mcp.request('tools/call', { name: call.tool, arguments: call.arguments })) as {
       content: Array<{ type: string; text?: string }>;
     };
     const text = response.content.find((part) => part.type === 'text')?.text ?? 'null';
-    log({ type: 'tool-result', tool: call.tool, arguments: call.arguments, result: JSON.parse(text) });
+    let toolResult: unknown;
+    try {
+      toolResult = JSON.parse(text);
+    } catch {
+      // MCP input-schema errors are text rather than the init tool's JSON response.
+      toolResult = { accepted: false, error: text };
+    }
+    log({ type: 'tool-result', tool: call.tool, arguments: call.arguments, result: toolResult });
+    if (isCodex)
+      emit({
+        type: 'item.completed',
+        item: {
+          id: `tool-${call.tool}`,
+          type: 'mcp_tool_call',
+          server: MCP_SERVER_NAME,
+          tool: call.tool,
+          arguments: call.arguments,
+          result: response,
+          error: null,
+          status: 'completed'
+        }
+      });
   }
 
   server.stdin!.end();
@@ -168,14 +206,25 @@ const main = async (): Promise<number> => {
 
   const result = script.result ?? { subtype: 'success' };
   const usage = script.usage ?? { inputTokens: 1_200, outputTokens: 300 };
-  emit({
-    type: 'result',
-    subtype: result.subtype,
-    is_error: result.subtype !== 'success',
-    ...(result.message === undefined ? {} : { result: result.message }),
-    usage: { input_tokens: usage.inputTokens, output_tokens: usage.outputTokens },
-    ...(usage.costUsd === undefined ? {} : { total_cost_usd: usage.costUsd })
-  });
+  if (isCodex) {
+    emit({
+      type: 'item.completed',
+      item: { id: 'message', type: 'agent_message', text: result.message ?? 'Reviewed.' }
+    });
+    emit(
+      result.subtype === 'success'
+        ? { type: 'turn.completed', usage: { input_tokens: usage.inputTokens, output_tokens: usage.outputTokens } }
+        : { type: 'turn.failed', error: { message: result.message ?? 'Model refused.' } }
+    );
+  } else
+    emit({
+      type: 'result',
+      subtype: result.subtype,
+      is_error: result.subtype !== 'success',
+      ...(result.message === undefined ? {} : { result: result.message }),
+      usage: { input_tokens: usage.inputTokens, output_tokens: usage.outputTokens },
+      ...(usage.costUsd === undefined ? {} : { total_cost_usd: usage.costUsd })
+    });
   return result.subtype === 'success' ? 0 : 1;
 };
 
