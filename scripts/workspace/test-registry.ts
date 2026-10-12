@@ -821,7 +821,7 @@ export const lanes: readonly Lane[] = [
     command: ['pnpm', '--filter', '@stacktape/ui-react', 'test:e2e'],
     level: 'browser',
     tier: 'release',
-    tests: ['apps/console/ui/e2e/authenticated.spec.ts'],
+    tests: ['packages/ui-react/e2e/dialog.spec.ts', 'packages/ui-react/e2e/gallery.spec.ts'],
     requires: ['chromium', 'aws', 'network', 'reservation'],
     release: 'affected-external-contract',
     proves:
@@ -904,7 +904,7 @@ export const lanes: readonly Lane[] = [
     command: ['pnpm', '--filter', '@stacktape/bitbucket-forge-app', 'test:e2e'],
     level: 'browser',
     tier: 'release',
-    tests: ['apps/console/ui/e2e/authenticated.spec.ts'],
+    tests: ['apps/console/bitbucket-forge/e2e/packaged-ui.spec.ts'],
     requires: ['console', 'chromium', 'aws', 'network', 'reservation'],
     release: 'affected-external-contract',
     proves:

@@ -121,6 +121,11 @@ export const checkTestRegistry = async ({
       errors.push(
         `${label}: pr lanes must be offline and need no Docker, Chromium, AWS, network or reservation. Move it to change/release.`
       );
+    for (const path of lane.tests)
+      if (path.startsWith('apps/console/') && !lane.requires.includes('console'))
+        errors.push(
+          `${label}: private test entrypoint ${path} needs requires: ['console']. For a public lane, replace it with its actual public test entrypoint.`
+        );
     if (lane.requires.includes('console') && !consolePresent) continue;
     for (const path of lane.tests)
       if (!existsSync(resolve(root, path)))

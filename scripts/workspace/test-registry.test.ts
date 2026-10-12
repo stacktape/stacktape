@@ -162,3 +162,14 @@ test('the PR tier rejects a heavy prerequisite', async (context) => {
   );
   assert.ok(lanes.filter((l) => l.tier === 'pr').every((l) => l.requires.every((r) => r === 'console')));
 });
+
+test('a public lane cannot silently depend on private test files', async (context) => {
+  const root = await fixture(context);
+  const errors = await checkTestRegistry({
+    root,
+    registeredLanes: [{ ...lane, tests: ['apps/console/ui/e2e/authenticated.spec.ts'] }],
+    registeredSlices: [slice],
+    tooling: []
+  });
+  assert.match(errors.join('\n'), /private test entrypoint .*needs requires: \['console'\]/);
+});
