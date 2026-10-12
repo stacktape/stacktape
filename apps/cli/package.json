@@ -43,7 +43,7 @@
     "qualify:starters": "bun scripts/qualification/run-starter-packaging.ts",
     "release": "bun scripts/release/trigger-release.ts",
     "release:checksums": "bun scripts/release/checksums.ts",
-    "test": "bun run test:src && bun run test:characterization && bun run test:config-loading && bun run test:data-safety && bun run test:synthesis-families && bun run test:cli-process && bun run test:config-unit && bun run test:generators && bun run test:starter-projects && bun run test:command-safety && bun run test:operations && bun run test:qualification && bun run test:docker-secrets && bun run test:release-security && bun run test:perf-tools && bun run test:packaging-archives && bun run test:mcp-docs && bun run test:mcp-production && bun run test:helper-lambdas && bun run test:characterization:helper-lambdas && bun run test:cli-smoke",
+    "test": "bun run test:src && bun run test:characterization && bun run test:config-loading && bun run test:data-connections && bun run test:data-safety && bun run test:synthesis-families && bun run test:cli-process && bun run test:config-unit && bun run test:generators && bun run test:starter-projects && bun run test:command-safety && bun run test:operations && bun run test:qualification && bun run test:docker-secrets && bun run test:release-security && bun run test:perf-tools && bun run test:packaging-archives && bun run test:mcp-docs && bun run test:mcp-production && bun run test:helper-lambdas && bun run test:characterization:helper-lambdas && bun run test:cli-smoke",
     "test:characterization": "bun test tests/characterization",
     "test:cli-process": "turbo run build:dev-artifacts --filter=@stacktape/cli && bun test tests/cli-process",
     "test:config-loading": "bun test tests/config-loading",
@@ -94,7 +94,9 @@
     "typecheck": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json && node ../../node_modules/typescript/bin/tsc -p tests/tsconfig.json && node ../../node_modules/typescript/bin/tsc -p _test-stacks/config-loading-smoke/tsconfig.json && node ../../node_modules/typescript/bin/tsc -p _test-stacks/packaging-smoke/tsconfig.json && node ../../node_modules/typescript/bin/tsc -p _test-stacks/alias-publication/tsconfig.json && node ../../node_modules/typescript/bin/tsc -p _test-stacks/dev-mode/tsconfig.json && node ../../node_modules/typescript/bin/tsc -p @generated/tsconfig.json",
     "test:operations": "bun test scripts/operations",
     "test:operations:db": "bun scripts/operations/queries-docker.ts",
-    "test:runtime-acceptances": "bun run test:helper-lambda-runtime && bun run test:node-lambda && bun run test:ssr-web"
+    "test:runtime-acceptances": "bun run test:helper-lambda-runtime && bun run test:node-lambda && bun run test:ssr-web",
+    "test:data-connections": "bun test tests/data-connections",
+    "test:generated-access": "bun test tests/generated-access"
   },
   "dependencies": {
     "@aws-cdk/cloudformation-diff": "2.187.4",

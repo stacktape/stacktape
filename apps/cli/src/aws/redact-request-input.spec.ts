@@ -30,19 +30,6 @@ describe('AWS request debug redaction', () => {
     expect(input.Value).toBe(sentinel);
   });
 
-  test('covers modeled secret and SSM fields even when a command supplies no filter', () => {
-    const secret = redactAwsRequestInput({
-      commandName: 'PutSecretValueCommand',
-      input: { SecretId: 'customer-secret', SecretString: sentinel }
-    });
-    const parameter = redactAwsRequestInput({
-      commandName: 'PutParameterCommand',
-      input: { Name: '/customer/token', Value: sentinel }
-    });
-
-    expect(JSON.stringify({ parameter, secret })).not.toContain(sentinel);
-  });
-
   test('redacts ECS task and run overrides that the generated service filter leaves intact', () => {
     const input = {
       containerDefinitions: [

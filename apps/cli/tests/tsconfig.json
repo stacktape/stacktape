@@ -5,6 +5,8 @@
     "./characterization/**/*.ts",
     "./data-safety/**/*.ts",
     "./synthesis-families/**/*.ts",
-    "./ministack/**/*.ts"
+    "./ministack/**/*.ts",
+    "./data-connections/**/*.ts",
+    "./generated-access/**/*.ts"
   ]
 }
