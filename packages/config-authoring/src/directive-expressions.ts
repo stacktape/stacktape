@@ -1,3 +1,7 @@
+/** The property suffix accepted by the resolver's dot paths and numeric array indices. */
+export const getDirectivePropertyPath = (suffix: string): string =>
+  suffix.match(/^(?:\.[\w$-]+(?:\[\d+\])*)*/)?.[0] ?? '';
+
 export const getEmbeddedDirectives = (
   value: string
 ): Array<{ definition: string; name: string; startPos: number; endPos: number }> => {
@@ -61,13 +65,7 @@ export const getEmbeddedDirectives = (
       return null;
     }
 
-    let endPos = closingParenPos + 1;
-    if (str[endPos] === '.') {
-      endPos++;
-      while (str[endPos]?.match(/[\w$.]/)) {
-        endPos++;
-      }
-    }
+    const endPos = closingParenPos + 1 + getDirectivePropertyPath(str.slice(closingParenPos + 1)).length;
 
     return {
       definition: str.slice(startPos, endPos),
@@ -96,10 +94,5 @@ export const getEmbeddedDirectives = (
 export const isDirectiveExpression = (value: string): boolean => {
   const directives = getEmbeddedDirectives(value);
   const directive = directives[0];
-  return (
-    directives.length === 1 &&
-    directive?.startPos === 0 &&
-    directive.endPos === value.length &&
-    /^(?:\.[\w$]+)*$/.test(value.slice(value.lastIndexOf(')') + 1))
-  );
+  return directives.length === 1 && directive?.startPos === 0 && directive.endPos === value.length;
 };

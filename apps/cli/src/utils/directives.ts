@@ -1,5 +1,8 @@
-import { isDirectiveExpression } from '@stacktape/config-authoring/directive-expressions';
-import { isAlphanumeric } from '@utils/misc';
+import {
+  getDirectivePropertyPath,
+  getEmbeddedDirectives as scanEmbeddedDirectives,
+  isDirectiveExpression
+} from '@stacktape/config-authoring/directive-expressions';
 
 // A quote after an even run of backslashes closes the string; an odd run escapes it.
 const isEscapedCharacter = (input: string, index: number) => {
@@ -51,92 +54,7 @@ export const getEmbeddedDirectives = (value: string): Array<{ definition: string
     return [];
   }
 
-  const directives: Array<{ definition: string; name: string }> = [];
-
-  const tryParseDirectiveAt = (
-    str: string,
-    startPos: number
-  ): { definition: string; name: string; endPos: number } | null => {
-    if (str[startPos] !== '$') {
-      return null;
-    }
-
-    let idx = startPos + 1;
-    const firstNameChar = str[idx];
-    if (!firstNameChar || !firstNameChar.match(/[A-Z_]/i)) {
-      return null;
-    }
-
-    while (idx < str.length && str[idx].match(/[\w$]/)) {
-      idx++;
-    }
-
-    const name = str.slice(startPos + 1, idx);
-    if (str[idx] !== '(') {
-      return null;
-    }
-
-    let depth = 0;
-    let inSingleQuote = false;
-    let inDoubleQuote = false;
-    let closingParenPos = -1;
-
-    for (let i = idx; i < str.length; i++) {
-      const char = str[i];
-      const escaped = (char === "'" || char === '"') && isEscapedCharacter(str, i);
-
-      if (char === "'" && !escaped && !inDoubleQuote) {
-        inSingleQuote = !inSingleQuote;
-      } else if (char === '"' && !escaped && !inSingleQuote) {
-        inDoubleQuote = !inDoubleQuote;
-      }
-
-      if (!inSingleQuote && !inDoubleQuote) {
-        if (char === '(') {
-          depth++;
-        } else if (char === ')') {
-          depth--;
-          if (depth === 0) {
-            closingParenPos = i;
-            break;
-          }
-        }
-      }
-    }
-
-    if (closingParenPos === -1) {
-      return null;
-    }
-
-    let endPos = closingParenPos + 1;
-    if (str[endPos] === '.') {
-      endPos++;
-      while (endPos < str.length && str[endPos].match(/[\w$\.]/)) {
-        endPos++;
-      }
-    }
-
-    return {
-      definition: str.slice(startPos, endPos),
-      name,
-      endPos
-    };
-  };
-
-  let idx = 0;
-  while (idx < value.length) {
-    if (value[idx] === '$') {
-      const parsed = tryParseDirectiveAt(value, idx);
-      if (parsed) {
-        directives.push({ definition: parsed.definition, name: parsed.name });
-        idx = parsed.endPos;
-        continue;
-      }
-    }
-    idx++;
-  }
-
-  return directives;
+  return scanEmbeddedDirectives(value).map(({ definition, name }) => ({ definition, name }));
 };
 
 const escapeForSingleQuotedDirectiveParam = (value: string) => {
@@ -269,15 +187,7 @@ const parseParamValue = (param: string): DirectiveParam | null => {
     }
 
     // Extract path after the directive (e.g., .property.path)
-    let pathEnd = closingParenPos + 1;
-    if (trimmed[pathEnd] === '.') {
-      while (
-        pathEnd < trimmed.length &&
-        (trimmed[pathEnd] === '.' || trimmed[pathEnd] === '_' || isAlphanumeric(trimmed[pathEnd]))
-      ) {
-        pathEnd++;
-      }
-    }
+    const pathEnd = closingParenPos + 1 + getDirectivePropertyPath(trimmed.slice(closingParenPos + 1)).length;
 
     return {
       isDirective: true,

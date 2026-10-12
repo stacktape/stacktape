@@ -53,9 +53,15 @@ export const $SsmParam = (paramName: string) => {
 export const $CfFormat = (interpolatedString: string, ...values: unknown[]) => {
   const params = [
     JSON.stringify(interpolatedString),
-    ...values.map((value) =>
-      typeof value === 'string' && isDirectiveExpression(value) ? value : JSON.stringify(value)
-    )
+    ...values.map((value, index) => {
+      const serialized = typeof value === 'string' && isDirectiveExpression(value) ? value : JSON.stringify(value);
+      if (serialized === undefined) {
+        throw new TypeError(
+          `$CfFormat argument ${index + 1} cannot be serialized; provide a defined JSON value or a directive.`
+        );
+      }
+      return serialized;
+    })
   ];
   return `$CfFormat(${params.join(',')})`;
 };

@@ -12,7 +12,7 @@
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 import { killPythonBridge } from '@utils/file-loaders';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test';
-import { cp, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { synthesizeFixture } from '../characterization/synthesis-fixture';
@@ -63,6 +63,7 @@ const fixtureWithConfig = async (yaml: string) => {
   const directory = await mkdtemp(join(tmpdir(), 'stacktape-j2-config-'));
   temporaryDirectories.push(directory);
   await cp(directivesFixture, directory, { recursive: true });
+  await symlink(join(import.meta.dir, '../../node_modules'), join(directory, 'node_modules'), 'junction');
   await writeFile(join(directory, 'stacktape.yml'), yaml);
   return directory;
 };
@@ -71,7 +72,7 @@ const captureError = async (operation: () => Promise<unknown>) => {
   try {
     await operation();
   } catch (error) {
-    return error as Error & { code?: string; hints?: string[] };
+    return error as Error & { category?: string; code?: string; hints?: string[]; errorDetails?: { title?: string } };
   }
   throw new Error('Expected the operation to fail.');
 };
@@ -135,6 +136,79 @@ describe('a YAML config with directives, references and stage-specific values sy
     const fn = template.Resources.ApiFunction as { Properties: { MemorySize: number } };
     expect(fn.Properties.MemorySize).toBe(512);
     expect(functionEnvironment(template, 'ApiFunction').STAGE).toBe('staging');
+  });
+
+  test('custom directive property paths survive standalone, nested and embedded use in YAML and TypeScript', async () => {
+    const dir = await fixtureWithConfig(`projectName: directive-project
+directives:
+  - name: structured
+    filePath: ./directives/custom.ts:structured
+  - name: $structured
+    filePath: ./directives/custom.ts:structured
+resources:
+  api:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: ./src/api.ts
+      environment:
+        - name: ARRAY
+          value: $structured().items[0].label
+        - name: HYPHEN
+          value: $structured().some-key
+        - name: NESTED
+          value: $Format('{}-{}', $structured().items[0].label, $structured().some-key)
+        - name: EMBEDDED
+          value: $Format('prefix-{}/{}', $structured().items[0].label, $structured().some-key)
+        - name: DOLLAR_NAME
+          value: $$structured().some-key
+`);
+    await writeFile(
+      join(dir, 'stacktape.ts'),
+      `
+import { defineConfig, $CfFormat } from '@stacktape/config-authoring';
+export default defineConfig(() => ({
+  projectName: 'directive-project',
+  directives: [
+    { name: 'structured', filePath: './directives/custom.ts:structured' },
+    { name: '$structured', filePath: './directives/custom.ts:structured' }
+  ],
+  resources: {
+    api: {
+      type: 'function',
+      properties: {
+        packaging: { type: 'js-bundle', properties: { entryfilePath: './src/api.ts' } },
+        environment: {
+          ARRAY: '$structured().items[0].label',
+          HYPHEN: '$structured().some-key',
+          NESTED: $CfFormat('{}-{}', '$structured().items[0].label', '$structured().some-key'),
+          EMBEDDED: 'prefix-$structured().items[0].label/$structured().some-key',
+          DOLLAR_NAME: '$$structured().some-key'
+        }
+      }
+    }
+  }
+}));
+`
+    );
+    for (const filename of ['stacktape.yml', 'stacktape.ts']) {
+      const template = await synthesizeFixture({
+        configPath: join(dir, filename),
+        workingDir: dir,
+        identity: { ...identity, stage: 'production' }
+      });
+      expect(functionEnvironment(template, 'ApiFunction')).toMatchObject({
+        ARRAY: 'first',
+        HYPHEN: 'second',
+        DOLLAR_NAME: 'second',
+        NESTED: filename.endsWith('.ts')
+          ? { 'Fn::Sub': ['${sub0}-${sub1}', { sub0: 'first', sub1: 'second' }] }
+          : 'first-second',
+        EMBEDDED: 'prefix-first/second'
+      });
+    }
   });
 
   // The bridge speaks newline-delimited JSON over the child's stdin and stdout. Node IPC, the previous channel, closes
@@ -206,6 +280,28 @@ resources:
 });
 
 describe('a broken config fails with an error that names the problem', () => {
+  test('an undefined TypeScript format argument is rejected instead of silently disappearing', async () => {
+    const dir = await fixtureWithConfig('projectName: directive-project\nresources: {}\n');
+    await writeFile(
+      join(dir, 'stacktape.ts'),
+      `
+import { defineConfig, $CfFormat } from '@stacktape/config-authoring';
+export default defineConfig(() => ({
+  projectName: 'directive-project', resources: {}, variables: { label: $CfFormat('{}', undefined, 'ready') }
+}));
+`
+    );
+    const error = await captureError(() =>
+      synthesizeFixture({
+        configPath: join(dir, 'stacktape.ts'),
+        workingDir: dir,
+        identity: { ...identity, stage: 'production' }
+      })
+    );
+    expect(error.code).toBe('CONFIG_TYPESCRIPT_EXECUTION_FAILED');
+    expect(error.errorDetails?.title).toContain('$CfFormat argument 1 cannot be serialized');
+  });
+
   const baseConfig = (resources: string) => `projectName: directive-project
 resources:
   records:
@@ -277,6 +373,7 @@ ${properties}`);
     );
     const error = await captureError(() => synthesizeYaml('production', dir));
     expect(error.code).toBe('DIRECTIVE_UNKNOWN');
+    expect(error.category).toBe('DIRECTIVE');
     expect(error.message).toContain('Nope');
     expect(error.hints).toEqual(['If this is a custom directive, register it in your Stacktape config.']);
   });
@@ -318,7 +415,11 @@ variables:
 `);
     const error = await captureError(() => synthesizeYaml('production', dir));
     expect(error.code).toBe('PYTHON_DIRECTIVE_EXECUTION_FAILED');
+    expect(error.category).toBe('SOURCE_CODE');
+    expect(error.message).toMatch(/^Python directive in `.*custom\.py` failed:\n/);
     expect(error.message).toContain('python handler failed');
+    expect(error.cause).toBeInstanceOf(Error);
+    expect((error.cause as Error).message).toContain('python handler failed');
   }, 60_000);
 
   test('a user directive whose file does not exist', async () => {
