@@ -94,7 +94,9 @@
     "typecheck": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json && node ../../node_modules/typescript/bin/tsc -p tests/tsconfig.json && node ../../node_modules/typescript/bin/tsc -p _test-stacks/config-loading-smoke/tsconfig.json && node ../../node_modules/typescript/bin/tsc -p _test-stacks/packaging-smoke/tsconfig.json && node ../../node_modules/typescript/bin/tsc -p _test-stacks/alias-publication/tsconfig.json && node ../../node_modules/typescript/bin/tsc -p _test-stacks/dev-mode/tsconfig.json && node ../../node_modules/typescript/bin/tsc -p @generated/tsconfig.json",
     "test:operations": "bun test scripts/operations",
     "test:operations:db": "bun scripts/operations/queries-docker.ts",
-    "test:runtime-acceptances": "bun run test:helper-lambda-runtime && bun run test:node-lambda && bun run test:ssr-web"
+    "test:runtime-acceptances": "bun run test:helper-lambda-runtime && bun run test:node-lambda && bun run test:ssr-web",
+    "test:init:codex": "turbo run build:dev-artifacts --filter=@stacktape/cli && bun test scripts/init-e2e/codex-import.spec.ts",
+    "test:init:model-quality": "bun --no-env-file scripts/init-model-quality.ts"
   },
   "dependencies": {
     "@aws-cdk/cloudformation-diff": "2.187.4",

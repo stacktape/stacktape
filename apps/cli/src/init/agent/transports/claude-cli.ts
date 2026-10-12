@@ -179,6 +179,7 @@ export const spawnProcess: Spawner = async ({ command, args, cwd, stdin, timeout
       process.platform === 'win32' && (extension === '' || extension === '.cmd' || extension === '.bat');
     const child = spawn(command, [...args], {
       cwd,
+      detached: process.platform !== 'win32',
       stdio: ['pipe', 'pipe', 'pipe'],
       // Batch shims need cmd.exe; native launchers must preserve TOML arrays in Codex `-c` argv.
       ...(needsShell ? { shell: true } : {})
@@ -187,15 +188,48 @@ export const spawnProcess: Spawner = async ({ command, args, cwd, stdin, timeout
     let stdout = '';
     let stderr = '';
     let timedOut = false;
+    let termination: Promise<void> | undefined;
+
+    const stopChild = () => {
+      if (termination) return termination;
+      if (process.platform === 'win32') {
+        terminateChild(child);
+        return Promise.resolve();
+      }
+      // Vendor CLIs own MCP children. Stop the whole owned group.
+      // A leader can exit while its helper still holds our output pipes open.
+      if (child.pid !== undefined) {
+        try {
+          process.kill(-child.pid, 0);
+        } catch {
+          return Promise.resolve();
+        }
+        try {
+          process.kill(-child.pid, 'SIGTERM');
+        } catch {}
+        termination = new Promise<void>((resolveTermination) => {
+          setTimeout(() => {
+            try {
+              process.kill(-child.pid!, 'SIGKILL');
+            } catch {}
+            resolveTermination();
+          }, 1_000);
+        });
+      }
+      return termination ?? Promise.resolve();
+    };
 
     const timer = setTimeout(() => {
       timedOut = true;
-      terminateChild(child);
+      stopChild();
     }, timeoutMs);
     timer.unref?.();
 
-    const onAbort = () => terminateChild(child);
+    const onAbort = () => {
+      void stopChild();
+    };
     signal?.addEventListener('abort', onAbort, { once: true });
+    if (signal?.aborted) stopChild();
 
     child.stdout?.on('data', (chunk: Buffer) => {
       stdout += chunk.toString();
@@ -208,9 +242,12 @@ export const spawnProcess: Spawner = async ({ command, args, cwd, stdin, timeout
       signal?.removeEventListener('abort', onAbort);
       rejectSpawn(error);
     });
-    child.on('close', (exitCode) => {
+    child.on('close', async (exitCode) => {
       clearTimeout(timer);
       signal?.removeEventListener('abort', onAbort);
+      // Closing the pipes does not prove that all owned helpers stopped. Await forced
+      // group cleanup before returning, including when a helper redirected its output.
+      await stopChild();
       resolveSpawn({ stdout, stderr, exitCode, timedOut });
     });
 

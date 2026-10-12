@@ -54,6 +54,8 @@ type EvalExpectation = {
    * cannot reach it deploys green — so the corpus has to assert the emitted values directly.
    */
   serviceEnvironment?: ReadonlyArray<{ resource: string; name: string; value: string }>;
+  /** The port the saved service must route traffic to, independently of agent prose. */
+  servicePorts?: ReadonlyArray<{ resource: string; port: number }>;
 };
 
 export type EvalCase = {
@@ -139,6 +141,12 @@ const scoreResult = (evalCase: EvalCase, result: GreenfieldResult): EvalScore =>
         stage: 'composition',
         detail: `${wiring.name} on "${wiring.resource}" is ${String(entry.value)}; expected ${wiring.value}.`
       });
+    }
+  }
+
+  for (const { resource, port } of expected.servicePorts ?? []) {
+    if (result.composition.config.resources[resource]?.properties.port !== port) {
+      failures.push({ stage: 'composition', detail: `Expected "${resource}" to route to port ${port}.` });
     }
   }
 
