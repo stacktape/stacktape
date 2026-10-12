@@ -1,9 +1,9 @@
 /**
  * Builds a small project with each Docker-backed buildpack and runs what it produced:
- * - Lambda buildpacks (Go, Go workspace, Python Pipfile, .NET,
+ * - Lambda buildpacks (Go, Go workspace, .NET,
  *   Rust through cargo-lambda) run their artifact in a matching runtime image; the Rust `bootstrap` is invoked through
  *   the runtime interface emulator of `public.ecr.aws/lambda/provided:al2023`;
- * - Python native wheels, Ruby native gems and Java Lambda reactors live in `lambda-e2e` (test:language-lambdas);
+ * - Python dependencies, Ruby native gems and Java Lambda reactors live in `lambda-e2e` (test:language-lambdas);
  * - the `js-bundle` image runs its entry file;
  * - the container `buildpack` (Railpack) builds a FastAPI app and a Node.js app, which must answer HTTP. The Node.js
  *   app's build writes a `buildEnvironment` value that the server returns: the value must reach the build, stay out of
@@ -18,7 +18,6 @@ import { join, resolve } from 'node:path';
 import { buildDotnetLambda } from '../src/buildpacks/dotnet-lambda-buildpack';
 import { buildGoLambda } from '../src/buildpacks/go-lambda-buildpack';
 import { buildJsBundleImage } from '../src/buildpacks/js-bundle-image';
-import { buildPythonLambda } from '../src/buildpacks/py-lambda-buildpack';
 import { buildRustLambda } from '../src/buildpacks/rust-lambda-buildpack';
 import { buildUsingRailpack } from '../src/image/railpack';
 import type { BuildDockerImage, PackagingOutput, RunRailpackPrepare } from '../src/runtime-contracts';
@@ -570,42 +569,6 @@ async function buildpackScenarios() {
     throw new Error(`Unexpected Rust Lambda response: ${JSON.stringify(rustResponse)}`);
   }
   record('rust-lambda-provided-al2023', rustOutput);
-
-  console.log('Building and executing a synthetic Python Pipfile Lambda artifact...');
-  const pipfileRoot = join(projectsRoot, 'python-pipfile');
-  await write(
-    join(pipfileRoot, 'Pipfile'),
-    '[[source]]\nurl = "https://pypi.org/simple"\nverify_ssl = true\nname = "pypi"\n\n[packages]\nidna = "==3.10"\n\n[dev-packages]\npytest = "*"\n\n[requires]\npython_version = "3.12"\n'
-  );
-  await write(
-    join(pipfileRoot, 'src', 'handler.py'),
-    'import idna\n\ndef handler(event, context):\n    return idna.encode("münich").decode()\n'
-  );
-  const pipfileDist = join(artifactsRoot, 'python-pipfile');
-  const pipfileOutput = await buildPythonLambda({
-    ...common,
-    cwd: pipfileRoot,
-    name: 'synthetic-python-pipfile',
-    entryfilePath: 'src/handler.py',
-    distFolderPath: pipfileDist,
-    pythonVersion: 3.12,
-    python: { packageManagerFile: 'Pipfile' }
-  });
-  await assertRunOutput({
-    dockerArgs: [
-      '--mount',
-      `type=bind,source=${pipfileDist},target=/artifact,readonly`,
-      'python:3.12-slim',
-      'python',
-      '-c',
-      "import sys; sys.path.insert(0, '/artifact'); from src.handler import handler; print(handler({}, None))"
-    ],
-    expected: 'xn--mnich-kva'
-  });
-  if (await Bun.file(join(pipfileDist, 'pytest')).exists()) {
-    throw new Error('Pipfile dev dependency leaked into the Lambda artifact.');
-  }
-  record('python-lambda-pipfile', pipfileOutput);
 
   console.log('Building and executing a synthetic .NET ancestor-config and ProjectReference Lambda artifact...');
   const dotnetRoot = join(projectsRoot, 'dotnet');
