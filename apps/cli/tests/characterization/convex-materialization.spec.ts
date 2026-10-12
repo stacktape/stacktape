@@ -73,12 +73,6 @@ describe('Convex materialization', () => {
       (event): event is ContainerWorkloadLoadBalancerIntegration => event.type === 'application-load-balancer'
     );
 
-  /**
-   * A few values materialization emits are wider than the resolved type admits — the bucket CORS block is written
-   * through an `unknown` cast in the production code — so those are compared as the plain data they become.
-   */
-  const asPlainData = (value: unknown) => JSON.parse(JSON.stringify(value));
-
   const STORAGE_BUCKETS = [
     'modulesBucket',
     'filesBucket',
@@ -455,26 +449,13 @@ describe('Convex materialization', () => {
     ).toBe('https://api.example.com');
   });
 
-  test('gives all five buckets the same storage settings and browser access', () => {
+  test('applies default and authored storage settings to all five buckets', () => {
     const children = childrenOf();
 
     STORAGE_BUCKETS.forEach((bucket) => {
       expect(children[bucket].encryption).toBe(true);
       expect(children[bucket].versioning).toBe(false);
       expect(children[bucket].lifecycleRules).toBeUndefined();
-      // Convex serves user files straight from S3 to the browser, so the buckets carry CORS rules. The block is
-      // emitted without the `enabled` flag `BucketCorsConfig` requires, which is why the production code writes it
-      // through a cast — and the bucket resolver returns early on a falsy `enabled`, so these rules do not currently
-      // reach CloudFormation. Pinned as emitted: changing it here would alter deployed buckets.
-      expect(asPlainData(children[bucket].cors)).toEqual({
-        corsRules: [
-          {
-            allowedOrigins: ['*'],
-            allowedMethods: ['GET', 'PUT', 'POST', 'DELETE', 'HEAD'],
-            allowedHeaders: ['*']
-          }
-        ]
-      });
     });
 
     const lifecycleRules = [{ type: 'expiration' as const, properties: { daysAfterUpload: 30 } }];

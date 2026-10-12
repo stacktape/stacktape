@@ -13,10 +13,7 @@ import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import type { StackContext } from '@domain-services/stack-context';
-import {
-  hasEnabledCdn,
-  type ResourceWithPresentCdn
-} from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/cdn';
+import { hasEnabledCdn } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/cdn';
 import { configManager } from '@domain-services/config-manager';
 import type { StpBucket } from '@domain-services/config-manager/resolved-types/buckets';
 
@@ -278,7 +275,7 @@ const createDenseConfig = ({
       packaging: new JsBundleLambdaPackaging({
         entryfilePath: './src/api.ts'
       }),
-      timeout: 10,
+      timeout: 60,
       events: [
         new WebSocketApiIntegration({
           websocketApiGatewayName: realtime,
@@ -1441,6 +1438,40 @@ describe('full synthesis contract', () => {
       'AuthorizerPayloadFormatVersion'
     );
 
+    const integrationLogicalName = cfLogicalNames.websocketApiLambdaIntegration({
+      stpResourceName: 'realtimeHandler',
+      stpWebsocketApiGatewayName: 'realtime'
+    });
+    expect(resources[integrationLogicalName].Properties).toEqual({
+      ApiId: { Ref: apiLogicalName },
+      IntegrationMethod: 'POST',
+      IntegrationType: 'AWS_PROXY',
+      TimeoutInMillis: 29000,
+      IntegrationUri: {
+        'Fn::Sub': [
+          'arn:aws:apigateway:eu-west-1:lambda:path/2015-03-31/functions/${lambdaEndpointArn}/invocations',
+          { lambdaEndpointArn: { 'Fn::GetAtt': ['RealtimeHandlerFunction', 'Arn'] } }
+        ]
+      }
+    });
+    for (const route of [connectRouteLogicalName, messageRouteLogicalName]) {
+      expect(resources[route].Properties.Target).toEqual({
+        'Fn::Join': ['/', ['integrations', { Ref: integrationLogicalName }]]
+      });
+    }
+    const permissionName = cfLogicalNames.websocketApiLambdaPermission({
+      stpResourceNameOfLambda: 'realtimeHandler',
+      stpResourceNameOfWebsocketApiGateway: 'realtime'
+    });
+    expect(resources[permissionName].Properties).toEqual({
+      Action: 'lambda:InvokeFunction',
+      FunctionName: { 'Fn::GetAtt': ['RealtimeHandlerFunction', 'Arn'] },
+      Principal: 'apigateway.amazonaws.com',
+      SourceAccount: '123456789999',
+      SourceArn: {
+        'Fn::Join': ['', ['arn:aws:execute-api:eu-west-1:123456789999:', { Ref: apiLogicalName }, '/default/*']]
+      }
+    });
     const handler = resources[cfLogicalNames.lambda('realtimeHandler')];
     expect(handler.Properties.Environment.Variables).toMatchObject({
       STP_REALTIME_API_ID: { Ref: apiLogicalName },
@@ -1448,8 +1479,24 @@ describe('full synthesis contract', () => {
       STP_REALTIME_URL: expect.any(Object)
     });
     const role = resources[cfLogicalNames.lambdaRole('realtimeHandler')];
-    expect(JSON.stringify(role)).toContain('execute-api:ManageConnections');
-    expect(JSON.stringify(role)).toContain('/default/POST/@connections');
+    expect(
+      role.Properties.Policies.flatMap(
+        ({ PolicyDocument }: { PolicyDocument: { Statement: unknown[] } }) => PolicyDocument.Statement
+      ).filter((statement: { Action: string[] }) => statement.Action.includes('execute-api:ManageConnections'))
+    ).toEqual([
+      {
+        Effect: 'Allow',
+        Action: ['execute-api:ManageConnections'],
+        Resource: [
+          {
+            'Fn::Join': [
+              '',
+              ['arn:aws:execute-api:eu-west-1:123456789999:', { Ref: apiLogicalName }, '/default/POST/@connections']
+            ]
+          }
+        ]
+      }
+    ]);
   });
 
   test('applies resource and final transforms during real template finalization', () => {
@@ -2037,29 +2084,5 @@ describe('enabled-CDN predicate', () => {
 
   test('accepts a CDN block that is switched on', () => {
     expect(hasEnabledCdn(bucketWith({ enabled: true }))).toBe(true);
-  });
-
-  test('narrows the resource so a guarded caller can read the CDN block', () => {
-    const bucket = bucketWith({ enabled: true, errorDocument: 'oops.html' });
-
-    if (!hasEnabledCdn(bucket)) throw new Error('expected the enabled CDN fixture to pass the predicate');
-
-    // Reachable only because the predicate narrowed `bucket`; before the guard `cdn` is optional.
-    expect(bucket.cdn.errorDocument).toBe('oops.html');
-  });
-
-  /**
-   * The narrowing itself, checked through the optionality modifier rather than by reading a property: this project's
-   * test typecheck runs with `strictNullChecks` off, where an optional property is freely assignable to a required
-   * one, so a plain read would prove nothing. The production proof is stronger and lives in the resolvers — the five
-   * CloudFront helpers now demand `ResourceWithPresentCdn`, and the six-project typecheck only passes because every
-   * call site sits inside one of these guards.
-   */
-  const cdnIsOptionalBeforeTheGuard: {} extends Pick<StpBucket, 'cdn'> ? false : true = false;
-  const cdnIsRequiredAfterTheGuard: {} extends Pick<ResourceWithPresentCdn<StpBucket>, 'cdn'> ? false : true = true;
-
-  test('treats the CDN block as optional before the guard and present after it', () => {
-    expect(cdnIsOptionalBeforeTheGuard).toBe(false);
-    expect(cdnIsRequiredAfterTheGuard).toBe(true);
   });
 });

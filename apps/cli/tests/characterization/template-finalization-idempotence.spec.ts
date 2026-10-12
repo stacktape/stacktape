@@ -1,25 +1,11 @@
-import { packagingManager } from '@domain-services/packaging-manager';
-import { resetDomainServiceInitialization } from '@utils/decorators';
-import { resolveAllResources } from '@domain-services/calculated-stack-overview-manager/synthesize';
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 import { describe, expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { applicationManager } from '@application-services/application-manager';
-import { operationReporter, operationSession } from '@application-services/operation-manager';
-import { globalStateManager } from '@application-services/global-state-manager';
-import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import { stackManager } from '@domain-services/cloudformation-stack-manager';
-
-import { configManager } from '@domain-services/config-manager';
-import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
-import { ec2Manager } from '@domain-services/ec2-manager';
-import type { StackContext } from '@domain-services/stack-context';
 import { templateManager } from '@domain-services/template-manager';
 import { finalizeTemplate } from '@domain-services/template-manager/finalize';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { awsSdkManager } from '@utils/aws-sdk-manager';
-import { getConfigManagerContext } from '../../src/commands/_utils/initialization';
 import { Bucket, LambdaFunction, JsBundleLambdaPackaging, defineConfig } from '@stacktape/config-authoring';
+import { synthesizeFixture, withCredentiallessSynthesisBoundary } from './synthesis-fixture';
 
 /**
  * A deploy can finalize the same template twice. `prepareArtifactsForStackDeployment` finalizes once and shows the
@@ -78,57 +64,7 @@ const createFixtureConfig = () =>
     user: { id: 'test-user', name: 'Test User', email: 'test@example.com' }
   });
 
-const protectedAwsEnvironment = [
-  'AWS_ACCESS_KEY_ID',
-  'AWS_SECRET_ACCESS_KEY',
-  'AWS_SESSION_TOKEN',
-  'AWS_PROFILE',
-  'AWS_EC2_METADATA_DISABLED'
-] as const;
-
-/** Keeps this suite credential-free and offline: the stack lookups finalization needs are answered locally. */
-const withoutAwsAccess = async <Result>(operation: () => Promise<Result>) => {
-  if (!awsSdkManager.isInitialized) {
-    awsSdkManager.init({
-      credentials: { accessKeyId: 'characterization-forbidden', secretAccessKey: 'characterization-forbidden' },
-      region: 'eu-west-1'
-    });
-  }
-  const { cloudFormation } = awsSdkManager;
-  const originalEnvironment = Object.fromEntries(protectedAwsEnvironment.map((name) => [name, process.env[name]]));
-  const originalGetDetails = cloudFormation.getDetails;
-  const originalGetResources = cloudFormation.getResources;
-
-  process.env.AWS_ACCESS_KEY_ID = 'characterization-forbidden';
-  process.env.AWS_SECRET_ACCESS_KEY = 'characterization-forbidden';
-  process.env.AWS_SESSION_TOKEN = 'characterization-forbidden';
-  process.env.AWS_PROFILE = '__stacktape_characterization_forbidden__';
-  process.env.AWS_EC2_METADATA_DISABLED = 'true';
-  cloudFormation.getDetails = async () => null;
-  cloudFormation.getResources = async () => [];
-
-  try {
-    return await operation();
-  } finally {
-    cloudFormation.getDetails = originalGetDetails;
-    cloudFormation.getResources = originalGetResources;
-    for (const name of protectedAwsEnvironment) {
-      const value = originalEnvironment[name];
-      if (value === undefined) {
-        delete process.env[name];
-      } else {
-        process.env[name] = value;
-      }
-    }
-  }
-};
-
-/**
- * Runs one CLI invocation: resolve every resource once, then finalize as many times as a hot-swap fallback would.
- *
- * `beforeSecondFinalization` stands in for the repackaging step — it changes the artifact state the registered
- * override function reads, exactly as producing a new package version does.
- */
+/** Runs finalization twice in one real invocation, including the artifact update made by hot-swap fallback. */
 const finalizeInOneInvocation = async ({
   passes,
   stage = 'finalization',
@@ -137,125 +73,30 @@ const finalizeInOneInvocation = async ({
   passes: number;
   stage?: string;
   beforeSecondFinalization?: (artifactState: ArtifactState) => void;
-}) =>
-  withoutAwsAccess(async () => {
-    const artifactState: ArtifactState = { digest: 'digest-before-repackaging' };
-    calculatedStackOverviewManager.reset();
-    configManager.reset();
-    templateManager.reset();
-    operationSession.reset();
-    operationReporter.setSilentMode(true);
-
-    await applicationManager.init();
-    const helperLambda = {
-      digest: 'characterization',
-      artifactPath: 'characterization-helper.zip',
-      handler: 'index.default',
-      size: 10
-    };
-    globalStateManager.operationStart = new Date();
-    globalStateManager.rawCommands = ['deploy'];
-    globalStateManager.rawArgs = {
-      stage,
-      region: 'eu-west-1',
-      projectName: 'characterization',
-      currentWorkingDirectory: join(import.meta.dir, 'fixtures', 'dense-application')
-    };
-    globalStateManager.additionalArgs = {};
-    const compiledConfig = createFixtureConfig();
-    globalStateManager.presetConfig = compiledConfig.config;
-    globalStateManager.persistedState = {
-      systemId: 'characterization-system',
-      cliArgsDefaults: {},
-      otherDefaults: {}
-    };
-    globalStateManager.systemId = globalStateManager.persistedState.systemId;
-    globalStateManager.awsConfigFileContent = {};
-    globalStateManager.availableAwsProfiles = [];
-    globalStateManager.helperLambdaDetails = {
-      batchJobTriggerLambda: helperLambda,
-      stacktapeServiceLambda: helperLambda,
-      cdnOriginRequestLambda: helperLambda,
-      cdnOriginResponseLambda: helperLambda,
-      uptimeProber: helperLambda
-    };
-    globalStateManager.localTargetAwsAccount = {
-      id: 'characterization-account',
-      organizationId: 'characterization-organization',
-      awsAccountId: '123456789999',
-      connectionMode: 'BASIC',
-      name: 'characterization',
-      state: 'ACTIVE',
-      primaryRegions: ['eu-west-1'],
-      defaultRegion: 'eu-west-1'
-    };
-    resetDomainServiceInitialization();
-    globalStateManager.isInitialized = true;
-    globalStateManager.targetStack = {
-      stackName: `characterization-${stage}`,
-      globallyUniqueStackHash: 'xxxxxxxx',
-      stage,
-      projectName: 'characterization',
-      projectId: 'characterization-project'
-    };
-    const stackContext: StackContext = {
-      accountId: globalStateManager.targetAwsAccount.awsAccountId,
-      command: globalStateManager.command,
-      globallyUniqueStackHash: globalStateManager.targetStack.globallyUniqueStackHash,
-      invocationId: globalStateManager.invocationId,
-      projectName: globalStateManager.targetStack.projectName,
-      region: globalStateManager.region,
-      stackName: globalStateManager.targetStack.stackName,
-      stage: globalStateManager.targetStack.stage,
-      workingDir: globalStateManager.workingDir
-    };
-
-    await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
-    configManager.transforms = compiledConfig.transforms;
-    configManager.finalTransform = compiledConfig.finalTransform;
-    await ec2Manager.init({
-      instanceTypes: configManager.allUsedEc2InstanceTypes,
-      openSearchInstanceTypes: configManager.allUsedOpenSearchVersionsAndInstanceTypes
-    });
-
-    deploymentArtifactManager.setPackagingSource(packagingManager);
-    deploymentArtifactManager.deploymentBucketName = 'stp-deployment-bucket-xxxxxxxx';
-    deploymentArtifactManager.repositoryName = 'xxxxxxxx-stp-container-repository';
-    deploymentArtifactManager.repositoryUrl =
-      '123456789999.dkr.ecr.eu-west-1.amazonaws.com/xxxxxxxx-stp-container-repository';
-
-    await stackManager.init({
-      stackName: globalStateManager.targetStack.stackName,
-      commandModifiesStack: false,
-      commandRequiresDeployedStack: false
-    });
-    await Promise.all([
-      templateManager.init({ stackDetails: undefined, stackName: stackContext.stackName }),
-      calculatedStackOverviewManager.init({ context: stackContext })
-    ]);
-    await resolveAllResources();
-
-    // Registered the way every artifact-dependent override is: it reads the current artifact state when it runs, and
-    // it appends to an array — the shape that makes a repeated pass duplicate content (Convex does this to
-    // `Policies`).
-    templateManager.addFinalTemplateOverrideFn(async (template) => {
-      const bucket = template.Resources[cfLogicalNames.bucket('files')] as any;
-      bucket.Metadata = {
-        ...(bucket.Metadata || {}),
-        ArtifactDigests: [...((bucket.Metadata?.ArtifactDigests as string[]) || []), artifactState.digest]
-      };
-    });
-
-    const templates: CloudFormationTemplate[] = [];
-    for (let pass = 0; pass < passes; pass++) {
-      if (pass === 1) {
-        beforeSecondFinalization?.(artifactState);
-      }
-      await finalizeTemplate();
-      templates.push(templateManager.getTemplate());
+}) => {
+  const artifactState: ArtifactState = { digest: 'digest-before-repackaging' };
+  const first = await synthesizeFixture({
+    compiledConfig: createFixtureConfig(),
+    workingDir: join(import.meta.dir, 'fixtures', 'dense-application'),
+    synthesisContext: { stackName: `characterization-${stage}`, stage },
+    beforeFinalize: () => {
+      templateManager.addFinalTemplateOverrideFn(async (template) => {
+        const bucket = template.Resources[cfLogicalNames.bucket('files')] as any;
+        bucket.Metadata = {
+          ...(bucket.Metadata || {}),
+          ArtifactDigests: [...((bucket.Metadata?.ArtifactDigests as string[]) || []), artifactState.digest]
+        };
+      });
     }
-    return templates;
   });
+  const templates: CloudFormationTemplate[] = [first];
+  for (let pass = 1; pass < passes; pass++) {
+    if (pass === 1) beforeSecondFinalization?.(artifactState);
+    await withCredentiallessSynthesisBoundary(() => finalizeTemplate());
+    templates.push(templateManager.getTemplate());
+  }
+  return templates;
+};
 
 const bucketOf = (template: CloudFormationTemplate) => template.Resources[cfLogicalNames.bucket('files')] as any;
 

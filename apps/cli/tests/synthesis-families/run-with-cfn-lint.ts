@@ -20,7 +20,7 @@ if (!cfnLint) {
 const main = async () => {
   const outputDirectory = await mkdtemp(join(tmpdir(), 'stacktape-synthesis-families-'));
   try {
-    const spec = Bun.spawnSync(['bun', 'test', join(import.meta.dir, 'families.spec.ts')], {
+    const spec = Bun.spawnSync(['bun', 'test', import.meta.dir], {
       cwd: cliRoot,
       stdin: 'ignore',
       stdout: 'inherit',
