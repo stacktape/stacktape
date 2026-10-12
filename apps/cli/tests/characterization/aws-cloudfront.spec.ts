@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import type { CloudFrontClient } from '@aws-sdk/client-cloudfront';
-import { ListDistributionsCommand } from '@aws-sdk/client-cloudfront';
+import {
+  CreateInvalidationCommand,
+  GetInvalidationCommand,
+  ListDistributionsCommand
+} from '@aws-sdk/client-cloudfront';
 import { AwsCloudFront } from '../../src/aws/cloudfront';
 
 type Send = CloudFrontClient['send'];
@@ -23,6 +27,34 @@ const cloudFrontWith = ({
 
 // Deliberate page injection protects pagination/filtering without requiring hundreds of CDN distributions.
 describe('AWS CloudFront operations', () => {
+  // CloudFront is not implemented by MiniStack; keep its AWS request contract at the SDK boundary.
+  test('invalidates the requested distribution and paths with a caller reference', async () => {
+    let acceptedRequest: CreateInvalidationCommand['input'] | undefined;
+    const cloudFront = cloudFrontWith({
+      send: (async (command: CreateInvalidationCommand | GetInvalidationCommand) => {
+        if (command instanceof CreateInvalidationCommand) {
+          acceptedRequest = command.input;
+          return { Invalidation: { Id: 'invalidation-fixture' } };
+        }
+        return { Invalidation: { Id: 'invalidation-fixture', Status: 'InProgress' } };
+      }) as Send
+    });
+
+    expect(
+      await cloudFront.invalidateCache({
+        distributionId: 'distribution-fixture',
+        invalidatePaths: ['/index.html', '/assets/*']
+      })
+    ).toBe('distribution-fixture');
+    expect(acceptedRequest).toEqual({
+      DistributionId: 'distribution-fixture',
+      InvalidationBatch: {
+        CallerReference: expect.stringMatching(/^stacktape_invalidation\d+$/),
+        Paths: { Quantity: 2, Items: ['/index.html', '/assets/*'] }
+      }
+    });
+  });
+
   test('paginates distributions and returns only origins connected to the regional bucket endpoint', async () => {
     const cloudFront = cloudFrontWith({
       send: (async (command: ListDistributionsCommand) => {

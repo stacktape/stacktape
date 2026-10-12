@@ -240,7 +240,7 @@ export const lanes: readonly Lane[] = [
     requires: ['console', 'docker', 'network'],
     release: 'every-candidate',
     proves:
-      'Domain page services persist DNS records and maintain separate regional and edge certificates through the real SDK on MiniStack.',
+      'Domain page services create zones with distinct caller references and persist DNS records and regional/edge certificates through the real SDK on MiniStack.',
     selections: ['console-domains-ministack']
   },
   {
