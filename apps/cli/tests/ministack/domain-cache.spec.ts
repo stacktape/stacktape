@@ -123,7 +123,7 @@ test('cached pending certificates become usable in both regions and the refreshe
 test('certificate validation and DKIM are persisted with their distinct DNS record formats', async () => {
   const config = ministack.clientConfig(ministack.account());
   const route53 = new Route53Client(config);
-  awsSdkManager.init({ ...config, plugins: [] });
+  awsSdkManager.init({ ...config, region: 'eu-west-1', plugins: [] });
   try {
     const zone = await route53.send(
       new CreateHostedZoneCommand({ Name: 'example.com', CallerReference: 't05-dns-records' })
