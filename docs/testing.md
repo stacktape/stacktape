@@ -80,3 +80,7 @@ Normal tests must fail closed against live AWS. Development Console deployments,
 and explicitly named disposable stacks are already authorized. Follow the [live procedure](testing/live-aws.md) for
 account verification, ownership, cost and cleanup, including recovery after interruption. Production deployment,
 migration, publishing and credential rotation require explicit authorization. Never record secret values.
+
+Console PR lanes include offline migration history, package export boundaries and infrastructure contracts plus
+assembled support-template `cfn-lint`. Install `cfn-lint==1.53.3` before running `pnpm test:ci` with Console present; CI
+installs it explicitly. Migration adoption still requires disposable PostgreSQL and stays in the change tier.

@@ -79,3 +79,7 @@ This short queue comes from the slice audit; the registry records selection, not
 The kit agent owns the MiniStack fixtures, deploy harness and lane implementations. The registry's
 `pendingMiniStackLanes` names the static-content and deployment-lifecycle registration slots; they are not runnable or
 passing evidence. Register implemented lanes with exact commands and owned tests when integrating that work.
+
+Console PR lanes include offline migration history, package export boundaries and infrastructure contracts plus
+assembled support-template `cfn-lint`. Install `cfn-lint==1.53.3` before running `pnpm test:ci` with Console present; CI
+installs it explicitly. Migration adoption still requires disposable PostgreSQL and stays in the change tier.

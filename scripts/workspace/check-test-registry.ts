@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import { dirname, relative, resolve } from 'node:path';
@@ -20,7 +21,7 @@ export const discoverTestFiles = async (root: string): Promise<string[]> => {
     for (const entry of await readdir(resolve(root, directory), { withFileTypes: true })) {
       const path = directory ? `${directory}/${entry.name}` : entry.name;
       if (entry.isDirectory()) {
-        if (!ignoredDirectories.has(entry.name) && !entry.name.startsWith('__')) {
+        if (!ignoredDirectories.has(entry.name)) {
           // Visit one directory at a time to bound filesystem work in public and integrated checkouts.
           // eslint-disable-next-line no-await-in-loop
           await visit(path);
@@ -44,7 +45,7 @@ const manifests = async (root: string): Promise<Map<string, { directory: string;
     }
     if (!depth || !existsSync(resolve(root, directory))) return;
     for (const entry of await readdir(resolve(root, directory), { withFileTypes: true })) {
-      if (entry.isDirectory() && !ignoredDirectories.has(entry.name) && !entry.name.startsWith('__'))
+      if (entry.isDirectory() && !ignoredDirectories.has(entry.name))
         // eslint-disable-next-line no-await-in-loop
         await visit(`${directory}/${entry.name}`, depth - 1);
     }
@@ -55,6 +56,9 @@ const manifests = async (root: string): Promise<Map<string, { directory: string;
   await visit('packages', 1);
   return result;
 };
+
+const tracked = (directory: string) =>
+  execFileSync('git', ['ls-files', '-z'], { cwd: directory, encoding: 'utf8' }).split('\0').filter(Boolean);
 
 export const checkTestRegistry = async ({
   root = workspaceRoot,
@@ -70,12 +74,21 @@ export const checkTestRegistry = async ({
   const errors: string[] = [];
   const consolePresent = existsSync(resolve(root, 'apps/console/api/package.json'));
   const present = (path: string) => consolePresent || !path.startsWith('apps/console/');
+  const trackedFiles = tracked(root);
+  if (consolePresent)
+    trackedFiles.push(...tracked(resolve(root, 'apps/console')).map((path) => `apps/console/${path}`));
   const owners = new Map<string, string>();
   for (const slice of registeredSlices) {
     if (slice.status === 'active' && (!slice.paths.length || !slice.lanes.length))
       errors.push(
         `${slice.id}: add implementation paths and at least one lane ID to slices in scripts/workspace/test-registry.ts.`
       );
+    if (slice.status === 'active')
+      for (const pattern of slice.paths)
+        if (present(pattern) && !trackedFiles.some((path) => matchesPath(pattern, path)))
+          errors.push(
+            `${slice.id}: path pattern ${pattern} matches no tracked file. Update slice.paths in scripts/workspace/test-registry.ts to the current implementation path, or track the intended file.`
+          );
     for (const id of slice.lanes)
       if (!registeredLanes.some((lane) => lane.id === id))
         errors.push(

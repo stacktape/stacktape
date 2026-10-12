@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -33,6 +34,8 @@ const fixture = async (context: TestContext) => {
     join(root, 'package.json'),
     JSON.stringify({ scripts: { 'test:rules': 'bun test packages/rules/rule.test.ts' } })
   );
+  execFileSync('git', ['init', '--quiet', root]);
+  execFileSync('git', ['add', '.'], { cwd: root });
   return root;
 };
 test('registry seed has stable active IDs and public-clone safe ownership', async () => {
@@ -172,4 +175,26 @@ test('a public lane cannot silently depend on private test files', async (contex
     tooling: []
   });
   assert.match(errors.join('\n'), /private test entrypoint .*needs requires: \['console'\]/);
+});
+
+test('an unowned authored test in __tests__ fails ownership', async (context) => {
+  const root = await fixture(context);
+  await mkdir(join(root, 'packages/rules/__tests__'), { recursive: true });
+  await writeFile(join(root, 'packages/rules/__tests__/fault.test.ts'), 'export {};');
+  const errors = await checkTestRegistry({ root, registeredLanes: [lane], registeredSlices: [slice], tooling: [] });
+  assert.match(errors.join('\n'), /__tests__\/fault.test.ts: no test owner/);
+});
+test('each active path pattern must match a tracked file', async (context) => {
+  const root = await fixture(context);
+  await writeFile(join(root, 'packages/rules/untracked.ts'), 'export {};');
+  const errors = await checkTestRegistry({
+    root,
+    registeredLanes: [lane],
+    registeredSlices: [
+      { ...slice, paths: [...slice.paths, 'packages/rules/renamed.ts', 'packages/rules/untracked.ts'] }
+    ],
+    tooling: []
+  });
+  assert.equal(errors.length, 2);
+  assert.ok(errors.every((error) => error.includes('matches no tracked file') && error.includes('Update slice.paths')));
 });

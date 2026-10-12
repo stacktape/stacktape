@@ -634,3 +634,17 @@ test('migration adoption and browser privacy remain selected change lanes before
     assert.ok(lane.requires.includes('chromium'));
   }
 });
+
+test('offline Console contracts and assembled template validation are selected PR lanes', () => {
+  for (const [path, id] of [
+    ['apps/console/api/package-exports.test.ts', 'console-offline-contracts'],
+    ['apps/console/api/prisma/migration-history.test.ts', 'console-offline-contracts'],
+    ['apps/console/api/stacktape.test.ts', 'console-support-template'],
+    ['apps/console/api/stacktape.ts', 'console-support-template']
+  ]) {
+    const lane = createTestPlan([path!]).find((candidate) => candidate.id === id);
+    assert.ok(lane, `${path} selects ${id}`);
+    assert.equal(lane.tier, 'pr');
+    assert.ok(lane.slices.includes('S68'));
+  }
+});

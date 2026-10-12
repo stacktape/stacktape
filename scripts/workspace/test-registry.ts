@@ -2288,6 +2288,28 @@ export const lanes: readonly Lane[] = [
     release: 'affected-external-contract'
   },
   {
+    id: 'console-offline-contracts',
+    command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test:offline-contracts'],
+    level: 'focused',
+    tier: 'pr',
+    tests: ['apps/console/api/package-exports.test.ts', 'apps/console/api/prisma/migration-history.test.ts'],
+    selections: ['console-api'],
+    requires: ['console'],
+    release: 'every-candidate'
+  },
+  {
+    id: 'console-support-template',
+    command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test:support-template'],
+    level: 'process',
+    tier: 'pr',
+    tests: ['apps/console/api/stacktape.test.ts'],
+    selections: ['console-api'],
+    requires: ['console'],
+    release: 'every-candidate',
+    proves:
+      'Offline Console infrastructure contracts and assembled support template pass cfn-lint (install cfn-lint 1.53.3 first).'
+  },
+  {
     id: 'console-fast-rules',
     command: [
       'pnpm',
@@ -2367,7 +2389,7 @@ export const slices: readonly Slice[] = [
       'packages/config/**',
       'packages/cloudformation/**',
       'apps/cli/scripts/code-generation/**',
-      'apps/cli/scripts/build-npm-declarations.ts'
+      'apps/cli/scripts/build-npm-declarations.spec.ts'
     ],
     tests: [
       'apps/cli/scripts/build-npm-declarations.spec.ts',
@@ -3226,9 +3248,9 @@ export const slices: readonly Slice[] = [
     journeys: ['J3'],
     paths: [
       'packages/packaging/src/web/ssr-web-shared.ts',
-      'apps/cli/starter-projects/nuxt/**',
-      'apps/cli/starter-projects/remix/**',
-      'apps/cli/starter-projects/tanstack/**'
+      'apps/cli/starter-projects/nuxt-serverless/**',
+      'apps/cli/starter-projects/remix-serverless/**',
+      'apps/cli/starter-projects/tanstack-start-serverless/**'
     ],
     tests: ['apps/cli/scripts/packaging-archives/ssr-web-acceptance.ts'],
     lanes: ['packaging-test', 'cli-packaged-web', 'starter-qualification', 'cli-runtime-acceptances']
@@ -4244,7 +4266,7 @@ export const slices: readonly Slice[] = [
     status: 'active',
     journeys: ['J10'],
     paths: [
-      'apps/cli/src/domain/config-manager/utils/guardrails.ts',
+      'apps/cli/src/domain/config-manager/utils/guardrails.spec.ts',
       'apps/cli/src/domain/config-manager/utils/security-posture.ts',
       'apps/console/ui/src/pages/GuardrailsPage/**',
       'packages/console-api/src/guardrails.ts'
@@ -4265,6 +4287,8 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/database/**',
       'apps/console/api/prisma/migrations/**',
       'apps/console/api/scripts/migrate-db.ts',
+      'apps/console/api/stacktape.ts',
+      'apps/console/api/package.json',
       'apps/console/api/infrastructure/deployment-parameters.ts',
       'apps/console/api/src/config.ts',
       'apps/console/api/src/runtime-parameters.ts',
@@ -4283,7 +4307,14 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/services/prisma-proxy.test.ts',
       'apps/console/api/stacktape.test.ts'
     ],
-    lanes: ['console-api', 'console-api-2', 'console-database', 'console-deployed-dev']
+    lanes: [
+      'console-offline-contracts',
+      'console-support-template',
+      'console-api',
+      'console-api-2',
+      'console-database',
+      'console-deployed-dev'
+    ]
   },
   {
     id: 'S69',
