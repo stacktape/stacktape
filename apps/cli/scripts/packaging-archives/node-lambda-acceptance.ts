@@ -30,8 +30,6 @@
  */
 import { createHash } from 'node:crypto';
 import { cp, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
-import { createServer } from 'node:http';
-import { startMiniStack } from '@stacktape/ministack/fixture';
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { startOfflineAwsServer, type OfflineAwsServer } from '../qualification/offline-aws';
@@ -255,80 +253,6 @@ type PackageRun = {
   /** Every shared layer's directory and the sorted `path mode sha256` listing of its files. */
   layers: { path: string; listing: string[] }[];
   optDirectory: string | undefined;
-};
-
-/** Only unsupported billing reads use the old boundary fake; AWS identity/stack reads reach MiniStack. */
-const startPackagingAws = async (): Promise<OfflineAwsServer> => {
-  const ministack = await startMiniStack({ label: 'node-lambda-package' });
-  console.log(`Packaging AWS fixture: ${ministack.containerName}`);
-  let billing: OfflineAwsServer | undefined;
-  const proxy = createServer(async (request, response) => {
-    try {
-      const authorization = request.headers.authorization ?? '';
-      const unsupported = /\/(?:ce|budgets)\/aws4_request/.test(authorization);
-      const endpoint = unsupported ? billing!.endpoint : ministack.endpoint;
-      const chunks: Buffer[] = [];
-      for await (const chunk of request) chunks.push(Buffer.from(chunk));
-      const headers = new Headers();
-      for (const [name, value] of Object.entries(request.headers)) {
-        if (value !== undefined && name !== 'host' && name !== 'connection' && name !== 'content-length') {
-          headers.set(name, Array.isArray(value) ? value.join(',') : value);
-        }
-      }
-      const target = new URL(request.url ?? '/', endpoint);
-      if (target.origin !== new URL(endpoint).origin) throw new Error('Offline proxy refuses an external target');
-      const upstream = await fetch(target, {
-        method: request.method,
-        headers,
-        ...(request.method === 'GET' || request.method === 'HEAD' ? {} : { body: Buffer.concat(chunks) })
-      });
-      response.writeHead(upstream.status, Object.fromEntries(upstream.headers));
-      response.end(Buffer.from(await upstream.arrayBuffer()));
-    } catch {
-      response.writeHead(502);
-      response.end('Offline AWS forwarding failed');
-    }
-  });
-  try {
-    billing = await startOfflineAwsServer();
-    await new Promise<void>((resolve, reject) => {
-      proxy.once('error', reject);
-      proxy.listen(0, '127.0.0.1', resolve);
-    });
-    const address = proxy.address();
-    if (!address || typeof address === 'string') throw new Error('Offline AWS proxy did not bind');
-    return {
-      endpoint: `http://127.0.0.1:${address.port}`,
-      unexpectedRequests: billing.unexpectedRequests,
-      registerSecretReferences: (references) => {
-        if ([...references].length) throw new Error('This fixture has no secret references');
-      },
-      close: async () => {
-        try {
-          const closed = new Promise<void>((resolve, reject) =>
-            proxy.close((error) => (error ? reject(error) : resolve()))
-          );
-          proxy.closeAllConnections();
-          await closed;
-        } finally {
-          try {
-            await billing?.close();
-          } finally {
-            await ministack.stop();
-          }
-        }
-      }
-    };
-  } catch (error) {
-    proxy.closeAllConnections();
-    proxy.close();
-    try {
-      await billing?.close();
-    } finally {
-      await ministack.stop();
-    }
-    throw error;
-  }
 };
 
 /** One `package` of the project at `project`, leaving its build directory, with `/opt` assembled from its layers. */
@@ -690,7 +614,7 @@ const main = async () => {
   let offlineServer: OfflineAwsServer | undefined;
   const runs: PackageRun[] = [];
   try {
-    offlineServer = await startPackagingAws();
+    offlineServer = await startOfflineAwsServer();
     const project = join(work, 'project');
     await writeFixture(project);
     const sharedLine =

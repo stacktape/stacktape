@@ -42,9 +42,9 @@ helper artifacts instead, and the report marks them as supplied.
 ## Node.js Lambdas through the package command
 
 `pnpm --filter @stacktape/cli run test:node-lambda` runs the CLI's own `package` command as a child process, in an
-isolated home with AWS identity and stack reads routed to the shared MiniStack fixture (only unsupported Cost Explorer
-and Budgets reads use the boundary fake), on a TypeScript project outside the repository: an ESM split group whose
-shared module becomes a chunk layer, with a dynamic `import()`, a file asset, an ESM-only dependency and
+isolated home with AWS identity and stack reads routed to the shared MiniStack fixture (only unsupported Cost Explorer,
+Budgets and CloudTrail reads use the boundary fake), on a TypeScript project outside the repository: an ESM split group
+whose shared module becomes a chunk layer, with a dynamic `import()`, a file asset, an ESM-only dependency and
 `@aws-sdk/client-s3`, and a CommonJS `.cjs` function packaged for Node.js 22. Each ZIP is extracted with `unzip` and
 invoked in the official Lambda image for its runtime as the unprivileged user, with the layers at `/opt` and source maps
 enabled: the shared chunk must load from the layer and not be duplicated, the dynamic import and the asset must resolve
