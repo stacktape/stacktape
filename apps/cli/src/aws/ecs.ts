@@ -6,6 +6,8 @@ import type {
   DesiredStatus,
   ECSClient,
   ExecuteCommandCommandInput,
+  RegisterTaskDefinitionCommandInput,
+  Session,
   SettingName,
   UpdateServiceCommandInput
 } from '@aws-sdk/client-ecs';
@@ -23,6 +25,18 @@ import {
 import type { StartSessionResponse } from '@aws-sdk/client-ssm';
 import { createWaiter, WaiterState } from '@smithy/util-waiter';
 import { chunkArray, lowerCaseFirstCharacterOfObjectKeys, serialize, wait } from '@utils/misc';
+
+/** CloudFormation and the ECS SDK use different casing, including nested container properties. */
+export const toRegisterTaskDefinitionInput = (
+  definition: KnownCloudFormationResource<'AWS::ECS::TaskDefinition'>
+): RegisterTaskDefinitionCommandInput => serialize(lowerCaseFirstCharacterOfObjectKeys(definition.Properties));
+
+/** The session-manager plugin consumes SSM-shaped session fields even for an ECS Exec response. */
+export const toSessionManagerSession = ({ sessionId, streamUrl, tokenValue }: Session): StartSessionResponse => ({
+  SessionId: sessionId,
+  StreamUrl: streamUrl,
+  TokenValue: tokenValue
+});
 
 type ErrorHandlerFactory = (message: string) => (error: Error) => never;
 
@@ -76,7 +90,7 @@ export class AwsEcs {
     cloudformationEcsTaskDefinition: KnownCloudFormationResource<'AWS::ECS::TaskDefinition'>;
   }) => {
     const errorHandler = this.#getErrorHandler('Failed to register new ECS task definition.');
-    const lowerCasedProps = serialize(lowerCaseFirstCharacterOfObjectKeys(cloudformationEcsTaskDefinition.Properties));
+    const lowerCasedProps = toRegisterTaskDefinitionInput(cloudformationEcsTaskDefinition);
     return (await this.#createClient().send(new RegisterTaskDefinitionCommand(lowerCasedProps)).catch(errorHandler))
       .taskDefinition;
   };
@@ -182,9 +196,7 @@ export class AwsEcs {
 
   startExecSession = async (startSessionInput: ExecuteCommandCommandInput) => {
     const errorHandler = this.#getErrorHandler('Unable to start container session');
-    const {
-      session: { sessionId, streamUrl, tokenValue }
-    } = await this.#createClient()
+    const { session } = await this.#createClient()
       .send(new ExecuteCommandCommand(startSessionInput))
       .catch((error) => {
         if (
@@ -200,7 +212,7 @@ export class AwsEcs {
         }
         return errorHandler(error);
       });
-    return { SessionId: sessionId, StreamUrl: streamUrl, TokenValue: tokenValue } as StartSessionResponse;
+    return toSessionManagerSession(session);
   };
 
   listTasks = async ({ ecsClusterName, desiredStatus }: { ecsClusterName: string; desiredStatus?: DesiredStatus }) => {
