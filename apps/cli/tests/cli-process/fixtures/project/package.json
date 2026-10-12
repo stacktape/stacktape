@@ -1,0 +1,5 @@
+{
+  "name": "cli-process-fixture",
+  "private": true,
+  "description": "The project the cli-process suite deploys. Without its own manifest the CLI's dependency installer would walk up to apps/cli/package.json and run pnpm for the whole workspace from a test's temporary HOME."
+}

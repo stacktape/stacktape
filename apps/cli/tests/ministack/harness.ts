@@ -73,6 +73,12 @@ export const createFamilyProject = async ({
   const directory = join(out, familyName);
   const home = join(directory, 'home');
   await mkdir(join(home, 'tmp'), { recursive: true });
+  // The project's own manifest: without one the CLI's dependency installer would walk up to apps/cli/package.json
+  // and run pnpm for the whole repository workspace from the child's temporary HOME.
+  await writeFile(
+    join(directory, 'package.json'),
+    `${JSON.stringify({ name: projectName, private: true, type: 'module' }, null, 2)}\n`
+  );
   const controlPlane = await startControlPlaneFake({ projectName, awsAccountId: ministack.defaultAccount.accountId });
   return {
     projectName,
@@ -203,6 +209,20 @@ export const describeStackResources = async (
     throw error;
   }
 };
+
+/** A stable picture of the stack: every resource with its type and physical ID, sorted by logical ID. */
+export const resourceSnapshot = (resources: StackResourceSummary[]) =>
+  resources
+    .map(({ LogicalResourceId, ResourceType, PhysicalResourceId }) => ({
+      logicalId: LogicalResourceId ?? '',
+      type: ResourceType ?? '',
+      physicalId: PhysicalResourceId ?? ''
+    }))
+    .toSorted((a, b) => a.logicalId.localeCompare(b.logicalId));
+
+/** The template CloudFormation currently holds for the stack. */
+export const getStackTemplate = async (cloudFormation: CloudFormationClient, stackName: string) =>
+  (await cloudFormation.send(new GetTemplateCommand({ StackName: stackName }))).TemplateBody ?? '';
 
 /** Resource events of a failed step, for the failure message. */
 export const describeStackFailure = async (cloudFormation: CloudFormationClient, stackName: string) => {

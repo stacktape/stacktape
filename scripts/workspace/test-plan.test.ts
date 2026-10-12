@@ -20,6 +20,34 @@ const git = (cwd: string, ...args: string[]) =>
     stdio: ['ignore', 'pipe', 'pipe']
   }).trim();
 
+test('a change to the MiniStack fixture selects every lane that runs on the emulator', () => {
+  const ids = new Set(createTestPlan(['packages/ministack/src/fixture.ts']).map(({ id }) => id));
+  for (const lane of [
+    'ministack-fixture',
+    'ministack-deploy',
+    'cli-stack-operations',
+    'artifact-upload-2',
+    'console-database-console-access'
+  ]) {
+    assert.ok(ids.has(lane), `${lane} is not selected for a fixture change`);
+  }
+});
+
+test('helper-Lambda, packaging and delete changes select the offline deploy loop', () => {
+  for (const path of [
+    'apps/cli/helper-lambdas/stacktape-service-lambda/index.ts',
+    'packages/packaging/src/split-bundler/index.ts',
+    'packages/packaging/src/artifact/hashing.ts',
+    'apps/cli/src/commands/delete/index.ts',
+    'apps/cli/src/commands/deploy/index.ts'
+  ]) {
+    assert.ok(
+      createTestPlan([path]).some(({ id }) => id === 'ministack-deploy'),
+      `${path} does not select ministack-deploy`
+    );
+  }
+});
+
 test('committed Console gitlinks expand into the real changed and deleted private paths', async (context) => {
   const root = await mkdtemp(join(tmpdir(), 'stacktape-j13-test-plan-'));
   context.after(() => rm(root, { recursive: true, force: true }));

@@ -28,6 +28,8 @@ import {
   createFamilyProject,
   describeStackFailure,
   describeStackResources,
+  getStackTemplate,
+  resourceSnapshot,
   writeStackEvidence,
   runSourceCli,
   writeProjectFiles,
@@ -35,6 +37,8 @@ import {
 } from './harness';
 
 const STEPS: DeployStep[] = ['create', 'update', 'unchanged', 'delete'];
+const withoutDeploymentVersion = (template: string) =>
+  template.replace(/(StpDeploymentVersion:\s*\n\s*Value: )v\d+/, '$1<version>');
 const out = join(cliRoot, '.stacktape', 'ministack', new Date().toISOString().replaceAll(/[:.]/g, '-'));
 
 type FamilyReport = {
@@ -68,21 +72,27 @@ beforeAll(async () => {
 }, 180_000);
 
 afterAll(async () => {
-  destroyEffectClients(clients);
-  cloudFormation?.destroy();
+  // Whatever fails while closing clients or saving logs, the emulator is stopped and the report is written.
   try {
+    destroyEffectClients(clients);
+    cloudFormation?.destroy();
     await writeFile(join(out, 'ministack.log'), ministack?.logs() ?? '');
+  } catch (error) {
+    console.error(error);
   } finally {
-    await ministack?.stop();
+    try {
+      await ministack?.stop();
+    } finally {
+      await writeFile(join(out, 'report.json'), `${JSON.stringify(report, null, 2)}\n`);
+      const rows = report.families.map(({ family, outcome, steps }) => ({
+        family,
+        outcome,
+        ...Object.fromEntries(steps.map(({ step, ms }) => [step, `${(ms / 1000).toFixed(1)}s`]))
+      }));
+      console.log(`MiniStack ${report.imageId} started in ${report.fixtureStartupMs} ms; report in ${out}`);
+      console.table(rows);
+    }
   }
-  await writeFile(join(out, 'report.json'), `${JSON.stringify(report, null, 2)}\n`);
-  const rows = report.families.map(({ family, outcome, steps }) => ({
-    family,
-    outcome,
-    ...Object.fromEntries(steps.map(({ step, ms }) => [step, `${(ms / 1000).toFixed(1)}s`]))
-  }));
-  console.log(`MiniStack ${report.imageId} started in ${report.fixtureStartupMs} ms; report in ${out}`);
-  console.table(rows);
 });
 
 describe('offline deploy loop against MiniStack', () => {
@@ -96,6 +106,7 @@ describe('offline deploy loop against MiniStack', () => {
         const project = await createFamilyProject({ familyName: family.name, out, ministack });
         try {
           let previous: StackResourceSummary[] | undefined;
+          let previousTemplate: string | undefined;
           for (const step of STEPS) {
             const version = step === 'create' ? 1 : 2;
             if (step === 'create' || step === 'update') {
@@ -159,6 +170,7 @@ describe('offline deploy loop against MiniStack', () => {
               }
               checks.push('physical IDs preserved');
             }
+            const template = await getStackTemplate(cloudFormation, project.stackName);
             if (step === 'unchanged') {
               assert.deepEqual(
                 result.changeSummary,
@@ -169,7 +181,21 @@ describe('offline deploy loop against MiniStack', () => {
                 result.packagedWorkloads?.every((workload) => workload.skipped),
                 'unchanged input repackaged a workload'
               );
-              checks.push('zero planned changes and packaging skipped');
+              // The CLI's own report is not the proof: the stack must hold exactly the same resources (no additions,
+              // removals or replacements) and exactly the same template as before the redeploy.
+              assert.deepEqual(
+                resourceSnapshot(resources),
+                resourceSnapshot(previous ?? []),
+                'the unchanged redeploy changed the stack resources'
+              );
+              // The CLI advances its deployment-version output on every deploy by design; everything else in the
+              // template must be byte-identical.
+              assert.equal(
+                withoutDeploymentVersion(template),
+                withoutDeploymentVersion(previousTemplate ?? ''),
+                'the unchanged redeploy changed the stack template'
+              );
+              checks.push('zero planned changes, packaging skipped, identical resources and template');
             }
             const context: EffectContext = {
               step,
@@ -182,6 +208,7 @@ describe('offline deploy loop against MiniStack', () => {
             };
             await family.assertEffects(context);
             previous = resources;
+            previousTemplate = template;
           }
           expect(project.controlPlane.unexpectedProcedures).toEqual([]);
           familyReport.outcome = 'passed';

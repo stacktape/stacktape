@@ -352,13 +352,18 @@ const main = async () => {
   } finally {
     releaseSignals();
     if (ministack) {
-      await writeFile(join(out, 'ministack.log'), ministack.logs());
       try {
-        await ministack.stop();
-        report.cleanup = 'MiniStack container and volumes removed; in-memory AWS state discarded';
+        await writeFile(join(out, 'ministack.log'), ministack.logs());
       } catch (error) {
-        report.cleanup = `MiniStack cleanup failed: ${String(error)}`;
-        failure ??= error;
+        report.logError = String(error);
+      } finally {
+        try {
+          await ministack.stop();
+          report.cleanup = 'MiniStack container and volumes removed; in-memory AWS state discarded';
+        } catch (error) {
+          report.cleanup = `MiniStack cleanup failed: ${String(error)}`;
+          failure ??= error;
+        }
       }
     } else {
       report.cleanup = 'No container started';

@@ -192,8 +192,13 @@ const cliEnvironment = ({
   STP_DISABLE_TELEMETRY: '1'
 });
 
+/**
+ * The child loads the network guard before anything else: environment variables point its SDKs at the fakes and
+ * the emulator, but only the guard stops a request whose endpoint is set in code from leaving the machine.
+ */
 const cliArguments = (args: string[]) => [
-  'run',
+  '--preload',
+  join(cliRoot, 'scripts', 'network-guard-preload.ts'),
   join(cliRoot, 'scripts', 'dev.ts'),
   ...args,
   '--stage',
@@ -286,17 +291,20 @@ const runCli = async ({
   controlPlane,
   aws,
   bucket,
-  tty = false
+  tty = false,
+  environment = {}
 }: {
   args: string[];
   controlPlane: ControlPlaneFake;
   aws: AwsFake;
   bucket: StackBuckets;
   tty?: boolean;
+  /** Overrides for one scenario, such as an endpoint that must be refused. */
+  environment?: Record<string, string>;
 }): Promise<CliRun> => {
   const home = await mkdtemp(join(tmpdir(), 'stacktape-cli-process-home-'));
   temporaryDirectories.push(home);
-  const env = cliEnvironment({ home, controlPlane, aws, bucket, tty });
+  const env = { ...cliEnvironment({ home, controlPlane, aws, bucket, tty }), ...environment };
   const child = Bun.spawn(['bun', ...cliArguments(args), '--outputFormat', 'jsonl'], {
     cwd: cliRoot,
     env,
@@ -333,6 +341,24 @@ const runCli = async ({
 
 const printable = (run: CliRun) =>
   [...run.errors.map((record) => `${record.code ?? ''} ${record.message ?? ''}`), run.stderr].join('\n');
+
+describe('offline guard', () => {
+  test('a child whose SDK is pointed at real AWS is stopped by the network guard before any request leaves', async () => {
+    const { controlPlane, aws, bucket } = await startFakes(await deployedStack('UPDATE_COMPLETE'));
+    const run = await runCli({
+      args: ['diff'],
+      controlPlane,
+      aws,
+      bucket,
+      environment: { AWS_ENDPOINT_URL_STS: 'https://sts.amazonaws.com' }
+    });
+
+    expect(run.exitCode).not.toBe(0);
+    expect(printable(run)).toContain('Tests cannot access external network target: sts.amazonaws.com');
+    expect(aws.mutations).toEqual([]);
+    expect(await bucket.keys()).toEqual([]);
+  });
+});
 
 describe('delete', () => {
   test('an absent stack is reported as not deployed and nothing is deleted', async () => {

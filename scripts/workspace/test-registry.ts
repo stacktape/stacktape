@@ -2028,15 +2028,6 @@ export const lanes: readonly Lane[] = [
     release: 'every-candidate'
   },
   {
-    id: 'cli-test-floci-feasibility',
-    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:floci:feasibility'],
-    level: 'process',
-    tier: 'change',
-    tests: ['apps/cli/scripts/floci/feasibility-spike.ts'],
-    requires: ['docker', 'network'],
-    release: 'every-candidate'
-  },
-  {
     id: 'cli-test-helper-lambdas',
     command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:helper-lambdas'],
     level: 'focused',
@@ -2780,7 +2771,7 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/services/default-domain-aws.test.ts',
       'apps/console/ui/src/pages/DomainsPage/domains.test.ts'
     ],
-    lanes: ['synthesis', 'synthesis-2', 'helper-lambda-runtime', 'cli-operations']
+    lanes: ['ministack-deploy', 'synthesis', 'synthesis-2', 'helper-lambda-runtime', 'cli-operations']
   },
   {
     id: 'S12',
@@ -2854,10 +2845,18 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/rollback/**',
       'apps/cli/src/commands/cf-rollback/**',
       'apps/cli/src/commands/diff/**',
-      'apps/cli/src/domain/cloudformation-stack-manager/**'
+      'apps/cli/src/domain/cloudformation-stack-manager/**',
+      'packages/ministack/**'
     ],
     tests: ['apps/cli/tests/cli-process/stack-operations.spec.ts'],
-    lanes: ['cli-stack-operations', 'synthesis', 'synthesis-2', 'live-aws', 'cli-test-real-aws-alias-canary']
+    lanes: [
+      'cli-stack-operations',
+      'ministack-deploy',
+      'synthesis',
+      'synthesis-2',
+      'live-aws',
+      'cli-test-real-aws-alias-canary'
+    ]
   },
   {
     id: 'S15',
@@ -3090,6 +3089,7 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/split-bundler/layer-builder.test.ts'
     ],
     lanes: [
+      'ministack-deploy',
       'cli',
       'cli-2',
       'cli-3',
@@ -3342,6 +3342,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/packaging-archives/helper-lambda-sdk.spec.ts'
     ],
     lanes: [
+      'ministack-deploy',
       'packaging-test',
       'packaging-archives',
       'packaging-archives-2',
@@ -3362,7 +3363,8 @@ export const slices: readonly Slice[] = [
     paths: [
       'apps/cli/src/domain/deployment-artifact-manager/**',
       'apps/cli/scripts/packaging-archives/layer-upload-ministack-acceptance.ts',
-      'apps/cli/src/aws/s3-upload-options.ts'
+      'apps/cli/src/aws/s3-upload-options.ts',
+      'packages/ministack/**'
     ],
     tests: [
       'apps/cli/scripts/packaging-archives/layer-upload-acceptance.ts',
@@ -3908,6 +3910,7 @@ export const slices: readonly Slice[] = [
     status: 'active',
     journeys: ['J5'],
     paths: [
+      'packages/ministack/**',
       'apps/cli/src/commands/secret-*/**',
       'apps/cli/src/commands/param-*/**',
       'apps/console/ui/src/aws/secrets*.ts',
@@ -4419,7 +4422,6 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/scripts/copy-stacktape-config-schema.ts',
       'apps/docs/scripts/validate-built-examples.ts',
       'apps/docs/scripts/validate-built-site.ts',
-      'apps/cli/scripts/floci/feasibility-spike.ts',
       'apps/cli/scripts/verify-npm-declarations.ts',
       'apps/cli/scripts/real-aws/packaging-canary.ts',
       'apps/cli/scripts/real-aws/alias-publication-canary.ts',
@@ -4441,7 +4443,6 @@ export const slices: readonly Slice[] = [
       'agent-instructions',
       'agent-instructions-2',
       'cli-test',
-      'cli-test-floci-feasibility',
       'cli-test-perf-tools',
       'cli-test-qualification',
       'console-api-app-test-fixtures',

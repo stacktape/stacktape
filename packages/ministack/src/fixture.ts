@@ -50,12 +50,16 @@ export type MiniStack = {
   /**
    * Environment for a child process (the source CLI, a worker) so every AWS SDK in it reaches only this emulator:
    * synthetic credentials, no profile, config file or instance metadata, and the endpoint set for every service. Merge
-   * it over an otherwise minimal environment; never spread `process.env` under it.
+   * it over an otherwise minimal environment; never spread `process.env` under it. The child must also load the
+   * repository's network guard preload: an explicit SDK endpoint in code overrides any of these variables.
    */
   childEnvironment: (account?: MiniStackAccount, options?: { region?: string }) => Record<string, string>;
   /** The container's combined stdout and stderr so far. */
   logs: () => string;
-  /** Removes the container with its volumes and verifies both are gone. Safe to call twice. */
+  /**
+   * Removes the container with its volumes and verifies with Docker that both are gone. Throws when Docker cannot
+   * confirm the removal; calling it again retries. Resolves at once after a verified cleanup.
+   */
   stop: () => Promise<void>;
 };
 
@@ -66,9 +70,10 @@ export type StartMiniStackOptions = {
   /** How long the emulator may take to answer its health check. */
   startTimeoutMs?: number;
   /**
-   * Remove the container's default route after it starts, so code the emulator runs (Lambda functions, custom
-   * resources) can reach the emulator and nothing outside the machine. Needs the image's Python, which the pinned
-   * image has. On by default.
+   * Leave the emulator without a route to the outside: IPv6 is disabled in the container, and a short-lived helper
+   * container sharing its network namespace deletes the IPv4 default route. The emulator itself has no NET_ADMIN, so
+   * code it runs (Lambda functions, custom resources) can neither reach the internet nor restore the route. On by
+   * default.
    */
   blockEgress?: boolean;
   /** Extra variables for the emulator process itself. */
@@ -89,10 +94,10 @@ export const assertLocalAwsEndpoint = (endpoint: string): string => {
   return endpoint;
 };
 
-const docker = (
-  args: string[],
-  { allowFailure = false, timeoutMs = 60_000 }: { allowFailure?: boolean; timeoutMs?: number } = {}
-) => {
+export type DockerResult = { exitCode: number; stdout: string; stderr: string };
+export type DockerRunner = (args: string[], options?: { allowFailure?: boolean; timeoutMs?: number }) => DockerResult;
+
+const docker: DockerRunner = (args, { allowFailure = false, timeoutMs = 60_000 } = {}) => {
   const result = spawnSync('docker', args, { encoding: 'utf8', timeout: timeoutMs, stdio: ['ignore', 'pipe', 'pipe'] });
   const exitCode = result.status ?? (result.error ? 1 : 0);
   if (!allowFailure && exitCode !== 0) {
@@ -102,11 +107,44 @@ const docker = (
   return { exitCode, stdout: result.stdout?.trim() ?? '', stderr: result.stderr?.trim() ?? '' };
 };
 
+const NOT_FOUND = /No such (?:object|container|volume)/i;
+
 /**
- * Deletes every IPv4 default route through the kernel's netlink socket; the image has no `ip` binary. Prints the
- * routing table afterwards so the caller can verify.
+ * Confirms with Docker that the container and each volume are gone. Only Docker's own "no such ..." answer counts
+ * as absence; a daemon that cannot be reached, or an object that still exists, is an error. Shared with the
+ * fixture's self-test, which drives it with scripted Docker answers.
  */
-const DELETE_DEFAULT_ROUTE = `import socket,struct
+export const verifyMiniStackRemoval = (run: DockerRunner, containerName: string, volumes: readonly string[]) => {
+  const remaining: string[] = [];
+  const problems: string[] = [];
+  const check = (label: string, args: string[]) => {
+    const result = run(args, { allowFailure: true });
+    if (result.exitCode === 0) remaining.push(label);
+    else if (!NOT_FOUND.test(result.stderr))
+      problems.push(`${label}: ${result.stderr || `docker exited ${result.exitCode}`}`);
+  };
+  check(`container ${containerName}`, ['inspect', '--type', 'container', containerName]);
+  for (const volume of volumes) check(`volume ${volume}`, ['volume', 'inspect', volume]);
+  if (remaining.length > 0) throw new MiniStackError(`MiniStack cleanup left ${remaining.join(', ')} behind.`);
+  if (problems.length > 0) {
+    throw new MiniStackError(`MiniStack cleanup could not be verified: ${problems.join('; ')}`);
+  }
+};
+
+/** Removes the container and its anonymous volumes, then verifies. */
+export const removeMiniStackContainer = (run: DockerRunner, containerName: string, volumes: readonly string[]) => {
+  const removal = run(['rm', '--force', '--volumes', containerName], { allowFailure: true });
+  if (removal.exitCode !== 0 && !NOT_FOUND.test(removal.stderr)) {
+    throw new MiniStackError(`docker rm ${containerName} failed: ${removal.stderr || `exit ${removal.exitCode}`}`);
+  }
+  verifyMiniStackRemoval(run, containerName, volumes);
+};
+
+/**
+ * Deletes every IPv4 default route of the current network namespace through the kernel's netlink socket (the image
+ * has no `ip` binary), then prints the IPv4 and IPv6 routing tables so the caller can verify.
+ */
+const DELETE_DEFAULT_ROUTES = `import socket,struct
 s=socket.socket(socket.AF_NETLINK,socket.SOCK_RAW,socket.NETLINK_ROUTE)
 s.bind((0,0))
 s.send(struct.pack('IHHII',28,26,0x301,1,0)+struct.pack('BBBBBBBBI',socket.AF_INET,0,0,0,0,0,0,0,0))
@@ -125,13 +163,28 @@ for route in routes:
  s.send(struct.pack('IHHII',16+len(route),25,5,2,0)+route)
  reply=s.recv(65535)
  if struct.unpack_from('i',reply,16)[0]!=0: raise RuntimeError('default route deletion failed')
-print(open('/proc/net/route').read())`;
+print(open('/proc/net/route').read())
+print('IPV6')
+print(open('/proc/net/ipv6_route').read())`;
 
-const hasDefaultRoute = (routeTable: string) =>
-  routeTable
+/**
+ * True when `/proc/net/route` lists a destination 0.0.0.0, or `/proc/net/ipv6_route` a ::/0 entry through a real
+ * interface. With IPv6 disabled the kernel keeps `::/0` reject entries on `lo`; those lead nowhere and do not count.
+ */
+export const hasDefaultRoute = (routeTables: string): boolean => {
+  const [ipv4 = '', ipv6 = ''] = routeTables.split('\nIPV6\n');
+  const ipv4Default = ipv4
     .split('\n')
     .slice(1)
     .some((line) => line.split(/\s+/)[1] === '00000000');
+  const ipv6Default = ipv6
+    .split('\n')
+    .map((line) => line.trim().split(/\s+/))
+    .some(
+      (fields) => fields.length >= 10 && /^0{32}$/.test(fields[0] ?? '') && fields[1] === '00' && fields.at(-1) !== 'lo'
+    );
+  return ipv4Default || ipv6Default;
+};
 
 const randomAccountId = () => `${randomInt(1, 10)}${Array.from({ length: 11 }, () => randomInt(0, 10)).join('')}`;
 
@@ -178,23 +231,12 @@ export const startMiniStack = async ({
   let volumes: string[] = [];
   const stop = async () => {
     if (stopped) return;
+    removeMiniStackContainer(docker, containerName, volumes);
     stopped = true;
-    docker(['rm', '--force', '--volumes', containerName], { allowFailure: true });
-    const remaining = [
-      ...(docker(['inspect', containerName], { allowFailure: true }).exitCode === 0
-        ? [`container ${containerName}`]
-        : []),
-      ...volumes
-        .filter((volume) => docker(['volume', 'inspect', volume], { allowFailure: true }).exitCode === 0)
-        .map((volume) => `volume ${volume}`)
-    ];
-    if (remaining.length > 0) {
-      throw new MiniStackError(`MiniStack cleanup left ${remaining.join(', ')} behind.`);
-    }
   };
   try {
     // The image is Linux-only. A Windows-containers daemon (GitHub's windows-latest) fails later with an unhelpful
-    // "invalid CapAdd" error; say what is actually missing.
+    // error; say what is actually missing.
     const daemonOs = docker(['info', '--format', '{{.OSType}}'], { allowFailure: true });
     if (daemonOs.exitCode !== 0) {
       throw new MiniStackError(`Docker is not available: ${daemonOs.stderr || 'docker info failed'}.`);
@@ -212,7 +254,7 @@ export const startMiniStack = async ({
         containerName,
         '--publish',
         `127.0.0.1::${CONTAINER_PORT}`,
-        ...(blockEgress ? ['--cap-add', 'NET_ADMIN'] : []),
+        ...(blockEgress ? ['--sysctl', 'net.ipv6.conf.all.disable_ipv6=1'] : []),
         // Code the emulator runs locally (Lambda functions, custom resources) must find the emulator and must never
         // hold anything but synthetic credentials.
         '--env',
@@ -237,9 +279,25 @@ export const startMiniStack = async ({
       .filter((mount) => mount.Type === 'volume' && mount.Name)
       .map((mount) => mount.Name!);
     if (blockEgress) {
-      const routeTable = docker(['exec', containerName, 'python', '-c', DELETE_DEFAULT_ROUTE]).stdout;
-      if (hasDefaultRoute(routeTable)) {
-        throw new MiniStackError(`The container still has a default route:\n${routeTable}`);
+      // The helper shares the emulator's network namespace and is the only process that ever holds NET_ADMIN.
+      const routeTables = docker(
+        [
+          'run',
+          '--rm',
+          '--network',
+          `container:${containerName}`,
+          '--cap-add',
+          'NET_ADMIN',
+          '--entrypoint',
+          'python',
+          MINISTACK_IMAGE,
+          '-c',
+          DELETE_DEFAULT_ROUTES
+        ],
+        { timeoutMs: 120_000 }
+      ).stdout;
+      if (hasDefaultRoute(routeTables)) {
+        throw new MiniStackError(`The container still has a default route:\n${routeTables}`);
       }
     }
     const port = /127\.0\.0\.1:(\d+)/.exec(docker(['port', containerName, `${CONTAINER_PORT}/tcp`]).stdout)?.[1];

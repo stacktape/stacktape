@@ -81,7 +81,9 @@ test('a Developer resolves an issue and the change survives reload', async ({ te
   failed setup as well as failed assertions.
 - **Offline by default.** Give AWS clients synthetic credentials and owned loopback endpoints; reject other endpoints,
   disable metadata credential discovery, and do not pass the developer's credentials or profile to child processes.
-  Provider fixtures reject unexpected requests.
+  Provider fixtures reject unexpected requests. A child process that runs the CLI loads
+  `apps/cli/scripts/network-guard-preload.ts` (`bun --preload`): environment variables alone do not keep an SDK local,
+  because an endpoint set in code overrides them, and the guard fails such a request before transport.
 - **One emulator.** MiniStack, through `@stacktape/ministack/fixture`, is the only AWS emulator. Give a scenario its own
   account from `account()` when several share a container; a 12-digit access key ID is how the emulator scopes state.
   Hand-written AWS fakes remain only for services it lacks (Cost Explorer, Budgets, CloudTrail, CloudWatch metrics and
