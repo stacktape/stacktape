@@ -2193,7 +2193,6 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/api-key-security.test.ts',
       'apps/console/api/src/services/bitbucket-forge.test.ts',
       'apps/console/api/src/services/budget-alert-polling.test.ts',
-      'apps/console/api/src/services/budget-alerts.test.ts',
       'apps/console/api/src/services/currency-conversion.test.ts',
       'apps/console/api/src/services/default-domain-aws.test.ts',
       'apps/console/api/src/services/git-connection-secret-store.test.ts',
@@ -2527,6 +2526,17 @@ export const lanes: readonly Lane[] = [
     tests: ['packages/pricing/src'],
     requires: [],
     release: 'every-candidate'
+  },
+  {
+    id: 'pricing-ministack',
+    command: ['pnpm', '--filter', '@stacktape/pricing', 'run', 'test:ministack'],
+    level: 'process',
+    tier: 'change',
+    tests: ['packages/pricing/scripts/pricing-ministack.test.ts'],
+    requires: ['docker', 'network'],
+    release: 'every-candidate',
+    proves:
+      'Pinned AWS CSV refreshes persist in MiniStack DynamoDB and yield complete or explicitly incomplete regional USD estimates, including bounded throttling retries.'
   },
   {
     id: 'docs-test',
@@ -4439,8 +4449,12 @@ export const slices: readonly Slice[] = [
     status: 'active',
     journeys: ['J10'],
     paths: ['packages/pricing/**', 'apps/cli/src/init/pricing.ts'],
-    tests: ['apps/cli/src/init/pricing.spec.ts', 'packages/pricing/src/pricing.test.ts'],
-    lanes: ['pricing-test', 'cli', 'cli-2', 'cli-3', 'console-database-insights'],
+    tests: [
+      'apps/cli/src/init/pricing.spec.ts',
+      'packages/pricing/src/pricing.test.ts',
+      'packages/pricing/scripts/pricing-ministack.test.ts'
+    ],
+    lanes: ['pricing-test', 'pricing-ministack', 'cli', 'cli-2', 'cli-3', 'console-database-insights'],
     contributors: ['S66']
   },
   {
@@ -5223,7 +5237,6 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/console/api/scripts/insights-runtime.test.ts',
       'apps/console/api/src/services/budget-alert-polling.test.ts',
-      'apps/console/api/src/services/budget-alerts.test.ts',
       'apps/console/api/src/services/currency-conversion.test.ts',
       'apps/cli/src/domain/budget-manager/index.spec.ts'
     ],
