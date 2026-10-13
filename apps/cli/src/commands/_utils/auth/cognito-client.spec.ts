@@ -156,6 +156,7 @@ describe('Google sign-in completes through the callback page and token HTTP exch
         authorize.searchParams.get('code_challenge')
       );
       const nonce = /<style nonce="([^"]+)"/.exec(html)![1];
+      expect(/<script nonce="([^"]+)"/.exec(html)?.[1]).toBe(nonce);
       expect(response.headers.get('content-security-policy')).toContain(`'nonce-${nonce}'`);
       expect(response.headers.get('cache-control')).toContain('no-store');
       expect(html).not.toContain('j6-fixture-id-token');

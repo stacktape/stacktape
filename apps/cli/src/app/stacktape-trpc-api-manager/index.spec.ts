@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { CliError } from '@utils/errors';
 import { TRPCClientError } from '@trpc/client';
 
 import { translateStacktapeApiError } from './index';
@@ -60,6 +61,25 @@ describe('Stacktape API error translation', () => {
     expect(translated.code).toBe(code);
     expect(translated.message).toBe(message);
     expect(translated.cause).toBe(source);
+  });
+
+  test('preserves actionable error codes, hints and the original cause', () => {
+    const cause = new Error('credential expired');
+    const source = new CliError({
+      category: 'API_KEY',
+      code: 'STACKTAPE_API_KEY_EXPIRED',
+      message: 'Your key expired.',
+      hints: 'Run stacktape login.',
+      cause
+    });
+    const translated = translateStacktapeApiError({ error: source, hasApiKey: true });
+    expect(translated).toMatchObject({
+      category: 'API_KEY',
+      code: 'STACKTAPE_API_KEY_EXPIRED',
+      message: 'Your key expired.',
+      hints: ['Run stacktape login.'],
+      cause
+    });
   });
 
   test('retains a transport error message and cause', () => {

@@ -120,6 +120,16 @@ export const lanes: readonly Lane[] = [
     selections: ['cli']
   },
   {
+    id: 'cli-target-arguments',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'exec', 'bun', 'test', 'src/utils/stage-arguments.spec.ts'],
+    level: 'focused',
+    tier: 'pr',
+    tests: ['apps/cli/src/utils/stage-arguments.spec.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'CLI deployment target names remain strings; missing stage values cannot select a saved default.'
+  },
+  {
     id: 'naming',
     command: ['pnpm', '--filter', '@stacktape/naming', 'test'],
     level: 'focused',
@@ -1064,6 +1074,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/scripts/console-access-database.test.ts',
       'apps/console/api/scripts/console-tenancy-database.test.ts',
       'apps/console/api/scripts/console-aws-connection-database.test.ts',
+      'apps/console/ui/scripts/console-s3-ministack.test.ts',
       'apps/console/api/scripts/console-secrets-database.test.ts'
     ],
     requires: ['console', 'docker', 'network'],
@@ -1258,14 +1269,12 @@ export const lanes: readonly Lane[] = [
     tests: [
       'apps/console/ui/src/aws/traces-commands.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/cloudformation-resources.test.ts',
-      'apps/console/ui/src/aws/access-cache.test.ts',
       'apps/console/ui/src/aws/dynamic-references.test.ts',
       'apps/console/ui/src/aws/secrets-commands.test.ts',
       'apps/console/ui/src/aws/secrets.test.ts',
       'apps/console/ui/src/aws/logs-commands.test.ts',
       'apps/console/ui/src/aws/logs.test.ts',
       'apps/console/ui/src/aws/s3-commands.test.ts',
-      'apps/console/ui/src/aws/s3.test.ts',
       'apps/console/ui/src/aws/sensitive-values.test.ts',
       'apps/console/ui/src/aws/ssm-commands.test.ts',
       'apps/console/ui/src/aws/ssm.test.ts',
@@ -1733,6 +1742,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/utils/aws-config.spec.ts',
       'apps/cli/src/utils/bin-executable.spec.ts',
       'apps/cli/src/utils/cli.spec.ts',
+      'apps/cli/src/utils/stage-arguments.spec.ts',
       'apps/cli/src/utils/decorators.spec.ts',
       'apps/cli/src/utils/directives.spec.ts',
       'apps/cli/src/utils/domains.test.ts',
@@ -1806,6 +1816,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/scripts/cli-console-network.test.ts',
       'apps/console/api/scripts/console-access-database.test.ts',
       'apps/console/api/scripts/console-aws-connection-database.test.ts',
+      'apps/console/ui/scripts/console-s3-ministack.test.ts',
       'apps/console/api/scripts/console-secrets-database.test.ts',
       'apps/console/api/scripts/console-tenancy-database.test.ts',
       'apps/console/api/scripts/git-deploy-journey.test.ts',
@@ -1854,7 +1865,6 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/lambdas/slack-app/index.test.ts',
       'apps/console/api/src/lambdas/webhook-delivery.test.ts',
       'apps/console/api/src/messages/email-messages.test.ts',
-      'apps/console/api/src/middlewares.test.ts',
       'apps/console/api/src/model-helpers/index.test.ts',
       'apps/console/api/src/organizations/personal-organization.test.ts',
       'apps/console/api/src/runtime-parameters-process.test.ts',
@@ -1866,7 +1876,6 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/alarm-event-counts.test.ts',
       'apps/console/api/src/services/alert-router.test.ts',
       'apps/console/api/src/services/api-key-security.test.ts',
-      'apps/console/api/src/services/aws-primary-region.test.ts',
       'apps/console/api/src/services/bitbucket-forge.test.ts',
       'apps/console/api/src/services/budget-alert-polling.test.ts',
       'apps/console/api/src/services/budget-alerts.test.ts',
@@ -1923,7 +1932,6 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/slack-app/signing.test.ts',
       'apps/console/api/src/services/slack-app/thread-registry.test.ts',
       'apps/console/api/src/services/uptime-ingestion.test.ts',
-      'apps/console/api/src/utils/connected-aws-account.test.ts',
       'apps/console/api/src/utils/observability-inventory.test.ts',
       'apps/console/api/src/utils/retry.test.ts',
       'apps/console/api/src/utils/safe-error.test.ts',
@@ -1954,12 +1962,10 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/scripts/copy-stacktape-config-schema.test.ts',
       'apps/console/ui/scripts/dev-api-url.test.ts',
       'apps/console/ui/scripts/e2e-credentials.test.ts',
-      'apps/console/ui/src/aws/access-cache.test.ts',
       'apps/console/ui/src/aws/dynamic-references.test.ts',
       'apps/console/ui/src/aws/logs-commands.test.ts',
       'apps/console/ui/src/aws/logs.test.ts',
       'apps/console/ui/src/aws/s3-commands.test.ts',
-      'apps/console/ui/src/aws/s3.test.ts',
       'apps/console/ui/src/aws/secrets-commands.test.ts',
       'apps/console/ui/src/aws/secrets.test.ts',
       'apps/console/ui/src/aws/sensitive-values.test.ts',
@@ -4082,7 +4088,6 @@ export const slices: readonly Slice[] = [
       'apps/console/api/scripts/sign-up-database.test.ts',
       'apps/console/api/src/http-server.test.ts',
       'apps/console/api/src/lambdas/sign-up-user-name.test.ts',
-      'apps/console/api/src/middlewares.test.ts',
       'apps/console/api/src/services/api-key-security.test.ts',
       'apps/console/api/src/utils/safe-error.test.ts',
       'apps/console/ui/e2e/auth-pages.spec.ts',
@@ -4155,15 +4160,12 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/console/api/infrastructure/console-connection/connection-template.test.ts',
       'apps/console/api/scripts/console-aws-connection-database.test.ts',
+      'apps/console/ui/scripts/console-s3-ministack.test.ts',
       'apps/console/api/src/aws/browser-access.test.ts',
       'apps/console/api/src/aws/context.test.ts',
-      'apps/console/api/src/services/aws-primary-region.test.ts',
-      'apps/console/api/src/utils/connected-aws-account.test.ts',
       'apps/console/ui/e2e/admin.spec.ts',
       'apps/console/ui/e2e/region-select-ui.spec.ts',
-      'apps/console/ui/src/aws/access-cache.test.ts',
       'apps/console/ui/src/aws/s3-commands.test.ts',
-      'apps/console/ui/src/aws/s3.test.ts',
       'apps/console/ui/src/components/AwsRegionSelect/region-catalog.test.ts'
     ],
     lanes: [
@@ -4195,6 +4197,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/cloudformation-resources.ts'
     ],
     tests: [
+      'apps/cli/src/utils/stage-arguments.spec.ts',
       'apps/cli/src/domain/notification-manager/events.test.ts',
       'apps/console/api/scripts/cli-console-database.test.ts',
       'apps/console/api/src/deployments/invocation-id.test.ts',
@@ -4205,6 +4208,7 @@ export const slices: readonly Slice[] = [
       'packages/stack-info/src/selectors.test.ts'
     ],
     lanes: [
+      'cli-target-arguments',
       'cli',
       'cli-2',
       'cli-3',

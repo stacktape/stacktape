@@ -28,7 +28,7 @@ export const recordStackOperationInputSchema = z.object({
   /**
    * The CLI's parsed command-line flags, forwarded as they were parsed and stored as JSON. The Console
    * reads `stage` out of it and keeps the rest verbatim, so the values stay unknown here: the CLI owns
-   * what a flag means, and its argument parser turns `--stage 2024` into a number as readily as a string.
+   * what a flag means. Stage names stay strings; other flags may contain arbitrary JSON values.
    */
   commandArgs: z.record(z.string(), z.unknown()).optional().nullable(),
   logStreamName: z.string().optional().nullable(),

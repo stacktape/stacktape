@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import type { NormalizedStackInfoMap } from './contracts';
-import { getQuickLinks, getResourcesWithLogs, getResourcesWithMetrics } from './selectors';
+import {
+  getQuickLinks,
+  getResourcesWithLogs,
+  getResourcesWithMetrics,
+  getUserResourcesFromStackInfoMap
+} from './selectors';
 
 const stackInfoMap: NormalizedStackInfoMap = {
   metadata: {},
@@ -57,6 +62,18 @@ const stackInfoMap: NormalizedStackInfoMap = {
 };
 
 describe('stack-info selectors', () => {
+  test('selects customer resources and their nested CloudFormation children without changing the payload', () => {
+    const before = structuredClone(stackInfoMap);
+    const selected = getUserResourcesFromStackInfoMap(stackInfoMap);
+    expect(selected.map(({ name }) => name)).toEqual(['api']);
+    expect(selected[0]?.cloudformationChildResources).toEqual({
+      Service: { cloudformationResourceType: 'AWS::ECS::Service' },
+      Deployment: { cloudformationResourceType: 'AWS::CodeDeploy::DeploymentGroup' }
+    });
+    expect(stackInfoMap).toEqual(before);
+    expect(getUserResourcesFromStackInfoMap(null)).toEqual([]);
+  });
+
   test('selects the first string-valued quick link using the historical priority', () => {
     expect(getQuickLinks(stackInfoMap)).toEqual([
       {
