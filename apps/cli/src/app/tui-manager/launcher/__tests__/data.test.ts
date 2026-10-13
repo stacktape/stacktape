@@ -49,6 +49,15 @@ describe('interactive launcher data helpers', () => {
       projectName: 'api'
     });
     expect(suggestions[0].label).toBe('stacktape deploy --stage dev --region eu-west-1 --projectName api');
+    // Login accepts apiKey; a deploy-only fixture would drop it as an unknown argument even without redaction.
+    const login = toRecentCommandSuggestions([
+      createActivity({ command: 'login', commandArgs: { apiKey: 'do-not-replay-this-key' } })
+    ]);
+    expect(login[0].args).toEqual({});
+    expect(login[0].label).toBe('stacktape login');
+    expect(formatCommandLine('login', { apiKey: 'do-not-replay-this-key' })).toBe(
+      'stacktape login --apiKey <redacted>'
+    );
   });
 
   test('ignores unsupported recent operation commands', () => {

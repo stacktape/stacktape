@@ -22,10 +22,13 @@ beforeAll(async () => {
     `import { writeFileSync } from 'node:fs';
 const session = JSON.parse(process.argv[2]);
 writeFileSync('.j9-plugin.json', JSON.stringify({ pid: process.pid, sessionId: session.SessionId, region: process.argv[3], operation: process.argv[4], target: JSON.parse(process.argv[6]) }));
+if (session.SessionId === 'startup-fail') { console.error(session.TokenValue); process.exit(7); }
+if (session.SessionId === 'ignore-term' || session.SessionId === 'startup-wait') process.on('SIGTERM', () => {});
+if (session.SessionId === 'idle-zero' || session.SessionId === 'idle-fail') setTimeout(() => process.exit(session.SessionId === 'idle-zero' ? 0 : 7), 300);
 if (session.SessionId === 'fail') process.exit(7);
 if (session.SessionId === 'exec-fail') { console.error('j9-exec-failed'); process.exit(7); }
 if (session.SessionId === 'exec') { console.log('j9-exec-result'); process.exit(0); }
-console.log(session.SessionId === 'tunnel' ? 'Waiting for connections...' : 'j9-shell-ready');
+if (session.SessionId !== 'startup-wait') console.log(['tunnel', 'idle-zero', 'idle-fail', 'ignore-term'].includes(session.SessionId) ? 'Waiting for connections...' : 'j9-shell-ready');
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', (input) => { writeFileSync('.j9-input', input); console.log('j9-shell-received'); process.exit(0); });
 setInterval(() => {}, 1000);
@@ -71,8 +74,8 @@ const assertRequests = (fixture: Awaited<ReturnType<typeof create>>) => {
   expect(fixture.aws.unexpected).toEqual([]);
   expect(fixture.api.unexpected).toEqual([]);
 };
-const seedBastion = (fixture: Awaited<ReturnType<typeof create>>, sessionId: string) => {
-  seedDeployedStack(fixture, {
+const seedBastion = async (fixture: Awaited<ReturnType<typeof create>>, sessionId: string) => {
+  await seedDeployedStack(fixture, {
     bastion: stackResource('bastion'),
     cache: {
       ...stackResource('redis-cluster'),
@@ -115,13 +118,14 @@ const seedBastion = (fixture: Awaited<ReturnType<typeof create>>, sessionId: str
   fixture.aws.on('ssm.TerminateSession', () => ({ kind: 'json', body: { SessionId: sessionId } }));
 };
 
+// MiniStack 1.5.26 rejects StartSession with InvalidAction; session transport and runtime availability are supplied deliberately here.
 // The Windows plugin is bundled rather than resolved through STACKTAPE_TOOLS_DIR. This fixture exercises the POSIX cache boundary.
 test.skipIf(process.platform === 'win32')(
   'bastion shell selects the newest instance, forwards terminal stdin, and terminates the session',
   async () => {
     const fixture = await create();
     try {
-      seedBastion(fixture, 'shell');
+      await seedBastion(fixture, 'shell');
       const child = fixture.start(['bastion:session', '--bastionResource', 'bastion', ...targetArgs], { tty: true });
       await child.waitFor('j9-shell-ready');
       const state = await record(fixture);
@@ -151,7 +155,13 @@ test.skipIf(process.platform === 'win32')(
   async () => {
     const fixture = await create();
     try {
-      seedBastion(fixture, 'tunnel');
+      await seedBastion(fixture, 'tunnel');
+      let serverTerminated = false;
+      fixture.aws.on('ssm.TerminateSession', async () => {
+        await Bun.sleep(150);
+        serverTerminated = true;
+        return { kind: 'json', body: {} };
+      });
       const child = fixture.start([
         'bastion:tunnel',
         '--resourceName',
@@ -174,6 +184,7 @@ test.skipIf(process.platform === 'win32')(
       child.child.kill('SIGINT');
       const result = await child.finished;
       expect(result.exitCode).toBe(0);
+      expect(serverTerminated).toBe(true);
       expect(parseCliJsonl(result.stdout, 'bastion:tunnel').result.code).toBe('USER_INTERRUPTION');
       expect(result.stdout + result.stderr).not.toContain(token);
       expect(fixture.aws.callsTo('ssm.TerminateSession').map(({ input }) => input.SessionId)).toEqual(['tunnel']);
@@ -191,7 +202,7 @@ test.skipIf(process.platform === 'win32')(
   async () => {
     const fixture = await create();
     try {
-      seedBastion(fixture, 'fail');
+      await seedBastion(fixture, 'fail');
       const result = await fixture.run(['bastion:session', '--bastionResource', 'bastion', ...targetArgs, '--agent']);
       expect(result.exitCode).toBe(1);
       expect(result.stdout + result.stderr).not.toContain(token);
@@ -208,8 +219,12 @@ test.skipIf(process.platform === 'win32')(
 
 const clusterArn = 'arn:aws:ecs:eu-west-1:111122223333:cluster/j9-cluster';
 const taskArn = (id: string) => `arn:aws:ecs:eu-west-1:111122223333:task/j9-cluster/${id}`;
-const seedContainer = (fixture: Awaited<ReturnType<typeof create>>, sessionId: string, ids = ['first', 'second']) => {
-  seedDeployedStack(fixture, {
+const seedContainer = async (
+  fixture: Awaited<ReturnType<typeof create>>,
+  sessionId: string,
+  ids = ['first', 'second']
+) => {
+  await seedDeployedStack(fixture, {
     service: {
       ...stackResource('multi-container-workload'),
       cloudformationChildResources: {
@@ -267,7 +282,7 @@ test.skipIf(process.platform === 'win32')(
   async () => {
     const fixture = await create();
     try {
-      seedContainer(fixture, 'exec');
+      await seedContainer(fixture, 'exec');
       const child = await fixture.run([
         'container:exec',
         '--resourceName',
@@ -304,7 +319,7 @@ test.skipIf(process.platform === 'win32')(
       expect(fixture.aws.callsTo('ssm.TerminateSession').map(({ input }) => input.SessionId)).toEqual(['exec']);
       expect(child.stdout + child.stderr).not.toContain(token);
       await expectStopped(state.pid);
-      seedContainer(fixture, 'exec-fail');
+      await seedContainer(fixture, 'exec-fail');
       const failed = await fixture.run([
         'container:exec',
         '--resourceName',
@@ -339,7 +354,7 @@ test.skipIf(process.platform === 'win32')(
   async () => {
     const fixture = await create();
     try {
-      seedContainer(fixture, 'shell', ['first']);
+      await seedContainer(fixture, 'shell', ['first']);
       const child = fixture.start(
         ['container:session', '--resourceName', 'service', '--container', 'main', ...targetArgs],
         { tty: true }
@@ -351,7 +366,7 @@ test.skipIf(process.platform === 'win32')(
       expect((await child.finished).exitCode).toBe(0);
       expect(await readFile(join(fixture.directory, '.j9-input'), 'utf8')).toBe('j9-container-input\n');
       await expectStopped(state.pid);
-      seedContainer(fixture, 'fail', ['first']);
+      await seedContainer(fixture, 'fail', ['first']);
       const failed = await fixture.run([
         'container:session',
         '--resourceName',
@@ -368,7 +383,7 @@ test.skipIf(process.platform === 'win32')(
         'shell',
         'fail'
       ]);
-      seedContainer(fixture, 'unused', []);
+      await seedContainer(fixture, 'unused', []);
       const absent = await fixture.run([
         'container:session',
         '--resourceName',
@@ -394,7 +409,7 @@ test.skipIf(process.platform === 'win32')(
   async () => {
     const fixture = await create();
     try {
-      seedContainer(fixture, 'shell', ['first']);
+      await seedContainer(fixture, 'shell', ['first']);
       fixture.aws.on('ssm.TerminateSession', async () => {
         await Bun.sleep(80);
         return { kind: 'json', body: { SessionId: 'shell' } };
@@ -424,7 +439,7 @@ test.skipIf(process.platform === 'win32')(
   async () => {
     const fixture = await create();
     try {
-      seedDeployedStack(fixture);
+      await seedDeployedStack(fixture);
       await writeFile(
         join(fixture.directory, 'stacktape.yml'),
         JSON.stringify({
@@ -452,3 +467,110 @@ test.skipIf(process.platform === 'win32')(
   },
   60_000
 );
+
+// The plugin substitutes the vendor's WebSocket transport deliberately: inject startup/exit faults that an emulator cannot deliver.
+test.skipIf(process.platform === 'win32')(
+  'tunnel plugin startup failure and both idle exits close the server session without leaking tokens',
+  async () => {
+    for (const mode of ['startup-fail', 'idle-zero', 'idle-fail']) {
+      const fixture = await create();
+      try {
+        await seedBastion(fixture, mode);
+        const result = await fixture.run([
+          'bastion:tunnel',
+          '--resourceName',
+          'cache',
+          '--bastionResource',
+          'bastion',
+          ...targetArgs,
+          '--agent'
+        ]);
+        expect(result.exitCode).toBe(1);
+        expect(parseCliJsonl(result.stdout, 'bastion:tunnel').result.ok).toBe(false);
+        expect(result.stdout + result.stderr).not.toContain(token);
+        expect(fixture.aws.callsTo('ssm.TerminateSession').map(({ input }) => input.SessionId)).toEqual([mode]);
+        await expectStopped((await record(fixture)).pid);
+        assertRequests(fixture);
+      } finally {
+        await fixture.close();
+      }
+    }
+  },
+  60_000
+);
+
+test.skipIf(process.platform === 'win32')(
+  'interrupting startup and a SIGTERM-resistant tunnel cleans up both ends',
+  async () => {
+    for (const mode of ['startup-wait', 'ignore-term']) {
+      const fixture = await create();
+      try {
+        await seedBastion(fixture, mode);
+        const child = fixture.start([
+          'bastion:tunnel',
+          '--resourceName',
+          'cache',
+          '--bastionResource',
+          'bastion',
+          ...targetArgs,
+          '--agent'
+        ]);
+        let state: Awaited<ReturnType<typeof record>> | undefined;
+        for (const deadline = Date.now() + 10_000; !state && Date.now() < deadline;) {
+          state = await record(fixture).catch(() => undefined);
+          if (!state) await Bun.sleep(20);
+        }
+        expect(state).toBeDefined();
+        if (mode === 'ignore-term') await child.waitFor('Tunnels open');
+        const interruptedAt = performance.now();
+        child.child.kill('SIGINT');
+        const result = await child.finished;
+        expect(performance.now() - interruptedAt).toBeLessThan(4500);
+        expect(result.exitCode).toBe(0);
+        expect(parseCliJsonl(result.stdout, 'bastion:tunnel').result.code).toBe('USER_INTERRUPTION');
+        expect(fixture.aws.callsTo('ssm.TerminateSession').map(({ input }) => input.SessionId)).toEqual([mode]);
+        await expectStopped(state!.pid);
+        expect(result.stdout + result.stderr).not.toContain(token);
+        assertRequests(fixture);
+      } finally {
+        await fixture.close();
+      }
+    }
+  },
+  60_000
+);
+
+test('tunnel reconnects a disconnected target but fails immediately on terminal SSM denial', async () => {
+  for (const disconnected of [false, true]) {
+    const fixture = await create();
+    try {
+      await seedBastion(fixture, 'unused');
+      let attempts = 0;
+      fixture.aws.on('ssm.StartSession', () => {
+        attempts++;
+        return {
+          kind: 'error',
+          status: 400,
+          code: disconnected && attempts === 1 ? 'TargetNotConnected' : 'AccessDeniedException',
+          message: disconnected && attempts === 1 ? 'TargetNotConnected' : 'Injected session denial'
+        };
+      });
+      const result = await fixture.run([
+        'bastion:tunnel',
+        '--resourceName',
+        'cache',
+        '--bastionResource',
+        'bastion',
+        ...targetArgs,
+        '--agent'
+      ]);
+      expect(result.exitCode).toBe(1);
+      expect(parseCliJsonl(result.stdout, 'bastion:tunnel').result.message).toContain('Injected session denial');
+      expect(attempts).toBe(disconnected ? 2 : 1);
+      expect(fixture.aws.callsTo('ssm.TerminateSession')).toEqual([]);
+      assertRequests(fixture);
+    } finally {
+      await fixture.close();
+    }
+  }
+}, 60_000);
