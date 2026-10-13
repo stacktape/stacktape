@@ -56,16 +56,18 @@ const validSubmission = {
 };
 
 describe('runAgentSessionWithRetry', () => {
-  it('retries a throttled provider and succeeds on a later attempt', async () => {
+  it('retries a throttled provider after a longer backoff and succeeds on a later attempt', async () => {
     const { hooks } = collectEvents();
     let attempts = 0;
+    const startedAt: number[] = [];
 
     const outcome = await runAgentSessionWithRetry(input(), hooks, {
       provider: 'claude-code',
       executable: 'claude',
-      retryDelaysMs: [1, 1],
+      retryDelaysMs: [100, 100],
       spawner: async ({ args }) => {
         attempts += 1;
+        startedAt.push(Date.now());
         if (attempts === 1) {
           return claudeResult({ exitCode: 1, stdout: '', stderr: '429 too many requests' });
         }
@@ -81,6 +83,8 @@ describe('runAgentSessionWithRetry', () => {
 
     expect(attempts).toBe(2);
     expect(outcome.stopReason).toBe('complete');
+    // Throttling waits three times the base delay; retrying sooner tends to be throttled again.
+    expect(startedAt[1]! - startedAt[0]!).toBeGreaterThanOrEqual(290);
   });
 
   it('stops after the configured retries when the provider stays throttled', async () => {
