@@ -50,6 +50,8 @@ export type DeployArtifactsRequest = {
   resultPath: string;
   /** `deploymentConfig.previousVersionsToKeep`, for a scenario about retention; the default otherwise. */
   previousVersionsToKeep?: number;
+  /** Force a fresh upload during a retry of the same deployment version. */
+  noCache?: boolean;
   /** Isolates an emulator scenario in its own deployment bucket. */
   stackHash?: string;
   /** Exercise the manager's real retention deletion after artifact upload. */
@@ -192,7 +194,8 @@ const main = async () => {
     region: REGION,
     projectName: PROJECT_NAME,
     currentWorkingDirectory: project,
-    disableDockerRemoteCache: true
+    disableDockerRemoteCache: true,
+    noCache: request.noCache ?? false
   };
   globalStateManager.additionalArgs = {};
   globalStateManager.presetConfig = compiledConfig.config;

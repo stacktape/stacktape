@@ -147,11 +147,13 @@ const main = async () => {
           projectFixture = fixture,
           stackHash,
           previousVersionsToKeep,
+          noCache,
           deleteObsoleteArtifacts
         }: {
           projectFixture?: SplitProjectFixture;
           stackHash?: string;
           previousVersionsToKeep?: number;
+          noCache?: boolean;
           deleteObsoleteArtifacts?: boolean;
         } = {}
       ) => {
@@ -161,7 +163,8 @@ const main = async () => {
           resultPath: join(out, `${label}.result.json`),
           ...(stackHash ? { stackHash } : {}),
           ...(previousVersionsToKeep === undefined ? {} : { previousVersionsToKeep }),
-          ...(deleteObsoleteArtifacts ? { deleteObsoleteArtifacts } : {})
+          ...(deleteObsoleteArtifacts ? { deleteObsoleteArtifacts } : {}),
+          ...(noCache ? { noCache } : {})
         };
         const requestPath = join(out, `${label}.request.json`);
         await writeFile(requestPath, `${JSON.stringify(request, null, 2)}\n`);
@@ -358,15 +361,52 @@ const main = async () => {
         storedObjects: retainedKeys.length
       };
 
+      // A newly uploaded function must survive even when the keep window is zero.
+      await writeFile(plainHandler, plainSource.replace("function: 'plain'", "function: 'plain-c'"));
+      const buildC = await run('07-retention-new-upload', buildAAgain.version, {
+        ...retentionOptions,
+        deleteObsoleteArtifacts: true
+      });
+      const keyC = buildC.functions.plain?.s3Key;
+      assert.ok(keyC && keyC !== keyA && keyC !== keyB, 'C did not produce a new function ZIP');
+      assert.ok(buildC.uploadedKeys.includes(keyC), 'C did not upload its changed function');
+      assert.ok(!buildC.retentionProtectedKeys.includes(keyC), 'C was reused instead of uploaded');
+      assert.ok((await listKeys(RETENTION_BUCKET)).includes(keyC), 'Retention deleted the just-uploaded function');
+      await assertStoredFunctionZips(buildC, RETENTION_BUCKET);
+      await assertTemplateProtected(buildC, RETENTION_BUCKET);
+      assert.ok(
+        !(await listKeys(RETENTION_BUCKET)).includes(`cf-template/${buildAAgain.version}.yml`),
+        'The new-upload deletion run did not remove the obsolete template'
+      );
+      scenarios.at(-1)!.assertions = { freshFunctionUploaded: true, uploadedObjectSurvivedDeletion: true };
+
+      // A failed attempt can leave this version's objects in the next retry's initial listing.
+      const retryC = await run('08-retention-upload-retry', buildAAgain.version, {
+        ...retentionOptions,
+        noCache: true,
+        deleteObsoleteArtifacts: true
+      });
+      assert.equal(retryC.version, buildC.version, 'The retry advanced the deployment version');
+      assert.equal(retryC.functions.plain?.s3Key, keyC, 'The retry did not replace the pre-existing C object');
+      assert.ok(retryC.uploadedKeys.includes(keyC), 'The no-cache retry did not upload C');
+      assert.ok(!retryC.retentionProtectedKeys.includes(keyC), 'C was recorded as reused in the retry');
+      assert.ok(
+        (await listKeys(RETENTION_BUCKET)).includes(keyC),
+        'Retention deleted the just-uploaded retry function'
+      );
+      await assertStoredFunctionZips(retryC, RETENTION_BUCKET);
+      await assertTemplateProtected(retryC, RETENTION_BUCKET);
+      scenarios.at(-1)!.assertions = { existingVersionUploadedAgain: true, uploadedObjectSurvivedDeletion: true };
+
       const failureFixture = await writeSplitProjectFixture(join(out, 'failure-fixture'));
       const failedRequest: DeployArtifactsRequest = {
         localAwsEndpoint: endpoint,
         stackHash: FAILURE_HASH,
         failLayerUploadToBucket: MISSING_BUCKET,
         lastVersion: 'v000000',
-        resultPath: join(out, '07-failed-layer-upload.result.json')
+        resultPath: join(out, '09-failed-layer-upload.result.json')
       };
-      const failedRequestPath = join(out, '07-failed-layer-upload.request.json');
+      const failedRequestPath = join(out, '09-failed-layer-upload.request.json');
       await writeFile(failedRequestPath, `${JSON.stringify(failedRequest, null, 2)}\n`);
       const failedCommand = [
         process.execPath,
@@ -381,8 +421,8 @@ const main = async () => {
           HOME: process.env.HOME ?? '',
           PATH: failureFixture.dockerDirectory,
           STP_FAKE_DOCKER_INSTALL: failureFixture.dockerInstall,
-          STP_FAKE_DOCKER_LOG: join(out, '07-failed-layer-upload.docker.log'),
-          STP_INVOCATION_ID: '07-failed-layer-upload',
+          STP_FAKE_DOCKER_LOG: join(out, '09-failed-layer-upload.docker.log'),
+          STP_INVOCATION_ID: '09-failed-layer-upload',
           ...ministack.childEnvironment()
         },
         stdout: 'pipe',
@@ -390,8 +430,8 @@ const main = async () => {
         timeout: WORKER_TIMEOUT_MS
       });
       const failedOutput = `${failed.stdout.toString()}${failed.stderr.toString()}`;
-      await writeFile(join(out, '07-failed-layer-upload.output.log'), failedOutput);
-      scenarios.push({ label: '07-failed-layer-upload', command: failedCommand, exitCode: failed.exitCode });
+      await writeFile(join(out, '09-failed-layer-upload.output.log'), failedOutput);
+      scenarios.push({ label: '09-failed-layer-upload', command: failedCommand, exitCode: failed.exitCode });
       assert.equal(failed.signalCode, undefined, 'The failed upload worker timed out or was signaled');
       assert.notEqual(failed.exitCode, 0, 'The failed S3 layer upload reported success');
       assert.match(failedOutput, /NoSuchBucket|not exist|404/i, 'The failure did not come from the missing S3 bucket');

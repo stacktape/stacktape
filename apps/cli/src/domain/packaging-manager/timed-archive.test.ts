@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -24,7 +24,7 @@ const second = await archiveItem({ absoluteSourcePath: ${JSON.stringify(source)}
 console.log(JSON.stringify([first, second]));`;
   const result = Bun.spawnSync({
     cmd: [process.execPath, '-e', script],
-    cwd: join(import.meta.dir, '../../..'),
+    cwd: join(root, name),
     env: { PATH: process.env.PATH ?? '', HOME: root, ...(timingsFile && { STP_TIMINGS_FILE: timingsFile }) },
     stdout: 'pipe',
     stderr: 'pipe',
@@ -34,6 +34,15 @@ console.log(JSON.stringify([first, second]));`;
 };
 
 describe('timed archiveItem', () => {
+  test('creates only the requested archives when timing is not enabled', async () => {
+    const { exitCode, stdout, stderr, source } = await archiveInProcess('inactive');
+    expect(exitCode, stderr).toBe(0);
+    expect(stderr).toBe('');
+    expect(JSON.parse(stdout)).toEqual([`${source}.zip`, join(root, 'inactive', 'again', 'function.zip')]);
+    expect((await readdir(join(root, 'inactive'))).toSorted()).toEqual(['again', 'function', 'function.zip']);
+    expect(await readdir(join(root, 'inactive', 'again'))).toEqual(['function.zip']);
+  }, 15_000);
+
   test('records detection once and each archive with its backend when timing is on', async () => {
     const timingsFile = join(root, 'active-timings.json');
     const { exitCode, stdout, stderr } = await archiveInProcess('active', timingsFile);

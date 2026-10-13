@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { chmod, mkdir, mkdtemp, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { readFileSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { crc32 } from 'node:zlib';
@@ -93,29 +94,40 @@ describe('replacing placeholders', () => {
     ).rejects.toThrow('Asset replacer: replacement 1 has an empty search string.');
   });
 
-  test.skipIf(!isPosix || process.getuid?.() === 0)(
+  test.skipIf(!isPosix)(
     'reports a failed write only after every other replacement has finished',
     async () => {
       const root = await createRoot();
+      expect(
+        process.getuid?.(),
+        'The failed-write fixture requires a non-root user to enforce read-only modes'
+      ).not.toBe(0);
       const large = `${'x'.repeat(2 * 1024 * 1024)}{{ A }}`;
       await file(join(root, 'a00-read-only.js'), '{{ A }}', 0o444);
       for (let index = 1; index <= 40; index++) {
         await file(join(root, `a${String(index).padStart(2, '0')}.js`), large);
       }
       const { entries } = await listArchiveEntries({ sourcePath: root });
-      const snapshot = async () => Promise.all(entries.map(async ({ path }) => (await stat(join(root, path))).mtimeMs));
-
-      await expect(
-        replaceInFiles({
+      const snapshot = () => entries.map(({ path }) => statSync(join(root, path)).mtimeMs);
+      let failure: unknown;
+      try {
+        await replaceInFiles({
           entries,
           replacements: [{ includeFilesPattern: '*.js', searchString: '{{ A }}', replaceString: 'value' }]
-        })
-      ).rejects.toThrow('EACCES');
-      const atFailure = await snapshot();
-      await Bun.sleep(300);
-
+        });
+      } catch (error) {
+        failure = error;
+      }
+      const atFailure = snapshot();
+      try {
+        expect(failure).toMatchObject({ code: 'EACCES' });
+        // Synchronous inspection observes the rejection before another turn can finish queued writes.
+        expect(readFileSync(join(root, 'a40.js'), 'utf8')).toBe(large.replace('{{ A }}', 'value'));
+      } finally {
+        await Bun.sleep(300);
+      }
       // Nothing is still writing: a workspace removed now stays removed.
-      expect(await snapshot()).toEqual(atFailure);
+      expect(snapshot()).toEqual(atFailure);
     },
     30_000
   );

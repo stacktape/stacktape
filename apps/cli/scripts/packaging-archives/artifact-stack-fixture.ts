@@ -38,6 +38,13 @@ export const seedArtifactStack = async ({
     });
     const waiter = { client, maxWaitTime: 30, minDelay: 1, maxDelay: 1 };
     if (existing) {
+      if (
+        existing.Stacks?.[0]?.Outputs?.some(
+          ({ OutputKey, OutputValue }) => OutputKey === outputNames.deploymentVersion() && OutputValue === lastVersion
+        )
+      ) {
+        return;
+      }
       await client.send(new UpdateStackCommand({ StackName: stackName, TemplateBody }));
       await waitUntilStackUpdateComplete(waiter, { StackName: stackName });
     } else {
