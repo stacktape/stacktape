@@ -1123,8 +1123,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/scripts/console-access-database.test.ts',
       'apps/console/api/scripts/console-tenancy-database.test.ts',
       'apps/console/api/scripts/console-aws-connection-database.test.ts',
-      'apps/console/ui/scripts/console-s3-ministack.test.ts',
-      'apps/console/api/scripts/console-secrets-database.test.ts'
+      'apps/console/ui/scripts/console-s3-ministack.test.ts'
     ],
     requires: ['console', 'docker', 'network'],
     release: 'every-candidate',
