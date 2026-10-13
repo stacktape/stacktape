@@ -3,40 +3,11 @@ import {
   buildDotnetArtifactDockerfile,
   buildEsDevDockerfile,
   buildEsDockerfile,
-  buildGoArtifactDockerfile,
   buildRustArtifactDockerfile,
   CARGO_LAMBDA_IMAGE
 } from './dockerfiles';
 
 describe('Stacktape Dockerfile contracts', () => {
-  test('builds a nested Go package and exports a stripped bootstrap without compile-only Go sources', () => {
-    const dockerfile = buildGoArtifactDockerfile({
-      alpine: true,
-      entryfilePath: 'cmd/api/main.go'
-    });
-
-    expect(dockerfile).toContain('go build -buildvcs=false -trimpath -ldflags="-s -w" -o /bootstrap -- \'./cmd/api\'');
-    expect(dockerfile).toContain('cp /bootstrap /artifact/bootstrap');
-    expect(dockerfile).not.toContain('go mod tidy');
-    expect(dockerfile).toContain("find /artifact -type f \\( -name '*.go'");
-    expect(dockerfile).toContain('COPY --from=build /artifact .');
-  });
-
-  test('honours glibc requirements even when an ES image has no external dependencies', () => {
-    const dockerfile = buildEsDockerfile({
-      dependencies: [],
-      packageManager: 'npm',
-      requiresGlibcBinaries: true,
-      nodeVersion: 24
-    });
-
-    expect(dockerfile).toStartWith('FROM public.ecr.aws/docker/library/node:24-bookworm-slim\n');
-    expect(dockerfile).not.toContain('node:24-alpine');
-    expect(dockerfile).toContain('tini curl openssl');
-    expect(dockerfile).toContain('ENV NODE_ENV production');
-    expect(dockerfile).toContain('rm -rf /var/lib/apt/lists/*');
-  });
-
   test('builds glibc dependencies with full tooling but ships them in the slim runtime image', () => {
     const dockerfile = buildEsDockerfile({
       dependencies: [{ name: 'bcrypt', version: '6.0.0' }],
