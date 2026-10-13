@@ -1024,6 +1024,65 @@ export const lanes: readonly Lane[] = [
     selections: ['init-corpus']
   },
   {
+    id: 'console-access-rules',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/console-api-app',
+      'exec',
+      'bun',
+      'test',
+      '--isolate',
+      'src/http-server.test.ts',
+      'src/lambdas/sign-up-user-name.test.ts',
+      'src/services/api-key-security.test.ts',
+      'src/utils/safe-error.test.ts',
+      'src/organizations/personal-organization.test.ts',
+      'src/aws/browser-access.test.ts',
+      'src/aws/context.test.ts',
+      'infrastructure/console-connection/connection-template.test.ts'
+    ],
+    level: 'focused',
+    tier: 'pr',
+    tests: [
+      'apps/console/api/src/http-server.test.ts',
+      'apps/console/api/src/lambdas/sign-up-user-name.test.ts',
+      'apps/console/api/src/services/api-key-security.test.ts',
+      'apps/console/api/src/utils/safe-error.test.ts',
+      'apps/console/api/src/organizations/personal-organization.test.ts',
+      'apps/console/api/src/aws/browser-access.test.ts',
+      'apps/console/api/src/aws/context.test.ts',
+      'apps/console/api/infrastructure/console-connection/connection-template.test.ts'
+    ],
+    requires: ['console'],
+    release: 'every-candidate',
+    proves:
+      'Credential compatibility, safe logging, naming and session policy contracts, with real loopback SDK refresh and failure handling.',
+    selections: ['console-access-rules']
+  },
+  {
+    id: 'console-cli-permission-rules',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/cli',
+      'exec',
+      'bun',
+      'test',
+      '--preload',
+      './scripts/network-guard-preload.ts',
+      'src/commands/_utils/__tests__/permission-guards.test.ts'
+    ],
+    level: 'focused',
+    tier: 'pr',
+    tests: ['apps/cli/src/commands/_utils/__tests__/permission-guards.test.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves:
+      'CLI admission selects the actual stage permission and rejects inaccessible projects with actionable errors.',
+    selections: ['console-cli-permission-rules']
+  },
+  {
     id: 'console-api',
     command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test'],
     level: 'focused',
@@ -4097,6 +4156,7 @@ export const slices: readonly Slice[] = [
       'scripts/workspace/console-dev-reservation.ts'
     ],
     lanes: [
+      'console-access-rules',
       'console-api',
       'console-api-2',
       'console-ui',
@@ -4117,6 +4177,7 @@ export const slices: readonly Slice[] = [
     status: 'active',
     journeys: ['J5'],
     paths: [
+      'apps/cli/src/commands/_utils/permission-guards.ts',
       'apps/console/api/src/organizations/**',
       'apps/console/api/src/api/**',
       'apps/console/ui/src/pages/UsersPage/**',
@@ -4130,6 +4191,8 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/pages/UsersPage/organization-member-limit.test.ts'
     ],
     lanes: [
+      'console-access-rules',
+      'console-cli-permission-rules',
       'console-api',
       'console-api-2',
       'console-ui',
@@ -4148,9 +4211,11 @@ export const slices: readonly Slice[] = [
     journeys: ['J5'],
     paths: [
       'apps/console/api/src/aws/**',
+      'apps/console/api/infrastructure/console-connection/**',
       'apps/console/api/src/lambdas/handle-account-connection.ts',
       'apps/console/ui/src/pages/AwsAccountsPage/**',
       'apps/console/api/src/services/aws-primary-region.ts',
+      'apps/console/api/src/services/connection-stack-delete.ts',
       'apps/console/api/src/utils/connected-aws-account.ts',
       'apps/console/ui/src/aws/access-cache.ts',
       'apps/console/ui/src/aws/s3-commands.ts',
@@ -4169,6 +4234,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/components/AwsRegionSelect/region-catalog.test.ts'
     ],
     lanes: [
+      'console-access-rules',
       'console-api',
       'console-api-2',
       'console-ui',
