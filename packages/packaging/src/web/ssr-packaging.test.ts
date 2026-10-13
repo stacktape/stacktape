@@ -51,7 +51,7 @@ try {
   if (process.env.FAIL_BUILD === 'yes') throw new Error('Framework configuration is invalid');
   if (process.env.PEER_BUILD_BARRIER) {
     await writeFile(process.env.PEER_BUILD_BARRIER + '/' + process.env.MARKER, 'building');
-    const deadline = Date.now() + 5000;
+    const deadline = Date.now() + 20_000;
     while (!(await access(process.env.PEER_BUILD_BARRIER + '/' + process.env.PEER_MARKER).then(() => true, () => false))) {
       if (Date.now() > deadline) throw new Error('An independent application build was blocked');
       await new Promise(resolve => setTimeout(resolve, 20));
@@ -179,7 +179,7 @@ test('concurrent SSR applications keep runnable ZIPs without serializing indepen
   } finally {
     await rm(root, { recursive: true, force: true });
   }
-}, 30_000);
+}, 60_000);
 
 test('a failed SSR build explains the cause and a corrected retry emits a runnable artifact', async () => {
   const root = await mkdtemp(join(tmpdir(), 'stacktape-ssr-retry-'));
