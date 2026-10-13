@@ -1082,6 +1082,7 @@ export const lanes: readonly Lane[] = [
     level: 'process',
     tier: 'change',
     tests: [
+      'apps/cli/tests/ministack/security-deploy.spec.ts',
       'apps/cli/tests/ministack/deploy-loop.spec.ts',
       'apps/cli/tests/ministack/split-lambda-family.ts',
       'apps/cli/tests/ministack/domain-cache.spec.ts',
@@ -3487,6 +3488,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/init/preflight/**'
     ],
     tests: [
+      'apps/cli/tests/ssr/tanstack-starter-materialization.spec.ts',
       'apps/cli/scripts/init-e2e/deploy-consent.spec.ts',
       'apps/cli/scripts/init-e2e/packaging-failure.spec.ts',
       'apps/cli/scripts/init-e2e/ci-pipelines.spec.ts',
@@ -3508,6 +3510,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/qualification/run-starter-packaging.ts'
     ],
     lanes: [
+      'tanstack-starter-materialization',
       'cli',
       'cli-2',
       'cli-3',
@@ -4271,17 +4274,15 @@ export const slices: readonly Slice[] = [
       'apps/cli/starter-projects/remix-serverless/**',
       'apps/cli/starter-projects/tanstack-start-serverless/**'
     ],
-    tests: [
-      'apps/cli/scripts/packaging-archives/ssr-web-acceptance.ts',
-      'apps/cli/tests/ssr/tanstack-starter-materialization.spec.ts'
-    ],
+    tests: ['apps/cli/scripts/packaging-archives/ssr-web-acceptance.ts'],
     lanes: [
       'tanstack-starter-materialization',
       'packaging-ssr',
       'packaging-test',
       'cli-packaged-web',
       'starter-qualification'
-    ]
+    ],
+    contributors: ['S06']
   },
   {
     id: 'S31',
@@ -5178,6 +5179,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/_utils/security-inventory-step.ts'
     ],
     tests: [
+      'apps/cli/tests/ministack/security-deploy.spec.ts',
       'apps/cli/tests/ministack/security-inventory.spec.ts',
       'apps/cli/src/domain/security-inventory/cyclonedx.spec.ts',
       'apps/cli/src/domain/security-inventory/trivy.spec.ts',
@@ -5187,6 +5189,7 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/security/osv-client.test.ts'
     ],
     lanes: [
+      'ministack-deploy',
       'cli-security-rules',
       'cli-security-inventory-ministack',
       'console-fast-rules',

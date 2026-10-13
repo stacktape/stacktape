@@ -94,11 +94,13 @@ describe('TypeScript project ownership', () => {
     expect(testsConfig.include).toEqual([
       '../src/environment.d.ts',
       './characterization/**/*.ts',
+      './ssr/**/*.ts',
       './config-loading/**/*.ts',
       './config-loading-ministack/**/*.ts',
       './data-safety/**/*.ts',
       './synthesis-families/**/*.ts',
       './ministack/**/*.ts',
+      './local-development/**/*.ts',
       './static-sites/*.ts',
       './data-connections/**/*.ts',
       './generated-access/**/*.ts'

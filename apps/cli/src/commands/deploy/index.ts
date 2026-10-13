@@ -492,7 +492,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     const securityInventory = await uploadSecurityInventory({
       inventory: securityInventoryPromise ? await securityInventoryPromise : null,
       deploymentArtifacts,
-      version: stack.nextVersion,
+      version: stack.lastVersion,
       tui
     });
     try {
