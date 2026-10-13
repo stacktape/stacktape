@@ -1841,11 +1841,15 @@ export const lanes: readonly Lane[] = [
     command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test:db', '--isolated-browser'],
     level: 'browser',
     tier: 'change',
-    tests: ['apps/console/ui/e2e/isolated-console.test.ts', 'apps/console/ui/e2e/isolated-deployment.test.ts'],
+    tests: [
+      'apps/console/ui/e2e/isolated-console.test.ts',
+      'apps/console/ui/e2e/isolated-deployment.test.ts',
+      'apps/console/ui/e2e/isolated-security.test.ts'
+    ],
     requires: ['console', 'docker', 'chromium', 'network'],
     release: 'every-candidate',
     proves:
-      'Issue-state persistence and tenant denial through the real UI, local HTTP router and disposable PostgreSQL.',
+      'Issue-state persistence, tenant denial, failed-deploy context and security coverage through the real UI, local HTTP router and disposable PostgreSQL.',
     selections: ['console-browser-isolated']
   },
   {
@@ -2360,6 +2364,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/incident-run-live.spec.ts',
       'apps/console/ui/e2e/isolated-console.test.ts',
       'apps/console/ui/e2e/isolated-deployment.test.ts',
+      'apps/console/ui/e2e/isolated-security.test.ts',
       'apps/console/ui/e2e/issues.spec.ts',
       'apps/console/ui/e2e/privacy-probe.spec.ts',
       'apps/console/ui/e2e/project-access.spec.ts',
@@ -5258,8 +5263,9 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/pages/SecurityPage/**',
       'apps/console/api/src/security/grader.ts'
     ],
-    tests: ['apps/console/ui/e2e/security.spec.ts'],
+    tests: ['apps/console/ui/e2e/isolated-security.test.ts', 'apps/console/ui/e2e/security.spec.ts'],
     lanes: [
+      'console-browser-isolated',
       'console-database-security',
       'console-database-insights',
       'console-browser-local-api',

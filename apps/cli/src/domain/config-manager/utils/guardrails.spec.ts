@@ -90,7 +90,7 @@ test('an authored production stack satisfies its policy; removing each protectio
       change: (config) => {
         config.resources.orders.properties.accessibility.accessibilityMode = 'internet';
       },
-      message: 'accessibility mode'
+      message: 'Blocked by the organization guardrail "Keep SQL and OpenSearch private". Database `orders`'
     },
     {
       change: (config) => {

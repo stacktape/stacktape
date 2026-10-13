@@ -94,6 +94,31 @@ export const guardrailDefinitionSchema = z.discriminatedUnion('type', [
 export type GuardrailDefinition = z.infer<typeof guardrailDefinitionSchema>;
 export type GuardrailType = GuardrailDefinition['type'];
 
+/**
+ * The name of each guardrail as people see it: on the Console's Guardrails page, on security findings, and in the CLI
+ * error of a deploy the guardrail blocks, so all three say the same thing.
+ */
+export const GUARDRAIL_TITLES: Record<GuardrailType, string> = {
+  'stage-restriction': 'Stage restriction',
+  'region-restriction': 'Region restriction',
+  'command-restriction': 'Command restriction',
+  'resource-type-restriction': 'Blocked resource types',
+  'require-vpc-databases': 'Keep SQL and OpenSearch private',
+  'require-deletion-protection': 'Protect databases from deletion',
+  'require-dead-letter-queue': 'Require dead-letter queue',
+  'function-memory-limit': 'Function memory limit',
+  'function-timeout-limit': 'Function timeout limit',
+  'container-resource-limit': 'Container resource limit',
+  'database-engine-restriction': 'Allowed database engines',
+  'database-instance-restriction': 'Allowed database instance sizes',
+  'require-waf': 'Require WAF on application load balancers',
+  'require-custom-domain': 'Require custom domains',
+  'resource-count-limit': 'Stacktape resource count limit',
+  'require-stack-termination-protection': 'Protect stacks from deletion',
+  'require-data-backups': 'Require recoverable data stores',
+  'require-multiple-container-instances': 'Require two container instances'
+};
+
 const propertiesHaveConfiguredValue = (definition: GuardrailDefinition) => {
   const properties = definition.properties as Record<string, unknown>;
   return Object.values(properties).some((value) =>
