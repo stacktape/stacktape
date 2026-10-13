@@ -64,6 +64,7 @@
         "scripts/**/*.ts",
         "playwright*.config.ts",
         "e2e/*fixture.tsx",
+        "e2e/ui-capture/*.capture.ts",
         "src/dev/auth-review/main.tsx"
       ],
       "project": ["**/*.{ts,tsx}"]
