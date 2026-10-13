@@ -120,6 +120,16 @@ export const lanes: readonly Lane[] = [
     selections: ['cli']
   },
   {
+    id: 'cli-target-arguments',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'exec', 'bun', 'test', 'src/utils/stage-arguments.spec.ts'],
+    level: 'focused',
+    tier: 'pr',
+    tests: ['apps/cli/src/utils/stage-arguments.spec.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'CLI deployment target names remain strings; missing stage values cannot select a saved default.'
+  },
+  {
     id: 'naming',
     command: ['pnpm', '--filter', '@stacktape/naming', 'test'],
     level: 'focused',
@@ -1142,7 +1152,8 @@ export const lanes: readonly Lane[] = [
     ],
     requires: ['console', 'docker', 'network'],
     release: 'every-candidate',
-    proves: 'Real cli-console services and persistence through the isolated PostgreSQL feature suite.',
+    proves:
+      'Source CLI identity and deployment reporting through HTTP/PostgreSQL; MiniStack stack updates, stored artifacts and Console metadata readback.',
     selections: ['console-database-cli-console']
   },
   {
@@ -1665,7 +1676,6 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/app/operation-invocation-context.spec.ts',
       'apps/cli/src/app/operation-manager/__tests__/journal.test.ts',
       'apps/cli/src/app/stacktape-trpc-api-manager/index.spec.ts',
-      'apps/cli/src/app/stacktape-trpc-api-manager/recorded-command-args.spec.ts',
       'apps/cli/src/app/tui-manager/__tests__/cleanup-logging.test.ts',
       'apps/cli/src/app/tui-manager/dev/__tests__/log-normalize.test.ts',
       'apps/cli/src/app/tui-manager/dev/views/__tests__/dashboard.test.tsx',
@@ -1791,6 +1801,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/utils/aws-config.spec.ts',
       'apps/cli/src/utils/bin-executable.spec.ts',
       'apps/cli/src/utils/cli.spec.ts',
+      'apps/cli/src/utils/stage-arguments.spec.ts',
       'apps/cli/src/utils/decorators.spec.ts',
       'apps/cli/src/utils/directives.spec.ts',
       'apps/cli/src/utils/domains.test.ts',
@@ -3517,7 +3528,6 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/app/global-state-manager/runner-credentials.test.ts',
       'apps/cli/src/app/operation-invocation-context.spec.ts',
       'apps/cli/src/app/stacktape-trpc-api-manager/index.spec.ts',
-      'apps/cli/src/app/stacktape-trpc-api-manager/recorded-command-args.spec.ts',
       'apps/cli/src/commands/_utils/auth/cognito-client.spec.ts',
       'apps/cli/src/commands/_utils/auth/oauth-callback-page.spec.ts',
       'apps/cli/src/config/local-state-paths.spec.ts',
@@ -4248,10 +4258,12 @@ export const slices: readonly Slice[] = [
       'packages/console-api/**',
       'apps/console/api/src/services/stack-operation-progress.ts',
       'apps/cli/src/domain/notification-manager/events.ts',
+      'apps/cli/src/utils/cli.ts',
       'apps/console/api/src/deployments/invocation-id.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/cloudformation-resources.ts'
     ],
     tests: [
+      'apps/cli/src/utils/stage-arguments.spec.ts',
       'apps/cli/src/domain/notification-manager/events.test.ts',
       'apps/console/api/scripts/cli-console-database.test.ts',
       'apps/console/api/src/deployments/invocation-id.test.ts',
@@ -4262,6 +4274,10 @@ export const slices: readonly Slice[] = [
       'packages/stack-info/src/selectors.test.ts'
     ],
     lanes: [
+      'cli-target-arguments',
+      'cli',
+      'cli-2',
+      'cli-3',
       'stack-info-test',
       'console-api-test',
       'console-ui',
