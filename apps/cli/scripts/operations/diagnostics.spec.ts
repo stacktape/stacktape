@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, expect, test } from 'bun:test';
+import { CloudWatchLogsClient, CreateLogStreamCommand, PutLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
+import { AwsSdkManager } from '../../src/aws/sdk-manager';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { StackInfoMapResource } from '@stacktape/stack-info/contracts';
@@ -44,7 +46,7 @@ const payload = (events: ReturnType<typeof parseCliJsonl>['events']) => {
 test('metrics and alarms include every AWS page, preserve zero values, and report empty results', async () => {
   const fixture = await createOperationsFixture(cli.path);
   try {
-    seedDeployedStack(fixture, { api: lambda });
+    await seedDeployedStack(fixture, { api: lambda });
     fixture.aws.on('monitoring.GetMetricData', ({ input }) => ({
       kind: 'json' as const,
       body: {
@@ -77,6 +79,21 @@ test('metrics and alarms include every AWS page, preserve zero values, and repor
         }>
       )[0].MetricStat.Metric.Dimensions[0].Value
     ).toBe('j9-operations-test-api');
+    const chart = await fixture.run([
+      'metrics',
+      '--resourceName',
+      'api',
+      '--metric',
+      'Invocations',
+      ...targetArgs,
+      '--outputFormat',
+      'plain'
+    ]);
+    expect(chart.exitCode).toBe(0);
+    expect(chart.stdout).toContain('Invocations');
+    expect(chart.stdout).toContain('Min 0');
+    expect(chart.stdout).toContain('Max 3');
+    expect(chart.stdout).toContain('Sum 3');
     fixture.aws.on('monitoring.GetMetricData', () => ({ kind: 'json' as const, body: { MetricDataResults: [] } }));
     expect(
       payload((await run(fixture, ['metrics', '--resourceName', 'api', '--metric', 'Invocations'])).events).datapoints
@@ -103,6 +120,11 @@ test('metrics and alarms include every AWS page, preserve zero values, and repor
       { name: 'j9-operations-test-api-zero', threshold: '0' },
       { name: 'j9-operations-test-api-errors', threshold: '3' }
     ]);
+    const table = await fixture.run(['alarms', '--resourceName', 'api', ...targetArgs, '--outputFormat', 'plain']);
+    expect(table.exitCode).toBe(0);
+    expect(table.stdout).toContain('2 alarm(s)');
+    expect(table.stdout).toContain('2 ALARM');
+    expect(table.stdout).toContain('Errors');
     fixture.aws.on('monitoring.DescribeAlarms', () => ({ kind: 'json' as const, body: { MetricAlarms: [] } }));
     expect(payload((await run(fixture, ['alarms'])).events).alarms).toEqual([]);
   } finally {
@@ -110,10 +132,63 @@ test('metrics and alarms include every AWS page, preserve zero values, and repor
   }
 }, 60_000);
 
+test('logs read stored streams from the intended stack and expose readable plain output', async () => {
+  const fixture = await createOperationsFixture(cli.path);
+  const logs = new CloudWatchLogsClient(fixture.clientConfig());
+  const group = '/aws/lambda/j9-operations-test-api';
+  try {
+    await seedDeployedStack(
+      fixture,
+      { api: lambda },
+      {
+        LambdaLogGroupApi: { Type: 'AWS::Logs::LogGroup', Properties: { LogGroupName: group } },
+        DecoyLogGroup: { Type: 'AWS::Logs::LogGroup', Properties: { LogGroupName: `${group}-decoy` } }
+      }
+    );
+    await writeFile(join(fixture.directory, 'stacktape.yml'), '{"resources":{}}');
+    const now = Date.now() - 10_000;
+    for (const [logGroupName, logStreamName, message] of [
+      [group, 'first', 'ERROR: first failure'],
+      [group, 'second', '{"level":"warn","msg":"second warning"}'],
+      [`${group}-decoy`, 'outside', 'ERROR: never show this other resource']
+    ]) {
+      await logs.send(new CreateLogStreamCommand({ logGroupName, logStreamName }));
+      await logs.send(
+        new PutLogEventsCommand({ logGroupName, logStreamName, logEvents: [{ timestamp: now, message }] })
+      );
+    }
+    const snapshot = payload((await run(fixture, ['logs', '--resourceName', 'api'])).events);
+    expect((snapshot.events as Array<{ message: string }>).map(({ message }) => message).sort()).toEqual([
+      'ERROR: first failure',
+      '{"level":"warn","msg":"second warning"}'
+    ]);
+    const plain = await fixture.run(['logs', '--resourceName', 'api', ...targetArgs, '--outputFormat', 'plain']);
+    expect(plain.exitCode, plain.stdout).toBe(0);
+    expect(plain.stdout).toContain('ERROR: first failure');
+    expect(plain.stdout).toContain('2 event(s)');
+    expect(plain.stdout).toContain('1 error(s)');
+    expect(plain.stdout).toContain('1 warning(s)');
+    expect(plain.stdout).not.toContain('never show');
+    const manager = new AwsSdkManager();
+    manager.init({ ...fixture.clientConfig(), plugins: [] });
+    expect((await manager.observability.getLogGroup({ logGroupName: group }))?.logGroupName).toBe(group);
+    expect(await manager.observability.getLogEvents({ logGroupName: 'absent' })).toEqual([]);
+    expect(await manager.observability.listLogStreams({ logGroupName: group, limit: 1 })).toHaveLength(1);
+    const empty = payload(
+      (await run(fixture, ['logs', '--resourceName', 'api', '--filter', 'no-matching-message'])).events
+    );
+    expect(empty.events).toEqual([]);
+  } finally {
+    logs.destroy();
+    await fixture.close();
+  }
+}, 60_000);
+
+// Deliberate pagination fault: AWS can return an empty page with a continuation token.
 test('logs traverse empty pages and all streams, preserve the filter, and return an empty snapshot', async () => {
   const fixture = await createOperationsFixture(cli.path);
   try {
-    seedDeployedStack(fixture, { api: lambda });
+    await seedDeployedStack(fixture, { api: lambda });
     await writeFile(join(fixture.directory, 'stacktape.yml'), '{"resources":{}}');
     fixture.aws.on('cloudformation.ListStackResources', () =>
       xml('ListStackResources', {
@@ -192,6 +267,13 @@ test('info commands return every stack page, retain stack-detail resources, and 
       stackName: 'j9-operations-test',
       resources: [{ LogicalResourceId: 'ApiFunction', ResourceType: 'AWS::Lambda::Function' }]
     });
+    fixture.api.on('stackDetails', () => ({}));
+    expect((await run(fixture, ['info:stack'])).result.data.result).toMatchObject({
+      description: null,
+      stackOutput: {},
+      stackInfoMap: null,
+      resources: []
+    });
     fixture.api.on('stackDetails', () => {
       throw new ConsoleProcedureError('FORBIDDEN', 'J9 stack is outside your access');
     });
@@ -204,7 +286,7 @@ test('info commands return every stack page, retain stack-detail resources, and 
 test('denied AWS reads fail and cancelling a pending diagnostic read ends with an interruption result', async () => {
   const fixture = await createOperationsFixture(cli.path);
   try {
-    seedDeployedStack(fixture, { api: lambda });
+    await seedDeployedStack(fixture, { api: lambda });
     fixture.aws.on('monitoring.GetMetricData', () => ({
       kind: 'error',
       code: 'AccessDenied',

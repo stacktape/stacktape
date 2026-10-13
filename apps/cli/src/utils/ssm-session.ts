@@ -4,6 +4,7 @@ import { DesiredStatus } from '@aws-sdk/client-ecs';
 import type { StartSessionCommandInput } from '@aws-sdk/client-ssm';
 import type { ResultPromise } from 'execa';
 import readline from 'node:readline';
+import { applicationManager } from '@application-services/application-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { CommandInvocationStatus } from '@aws-sdk/client-ssm';
@@ -378,6 +379,8 @@ export const startPortForwardingSessions = async ({
       targetInfo
     });
   });
+  // Startup can be interrupted before the caller receives these tunnels. Own their cleanup before connecting.
+  applicationManager.registerCleanUpHook(async () => Promise.all(tunnels.map((tunnel) => tunnel.kill())));
   const tunnelConnections = await Promise.allSettled(tunnels.map((tunnel) => tunnel.connect()));
 
   const unsuccessfulTunnel = tunnelConnections.find(({ status }) => status === 'rejected') as PromiseRejectedResult;

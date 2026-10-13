@@ -9,6 +9,11 @@ if (endpoint) {
   if (url.hostname !== '127.0.0.1') throw new Error('J9 AWS endpoint must be on loopback.');
   process.env.AWS_ENDPOINT_URL = endpoint;
   process.env.AWS_IGNORE_CONFIGURED_ENDPOINT_URLS = 'false';
+  if (process.env.J9_ACCOUNT_ID) {
+    process.env.AWS_ACCESS_KEY_ID = process.env.J9_ACCOUNT_ID;
+    process.env.AWS_SECRET_ACCESS_KEY = process.env.J9_SECRET_ACCESS_KEY;
+    delete process.env.AWS_SESSION_TOKEN;
+  }
 }
 
 // Domain discovery has two external HTTP boundaries. Redirect only their exact origins to the owned RDAP fixture.

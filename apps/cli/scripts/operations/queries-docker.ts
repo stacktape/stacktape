@@ -7,8 +7,9 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Client } from 'pg';
+import { SSMClient, PutParameterCommand } from '@aws-sdk/client-ssm';
 import Redis from 'ioredis';
-import { DynamoDBClient, CreateTableCommand, DeleteTableCommand, ListTablesCommand } from '@aws-sdk/client-dynamodb';
+import { DynamoDBClient, CreateTableCommand, DeleteTableCommand } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
 import type { StackInfoMapResource } from '@stacktape/stack-info/contracts';
 import { buildOperationsCli, createOperationsFixture, seedDeployedStack, targetArgs } from './cli-process';
@@ -106,21 +107,19 @@ const postgresScenario = async (cliPath: string) => {
 INSERT INTO records VALUES (1, 'first'), (2, 'second'), (3, 'third');
 CREATE FUNCTION j9_write() RETURNS integer LANGUAGE plpgsql AS $$ BEGIN INSERT INTO records VALUES(4,'forbidden'); RETURN 4; END $$;`);
     fixture = await createOperationsFixture(cliPath);
-    seedDeployedStack(fixture, { db: resource('relational-database', {}, '/j9/db/connection') });
+    await seedDeployedStack(fixture, { db: resource('relational-database', {}, '/j9/db/connection') });
     const connection = new URL('postgresql://127.0.0.1/j9');
     connection.username = 'j9';
     connection.password = 'j9-local-db-password';
     connection.port = String(database.port);
-    fixture.aws.on('ssm.GetParameter', () => ({
-      kind: 'json',
-      body: {
-        Parameter: {
-          Name: '/j9/db/connection',
-          Type: 'SecureString',
-          Value: connection.toString()
-        }
-      }
-    }));
+    const ssm = new SSMClient(fixture.clientConfig());
+    try {
+      await ssm.send(
+        new PutParameterCommand({ Name: '/j9/db/connection', Type: 'SecureString', Value: connection.toString() })
+      );
+    } finally {
+      ssm.destroy();
+    }
     const query = (sql: string, code?: string) =>
       commandPayload(fixture, ['query:sql', '--resourceName', 'db', '--sql', sql, '--limit', '2'], code);
     const limited = await query('SELECT id, label FROM records ORDER BY id');
@@ -162,7 +161,7 @@ const redisScenario = async (cliPath: string) => {
     await redis.set('j9:key', 'saved');
     await redis.lpush('j9:list', 'one');
     fixture = await createOperationsFixture(cliPath);
-    seedDeployedStack(fixture, { cache: resource('redis-cluster', { host: '127.0.0.1', port: database.port }) });
+    await seedDeployedStack(fixture, { cache: resource('redis-cluster', { host: '127.0.0.1', port: database.port }) });
     const query = (args: string[], code?: string) =>
       commandPayload(fixture, ['query:redis', '--resourceName', 'cache', ...args], code);
     assert.equal((await query(['--operation', 'get', '--key', 'j9:key'])).payload.result, 'saved');
@@ -181,20 +180,10 @@ const redisScenario = async (cliPath: string) => {
 };
 
 const dynamodbScenario = async (cliPath: string) => {
-  const database = await startDatabase({
-    image: 'amazon/dynamodb-local@sha256:ff89bd48ff32cd8d9be5fee8873b65b8854dc408f1afe881be6eb00247bc0dab',
-    port: 8000
-  });
-  const endpoint = `http://127.0.0.1:${database.port}`;
-  const sdk = new DynamoDBClient({
-    region: 'eu-west-1',
-    endpoint,
-    credentials: { accessKeyId: 'j9local', secretAccessKey: 'j9local' }
-  });
+  const fixture = await createOperationsFixture(cliPath);
+  const sdk = new DynamoDBClient(fixture.clientConfig());
   const document = DynamoDBDocumentClient.from(sdk);
-  let fixture: Awaited<ReturnType<typeof createOperationsFixture>>;
   try {
-    await waitUntilReady(() => sdk.send(new ListTablesCommand({})));
     await sdk.send(
       new CreateTableCommand({
         TableName: 'j9-records',
@@ -204,27 +193,7 @@ const dynamodbScenario = async (cliPath: string) => {
       })
     );
     await document.send(new PutCommand({ TableName: 'j9-records', Item: { id: 'first', label: 'saved' } }));
-    fixture = await createOperationsFixture(cliPath);
-    seedDeployedStack(fixture, { records: resource('dynamo-db-table', { name: 'j9-records' }) });
-    fixture.aws.on('dynamodb.*', async ({ operation, rawBody }) => {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/x-amz-json-1.0',
-          'x-amz-target': `DynamoDB_20120810.${operation}`,
-          authorization:
-            'AWS4-HMAC-SHA256 Credential=j9local/20260101/eu-west-1/dynamodb/aws4_request, SignedHeaders=host;x-amz-date, Signature=fixture',
-          'x-amz-date': '20260101T000000Z'
-        },
-        body: rawBody
-      });
-      return {
-        kind: 'raw',
-        status: response.status,
-        contentType: 'application/x-amz-json-1.0',
-        body: await response.text()
-      };
-    });
+    await seedDeployedStack(fixture, { records: resource('dynamo-db-table', { name: 'j9-records' }) });
     const query = (args: string[], code?: string) =>
       commandPayload(fixture, ['query:dynamodb', '--resourceName', 'records', ...args], code);
     assert.deepEqual((await query(['--operation', 'scan'])).payload.items, [{ id: 'first', label: 'saved' }]);
@@ -244,7 +213,6 @@ const dynamodbScenario = async (cliPath: string) => {
   } finally {
     sdk.destroy();
     await fixture?.close();
-    await database.close();
   }
 };
 
@@ -346,7 +314,7 @@ const opensearchScenario = async (cliPath: string) => {
       201
     );
     fixture = await createOperationsFixture(cliPath, { NODE_EXTRA_CA_CERTS: certificate });
-    seedDeployedStack(fixture, { search: resource('open-search-domain', { domainEndpoint: sslEndpoint }) });
+    await seedDeployedStack(fixture, { search: resource('open-search-domain', { domainEndpoint: sslEndpoint }) });
     const query = (args: string[], code?: string) =>
       commandPayload(fixture, ['query:opensearch', '--resourceName', 'search', ...args], code);
     assert.deepEqual(
