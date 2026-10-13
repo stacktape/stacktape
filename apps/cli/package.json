@@ -86,7 +86,7 @@
     "test:perf-tools": "bun test scripts/perf scripts/analyze-bundle.spec.ts",
     "test:qualification": "bun test scripts/qualification",
     "test:release-artifact": "bun scripts/verify-release-artifact.ts",
-    "test:release-security": "bun test scripts/cloudformation-diff-artifact.spec.ts scripts/release/checksums.spec.ts scripts/release/pnpm-pack.spec.ts scripts/release/trigger-release.spec.ts scripts/release/validate-release-input.spec.ts scripts/release/verify-published-release.spec.ts scripts/release-workflow.spec.ts scripts/platform-runtime.spec.ts scripts/release/npm-package/bin/stacktape.spec.ts scripts/install-scripts/checksums.spec.ts",
+    "test:release-security": "bun test scripts/cloudformation-diff-artifact.spec.ts scripts/release/candidate-assets.spec.ts scripts/release/checksums.spec.ts scripts/release/pnpm-pack.spec.ts scripts/release/trigger-release.spec.ts scripts/release/validate-release-input.spec.ts scripts/release/verify-published-release.spec.ts scripts/release-workflow.spec.ts scripts/platform-runtime.spec.ts scripts/release/npm-package/bin/stacktape.spec.ts scripts/install-scripts/checksums.spec.ts",
     "test:real-aws-canary": "bun scripts/real-aws/packaging-canary.ts",
     "test:real-aws-alias-canary": "bun scripts/real-aws/alias-publication-canary.ts",
     "test:real-aws-dev-canary": "bun scripts/real-aws/dev-mode-canary.ts",
@@ -110,7 +110,11 @@
     "test:local-dev:next": "bun test tests/local-development/next-dev.spec.ts",
     "test:local-dev:ministack": "bun test tests/ministack/local-dev.spec.ts",
     "test:real-aws-lambda-dev": "bun --no-env-file scripts/real-aws/lambda-dev-canary.ts",
-    "test:image-builders:ministack": "bun test tests/image-builders"
+    "test:image-builders:ministack": "bun test tests/image-builders",
+    "test:release-rules": "bun test scripts/release/candidate-assets.spec.ts scripts/release/checksums.spec.ts scripts/release/trigger-release.spec.ts scripts/release/validate-release-input.spec.ts scripts/release/verify-published-release.spec.ts scripts/install-scripts/checksums.spec.ts src/utils/bin-executable.spec.ts",
+    "test:release-downloads": "bun test scripts/install-scripts/installers.spec.ts scripts/release/npm-package/bin/stacktape.spec.ts",
+    "test:installers:windows": "bun test scripts/install-scripts/windows.spec.ts",
+    "test:release-native": "bun scripts/verify-release-artifact.ts --require-candidate --qualify-tools"
   },
   "dependencies": {
     "@aws-cdk/cloudformation-diff": "2.187.4",

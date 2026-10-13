@@ -860,12 +860,68 @@ export const lanes: readonly Lane[] = [
     selections: ['external-tools']
   },
   {
+    id: 'release-rules',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:release-rules'],
+    level: 'focused',
+    tier: 'pr',
+    tests: [
+      'apps/cli/scripts/release/candidate-assets.spec.ts',
+      'apps/cli/scripts/release/checksums.spec.ts',
+      'apps/cli/scripts/release/trigger-release.spec.ts',
+      'apps/cli/scripts/release/validate-release-input.spec.ts',
+      'apps/cli/scripts/release/verify-published-release.spec.ts',
+      'apps/cli/scripts/install-scripts/checksums.spec.ts',
+      'apps/cli/src/utils/bin-executable.spec.ts'
+    ],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'Release parsing, archive compatibility and publication bytes remain valid.',
+    selections: ['release-installation']
+  },
+  {
+    id: 'release-downloads',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:release-downloads'],
+    level: 'process',
+    tier: 'pr',
+    tests: [
+      'apps/cli/scripts/install-scripts/installers.spec.ts',
+      'apps/cli/scripts/release/npm-package/bin/stacktape.spec.ts'
+    ],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'Full shell installers and npm launcher reject bad integrity, upgrade and execute offline.',
+    selections: ['release-installation']
+  },
+  {
+    id: 'windows-installer',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:installers:windows'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/scripts/install-scripts/windows.spec.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'PowerShell is required: the complete Windows installer rejects tampering and removes stale payloads.',
+    selections: ['release-installation']
+  },
+  {
+    id: 'native-candidate',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:release-native'],
+    level: 'process',
+    tier: 'release',
+    tests: ['apps/cli/scripts/verify-release-artifact.ts'],
+    requires: ['network'],
+    release: 'every-candidate',
+    proves:
+      'Supplied candidate runs on its native host, including Windows aliases and bundled Session Manager; pinned tools execute.',
+    selections: ['release-installation']
+  },
+  {
     id: 'release-installation',
     command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:release-artifact'],
     level: 'process',
     tier: 'change',
     tests: ['apps/cli/scripts/verify-release-artifact.ts'],
-    requires: [],
+    requires: ['network'],
     release: 'every-candidate',
     proves: 'The actual release package and binary can be installed and invoked.',
     selections: ['release-installation']
@@ -877,6 +933,7 @@ export const lanes: readonly Lane[] = [
     tier: 'change',
     tests: [
       'apps/cli/scripts/cloudformation-diff-artifact.spec.ts',
+      'apps/cli/scripts/release/candidate-assets.spec.ts',
       'apps/cli/scripts/release/checksums.spec.ts',
       'apps/cli/scripts/release/pnpm-pack.spec.ts',
       'apps/cli/scripts/release/trigger-release.spec.ts',
@@ -2413,7 +2470,7 @@ export const lanes: readonly Lane[] = [
     level: 'process',
     tier: 'change',
     tests: ['apps/cli/scripts/verify-release-artifact.ts'],
-    requires: [],
+    requires: ['network'],
     release: 'every-candidate'
   },
   {
@@ -4017,12 +4074,23 @@ export const slices: readonly Slice[] = [
     promise: 'Shipped CLI packages/binaries install and execute.',
     status: 'active',
     journeys: ['J13'],
-    paths: ['apps/cli/scripts/release/**', 'apps/cli/src/utils/bin-executable.ts'],
+    paths: [
+      'apps/cli/scripts/release/**',
+      'apps/cli/scripts/install-scripts/**',
+      'apps/cli/scripts/build-dist-package.ts',
+      'apps/cli/scripts/build-npm.ts',
+      'apps/cli/scripts/verify-release-artifact.ts',
+      'apps/cli/scripts/publish-install-scripts.ts',
+      'apps/cli/src/utils/bin-executable.ts',
+      '.github/workflows/release.yml'
+    ],
     tests: [
       'apps/cli/scripts/cloudformation-diff-artifact.spec.ts',
       'apps/cli/scripts/install-scripts/checksums.spec.ts',
+      'apps/cli/scripts/install-scripts/installers.spec.ts',
+      'apps/cli/scripts/install-scripts/windows.spec.ts',
+      'apps/cli/scripts/release/candidate-assets.spec.ts',
       'apps/cli/scripts/platform-runtime.spec.ts',
-      'apps/cli/scripts/release-workflow.spec.ts',
       'apps/cli/scripts/release/checksums.spec.ts',
       'apps/cli/scripts/release/npm-package/bin/stacktape.spec.ts',
       'apps/cli/scripts/release/pnpm-pack.spec.ts',
@@ -4033,6 +4101,10 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/verify-release-artifact.ts'
     ],
     lanes: [
+      'release-rules',
+      'release-downloads',
+      'windows-installer',
+      'native-candidate',
       'release-installation',
       'release-installation-2',
       'cli-test-characterization-npm',
@@ -5118,9 +5190,15 @@ export const slices: readonly Slice[] = [
     promise: 'External tools resolve safely on first use and remain usable offline.',
     status: 'active',
     journeys: ['J13'],
-    paths: ['apps/cli/src/utils/external-tools.ts', 'apps/cli/scripts/external-tools-e2e.ts'],
+    paths: [
+      'apps/cli/src/utils/external-tools.ts',
+      'apps/cli/src/config/external-tools.json',
+      'apps/cli/scripts/pin-external-tools.ts',
+      'apps/cli/scripts/external-tools-e2e.ts',
+      'apps/cli/scripts/release/verify-external-tools.ts'
+    ],
     tests: ['apps/cli/scripts/external-tools-e2e.ts'],
-    lanes: ['external-tools']
+    lanes: ['external-tools', 'native-candidate']
   },
   {
     id: 'S73',
@@ -5171,6 +5249,7 @@ export const slices: readonly Slice[] = [
 
 // Harness, benchmark and repository-policy tests have explicit tooling ownership.
 export const toolingTests: readonly string[] = [
+  'apps/cli/scripts/release-workflow.spec.ts',
   'packages/ministack/src/fixture.test.ts',
   'apps/cli/scripts/analyze-bundle.spec.ts',
   'apps/cli/scripts/generate-starter-projects-metadata.spec.ts',

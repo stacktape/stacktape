@@ -287,6 +287,10 @@ export const extractExecutable = async ({
   if (asset.archive === 'zip') {
     const entry = new AdmZip(archivePath).getEntry(asset.executable);
     if (!entry || entry.isDirectory) throw missing();
+    // Unix ZIP attributes may describe a symlink (whose data is its target), not executable bytes.
+    // Windows archives can omit the Unix file type altogether.
+    const fileType = (entry.attr >>> 16) & 0o170000;
+    if (fileType !== 0 && fileType !== 0o100000) throw missing();
     await writeFile(target, entry.getData());
     return target;
   }

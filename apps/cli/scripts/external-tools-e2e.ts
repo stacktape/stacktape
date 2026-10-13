@@ -21,8 +21,9 @@
 import type { Subprocess } from 'bun';
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync } from 'node:fs';
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
+import { gzipSync } from 'node:zlib';
 import { dirname, join, resolve } from 'node:path';
 import AdmZip from 'adm-zip';
 import * as tar from 'tar';
@@ -132,6 +133,26 @@ const debPackage = (members: [name: string, data: Uint8Array][]) => {
     if (data.length % 2 === 1) parts.push(new TextEncoder().encode('\n'));
   }
   return new Uint8Array(Buffer.concat(parts));
+};
+
+/** Build hostile member names verbatim; archive writers normally sanitize them before writing. */
+const hostileTar = (
+  entries: { path: string; type?: 'File' | 'SymbolicLink' | 'Link'; linkpath?: string; body?: string }[]
+) => {
+  const chunks: Buffer[] = [];
+  for (const entry of entries) {
+    const body = Buffer.from(entry.body ?? '');
+    const header = new tar.Header({
+      path: entry.path,
+      type: entry.type ?? 'File',
+      linkpath: entry.linkpath,
+      mode: 0o755,
+      size: body.length
+    });
+    header.encode();
+    chunks.push(header.block!, body, Buffer.alloc((512 - (body.length % 512)) % 512));
+  }
+  return gzipSync(Buffer.concat([...chunks, Buffer.alloc(1024)]));
 };
 
 type Route = { body: Uint8Array; mode: 'ok' | 'refuse' | 'stall' | 'slow' | 'hang' };
@@ -282,14 +303,30 @@ const main = async () => {
     HTTPS_PROXY: 'http://127.0.0.1:9',
     NO_PROXY: '127.0.0.1'
   };
-  const startDriver = (args: string[]) =>
-    Bun.spawn({
-      cmd: [process.execPath, join(CLI_ROOT, 'scripts', 'external-tools-e2e.ts'), '--driver', ...args],
+  const children = new Set<Subprocess<'ignore', 'pipe', 'pipe'>>();
+  const startDriver = (args: string[]) => {
+    const child = Bun.spawn({
+      cmd: [
+        process.execPath,
+        '--preload',
+        join(CLI_ROOT, 'scripts', 'network-guard-preload.ts'),
+        join(CLI_ROOT, 'scripts', 'external-tools-e2e.ts'),
+        '--driver',
+        ...args
+      ],
       cwd: CLI_ROOT,
       env: driverEnv,
       stdout: 'pipe',
       stderr: 'pipe'
     });
+    children.add(child);
+    const deadline = setTimeout(() => child.kill('SIGKILL'), 20_000);
+    void child.exited.finally(() => {
+      clearTimeout(deadline);
+      children.delete(child);
+    });
+    return child;
+  };
   const finish = async (child: Subprocess<'ignore', 'pipe', 'pipe'>): Promise<DriverResult> => {
     const [stdout, stderr] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text()]);
     await child.exited;
@@ -318,7 +355,7 @@ const main = async () => {
       ? readdirSync(join(toolsDirectory, tool, VERSIONS[tool])).filter((name) => name.startsWith('.'))
       : [];
   const versionOf = (path: string) => {
-    const run = Bun.spawnSync({ cmd: [path, '--version'], stdout: 'pipe', stderr: 'pipe' });
+    const run = Bun.spawnSync({ cmd: [path, '--version'], stdout: 'pipe', stderr: 'pipe', timeout: 5_000 });
     return run.exitCode === 0 ? run.stdout.toString().trim() : `exit ${run.exitCode}: ${run.stderr.toString().trim()}`;
   };
 
@@ -404,8 +441,12 @@ const main = async () => {
       'linux'
     ]);
     const deadline = Date.now() + 15_000;
-    while ((requests.get(stallRoute) ?? 0) === before && Date.now() < deadline) await Bun.sleep(50);
-    await Bun.sleep(500);
+    while (
+      ((requests.get(stallRoute) ?? 0) === before ||
+        !leftovers('session-manager-plugin').some((name) => name.includes('.download-'))) &&
+      Date.now() < deadline
+    )
+      await Bun.sleep(50);
     const partial = leftovers('session-manager-plugin');
     interrupted.kill('SIGKILL');
     await interrupted.exited;
@@ -532,6 +573,89 @@ const main = async () => {
       );
     }
 
+    // A matching checksum is not permission to extract sibling paths or publish archive links as executables.
+    const sentinel = join(work, 'outside-extraction');
+    await writeFile(sentinel, 'untouched outside file', { mode: 0o600 });
+    for (const [tool, platform, archive] of [
+      ['railpack', 'macos', 'railpack.tar.gz'],
+      ['session-manager-plugin', 'linux', 'session-manager-plugin.deb'],
+      ['session-manager-plugin', 'macos', 'sessionmanager-bundle.zip']
+    ] as const) {
+      const executable = archives[archive]!.executable;
+      for (const attack of ['siblings', 'symlink', ...(archive.endsWith('.zip') ? [] : ['hardlink'])] as const) {
+        await rm(dirname(finalPath(tool, platform)), { recursive: true, force: true });
+        const escaped = join(work, 'escaped-member');
+        let body: Uint8Array;
+        if (archive.endsWith('.zip')) {
+          const malicious = new AdmZip();
+          const entry = malicious.addFile(
+            executable,
+            Buffer.from(attack === 'symlink' ? sentinel : syntheticExecutable(tool))
+          );
+          if (attack === 'symlink') entry.attr = (0o120777 << 16) >>> 0;
+          malicious.addFile('xx/escaped-member', Buffer.from('unwanted sibling'));
+          // Equal-length replacement preserves the ZIP's offsets, while putting traversal in both member headers.
+          body = Buffer.from(malicious.toBuffer());
+          for (let offset = 0; (offset = Buffer.from(body).indexOf('xx/escaped-member', offset)) !== -1; offset += 3) {
+            body.set(Buffer.from('../'), offset);
+          }
+        } else {
+          const data = hostileTar([
+            { path: escaped, body: 'absolute member must stay absent' },
+            { path: '../../escaped-member', body: 'traversal member must stay absent' },
+            {
+              path: executable,
+              ...(attack === 'siblings'
+                ? { body: syntheticExecutable(tool) }
+                : {
+                    type: attack === 'symlink' ? ('SymbolicLink' as const) : ('Link' as const),
+                    linkpath:
+                      attack === 'symlink'
+                        ? '../'.repeat(5 + (executable.split('/').length - 1)) + 'outside-extraction'
+                        : sentinel
+                  })
+            }
+          ]);
+          body = archive.endsWith('.deb')
+            ? debPackage([
+                ['debian-binary', new TextEncoder().encode('2.0\n')],
+                ['data.tar.gz', data]
+              ])
+            : data;
+        }
+        const route = serve(tool, platform, archive);
+        routes.set(route, { body, mode: 'ok' });
+        manifest[tool].assets[platform] = { ...asset(tool, platform, archive, sha256(body)), bytes: body.length };
+        await writeFile(manifestPath, JSON.stringify(manifest));
+        const result = await resolveIn(tool, platform);
+        const safe =
+          attack === 'siblings'
+            ? result.ok && versionOf(result.path!) === `${tool} synthetic ${VERSIONS[tool]}`
+            : !result.ok && !existsSync(finalPath(tool, platform));
+        check(
+          `${archives[archive]!.archive} ${attack} cannot escape extraction or publish a link`,
+          safe &&
+            !existsSync(escaped) &&
+            (await readFile(sentinel, 'utf8')) === 'untouched outside file' &&
+            ((await stat(sentinel)).mode & 0o777) === 0o600 &&
+            leftovers(tool).length === 0,
+          JSON.stringify({ result, safe, escaped: existsSync(escaped), mode: (await stat(sentinel)).mode & 0o777 })
+        );
+      }
+      await rm(dirname(finalPath(tool, platform)), { recursive: true, force: true });
+      serve(tool, platform, archive);
+      manifest[tool].assets[platform] = asset(tool, platform, archive);
+      await writeFile(manifestPath, JSON.stringify(manifest));
+      const recovered = await resolveIn(tool, platform);
+      check(
+        `${archives[archive]!.archive} healthy retry works after malicious members`,
+        recovered.ok &&
+          versionOf(recovered.path!) === `${tool} synthetic ${VERSIONS[tool]}` &&
+          leftovers(tool).length === 0,
+        JSON.stringify({ recovered })
+      );
+    }
+
     // Preseeded: the CLI's call sites use a file already at the resolver's path, without any request.
     const { externalToolPath } = await import('src/utils/external-tools');
     const project = join(work, 'project');
@@ -583,6 +707,8 @@ const main = async () => {
   } catch (error) {
     check('the check ran to the end', false, error instanceof Error ? (error.stack ?? error.message) : String(error));
   } finally {
+    for (const child of children) child.kill('SIGKILL');
+    await Promise.all([...children].map((child) => child.exited));
     releaseStall();
     server.stop(true);
     await writeFile(

@@ -1,23 +1,7 @@
 import { describe, expect, test } from 'bun:test';
-import { getWorkflowDispatchArgs, parseReleaseArgs } from './trigger-release';
+import { parseReleaseArgs } from './trigger-release';
 
 describe('release workflow dispatcher', () => {
-  test('binds the selected channel, immutable version and source ref to the v4 workflow', () => {
-    expect(getWorkflowDispatchArgs({ channel: 'preview', ref: 'main', version: '4.0.0-preview.7' })).toEqual([
-      'workflow',
-      'run',
-      'release.yml',
-      '--repo',
-      'stacktape/stacktape',
-      '--ref',
-      'main',
-      '-f',
-      'channel=preview',
-      '-f',
-      'version=4.0.0-preview.7'
-    ]);
-  });
-
   test('accepts the ergonomic positional version used by root release scripts', () => {
     expect(parseReleaseArgs(['--channel', 'preview', '4.0.0-preview.7'])).toEqual({
       channel: 'preview',

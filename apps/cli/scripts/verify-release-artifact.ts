@@ -1,12 +1,13 @@
 import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
-import { copyFile, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { brotliDecompressSync } from 'node:zlib';
 import { DIST_PACKAGE_FOLDER_PATH, NPM_RELEASE_FOLDER_PATH } from 'src/config/project-paths';
 import { getPlatform } from '@utils/bin-executable';
+import { EXTERNAL_TOOL_MANIFEST } from 'src/utils/external-tools';
 import AdmZip from 'adm-zip';
 import stripAnsi from 'strip-ansi';
 import * as tar from 'tar';
@@ -60,6 +61,7 @@ const run = ({
     cwd,
     stdout: 'pipe',
     stderr: 'pipe',
+    timeout: 480_000,
     env: { ...process.env, ...OFFLINE_PACKAGE_MANAGER_ENV, STP_DISABLE_TELEMETRY: '1', ...env }
   });
   const output = stripAnsi(`${result.stdout.toString()}${result.stderr.toString()}`);
@@ -83,16 +85,22 @@ export const verifyNativeInstallation = async ({
   archivePath,
   installedPackagePath,
   fixtureDirectory,
-  version = RELEASE_VERSION
+  version = RELEASE_VERSION,
+  qualifyTools = false
 }: {
   archivePath: string;
   installedPackagePath: string;
   fixtureDirectory: string;
   version?: string;
+  qualifyTools?: boolean;
 }) => {
   const platform = getPlatform();
   const { binaryName, launcherPlatformKey } = PLATFORM_RELEASE_DETAILS[platform];
   const binDirectory = join(installedPackagePath, 'bin');
+  const home = join(fixtureDirectory, 'home');
+  await mkdir(home, { recursive: true });
+  const runtimeEnv = { HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: join(home, '.config') };
+
   await extractArchive({ archivePath, destination: binDirectory });
 
   if (!existsSync(join(binDirectory, binaryName))) {
@@ -146,6 +154,10 @@ export const verifyNativeInstallation = async ({
     throw new Error(`Native release version mismatch: expected ${version}, received ${releaseData.version}.`);
   }
 
+  if ((await stat(join(binDirectory, 'bridge-files', 'python-bridge.py'))).size === 0) {
+    throw new Error('Native release archive contains an empty Python bridge script.');
+  }
+
   if ((await stat(join(binDirectory, 'source-map-install.js'))).size === 0) {
     throw new Error('Native release archive contains an empty source-map-install.js.');
   }
@@ -165,12 +177,21 @@ export const verifyNativeInstallation = async ({
       throw new Error(`Native release archive still bundles ${toolDirectory}, which is downloaded on first use.`);
     }
   }
-  await verifyExternalTools({
-    platform,
-    toolsDirectory: join(fixtureDirectory, 'tools'),
-    bundledSessionManagerPlugin:
-      platform === 'win' ? join(binDirectory, 'session-manager-plugin', 'smp.exe') : undefined
-  });
+  if (platform === 'win') {
+    const plugin = join(binDirectory, 'session-manager-plugin', 'smp.exe');
+    const output = run({ command: plugin, args: ['--version'], env: runtimeEnv });
+    if (!output.includes(EXTERNAL_TOOL_MANIFEST['session-manager-plugin'].version)) {
+      throw new Error(`Bundled Session Manager plugin returned the wrong version: ${output}`);
+    }
+  }
+  if (qualifyTools) {
+    await verifyExternalTools({
+      platform,
+      toolsDirectory: join(fixtureDirectory, 'tools'),
+      bundledSessionManagerPlugin:
+        platform === 'win' ? join(binDirectory, 'session-manager-plugin', 'smp.exe') : undefined
+    });
+  }
 
   // The launcher normally writes this marker after downloading and extracting the same archive. Pre-populating its
   // local cache keeps the smoke offline while still exercising host selection, cache validation and binary execution.
@@ -184,7 +205,10 @@ export const verifyNativeInstallation = async ({
     })
   );
 
-  assertInstalledCliVersion(run({ command: join(binDirectory, binaryName), args: ['--version'] }), version);
+  assertInstalledCliVersion(
+    run({ command: join(binDirectory, binaryName), args: ['--version'], env: runtimeEnv }),
+    version
+  );
 
   const launcherPath = join(binDirectory, 'stacktape.js');
   const networkGuardPath = join(fixtureDirectory, 'reject-node-network.cjs');
@@ -204,24 +228,34 @@ globalThis.fetch = reject;
   const versionOutput = run({
     command: 'node',
     args: [...launcherArgs, '--version'],
-    env: { NODE_PATH: '' }
+    env: { ...runtimeEnv, NODE_PATH: '' }
   });
   if (!versionOutput.includes(`Stacktape version: ${version}`)) {
     throw new Error(`Installed npm launcher returned the wrong version:\n${versionOutput}`);
   }
   // Invoke both package-manager-created aliases, as an installed customer does.
   // NODE_OPTIONS keeps archive downloads forbidden after the local cache is populated.
-  const aliasEnv = { NODE_PATH: '', NODE_OPTIONS: `--require=${networkGuardPath}` };
+  const aliasEnv = { ...runtimeEnv, NODE_PATH: '', NODE_OPTIONS: `--require="${networkGuardPath}"` };
   const aliasDirectory = join(fixtureDirectory, 'node_modules', '.bin');
-  if (process.platform !== 'win32') {
-    for (const alias of ['stacktape', 'stp']) {
+  for (const alias of ['stacktape', 'stp']) {
+    if (process.platform === 'win32') {
+      assertInstalledCliVersion(
+        run({
+          command: 'cmd.exe',
+          args: ['/d', '/c', `${alias}.cmd`, '--version'],
+          cwd: aliasDirectory,
+          env: aliasEnv
+        }),
+        version
+      );
+    } else {
       assertInstalledCliVersion(
         run({ command: join(aliasDirectory, alias), args: ['--version'], env: aliasEnv }),
         version
       );
     }
   }
-  const helpOutput = run({ command: 'node', args: [...launcherArgs, '--help'], env: { NODE_PATH: '' } });
+  const helpOutput = run({ command: 'node', args: [...launcherArgs, '--help'], env: { ...runtimeEnv, NODE_PATH: '' } });
   for (const expected of ['Available commands:', 'deploy', 'delete', 'package', 'CLI Documentation']) {
     if (!helpOutput.includes(expected)) {
       throw new Error(`Installed npm launcher help is missing ${expected}:\n${helpOutput}`);
@@ -232,9 +266,23 @@ globalThis.fetch = reject;
 const verifyReleaseArtifact = async () => {
   const { values } = parseArgs({
     args: process.argv.slice(2).filter((argument) => argument !== '--'),
-    options: { 'candidate-dir': { type: 'string' }, version: { type: 'string' } },
+    options: {
+      'candidate-dir': { type: 'string' },
+      version: { type: 'string' },
+      'qualify-tools': { type: 'boolean', default: false },
+      'require-candidate': { type: 'boolean', default: false }
+    },
     strict: true
   });
+  if (values['require-candidate']) {
+    values['candidate-dir'] ??= process.env.STP_RELEASE_CANDIDATE_DIR;
+    values.version ??= process.env.STP_RELEASE_CANDIDATE_VERSION;
+    if (!values['candidate-dir'] || !values.version) {
+      throw new Error(
+        'Native qualification requires STP_RELEASE_CANDIDATE_DIR and STP_RELEASE_CANDIDATE_VERSION, or --candidate-dir and --version.'
+      );
+    }
+  }
   if (Boolean(values['candidate-dir']) !== Boolean(values.version)) {
     throw new Error('Supply --candidate-dir and --version together, or neither to build a source fixture.');
   }
@@ -253,11 +301,21 @@ const verifyReleaseArtifact = async () => {
     if (!candidateDirectory && generatedLlmDocsIndexExisted) {
       await copyFile(generatedLlmDocsIndexPath, generatedLlmDocsIndexSnapshotPath);
     }
-    if (!candidateDirectory)
+    if (!candidateDirectory) {
+      run({ command: 'pnpm', args: ['turbo', 'run', 'build', '--filter=@stacktape/init-ui'] });
       run({
         command: 'bun',
-        args: ['scripts/build-dist-package.ts', '--platform', platform, '--version', version]
+        args: [
+          '--preload',
+          './scripts/network-guard-preload.ts',
+          'scripts/build-dist-package.ts',
+          '--platform',
+          platform,
+          '--version',
+          version
+        ]
       });
+    }
     const checksumsPath = candidateDirectory
       ? join(candidateDirectory, 'SHA256SUMS')
       : await generateReleaseChecksums({ directory: distributionDirectory });
@@ -295,10 +353,7 @@ const verifyReleaseArtifact = async () => {
       command: 'pnpm',
       args: ['add', '--ignore-scripts', '--lockfile=false', './stacktape-fixture.tgz'],
       cwd: fixtureDirectory,
-      env: {
-        NPM_CONFIG_OFFLINE: 'false',
-        PNPM_CONFIG_OFFLINE: 'false'
-      }
+      env: { NPM_CONFIG_OFFLINE: 'false', PNPM_CONFIG_OFFLINE: 'false' }
     });
     if (
       (await readFile(join(installedPackagePath, 'LICENSE'), 'utf8')) !==
@@ -341,10 +396,16 @@ const verifyReleaseArtifact = async () => {
       throw new Error('The packed npm launcher accepted a tampered release archive.');
     }
 
-    await verifyNativeInstallation({ archivePath, installedPackagePath, fixtureDirectory, version });
+    await verifyNativeInstallation({
+      archivePath,
+      installedPackagePath,
+      fixtureDirectory,
+      version,
+      qualifyTools: values['qualify-tools']
+    });
 
     console.info(
-      `Verified ${platform} release artifact stacktape@${packageResult.version}: ${packageResult.fileCount} packed npm files, native archive checksum and contents, first-use tool downloads, launcher version/help, tampering rejected.`
+      `Verified ${platform} release artifact stacktape@${packageResult.version}: ${packageResult.fileCount} packed npm files, native archive checksum and contents, launcher version/help, tampering rejected.${values['qualify-tools'] ? ' Pinned upstream tools executed.' : ''}`
     );
   } finally {
     // Supplied-artifact verification never writes workspace generation outputs.

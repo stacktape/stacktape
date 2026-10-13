@@ -38,7 +38,7 @@ pnpm install --frozen-lockfile
 pnpm check:integrated
 
 # Install and invoke the supplied npm package and native binary on this host, without rebuilding them.
-pnpm --filter @stacktape/cli test:release-artifact -- --candidate-dir "$RC_DIRECTORY" --version "$RC_VERSION"
+pnpm --filter @stacktape/cli test:release-native -- --candidate-dir "$RC_DIRECTORY" --version "$RC_VERSION"
 
 for suite in '' --runner --gitlab --security --issues --incidents --incident-agent --sign-up --console-access --secrets --cli-console --incident-journey --git-deploy --insights --billing --isolated-browser; do
   if [ -n "$suite" ]; then
@@ -89,6 +89,15 @@ exercise MCP against the exact extracted binary instead of rebuilding it, run
 `pnpm --filter @stacktape/cli exec bun scripts/test-mcp-executable.ts --candidate-binary=/absolute/path/to/stacktape`
 (use `stacktape.exe` on Windows). This keeps the candidate's sibling payloads in place and isolates its state and HTTP
 fixture.
+
+The release workflow installs the assembled candidate on Linux x64/ARM64, macOS x64/ARM64 and Windows x64 before
+publication. Its existing Alpine container smoke executes the musl candidate and both pinned tools. None of these native
+jobs rebuilds the candidate. For local qualification, `test:release-native` requires `--candidate-dir` and `--version`,
+or `STP_RELEASE_CANDIDATE_DIR` and `STP_RELEASE_CANDIDATE_VERSION`; it downloads the pinned vendor tools only in this
+explicit release lane. Routine `test:release-artifact` builds locally and needs the npm registry for the launcher’s
+runtime dependencies. Its subsequent launcher invocations forbid downloads. `test:release-downloads` runs full shell
+installers and the npm launcher with local downloads; `test:installers:windows` requires PowerShell on PATH and runs the
+complete Windows integrity/upgrade scenario.
 
 Repeat supplied-artifact installation on all six native OS/architecture/libc targets. The shell fixtures in
 `test:external-tools` run on Linux/macOS; the Windows artifact must separately exercise its bundled Session Manager
