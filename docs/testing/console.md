@@ -18,10 +18,12 @@ the relevant real router/context when changing those behaviors. Bun isolates tes
 between suites; do not add mutable production call tables merely to work around mock leakage.
 
 Use `pnpm --filter @stacktape/console-api-app test:db` for schema adoption and migration changes. It starts an isolated
-PostgreSQL container, creates scratch databases, runs the real migration-adoption path, and verifies container removal
-in a `finally` block. The default selection covers migration/adoption only. Feature suites are available explicitly:
+PostgreSQL container, creates scratch databases, runs the real migration-adoption path and migration-to-schema diff, and
+verifies container removal in a `finally` block. The default selection covers migration/adoption only. Feature suites
+are available explicitly:
 
 ```sh
+pnpm --filter @stacktape/console-api-app test:db --startup
 pnpm --filter @stacktape/console-api-app test:db --billing
 pnpm --filter @stacktape/console-api-app test:db --issues
 pnpm --filter @stacktape/console-api-app test:db --incidents
@@ -42,6 +44,23 @@ pnpm --filter @stacktape/console-api-app test:db --console-access
 pnpm --filter @stacktape/console-api-app test:db --secrets
 pnpm --filter @stacktape/console-api-app test:db --cli-console
 ```
+
+`--startup` reads stage-scoped SecureString parameters through concurrent cold-start processes on MiniStack, then
+executes the built Prisma proxy against the disposable database. It checks committed CRUD and date filtering through
+Lambda. Only PostgreSQL TLS options and deliberate service-limit failures are substituted. It needs `zip` for the proxy
+bundle. MiniStack does not enforce SSM's ten-name `GetParameters` limit; the scenario injects that rejection before
+oversized requests while successful reads use the emulator.
+
+Workspace AWS isolation and browser-credential loading have separate Docker lanes without Chromium or a database:
+
+```sh
+pnpm --filter @stacktape/console-api-app test:workspace:aws
+pnpm --filter @stacktape/console-ui test:credentials:aws
+```
+
+They use MiniStack STS/SSM state. The credential loader deliberately ignores endpoint overrides in production; its test
+forwards SDK commands to owned emulator clients without changing that policy. Malformed records and foreign-account
+rejection remain offline fault-injection checks.
 
 `--alerts` exercises delivery leases, provider retries, saved receipts and signed Slack actions with PostgreSQL and
 MiniStack SQS/Secrets Manager/SES. Provider contract checks use HTTPS receivers; evidence uploads use the real Slack

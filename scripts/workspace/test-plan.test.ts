@@ -5,13 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import {
-  collectChangedPaths,
-  createTestPlan,
-  parsePorcelainStatusPaths,
-  parseTestPlanArgs,
-  type TestLane
-} from './test-plan.ts';
+import { collectChangedPaths, createTestPlan, parseTestPlanArgs, type TestLane } from './test-plan.ts';
 
 const git = (cwd: string, ...args: string[]) =>
   execFileSync('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', ...args], {
@@ -30,8 +24,16 @@ test('a change to the MiniStack fixture or the CLI network guard selects every l
       'console-database-console-access',
       'console-database-secrets',
       'console-database-alerts',
-      'console-database-incident-journey'
+      'console-database-incident-journey',
+      'console-startup',
+      'console-workspace-aws',
+      'console-credentials-aws'
     ]) {
+      if (
+        path.startsWith('apps/cli/') &&
+        ['console-startup', 'console-workspace-aws', 'console-credentials-aws'].includes(lane)
+      )
+        continue;
       assert.ok(ids.has(lane), `${lane} is not selected for a change to ${path}`);
     }
   }
@@ -95,32 +97,6 @@ test('committed Console gitlinks expand into the real changed and deleted privat
   ]) {
     assert.ok(ids.has(id), `missing ${id}`);
   }
-});
-
-test('a changed private gitlink still requires integrated checks without private source', () => {
-  assert.ok(createTestPlan(['apps/console']).some(({ id }) => id === 'integrated-gate'));
-});
-
-test('selects process, browser, database, deployed-dev, AWS, and integrated evidence for a Console runner change', () => {
-  const ids = new Set(
-    createTestPlan([
-      'apps/console/api/src/services/remote-deploy/ec2/index.ts',
-      'apps/console/api/prisma/schema.prisma',
-      'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/GithubRunnerConfigModal.tsx'
-    ]).map(({ id }) => id)
-  );
-
-  for (const expected of [
-    'console-api',
-    'console-database',
-    'console-ui',
-    'console-browser-local-api',
-    'console-deployed-dev',
-    'integrated-gate'
-  ]) {
-    assert.ok(ids.has(expected), `missing ${expected}`);
-  }
-  assert.ok(!ids.has('console-browser-dev-api'), 'the deployed API must not stand in for changed local API code');
 });
 
 test('uses the self-starting deployed-dev browser lane for a UI-only change', () => {
@@ -231,15 +207,6 @@ test('parses explicit paths without also accepting a Git baseline', () => {
   assert.throws(() => parseTestPlanArgs(['--paths=a', '--since=main']), /either/);
 });
 
-test('preserves staged, unstaged, untracked, unusual and both renamed Git paths', () => {
-  assert.deepEqual(
-    parsePorcelainStatusPaths(
-      ' M AGENTS.md\0M  package.json\0?? scripts/new.ts\0R  new.ts\0old.ts\0?? scripts/a -> b\nž.ts\0'
-    ),
-    ['AGENTS.md', 'package.json', 'scripts/new.ts', 'new.ts', 'old.ts', 'scripts/a -> b\nž.ts']
-  );
-});
-
 // Drive the same entrypoint pnpm test:plan invokes, with committed and dirty paths
 // in both repositories. No production or test runner is substituted.
 test('CLI plans heavy evidence from a real changed public/private checkout', async (context) => {
@@ -258,6 +225,9 @@ test('CLI plans heavy evidence from a real changed public/private checkout', asy
   await writeFile(join(consoleRoot, 'api', 'prisma', 'schema.prisma'), '// original');
   git(consoleRoot, 'add', '.');
   git(consoleRoot, 'commit', '-m', 'baseline');
+  await Promise.all(
+    ['old', 'unstaged', 'staged'].map((name) => writeFile(join(root, 'scripts', `${name}.ts`), '// original'))
+  );
   git(root, 'add', '.');
   git(root, 'commit', '-m', 'baseline');
   const baseline = git(root, 'rev-parse', 'HEAD');
@@ -266,11 +236,19 @@ test('CLI plans heavy evidence from a real changed public/private checkout', asy
   git(consoleRoot, 'commit', '-m', 'change schema');
   git(root, 'add', 'apps/console');
   git(root, 'commit', '-m', 'advance pointer');
+  git(root, 'mv', 'scripts/old.ts', 'scripts/renamed.ts');
+  await writeFile(join(root, 'scripts/unstaged.ts'), '// unstaged change');
+  await writeFile(join(root, 'scripts/staged.ts'), '// staged change');
+  git(root, 'add', 'scripts/staged.ts');
+  const unusualPath = process.platform === 'win32' ? 'scripts/untracked ž.ts' : 'scripts/a -> b\nž.ts';
+  await writeFile(join(root, unusualPath), '// untracked');
+  const statusPaths = ['scripts/old.ts', 'scripts/renamed.ts', 'scripts/unstaged.ts', 'scripts/staged.ts', unusualPath];
   const publicPaths = [
     'apps/cli/src/domain/deployment-artifact-manager/index.ts',
     'apps/cli/src/config/external-tools.ts',
     'packages/packaging/src/web/nextjs-web.ts',
-    'apps/cli/src/init/index.ts'
+    'apps/cli/src/init/index.ts',
+    'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/GithubRunnerConfigModal.tsx'
   ];
   await Promise.all(
     publicPaths.map(async (path) => {
@@ -285,7 +263,14 @@ test('CLI plans heavy evidence from a real changed public/private checkout', asy
       { cwd: root, encoding: 'utf8' }
     )
   ) as { paths: string[]; lanes: { id: string; commands: string[] }[] };
-  assert.deepEqual(result.paths, ['apps/console', 'apps/console/api/prisma/schema.prisma', ...publicPaths].toSorted());
+  assert.deepEqual(
+    result.paths,
+    ['apps/console', 'apps/console/api/prisma/schema.prisma', ...publicPaths, ...statusPaths].toSorted()
+  );
+  const ids = new Set(result.lanes.map(({ id }) => id));
+  for (const id of ['console-api', 'console-database', 'console-ui', 'console-browser-local-api', 'integrated-gate'])
+    assert.ok(ids.has(id), id);
+  assert.ok(!ids.has('console-browser-dev-api'));
   const commands = new Set(result.lanes.flatMap(({ commands: laneCommands }) => laneCommands));
   for (const flag of [
     'runner',
@@ -319,7 +304,7 @@ test('CLI plans heavy evidence from a real changed public/private checkout', asy
     assert.ok(commands.has(command), `missing ${command}`);
 });
 
-test('feature paths select the actual database suite, not migrations alone', () => {
+test('CLI selects the database suites that exercise progress, installation, webhooks and Git secrets', () => {
   for (const [path, flag] of [
     ['src/services/remote-deploy/ec2/index.ts', 'runner'],
     ['src/integrations/gitlab/index.ts', 'gitlab'],
@@ -328,19 +313,7 @@ test('feature paths select the actual database suite, not migrations alone', () 
     ['src/services/incident-assessment.ts', 'incidents'],
     ['src/services/incident-agent-runs.ts', 'incident-agent'],
     ['src/lambdas/create-user-post-sign-up.ts', 'sign-up'],
-    ['scripts/incidents-database.test.ts', 'incidents']
-  ]) {
-    assert.ok(
-      createTestPlan([`apps/console/api/${path}`]).some(({ commands }) =>
-        commands.includes(`pnpm --filter @stacktape/console-api-app test:db --${flag}`)
-      ),
-      String(path)
-    );
-  }
-});
-
-test('CLI selects the database suites that exercise progress, installation, webhooks and Git secrets', () => {
-  for (const [path, flag] of [
+    ['scripts/incidents-database.test.ts', 'incidents'],
     ['src/services/stack-operation-progress.ts', 'runner'],
     ['src/services/github-project-installation.ts', 'runner'],
     ['src/integrations/git/webhook-delivery.ts', 'runner'],
@@ -355,6 +328,8 @@ test('CLI selects the database suites that exercise progress, installation, webh
         }
       )
     ) as { lanes: TestLane[] };
+    if (path === 'src/services/remote-deploy/ec2/index.ts')
+      assert.ok(result.lanes.some(({ id }) => id === 'console-deployed-dev'));
     assert.ok(
       result.lanes.some(({ commands }) =>
         commands.includes(`pnpm --filter @stacktape/console-api-app test:db --${flag}`)

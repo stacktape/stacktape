@@ -15,7 +15,7 @@ test('rejects unknown doctor arguments and scopes', () => {
 test('compares semantic tool versions without treating 24.9 as newer than 24.15', () => {
   assert.equal(compareVersions('v24.15.0', '24.15.0'), 0);
   assert.equal(compareVersions('24.16.1', '24.15.0'), 1);
-  assert.equal(compareVersions('24.9.0', '24.15.0'), -6);
+  assert.equal(Math.sign(compareVersions('24.9.0', '24.15.0')), -1);
 });
 
 test('login preflight requires a successful CLI result and does not repeat identity data', () => {
