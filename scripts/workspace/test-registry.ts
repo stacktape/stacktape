@@ -1140,6 +1140,76 @@ export const lanes: readonly Lane[] = [
     selections: ['console-cli-permission-rules']
   },
   {
+    id: 'console-alert-rules',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/console-api-app',
+      'exec',
+      'bun',
+      'test',
+      '--preload',
+      '../../cli/scripts/network-guard-preload.ts',
+      '--isolate',
+      'src/messages/email-messages.test.ts',
+      'src/model-helpers/index.test.ts',
+      'src/services/slack-app/actions.test.ts',
+      'src/services/slack-app/budget-card.test.ts',
+      'src/services/slack-app/client.test.ts',
+      'src/services/slack-app/deployment-card.test.ts',
+      'src/services/slack-app/evidence.test.ts',
+      'src/services/slack-app/ignore-modal.test.ts',
+      'src/services/slack-app/render-actions.test.ts',
+      'src/services/slack-app/security-card.test.ts',
+      'src/services/slack-app/signing.test.ts'
+    ],
+    level: 'focused',
+    tier: 'pr',
+    tests: [
+      'apps/console/api/src/messages/email-messages.test.ts',
+      'apps/console/api/src/model-helpers/index.test.ts',
+      'apps/console/api/src/services/slack-app/actions.test.ts',
+      'apps/console/api/src/services/slack-app/budget-card.test.ts',
+      'apps/console/api/src/services/slack-app/client.test.ts',
+      'apps/console/api/src/services/slack-app/deployment-card.test.ts',
+      'apps/console/api/src/services/slack-app/evidence.test.ts',
+      'apps/console/api/src/services/slack-app/ignore-modal.test.ts',
+      'apps/console/api/src/services/slack-app/render-actions.test.ts',
+      'apps/console/api/src/services/slack-app/security-card.test.ts',
+      'apps/console/api/src/services/slack-app/signing.test.ts'
+    ],
+    requires: ['console'],
+    release: 'every-candidate',
+    proves: 'Alert parsing, redaction, formatting and Slack HTTP channel behavior remain offline and fast.'
+  },
+  {
+    id: 'uptime-rules',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/cli',
+      'exec',
+      'bun',
+      'test',
+      '--preload',
+      './scripts/network-guard-preload.ts',
+      '--isolate',
+      'helper-lambdas/stacktapeServiceLambda/alarm-notifications/index.test.ts',
+      'helper-lambdas/uptimeProber/manifest.spec.ts',
+      'src/domain/config-manager/utils/uptime-checks.spec.ts'
+    ],
+    level: 'focused',
+    tier: 'pr',
+    tests: [
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/alarm-notifications/index.test.ts',
+      'apps/cli/helper-lambdas/uptimeProber/manifest.spec.ts',
+      'apps/cli/src/domain/config-manager/utils/uptime-checks.spec.ts'
+    ],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'Uptime config/manifest compatibility and actual alarm HTTP reporting remain offline and fast.'
+  },
+  {
     id: 'console-api',
     command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test'],
     level: 'focused',
@@ -1226,6 +1296,30 @@ export const lanes: readonly Lane[] = [
     proves:
       'Source CLI identity and deployment reporting through HTTP/PostgreSQL; MiniStack stack updates, stored artifacts and Console metadata readback.',
     selections: ['console-database-cli-console']
+  },
+  {
+    id: 'console-database-alerts',
+    command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test:db', '--alerts'],
+    level: 'api-db',
+    tier: 'change',
+    tests: ['apps/console/api/scripts/alerts-database.test.ts'],
+    requires: ['console', 'docker', 'network'],
+    release: 'every-candidate',
+    proves:
+      'Delivery leases, receipt repair, signed Slack permissions and provider contracts through PostgreSQL, real SDKs and MiniStack SQS/Secrets Manager/SES.',
+    selections: ['console-database-alerts']
+  },
+  {
+    id: 'console-database-uptime',
+    command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test:db', '--uptime'],
+    level: 'api-db',
+    tier: 'change',
+    tests: ['apps/console/api/scripts/uptime-database.test.ts'],
+    requires: ['console', 'docker', 'network'],
+    release: 'every-candidate',
+    proves:
+      'Regional quorum, concurrent retries, revision grace, rejected probes and bucket aggregates through HTTP/PostgreSQL.',
+    selections: ['console-database-uptime']
   },
   {
     id: 'console-database-incident-journey',
@@ -2000,7 +2094,6 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/lambdas/github-app/utils.test.ts',
       'apps/console/api/src/lambdas/proxy-lambda-imports.test.ts',
       'apps/console/api/src/lambdas/sign-up-user-name.test.ts',
-      'apps/console/api/src/lambdas/slack-app/index.test.ts',
       'apps/console/api/src/lambdas/webhook-delivery.test.ts',
       'apps/console/api/src/messages/email-messages.test.ts',
       'apps/console/api/src/model-helpers/index.test.ts',
@@ -2012,7 +2105,6 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/security/osv-client.test.ts',
       'apps/console/api/src/security/report-ingestion.test.ts',
       'apps/console/api/src/services/alarm-event-counts.test.ts',
-      'apps/console/api/src/services/alert-router.test.ts',
       'apps/console/api/src/services/api-key-security.test.ts',
       'apps/console/api/src/services/bitbucket-forge.test.ts',
       'apps/console/api/src/services/budget-alert-polling.test.ts',
@@ -2061,13 +2153,9 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/slack-app/deployment-card.test.ts',
       'apps/console/api/src/services/slack-app/evidence.test.ts',
       'apps/console/api/src/services/slack-app/ignore-modal.test.ts',
-      'apps/console/api/src/services/slack-app/interactions.test.ts',
       'apps/console/api/src/services/slack-app/render-actions.test.ts',
-      'apps/console/api/src/services/slack-app/render.test.ts',
       'apps/console/api/src/services/slack-app/security-card.test.ts',
       'apps/console/api/src/services/slack-app/signing.test.ts',
-      'apps/console/api/src/services/slack-app/thread-registry.test.ts',
-      'apps/console/api/src/services/uptime-ingestion.test.ts',
       'apps/console/api/src/utils/observability-inventory.test.ts',
       'apps/console/api/src/utils/retry.test.ts',
       'apps/console/api/src/utils/safe-error.test.ts',
@@ -4938,7 +5026,11 @@ export const slices: readonly Slice[] = [
     status: 'active',
     journeys: ['J7'],
     paths: [
+      'packages/ministack/**',
+      'apps/cli/scripts/network-guard-preload.ts',
       'apps/console/api/src/services/alert-router.ts',
+      'apps/console/api/src/services/alert-channel-test.ts',
+      'apps/console/api/src/services/aws-ses.ts',
       'apps/console/api/src/services/slack-app/**',
       'apps/console/api/src/lambdas/webhook-delivery.ts',
       'apps/console/api/src/lambdas/slack-app/index.ts',
@@ -4946,25 +5038,23 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/model-helpers/index.ts'
     ],
     tests: [
+      'apps/console/api/scripts/alerts-database.test.ts',
       'apps/console/api/scripts/smoke-test-slack-secret-notifications.ts',
-      'apps/console/api/src/lambdas/slack-app/index.test.ts',
       'apps/console/api/src/messages/email-messages.test.ts',
       'apps/console/api/src/model-helpers/index.test.ts',
-      'apps/console/api/src/services/alert-router.test.ts',
       'apps/console/api/src/services/slack-app/actions.test.ts',
       'apps/console/api/src/services/slack-app/budget-card.test.ts',
       'apps/console/api/src/services/slack-app/client.test.ts',
       'apps/console/api/src/services/slack-app/deployment-card.test.ts',
       'apps/console/api/src/services/slack-app/evidence.test.ts',
       'apps/console/api/src/services/slack-app/ignore-modal.test.ts',
-      'apps/console/api/src/services/slack-app/interactions.test.ts',
       'apps/console/api/src/services/slack-app/render-actions.test.ts',
-      'apps/console/api/src/services/slack-app/render.test.ts',
       'apps/console/api/src/services/slack-app/security-card.test.ts',
-      'apps/console/api/src/services/slack-app/signing.test.ts',
-      'apps/console/api/src/services/slack-app/thread-registry.test.ts'
+      'apps/console/api/src/services/slack-app/signing.test.ts'
     ],
     lanes: [
+      'console-alert-rules',
+      'console-database-alerts',
       'console-api',
       'console-api-2',
       'console-database-incident-journey',
@@ -5016,6 +5106,9 @@ export const slices: readonly Slice[] = [
     status: 'active',
     journeys: ['J7'],
     paths: [
+      'packages/ministack/**',
+      'apps/cli/scripts/network-guard-preload.ts',
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/alarm-notifications/**',
       'apps/cli/helper-lambdas/uptimeProber/**',
       'apps/console/api/src/services/uptime-ingestion.ts',
       'apps/console/api/src/lambdas/monitoring-sweeper.ts',
@@ -5024,11 +5117,11 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/pages/AlarmsPage/cloudwatch-alarms.ts'
     ],
     tests: [
+      'apps/console/api/scripts/uptime-database.test.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/alarm-notifications/index.test.ts',
       'apps/cli/helper-lambdas/uptimeProber/manifest.spec.ts',
       'apps/cli/src/domain/config-manager/utils/uptime-checks.spec.ts',
       'apps/console/api/src/services/alarm-event-counts.test.ts',
-      'apps/console/api/src/services/uptime-ingestion.test.ts',
       'apps/console/ui/src/pages/AlarmsPage/cloudwatch-alarms.test.ts',
       'apps/cli/scripts/package-helper-lambdas.ts',
       'apps/cli/scripts/run-source-tests.ts',
@@ -5036,6 +5129,9 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/verify-helper-lambda-artifacts.ts'
     ],
     lanes: [
+      'uptime-rules',
+      'cli-test-helper-lambdas',
+      'console-database-uptime',
       'console-api',
       'console-api-2',
       'console-ui',
