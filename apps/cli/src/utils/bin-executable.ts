@@ -22,8 +22,13 @@ export const resolveSupportedPlatform = ({
   arch: string;
   isAlpine?: boolean;
 }): SupportedPlatform => {
-  if (platform === 'win32' && arch === 'x64') {
-    return 'win';
+  if (platform === 'win32') {
+    if (arch === 'x64') {
+      return 'win';
+    }
+    if (arch === 'arm64') {
+      return 'win-arm';
+    }
   }
   if (platform === 'linux') {
     if (isAlpine) {
@@ -67,6 +72,7 @@ export const configureNativeRuntimeForPlatform = (platform = getPlatform()) => {
 export const getInstallationScript = () => {
   const installationScripts: { [_platform in SupportedPlatform]: string } = {
     win: 'iwr https://installs.stacktape.com/windows.ps1 -useb | iex',
+    'win-arm': 'iwr https://installs.stacktape.com/windows-arm.ps1 -useb | iex',
     linux: 'curl -L https://installs.stacktape.com/linux.sh | sh',
     'linux-arm': 'curl -L https://installs.stacktape.com/linux-arm.sh | sh',
     alpine: 'curl -L https://installs.stacktape.com/alpine.sh | sh',

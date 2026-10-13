@@ -54,7 +54,8 @@ const SOURCES: Record<ExternalTool, { version: string; assets: Partial<Record<Su
       'linux-arm': railpack('arm64-unknown-linux-musl'),
       macos: railpack('x86_64-apple-darwin'),
       'macos-arm': railpack('arm64-apple-darwin'),
-      win: railpack('x86_64-pc-windows-msvc')
+      win: railpack('x86_64-pc-windows-msvc'),
+      'win-arm': railpack('arm64-pc-windows-msvc')
     }
   },
   'session-manager-plugin': {
@@ -66,7 +67,7 @@ const SOURCES: Record<ExternalTool, { version: string; assets: Partial<Record<Su
       'linux-arm': sessionManagerPlugin('ubuntu_arm64/session-manager-plugin.deb'),
       macos: sessionManagerPlugin('mac/sessionmanager-bundle.zip'),
       'macos-arm': sessionManagerPlugin('mac_arm64/sessionmanager-bundle.zip')
-      // Windows: AWS publishes only an installer, so the Windows archive keeps the bundled plugin.
+      // Windows: AWS publishes only an installer, so the Windows archives keep the bundled plugin.
     }
   }
 };

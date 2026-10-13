@@ -24,7 +24,15 @@ const releaseFor = ({ sha256, version = '0.0.0-test' }: { sha256: string; versio
   return {
     version,
     baseUrl: `http://127.0.0.1:${server.port}/download`,
-    assets: { linux: asset, alpine: asset, 'linux-arm': asset, macos: asset, 'macos-arm': asset, win: asset }
+    assets: {
+      linux: asset,
+      alpine: asset,
+      'linux-arm': asset,
+      macos: asset,
+      'macos-arm': asset,
+      win: asset,
+      'win-arm': asset
+    }
   };
 };
 

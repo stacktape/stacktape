@@ -514,6 +514,9 @@ importers:
       '@opentui/core-linux-x64-musl':
         specifier: 0.5.9
         version: 0.5.9
+      '@opentui/core-win32-arm64':
+        specifier: 0.5.9
+        version: 0.5.9
       '@opentui/core-win32-x64':
         specifier: 0.5.9
         version: 0.5.9

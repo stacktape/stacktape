@@ -7,7 +7,7 @@ import { transformToUnixPath } from '@utils/fs-utils';
 import { getByteSize } from '@utils/misc';
 import { CliError } from '@utils/errors';
 import { validateEnvVariableValue } from '@utils/validation';
-import { checkExecutableInPath, getPlatform } from './bin-executable';
+import { checkExecutableInPath } from './bin-executable';
 
 const STACKTAPE_BUILDER_NAME = 'stacktape-builder';
 
@@ -228,9 +228,9 @@ const handleDockerError = (err: Error, message?: string) => {
       message: 'Docker is not running.',
       hints: [
         'Make sure Docker Desktop is running.',
-        getPlatform() === 'win'
+        process.platform === 'win32'
           ? 'If Docker is installed, start Docker Desktop.'
-          : getPlatform() === 'macos'
+          : process.platform === 'darwin'
             ? 'If Docker is installed, start Docker Desktop from Applications.'
             : 'If Docker is installed, run `sudo systemctl start docker`.',
         'To install Docker, visit https://www.docker.com/products/docker-desktop/.'

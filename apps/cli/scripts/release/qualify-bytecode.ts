@@ -14,7 +14,7 @@
  * `check` runs on the target (`bytecode-qualification.ts`) and fails unless the bytecode executable behaved exactly
  * like the one without it and was clearly faster to start.
  */
-import type { SupportedPlatform } from '@utils/platform';
+import { isWindowsPlatform, type SupportedPlatform } from '@utils/platform';
 import { createHash } from 'node:crypto';
 import { readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
@@ -43,7 +43,7 @@ const build = async ({ platform, out, depth }: { platform: SupportedPlatform; ou
       bytecodeDepth
     });
     const archiveName = basename(archivePath) as (typeof EXPECTED_RELEASE_ARCHIVES)[number];
-    const executable = join(platformDistFolderPath, platform === 'win' ? 'stacktape.exe' : 'stacktape');
+    const executable = join(platformDistFolderPath, isWindowsPlatform(platform) ? 'stacktape.exe' : 'stacktape');
     const executableBytes = (await readFile(executable)).length;
     results.push({
       variant: name,

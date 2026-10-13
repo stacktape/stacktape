@@ -33,6 +33,7 @@ const RELEASE_CHECKSUMS_FILE_NAME = 'SHA256SUMS';
 
 const PLATFORM_MAP = {
   'win32-x64': { fileName: 'windows.zip', extract: extractZip },
+  'win32-arm64': { fileName: 'windows-arm.zip', extract: extractZip },
   'linux-x64': { fileName: 'linux.tar.gz', extract: extractTarGz },
   'linux-arm64': { fileName: 'linux-arm.tar.gz', extract: extractTarGz },
   'darwin-x64': { fileName: 'macos.tar.gz', extract: extractTarGz },
