@@ -767,7 +767,20 @@ async function buildpackScenarios() {
   if (!only || only === 'js-bundle') {
     console.log('Building and executing a synthetic glibc js-bundle image without external dependencies...');
     const esRoot = join(projectsRoot, 'es-image');
-    await write(join(esRoot, 'src', 'index.ts'), 'console.log("es-glibc-runtime-ok");\n');
+    await write(
+      join(esRoot, 'src', 'index.ts'),
+      [
+        "import { execFileSync } from 'node:child_process';",
+        "const libc = execFileSync('getconf', ['GNU_LIBC_VERSION'], { encoding: 'utf8' }).trim();",
+        "if (!libc.startsWith('glibc ')) throw new Error('The image must supply GNU libc: ' + libc);",
+        "const init = execFileSync('curl', ['--fail', '--silent', 'file:///proc/1/comm'], { encoding: 'utf8' }).trim();",
+        "if (init !== 'tini') throw new Error('The image must run tini as PID 1: ' + init);",
+        "const digest = execFileSync('openssl', ['dgst', '-sha256'], { input: 'abc', encoding: 'utf8' }).trim();",
+        "if (!digest.endsWith('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad')) throw new Error('OpenSSL must hash runtime input');",
+        'console.log("es-glibc-runtime-ok");',
+        ''
+      ].join('\n')
+    );
     const esImageTag = `stacktape-buildpack-smoke-js-bundle:${runId}`;
     const esImageOutput = await buildJsBundleImage({
       ...common,

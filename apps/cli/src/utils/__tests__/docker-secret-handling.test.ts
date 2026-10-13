@@ -343,6 +343,37 @@ describe('build arguments and container environment', () => {
       environment: { [SENTINEL_CONTAINER_ENV_NAME]: SENTINEL_CONTAINER_ENV_VALUE }
     });
 
+  test('a fresh container-run process reports missing Docker on Desktop hosts', async () => {
+    // This child imports the actual module without this file's exec substitution. dockerRun owns a separate
+    // preflight from execDocker. Linux's host lookup also calls execDocker, while Desktop hosts skip that lookup.
+    // Select the Desktop branch in this isolated child; PATH lookup and the process runner still use real code.
+    const { stdout } = await realExec(
+      process.execPath,
+      [
+        '--preload',
+        './scripts/test-preload.ts',
+        '--eval',
+        `import { dockerRun } from './src/utils/docker.ts';
+if (process.platform === 'linux') Object.defineProperty(process, 'platform', { value: 'darwin' });
+process.env[${JSON.stringify(pathEnvName)}] = ${JSON.stringify(emptyPathDirectory)};
+try {
+  await dockerRun({ args: {}, name: 'missing-docker-run', image: 'unused:latest', environment: {} });
+  process.exitCode = 2;
+} catch (error) {
+  console.log(JSON.stringify({ code: error.code, message: error.message, hint: error.hint }));
+}`
+      ],
+      { cwd: join(import.meta.dir, '../../..'), disableStdout: true, disableStderr: true }
+    );
+
+    const failure = JSON.parse(stdout);
+    expect(failure).toMatchObject({
+      code: 'DOCKER_NOT_INSTALLED',
+      message: 'Docker is not installed or not found in PATH.'
+    });
+    expect(failure.hint).toContain('https://www.docker.com/products/docker-desktop/');
+  });
+
   test('a build passes its --build-arg value in the child environment, not in the child argv', async () => {
     const { error } = await withFakeDocker({}, buildWithSecretArg);
     expect(error).toBeNull();

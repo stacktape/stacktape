@@ -65,6 +65,87 @@ describe('railpack variables', () => {
 });
 
 describe('plan policy', () => {
+  test('repairs exact authored quote wrappers and leaves other commands intact', () => {
+    const install = "printf '%s' 'install ok'";
+    const build = "printf '%s' 'build ok'";
+    const escapedInstall = `sh -c 'printf '"'"'%s'"'"' '"'"'install ok'"'"''`;
+    const escapedBuild = `sh -c 'printf '"'"'%s'"'"' '"'"'build ok'"'"''`;
+    const cases = [
+      {
+        label: 'authored install',
+        customName: install,
+        cmd: `sh -c '${install}'`,
+        installCommand: install,
+        expected: escapedInstall
+      },
+      {
+        label: 'authored build',
+        customName: build,
+        cmd: `sh -c '${build}'`,
+        buildCommand: build,
+        expected: escapedBuild
+      },
+      {
+        label: 'provider command',
+        customName: build,
+        cmd: `sh -c '${build}'`,
+        installCommand: install,
+        expected: `sh -c '${build}'`
+      },
+      {
+        label: 'different wrapper',
+        customName: install,
+        cmd: `bash -c '${install}'`,
+        installCommand: install,
+        expected: `bash -c '${install}'`
+      },
+      {
+        label: 'already escaped',
+        customName: install,
+        cmd: escapedInstall,
+        installCommand: install,
+        expected: escapedInstall
+      },
+      {
+        label: 'command without apostrophes',
+        customName: 'npm ci',
+        cmd: "sh -c 'npm ci'",
+        installCommand: 'npm ci',
+        expected: "sh -c 'npm ci'"
+      },
+      {
+        label: 'missing command metadata',
+        customName: undefined,
+        cmd: `sh -c '${install}'`,
+        installCommand: install,
+        expected: `sh -c '${install}'`
+      },
+      {
+        label: 'different command metadata',
+        customName: 'display label',
+        cmd: `sh -c '${install}'`,
+        installCommand: install,
+        expected: `sh -c '${install}'`
+      }
+    ];
+
+    for (const fixture of cases) {
+      const command = { cmd: fixture.cmd, customName: fixture.customName, keep: 'planner metadata' };
+      const plan = preparedPlan({ steps: [{ name: fixture.label, commands: [command] }] });
+      const original = structuredClone(plan);
+      const result = applyStacktapePlanPolicy({
+        plan,
+        startCommand: undefined,
+        installCommand: fixture.installCommand,
+        buildCommand: fixture.buildCommand
+      });
+      expect(result.steps).toEqual([{ name: fixture.label, commands: [{ ...command, cmd: fixture.expected }] }]);
+      expect(plan).toEqual(original);
+      if (fixture.cmd === fixture.expected) expect(result).toBe(plan);
+      else expect(result).not.toBe(plan);
+    }
+  });
+
   test('keeps only the build variables as secrets, never railpack configuration variables', () => {
     const plan = preparedPlan({
       secrets: ['RAILPACK_SKIP_MIGRATIONS', 'RAILPACK_START_CMD', 'VITE_API_URL'],
