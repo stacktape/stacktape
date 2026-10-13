@@ -37,14 +37,21 @@ pnpm --filter @stacktape/console-api-app test:db --git-deploy
 pnpm --filter @stacktape/console-api-app test:db --incident-agent
 pnpm --filter @stacktape/console-api-app test:db --sign-up
 pnpm --filter @stacktape/console-api-app test:db --console-access
+pnpm --filter @stacktape/console-api-app test:db --secrets
 pnpm --filter @stacktape/console-api-app test:db --cli-console
 ```
 
 `--alerts` exercises delivery leases, provider retries, saved receipts and signed Slack actions with PostgreSQL and
-MiniStack SQS/Secrets Manager. `--uptime` drives regional quorum and rejected reports through the production HTTP API.
-`--incident-journey` also runs the built prober against MiniStack SSM/STS and the built Prisma proxy on MiniStack
-Lambda; build the CLI dev artifacts first with `pnpm --filter @stacktape/cli build:dev-artifacts`. CloudWatch
-metrics/history remain an explicit HTTP provider fixture. `--secrets` is the separate secret/parameter CRUD lane.
+MiniStack SQS/Secrets Manager/SES. Provider contract checks use HTTPS receivers; evidence uploads use the real Slack
+SDK. `--uptime` drives regional quorum and rejected reports through the production HTTP API. `--incident-journey` also
+runs the built prober against MiniStack SSM/STS and the built Prisma proxy on MiniStack Lambda; build the CLI dev
+artifacts first with `pnpm --filter @stacktape/cli build:dev-artifacts`. CloudWatch metrics/history remain an explicit
+HTTP provider fixture.
+
+`--secrets` runs the source CLI and production Console AWS helpers and credential cache through the real HTTP API and
+isolated PostgreSQL, with Secrets Manager, SSM and Lambda configuration on MiniStack. It checks CRUD, fresh-client
+reads, pagination, version selectors, account/region isolation and denied credentials. ECS metadata and cross-account
+STS remain explicit fixtures; browser interaction runs separately.
 
 Pass the flag directly: an extra `--` is forwarded to this script and rejected. The `--incident-agent` suite also spawns
 the source CLI for `stacktape ai:connect`, so the runner first builds the CLI dev artifacts
