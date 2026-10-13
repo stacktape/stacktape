@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -27,7 +28,10 @@ test('CLI compilation discovers a new smoke project and rejects errors in its in
   );
   // Candidate applications with their own dependency install are outside the CLI program.
   await writeFile(join(root, '_test-stacks/separate-app/package.json'), '{"private":true}');
-  await writeFile(join(root, '_test-stacks/separate-app/source.ts'), 'import "uninstalled-fixture-dependency";');
+  await writeFile(
+    join(root, '_test-stacks/separate-app/source.ts'),
+    'import { unavailable } from "uninstalled-fixture-dependency"; export const value = unavailable;'
+  );
   const runner = new URL('../../apps/cli/scripts/typecheck.mts', import.meta.url).href;
   const compile = () =>
     spawnSync(
@@ -47,6 +51,7 @@ test('CLI compilation discovers a new smoke project and rejects errors in its in
 });
 
 test('Turbo schedules generated editor inputs and shared UI before development consumers', () => {
+  const hasConsole = existsSync(new URL('../../apps/console/ui/package.json', import.meta.url));
   const result = spawnSync(
     process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm',
     [
@@ -55,12 +60,17 @@ test('Turbo schedules generated editor inputs and shared UI before development c
       'run',
       'dev',
       'build:watch',
-      '--filter=@stacktape/console-ui',
+      ...(hasConsole ? ['--filter=@stacktape/console-ui'] : []),
       '--filter=@stacktape/init-ui',
       '--filter=@stacktape/website',
       '--dry=json'
     ],
-    { encoding: 'utf8', shell: process.platform === 'win32', timeout: 30_000 }
+    {
+      encoding: 'utf8',
+      shell: process.platform === 'win32',
+      timeout: 30_000,
+      env: { ...process.env, TURBO_TELEMETRY_DISABLED: '1', DO_NOT_TRACK: '1' }
+    }
   );
   assert.equal(result.status, 0, result.stderr);
   const graph = JSON.parse(result.stdout) as { tasks: { taskId: string; dependencies: string[] }[] };
@@ -69,7 +79,7 @@ test('Turbo schedules generated editor inputs and shared UI before development c
     '@stacktape/website#dev': ['@stacktape/design-tokens#generate', '@stacktape/ui-react#build']
   };
   // Public clones intentionally have no Console workspace.
-  if (graph.tasks.some(({ taskId }) => taskId === '@stacktape/console-ui#dev')) {
+  if (hasConsole) {
     expected['@stacktape/console-ui#dev'] = ['@stacktape/console-ui#generate', '@stacktape/ui-react#build'];
   }
   for (const [id, prerequisites] of Object.entries(expected)) {
