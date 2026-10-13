@@ -1258,6 +1258,36 @@ export const lanes: readonly Lane[] = [
     proves: 'Uptime config/manifest compatibility and actual alarm HTTP reporting remain offline and fast.'
   },
   {
+    id: 'console-startup',
+    command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test:db', '--startup'],
+    level: 'api-db',
+    tier: 'change',
+    tests: ['apps/console/api/scripts/startup-database.test.ts'],
+    requires: ['console', 'docker', 'network'],
+    release: 'every-candidate',
+    proves: 'Concurrent SSM hydration and the built Prisma proxy run on MiniStack with disposable PostgreSQL.'
+  },
+  {
+    id: 'console-workspace-aws',
+    command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test:workspace:aws'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/console/api/scripts/insights-environment.test.ts'],
+    requires: ['console', 'docker'],
+    release: 'every-candidate',
+    proves: 'Inherited AWS profiles and endpoints cannot redirect the SDK away from the owned MiniStack account.'
+  },
+  {
+    id: 'console-credentials-aws',
+    command: ['pnpm', '--filter', '@stacktape/console-ui', 'test:credentials:aws'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/console/ui/scripts/browser-credentials-ministack.test.ts'],
+    requires: ['console', 'docker'],
+    release: 'every-candidate',
+    proves: 'STS and encrypted SSM browser identities load independently; deletion fails without exposing credentials.'
+  },
+  {
     id: 'console-api',
     command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test'],
     level: 'focused',
@@ -1292,7 +1322,7 @@ export const lanes: readonly Lane[] = [
     command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test:db'],
     level: 'api-db',
     tier: 'change',
-    tests: ['apps/console/api/prisma/migration-adoption.test.ts'],
+    tests: ['apps/console/api/prisma/migration-adoption.test.ts', 'apps/console/api/prisma/migration-history.test.ts'],
     requires: ['console', 'docker', 'network'],
     release: 'every-candidate',
     proves:
@@ -1396,10 +1426,7 @@ export const lanes: readonly Lane[] = [
     command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test:db', '--insights'],
     level: 'api-db',
     tier: 'change',
-    tests: [
-      'apps/console/api/scripts/insights-environment.test.ts',
-      'apps/console/api/scripts/insights-runtime.test.ts'
-    ],
+    tests: ['apps/console/api/scripts/insights-runtime.test.ts'],
     requires: ['console', 'docker', 'network'],
     release: 'every-candidate',
     proves: 'Real insights services and persistence through the isolated PostgreSQL feature suite.',
@@ -1938,7 +1965,6 @@ export const lanes: readonly Lane[] = [
       'apps/cli/scripts/release/validate-release-input.spec.ts',
       'apps/cli/scripts/release/verify-published-release.spec.ts',
       'apps/cli/scripts/run-source-tests.spec.ts',
-      'apps/cli/scripts/tsconfig-projects.spec.ts',
       'apps/cli/scripts/verify-npm-declarations.spec.ts',
       'apps/cli/scripts/verify-source-cli-aws-readonly.spec.ts',
       'apps/cli/src/app/global-state-manager/api-key-storage.spec.ts',
@@ -2184,7 +2210,6 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/model-helpers/index.test.ts',
       'apps/console/api/src/organizations/personal-organization.test.ts',
       'apps/console/api/src/runtime-parameters-process.test.ts',
-      'apps/console/api/src/runtime-parameters.test.ts',
       'apps/console/api/src/security/cvss.test.ts',
       'apps/console/api/src/security/inventory-grading.test.ts',
       'apps/console/api/src/security/osv-client.test.ts',
@@ -2204,7 +2229,6 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/gitlab-app.test.ts',
       'apps/console/api/src/services/incident-engine.test.ts',
 
-      'apps/console/api/src/services/prisma-proxy.test.ts',
       'apps/console/api/src/services/remote-deploy/aws/ssm.test.ts',
       'apps/console/api/src/services/remote-deploy/dispatch-retry.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/auto-stop-state.test.ts',
@@ -2727,7 +2751,6 @@ export const lanes: readonly Lane[] = [
       'apps/cli/scripts/code-generation/validator-differential.spec.ts',
       'apps/cli/scripts/build-npm-declarations.spec.ts',
       'apps/cli/scripts/verify-npm-declarations.spec.ts',
-      'apps/cli/scripts/tsconfig-projects.spec.ts',
       'apps/cli/scripts/init-real-project-corpus-cases.spec.ts',
       'apps/cli/scripts/init-real-project-corpus.spec.ts',
       'apps/cli/scripts/init-synthetic-project-corpus-expectations.spec.ts'
@@ -5250,9 +5273,16 @@ export const slices: readonly Slice[] = [
     status: 'active',
     journeys: ['J13'],
     paths: [
+      'packages/ministack/src/fixture.ts',
+      'apps/console/api/scripts/incident-agent-fixtures.ts',
+      'apps/console/api/scripts/cli-console-network.ts',
       'apps/console/api/src/database/**',
       'apps/console/api/prisma/migrations/**',
       'apps/console/api/scripts/migrate-db.ts',
+      'apps/console/api/scripts/incident-journey-proxy.ts',
+      'apps/console/api/scripts/run-db-integration.ts',
+      'apps/console/api/src/services/prisma.ts',
+      'apps/console/api/src/lambdas/prisma-proxy.ts',
       'apps/console/api/stacktape.ts',
       'apps/console/api/package.json',
       'apps/console/api/infrastructure/deployment-parameters.ts',
@@ -5263,14 +5293,13 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/console/api/infrastructure/deployment-parameters.test.ts',
       'apps/console/api/prisma/migration-adoption.test.ts',
+      'apps/console/api/scripts/startup-database.test.ts',
       'apps/console/api/prisma/migration-history.test.ts',
       'apps/console/api/scripts/setup-dev-provider-parameters.test.ts',
       'apps/console/api/src/config.test.ts',
       'apps/console/api/src/database/rds-tls.test.ts',
       'apps/console/api/src/lambdas/proxy-lambda-imports.test.ts',
       'apps/console/api/src/runtime-parameters-process.test.ts',
-      'apps/console/api/src/runtime-parameters.test.ts',
-      'apps/console/api/src/services/prisma-proxy.test.ts',
       'apps/console/api/stacktape.test.ts'
     ],
     lanes: [
@@ -5279,6 +5308,7 @@ export const slices: readonly Slice[] = [
       'console-api',
       'console-api-2',
       'console-database',
+      'console-startup',
       'console-deployed-dev'
     ]
   },
@@ -5325,6 +5355,9 @@ export const slices: readonly Slice[] = [
     status: 'active',
     journeys: ['J13'],
     paths: [
+      'packages/ministack/src/fixture.ts',
+      'apps/console/api/scripts/insights-environment.ts',
+      'apps/console/api/scripts/cli-console-network.ts',
       'scripts/workspace/**',
       'scripts/quality/**',
       '.github/workflows/**',
@@ -5334,9 +5367,12 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/playwright*.ts'
     ],
     tests: [
+      'scripts/workspace/test-ci.test.ts',
+      'scripts/workspace/test-plan.test.ts',
       'apps/console/api/scripts/cli-console-network.test.ts',
       'apps/console/api/scripts/insights-environment.test.ts',
       'apps/console/ui/scripts/browser-target.test.ts',
+      'apps/console/ui/scripts/browser-credentials-ministack.test.ts',
       'apps/console/ui/scripts/dev-api-url.test.ts',
       'apps/console/ui/scripts/e2e-credentials.test.ts',
       'scripts/workspace/check-instruction-sync.ts',
@@ -5364,6 +5400,8 @@ export const slices: readonly Slice[] = [
     ],
     lanes: [
       'workspace-tools',
+      'console-workspace-aws',
+      'console-credentials-aws',
       'workspace-tools-2',
       'console-browser-sessions',
       'console-ui',
@@ -5476,7 +5514,6 @@ export const toolingTests: readonly string[] = [
   'apps/cli/scripts/qualification/runner-integration.spec.ts',
   'apps/cli/scripts/real-aws/packaging-canary.spec.ts',
   'apps/cli/scripts/run-source-tests.spec.ts',
-  'apps/cli/scripts/tsconfig-projects.spec.ts',
   'apps/cli/src/aws/sdk-manager/utils.spec.ts',
   'apps/cli/src/utils/cli.spec.ts',
   'apps/cli/src/utils/decorators.spec.ts',
@@ -5500,11 +5537,9 @@ export const toolingTests: readonly string[] = [
   'scripts/workspace/public-workspace.test.ts',
   'scripts/workspace/run-console-cli-script.test.ts',
   'scripts/workspace/run-console-dev.test.ts',
-  'scripts/workspace/test-ci.test.ts',
   'scripts/workspace/test-doctor.test.ts',
   'scripts/workspace/test-doctor.ts',
   'scripts/workspace/test-fixture-command.ts',
-  'scripts/workspace/test-plan.test.ts',
   'scripts/workspace/test-plan.ts',
   'scripts/workspace/test-registry.test.ts',
   'scripts/workspace/verify-console-pointer.test.ts'

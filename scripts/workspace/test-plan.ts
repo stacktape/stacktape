@@ -414,7 +414,10 @@ const RULES: Rule[] = [
     id: 'console-browser-local-api',
     lanes: laneIdsForSelection('console-browser-local-api'),
     matches: (path) =>
-      path.startsWith('apps/console/api/src/') || path.startsWith('packages/console-api/') || isConsoleStartupPath(path)
+      path.startsWith('apps/console/api/src/') ||
+      path.startsWith('apps/console/api/prisma/') ||
+      path.startsWith('packages/console-api/') ||
+      isConsoleStartupPath(path)
   },
   {
     id: 'console-browser-isolated',

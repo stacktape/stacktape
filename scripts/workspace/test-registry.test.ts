@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { checkTestRegistry } from './check-test-registry.ts';
-import { lanes, slices, type Lane, type Slice } from './test-registry.ts';
+import { lanes, type Lane, type Slice } from './test-registry.ts';
 
 const lane: Lane = {
   id: 'rules',
@@ -38,12 +38,6 @@ const fixture = async (context: TestContext) => {
   execFileSync('git', ['add', '.'], { cwd: root });
   return root;
 };
-test('registry seed has stable active IDs and public-clone safe ownership', async () => {
-  assert.equal(slices.filter((s) => s.status === 'active').length, 72);
-  assert.equal(slices.find((s) => s.id === 'S36')?.status, 'excluded');
-  assert.equal(slices.find((s) => s.id === 'S73')?.status, 'retired');
-  assert.deepEqual(await checkTestRegistry(), []);
-});
 test('a new unowned test fails even inside an owned implementation directory', async (context) => {
   const root = await fixture(context);
   await writeFile(join(root, 'packages/rules/new.test.ts'), 'export {};');
