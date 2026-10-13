@@ -1,6 +1,7 @@
+import { recordStackOperationInputSchema } from '@stacktape/console-api/api-key';
+import { commandArgsForRecording } from './stacktape-trpc-api-manager/recorded-command-args';
 import { describe, expect, test } from 'bun:test';
 import {
-  OPERATION_INVOCATION_COMMAND_ARGS_KEY,
   getForwardableOperationInvocationEnv,
   getMcpOperationInvocationEnv,
   getStacktapeOperationInvocationContext,
@@ -17,32 +18,23 @@ describe('operation invocation context', () => {
     });
   });
 
+  test('records an operation without inventing a stage when no target is known', () => {
+    const commandArgs = withStacktapeOperationInvocationContext(
+      commandArgsForRecording({ args: { region: 'eu-west-1' }, stage: undefined }),
+      getMcpOperationInvocationEnv({ client: 'claude-code', tool: 'stacktape_cli' })
+    );
+    const recorded = recordStackOperationInputSchema.parse(
+      JSON.parse(JSON.stringify({ invocationId: 'untargeted-operation', command: 'project:list', commandArgs }))
+    );
+    expect(recorded.commandArgs).toEqual({
+      region: 'eu-west-1',
+      __stacktapeInvocation: { initiator: 'ai-agent', interface: 'mcp', client: 'claude-code', tool: 'stacktape_cli' }
+    });
+  });
+
   test('ignores non-MCP invocation environment', () => {
     expect(getStacktapeOperationInvocationContext({ STP_OPERATION_INITIATOR: 'human' })).toBeUndefined();
     expect(withStacktapeOperationInvocationContext({ stage: 'production' }, {})).toEqual({ stage: 'production' });
-  });
-
-  test('adds MCP context to recorded command args', () => {
-    const commandArgs = withStacktapeOperationInvocationContext(
-      { stage: 'production', projectName: 'docs' },
-      {
-        STP_OPERATION_INITIATOR: 'ai-agent',
-        STP_OPERATION_INTERFACE: 'mcp',
-        STP_OPERATION_CLIENT: 'codex',
-        STP_OPERATION_TOOL: 'stacktape_cli'
-      }
-    );
-
-    expect(commandArgs).toEqual({
-      stage: 'production',
-      projectName: 'docs',
-      [OPERATION_INVOCATION_COMMAND_ARGS_KEY]: {
-        initiator: 'ai-agent',
-        interface: 'mcp',
-        client: 'codex',
-        tool: 'stacktape_cli'
-      }
-    });
   });
 
   test('forwards only sanitized MCP operation environment', () => {
