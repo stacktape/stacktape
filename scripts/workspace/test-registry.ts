@@ -2146,7 +2146,6 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/init/server/security.spec.ts',
       'apps/cli/src/init/server/wizard-server.spec.ts',
       'apps/cli/src/init/server/wizard-session.spec.ts',
-      'apps/cli/src/init/telemetry.spec.ts',
       'apps/cli/src/init/tools/tools.spec.ts',
       'apps/cli/src/init/tools/workspace.spec.ts',
       'apps/cli/src/init/write-config.spec.ts',
@@ -2728,6 +2727,16 @@ export const lanes: readonly Lane[] = [
     tests: ['packages/analytics/src'],
     requires: [],
     release: 'every-candidate'
+  },
+  {
+    id: 'analytics-cli',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'exec', 'bun', 'test', 'src/utils/telemetry.spec.ts'],
+    level: 'process',
+    tier: 'pr',
+    tests: ['apps/cli/src/utils/telemetry.spec.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'CLI completion, init and exception telemetry obey opt-out, redact emitted bytes and tolerate rejection.'
   },
   {
     id: 'analytics-console',
@@ -5416,18 +5425,19 @@ export const slices: readonly Slice[] = [
     paths: [
       'packages/analytics/**',
       'apps/cli/src/utils/telemetry.ts',
+      'apps/cli/src/utils/telemetry-completion.fixture.ts',
+      'apps/cli/src/init/telemetry-init.fixture.ts',
       'apps/console/api/src/integrations/posthog.ts',
       'apps/console/api/src/integrations/posthog-consumer.fixture.ts',
       'apps/cli/src/init/telemetry.ts'
     ],
     tests: [
-      'apps/cli/src/init/telemetry.spec.ts',
       'apps/cli/src/utils/telemetry.spec.ts',
       'apps/console/api/src/integrations/posthog.test.ts',
       'packages/analytics/src/posthog.test.ts',
       'packages/analytics/src/privacy.test.ts'
     ],
-    lanes: ['analytics-test', 'analytics-console', 'cli', 'cli-2', 'cli-3']
+    lanes: ['analytics-test', 'analytics-cli', 'analytics-console', 'cli', 'cli-2', 'cli-3']
   },
   {
     id: 'S70',
