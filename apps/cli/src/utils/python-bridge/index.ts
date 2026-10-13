@@ -217,7 +217,7 @@ function json(text_nodes) {
   );
 }
 
-function serializePython(value) {
+export function serializePython(value) {
   if (value === null || typeof value === 'undefined') {
     return 'None';
   }
