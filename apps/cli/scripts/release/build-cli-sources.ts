@@ -321,10 +321,19 @@ export const getReleaseBundleOptions = ({
  * Windows x64 natively through WSL interop (Wave 1H). macOS x64 (`macos-15-intel`), macOS arm64 (`macos-15`) and
  * Linux arm64 (`ubuntu-24.04-arm`) were qualified by the release workflow's `bytecode_qualification` run 36174122384
  * on 2026-09-25: 22/22 checks each and `--version` in 0.23-0.25 of the time. Linux arm64's depth-1 archive measured
- * 89.6 MiB against its 90 MiB gate; strip its arm64 OpenTUI libraries if that gate trips. Windows arm64 is not
- * qualified yet: the `bytecode_qualification` run checks it on `windows-11-arm`.
+ * 89.6 MiB against its 90 MiB gate; strip its arm64 OpenTUI libraries if that gate trips. Windows arm64
+ * (`windows-11-arm`) was qualified by `bytecode_qualification` run 38414606180 on 2026-10-13: 20/20 checks, `--version`
+ * in 0.24 of the time and a 71.5 MiB depth-1 archive.
  */
-const BYTECODE_PLATFORMS: SupportedPlatform[] = ['linux', 'alpine', 'win', 'macos', 'macos-arm', 'linux-arm'];
+const BYTECODE_PLATFORMS: SupportedPlatform[] = [
+  'linux',
+  'alpine',
+  'win',
+  'win-arm',
+  'macos',
+  'macos-arm',
+  'linux-arm'
+];
 
 export const buildBinaryFile = async ({
   distFolderPath,
