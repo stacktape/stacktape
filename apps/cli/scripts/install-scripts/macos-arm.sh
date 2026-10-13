@@ -34,7 +34,13 @@ if ! command -v tar >/dev/null 2>&1; then
 fi
 
 version=${STACKTAPE_VERSION:-"<<DEFAULT_VERSION>>"}
-archive_name="macos-arm.tar.gz"
+# Install the build this Mac's processor runs, whichever macOS installer was copied. `hw.optional.arm64` is 1 on Apple
+# silicon even in a Rosetta shell, where `uname -m` says x86_64; an Intel Mac cannot run the Apple silicon build.
+if [ "$(sysctl -n hw.optional.arm64 2>/dev/null || true)" = "1" ]; then
+    archive_name="macos-arm.tar.gz"
+else
+    archive_name="macos.tar.gz"
+fi
 archive_source_url="https://github.com/stacktape/stacktape/releases/download/$version/$archive_name"
 checksums_source_url="https://github.com/stacktape/stacktape/releases/download/$version/SHA256SUMS"
 # SHA256SUMS is required starting with 3.7.1. Older pinned releases remain installable.

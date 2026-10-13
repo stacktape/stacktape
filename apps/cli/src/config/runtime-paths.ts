@@ -4,6 +4,7 @@ import { CF_TEMPLATE_FILE_NAME, INITIAL_CF_TEMPLATE_FILE_NAME, IS_DEV, STP_TEMPL
 import type { ExternalToolDownloadOptions } from '@utils/external-tools';
 import { getPlatform } from '@utils/bin-executable';
 import { resolveExternalTool } from '@utils/external-tools';
+import { isWindowsPlatform } from '@utils/platform';
 import {
   BRIDGE_FILES_FOLDER_NAME,
   DEV_ARTIFACTS_FOLDER_PATH,
@@ -123,7 +124,7 @@ export const fsPaths = {
    * there; elsewhere it is downloaded from AWS the first time a command needs it (`@utils/external-tools`).
    */
   async sessionManagerPath(options?: ExternalToolDownloadOptions) {
-    if (getPlatform() === 'win') {
+    if (isWindowsPlatform(getPlatform())) {
       return IS_DEV
         ? join(SCRIPTS_ASSETS_PATH, 'session-manager-plugin', 'smp-win.exe')
         : join(fsPaths.absoluteExecutableDirname(), 'session-manager-plugin', 'smp.exe');

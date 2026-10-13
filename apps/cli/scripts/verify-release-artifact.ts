@@ -7,6 +7,7 @@ import { parseArgs } from 'node:util';
 import { brotliDecompressSync } from 'node:zlib';
 import { DIST_PACKAGE_FOLDER_PATH, NPM_RELEASE_FOLDER_PATH } from 'src/config/project-paths';
 import { getPlatform } from '@utils/bin-executable';
+import { isWindowsPlatform } from '@utils/platform';
 import { EXTERNAL_TOOL_MANIFEST } from 'src/utils/external-tools';
 import AdmZip from 'adm-zip';
 import stripAnsi from 'strip-ansi';
@@ -32,6 +33,7 @@ const REQUIRED_HELPER_LAMBDA_PREFIXES = [
 
 const PLATFORM_RELEASE_DETAILS = {
   win: { archiveName: 'windows.zip', binaryName: 'stacktape.exe', launcherPlatformKey: 'win32-x64' },
+  'win-arm': { archiveName: 'windows-arm.zip', binaryName: 'stacktape.exe', launcherPlatformKey: 'win32-arm64' },
   linux: { archiveName: 'linux.tar.gz', binaryName: 'stacktape', launcherPlatformKey: 'linux-x64' },
   'linux-arm': { archiveName: 'linux-arm.tar.gz', binaryName: 'stacktape', launcherPlatformKey: 'linux-arm64' },
   alpine: { archiveName: 'alpine.tar.gz', binaryName: 'stacktape', launcherPlatformKey: 'linux-x64-musl' },
@@ -171,13 +173,13 @@ export const verifyNativeInstallation = async ({
     'railpack',
     'pack',
     'nixpacks',
-    ...(platform === 'win' ? [] : ['session-manager-plugin'])
+    ...(isWindowsPlatform(platform) ? [] : ['session-manager-plugin'])
   ]) {
     if (existsSync(join(binDirectory, toolDirectory))) {
       throw new Error(`Native release archive still bundles ${toolDirectory}, which is downloaded on first use.`);
     }
   }
-  if (platform === 'win') {
+  if (isWindowsPlatform(platform)) {
     const plugin = join(binDirectory, 'session-manager-plugin', 'smp.exe');
     const output = run({ command: plugin, args: ['--version'], env: runtimeEnv });
     if (!output.includes(EXTERNAL_TOOL_MANIFEST['session-manager-plugin'].version)) {
@@ -188,8 +190,9 @@ export const verifyNativeInstallation = async ({
     await verifyExternalTools({
       platform,
       toolsDirectory: join(fixtureDirectory, 'tools'),
-      bundledSessionManagerPlugin:
-        platform === 'win' ? join(binDirectory, 'session-manager-plugin', 'smp.exe') : undefined
+      bundledSessionManagerPlugin: isWindowsPlatform(platform)
+        ? join(binDirectory, 'session-manager-plugin', 'smp.exe')
+        : undefined
     });
   }
 

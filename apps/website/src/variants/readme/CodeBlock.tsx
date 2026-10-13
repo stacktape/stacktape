@@ -1,12 +1,20 @@
 import { Button } from '@stacktape/ui-react/button';
+import { detectInstallPlatform } from '@stacktape/ui-react/install-platform';
 import { Tabs } from '@stacktape/ui-react/tabs';
 import { useEffect, useId, useRef, useState } from 'react';
 import { COMMAND_HINT, COMMANDS } from './data';
 
 type CommandId = (typeof COMMANDS)[number]['id'];
+type Arch = (typeof COMMANDS)[number]['variants'][number]['arch'];
 type CopyState = 'idle' | 'copied' | 'failed';
 
 const TABS = COMMANDS.map((command) => ({ value: command.id, label: command.label }));
+
+/** Each tab's selected architecture: the first variant until the visitor's machine is detected or they choose. */
+const INITIAL_ARCHES = Object.fromEntries(COMMANDS.map((command) => [command.id, command.variants[0].arch])) as Record<
+  CommandId,
+  Arch
+>;
 
 const CopyIcon = () => (
   <svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
@@ -41,22 +49,44 @@ const CheckIcon = () => (
  * next command after installing. Copy takes the first line only — the second is what to run once
  * the installer has finished, and pasting both would run it against a CLI that is not there yet.
  *
+ * Each operating system tab has one installer per CPU architecture, chosen with the small toggle
+ * beside Copy. After hydration the block opens on the visitor's operating system and architecture
+ * (`detectInstallPlatform`); on a phone or an unknown system it stays on npx. A choice the visitor
+ * made before detection finished is kept.
+ *
  * Server-rendered so it reads before hydration. The button keeps one width across "Copy", "Copied"
  * and "Select and copy": the three labels share a grid cell. The block never changes height when a
  * tab switches: the pre has room for the tallest tab, and a long command scrolls inside its row.
  */
 export function CodeBlock({ label = 'Install', hint = true, id }: { label?: string; hint?: boolean; id?: string }) {
   const [current, setCurrent] = useState<CommandId>('npx');
+  const [arches, setArches] = useState(INITIAL_ARCHES);
   const [state, setState] = useState<CopyState>('idle');
   const [status, setStatus] = useState('');
   const [overflows, setOverflows] = useState(false);
   const timer = useRef<number | undefined>(undefined);
   const preRef = useRef<HTMLPreElement>(null);
+  const chosen = useRef(false);
   const uid = useId();
   const entry = COMMANDS.find((candidate) => candidate.id === current) ?? COMMANDS[0];
+  const variant = entry.variants.find((candidate) => candidate.arch === arches[entry.id]) ?? entry.variants[0];
   /** What the tab shows, and what Copy puts on the clipboard. */
-  const text = entry.lines.join('\n');
-  const command = entry.lines[0];
+  const text = variant.lines.join('\n');
+  const command = variant.lines[0];
+
+  useEffect(() => {
+    let cancelled = false;
+    const preselect = async () => {
+      const platform = await detectInstallPlatform();
+      if (cancelled || chosen.current || !platform) return;
+      setCurrent(platform.os);
+      setArches((previous) => ({ ...previous, [platform.os]: platform.arch }));
+    };
+    void preselect();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const node = preRef.current;
@@ -103,11 +133,22 @@ export function CodeBlock({ label = 'Install', hint = true, id }: { label?: stri
     }
   };
 
-  const switchTo = (value: CommandId) => {
-    setCurrent(value);
+  const resetCopy = () => {
     setState('idle');
     setStatus('');
     window.clearTimeout(timer.current);
+  };
+
+  const switchTo = (value: CommandId) => {
+    chosen.current = true;
+    setCurrent(value);
+    resetCopy();
+  };
+
+  const switchArch = (value: Arch) => {
+    chosen.current = true;
+    setArches((previous) => ({ ...previous, [entry.id]: value }));
+    resetCopy();
   };
 
   const panelId = `${uid}-panel`;
@@ -125,6 +166,23 @@ export function CodeBlock({ label = 'Install', hint = true, id }: { label?: stri
           value={current}
           width="fit"
         />
+        {entry.variants.length > 1 ? (
+          <Tabs
+            appearance="segmented"
+            ariaLabel={`${entry.label}: CPU architecture`}
+            className="rm-code__arch"
+            onValueChange={switchArch}
+            size="small"
+            tabs={entry.variants.map((candidate) => ({
+              value: candidate.arch,
+              label: candidate.label,
+              compactLabel: 'compactLabel' in candidate ? candidate.compactLabel : undefined,
+              panelId
+            }))}
+            value={variant.arch}
+            width="fit"
+          />
+        ) : null}
         <Button aria-label={`Copy: ${command}`} className="rm-code__copy" onClick={copy} variant="primary">
           <span className="rm-code__labels" aria-hidden="true">
             <span className="rm-code__label rm-code__label--copy">
@@ -146,7 +204,7 @@ export function CodeBlock({ label = 'Install', hint = true, id }: { label?: stri
         ref={preRef}
         role="tabpanel"
       >
-        {entry.lines.map((line) => (
+        {variant.lines.map((line) => (
           <span className="rm-code__line" key={line}>
             <span aria-hidden="true" className="rm-code__prompt">
               $

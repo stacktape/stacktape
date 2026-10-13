@@ -13,6 +13,7 @@ import {
 } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 import { getPlatform } from '@utils/bin-executable';
+import { isWindowsPlatform } from '@utils/platform';
 import { withPersistedApiKey } from '../src/app/global-state-manager/api-key-storage';
 import type { PersistedState } from '../src/app/global-state-manager/types';
 import { buildBinaryFile, copyMcpDocs } from './release/build-cli-sources';
@@ -294,7 +295,7 @@ const verify = async () => {
         recursive: true
       });
     }
-    const binary = candidateBinary ?? join(install!, platform === 'win' ? 'stacktape.exe' : 'stacktape');
+    const binary = candidateBinary ?? join(install!, isWindowsPlatform(platform) ? 'stacktape.exe' : 'stacktape');
     const env = {
       PATH: process.env.PATH ?? '',
       ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}),

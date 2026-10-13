@@ -44,7 +44,8 @@ describe('release publication policy', () => {
       { platform: 'linux-arm', runner: 'ubuntu-24.04-arm' },
       { platform: 'macos', runner: 'macos-15-intel' },
       { platform: 'macos-arm', runner: 'macos-15' },
-      { platform: 'win', runner: 'windows-2025' }
+      { platform: 'win', runner: 'windows-2025' },
+      { platform: 'win-arm', runner: 'windows-11-arm' }
     ]);
     expect(qualifier.needs).toBe('assemble');
     expect(isRecord(jobs.publish) && jobs.publish.needs).toEqual(['assemble', 'qualify-native']);

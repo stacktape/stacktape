@@ -13,6 +13,7 @@ describe('published install scripts', () => {
       'linux.sh',
       'macos-arm.sh',
       'macos.sh',
+      'windows-arm.ps1',
       'windows.ps1'
     ]);
     for (const asset of assets) {

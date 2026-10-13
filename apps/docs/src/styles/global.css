@@ -1338,9 +1338,12 @@ html[data-mobile-nav-open] #main-content {
   }
 
   /* `tabContainerStyle` */
+  /* Tabs wrap onto further rows rather than overflowing a narrow code block. */
   .stp-tab-container {
     position: relative;
     display: inline-flex;
+    flex-wrap: wrap;
+    max-width: 100%;
     align-items: center;
     gap: 3px;
     padding: 3px;
@@ -1386,8 +1389,6 @@ html[data-mobile-nav-open] #main-content {
    * button shows an identical static pill instead — so SSR never renders a bare, unpadded-looking tab. */
   .stp-tab-indicator {
     position: absolute;
-    top: 3px;
-    height: calc(100% - 6px);
     z-index: 0;
     border-radius: 6px;
     background: linear-gradient(135deg, rgb(60, 64, 64), rgb(44, 47, 47));
@@ -1397,8 +1398,9 @@ html[data-mobile-nav-open] #main-content {
       inset 0 1px 0 rgba(255, 255, 255, 0.1);
     transition:
       left 350ms cubic-bezier(0.34, 1.56, 0.64, 1),
+      top 350ms cubic-bezier(0.34, 1.56, 0.64, 1),
       width 350ms cubic-bezier(0.34, 1.56, 0.64, 1);
-    will-change: left, width;
+    will-change: left, top, width;
     pointer-events: none;
   }
   .stp-tab-container:not(.is-hydrated) .stp-tab-indicator {

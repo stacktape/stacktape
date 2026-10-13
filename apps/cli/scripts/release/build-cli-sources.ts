@@ -1,4 +1,4 @@
-import type { SupportedPlatform } from '@utils/platform';
+import { isWindowsPlatform, type SupportedPlatform } from '@utils/platform';
 import type { BunPlugin } from 'bun';
 import { arch, tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
@@ -51,6 +51,7 @@ import {
 
 export const ALL_SUPPORTED_PLATFORMS: SupportedPlatform[] = [
   'win',
+  'win-arm',
   'linux',
   'macos',
   'macos-arm',
@@ -78,6 +79,7 @@ export const buildEsbuildRegister = async ({ distFolderPath }: { distFolderPath?
 
 const BINARY_FOLDER_NAMES: { [_platform in SupportedPlatform]: string } = {
   win: 'windows',
+  'win-arm': 'windows-arm',
   macos: 'macos',
   linux: 'linux',
   'macos-arm': 'macos-arm',
@@ -87,6 +89,7 @@ const BINARY_FOLDER_NAMES: { [_platform in SupportedPlatform]: string } = {
 
 const ESBUILD_BINARY_PACKAGE_NAMES: { [_platform in SupportedPlatform]: string } = {
   win: '@esbuild/win32-x64',
+  'win-arm': '@esbuild/win32-arm64',
   macos: '@esbuild/darwin-x64',
   linux: '@esbuild/linux-x64',
   'macos-arm': '@esbuild/darwin-arm64',
@@ -95,6 +98,7 @@ const ESBUILD_BINARY_PACKAGE_NAMES: { [_platform in SupportedPlatform]: string }
 };
 const ESBUILD_BINARY_FILE_LOCATIONS: { [_platform in SupportedPlatform]: string[] } = {
   win: ['esbuild.exe'],
+  'win-arm': ['esbuild.exe'],
   macos: ['bin', 'esbuild'],
   linux: ['bin', 'esbuild'],
   'macos-arm': ['bin', 'esbuild'],
@@ -106,7 +110,7 @@ const ESBUILD_BINARY_FILE_LOCATIONS: { [_platform in SupportedPlatform]: string[
 export const EXECUTABLE_FILE_PATTERNS = [
   'stacktape',
   'stacktape.exe',
-  // The Session Manager plugin that only the Windows archive ships.
+  // The Session Manager plugin that only the Windows archives ship.
   '*/smp.exe',
   '*/exec',
   '*/exec.exe'
@@ -152,6 +156,7 @@ export const generateSourceMapInstall = async ({ distFolderPath }: { distFolderP
 // variants. Other targets have one native package per OS/architecture pair.
 export const OPENTUI_PLATFORM_IDENTIFIERS: { [_platform in SupportedPlatform]: string[] } = {
   win: ['win32-x64'],
+  'win-arm': ['win32-arm64'],
   macos: ['darwin-x64'],
   'macos-arm': ['darwin-arm64'],
   linux: ['linux-x64', 'linux-x64-musl'],
@@ -161,6 +166,7 @@ export const OPENTUI_PLATFORM_IDENTIFIERS: { [_platform in SupportedPlatform]: s
 
 export const BUN_COMPILE_TARGETS: { [_platform in SupportedPlatform]: Bun.Build.CompileTarget } = {
   win: 'bun-windows-x64',
+  'win-arm': 'bun-windows-arm64',
   macos: 'bun-darwin-x64',
   'macos-arm': 'bun-darwin-arm64',
   linux: 'bun-linux-x64',
@@ -315,9 +321,19 @@ export const getReleaseBundleOptions = ({
  * Windows x64 natively through WSL interop (Wave 1H). macOS x64 (`macos-15-intel`), macOS arm64 (`macos-15`) and
  * Linux arm64 (`ubuntu-24.04-arm`) were qualified by the release workflow's `bytecode_qualification` run 36174122384
  * on 2026-09-25: 22/22 checks each and `--version` in 0.23-0.25 of the time. Linux arm64's depth-1 archive measured
- * 89.6 MiB against its 90 MiB gate; strip its arm64 OpenTUI libraries if that gate trips.
+ * 89.6 MiB against its 90 MiB gate; strip its arm64 OpenTUI libraries if that gate trips. Windows arm64
+ * (`windows-11-arm`) was qualified by `bytecode_qualification` run 38414606180 on 2026-10-13: 20/20 checks, `--version`
+ * in 0.24 of the time and a 71.5 MiB depth-1 archive.
  */
-const BYTECODE_PLATFORMS: SupportedPlatform[] = ['linux', 'alpine', 'win', 'macos', 'macos-arm', 'linux-arm'];
+const BYTECODE_PLATFORMS: SupportedPlatform[] = [
+  'linux',
+  'alpine',
+  'win',
+  'win-arm',
+  'macos',
+  'macos-arm',
+  'linux-arm'
+];
 
 export const buildBinaryFile = async ({
   distFolderPath,
@@ -346,7 +362,7 @@ export const buildBinaryFile = async ({
 
   const compileTarget = BUN_COMPILE_TARGETS[platform];
 
-  const outputFileName = platform === 'win' ? 'stacktape.exe' : 'stacktape';
+  const outputFileName = isWindowsPlatform(platform) ? 'stacktape.exe' : 'stacktape';
   const outputPath = join(outputFolderPath, outputFileName);
 
   const result = await Bun.build({
@@ -367,7 +383,7 @@ export const buildBinaryFile = async ({
     throw new Error(`Failed to build binary for platform ${platform}:\n${errors}`);
   }
 
-  if (platform !== 'win') {
+  if (!isWindowsPlatform(platform)) {
     await chmod(outputPath, 0o755);
   }
   logSuccess(`Binary for platform ${platform} generated successfully.`);
@@ -377,7 +393,8 @@ export const buildBinaryFile = async ({
 
 /**
  * railpack and the Session Manager plugin are downloaded on first use (`src/utils/external-tools.ts`). The one
- * exception is the plugin on Windows, where AWS publishes only an installer: that archive keeps shipping it.
+ * exception is the plugin on Windows, where AWS publishes only an installer: those archives keep shipping it. AWS
+ * builds it for x64 only, so Windows ARM64 runs the same executable under the system's x64 emulation.
  */
 export const copySessionsManagerPluginBinary = async ({
   distFolderPath,
@@ -386,7 +403,7 @@ export const copySessionsManagerPluginBinary = async ({
   distFolderPath?: string;
   platform: SupportedPlatform;
 }) => {
-  if (platform !== 'win') return;
+  if (!isWindowsPlatform(platform)) return;
   const sourcePath = join(SCRIPTS_ASSETS_PATH, 'session-manager-plugin', 'smp-win.exe');
   const distPath = join(distFolderPath, BINARY_FOLDER_NAMES[platform], 'session-manager-plugin', 'smp.exe');
   return await copy(sourcePath, distPath);
@@ -419,11 +436,11 @@ export const copyEsbuildBinary = async ({
     'esbuild',
     esbuildBinFileLocations[esbuildBinFileLocations.length - 1].replace('esbuild', 'exec')
   );
-  if (platform !== 'win') {
+  if (!isWindowsPlatform(platform)) {
     await chmod(esbuildExecutableSourcePath, '755');
   }
   await copy(esbuildExecutableSourcePath, esbuildExecutableDistPath);
-  if (platform !== 'win') {
+  if (!isWindowsPlatform(platform)) {
     await chmod(esbuildExecutableDistPath, '755');
   }
   await Promise.all([remove(extractedPath), remove(downloadedFilePath)]);
@@ -584,7 +601,7 @@ export const archiveCliBinaries = async ({
     if (await pathExists(platformDistFolderPath)) {
       await archiveItem({
         absoluteSourcePath: platformDistFolderPath,
-        format: platform === 'win' ? 'zip' : 'tgz',
+        format: isWindowsPlatform(platform) ? 'zip' : 'tgz',
         executablePatterns: EXECUTABLE_FILE_PATTERNS
       });
       logSuccess(`Archived binary for platform: ${platform}`);

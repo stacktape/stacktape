@@ -1,4 +1,4 @@
-import type { SupportedPlatform } from '@utils/platform';
+import { isWindowsPlatform, type SupportedPlatform } from '@utils/platform';
 import { join } from 'node:path';
 import { DIST_PACKAGE_FOLDER_PATH } from 'src/config/project-paths';
 import { getPlatform } from '@utils/bin-executable';
@@ -85,15 +85,15 @@ export const buildDistPackage = async ({
     generateLambdaTracingRuntime({ distFolderPath: platformDistFolderPath })
   ]);
 
-  if (platform !== 'win') {
+  if (!isWindowsPlatform(platform)) {
     await recursivelyChmodPlusX(platformDistFolderPath);
   }
 
   const archivePath = await archiveItem({
     absoluteSourcePath: platformDistFolderPath,
-    format: platform === 'win' ? 'zip' : 'tgz',
+    format: isWindowsPlatform(platform) ? 'zip' : 'tgz',
     executablePatterns: EXECUTABLE_FILE_PATTERNS,
-    useNativeZip: platform === 'win' // Native zip for Windows archives
+    useNativeZip: isWindowsPlatform(platform) // Native zip for Windows archives
   });
 
   if (!keepUnarchived) {

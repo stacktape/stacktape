@@ -678,6 +678,25 @@ a:hover .rm-arrow {
   transform: none;
 }
 
+/* The CPU architecture of the selected operating system, beside Copy and as tall as it. */
+.rm-code__arch {
+  --stp-tabs-padding: 2px;
+  --stp-tabs-radius: 7px;
+  --stp-tab-radius: 5px;
+  --stp-tab-indicator-radius: 5px;
+  --stp-tab-height: 24px;
+  --stp-tab-padding-x: 8px;
+  --stp-tab-font-size: 12px;
+  --stp-tab-font-weight: 500;
+  flex: none;
+  margin-left: auto;
+  font-family: var(--rm-mono);
+}
+
+.rm-code__arch .stp-ui-tab:active:not(:disabled) {
+  transform: none;
+}
+
 .rm-code__copy {
   --stp-control-height: 28px;
   --stp-button-padding-x: 10px;
@@ -750,8 +769,11 @@ a:hover .rm-arrow {
   -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent);
 }
 
+/* Exactly one line high: baseline alignment otherwise adds a pixel or two per line, and the pre's reserved height
+ * would no longer match the tallest tab. */
 .rm-code__line {
   display: flex;
+  height: 1.6em;
   align-items: baseline;
   gap: 10px;
   white-space: nowrap;
@@ -2823,15 +2845,27 @@ a:hover .rm-arrow {
     margin-top: 40px;
   }
 
+  /* Two rows: the operating systems, then the architecture and Copy. Every tab has the second row,
+   * so switching tabs never changes the block's height. */
   .rm-code__head {
+    flex-wrap: wrap;
+    row-gap: 0;
     padding-left: 0;
   }
 
-  /* The tab strip gives way to the Copy button and scrolls sideways if it must. */
+  /* The tab strip scrolls sideways if it must. */
   .rm-code__tabs {
-    flex: 1 1 auto;
+    flex: 1 0 100%;
     overflow-x: auto;
     scrollbar-width: none;
+  }
+
+  .rm-code__arch {
+    margin-left: 8px;
+  }
+
+  .rm-code__copy {
+    margin-left: auto;
   }
 
   .rm-code__tabs::-webkit-scrollbar {
@@ -2900,6 +2934,17 @@ a:hover .rm-arrow {
 
   .rm-hbtn--start {
     --stp-button-padding-x: 12px;
+  }
+}
+
+/* "Apple silicon" and Copy no longer share a row; the short label keeps the block at two rows. */
+@media (max-width: 359px) {
+  .rm-code__arch .stp-ui-tab__label--full {
+    display: none;
+  }
+
+  .rm-code__arch .stp-ui-tab__label--compact {
+    display: inline;
   }
 }
 
