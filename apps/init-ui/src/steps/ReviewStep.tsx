@@ -96,21 +96,22 @@ const PREFERENCE_COPY: {
   },
   databaseAccess: {
     title: 'Who should be able to reach the SQL database?',
-    description: 'Private access is the safer boundary, but Lambda-backed apps lose direct access to public APIs.',
+    description:
+      'A database without a public address is safer. Some app types then need extra setup to reach other services.',
     options: [
       {
         value: 'private',
         title: 'Only this private network',
         description:
-          'No public address. Adds one small keyless jump box so local tools and generated migrations can tunnel in.',
-        meta: 'Adds one small instance'
+          'No public address. Adds one small server (a bastion) that your local tools and migrations connect through.',
+        meta: 'Adds a small server'
       },
       {
         value: 'public',
         title: 'Internet reachable',
         description:
-          'Anyone can attempt a connection, but the generated password is still required. Simplest for Lambda and SSR.',
-        meta: 'No jump box'
+          'Reachable from the internet, protected by a generated password. The simplest setup for serverless apps.',
+        meta: 'No extra server'
       }
     ]
   }
@@ -141,7 +142,14 @@ function PreferenceCards<Key extends DeploymentPreferenceKey>({
         <h4 className="m-0 text-[0.95rem] font-semibold">{copy.title}</h4>
         <p className="wizard-lede mt-1">{copy.description}</p>
       </div>
-      <SelectionCardGroup ariaLabel={copy.title} direction="row" onValueChange={choose} value={value} values={values}>
+      <SelectionCardGroup
+        ariaLabel={copy.title}
+        className="wizard-choice-cards"
+        direction="row"
+        onValueChange={choose}
+        value={value}
+        values={values}
+      >
         {copy.options.map((option) => (
           <SelectionCard
             description={option.description}
@@ -182,6 +190,21 @@ export const deploymentPreferenceKeysFor = (types: Iterable<string>): Deployment
 const plainList = (items: readonly string[]): string =>
   items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
 
+/** Saving needs no account; says what deploying will need, without promising to fix what is already there. */
+const saveFootnote = (state: WizardState): string => {
+  const hasAws = state.awsIdentity?.available === true;
+  const signedIn = state.stacktapeAccount?.signedIn === true;
+  if (hasAws && signedIn)
+    return 'Saving needs no account. AWS credentials and a Stacktape sign-in for deploying are already set up.';
+  const missing = [
+    ...(state.awsIdentity !== undefined && !hasAws ? ['AWS credentials'] : []),
+    ...(state.stacktapeAccount !== undefined && !signedIn ? ['a Stacktape sign-in'] : [])
+  ];
+  return missing.length === 0
+    ? 'Saving needs no account.'
+    : `Saving needs no account. Deploying needs ${missing.join(' and ')}; the next step helps with that.`;
+};
+
 /** What the file will be called, given the format and whether the project already has one. */
 const filenameFor = (format: 'yaml' | 'typescript', hasExisting: boolean): string =>
   `stacktape${hasExisting ? '.generated' : ''}.${format === 'typescript' ? 'ts' : 'yml'}`;
@@ -193,6 +216,23 @@ const filenameFor = (format: 'yaml' | 'typescript', hasExisting: boolean): strin
  * has to survive being the only thing they read.
  */
 const TECHNOLOGY_LABELS: Readonly<Record<string, string>> = {
+  astro: 'Astro',
+  django: 'Django',
+  fiber: 'Fiber',
+  flask: 'Flask',
+  gin: 'Gin',
+  go: 'Go',
+  hono: 'Hono',
+  laravel: 'Laravel',
+  nuxt: 'Nuxt',
+  php: 'PHP',
+  python: 'Python',
+  rails: 'Rails',
+  ruby: 'Ruby',
+  rust: 'Rust',
+  sveltekit: 'SvelteKit',
+  vue: 'Vue',
+  fastify: 'Fastify',
   fastapi: 'FastAPI',
   nextjs: 'Next.js',
   nestjs: 'NestJS',
@@ -319,11 +359,18 @@ export function ReviewStep({
   const [showAll, setShowAll] = useState(false);
 
   const resources = Object.entries(state.composition?.resources ?? {});
-  const gaps = state.composition?.gaps ?? [];
-  const decisions = state.facts?.decisions ?? [];
   const existingDeployments = state.facts?.existingDeployments ?? [];
-  const notable = decisions.filter((decision) => decision.notable);
-  const rest = decisions.filter((decision) => !decision.notable);
+  // The alert about another platform already says this; repeating it under "Before you deploy" made
+  // one fact look like two things to do.
+  const gaps = (state.composition?.gaps ?? []).filter(
+    (gap) => !existingDeployments.some((deployment) => deployment.tool === gap.subject)
+  );
+  const decisions = state.facts?.decisions ?? [];
+  // With nothing notable, a "Show 1 smaller one" link under an empty list hides the only content.
+  const notable = decisions.some((decision) => decision.notable)
+    ? decisions.filter((decision) => decision.notable)
+    : decisions;
+  const rest = decisions.filter((decision) => !notable.includes(decision));
   const price = state.composition?.price;
   const configText = state.composition?.configText;
   const filename = filenameFor(format, state.existingConfig !== undefined);
@@ -337,11 +384,26 @@ export function ReviewStep({
   }, 0);
 
   if (resources.length === 0) {
+    const usedAgent = state.choice !== undefined && state.choice.agentId !== 'none';
     return (
-      <div className="wizard-panel p-5">
-        <p className="m-0 text-[var(--stp-text-muted)]">
-          We did not find anything to deploy — no server, no worker, no site. If that is wrong, the analysis missed it:
-          try again with a coding agent selected under Options, which reads more than the built-in scanner.
+      <div className="wizard-panel flex flex-col gap-2 p-5 text-[var(--stp-text-muted)]">
+        <p className="m-0">
+          No server, worker or website was found
+          {state.repositoryPath === undefined ? (
+            ''
+          ) : (
+            <>
+              {' '}
+              in <span className="wizard-code text-[var(--stp-text-primary)]">{state.repositoryPath}</span>
+            </>
+          )}
+          , so there is no configuration to save.
+        </p>
+        <p className="m-0">
+          If your app lives in a subdirectory, run <span className="wizard-code">stacktape init</span> there.
+          {usedAgent
+            ? ''
+            : ' If it is here, run it again and choose a coding agent under Options: an agent reads source code, not only manifests and Dockerfiles.'}
         </p>
       </div>
     );
@@ -472,8 +534,9 @@ export function ReviewStep({
 
       {price !== undefined && (
         <p className="wizard-total-cost">
-          <strong>{price.monthly}</strong> in fixed monthly costs, at AWS list prices for {price.region}. Traffic,
-          storage and requests add usage on top — this is the floor, not a bill.
+          <strong>{price.monthly}</strong>, at AWS list prices in{' '}
+          <span className="whitespace-nowrap">{price.region}</span>. The fixed part is what always-on resources cost;
+          traffic, storage and requests are billed by use on top.
         </p>
       )}
 
@@ -502,10 +565,9 @@ export function ReviewStep({
       {automaticAlarmCount > 0 && (
         <Alert tone="info" title="Monitoring is already included">
           {automaticAlarmCount === 1
-            ? 'One alarm watches for a sustained production problem.'
-            : `${automaticAlarmCount} alarms watch for sustained production problems.`}{' '}
-          They appear in Stacktape monitoring history without waking you for one noisy sample. Notification delivery can
-          be connected separately.
+            ? 'One alarm watches for a sustained production problem. It ignores a single noisy sample.'
+            : `${automaticAlarmCount} alarms watch for sustained production problems. They ignore a single noisy sample.`}{' '}
+          Their history is in the Stacktape Console; connect a Slack or email channel there to get notified.
         </Alert>
       )}
 
@@ -580,13 +642,7 @@ export function ReviewStep({
             </span>
           </div>
           {(state.awsIdentity !== undefined || state.stacktapeAccount !== undefined) && (
-            <p className="m-0 text-[0.82rem] text-[var(--stp-text-subtle)]">
-              Saving needs no account. Deploying later needs AWS credentials
-              {state.awsIdentity === undefined ? '' : state.awsIdentity.available ? ' ✓' : ' — none found yet'} and a
-              Stacktape sign-in
-              {state.stacktapeAccount === undefined ? '' : state.stacktapeAccount.signedIn ? ' ✓' : ' — needed'}. The
-              next step sorts both out.
-            </p>
+            <p className="m-0 text-[0.82rem] text-[var(--stp-text-subtle)]">{saveFootnote(state)}</p>
           )}
         </div>
       )}

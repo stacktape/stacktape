@@ -60,7 +60,7 @@ export function DeployProgress({
         <Alert tone="success" title="Deployed">
           {urls.length > 0 ? 'Your infrastructure is live.' : (outcome?.message ?? 'Your infrastructure is live.')}
           {anyRepairApplied &&
-            ` One honest note: after the first attempt failed, we changed ${rewrittenLabel} and tried again — the file in your project is the version that is live now.`}
+            ` One honest note: after the first attempt failed, we changed ${rewrittenLabel} and tried again. The file in your project is the version that is live now.`}
         </Alert>
       )}
 
@@ -68,7 +68,7 @@ export function DeployProgress({
         <Alert tone="info" title="That did not work. Looking at your code again.">
           {outcome?.message ?? 'The deploy failed.'} A failed deploy tells us something we believed about your project
           is wrong, so the agent is reading it again to find out what. If it finds something, we rewrite the
-          configuration, save the file, and try once more — you will see exactly what changed.
+          configuration, save the file, and try once more. You will see exactly what changed.
         </Alert>
       )}
 
@@ -81,8 +81,8 @@ export function DeployProgress({
               : ' We looked at your code again and found nothing to change, so we stopped rather than repeat the same deploy.'
             : ''}
           {keptPartialProgress === true
-            ? ' What was created before the failure is still in your account, and it bills until you remove it — the command below under “clean up” takes care of that.'
-            : ' Nothing is left half-created: Stacktape rolls a failed deploy back to the last state that worked.'}
+            ? ' What was created before the failure is still in your account, and it bills until you remove it. The clean-up command below removes it.'
+            : ' AWS rolled this attempt back, so nothing it created is left running or billing.'}
         </Alert>
       )}
 
@@ -112,12 +112,13 @@ export function DeployProgress({
                 <span className="wizard-phase-label">{phase.label}</span>
                 {phase.cloudformation !== undefined && phase.cloudformation.total > 0 && (
                   <span className="text-[0.8rem] text-[var(--stp-text-subtle)]">
-                    {phase.cloudformation.completed} of {phase.cloudformation.total}
+                    {phase.cloudformation.completed} of {phase.cloudformation.total} AWS resources
                   </span>
                 )}
               </div>
 
-              {phase.status === 'running' && phase.message !== '' && (
+              {/* CloudFormation's message is the same count as the figure beside the label. */}
+              {phase.status === 'running' && phase.message !== '' && phase.cloudformation === undefined && (
                 <p className="wizard-phase-message">{phase.message}</p>
               )}
 
@@ -166,11 +167,14 @@ export function DeployProgress({
 
       {model.notices.length > 0 && (
         <section>
-          <h3 className="wizard-section-heading">Worth reading</h3>
-          <ul className="m-0 flex list-none flex-col gap-1.5 p-0 text-[0.9rem]">
+          <h3 className="wizard-section-heading">What the deploy reported</h3>
+          <ul className="m-0 flex list-none flex-col gap-2 p-0">
             {model.notices.slice(-6).map((notice, index) => (
-              // oxlint-disable-next-line react/no-array-index-key -- an append-only feed of notices.
-              <li className={notice.level === 'error' ? 'text-[var(--stp-status-danger-text)]' : ''} key={index}>
+              <li
+                className={`wizard-output ${notice.level === 'error' ? 'text-[var(--stp-status-danger-text)]' : ''}`}
+                // oxlint-disable-next-line react/no-array-index-key -- an append-only feed of notices.
+                key={index}
+              >
                 {notice.message}
               </li>
             ))}

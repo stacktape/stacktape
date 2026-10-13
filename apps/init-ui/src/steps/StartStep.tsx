@@ -42,7 +42,8 @@ export function StartStep({
     const chosen = state.agents?.find((option) => option.id === state.choice?.agentId);
     return (
       <p className="wizard-recap">
-        Analyzed with <strong>{chosen?.label ?? 'the built-in scanner'}</strong>.
+        {state.phase === 'analysing' ? 'Analyzing' : 'Analyzed'} with{' '}
+        <strong>{chosen?.label ?? 'the built-in scanner'}</strong>.
       </p>
     );
   }
@@ -54,13 +55,13 @@ export function StartStep({
           {agent !== undefined && agent.id !== 'none' ? (
             <>
               <strong>No code is sent to Stacktape.</strong> Your own {agent.label} reads the project right here, under
-              the account you already have with it, with read-only tools — it cannot run scripts or install anything.
+              the account you already have with it, with read-only tools. It cannot run scripts or install anything.
               Prefer that no AI provider receives code? Pick “Files only” under Options.
             </>
           ) : (
             <>
               <strong>Your code stays on this machine.</strong> The built-in scanner reads your manifests and config
-              files right here — nothing goes to Stacktape or to any AI provider, and no account is needed.
+              files right here. Nothing goes to Stacktape or to any AI provider, and no account is needed.
             </>
           )}
         </li>
@@ -75,7 +76,7 @@ export function StartStep({
       </ol>
 
       <p className="m-0 max-w-[var(--wizard-measure)] text-[0.82rem] text-[var(--stp-text-subtle)]">
-        We record anonymous outcome statistics — which frameworks were found, whether the deploy worked — never your
+        We record anonymous outcome statistics (which frameworks were found, whether the deploy worked), never your
         code, names or files. Set <span className="wizard-code">STP_DISABLE_TELEMETRY=1</span> to turn that off.
       </p>
 
@@ -99,7 +100,7 @@ export function StartStep({
       {agents.length > 1 && (
         <div>
           <button className="wizard-disclosure" onClick={() => setShowOptions(!showOptions)} type="button">
-            {showOptions ? 'Hide options' : `Options — analyzing with ${agent?.label ?? 'the built-in scanner'}`}
+            {showOptions ? 'Hide options' : `Options: analyzing with ${agent?.label ?? 'the built-in scanner'}`}
           </button>
 
           {showOptions && (
@@ -134,6 +135,7 @@ export function StartStep({
               {models.length > 1 && (
                 <SelectionCardGroup
                   ariaLabel="Which model the agent uses"
+                  className="wizard-model-cards"
                   direction="row"
                   onValueChange={setModelId}
                   value={chosenModel}
