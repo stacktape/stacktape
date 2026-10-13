@@ -2097,7 +2097,6 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/init/server/security.spec.ts',
       'apps/cli/src/init/server/wizard-server.spec.ts',
       'apps/cli/src/init/server/wizard-session.spec.ts',
-      'apps/cli/src/init/telemetry.spec.ts',
       'apps/cli/src/init/tools/tools.spec.ts',
       'apps/cli/src/init/tools/workspace.spec.ts',
       'apps/cli/src/init/write-config.spec.ts',
@@ -2669,6 +2668,34 @@ export const lanes: readonly Lane[] = [
     tests: ['packages/analytics/src'],
     requires: [],
     release: 'every-candidate'
+  },
+  {
+    id: 'analytics-cli',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'exec', 'bun', 'test', 'src/utils/telemetry.spec.ts'],
+    level: 'process',
+    tier: 'pr',
+    tests: ['apps/cli/src/utils/telemetry.spec.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'CLI completion, init and exception telemetry obey opt-out, redact emitted bytes and tolerate rejection.'
+  },
+  {
+    id: 'analytics-console',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/console-api-app',
+      'exec',
+      'bun',
+      'test',
+      'src/integrations/posthog.test.ts'
+    ],
+    level: 'process',
+    tier: 'pr',
+    tests: ['apps/console/api/src/integrations/posthog.test.ts'],
+    requires: ['console'],
+    release: 'every-candidate',
+    proves: 'The Console analytics adapter scrubs SDK deliveries and preserves handler outcomes when analytics fail.'
   },
   {
     id: 'cli-qualify-projects',
@@ -5336,12 +5363,12 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/init/telemetry.ts'
     ],
     tests: [
-      'apps/cli/src/init/telemetry.spec.ts',
       'apps/cli/src/utils/telemetry.spec.ts',
+      'apps/console/api/src/integrations/posthog.test.ts',
       'packages/analytics/src/posthog.test.ts',
       'packages/analytics/src/privacy.test.ts'
     ],
-    lanes: ['analytics-test', 'cli', 'cli-2', 'cli-3']
+    lanes: ['analytics-test', 'analytics-cli', 'analytics-console', 'cli', 'cli-2', 'cli-3']
   },
   {
     id: 'S70',
