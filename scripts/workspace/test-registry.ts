@@ -950,7 +950,8 @@ export const lanes: readonly Lane[] = [
       'src/utils/safe-error.test.ts',
       'src/organizations/personal-organization.test.ts',
       'src/aws/browser-access.test.ts',
-      'src/aws/context.test.ts'
+      'src/aws/context.test.ts',
+      'infrastructure/console-connection/connection-template.test.ts'
     ],
     level: 'focused',
     tier: 'pr',
@@ -961,7 +962,8 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/utils/safe-error.test.ts',
       'apps/console/api/src/organizations/personal-organization.test.ts',
       'apps/console/api/src/aws/browser-access.test.ts',
-      'apps/console/api/src/aws/context.test.ts'
+      'apps/console/api/src/aws/context.test.ts',
+      'apps/console/api/infrastructure/console-connection/connection-template.test.ts'
     ],
     requires: ['console'],
     release: 'every-candidate',
@@ -4114,6 +4116,7 @@ export const slices: readonly Slice[] = [
     journeys: ['J5'],
     paths: [
       'apps/console/api/src/aws/**',
+      'apps/console/api/infrastructure/console-connection/**',
       'apps/console/api/src/lambdas/handle-account-connection.ts',
       'apps/console/ui/src/pages/AwsAccountsPage/**',
       'apps/console/api/src/services/aws-primary-region.ts',
