@@ -45,7 +45,7 @@ export const COMMANDS = [
     id: 'macos',
     label: 'macOS',
     variants: [
-      { arch: 'arm64', label: 'Apple silicon', lines: shellInstall('macos-arm.sh') },
+      { arch: 'arm64', label: 'Apple silicon', compactLabel: 'ARM', lines: shellInstall('macos-arm.sh') },
       { arch: 'x64', label: 'Intel', lines: shellInstall('macos.sh') }
     ]
   },

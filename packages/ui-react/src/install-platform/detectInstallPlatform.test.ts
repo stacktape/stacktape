@@ -86,6 +86,24 @@ const cases: {
   },
   { name: 'Safari on an iPhone', navigator: { userAgent: SAFARI_IPHONE }, expected: undefined },
   {
+    name: 'Firefox on FreeBSD',
+    navigator: { userAgent: 'Mozilla/5.0 (X11; FreeBSD amd64; rv:143.0) Gecko/20100101 Firefox/143.0' },
+    expected: undefined
+  },
+  {
+    name: 'Firefox on OpenBSD',
+    navigator: { userAgent: 'Mozilla/5.0 (X11; OpenBSD amd64; rv:143.0) Gecko/20100101 Firefox/143.0' },
+    expected: undefined
+  },
+  {
+    name: 'Chrome on ChromeOS',
+    navigator: {
+      userAgent:
+        'Mozilla/5.0 (X11; CrOS x86_64 16328.65.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'
+    },
+    expected: { os: 'linux', arch: 'x64' }
+  },
+  {
     name: 'a browser that refuses high-entropy hints',
     navigator: {
       userAgent: CHROME_WINDOWS,

@@ -173,7 +173,12 @@ export function CodeBlock({ label = 'Install', hint = true, id }: { label?: stri
             className="rm-code__arch"
             onValueChange={switchArch}
             size="small"
-            tabs={entry.variants.map((candidate) => ({ value: candidate.arch, label: candidate.label, panelId }))}
+            tabs={entry.variants.map((candidate) => ({
+              value: candidate.arch,
+              label: candidate.label,
+              compactLabel: 'compactLabel' in candidate ? candidate.compactLabel : undefined,
+              panelId
+            }))}
             value={variant.arch}
             width="fit"
           />
