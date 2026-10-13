@@ -83,6 +83,18 @@ describe('security posture through authored configuration', () => {
       'orders',
       'uploads'
     ]);
+    expect(production.findings.find(({ resourceName }) => resourceName === 'uploads')).toMatchObject({
+      ruleId: 'bucket-publicly-accessible',
+      severity: 'HIGH'
+    });
+    expect(production.findings.find(({ resourceName }) => resourceName === 'assets')).toMatchObject({
+      ruleId: 'bucket-publicly-accessible',
+      severity: 'MEDIUM'
+    });
+    expect(production.findings.find(({ ruleId }) => ruleId === 'database-reachable-from-internet')).toMatchObject({
+      resourceName: 'orders',
+      fingerprint: 'database-reachable-from-internet:orders'
+    });
     expect(production.findings[0].severity).toBe('HIGH');
     expect(production.findings.map(({ severity }) => severity)).toEqual([
       'HIGH',
@@ -106,6 +118,18 @@ describe('security posture through authored configuration', () => {
     expect(development.isProduction).toBe(false);
     expect(ruleIds(development)).not.toContain('database-deletion-protection-disabled');
     expect(ruleIds(development)).toContain('database-reachable-from-internet');
+    expect(development.findings.find(({ resourceName }) => resourceName === 'jobs')).toMatchObject({
+      ruleId: 'queue-without-dead-letter-queue',
+      fingerprint: 'queue-without-dead-letter-queue:jobs'
+    });
+    expect(development.findings.map(({ resourceName }) => resourceName)).not.toContain('events');
+    const namedDevelopment = assess(resources);
+    expect(namedDevelopment.isProduction).toBe(false);
+    expect(namedDevelopment.findings.find(({ resourceName }) => resourceName === 'jobs')).toMatchObject({
+      ruleId: 'queue-without-dead-letter-queue',
+      fingerprint: 'queue-without-dead-letter-queue:jobs'
+    });
+    expect(namedDevelopment.findings.map(({ resourceName }) => resourceName)).not.toContain('events');
     const privateResources = {
       ...resources,
       orders: {
@@ -195,6 +219,21 @@ describe('security posture through authored configuration', () => {
       expect.arrayContaining(['gateway', 'hosted'])
     );
   });
+  test('Convex fixed topology avoids unactionable posture warnings while its public endpoint remains visible', () => {
+    const convex = assess(
+      { backend: { type: 'convex', properties: { appDirectory: './convex', deletionProtection: true } } },
+      { stage: 'production', config: { deploymentConfig: { terminationProtection: true } } }
+    );
+    expect(convex.findings).toEqual([]);
+    // Convex does not expose configurable WAF or replica controls. Its generated ALB still serves public traffic.
+    expect(
+      convex.exposure.filter(
+        ({ resourceType }) => resourceType === 'convex' || resourceType === 'application-load-balancer'
+      )
+    ).toEqual([
+      expect.objectContaining({ kind: 'public-endpoint', accessibility: 'internet', protectedByFirewall: false })
+    ]);
+  });
   test('a finding keeps its identity when an unrelated statement or container is inserted before it', () => {
     const wildcard = { Effect: 'Allow' as const, Action: ['s3:*'], Resource: ['*'] };
     const scoped = {
@@ -235,11 +274,16 @@ describe('security posture through authored configuration', () => {
           }
         }
       }).findings[0]?.fingerprint;
-    expect(
-      conditioned({ Bool: { 'aws:SecureTransport': 'true' }, StringEquals: { 'aws:RequestedRegion': ['eu-west-1'] } })
-    ).toBe(
-      conditioned({ StringEquals: { 'aws:RequestedRegion': ['eu-west-1'] }, Bool: { 'aws:SecureTransport': 'true' } })
-    );
+    const originalOrder = conditioned({
+      Bool: { 'aws:SecureTransport': 'true' },
+      StringEquals: { 'aws:RequestedRegion': ['eu-west-1'] }
+    });
+    const reordered = conditioned({
+      StringEquals: { 'aws:RequestedRegion': ['eu-west-1'] },
+      Bool: { 'aws:SecureTransport': 'true' }
+    });
+    expect(originalOrder).toMatch(/^iam-statement-wildcard-service-on-any-resource:worker:statement-[0-9a-f]{8}$/);
+    expect(reordered).toBe(originalOrder);
 
     const secretValue = 'q8Zr2Lm9Xv4Kp7Ws1Tn6Yb3Hd5Fg0Jc';
     const app = {
