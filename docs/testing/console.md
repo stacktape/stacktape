@@ -26,6 +26,9 @@ pnpm --filter @stacktape/console-api-app test:db --billing
 pnpm --filter @stacktape/console-api-app test:db --issues
 pnpm --filter @stacktape/console-api-app test:db --incidents
 pnpm --filter @stacktape/console-api-app test:db --incident-journey
+pnpm --filter @stacktape/console-api-app test:db --alerts
+pnpm --filter @stacktape/console-api-app test:db --uptime
+pnpm --filter @stacktape/console-api-app test:db --secrets
 pnpm --filter @stacktape/console-api-app test:db --security
 pnpm --filter @stacktape/console-api-app test:db --insights
 pnpm --filter @stacktape/console-api-app test:db --gitlab
@@ -37,6 +40,13 @@ pnpm --filter @stacktape/console-api-app test:db --console-access
 pnpm --filter @stacktape/console-api-app test:db --secrets
 pnpm --filter @stacktape/console-api-app test:db --cli-console
 ```
+
+`--alerts` exercises delivery leases, provider retries, saved receipts and signed Slack actions with PostgreSQL and
+MiniStack SQS/Secrets Manager/SES. Provider contract checks use HTTPS receivers; evidence uploads use the real Slack
+SDK. `--uptime` drives regional quorum and rejected reports through the production HTTP API. `--incident-journey` also
+runs the built prober against MiniStack SSM/STS and the built Prisma proxy on MiniStack Lambda; build the CLI dev
+artifacts first with `pnpm --filter @stacktape/cli build:dev-artifacts`. CloudWatch metrics/history remain an explicit
+HTTP provider fixture.
 
 `--secrets` runs the source CLI and production Console AWS helpers and credential cache through the real HTTP API and
 isolated PostgreSQL, with Secrets Manager, SSM and Lambda configuration on MiniStack. It checks CRUD, fresh-client
