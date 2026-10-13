@@ -10,8 +10,9 @@
     "./operations": "./src/operations.ts"
   },
   "scripts": {
-    "test": "bun test src",
-    "typecheck": "tsc -p tsconfig.json"
+    "test": "bun test src/operations.test.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test:ministack": "bun test src/executor.ministack.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-acm": "3.1121.0",
@@ -54,6 +55,7 @@
     "@aws-sdk/types": "3.974.5"
   },
   "devDependencies": {
+    "@stacktape/ministack": "workspace:*",
     "@types/bun": "catalog:",
     "@types/node": "catalog:",
     "typescript": "catalog:"
