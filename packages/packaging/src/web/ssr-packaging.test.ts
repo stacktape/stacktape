@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { chmod, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, readdir, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { archiveItem, createPackagingError, progressLogger, run, write } from '../../scripts/e2e-helpers';
@@ -241,7 +241,7 @@ test('native package resolution uses the framework-owned version instead of an u
         resolveFromPackage: 'astro',
         traceBasePath: root
       })
-    ).toEqual({ name: 'sharp', path: frameworkSharp, version: '0.34.5' });
+    ).toEqual({ name: 'sharp', path: await realpath(frameworkSharp), version: '0.34.5' });
   } finally {
     await rm(root, { recursive: true, force: true });
   }
