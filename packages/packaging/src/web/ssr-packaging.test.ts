@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { archiveItem, createPackagingError, progressLogger, run, write } from '../../scripts/e2e-helpers';
@@ -10,12 +10,18 @@ const executeProcess: ExecuteProcess = async (command, args, options) =>
   run(command, args, options.cwd, {
     PATH: process.env.PATH,
     ...Object.fromEntries(Object.entries(options.env ?? {}).map(([key, value]) => [key, String(value)])),
-    npm_config_offline: 'true'
+    npm_config_offline: 'true',
+    npm_config_cache: join(options.cwd!, '.npm-cache')
   });
 
 // A small build executable stands at the framework boundary. Everything after it is production packaging:
 // coordination, output selection, tracing, wrapper creation, digesting and ZIP creation.
 const setup = async (root: string) => {
+  // npx resolves the fixture's local framework binary. It must never install a "node" package from npm.
+  const binary = join(root, 'node_modules/.bin/ssr-fixture-build');
+  await write(binary, `#!${process.execPath}\nimport '../../build.mjs';\n`);
+  await chmod(binary, 0o755);
+  await write(`${binary}.cmd`, `@echo off\r\n"${process.execPath}" "%~dp0..\\..\\build.mjs"\r\n`);
   await write(
     join(root, 'package.json'),
     JSON.stringify({
@@ -74,7 +80,7 @@ const packageApp = (root: string, name: string, buildEnv: Record<string, string>
     createProgressLogger: () => progressLogger,
     buildConfig: {
       workingDir: root,
-      buildCommand: 'node build.mjs',
+      buildCommand: 'ssr-fixture-build',
       buildEnv: { MARKER: name, ...buildEnv },
       serverOutputPath: 'output/public/server',
       staticOutputPath: 'output/public',

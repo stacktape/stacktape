@@ -4,6 +4,7 @@ import type {
   CreatePackagingError,
   ExecuteProcess,
   LoadModuleExport,
+  RunDocker,
   PackagingProgressLogger as ProgressLogger
 } from '../runtime-contracts';
 import type { NextjsWeb } from '@stacktape/config/nextjs-web';
@@ -18,6 +19,8 @@ import type { EnvironmentVar } from '@stacktape/config/shared';
 import type { OpenNextConfig as UpstreamOpenNextConfig } from 'open-next/types/open-next.js';
 import { createTemporaryBuildFile } from '../fs/temporary-file';
 import { runWebBuildExclusive } from './build-coordinator';
+import { resolveInstalledNodePackage } from './node-runtime-files';
+import { copyDockerInstalledModulesForLambda } from '../es/native-dependencies';
 
 type NextjsWebBundlingProps = {
   resource: PackagedNextjsWeb;
@@ -31,6 +34,8 @@ type NextjsWebBundlingProps = {
   createPackagingError: CreatePackagingError;
   executeProcess: ExecuteProcess;
   loadModuleExport: LoadModuleExport;
+  runDocker: RunDocker;
+  nativeDependencyInstallationRootPath: string;
 };
 
 type PackagedFunction = { name: string; handler: string };
@@ -76,7 +81,9 @@ export const createNextjsWebArtifacts = async ({
   archiveItem,
   createPackagingError,
   executeProcess,
-  loadModuleExport
+  loadModuleExport,
+  runDocker,
+  nativeDependencyInstallationRootPath
 }: NextjsWebBundlingProps) => {
   const copyEnv = hostBuildEnvironment(process.env);
   const absoluteAppDirectory = join(cwd, resource.appDirectory || '.');
@@ -151,6 +158,30 @@ export const createNextjsWebArtifacts = async ({
   await createServerWrapper({ distFolderPath, resource });
   // create custom resource wrapper to use open-next built dynamo inserter resource
   await createDynamoInsertWrapper({ distFolderPath });
+
+  // OpenNext emits sharp's JS package, but its host install can omit the native binary (and a Windows binary
+  // cannot run in Lambda). Materialize the exact emitted version in the target runtime before hashing the ZIP.
+  const imageFunctionPath = join(distFolderPath, 'image-optimization-function');
+  const sharp = await resolveInstalledNodePackage({
+    applicationRoot: imageFunctionPath,
+    packageName: 'sharp',
+    traceBasePath: imageFunctionPath
+  });
+  if (!sharp) {
+    throw createPackagingError({
+      type: 'PACKAGING',
+      message: `Could not resolve the sharp runtime package for nextjs-web "${resource.name}" image optimization.`
+    });
+  }
+  await copyDockerInstalledModulesForLambda({
+    dependencies: [{ ...sharp, dependencyType: 'root' }],
+    installationRootPath: nativeDependencyInstallationRootPath,
+    distFolderPath: imageFunctionPath,
+    lambdaRuntimeVersion: 24,
+    packageManager: 'npm',
+    dockerBuildOutputArchitecture: 'linux/amd64',
+    runDocker
+  });
 
   const [
     imageFunction,

@@ -3524,7 +3524,7 @@ export const slices: readonly Slice[] = [
     promise: 'Next.js/OpenNext produces a working deployed artifact.',
     status: 'active',
     journeys: ['J3'],
-    paths: ['packages/packaging/src/web/nextjs-web.ts'],
+    paths: ['packages/packaging/src/web/nextjs-web.ts', 'apps/cli/src/domain/packaging-manager/index.ts'],
     tests: ['packages/packaging/src/web/nextjs-web.test.ts'],
     lanes: ['packaging-ssr', 'packaging-test', 'cli-packaged-web', 'starter-qualification'],
     contributors: ['S30']
