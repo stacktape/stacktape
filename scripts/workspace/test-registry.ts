@@ -1845,12 +1845,13 @@ export const lanes: readonly Lane[] = [
     tests: [
       'apps/console/ui/e2e/isolated-console.test.ts',
       'apps/console/ui/e2e/isolated-deployment.test.ts',
-      'apps/console/ui/e2e/isolated-security.test.ts'
+      'apps/console/ui/e2e/isolated-security.test.ts',
+      'apps/console/ui/e2e/isolated-first-run.test.ts'
     ],
     requires: ['console', 'docker', 'chromium', 'network'],
     release: 'every-candidate',
     proves:
-      'Issue-state persistence, tenant denial, failed-deploy context and security coverage through the real UI, local HTTP router and disposable PostgreSQL.',
+      'Issue-state persistence, tenant denial, failed-deploy context, security coverage and the first-deploy hand-off through the real UI, local HTTP router and disposable PostgreSQL.',
     selections: ['console-browser-isolated']
   },
   {
@@ -2366,6 +2367,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-console.test.ts',
       'apps/console/ui/e2e/isolated-deployment.test.ts',
       'apps/console/ui/e2e/isolated-security.test.ts',
+      'apps/console/ui/e2e/isolated-first-run.test.ts',
       'apps/console/ui/e2e/issues.spec.ts',
       'apps/console/ui/e2e/privacy-probe.spec.ts',
       'apps/console/ui/e2e/project-access.spec.ts',
@@ -5357,9 +5359,17 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/pages/MetricsPage/org-metrics.test.ts',
       'apps/console/ui/src/pages/SyntheticsPage/synthetics-presentation.test.ts',
       'apps/console/ui/src/pages/OverviewPage/overview-metrics.test.ts',
+      'apps/console/ui/e2e/isolated-first-run.test.ts',
       'apps/console/ui/src/utils/dates.test.ts'
     ],
-    lanes: ['console-ui', 'console-ui-2', 'console-ui-3', 'console-observability-readers', 'console-database-insights'],
+    lanes: [
+      'console-ui',
+      'console-ui-2',
+      'console-ui-3',
+      'console-observability-readers',
+      'console-database-insights',
+      'console-browser-isolated'
+    ],
     contributors: ['S66']
   },
   {
