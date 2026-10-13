@@ -1,0 +1,144 @@
+# Temporary: proves the Windows ARM64 target on real hardware before the branch merges. Delete before merging.
+name: Windows ARM trial
+
+on:
+  push:
+    branches:
+      - feat/windows-arm-trial
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    name: Native release artifact on ${{ matrix.runner }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Windows ARM64, and Windows x64 to prove it did not regress and to tell ARM problems from Windows ones.
+          - runner: windows-11-arm
+            machine: aa64
+          - runner: windows-latest
+            machine: '8664'
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: false
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.17.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.1
+      - name: Report host architecture
+        run: |
+          node -p "process.platform + '-' + process.arch"
+          bun -p "process.platform + '-' + process.arch"
+      - run: pnpm install --frozen-lockfile
+      - name: Build init wizard interface
+        run: pnpm turbo run build --filter=@stacktape/init-ui
+      # Builds this host's archive, installs it through the packed npm launcher, runs the executable and
+      # resolves railpack and the bundled Session Manager plugin the way a first command does.
+      - name: Verify the native release artifact
+        run: pnpm --filter @stacktape/cli run test:release-artifact
+      # The way a customer installs: `iwr <installer> -useb | iex` in Windows PowerShell. A local server stands in for
+      # the GitHub release and the installer endpoint, serving the archive and SHA256SUMS the previous step built. Both
+      # installers must install this machine's build; the other build's archive is not served, so a wrong choice fails.
+      - name: Install with both Windows installers and run the installed CLI
+        run: |
+          ls -la apps/cli/__dist
+          # The installer endpoint serves .ps1 files as application/octet-stream (publish-install-scripts.ts).
+          bun -e 'Bun.serve({ port: 8765, fetch: (request) => new Response(Bun.file("apps/cli/__dist/" + new URL(request.url).pathname.split("/").pop()), { headers: { "content-type": "application/octet-stream" } }) })' &
+          sleep 2
+          executable="$USERPROFILE/.stacktape/bin/stacktape.exe"
+          for installer in windows.ps1 windows-arm.ps1; do
+            echo "::group::$installer"
+            sed 's#https://github.com/stacktape/stacktape/releases/download/\$Version#http://127.0.0.1:8765/$Version#' \
+              "apps/cli/scripts/install-scripts/$installer" > apps/cli/__dist/install.ps1
+            grep -c '127.0.0.1:8765' apps/cli/__dist/install.ps1
+            rm -f "$executable"
+            STACKTAPE_VERSION=0.0.0-release-artifact powershell -NoProfile -ExecutionPolicy Bypass -Command \
+              "iwr http://127.0.0.1:8765/install.ps1 -useb | iex"
+            "$executable" --version
+            bun -e 'const b = require("fs").readFileSync(process.argv[1]); const pe = b.readUInt32LE(0x3c); const machine = b.readUInt16LE(pe + 4).toString(16); console.log("PE machine", machine); if (machine !== process.argv[2]) process.exit(1);' "$executable" '${{ matrix.machine }}'
+            echo "::endgroup::"
+          done
+      # A CI runner has no interactive console, so the launcher itself cannot open here (on x64 either). Instead the
+      # installed executable, acting as its own Bun runtime, loads OpenTUI's native library for this architecture and
+      # renders a frame with it headlessly.
+      - name: Render with OpenTUI through the installed runtime
+        working-directory: apps/cli
+        run: |
+          cat > scripts/opentui-render-check.tmp.ts <<'EOF'
+          import { TextRenderable } from '@opentui/core';
+          import { createTestRenderer } from '@opentui/core/testing';
+          const { renderer, renderOnce, captureCharFrame } = await createTestRenderer({ width: 40, height: 3 });
+          renderer.root.add(new TextRenderable(renderer, { content: 'rendered natively' }));
+          await renderOnce();
+          const frame = captureCharFrame();
+          console.log(`${process.platform}-${process.arch}\n${frame}`);
+          renderer.destroy();
+          if (!frame.includes('rendered natively')) process.exit(1);
+          EOF
+          BUN_BE_BUN=1 "$USERPROFILE/.stacktape/bin/stacktape.exe" scripts/opentui-render-check.tmp.ts
+      - name: Smoke-test CLI commands
+        run: pnpm --filter @stacktape/cli run test:cli-smoke
+      # Trivy publishes no Windows ARM64 build; on ARM this runs the pinned x64 one under emulation.
+      - name: Resolve and run Trivy
+        working-directory: apps/cli
+        run: |
+          cat > scripts/trivy-check.tmp.ts <<'EOF'
+          import { ensureTrivyBinary } from 'src/domain/security-inventory/trivy';
+          import { getPlatform } from '@utils/bin-executable';
+          const { binaryPath } = await ensureTrivyBinary({ toolsDirectory: process.argv[2] });
+          const run = Bun.spawnSync({ cmd: [binaryPath, '--version'], stdout: 'pipe', stderr: 'pipe' });
+          console.log(getPlatform(), binaryPath, run.exitCode, run.stdout.toString().trim());
+          if (run.exitCode !== 0) process.exit(1);
+          EOF
+          bun scripts/trivy-check.tmp.ts "$RUNNER_TEMP/tools"
+      - name: Run platform and installer specs
+        working-directory: apps/cli
+        run: >-
+          bun test scripts/platform-runtime.spec.ts scripts/install-scripts/checksums.spec.ts
+          scripts/install-scripts/windows.spec.ts src/domain/security-inventory/trivy.spec.ts
+
+  macos-selection:
+    name: macOS installer selection on ${{ matrix.runner }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            expected: macos-arm.tar.gz
+          - runner: macos-15-intel
+            expected: macos.tar.gz
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: false
+      # The installers' own selection block, on the real processor and, on Apple silicon, inside a Rosetta shell.
+      - name: Select the archive
+        run: |
+          for installer in macos.sh macos-arm.sh; do
+            sed -n '/^# Install the build this Mac/,/^fi$/p' "apps/cli/scripts/install-scripts/$installer" > select.sh
+            printf 'echo "$archive_name"\n' >> select.sh
+            native=$(sh select.sh)
+            echo "$installer native: $native"
+            test "$native" = '${{ matrix.expected }}'
+            if [ "$(uname -m)" = arm64 ]; then
+              rosetta=$(arch -x86_64 /bin/sh select.sh)
+              echo "$installer under Rosetta (uname -m: $(arch -x86_64 uname -m)): $rosetta"
+              test "$rosetta" = '${{ matrix.expected }}'
+            fi
+          done
