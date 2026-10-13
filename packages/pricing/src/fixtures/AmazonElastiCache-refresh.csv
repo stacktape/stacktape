@@ -1,0 +1,7 @@
+Synthetic AWS-shaped offer for refresh coverage; not a live price quote
+fixture
+fixture
+fixture
+fixture
+Service Code,Product Family,Instance Type,Cache Engine,Location Type,Region Code,Unit,Price Per Unit,Currency
+AmazonElastiCache,Cache Instance,cache.t4g.micro,Redis,AWS Region,us-east-1,Hrs,0.02,USD

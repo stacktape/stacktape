@@ -1,0 +1,7 @@
+Synthetic AWS-shaped offer for refresh coverage; not a live price quote
+fixture
+fixture
+fixture
+fixture
+Service Code,Price Description,Volume Type,Location Type,Region Code,Unit,Price Per Unit,Currency
+AmazonS3,first 50 TB / month of storage used,Standard,AWS Region,us-east-1,GB-Mo,0.023,USD

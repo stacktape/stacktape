@@ -1,6 +1,6 @@
 {
   "extends": "../../tsconfig.package.json",
-  "include": ["src"],
+  "include": ["src", "scripts"],
   "compilerOptions": {
     "exactOptionalPropertyTypes": false,
     "module": "preserve",
