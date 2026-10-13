@@ -1249,7 +1249,7 @@ export const lanes: readonly Lane[] = [
     requires: ['console', 'docker', 'network'],
     release: 'every-candidate',
     proves:
-      'Real delivery leases, retries, receipt repair and signed Slack actions through MiniStack SQS/Secrets Manager and PostgreSQL.',
+      'Delivery leases, receipt repair, signed Slack permissions and provider contracts through PostgreSQL, real SDKs and MiniStack SQS/Secrets Manager/SES.',
     selections: ['console-database-alerts']
   },
   {
@@ -4921,6 +4921,8 @@ export const slices: readonly Slice[] = [
       'packages/ministack/**',
       'apps/cli/scripts/network-guard-preload.ts',
       'apps/console/api/src/services/alert-router.ts',
+      'apps/console/api/src/services/alert-channel-test.ts',
+      'apps/console/api/src/services/aws-ses.ts',
       'apps/console/api/src/services/slack-app/**',
       'apps/console/api/src/lambdas/webhook-delivery.ts',
       'apps/console/api/src/lambdas/slack-app/index.ts',
