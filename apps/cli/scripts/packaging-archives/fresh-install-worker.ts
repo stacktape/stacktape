@@ -1,9 +1,7 @@
 /**
- * Runs inside the fresh-install acceptance's container (see `fresh-install-acceptance.ts`), which has no network but
- * loopback, no Docker and a read-only root filesystem. Everything it writes goes to the owned `--work` directory.
+ * Runs inside the fresh-install acceptance's container (see `fresh-install-acceptance.ts`), which shares MiniStack's network namespace with its external route removed, has no Docker and a read-only root filesystem. Everything it writes goes to the owned `--work` directory.
  *
- * It serves a one-package npm registry on loopback, starts the external-service fixture that stands in for AWS,
- * telemetry and the proxy, and writes an npm project that has only a lockfile, no `node_modules`. The compiled CLI then
+ * It serves a one-package npm registry on loopback, starts the external-service fixture for telemetry and the refusing proxy; AWS requests go to MiniStack, and writes an npm project that has only a lockfile, no `node_modules`. The compiled CLI then
  * packages the project twice, started in the project directory as a user starts it. `result.json` records each run,
  * the installed state, every registry and fixture request, and the checks made from inside; the function ZIPs are
  * copied to `zips/`.
@@ -37,7 +35,14 @@ export type WorkerRun = {
 };
 
 export type WorkerResult = {
-  environment: { interfaces: string[]; dockerOnPath: string | null; dockerSocket: boolean; bun: string; npm: string };
+  environment: {
+    interfaces: string[];
+    hasExternalRoute: boolean;
+    dockerOnPath: string | null;
+    dockerSocket: boolean;
+    bun: string;
+    npm: string;
+  };
   nodeModulesBeforeFirstRun: boolean;
   lockfileRequests: string[];
   runs: WorkerRun[];
@@ -78,15 +83,25 @@ const main = async () => {
     npm_config_registry: registry
   });
 
+  const routes = await readFile('/proc/net/route', 'utf8');
+  const hasExternalRoute = routes
+    .split('\n')
+    .slice(1)
+    .some((line) => line.trim().split(/\s+/)[1] === '00000000');
   const environment = {
+    hasExternalRoute,
     interfaces: (await readdir('/sys/class/net')).toSorted(),
     dockerOnPath: Bun.which('docker', { PATH: CONTAINER_PATH.join(':') }),
     dockerSocket: await exists('/var/run/docker.sock'),
     bun: Bun.version,
     npm: (await run(['npm', '--version'], work, npmEnvironment(join(work, 'npm-home'), 'http://127.0.0.1:9/'))).trim()
   };
+  const awsEnvironment = JSON.parse(await readFile(join(work, 'aws-environment.json'), 'utf8')) as Record<
+    string,
+    string
+  >;
   // Nothing may run the CLI unless the container is what the acceptance asked for.
-  if (environment.interfaces.join() !== 'lo' || environment.dockerOnPath || environment.dockerSocket) {
+  if (hasExternalRoute || environment.dockerOnPath || environment.dockerSocket) {
     throw new Error(`The container is not isolated: ${JSON.stringify(environment)}`);
   }
 
@@ -185,6 +200,7 @@ const main = async () => {
           proxyUrl: fixture.proxyUrl,
           timingsFile
         }),
+        ...awsEnvironment,
         npm_config_registry: registry.url.href
       };
       const started = performance.now();
@@ -231,7 +247,10 @@ const main = async () => {
         resolveError: `${stdout}${stderr}`.match(/Could not resolve[^\n]*/)?.[0] ?? null,
         zip: lambdas && zipName ? `zips/${label}.zip` : null,
         registryRequests: takeRequests(),
-        fixtureRequests: fixture.takeRequests().map(({ kind, target, status }) => `${kind} ${target} ${status}`)
+        fixtureRequests: fixture.takeRequests().map(({ kind, target, status }) => {
+          if (kind === 'aws') throw new Error('AWS request reached the old fixture instead of MiniStack');
+          return `${kind} ${target} ${status}`;
+        })
       });
     }
 

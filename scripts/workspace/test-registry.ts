@@ -830,10 +830,10 @@ export const lanes: readonly Lane[] = [
   {
     id: 'packaging-archives-4',
     command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:fresh-install'],
-    level: 'focused',
+    level: 'process',
     tier: 'change',
     tests: ['apps/cli/scripts/packaging-archives/fresh-install-acceptance.ts'],
-    requires: ['network'],
+    requires: ['docker', 'network'],
     release: 'every-candidate',
     proves: 'Lambda archives, asset replacement, Docker preparation and fresh source installation work.',
     selections: ['packaging-archives']
@@ -883,15 +883,34 @@ export const lanes: readonly Lane[] = [
     selections: ['release-installation']
   },
   {
-    id: 'artifact-upload',
-    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:layer-upload'],
-    level: 'focused',
-    tier: 'change',
-    tests: ['apps/cli/scripts/packaging-archives/layer-upload-acceptance.ts'],
+    id: 'archive-contracts',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/cli',
+      'exec',
+      'bun',
+      'test',
+      './tests/characterization/packaging-contract.spec.ts'
+    ],
+    level: 'process',
+    tier: 'pr',
+    tests: ['apps/cli/tests/characterization/packaging-contract.spec.ts'],
     requires: [],
     release: 'every-candidate',
-    proves: 'Layer upload and retention work against the SDK wire protocol and MiniStack.',
-    selections: ['artifact-upload']
+    proves: 'Real custom ZIPs preserve content identity, cache reuse, file modes, source inventory and size limits.',
+    selections: ['packaging-archives']
+  },
+  {
+    id: 'archive-build-e2e',
+    command: ['pnpm', '--filter', '@stacktape/packaging', 'run', 'test:archive-build:e2e'],
+    level: 'process',
+    tier: 'change',
+    tests: ['packages/packaging/scripts/archive-build-e2e.ts'],
+    requires: ['docker'],
+    release: 'every-candidate',
+    proves: 'Real Docker exports and images omit local state, remove stale files and clean temporary build inputs.',
+    selections: ['packaging-archives']
   },
   {
     id: 'artifact-upload-2',
@@ -2053,12 +2072,7 @@ export const lanes: readonly Lane[] = [
       'packages/naming/src/stack-contracts.test.ts',
       'packages/naming/src/stack-identity.test.ts',
       'packages/packaging/src/artifact/archive-entries.test.ts',
-      'packages/packaging/src/artifact/custom-artifact.test.ts',
-      'packages/packaging/src/artifact/docker-artifact-build.test.ts',
       'packages/packaging/src/artifact/file-selection.test.ts',
-      'packages/packaging/src/artifact/generated-image-build.test.ts',
-      'packages/packaging/src/artifact/lambda-limits.test.ts',
-      'packages/packaging/src/artifact/zip-metadata.test.ts',
       'packages/packaging/src/buildpacks/project-root.test.ts',
       'packages/packaging/src/bundlers/digest.test.ts',
       'packages/packaging/src/bundlers/es/decorator-metadata.test.ts',
@@ -3571,7 +3585,6 @@ export const slices: readonly Slice[] = [
       'packaging-lambdas-3',
       'packaging-lambdas-4',
       'cli-packaged-lambda',
-      'artifact-upload',
       'artifact-upload-2',
       'cli-test-real-aws-canary'
     ],
@@ -3825,6 +3838,7 @@ export const slices: readonly Slice[] = [
     journeys: ['J3'],
     paths: [
       'packages/packaging/src/artifact/**',
+      'packages/packaging/scripts/archive-build-e2e.ts',
       'apps/cli/scripts/packaging-archives/**',
       'apps/cli/helper-lambdas/**',
       'apps/cli/src/domain/packaging-manager/timed-archive.ts',
@@ -3838,6 +3852,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/index.test.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/asset-replacer.test.ts',
       'apps/cli/scripts/packaging-archives/asset-replacer-acceptance.ts',
+      'packages/packaging/scripts/archive-build-e2e.ts',
       'apps/cli/scripts/packaging-archives/docker-preparation-acceptance.ts',
       'apps/cli/scripts/packaging-archives/fresh-install-acceptance.ts',
       'apps/cli/scripts/packaging-archives/lambda-archive-acceptance.ts',
@@ -3847,18 +3862,15 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/utils/zip.test.ts',
       'apps/cli/tests/characterization/packaging-contract.spec.ts',
       'packages/packaging/src/artifact/archive-entries.test.ts',
-      'packages/packaging/src/artifact/custom-artifact.test.ts',
-      'packages/packaging/src/artifact/docker-artifact-build.test.ts',
       'packages/packaging/src/artifact/file-selection.test.ts',
-      'packages/packaging/src/artifact/generated-image-build.test.ts',
-      'packages/packaging/src/artifact/lambda-limits.test.ts',
-      'packages/packaging/src/artifact/zip-metadata.test.ts',
       'packages/packaging/src/fs/files-hashing.test.ts',
       'packages/packaging/src/fs/files.test.ts',
       'packages/packaging/src/fs/temporary-file.test.ts',
       'apps/cli/scripts/packaging-archives/helper-lambda-sdk.spec.ts'
     ],
     lanes: [
+      'archive-contracts',
+      'archive-build-e2e',
       'ministack-deploy',
       'packaging-test',
       'packaging-archives',
@@ -3867,7 +3879,6 @@ export const slices: readonly Slice[] = [
       'packaging-archives-4',
       'helper-lambda-runtime',
       'cli-test-helper-lambdas',
-      'cli-runtime-acceptances',
       'cli-test-characterization-helper-lambdas',
       'cli-test-packaging-archives'
     ]
@@ -3885,14 +3896,13 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/network-guard-preload.ts'
     ],
     tests: [
-      'apps/cli/scripts/packaging-archives/layer-upload-acceptance.ts',
       'apps/cli/scripts/packaging-archives/layer-upload-ministack-acceptance.ts',
       'apps/cli/src/aws/s3-upload-options.spec.ts',
       'apps/cli/src/domain/deployment-artifact-manager/retention.test.ts',
       'apps/cli/src/domain/deployment-artifact-manager/template-url.spec.ts',
       'apps/cli/src/domain/deployment-artifact-manager/utils.spec.ts'
     ],
-    lanes: ['artifact-upload', 'artifact-upload-2', 'cli', 'cli-2', 'cli-3']
+    lanes: ['artifact-upload-2', 'cli', 'cli-2', 'cli-3']
   },
   {
     id: 'S34',
