@@ -3049,6 +3049,17 @@ export const lanes: readonly Lane[] = [
     release: 'every-candidate'
   },
   {
+    id: 'init-ui-browser',
+    command: ['pnpm', '--filter', '@stacktape/init-ui', 'test:e2e'],
+    level: 'browser',
+    tier: 'change',
+    tests: ['apps/init-ui/e2e/wizard.spec.ts'],
+    requires: ['chromium'],
+    release: 'every-candidate',
+    proves:
+      'The built wizard, served by the real wizard session with recorded scans and a scripted deploy, reaches a live URL, survives a reload, lists required secrets and explains a failed deploy, a reused link and a stopped CLI.'
+  },
+  {
     id: 'init-ui-test',
     command: ['pnpm', '--filter', '@stacktape/init-ui', 'run', 'test'],
     level: 'focused',
@@ -3280,6 +3291,8 @@ export const lanes: readonly Lane[] = [
       'src/decisions.spec.ts',
       'src/deploy-commands.spec.ts',
       'src/deploy-model.spec.ts',
+      'src/gaps.spec.ts',
+      'src/required-secrets.spec.ts',
       'src/sign-in.spec.ts'
     ],
     tier: 'pr',
@@ -3288,6 +3301,8 @@ export const lanes: readonly Lane[] = [
       'apps/init-ui/src/decisions.spec.ts',
       'apps/init-ui/src/deploy-commands.spec.ts',
       'apps/init-ui/src/deploy-model.spec.ts',
+      'apps/init-ui/src/gaps.spec.ts',
+      'apps/init-ui/src/required-secrets.spec.ts',
       'apps/init-ui/src/sign-in.spec.ts'
     ],
     requires: [],
@@ -3550,7 +3565,7 @@ export const slices: readonly Slice[] = [
     promise: 'Embedded wizard completes the same onboarding outcome.',
     status: 'active',
     journeys: ['J1'],
-    paths: ['apps/init-ui/**', 'apps/cli/src/init/server/**'],
+    paths: ['apps/init-ui/**', 'apps/cli/src/init/server/**', 'apps/cli/scripts/init-wizard-fixture/**'],
     tests: [
       'apps/cli/src/init/server/repair-loop.spec.ts',
       'apps/cli/src/init/server/security.spec.ts',
@@ -3559,10 +3574,13 @@ export const slices: readonly Slice[] = [
       'apps/init-ui/src/decisions.spec.ts',
       'apps/init-ui/src/deploy-commands.spec.ts',
       'apps/init-ui/src/deploy-model.spec.ts',
+      'apps/init-ui/src/gaps.spec.ts',
+      'apps/init-ui/src/required-secrets.spec.ts',
       'apps/init-ui/src/sign-in.spec.ts',
-      'apps/init-ui/src/steps/ReviewStep.spec.ts'
+      'apps/init-ui/src/steps/ReviewStep.spec.ts',
+      'apps/init-ui/e2e/wizard.spec.ts'
     ],
-    lanes: ['init-ui-test', 'cli', 'cli-2', 'cli-3', 'init-e2e', 'init-ui-fast-rules'],
+    lanes: ['init-ui-test', 'init-ui-browser', 'cli', 'cli-2', 'cli-3', 'init-e2e', 'init-ui-fast-rules'],
     contributors: ['S04']
   },
   {

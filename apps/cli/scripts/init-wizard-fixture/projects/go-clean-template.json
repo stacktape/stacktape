@@ -1,0 +1,219 @@
+{
+  "schemaVersion": 1,
+  "workspaceGlobs": [],
+  "services": [
+    {
+      "name": "go-clean-template",
+      "path": ".",
+      "language": "go",
+      "framework": "fiber",
+      "exposesHttp": true,
+      "port": 8080,
+      "longLivedConnections": "none",
+      "executionModel": "long-running",
+      "containerEntrypoint": "cmd/app/main.go",
+      "functionTriggers": [],
+      "dockerfile": "Dockerfile",
+      "environmentVariables": [
+        {
+          "name": "PG_URL",
+          "role": "infra-dependency",
+          "dependencyName": "mainDatabase",
+          "required": true,
+          "evidence": [
+            {
+              "file": "go.mod",
+              "line": 22,
+              "quote": "pgx"
+            },
+            {
+              "file": "docker-compose.yml",
+              "line": 52,
+              "quote": "image: postgres:18.4-alpine"
+            },
+            {
+              "file": ".env.example",
+              "line": 11,
+              "quote": "PG_URL="
+            }
+          ]
+        },
+        {
+          "name": "RMQ_URL",
+          "role": "infra-dependency",
+          "dependencyName": "messageBroker",
+          "required": true,
+          "evidence": [
+            {
+              "file": "go.mod",
+              "line": 33,
+              "quote": "amqp091-go"
+            },
+            {
+              "file": "docker-compose.yml",
+              "line": 66,
+              "quote": "image: rabbitmq:4.3.4-management"
+            },
+            {
+              "file": ".env.example",
+              "line": 17,
+              "quote": "RMQ_URL="
+            }
+          ]
+        },
+        {
+          "name": "NATS_URL",
+          "role": "infra-dependency",
+          "dependencyName": "eventBroker",
+          "required": true,
+          "evidence": [
+            {
+              "file": "go.mod",
+              "line": 32,
+              "quote": "nats.go"
+            },
+            {
+              "file": "docker-compose.yml",
+              "line": 81,
+              "quote": "image: nats:2.14-alpine"
+            },
+            {
+              "file": ".env.example",
+              "line": 20,
+              "quote": "NATS_URL="
+            }
+          ]
+        },
+        {
+          "name": "LOGGER_FATAL_SUBPROC",
+          "role": "runtime-config",
+          "required": true,
+          "evidence": [
+            {
+              "file": "pkg/logger/logger_test.go",
+              "line": 173,
+              "quote": "os.Getenv(\"LOGGER_FATAL_SUBPROC\""
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "field": "containerEntrypoint",
+          "file": "cmd/app/main.go",
+          "line": 18,
+          "quote": "app.Run(cfg)"
+        },
+        {
+          "field": "dockerfile",
+          "file": "Dockerfile",
+          "line": 2,
+          "quote": "FROM golang:1.26-alpine3.23 AS modules"
+        },
+        {
+          "file": "go.mod",
+          "line": 20,
+          "quote": "fiber"
+        },
+        {
+          "file": "docker-compose.yml",
+          "line": 106,
+          "quote": "app:"
+        }
+      ],
+      "source": "probe"
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "mainDatabase",
+      "kind": "postgres",
+      "engineVersion": "18.4",
+      "extensions": [],
+      "consumedBy": ["go-clean-template"],
+      "addressedBy": ["PG_URL"],
+      "evidence": [
+        {
+          "file": "go.mod",
+          "line": 22,
+          "quote": "pgx"
+        },
+        {
+          "file": "docker-compose.yml",
+          "line": 52,
+          "quote": "image: postgres:18.4-alpine"
+        },
+        {
+          "file": ".env.example",
+          "line": 11,
+          "quote": "PG_URL="
+        }
+      ],
+      "source": "probe"
+    },
+    {
+      "name": "messageBroker",
+      "kind": "amqp",
+      "engineVersion": "4.3",
+      "extensions": [],
+      "consumedBy": ["go-clean-template"],
+      "addressedBy": ["RMQ_URL"],
+      "evidence": [
+        {
+          "file": "go.mod",
+          "line": 33,
+          "quote": "amqp091-go"
+        },
+        {
+          "file": "docker-compose.yml",
+          "line": 66,
+          "quote": "image: rabbitmq:4.3.4-management"
+        },
+        {
+          "file": ".env.example",
+          "line": 17,
+          "quote": "RMQ_URL="
+        }
+      ],
+      "source": "probe"
+    },
+    {
+      "name": "eventBroker",
+      "kind": "nats",
+      "engineVersion": "2.14",
+      "extensions": [],
+      "consumedBy": ["go-clean-template"],
+      "addressedBy": ["NATS_URL"],
+      "evidence": [
+        {
+          "file": "go.mod",
+          "line": 32,
+          "quote": "nats.go"
+        },
+        {
+          "file": "docker-compose.yml",
+          "line": 81,
+          "quote": "image: nats:2.14-alpine"
+        },
+        {
+          "file": ".env.example",
+          "line": 20,
+          "quote": "NATS_URL="
+        }
+      ],
+      "source": "probe"
+    }
+  ],
+  "existingDeployments": [],
+  "migrations": [
+    {
+      "serviceName": "go-clean-template",
+      "tool": "golang-migrate",
+      "command": "migrate up",
+      "runsAt": "unknown",
+      "evidence": []
+    }
+  ],
+  "uncertainties": [],
+  "notes": []
+}

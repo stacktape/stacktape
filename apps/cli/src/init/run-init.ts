@@ -137,7 +137,7 @@ const AGENT_COPY: Readonly<Record<string, { label: string; description: string }
  * the probes already look at, costs nothing, and produces a configuration that leans on defaults
  * more often. Someone who does not want an agent near their code should be able to say so.
  */
-const agentOptions = (
+export const agentOptions = (
   available: readonly DetectedAgent[],
   recommended: DetectedAgent | undefined
 ): WizardAgentOption[] => [

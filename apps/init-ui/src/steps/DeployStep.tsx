@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Alert } from '@stacktape/ui-react/alert';
 import { Button } from '@stacktape/ui-react/button';
 import { Spinner } from '@stacktape/ui-react/spinner';
+import { TextField } from '@stacktape/ui-react/text-field';
 import { buildDeployModel, type DeployEvent } from '../deploy-model';
 import { CopyableCommand } from '../components/CopyableCommand';
 import { DeployProgress } from '../components/DeployProgress';
@@ -10,6 +11,8 @@ import { RegionPicker } from '../components/RegionPicker';
 import { SignInPanel } from '../components/SignInPanel';
 import { stackCommand } from '../deploy-commands';
 import type { SignInRequest, WizardState } from '../session';
+import { gapsToList } from '../gaps';
+import { requiredSecrets, secretCommand } from '../required-secrets';
 import { organizationLabel } from '../sign-in';
 
 /**
@@ -155,13 +158,13 @@ export function DeployStep({
                 variant="primary"
               >
                 {retryTarget?.status === 'absent'
-                  ? 'Create after retry'
+                  ? 'Deploy again'
                   : retryTarget?.status === 'updateable'
-                    ? 'Update after retry'
-                    : 'Check target before retry'}
+                    ? 'Deploy again as an update'
+                    : 'Check the target again'}
               </Button>
               <span className="text-[0.9rem] text-[var(--stp-text-subtle)]">
-                Same stage, same region. Fix whatever it reported first if it will just happen again.
+                Same stage and region. Fix what it reported first, or it will fail the same way.
               </span>
             </div>
             {retryTarget?.status === 'updateable' && (
@@ -207,11 +210,12 @@ export function DeployStep({
                     target="_blank"
                   >
                     Open this project in the Stacktape Console
-                  </a>{' '}
-                  — logs, metrics and every deploy, in one place.
+                  </a>
+                  : logs, metrics and every deploy in one place.
                 </li>
                 <li>
-                  <strong>Ship a change.</strong> Edit your code and run the same deploy again — it updates in place:
+                  <strong>Ship a change.</strong> Edit your code and run the same deploy again. It updates the stack in
+                  place:
                   <div className="mt-2">
                     <CopyableCommand command={redeployCommand} />
                   </div>
@@ -240,7 +244,8 @@ export function DeployStep({
   const resources = Object.entries(state.composition?.resources ?? {});
   const publicNames = resources.filter(([, resource]) => PUBLIC_TYPES.has(resource.type)).map(([name]) => name);
   const hasDatabase = resources.some(([, resource]) => resource.type === 'relational-database');
-  const gaps = state.composition?.gaps ?? [];
+  const gaps = gapsToList(state.composition?.gaps ?? [], state.facts?.existingDeployments ?? []);
+  const secrets = requiredSecrets(state.composition?.resources ?? {});
   const monthly = state.composition?.price?.monthly;
   const checkedTarget =
     state.deployTarget?.stage === stage && state.deployTarget.region === region ? state.deployTarget : undefined;
@@ -278,7 +283,7 @@ export function DeployStep({
           <>
             <dl className="wizard-facts">
               <div>
-                <dt>Ambient account (advisory)</dt>
+                <dt>AWS account on this machine</dt>
                 <dd className="wizard-code">{identity.accountId}</dd>
               </div>
               <div>
@@ -287,8 +292,8 @@ export function DeployStep({
               </div>
             </dl>
             <p className="mt-3 mb-0 text-[0.88rem] text-[var(--stp-text-subtle)]">
-              Deploy can use a Stacktape-connected account or persisted profile instead. The exact account is shown and
-              confirmed by the target check below.
+              If your Stacktape organization has an AWS account connected, the deploy may use that one instead. The
+              target check below shows the exact account before anything is created.
             </p>
           </>
         ) : (
@@ -303,33 +308,45 @@ export function DeployStep({
             <p className="m-0 mb-3">
               {identity.reason === 'no-credentials' ? (
                 <>
-                  No ambient AWS credentials were found. Stacktape may still use an AWS account connected to your
-                  signed-in organization; the target check below is authoritative and runs before any AWS change.
+                  Deploying needs access to an AWS account. Either connect one in the{' '}
+                  <a
+                    className="wizard-link"
+                    href="https://console.stacktape.com/aws-accounts"
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    Stacktape Console
+                  </a>
+                  , or set up credentials on this machine with <span className="wizard-code">aws configure</span>. Then
+                  check again; nothing on this page is lost.
                 </>
               ) : (
-                <>{identity.detail} Check the profile you are signed in with — the wizard keeps everything so far.</>
+                <>
+                  {identity.detail} Check the AWS profile on this machine, then check again. Nothing on this page is
+                  lost.
+                </>
               )}
             </p>
             <Button isLoading={isBusy === 'recheck'} onClick={onRecheck} variant="secondary">
-              I’ve set it up — check again
+              Check again
             </Button>
           </Alert>
         )}
-        <div className="mt-5 flex flex-wrap items-end gap-5">
+        <div className="mt-5 flex flex-wrap items-start gap-5">
           <RegionPicker onChange={setRegion} value={region} />
-          <label className="flex flex-col gap-1.5">
-            <span className="text-[0.85rem] font-medium">Stage</span>
-            <input
-              className="wizard-input"
-              maxLength={12}
-              onChange={(changed) => setStage(changed.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-              value={stage}
-            />
-            <span className="text-[0.78rem] text-[var(--stp-text-subtle)]">
-              One environment. <span className="wizard-code">dev</span> is a throwaway you can delete.
-            </span>
-          </label>
+          <TextField
+            label="Stage"
+            maxLength={12}
+            name="stage"
+            onChange={(changed) => setStage(changed.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+            reserveMessageSpace={false}
+            rootClassName="w-[260px]"
+            value={stage}
+          />
         </div>
+        <p className="mt-2 mb-0 text-[0.82rem] text-[var(--stp-text-subtle)]">
+          Pick the region closest to your users. A stage is one environment of the app, such as dev or production.
+        </p>
       </section>
 
       <section>
@@ -361,10 +378,10 @@ export function DeployStep({
         )}
         {account?.signedIn === false && (
           <>
-            <h3 className="wizard-section-heading">Sign in to deploy</h3>
+            <h3 className="wizard-section-heading">Sign in or create an account to deploy</h3>
             <p className="wizard-lede mb-4">
-              Deploying goes through Stacktape, so it needs an account. A free one is enough, and the file you just
-              saved is unaffected either way.
+              Deploying goes through Stacktape, so it needs an account. A free one is enough. The file you saved stays
+              as it is either way.
             </p>
             <SignInPanel
               isRechecking={isBusy === 'recheck'}
@@ -381,11 +398,9 @@ export function DeployStep({
         {verification === undefined && (
           <>
             <p className="wizard-lede mb-3">
-              Before the real deploy, Stacktape can build and start supported services on this machine. The build may
-              download dependencies and run their install hooks; the started app then runs cut off from the network,
-              with throwaway values instead of your settings. Each result says whether that service was actually
-              checked. This runs your project's own code, which is why it only happens when you ask. Optional either
-              way; it needs Docker running.
+              Optional. Stacktape builds your services in Docker on this machine and starts them without network access
+              and with placeholder settings, to catch an app that will not start before it reaches AWS. This runs your
+              project's code, including dependency install scripts, so it only happens when you ask.
             </p>
             <Button isLoading={isBusy === 'verify'} onClick={onVerify} variant="secondary">
               Build and start it here
@@ -401,7 +416,7 @@ export function DeployStep({
         {verification?.status === 'repairing' && (
           <div className="flex items-center gap-3 text-[var(--stp-text-muted)]">
             <Spinner />
-            <span>It didn't start — working out what we got wrong, then trying again here.</span>
+            <span>It did not start. Working out what we got wrong, then trying again here.</span>
           </div>
         )}
         {verification?.status === 'unavailable' && (
@@ -421,15 +436,15 @@ export function DeployStep({
               {(verification.services ?? []).map((entry) => (
                 <li key={entry.serviceName}>
                   <span className="font-medium">
-                    {entry.status === 'passed' && '✓ Passed — '}
-                    {entry.status === 'failed' && '✗ Failed — '}
-                    {entry.status === 'inconclusive' && '? Inconclusive — '}
-                    {entry.status === 'skipped' && '— Not checked — '}
                     {entry.serviceName}
-                  </span>{' '}
-                  <span className="text-[var(--stp-text-muted)]">{entry.reason}</span>
+                    {entry.status === 'passed' && ': passed'}
+                    {entry.status === 'failed' && ': failed'}
+                    {entry.status === 'inconclusive' && ': inconclusive'}
+                    {entry.status === 'skipped' && ': not checked'}
+                  </span>
+                  <span className="block text-[var(--stp-text-muted)]">{entry.reason}</span>
                   {entry.status === 'failed' && entry.observations.logTail.length > 0 && (
-                    <pre className="wizard-code mt-2 mb-0 max-h-40 overflow-auto whitespace-pre-wrap text-[0.8rem]">
+                    <pre className="wizard-output mt-2 max-h-40 overflow-auto">
                       {entry.observations.logTail.slice(-8).join('\n')}
                     </pre>
                   )}
@@ -445,8 +460,8 @@ export function DeployStep({
             {verification.status === 'completed' && verificationBlocks && (
               <Alert tone="warning" title="The local try-out found a startup failure">
                 <p className="m-0 mb-3">
-                  The same failure is likely on AWS, so deploy is paused. Fix what it reported — a decision above, a
-                  setting, the code — and try again. Or, if this machine is the problem rather than the app, set the
+                  The same failure is likely on AWS, so deploy is paused. Fix what it reported (a decision above, a
+                  setting or the code) and try again. Or, if this machine is the problem rather than the app, set the
                   result aside and deploy anyway.
                 </p>
                 <div className="flex items-center gap-3">
@@ -460,7 +475,7 @@ export function DeployStep({
               </Alert>
             )}
             {verification.status === 'dismissed' && (
-              <p className="m-0 text-[0.9rem] text-[var(--stp-text-subtle)]">Set aside — deploying is enabled again.</p>
+              <p className="m-0 text-[0.9rem] text-[var(--stp-text-subtle)]">Set aside. Deploying is enabled again.</p>
             )}
           </div>
         )}
@@ -471,7 +486,14 @@ export function DeployStep({
         <p className="wizard-lede mb-2">
           Creates or updates one stack containing{' '}
           {resources.length === 1 ? 'one resource' : `${resources.length} resources`}
-          {monthly === undefined ? '' : `, about ${monthly} at the size you picked`}.
+          {monthly === undefined
+            ? ''
+            : `, about ${monthly} at the sizes you picked${
+                state.composition?.price?.region !== undefined && state.composition.price.region !== region
+                  ? ` (priced for ${state.composition.price.region}; ${region} can differ a little)`
+                  : ''
+              }`}
+          .
           {publicNames.length > 0 && (
             <>
               {' '}
@@ -483,11 +505,9 @@ export function DeployStep({
           )}
         </p>
         <p className="wizard-lede mb-4">
-          Under the hood it is one CloudFormation stack of plain AWS infrastructure — it belongs to you, it stays if you
-          stop using Stacktape, and after an attempt this page gives you a fully targeted command to remove it.
-          CloudFormation normally rolls back a failed first create. If a retry of an existing stack keeps completed
-          resources, the page says so because they can bill. Closing this page or interrupting the CLI does not undo
-          work AWS has already accepted.
+          It is one CloudFormation stack of plain AWS resources in your own account; it keeps working if you stop using
+          Stacktape. A failed first deploy is rolled back, and this page gives you the command that removes the stack
+          again.
         </p>
         {checkedTarget === undefined && (
           <Alert className="mb-4" tone="info" title="No AWS change happens on the first click">
@@ -524,6 +544,16 @@ export function DeployStep({
             again.
           </Alert>
         )}
+        {secrets.length > 0 && (
+          <div className="mb-4 flex flex-col gap-3">
+            <p className="m-0 text-[0.95rem]">
+              Create {secrets.length === 1 ? 'this secret' : `these ${secrets.length} secrets`} in{' '}
+              <span className="wizard-code">{region}</span> first. Each command asks for the value; the deploy stops if
+              one is missing.
+            </p>
+            <CopyableCommand command={secrets.map((name) => secretCommand(name, region)).join('\n')} />
+          </div>
+        )}
         {gaps.length > 0 && (
           <Alert className="mb-4" tone="warning" title="Check these before deploying">
             <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
@@ -550,7 +580,7 @@ export function DeployStep({
             {verificationBlocks
               ? verification?.status === 'running'
                 ? 'Waiting for the local try-out to finish.'
-                : 'The local try-out found a problem — fix it above, or set the result aside.'
+                : 'The local try-out found a problem. Fix it above, or set the result aside.'
               : compositionBlocks
                 ? 'Resolve every gap above before deploying.'
                 : signInBlocks
