@@ -1,5 +1,5 @@
 name: Stacktape release
-run-name: ${{ inputs.bytecode_qualification && 'Qualify bytecode for macOS and Linux ARM' || format('Publish v4 {0} {1}', inputs.channel, inputs.version) }}
+run-name: ${{ inputs.bytecode_qualification && 'Qualify bytecode for macOS, Linux ARM and Windows ARM' || format('Publish v4 {0} {1}', inputs.channel, inputs.version) }}
 
 # Preview and stable releases build the same verified artifacts. The selected channel changes only the npm dist-tag,
 # GitHub release classification, protected publishing environment, and installer endpoint. npm and AWS authenticate
@@ -25,7 +25,7 @@ on:
         default: ''
         type: string
       bytecode_qualification:
-        description: Only qualify bytecode for macOS and Linux ARM on their own runners; builds and publishes no release
+        description: Only qualify bytecode for macOS, Linux ARM and Windows ARM on their own runners; builds and publishes no release
         required: false
         default: false
         type: boolean
@@ -114,6 +114,8 @@ jobs:
             archive: macos-arm.tar.gz
           - platform: win
             archive: windows.zip
+          - platform: win-arm
+            archive: windows-arm.zip
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -189,7 +191,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [macos, macos-arm, linux-arm]
+        platform: [macos, macos-arm, linux-arm, win-arm]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -235,6 +237,12 @@ jobs:
             runner: macos-15
           - platform: linux-arm
             runner: ubuntu-24.04-arm
+          - platform: win-arm
+            runner: windows-11-arm
+    # Windows runners default to PowerShell; the steps below are written for bash, which Git for Windows provides.
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -345,6 +353,8 @@ jobs:
             runner: macos-15
           - platform: win
             runner: windows-2025
+          - platform: win-arm
+            runner: windows-11-arm
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -561,7 +571,7 @@ jobs:
           source_sha=$(printf '%s' "$run_json" | jq -r .head_sha)
           printf '%s' "$source_sha" | grep -Eq '^[0-9a-f]{40}$'
           jobs=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RECOVERY_RUN_ID/jobs?per_page=100")
-          for job_name in 'Verify public workspace' 'Build linux' 'Build linux-arm' 'Build alpine' 'Build macos' 'Build macos-arm' 'Build win' 'Assemble verified candidate' 'Install candidate on linux' 'Install candidate on linux-arm' 'Install candidate on macos' 'Install candidate on macos-arm' 'Install candidate on win'; do
+          for job_name in 'Verify public workspace' 'Build linux' 'Build linux-arm' 'Build alpine' 'Build macos' 'Build macos-arm' 'Build win' 'Build win-arm' 'Assemble verified candidate' 'Install candidate on linux' 'Install candidate on linux-arm' 'Install candidate on macos' 'Install candidate on macos-arm' 'Install candidate on win' 'Install candidate on win-arm'; do
             printf '%s' "$jobs" | jq -e --arg name "$job_name" 'any(.jobs[]; .name == $name and .conclusion == "success")' >/dev/null
           done
           printf '%s' "$jobs" | jq -e --arg name "Publish $RELEASE_CHANNEL" \

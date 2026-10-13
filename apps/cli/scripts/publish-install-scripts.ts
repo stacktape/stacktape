@@ -18,6 +18,7 @@ export const PUBLISHED_INSTALL_ASSET_FILES = [
   'linux.sh',
   'macos-arm.sh',
   'macos.sh',
+  'windows-arm.ps1',
   'windows.ps1'
 ] as const;
 

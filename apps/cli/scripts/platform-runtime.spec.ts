@@ -46,6 +46,7 @@ const selectOpenTuiNativePackage = async (host: 'alpine' | 'linux') => {
 describe('release platform runtime', () => {
   test('selects the matching release archive for every supported host', () => {
     expect(resolveSupportedPlatform({ platform: 'win32', arch: 'x64' })).toBe('win');
+    expect(resolveSupportedPlatform({ platform: 'win32', arch: 'arm64' })).toBe('win-arm');
     expect(resolveSupportedPlatform({ platform: 'darwin', arch: 'x64' })).toBe('macos');
     expect(resolveSupportedPlatform({ platform: 'darwin', arch: 'arm64' })).toBe('macos-arm');
     expect(resolveSupportedPlatform({ platform: 'linux', arch: 'x64' })).toBe('linux');
@@ -57,7 +58,7 @@ describe('release platform runtime', () => {
     expect(() => resolveSupportedPlatform({ platform: 'linux', arch: 'arm64', isAlpine: true })).toThrow(
       'Unsupported Alpine architecture'
     );
-    expect(() => resolveSupportedPlatform({ platform: 'win32', arch: 'arm64' })).toThrow('Unsupported platform');
+    expect(() => resolveSupportedPlatform({ platform: 'win32', arch: 'ia32' })).toThrow('Unsupported platform');
     expect(() => resolveSupportedPlatform({ platform: 'darwin', arch: 'ia32' })).toThrow('Unsupported platform');
   });
 

@@ -20,7 +20,7 @@
  * SHA-256, the Bun that built it, and the Stacktape source before and after the build. If the source changed during
  * the build or could not be read, the script says so and exits 1.
  */
-import type { SupportedPlatform } from '@utils/platform';
+import { isWindowsPlatform, type SupportedPlatform } from '@utils/platform';
 import type { SourceIdentity } from './measurement-context';
 import { createHash } from 'node:crypto';
 import { createReadStream, realpathSync } from 'node:fs';
@@ -221,7 +221,7 @@ const main = async () => {
   const buildMs = Math.round(performance.now() - startedAt);
   const sourceCheck = source.check();
 
-  const executablePath = join(installDirectory, platform === 'win' ? 'stacktape.exe' : 'stacktape');
+  const executablePath = join(installDirectory, isWindowsPlatform(platform) ? 'stacktape.exe' : 'stacktape');
   const files = await Promise.all(
     (await listFiles(installDirectory)).map((path) => describeFile(installDirectory, path))
   );

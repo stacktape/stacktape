@@ -1,5 +1,5 @@
 import type { ErrorCategory } from '@utils/errors';
-import type { SupportedPlatform } from '@utils/platform';
+import { isWindowsPlatform, type SupportedPlatform } from '@utils/platform';
 import { createHash, randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { chmod, mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
@@ -73,7 +73,8 @@ const EXTERNAL_TOOL_PLATFORM_KEYS: Record<SupportedPlatform, string> = {
   'linux-arm': 'linux-arm64-glibc',
   macos: 'darwin-x64',
   'macos-arm': 'darwin-arm64',
-  win: 'win32-x64'
+  win: 'win32-x64',
+  'win-arm': 'win32-arm64'
 };
 
 const ERROR_CATEGORIES: Record<ExternalTool, ErrorCategory> = {
@@ -115,7 +116,7 @@ export const externalToolPath = ({
     tool,
     manifest[tool].version,
     EXTERNAL_TOOL_PLATFORM_KEYS[platform],
-    platform === 'win' ? `${tool}.exe` : tool
+    isWindowsPlatform(platform) ? `${tool}.exe` : tool
   );
 
 /** The executable path, downloading, verifying and extracting the tool first when this machine does not have it. */
@@ -178,7 +179,7 @@ export const resolveExternalTool = async ({
         });
       }
       const extracted = await extractExecutable({ archivePath, asset, directory: staging });
-      if (platform !== 'win') await chmod(extracted, 0o755);
+      if (!isWindowsPlatform(platform)) await chmod(extracted, 0o755);
       await mkdir(dirname(finalPath), { recursive: true });
       await rename(extracted, finalPath);
       return finalPath;
