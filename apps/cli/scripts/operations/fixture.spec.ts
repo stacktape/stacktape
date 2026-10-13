@@ -41,7 +41,7 @@ for (const { tty, finish } of [
       const fixture = await createOperationsFixture(cli.path);
       let pids: number[] = [];
       try {
-        seedDeployedStack(fixture);
+        await seedDeployedStack(fixture);
         await writeFile(
           join(fixture.directory, 'wait.ts'),
           `import { spawn } from 'node:child_process';

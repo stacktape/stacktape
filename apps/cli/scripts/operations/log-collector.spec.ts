@@ -1,115 +1,113 @@
 import { expect, spyOn, test } from 'bun:test';
-import { AwsSdkManager } from '../sdk-manager';
-import { LogCollectorStream } from './index';
+import { AwsSdkManager } from '../../src/aws/sdk-manager';
+import { LogCollectorStream } from '../../src/aws/log-collector';
 
-type Event = { message: string; timestamp: number };
+import { CloudWatchLogsClient, CreateLogGroupCommand } from '@aws-sdk/client-cloudwatch-logs';
+import { createOperationsFixture } from './cli-process';
 
 // Real collector, service adapter and AWS SDK; only credentials and the HTTP destination are synthetic.
-const fixture = () => {
-  const accepted: Event[] = [];
+const fixture = async () => {
+  const f = await createOperationsFixture('unused');
+  const sdk = new CloudWatchLogsClient(f.clientConfig());
+  await sdk.send(new CreateLogGroupCommand({ logGroupName: 'collector-proof' }));
   let fail: 'setup' | 'second-batch' | undefined;
   let batches = 0;
   let onPut: (() => Promise<void>) | undefined;
-  const server = Bun.serve({
-    hostname: '127.0.0.1',
-    port: 0,
-    async fetch(request) {
-      const action = request.headers.get('x-amz-target')?.split('.').at(-1);
-      const body = (await request.json()) as { logEvents: Event[] };
-      const denied = () =>
-        Response.json({ __type: 'AccessDeniedException', message: 'Injected denial' }, { status: 403 });
-      if (action === 'DescribeLogGroups') {
-        if (fail === 'setup') return denied();
-        return Response.json({ logGroups: [{ logGroupName: 'collector-proof' }] });
-      }
-      if (action === 'CreateLogStream') return Response.json({});
-      if (action !== 'PutLogEvents') return new Response('Unexpected action', { status: 400 });
-      await onPut?.();
-      const events = body.logEvents;
-      const bytes = events.reduce((total, event) => total + Buffer.byteLength(event.message) + 26, 0);
-      const ordered = events.every((event, index) => !index || event.timestamp >= events[index - 1].timestamp);
-      if (!ordered || bytes > 1_048_576 || events.length > 10_000) {
-        return Response.json({ __type: 'InvalidParameterException', message: 'Invalid log batch' }, { status: 400 });
-      }
-      batches++;
-      if (fail === 'second-batch' && batches === 2) return denied();
-      accepted.push(...events);
-      return Response.json({});
+  const denied = () => ({
+    kind: 'error' as const,
+    code: 'AccessDeniedException',
+    message: 'Injected denial',
+    status: 403
+  });
+  f.aws.on('logs.DescribeLogGroups', () => (fail === 'setup' ? denied() : undefined));
+  f.aws.on('logs.PutLogEvents', async ({ input }) => {
+    // MiniStack sorts unordered input; inject CloudWatch's documented rejection instead of accepting that tolerance.
+    const events = input.logEvents as Array<{ timestamp: number }>;
+    if (events.some((event, index) => index > 0 && event.timestamp < events[index - 1].timestamp)) {
+      return {
+        kind: 'error',
+        code: 'InvalidParameterException',
+        message: 'Log events must be chronological',
+        status: 400
+      };
     }
+    await onPut?.();
+    batches++;
+    return fail === 'second-batch' && batches === 2 ? denied() : undefined;
   });
   const manager = new AwsSdkManager();
-  manager.init({
-    credentials: { accessKeyId: 'synthetic', secretAccessKey: 'synthetic' },
-    endpoint: server.url.toString(),
-    region: 'eu-west-1',
-    plugins: []
-  });
+  manager.init({ ...f.clientConfig(), endpoint: f.aws.endpoint, plugins: [] });
   const collector = new LogCollectorStream();
   collector.init({ awsSdkManager: manager, logGroupName: 'collector-proof', logStreamName: 'proof' });
   return {
     collector,
-    accepted,
+    messages: async () =>
+      (await manager.observability.getLogEvents({ logGroupName: 'collector-proof' })).map(({ message }) => message),
     setFailure: (value: typeof fail) => {
       fail = value;
     },
     setOnPut: (value: typeof onPut) => {
       onPut = value;
     },
-    close: () => server.stop(true)
+    close: async () => {
+      sdk.destroy();
+      await f.close();
+    }
   };
 };
 
 test('delivers every log event when the wall clock moves backwards', async () => {
-  const f = fixture();
+  const f = await fixture();
   const now = spyOn(Date, 'now');
   try {
-    now.mockReturnValue(2000);
+    const baseline = Date.now();
+    now.mockReturnValue(baseline + 2000);
     f.collector.write('later');
-    now.mockReturnValue(1000);
+    now.mockReturnValue(baseline + 1000);
     f.collector.write('earlier');
     f.collector.write('same timestamp');
     now.mockRestore();
     await f.collector.makeFinalSend();
-    expect(f.accepted.map((event) => event.message)).toEqual(['earlier', 'same timestamp', 'later']);
+    expect(await f.messages()).toEqual(['earlier', 'same timestamp', 'later']);
   } finally {
     now.mockRestore();
-    f.close();
+    await f.close();
   }
 });
 
 test('retries setup failures without leaving the sender permanently busy', async () => {
-  const f = fixture();
+  const f = await fixture();
   try {
     f.collector.write('retained during setup failure');
     f.setFailure('setup');
     await expect(f.collector.makeFinalSend()).rejects.toThrow();
     f.setFailure(undefined);
     await f.collector.makeFinalSend();
-    expect(f.accepted.map((event) => event.message)).toEqual(['retained during setup failure']);
+    expect(await f.messages()).toEqual(['retained during setup failure']);
   } finally {
-    f.close();
+    await f.close();
   }
 });
 
 test('batches UTF-8 bytes and retries only events not previously acknowledged', async () => {
-  const f = fixture();
+  const f = await fixture();
   const messages = Array.from({ length: 14 }, (_, index) => `${index}:${'界'.repeat(40_000)}`);
   try {
     for (const message of messages) f.collector.write(message);
     f.setFailure('second-batch');
     await expect(f.collector.makeFinalSend()).rejects.toThrow();
-    expect(f.accepted.length).toBeGreaterThan(0);
-    expect(f.accepted.length).toBeLessThan(messages.length);
+    expect((await f.messages()).length).toBeGreaterThan(0);
+    expect((await f.messages()).length).toBeLessThan(messages.length);
     f.setFailure(undefined);
     await f.collector.makeFinalSend();
-    expect(f.accepted.map((event) => event.message)).toEqual(messages);
+    expect(await f.messages()).toEqual(messages);
   } finally {
-    f.close();
+    await f.close();
   }
 });
 
 test('final cleanup waits for an active interval request and drains later writes', async () => {
-  const f = fixture();
+  const f = await fixture();
   const started = Promise.withResolvers<void>();
   const release = Promise.withResolvers<void>();
   try {
@@ -128,10 +126,10 @@ test('final cleanup waits for an active interval request and drains later writes
     expect(finished).toBe(false);
     release.resolve();
     await final;
-    expect(f.accepted.map((event) => event.message)).toEqual(['interval request', 'written during request']);
+    expect(await f.messages()).toEqual(['interval request', 'written during request']);
   } finally {
     release.resolve();
     await f.collector.makeFinalSend();
-    f.close();
+    await f.close();
   }
 }, 10_000);
