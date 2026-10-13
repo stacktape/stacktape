@@ -1873,14 +1873,10 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/commands/init/using-starter-project/utils.spec.ts',
       'apps/cli/src/commands/init/utils/git-detection.spec.ts',
       'apps/cli/src/commands/logs/infrequent-access.spec.ts',
-      'apps/cli/src/commands/mcp/cli-agent-contract.spec.ts',
+      'apps/cli/src/commands/mcp/model-safety.spec.ts',
       'apps/cli/src/commands/mcp/cli-command-tools.spec.ts',
       'apps/cli/src/commands/mcp/cli-jsonl-runner.spec.ts',
       'apps/cli/src/commands/mcp/dev-tool.spec.ts',
-      'apps/cli/src/commands/mcp/docs-query-fixtures.spec.ts',
-      'apps/cli/src/commands/mcp/lexical-index.spec.ts',
-      'apps/cli/src/commands/mcp/mcp-server-modern.spec.ts',
-      'apps/cli/src/commands/mcp/project-scan.spec.ts',
       'apps/cli/src/commands/mcp/tool-output.spec.ts',
       'apps/cli/src/commands/script-run/stdio.spec.ts',
       'apps/cli/src/config/local-state-paths.spec.ts',
@@ -2640,10 +2636,20 @@ export const lanes: readonly Lane[] = [
     release: 'every-candidate'
   },
   {
+    id: 'mcp-corpus',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:llm-docs:corpus'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/scripts/llm-docs/corpus-generation.spec.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'Real docs generation produces unique retrievable chunks and readable, accurate AWS-call guidance.'
+  },
+  {
     id: 'cli-test-llm-docs',
     command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:llm-docs'],
     level: 'focused',
-    tier: 'change',
+    tier: 'pr',
     tests: ['apps/cli/scripts/generate-llm-docs.spec.ts'],
     requires: [],
     release: 'every-candidate'
@@ -2670,21 +2676,8 @@ export const lanes: readonly Lane[] = [
     id: 'cli-test-mcp-docs',
     command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:mcp-docs'],
     level: 'focused',
-    tier: 'change',
+    tier: 'pr',
     tests: ['apps/cli/src/commands/mcp'],
-    requires: [],
-    release: 'every-candidate'
-  },
-  {
-    id: 'cli-test-mcp-production',
-    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:mcp-production'],
-    level: 'focused',
-    tier: 'change',
-    tests: [
-      'apps/cli/scripts/package-helper-lambdas.ts',
-      'apps/cli/scripts/test-mcp-executable.ts',
-      'apps/cli/scripts/test-mcp-production-eval.ts'
-    ],
     requires: [],
     release: 'every-candidate'
   },
@@ -4193,24 +4186,25 @@ export const slices: readonly Slice[] = [
     promise: 'MCP clients can discover and use the shipped CLI interface.',
     status: 'active',
     journeys: ['J12'],
-    paths: ['apps/cli/src/commands/mcp/**', 'apps/cli/src/commands/mcp-add/**'],
+    paths: [
+      'apps/cli/src/commands/mcp/**',
+      'apps/cli/src/commands/mcp-add/**',
+      'apps/cli/scripts/generate-llm-docs.ts',
+      'apps/cli/scripts/llm-docs/**'
+    ],
     tests: [
       'apps/cli/scripts/e2e-mcp/run-e2e.ts',
       'apps/cli/scripts/generate-llm-docs.spec.ts',
+      'apps/cli/scripts/llm-docs/corpus-generation.spec.ts',
       'apps/cli/scripts/test-mcp-executable.ts',
-      'apps/cli/scripts/test-mcp-production-eval.ts',
       'apps/cli/scripts/test-mcp-server.ts',
-      'apps/cli/src/commands/mcp/cli-agent-contract.spec.ts',
+      'apps/cli/src/commands/mcp/model-safety.spec.ts',
       'apps/cli/src/commands/mcp/cli-command-tools.spec.ts',
       'apps/cli/src/commands/mcp/cli-jsonl-runner.spec.ts',
       'apps/cli/src/commands/mcp/dev-tool.spec.ts',
-      'apps/cli/src/commands/mcp/docs-query-fixtures.spec.ts',
-      'apps/cli/src/commands/mcp/lexical-index.spec.ts',
-      'apps/cli/src/commands/mcp/mcp-server-modern.spec.ts',
-      'apps/cli/src/commands/mcp/project-scan.spec.ts',
       'apps/cli/src/commands/mcp/tool-output.spec.ts'
     ],
-    lanes: ['mcp-executable', 'cli-test-mcp-docs', 'cli-test-mcp-production', 'cli-test-llm-docs']
+    lanes: ['mcp-executable', 'mcp-corpus', 'cli-test-mcp-docs', 'cli-test-llm-docs']
   },
   {
     id: 'S36',
