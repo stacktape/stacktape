@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, mock, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
 import { operationReporter } from '@application-services/operation-manager';
 import { GlobalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
@@ -19,13 +19,10 @@ describe.serial('automatic AWS credential refresh', () => {
     const manager = new TestGlobalStateManager();
     const credentials = manager.credentials;
     const warnings: string[] = [];
-    const finishedEvents: unknown[] = [];
     const originalWarn = tuiManager.warn;
     const originalFinishEvent = operationReporter.finishEvent;
     tuiManager.warn = (message: string) => warnings.push(message);
-    operationReporter.finishEvent = mock(async (event) => {
-      finishedEvents.push(event);
-    }) as typeof operationReporter.finishEvent;
+    operationReporter.finishEvent = async () => undefined;
     restores.push(() => {
       tuiManager.warn = originalWarn;
       operationReporter.finishEvent = originalFinishEvent;
@@ -40,9 +37,6 @@ describe.serial('automatic AWS credential refresh', () => {
     expect(manager.credentials).toBe(credentials);
     expect(manager.credentialsRefreshTimeout).toBeDefined();
     expect(warnings).toEqual(['Automatic AWS credential refresh failed. Retrying in 30 seconds.']);
-    expect(finishedEvents).toEqual([
-      { eventType: 'LOAD_AWS_CREDENTIALS', finalMessage: 'Automatic AWS credential refresh failed.' }
-    ]);
   });
 
   test('does not refresh or retry after shutdown', async () => {

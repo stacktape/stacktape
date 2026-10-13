@@ -1003,7 +1003,8 @@ export const lanes: readonly Lane[] = [
     ],
     requires: ['console', 'docker', 'network'],
     release: 'every-candidate',
-    proves: 'Real cli-console services and persistence through the isolated PostgreSQL feature suite.',
+    proves:
+      'Source CLI identity and deployment reporting through HTTP/PostgreSQL; MiniStack stack updates, stored artifacts and Console metadata readback.',
     selections: ['console-database-cli-console']
   },
   {
@@ -1527,7 +1528,6 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/app/operation-invocation-context.spec.ts',
       'apps/cli/src/app/operation-manager/__tests__/journal.test.ts',
       'apps/cli/src/app/stacktape-trpc-api-manager/index.spec.ts',
-      'apps/cli/src/app/stacktape-trpc-api-manager/recorded-command-args.spec.ts',
       'apps/cli/src/app/tui-manager/__tests__/cleanup-logging.test.ts',
       'apps/cli/src/app/tui-manager/dev/__tests__/log-normalize.test.ts',
       'apps/cli/src/app/tui-manager/dev/views/__tests__/dashboard.test.tsx',
@@ -3374,7 +3374,6 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/app/global-state-manager/runner-credentials.test.ts',
       'apps/cli/src/app/operation-invocation-context.spec.ts',
       'apps/cli/src/app/stacktape-trpc-api-manager/index.spec.ts',
-      'apps/cli/src/app/stacktape-trpc-api-manager/recorded-command-args.spec.ts',
       'apps/cli/src/commands/_utils/auth/cognito-client.spec.ts',
       'apps/cli/src/commands/_utils/auth/oauth-callback-page.spec.ts',
       'apps/cli/src/config/local-state-paths.spec.ts',
@@ -4106,6 +4105,7 @@ export const slices: readonly Slice[] = [
       'packages/console-api/**',
       'apps/console/api/src/services/stack-operation-progress.ts',
       'apps/cli/src/domain/notification-manager/events.ts',
+      'apps/cli/src/utils/cli.ts',
       'apps/console/api/src/deployments/invocation-id.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/cloudformation-resources.ts'
     ],
@@ -4120,6 +4120,9 @@ export const slices: readonly Slice[] = [
       'packages/stack-info/src/selectors.test.ts'
     ],
     lanes: [
+      'cli',
+      'cli-2',
+      'cli-3',
       'stack-info-test',
       'console-api-test',
       'console-ui',

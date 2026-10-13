@@ -73,6 +73,7 @@ export const getCliInput = (): {
     }),
     {
       array: ['dockerArgs', 'env', 'onlyWorkloads', 'resourcesToSkip'],
+      string: ['stage', cliArgsAliases.stage],
       configuration: {
         'camel-case-expansion': true,
         'strip-dashed': true

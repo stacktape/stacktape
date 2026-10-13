@@ -21,8 +21,8 @@ const operation = (commandArgs: unknown) => ({
 test('commandArgs accepts a CLI flag object whatever the parser made of the values', () => {
   const parsed = recordStackOperationInputSchema.parse(
     operation({
-      // `--stage 2024` reaches the Console as a number, `--hotSwap` as a boolean, and the invocation
-      // context the CLI attaches is a nested object.
+      // Recorded JSON flags preserve numbers, booleans, lists and nested context without coercion.
+      // Validating a command's particular flag types belongs to the producer.
       stage: 2024,
       region: 'eu-west-1',
       hotSwap: true,
