@@ -422,6 +422,17 @@ export const lanes: readonly Lane[] = [
     selections: ['cli-operations']
   },
   {
+    id: 'cli-terminal-ownership',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:operations:terminal'],
+    level: 'process',
+    tier: 'pr',
+    tests: ['apps/cli/scripts/operations/terminal-ownership.spec.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'Real terminal prompts, inherited children and dev SIGINT preserve terminal ownership and cleanup output.',
+    selections: ['cli-operations']
+  },
+  {
     id: 'cli-operations',
     command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:operations'],
     level: 'process',
@@ -5291,12 +5302,14 @@ export const slices: readonly Slice[] = [
     status: 'active',
     journeys: ['J9'],
     paths: [
+      'apps/cli/scripts/operations/terminal-driver.ts',
       'apps/cli/src/app/tui-manager/**',
       'apps/cli/src/app/tui-manager/output/**',
       'apps/cli/src/app/command-lifecycle/**'
     ],
     tests: [
       'apps/cli/scripts/operations/output.spec.ts',
+      'apps/cli/scripts/operations/terminal-ownership.spec.ts',
       'apps/cli/src/app/tui-manager/dev/__tests__/log-normalize.test.ts',
       'apps/cli/src/app/tui-manager/dev/views/__tests__/dashboard.test.tsx',
       'apps/cli/src/app/tui-manager/format/text.spec.ts',
@@ -5311,7 +5324,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/characterization/command-error-modernization.spec.ts',
       'apps/cli/tests/characterization/error-contract.spec.ts'
     ],
-    lanes: ['cli-operation-rules', 'cli', 'cli-2', 'cli-3', 'cli-operations']
+    lanes: ['cli-operation-rules', 'cli-terminal-ownership', 'cli', 'cli-2', 'cli-3', 'cli-operations']
   }
 ];
 

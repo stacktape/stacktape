@@ -36,11 +36,11 @@ const terminateProcessTree = async (child: ReturnType<typeof Bun.spawn>) => {
 };
 
 /** Builds the real process entrypoint once. External native modules resolve from this worktree's node_modules. */
-export const buildOperationsCli = async () => {
+export const buildOperationsCli = async (entrypoint = join(cliDirectory, 'src/entrypoints/cli.ts')) => {
   const directory = await mkdtemp(join(cliDirectory, 'node_modules/.j9-cli-'));
   try {
     const build = await Bun.build({
-      entrypoints: [join(cliDirectory, 'src/entrypoints/cli.ts')],
+      entrypoints: [entrypoint],
       outdir: directory,
       target: 'bun',
       plugins: [createStacktapeOpenTuiBuildPlugin()],
