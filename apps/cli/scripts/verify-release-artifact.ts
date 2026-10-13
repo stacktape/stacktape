@@ -211,7 +211,11 @@ export const verifyNativeInstallation = async ({
   );
 
   const launcherPath = join(binDirectory, 'stacktape.js');
-  const networkGuardPath = join(fixtureDirectory, 'reject-node-network.cjs');
+  // A literal backslash on Unix exercises the NODE_OPTIONS escaping Windows paths require.
+  const networkGuardPath = join(
+    fixtureDirectory,
+    process.platform === 'win32' ? 'reject-node-network.cjs' : 'reject\\node network.cjs'
+  );
   await writeFile(
     networkGuardPath,
     `const http = require('node:http');
@@ -235,7 +239,7 @@ globalThis.fetch = reject;
   }
   // Invoke both package-manager-created aliases, as an installed customer does.
   // NODE_OPTIONS keeps archive downloads forbidden after the local cache is populated.
-  const aliasEnv = { ...runtimeEnv, NODE_PATH: '', NODE_OPTIONS: `--require="${networkGuardPath}"` };
+  const aliasEnv = { ...runtimeEnv, NODE_PATH: '', NODE_OPTIONS: `--require=${JSON.stringify(networkGuardPath)}` };
   const aliasDirectory = join(fixtureDirectory, 'node_modules', '.bin');
   for (const alias of ['stacktape', 'stp']) {
     if (process.platform === 'win32') {
