@@ -4592,7 +4592,11 @@ export const slices: readonly Slice[] = [
     promise: 'Runtime errors become scoped, redacted issues without duplicates.',
     status: 'active',
     journeys: ['J7'],
-    paths: ['apps/console/api/src/issues/**', 'apps/cli/src/utils/log-collector/**'],
+    paths: [
+      'apps/console/api/src/issues/**',
+      'apps/cli/src/utils/log-collector/**',
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/issue-processor/**'
+    ],
     tests: [
       'apps/cli/helper-lambdas/stacktapeServiceLambda/issue-processor/index.test.ts',
       'apps/console/api/scripts/issues-database.test.ts'
