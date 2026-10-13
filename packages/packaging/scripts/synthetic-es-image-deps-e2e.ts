@@ -36,7 +36,7 @@
  *    `buildUsingRailpack`) from a pinned `requirements.txt` (`--only railpack`): a handler-only edit must reuse the pip
  *    install, change the digest and the image, and print the edit; a requirements edit must install again; the same
  *    project in another checkout root must get the same digest and be reused. Railpack plans with a railpack binary
- *    (`STP_RAILPACK_BINARY`, the CLI's tools directory or PATH; without one this section is skipped and reported) and
+ *    (`STP_RAILPACK_BINARY`, the CLI's tools directory or PATH; full qualification requires it) and
  *    builds with its pinned frontend, builder and runtime images, which BuildKit fetches itself: they are the only
  *    images exempt from the no-pull check. Its fixture names the run, so no earlier build can satisfy its install.
  *
