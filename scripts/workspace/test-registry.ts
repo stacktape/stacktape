@@ -4276,7 +4276,8 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/bundlers/node-version.ts',
       'apps/cli/src/domain/packaging-manager/index.ts',
       'apps/cli/src/domain/config-manager/utils/nextjs-webs.ts',
-      'apps/cli/starter-projects/nextjs-serverless/**'
+      'apps/cli/starter-projects/nextjs-serverless/**',
+      'apps/cli/starter-projects/nextjs-saas/**'
     ],
     tests: ['packages/packaging/src/web/nextjs-web.test.ts'],
     lanes: ['packaging-ssr', 'packaging-test', 'cli-packaged-web', 'starter-qualification'],
