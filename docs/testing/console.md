@@ -32,6 +32,8 @@ pnpm --filter @stacktape/console-api-app test:db --secrets
 pnpm --filter @stacktape/console-api-app test:db --security
 pnpm --filter @stacktape/console-api-app test:db --insights
 pnpm --filter @stacktape/console-api-app test:db --gitlab
+pnpm --filter @stacktape/console-api-app test:db --gitlab-lifecycle
+pnpm --filter @stacktape/console-api-app test:db --bitbucket-pairing
 pnpm --filter @stacktape/console-api-app test:db --runner
 pnpm --filter @stacktape/console-api-app test:db --git-deploy
 pnpm --filter @stacktape/console-api-app test:db --incident-agent
@@ -80,12 +82,17 @@ Lambda image and checks the monitoring sweeper through its Lambda proxy. Build t
 `pnpm --filter @stacktape/cli build:dev-artifacts`; the lane needs `openssl`, `unzip`, Docker and the local
 `public.ecr.aws/lambda/nodejs:22` image. All fixtures use isolated databases and loopback endpoints.
 
+`--gitlab-lifecycle` runs OAuth, clone credential rotation, disconnect and recovery with PostgreSQL leases and MiniStack
+Secrets Manager. `--bitbucket-pairing` sends locally signed FIT requests through HTTP and claims them through the
+production Console router, checking workspace ownership, concurrent claim, expiry, reinstall and credential cleanup.
+Both use loopback provider HTTP and need no shared-dev access.
+
 `--git-deploy` runs authenticated provider ingress, durable webhook/operation workers, runner dispatch and completion
-against loopback transports, with real API middleware and disposable PostgreSQL. It uses a ready runner fixture; EC2
-provisioning and AMI qualification remain separate. Dispatched deployment, Actions and cancellation scripts execute in a
-network-disabled `node:24-bookworm` container with controlled external tools and a systemd stand-in. A local file relay
-forwards only the suite's AWS/API HTTP requests, including real CLI and runner completion callbacks, across Docker
-Desktop and WSL.
+against loopback transports, with real API middleware and disposable PostgreSQL. MiniStack stores S3 webhook payloads,
+SQS messages, SSM parameters, credentials, stack metadata and logs. It uses a ready runner fixture; EC2 provisioning and
+AMI qualification remain separate. Dispatched deployment, Actions and cancellation scripts execute in a network-disabled
+`node:24-bookworm` container with controlled external tools and a systemd stand-in. A local file relay forwards only the
+suite's AWS/API HTTP requests, including real CLI and runner completion callbacks, across Docker Desktop and WSL.
 
 The billing suite sends Paddle Classic form events through the real webhook and reads plan restrictions and receipts
 through the production HTTP router. It exercises production billing with synthetic credentials and loopback Paddle, AWS
