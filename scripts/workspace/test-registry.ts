@@ -1316,6 +1316,16 @@ export const lanes: readonly Lane[] = [
     proves: 'Inherited AWS profiles and endpoints cannot redirect the SDK away from the owned MiniStack account.'
   },
   {
+    id: 'console-observability-readers',
+    command: ['pnpm', '--filter', '@stacktape/console-ui', 'test:observability:readers'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/console/ui/scripts/observability-readers.test.ts'],
+    requires: ['console'],
+    release: 'every-candidate',
+    proves: 'The Console metric and live-tail readers use the real SDK against bounded loopback provider replies.'
+  },
+  {
     id: 'console-credentials-aws',
     command: ['pnpm', '--filter', '@stacktape/console-ui', 'test:credentials:aws'],
     level: 'process',
@@ -2296,7 +2306,6 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/api-key-security.test.ts',
       'apps/console/api/src/services/bitbucket-forge.test.ts',
       'apps/console/api/src/services/budget-alert-polling.test.ts',
-      'apps/console/api/src/services/budget-alerts.test.ts',
       'apps/console/api/src/services/currency-conversion.test.ts',
       'apps/console/api/src/services/default-domain-aws.test.ts',
       'apps/console/api/src/services/git-connection-secret-store.test.ts',
@@ -5252,6 +5261,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/utils/dates.ts'
     ],
     tests: [
+      'apps/console/ui/scripts/observability-readers.test.ts',
       'apps/console/api/src/utils/observability-inventory.test.ts',
       'apps/console/ui/src/aws/logs-commands.test.ts',
       'apps/console/ui/src/aws/logs.test.ts',
@@ -5264,7 +5274,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/pages/OverviewPage/overview-metrics.test.ts',
       'apps/console/ui/src/utils/dates.test.ts'
     ],
-    lanes: ['console-ui', 'console-ui-2', 'console-ui-3', 'console-database-insights'],
+    lanes: ['console-ui', 'console-ui-2', 'console-ui-3', 'console-database-insights', 'console-observability-readers'],
     contributors: ['S66']
   },
   {
@@ -5323,7 +5333,6 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/console/api/scripts/insights-runtime.test.ts',
       'apps/console/api/src/services/budget-alert-polling.test.ts',
-      'apps/console/api/src/services/budget-alerts.test.ts',
       'apps/console/api/src/services/currency-conversion.test.ts',
       'apps/cli/src/domain/budget-manager/index.spec.ts'
     ],
