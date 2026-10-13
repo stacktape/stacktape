@@ -47,7 +47,8 @@
     "test:lambda-source-map-e2e": "bun run scripts/synthetic-lambda-source-map-e2e.ts",
     "test:split-assets-e2e": "bun run scripts/synthetic-split-assets-e2e.ts",
     "test": "bun test src",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "test:dockerfile-image-e2e": "bun run scripts/dockerfile-image-e2e.ts"
   },
   "dependencies": {
     "@balena/dockerignore": "1.0.2",

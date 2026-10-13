@@ -102,7 +102,8 @@
     "test:generated-access": "bun test tests/generated-access",
     "test:compute-events": "bun test tests/synthesis-families/compute-events.spec.ts",
     "test:endpoint-synthesis": "bun test tests/synthesis-families/endpoints.spec.ts",
-    "test:real-aws-endpoint": "bun scripts/real-aws/appsync-endpoint-canary.ts"
+    "test:real-aws-endpoint": "bun scripts/real-aws/appsync-endpoint-canary.ts",
+    "test:image-builders:ministack": "bun test tests/image-builders"
   },
   "dependencies": {
     "@aws-cdk/cloudformation-diff": "2.187.4",

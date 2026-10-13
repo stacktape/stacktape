@@ -107,8 +107,8 @@ if (only !== undefined && only !== 'python-checkouts' && only !== 'es-image-mode
   throw new Error(`Unknown --only ${only}.`);
 }
 const railpackBinary = findRailpackBinary();
-if (only === 'railpack' && !railpackBinary) {
-  throw new Error('--only railpack needs a railpack binary: set STP_RAILPACK_BINARY or put railpack on PATH.');
+if ((!only || only === 'railpack') && !railpackBinary) {
+  throw new Error('Railpack qualification needs a railpack binary: set STP_RAILPACK_BINARY or put railpack on PATH.');
 }
 const out = resolve(argument('--out') ?? (await mkdtemp(join(tmpdir(), 'stacktape-es-image-deps-'))));
 const runId = argument('--run-id') ?? randomBytes(4).toString('hex');

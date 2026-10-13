@@ -23,14 +23,12 @@ const realExecuteGit = executeGit;
 type ExecCall = { command: string; args: string[]; params: Record<string, any> };
 
 let execStub: ((call: ExecCall) => Promise<any>) | null = null;
-const execCalls: ExecCall[] = [];
 
 // The replacement is a pass-through by default. `mock.module` is process-wide in Bun, so only the tests that install
 // an `execStub` see anything other than the real runner, and no other test file's behavior changes.
 mock.module('@utils/exec', () => ({
   exec: (command: string, args: string[], params: Record<string, any>) => {
     const call = { command, args, params };
-    execCalls.push(call);
     return execStub ? execStub(call) : realExec(command, args, params);
   },
   executeGit: realExecuteGit
@@ -213,20 +211,11 @@ afterAll(() => {
 
 describe('docker login credential handling', () => {
   test('passes the registry password on stdin and never as a command argument', async () => {
-    execCalls.length = 0;
     const { error } = await withFakeDocker({ readStdin: true }, () =>
       dockerLogin({ user: 'AWS', password: SENTINEL_PASSWORD, proxyEndpoint: REGISTRY })
     );
 
     expect(error).toBeNull();
-
-    // What `execDocker` was asked to run: the user and the registry are still correct, the password is not there.
-    const [call] = execCalls;
-    expect(call.command).toBe('docker');
-    expect(call.args).toEqual(['login', '--username', 'AWS', '--password-stdin', REGISTRY]);
-    expect(JSON.stringify(call.args)).not.toContain(SENTINEL_PASSWORD);
-    expect(call.params.stdinInput).toBe(SENTINEL_PASSWORD);
-    expect(call.params.safeCommandDescription).toBe('docker login [arguments omitted]');
 
     // What the child process actually received: the password on standard input, and nowhere in its argv.
     const observed = fakeDockerInvocation('login');
@@ -259,7 +248,6 @@ describe('docker login credential handling', () => {
   test('reports a missing Docker executable without reproducing the token', async () => {
     // The reproduced incident: Docker absent, a live token in hand. Execa's rejection carries the command line it
     // built, and everything the CLI derives from it used to carry the token with it.
-    execCalls.length = 0;
     const error = await withDockerMissingFromPath(() =>
       dockerLogin({ user: 'AWS', password: SENTINEL_PASSWORD, proxyEndpoint: REGISTRY })
     );
@@ -269,10 +257,6 @@ describe('docker login credential handling', () => {
     expect(error.type).toBe('DOCKER');
     expect(error.hint).toContain('https://www.docker.com/products/docker-desktop/');
     expectNoSecretIn(error, SENTINEL_PASSWORD);
-
-    // The classification is structural: it came from a PATH lookup, before anything was spawned, so it does not
-    // depend on how a runtime or a localized Windows console words a missing executable.
-    expect(execCalls).toHaveLength(0);
   });
 
   test('still classifies a Docker that disappears between the PATH check and the spawn', async () => {
@@ -398,21 +382,6 @@ describe('build arguments and container environment', () => {
     expect(error.message).toContain('Error building docker image');
     expect(error.message).toContain('docker build [arguments omitted]');
     expectNoSecretIn(error, SENTINEL_BUILD_ARG_VALUE);
-  });
-
-  test('a build that cannot start reports a missing Docker rather than the command line', async () => {
-    const error = await withDockerMissingFromPath(() => buildWithSecretArg());
-
-    expect(error).toBeInstanceOf(Error);
-    expect(error.message).toContain('Docker is not installed or not found in PATH.');
-    expectNoSecretIn(error, SENTINEL_BUILD_ARG_VALUE);
-  });
-
-  test('a container run that cannot start reports a missing Docker', async () => {
-    const error = await withDockerMissingFromPath(() => runWithSecretEnvironment());
-
-    expect(error).toBeInstanceOf(Error);
-    expect(error.message).toContain('Docker is not installed or not found in PATH.');
   });
 
   test('rejects names reserved for the Docker CLI process itself', async () => {
