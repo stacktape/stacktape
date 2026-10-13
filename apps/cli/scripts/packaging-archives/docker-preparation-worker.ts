@@ -1,3 +1,4 @@
+import { MINISTACK_DEFAULT_ACCOUNT_ID } from '@stacktape/ministack/fixture';
 import { resetDomainServiceInitialization } from '@utils/decorators';
 /**
  * One packaging run, through the CLI's own `packageAllWorkloads`, for the Docker preparation acceptance.
@@ -11,8 +12,8 @@ import { resetDomainServiceInitialization } from '@utils/decorators';
  * Only what lies outside the CLI is replaced:
  *
  * - Docker is whatever `docker` the acceptance put first on PATH: a stand-in or a guard;
- * - CloudFormation reports an existing stack (`deploy` only), S3 lists nothing and records uploads, and ECR
- *   authorization returns a fixture token and counts the request;
+ * - CloudFormation supplies the existing stack (`deploy` only) and S3 stores real artifacts on MiniStack; ECR
+ *   authorization deliberately returns a fixture token;
  * - the image repository lists nothing, or, for a deployment, is the registry file the Docker stand-in pushes into:
  *   one `<tag> <digest>` line per image, `-` for an untagged one, as ECR lists them and deletes them by tag or digest;
  * - any other AWS request is refused before it leaves the process.
@@ -121,8 +122,8 @@ const main = async () => {
 
   awsSdkManager.init({
     credentials: {
-      accessKeyId: request.localAwsEndpoint ? '000000000000' : 'acceptance-forbidden',
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'acceptance-forbidden'
+      accessKeyId: request.localAwsEndpoint ? MINISTACK_DEFAULT_ACCOUNT_ID : 'acceptance-forbidden',
+      secretAccessKey: 'test'
     },
     region: REGION,
     endpoint: request.localAwsEndpoint ?? 'http://127.0.0.1:9',

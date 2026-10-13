@@ -6,7 +6,7 @@ import {
   waitUntilStackCreateComplete,
   waitUntilStackUpdateComplete
 } from '@aws-sdk/client-cloudformation';
-import { assertLocalAwsEndpoint } from '@stacktape/ministack/fixture';
+import { assertLocalAwsEndpoint, MINISTACK_DEFAULT_ACCOUNT_ID } from '@stacktape/ministack/fixture';
 import { outputNames } from '@stacktape/naming/stack-output-names';
 
 /** Seed the stack/version that both artifact-deployment workers consume through the real CloudFormation capability. */
@@ -25,7 +25,7 @@ export const seedArtifactStack = async ({
     endpoint: assertLocalAwsEndpoint(endpoint),
     region: 'eu-west-1',
     maxAttempts: 1,
-    credentials: { accessKeyId: '000000000000', secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'test' }
+    credentials: { accessKeyId: MINISTACK_DEFAULT_ACCOUNT_ID, secretAccessKey: 'test' }
   });
   try {
     const TemplateBody = JSON.stringify({

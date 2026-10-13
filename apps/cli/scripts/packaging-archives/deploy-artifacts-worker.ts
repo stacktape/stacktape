@@ -1,3 +1,4 @@
+import { MINISTACK_DEFAULT_ACCOUNT_ID } from '@stacktape/ministack/fixture';
 import { resetDomainServiceInitialization } from '@utils/decorators';
 /**
  * One deployment's packaging and artifact upload, run through the CLI's own deploy code, for the production cache
@@ -124,10 +125,10 @@ const main = async () => {
   const uploadedKeys: string[] = [];
 
   awsSdkManager.init({
-    // The emulator lane passes the fixture's synthetic credentials; the emulator scopes buckets by that account.
+    // CloudFormation-created buckets belong to MiniStack's default account. Credentials stay synthetic.
     credentials: {
-      accessKeyId: '000000000000',
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'test'
+      accessKeyId: MINISTACK_DEFAULT_ACCOUNT_ID,
+      secretAccessKey: 'test'
     },
     region: REGION,
     endpoint: request.localAwsEndpoint,
