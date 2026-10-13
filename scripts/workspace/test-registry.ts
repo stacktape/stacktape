@@ -1721,6 +1721,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/components/Observability/time-range.test.ts',
       'apps/console/ui/src/components/Observability/inventory.test.ts',
       'apps/console/ui/src/pages/MetricsPage/org-metrics.test.ts',
+      'apps/console/ui/src/pages/SyntheticsPage/synthetics-presentation.test.ts',
       'apps/console/ui/src/components/CompoundViews/ActivityList.helpers.test.ts',
       'apps/console/ui/src/components/StacktapeEditor/monaco-yaml.test.ts',
       'apps/console/ui/src/components/StacktapeEditor/resolved-config-display.test.ts',
@@ -2393,6 +2394,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/pages/AlarmsPage/cloudwatch-alarms.test.ts',
       'apps/console/ui/src/pages/DomainsPage/domains.test.ts',
       'apps/console/ui/src/pages/MetricsPage/org-metrics.test.ts',
+      'apps/console/ui/src/pages/SyntheticsPage/synthetics-presentation.test.ts',
       'apps/console/ui/src/pages/OverviewPage/overview-metrics.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/repository-option.test.tsx',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Environment/environment.test.ts',
@@ -5336,6 +5338,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/components/Observability/inventory.test.ts',
       'apps/console/ui/src/components/Observability/time-range.test.ts',
       'apps/console/ui/src/pages/MetricsPage/org-metrics.test.ts',
+      'apps/console/ui/src/pages/SyntheticsPage/synthetics-presentation.test.ts',
       'apps/console/ui/src/pages/OverviewPage/overview-metrics.test.ts',
       'apps/console/ui/src/utils/dates.test.ts'
     ],
