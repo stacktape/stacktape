@@ -1257,7 +1257,8 @@ export const lanes: readonly Lane[] = [
     tier: 'change',
     tests: [
       'apps/console/api/scripts/incident-agent-database.test.ts',
-      'apps/console/api/scripts/incident-agent-runtime.test.ts'
+      'apps/console/api/scripts/incident-agent-runtime.test.ts',
+      'apps/console/api/scripts/incident-handoff-database.test.ts'
     ],
     requires: ['console', 'docker', 'network'],
     release: 'every-candidate',
@@ -1936,7 +1937,6 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/github-repository-pagination.test.ts',
       'apps/console/api/src/services/gitlab-app.test.ts',
       'apps/console/api/src/services/incident-engine.test.ts',
-      'apps/console/api/src/services/incident-handoff.test.ts',
       'apps/console/api/src/services/incident-paging.test.ts',
       'apps/console/api/src/services/issue-access.test.ts',
       'apps/console/api/src/services/paddle.test.ts',
@@ -2055,7 +2055,6 @@ export const lanes: readonly Lane[] = [
       'apps/vscode-extension/src/language-server/schema-resolver.test.ts',
       'packages/analytics/src/posthog.test.ts',
       'packages/analytics/src/privacy.test.ts',
-      'packages/aws-read-only/src/executor.test.ts',
       'packages/aws-read-only/src/operations.test.ts',
       'packages/cloudformation/tests/generator.test.ts',
       'packages/cloudformation/tests/intrinsics.test.ts',
@@ -2330,9 +2329,20 @@ export const lanes: readonly Lane[] = [
     command: ['pnpm', '--filter', '@stacktape/aws-read-only', 'run', 'test'],
     level: 'focused',
     tier: 'pr',
-    tests: ['packages/aws-read-only/src'],
+    tests: ['packages/aws-read-only/src/operations.test.ts'],
     requires: [],
     release: 'every-candidate'
+  },
+  {
+    id: 'aws-read-only-ministack',
+    command: ['pnpm', '--filter', '@stacktape/aws-read-only', 'run', 'test:ministack'],
+    level: 'process',
+    tier: 'change',
+    tests: ['packages/aws-read-only/src/executor.ministack.test.ts'],
+    requires: ['docker', 'network'],
+    release: 'every-candidate',
+    proves:
+      'Real SDK reads against seeded MiniStack state mask environments and refuse writes and plaintext credential reads.'
   },
   {
     id: 'ui-react-test',
@@ -4655,9 +4665,13 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/services/incident-agent-runner-programs.ts',
       'packages/aws-read-only/**'
     ],
-    tests: ['apps/console/api/scripts/incident-agent-runtime.test.ts', 'packages/aws-read-only/src/executor.test.ts'],
+    tests: [
+      'apps/console/api/scripts/incident-agent-runtime.test.ts',
+      'packages/aws-read-only/src/executor.ministack.test.ts'
+    ],
     lanes: [
       'aws-read-only-test',
+      'aws-read-only-ministack',
       'console-database-incident-agent',
       'console-runner-runtime',
       'console-runner-runtime-2',
@@ -4675,7 +4689,7 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/services/incident-handoff.ts',
       'apps/console/api/src/services/incident-agent-runner-job.ts'
     ],
-    tests: ['apps/console/api/src/services/incident-handoff.test.ts'],
+    tests: ['apps/console/api/scripts/incident-handoff-database.test.ts'],
     lanes: [
       'console-database-incident-agent',
       'console-runner-runtime',
