@@ -4601,7 +4601,10 @@ export const slices: readonly Slice[] = [
     paths: [
       'apps/console/api/src/services/remote-deploy/**',
       'apps/console/api/src/lambdas/remote-operation-worker.ts',
-      'apps/console/api/src/services/remote-session.ts'
+      'apps/console/api/src/services/remote-session.ts',
+      'apps/cli/src/config/cli/commands.ts',
+      'apps/cli/src/utils/cli.ts',
+      'apps/cli/src/utils/validator.ts'
     ],
     tests: [
       'apps/console/api/scripts/git-deploy-journey.test.ts',
