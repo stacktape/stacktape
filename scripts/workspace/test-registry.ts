@@ -142,6 +142,46 @@ export const lanes: readonly Lane[] = [
     selections: ['naming']
   },
   {
+    id: 'static-sites',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:static-sites'],
+    level: 'process',
+    tier: 'pr',
+    tests: ['apps/cli/tests/static-sites/build.spec.ts', 'apps/cli/tests/static-sites/input.spec.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves:
+      'A nested static project builds assets for deep pages; sync mode errors and regional acceleration rules stay correct.'
+  },
+  {
+    id: 'ministack-static-content-sync',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:static-sites:ministack'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/tests/static-sites/content-sync.spec.ts'],
+    requires: ['docker'],
+    release: 'every-candidate',
+    proves:
+      'Real configured/direct CLI syncs target the right bucket; SDK uploads report progress, store metadata, remove obsolete content and restore versions.'
+  },
+  {
+    id: 'static-starter-qualification',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/cli',
+      'run',
+      'qualify:starters',
+      '--',
+      '--starter=astro-static,react-spa-vitejs'
+    ],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/scripts/qualification/run-starter-packaging.ts'],
+    requires: ['docker', 'network'],
+    release: 'every-candidate',
+    proves: 'The Astro static and Vite SPA starters package through the current source CLI.'
+  },
+  {
     id: 'synthesis',
     command: ['pnpm', '--filter', '@stacktape/cli', 'test:characterization'],
     level: 'focused',
@@ -625,6 +665,39 @@ export const lanes: readonly Lane[] = [
     release: 'every-candidate',
     proves: 'Built artifacts execute in their target runtimes.',
     selections: ['packaging-lambdas']
+  },
+  {
+    id: 'tanstack-starter-materialization',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/cli',
+      'exec',
+      'bun',
+      'test',
+      'tests/ssr/tanstack-starter-materialization.spec.ts'
+    ],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/tests/ssr/tanstack-starter-materialization.spec.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'TanStack init preserves dependency overrides required to install a compatible build graph.'
+  },
+  {
+    id: 'packaging-ssr',
+    command: ['pnpm', '--filter', '@stacktape/packaging', 'run', 'test:ssr'],
+    level: 'process',
+    tier: 'pr',
+    tests: [
+      'packages/packaging/src/web/nextjs-web.test.ts',
+      'packages/packaging/src/web/ssr-packaging.test.ts',
+      'packages/packaging/src/web/ssr-web-shared.test.ts'
+    ],
+    requires: [],
+    release: 'every-candidate',
+    proves:
+      'Offline SSR packaging produces runnable ZIPs, isolates concurrent builds and keeps private files out of public assets.'
   },
   {
     id: 'packaging-web',
@@ -1628,7 +1701,6 @@ export const lanes: readonly Lane[] = [
       'apps/cli/tests/characterization/packaging-contract.spec.ts',
       'apps/cli/tests/characterization/packaging-smoke-fixture.spec.ts',
       'apps/cli/tests/characterization/private-registry-pagination.spec.ts',
-      'apps/cli/tests/characterization/s3-operations.spec.ts',
       'apps/cli/tests/characterization/sql-read-only.spec.ts',
       'apps/cli/tests/characterization/stack-event-pagination.spec.ts',
       'apps/cli/tests/characterization/synthesis-contract.spec.ts',
@@ -1942,10 +2014,9 @@ export const lanes: readonly Lane[] = [
       'packages/packaging/src/split-bundler/function-digest.test.ts',
       'packages/packaging/src/split-bundler/layer-assignment.test.ts',
       'packages/packaging/src/split-bundler/layer-builder.test.ts',
-      'packages/packaging/src/web/build-coordinator.test.ts',
       'packages/packaging/src/web/nextjs-web.test.ts',
-      'packages/packaging/src/web/node-runtime-files.test.ts',
       'packages/packaging/src/web/ssr-web-shared.test.ts',
+      'packages/packaging/src/web/ssr-packaging.test.ts',
       'packages/pricing/src/pricing.test.ts',
       'packages/stack-info/src/metric-targets.test.ts',
       'packages/stack-info/src/normalize.test.ts',
@@ -3565,9 +3636,17 @@ export const slices: readonly Slice[] = [
     promise: 'Next.js/OpenNext produces a working deployed artifact.',
     status: 'active',
     journeys: ['J3'],
-    paths: ['packages/packaging/src/web/nextjs-web.ts'],
+    paths: [
+      'packages/packaging/src/web/nextjs-web.ts',
+      'packages/packaging/src/web/node-runtime-files.ts',
+      'packages/packaging/src/es/native-dependencies.ts',
+      'packages/packaging/src/bundlers/node-version.ts',
+      'apps/cli/src/domain/packaging-manager/index.ts',
+      'apps/cli/src/domain/config-manager/utils/nextjs-webs.ts',
+      'apps/cli/starter-projects/nextjs-serverless/**'
+    ],
     tests: ['packages/packaging/src/web/nextjs-web.test.ts'],
-    lanes: ['packaging-test', 'cli-packaged-web', 'starter-qualification', 'cli-runtime-acceptances'],
+    lanes: ['packaging-ssr', 'packaging-test', 'cli-packaged-web', 'starter-qualification'],
     contributors: ['S30']
   },
   {
@@ -3579,15 +3658,18 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/web/ssr-web-shared.ts',
       'packages/packaging/scripts/synthetic-web-framework-e2e.ts',
       'packages/packaging/src/web/build-coordinator.ts',
-      'packages/packaging/src/web/node-runtime-files.ts'
+      'packages/packaging/src/web/node-runtime-files.ts',
+      'packages/packaging/src/es/native-dependencies.ts',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/ssr-web-shared.ts',
+      'apps/cli/starter-projects/astro-serverless/**',
+      'apps/cli/starter-projects/sveltekit-serverless/**'
     ],
     tests: [
       'packages/packaging/scripts/synthetic-web-framework-e2e.ts',
-      'packages/packaging/src/web/build-coordinator.test.ts',
-      'packages/packaging/src/web/node-runtime-files.test.ts',
-      'packages/packaging/src/web/ssr-web-shared.test.ts'
+      'packages/packaging/src/web/ssr-web-shared.test.ts',
+      'packages/packaging/src/web/ssr-packaging.test.ts'
     ],
-    lanes: ['packaging-test', 'packaging-web', 'cli-packaged-web', 'cli-runtime-acceptances']
+    lanes: ['packaging-ssr', 'packaging-test', 'packaging-web', 'cli-packaged-web']
   },
   {
     id: 'S30',
@@ -3596,12 +3678,24 @@ export const slices: readonly Slice[] = [
     journeys: ['J3'],
     paths: [
       'packages/packaging/src/web/ssr-web-shared.ts',
+      'apps/cli/src/commands/init/using-starter-project/utils.ts',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/ssr-web-shared.ts',
+      'apps/cli/starter-projects/solidstart-serverless/**',
       'apps/cli/starter-projects/nuxt-serverless/**',
       'apps/cli/starter-projects/remix-serverless/**',
       'apps/cli/starter-projects/tanstack-start-serverless/**'
     ],
-    tests: ['apps/cli/scripts/packaging-archives/ssr-web-acceptance.ts'],
-    lanes: ['packaging-test', 'cli-packaged-web', 'starter-qualification', 'cli-runtime-acceptances']
+    tests: [
+      'apps/cli/scripts/packaging-archives/ssr-web-acceptance.ts',
+      'apps/cli/tests/ssr/tanstack-starter-materialization.spec.ts'
+    ],
+    lanes: [
+      'tanstack-starter-materialization',
+      'packaging-ssr',
+      'packaging-test',
+      'cli-packaged-web',
+      'starter-qualification'
+    ]
   },
   {
     id: 'S31',
@@ -3611,11 +3705,19 @@ export const slices: readonly Slice[] = [
     paths: [
       'packages/packaging/src/web/hosting-bucket-build.ts',
       'apps/cli/src/commands/bucket-sync/**',
+      'apps/cli/src/domain/packaging-manager/index.ts',
+      'apps/cli/src/domain/packaging-manager/dependency-installer.ts',
+      'apps/cli/src/domain/deployment-artifact-manager/index.ts',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/hosting-buckets/**',
       'apps/cli/src/aws/s3-sync/**',
       'apps/cli/src/aws/s3.ts'
     ],
-    tests: ['apps/cli/tests/characterization/s3-operations.spec.ts'],
-    lanes: ['synthesis', 'synthesis-2', 'starter-qualification'],
+    tests: [
+      'apps/cli/tests/static-sites/build.spec.ts',
+      'apps/cli/tests/static-sites/input.spec.ts',
+      'apps/cli/tests/static-sites/content-sync.spec.ts'
+    ],
+    lanes: ['static-sites', 'ministack-static-content-sync', 'static-starter-qualification'],
     contributors: ['S04']
   },
   {
@@ -4892,7 +4994,7 @@ export const toolingTests: readonly string[] = [
 ];
 
 // Add the kit agent's implemented lane here and attach it to these slices. Placeholders are not runnable lanes.
-export const pendingMiniStackLanes = [{ id: 'ministack-static-content-sync', slices: ['S31'] }] as const;
+export const pendingMiniStackLanes = [] as const;
 
 export const laneIdsForSelection = (selection: string): string[] =>
   lanes.filter((lane) => lane.selections?.includes(selection)).map((lane) => lane.id);

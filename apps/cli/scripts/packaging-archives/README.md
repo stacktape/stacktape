@@ -88,10 +88,14 @@ emulation). The lane needs dependency-download network and never configures host
 `pnpm --filter @stacktape/cli run test:ssr-web` materializes each SSR starter (Astro, Nuxt, SolidStart, SvelteKit,
 TanStack Start, Remix, Next.js) as `stacktape init` writes it and packages it with the `package` command the same way;
 the CLI installs the dependencies and runs the framework build. The server function ZIP is extracted and invoked in the
-Lambda Node.js 24 image as the unprivileged user with HTTP API v2 events: the index page must be HTML, the starter's
-`/api/hello` route must answer from server code, an unknown path must get the framework's not-found status, a request
-with a cookie must still be served, and the build must leave hashed assets for the hosting bucket.
-`--starter <id>[,<id>]` selects starters. It needs Docker, `unzip` and network for the installs, not AWS.
+Lambda image for the deployed runtime (Node.js 22 for Next, 24 for the other adapters) as the unprivileged user with
+HTTP API v2 events: the index page must be HTML, the starter's `/api/hello` route must answer from server code, an
+unknown path must get the framework's not-found status, a request with a cookie must still be served, and the build must
+leave hashed assets for the hosting bucket. Temporary routes added to the materialized Next, Nuxt and Remix apps must
+emit two independent secure cookies and read them on the next v2 request. A TanStack route must render its dynamic path
+parameter. Next's image optimizer ZIP must convert a local HTTP PNG source to WebP in Lambda, exercising its native
+dependency. The shipped starters remain unchanged. `--starter <id>[,<id>]` selects starters. It needs Docker, `unzip`
+and network for the installs, not AWS.
 
 ## Helper Lambdas in the Lambda runtime
 
