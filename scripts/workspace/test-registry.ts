@@ -98,6 +98,44 @@ export const lanes: readonly Lane[] = [
     selections: ['cli']
   },
   {
+    id: 'cli-security-rules',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/cli',
+      'exec',
+      'bun',
+      'test',
+      'src/domain/security-inventory/cyclonedx.spec.ts',
+      'src/domain/security-inventory/trivy.spec.ts',
+      'src/domain/config-manager/utils/guardrails.spec.ts',
+      'src/domain/config-manager/utils/security-posture.spec.ts'
+    ],
+    level: 'focused',
+    tier: 'pr',
+    tests: [
+      'apps/cli/src/domain/security-inventory/cyclonedx.spec.ts',
+      'apps/cli/src/domain/security-inventory/trivy.spec.ts',
+      'apps/cli/src/domain/config-manager/utils/guardrails.spec.ts',
+      'apps/cli/src/domain/config-manager/utils/security-posture.spec.ts'
+    ],
+    requires: [],
+    release: 'every-candidate',
+    proves:
+      'Authored configurations enforce guardrails and posture; inventory parsing and scanner downloads preserve integrity.'
+  },
+  {
+    id: 'cli-security-inventory-ministack',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:security-inventory:ministack'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/tests/ministack/security-inventory.spec.ts'],
+    requires: ['docker'],
+    release: 'every-candidate',
+    proves:
+      'The deploy inventory path uploads bytes and digests, reuses unchanged packages and publishes changed packages on MiniStack.'
+  },
+  {
     id: 'cli-2',
     command: ['pnpm', '--filter', '@stacktape/cli', 'test:cli-smoke'],
     level: 'process',
@@ -1914,7 +1952,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/commands/_utils/__tests__/permission-guards.test.ts',
       'apps/cli/src/commands/_utils/auth/cognito-client.spec.ts',
       'apps/cli/src/commands/_utils/auth/oauth-callback-page.spec.ts',
-      'apps/cli/src/commands/_utils/security-inventory-step.spec.ts',
+      'apps/cli/tests/ministack/security-inventory.spec.ts',
       'apps/cli/src/commands/ai-connect/claude-setup-token.spec.ts',
       'apps/cli/src/commands/deploy/ec2-runner-config-path.spec.ts',
       'apps/cli/src/commands/dev-stop/dev-stop.test.ts',
@@ -2137,7 +2175,6 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/security/cvss.test.ts',
       'apps/console/api/src/security/inventory-grading.test.ts',
       'apps/console/api/src/security/osv-client.test.ts',
-      'apps/console/api/src/security/report-ingestion.test.ts',
       'apps/console/api/src/services/alarm-event-counts.test.ts',
       'apps/console/api/src/services/api-key-security.test.ts',
       'apps/console/api/src/services/bitbucket-forge.test.ts',
@@ -5008,16 +5045,17 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/_utils/security-inventory-step.ts'
     ],
     tests: [
-      'apps/cli/src/commands/_utils/security-inventory-step.spec.ts',
+      'apps/cli/tests/ministack/security-inventory.spec.ts',
       'apps/cli/src/domain/security-inventory/cyclonedx.spec.ts',
       'apps/cli/src/domain/security-inventory/trivy.spec.ts',
       'apps/console/api/scripts/security-database.test.ts',
       'apps/console/api/src/security/cvss.test.ts',
       'apps/console/api/src/security/inventory-grading.test.ts',
-      'apps/console/api/src/security/osv-client.test.ts',
-      'apps/console/api/src/security/report-ingestion.test.ts'
+      'apps/console/api/src/security/osv-client.test.ts'
     ],
     lanes: [
+      'cli-security-rules',
+      'cli-security-inventory-ministack',
       'console-fast-rules',
       'console-api',
       'console-api-2',
@@ -5196,7 +5234,7 @@ export const slices: readonly Slice[] = [
     status: 'active',
     journeys: ['J10'],
     paths: [
-      'apps/cli/src/domain/config-manager/utils/guardrails.spec.ts',
+      'apps/cli/src/domain/config-manager/utils/validation.ts',
       'apps/cli/src/domain/config-manager/utils/security-posture.ts',
       'apps/console/ui/src/pages/GuardrailsPage/**',
       'packages/console-api/src/guardrails.ts'
@@ -5205,7 +5243,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/config-manager/utils/guardrails.spec.ts',
       'apps/cli/src/domain/config-manager/utils/security-posture.spec.ts'
     ],
-    lanes: ['cli', 'cli-2', 'cli-3', 'console-database-insights'],
+    lanes: ['cli-security-rules', 'cli', 'cli-2', 'cli-3', 'console-database-insights'],
     contributors: ['S66']
   },
   {

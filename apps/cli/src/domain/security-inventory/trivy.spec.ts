@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
@@ -15,6 +15,7 @@ let server: ReturnType<typeof Bun.serve>;
 let archiveBytes: Uint8Array;
 let archiveSha256: string;
 let toolsDirectory: string;
+let sourceDirectory: string;
 
 const FAKE_BINARY = '#!/bin/sh\necho fake-trivy\n';
 
@@ -28,7 +29,8 @@ const releaseFor = ({ sha256, version = '0.0.0-test' }: { sha256: string; versio
 };
 
 beforeAll(async () => {
-  const source = await mkdtemp(join(tmpdir(), 'stp-trivy-source-'));
+  sourceDirectory = await mkdtemp(join(tmpdir(), 'stp-trivy-source-'));
+  const source = sourceDirectory;
   await writeFile(join(source, 'trivy'), FAKE_BINARY, { mode: 0o755 });
   const archivePath = join(source, 'trivy_test.tar.gz');
   await tar.c({ gzip: true, file: archivePath, cwd: source }, ['trivy']);
@@ -44,8 +46,10 @@ beforeAll(async () => {
   });
 });
 
-afterAll(() => {
+afterAll(async () => {
   server?.stop(true);
+  if (toolsDirectory) await rm(toolsDirectory, { recursive: true, force: true });
+  if (sourceDirectory) await rm(sourceDirectory, { recursive: true, force: true });
 });
 
 describe('ensureTrivyBinary', () => {
