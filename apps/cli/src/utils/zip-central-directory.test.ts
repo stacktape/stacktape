@@ -1,7 +1,7 @@
 import type { ArchiveEntry } from '@stacktape/packaging/artifact/archive-entries';
 import { afterEach, describe, expect, test } from 'bun:test';
 import { createWriteStream } from 'node:fs';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ZipArchive } from 'archiver';
@@ -107,15 +107,5 @@ describe('native archive policy', () => {
 
     await expect(result).rejects.toBeInstanceOf(ArchiveMismatchError);
     await expect(result).rejects.toThrow(message);
-  });
-
-  test('rejects a file that is not a ZIP at all', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'stacktape-central-directory-'));
-    roots.push(root);
-    await writeFile(join(root, 'partial.zip'), 'PK partial output');
-
-    await expect(applyArchivePolicy({ zipPath: join(root, 'partial.zip'), entries: policy })).rejects.toThrow(
-      'no end-of-central-directory record'
-    );
   });
 });

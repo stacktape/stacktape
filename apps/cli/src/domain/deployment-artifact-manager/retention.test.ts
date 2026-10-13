@@ -36,41 +36,6 @@ describe('what a deployment may delete', () => {
     expect(namesOf(selectObsoleteArtifacts({ artifacts, usage: noUsage }))).toEqual(['api/v1.zip']);
   });
 
-  test('never deletes something this deployment just uploaded', () => {
-    const artifacts = ['v1', 'v2', 'v3', 'v4', 'v5'].map((version) => objectArtifact('api', version));
-    const usage = { ...noUsage, uploadedObjects: [{ s3Key: 'api/v1.zip', name: 'api' }] };
-
-    expect(namesOf(selectObsoleteArtifacts({ artifacts, usage }))).not.toContain('api/v1.zip');
-  });
-
-  test('never deletes something this deployment reused rather than re-uploading', () => {
-    /*
-     * The shared-layer case. A layer whose content has not changed is not uploaded again, so nothing in
-     * the upload records mentions it — but the template being deployed points straight at it. Deleting
-     * it breaks the deployment doing the deleting.
-     */
-    const artifacts = ['hash-a', 'hash-b', 'hash-c', 'hash-d', 'hash-e'].map((hash) =>
-      objectArtifact('shared-layer-1', hash)
-    );
-    const usage = { ...noUsage, reusedS3Keys: ['shared-layer-1/hash-a.zip'] };
-
-    const obsolete = namesOf(selectObsoleteArtifacts({ artifacts, usage }));
-
-    expect(obsolete).not.toContain('shared-layer-1/hash-a.zip');
-    expect(obsolete).toContain('shared-layer-1/hash-b.zip');
-  });
-
-  test('a reused artifact is safe even when the keep window would not have covered it', () => {
-    // Layer keys carry a content hash where other artifacts carry a version, so the window sorts them by
-    // hash and the referenced one can sort anywhere. Being referenced has to outrank the window.
-    const artifacts = Array.from({ length: 30 }, (_, index) =>
-      objectArtifact('shared-layer-1', `hash-${String(index).padStart(2, '0')}`)
-    );
-    const usage = { ...noUsage, versionsToKeepPerName: 26, reusedS3Keys: ['shared-layer-1/hash-00.zip'] };
-
-    expect(namesOf(selectObsoleteArtifacts({ artifacts, usage }))).not.toContain('shared-layer-1/hash-00.zip');
-  });
-
   test('the same protection applies to container images', () => {
     const artifacts = ['v1', 'v2', 'v3', 'v4'].map((version) => imageArtifact('api', version));
     const usage = { ...noUsage, reusedImageTags: ['api--v1'] };

@@ -20,9 +20,10 @@ that owns none of the files: executables, a single file, hidden entries, links, 
 archiver, zip, 7-Zip and a failing native tool. It also seeds local deployment buckets with permission-broken ZIPs under
 their pre-format keys. Custom and managed packaging must rebuild them, reuse the rebuilt objects, and rebuild after a
 chmod-only change. Split functions with their shared and native layers go through the deploy command's own packaging and
-upload code, with local stand-ins for S3, CloudFormation and Docker: they must replace the old objects, reuse unchanged
-ones, and rebuild after a mode-only change exactly where the archive changes. It needs Docker and `unzip`. Pass
-`--zip-dir` and `--7z-dir` for tools not on `PATH`; a native tool it cannot find is reported as not qualified.
+upload code, with real S3 and CloudFormation on the shared MiniStack fixture and a Docker fault boundary: they must
+replace the old objects, reuse unchanged ones, and rebuild after a mode-only change exactly where the archive changes.
+It needs Docker and `unzip`. Pass `--zip-dir` and `--7z-dir` for tools not on `PATH`; a native tool it cannot find is
+reported as not qualified.
 
 ## Python, Java and Ruby Lambda artifacts
 
@@ -41,15 +42,16 @@ change/release gate, outside fast PR CI. `pnpm test:packaging-e2e` includes it.
 `pnpm --filter @stacktape/cli run test:asset-replacer` runs the service helper's Next.js asset replacer as a stack does.
 It builds every helper artifact with the release packaging and verifier, then runs the service helper's ZIP in the
 official Lambda Node.js 22 image for x86_64, its deployed runtime, as the same unprivileged user, with an owned host
-directory as `/tmp`. The helper container shares the network namespace of a fixture container that has no network, so
-the SDK the runtime provides reaches only the fixture's S3 and CloudFormation-response endpoints on loopback. One warm
-container receives two Creates for one key with different inputs and values, a key with several dots, an invalid ZIP,
-ZIPs with escaping links (one with non-ASCII names), a refused download, a refused upload and a Delete. A second
-container, whose `/tmp` is a 10 MiB tmpfs, must replace values in a package with 4 MiB of incompressible data. Each
-outcome is read from the CloudFormation response, not the invocation status. Uploaded ZIPs are extracted with `unzip`,
-inspected and run in the Lambda runtime; the helper's logs must not contain any search or replacement value, and its
-`/tmp` must be left as it was. It needs Docker and `unzip`, not AWS. `--helper-lambdas-dir` characterizes already built
-helper artifacts instead, and the report marks them as supplied.
+directory as `/tmp`. The helper shares MiniStack's network namespace with its external route removed. A loopback proxy
+forwards successful S3 requests to MiniStack, injects refused uploads/downloads, and records CloudFormation callbacks.
+The host seeds objects and reads persisted results with the real SDK. One warm container receives two Creates for one
+key with different inputs and values, a key with several dots, an invalid ZIP, ZIPs with escaping links (one with
+non-ASCII names), a refused download, a refused upload and a Delete. A second container, whose `/tmp` is a 10 MiB tmpfs,
+must replace values in a package with 4 MiB of incompressible data. Each outcome is read from the CloudFormation
+response, not the invocation status. Uploaded ZIPs are extracted with `unzip`, inspected and run in the Lambda runtime;
+the helper's logs must not contain any search or replacement value, and its `/tmp` must be left as it was. It needs
+Docker and `unzip`, not AWS. `--helper-lambdas-dir` characterizes already built helper artifacts instead, and the report
+marks them as supplied.
 
 ## Node.js Lambdas through the package command
 
@@ -119,34 +121,34 @@ any group under `--disableLayerOptimization`, stays per function. A split group 
 dependency may only ask `docker info`, and without Docker must fail before any artifact, naming the dependency. Four
 deployments of two image jobs against a stand-in registry must keep each job's registry cache tag while the job exists,
 so later builds import it; old image versions and replaced cache images must still be deleted, and a removed job's cache
-tag with the next deployment. Lambda ZIPs over 50 MB, on their own, split and as a custom artifact, must package and run
-in the Lambda image; a split function whose package and Stacktape layers exceed 250 MB together must fail before any
-upload, naming each size. A job that needs Docker must prepare only the platform it builds for, once for concurrent
-jobs, using the pinned binfmt helper. The registry-cache builder and ECR login must be prepared only for a build that
-uses them. One more scenario builds a `FROM scratch` image for linux/amd64 on the real daemon. A guard forwards only
-that build and its inspections and refuses everything else. The acceptance then removes the image and checks the
-daemon's image events for pulls. It skips that scenario unless the default builder uses the docker driver and supports
-linux/amd64 natively. It contacts no AWS service or registry.
+tag with the next deployment. These deployments read stack versions and persist ZIP/template bytes through real
+CloudFormation and S3 on the shared MiniStack fixture. Lambda ZIPs over 50 MB, on their own, split and as a custom
+artifact, must package and run in the Lambda image; a split function whose package and Stacktape layers exceed 250 MB
+together must fail before any upload, naming each size. A job that needs Docker must prepare only the platform it builds
+for, once for concurrent jobs, using the pinned binfmt helper. The registry-cache builder and ECR login must be prepared
+only for a build that uses them. One more scenario builds a `FROM scratch` image for linux/amd64 on the real daemon. A
+guard forwards only that build and its inspections and refuses everything else. The acceptance then removes the image
+and checks the daemon's image events for pulls. It skips that scenario unless the default builder uses the docker driver
+and supports linux/amd64 natively. It contacts no AWS service or registry.
 
-## Layer uploads with a local bucket
+## Layer uploads
 
-`pnpm --filter @stacktape/cli run test:layer-upload` runs three deployments of the split project through the deploy
-command's own packaging and upload code into one local bucket. The shared layer is 12 MiB, and a native-dependency layer
-changes alone. A deployment must zip and upload only the layers its bucket does not hold yet. Each ZIP must extract with
-`unzip` to exactly its layer, and the bucket must store exactly that ZIP. Every layer key the template uses must stay
-protected from retention. It needs `unzip`, not Docker or AWS.
+`pnpm --filter @stacktape/cli run test:layer-upload` and `test:layer-upload:ministack` run the same
+[MiniStack S3 scenario](#ministack-s3-lane). The former is retained for the combined packaging acceptance command. The
+runner exercises changed/unchanged/reverted builds, real stored ZIPs, extraction and retention. It needs Docker and
+`unzip`; it uses no live AWS.
 
 ## Fresh installs
 
 `pnpm --filter @stacktape/cli run test:fresh-install` runs the first `package` of a fresh npm checkout with the compiled
 release CLI. The CLI installs dependencies and bundles in one process, and Bun caches the project directory's entries
 when that process starts; the acceptance fails if the bundler cannot see the `node_modules` the install just created.
-The CLI and a one-package registry run in the Lambda Node.js image with no network but loopback, no Docker, no
-capabilities and a read-only root filesystem. The project has only a lockfile and no `node_modules` anywhere above it.
-The first run must install and build; its ZIP, extracted with `unzip`, must return the dependency's value in the Lambda
-runtime. The repeat must skip the install and produce the same files. `report.json` records the executable, each run's
-install decision, ZIP checksums and file list, and every registry request. It needs Linux, Docker and `unzip`, not AWS.
-`--install` tests an already built release install instead.
+The CLI and a one-package registry run in the Lambda Node.js image in MiniStack's network namespace with its external
+route removed, no Docker, no capabilities and a read-only root filesystem. The project has only a lockfile and no
+`node_modules` anywhere above it. The first run must install and build; its ZIP, extracted with `unzip`, must return the
+dependency's value in the Lambda runtime. The repeat must skip the install and produce the same files. `report.json`
+records the executable, each run's install decision, ZIP checksums and file list, and every registry request. It needs
+Linux, Docker and `unzip`, not AWS. `--install` tests an already built release install instead.
 
 ## External tools
 
@@ -179,18 +181,23 @@ with no other build or test running and no edits to the measured source.
 
 ## MiniStack S3 lane
 
-The opt-in `pnpm --filter @stacktape/cli run test:layer-upload:ministack` lane exercises the CLI's real S3 SDK path. It
-needs Docker and starts the pinned [MiniStack](https://ministack.org/) image through the shared
-`@stacktape/ministack/fixture` in a disposable container on a loopback port, the same fixture the offline deploy loop
-(`test:ministack:deploy`, `apps/cli/tests/ministack`) and the Console database suites use. The runner creates isolated
-buckets with synthetic credentials, rejects a non-local endpoint, and blocks all other AWS requests from the deploy
-worker. It compares stored layer and function ZIP bytes with the generated ZIPs, checks changed and unchanged layer
-uploads, and verifies that an unchanged deployment uploads only its new template files. An A/B/A function edit then
-exercises real retention deletion: the reused A object must survive while an obsolete template is removed. A missing
+The `pnpm --filter @stacktape/cli run test:layer-upload:ministack` lane exercises the CLI's real S3 SDK path and
+existing-stack reads through CloudFormation. It needs Docker and starts the pinned [MiniStack](https://ministack.org/)
+image through the shared `@stacktape/ministack/fixture` in a disposable container on a loopback port, the same fixture
+the offline deploy loop (`test:ministack:deploy`, `apps/cli/tests/ministack`) and the Console database suites use. The
+runner creates isolated buckets with synthetic credentials, rejects a non-local endpoint, and blocks all other AWS
+requests from the deploy worker. It compares stored layer and function ZIP bytes with the generated ZIPs, extracts
+layers and compares their files, modes and links, checks changed and unchanged layer uploads, and checks that cached
+layers are not zipped. It verifies that an unchanged deployment uploads only its new template files. An A/B/A function
+edit then exercises real retention deletion: the reused A object must survive while an obsolete template is removed and
+a hand-placed non-artifact object remains untouched. A further changed-function deployment uploads C and deletes old
+objects with a zero keep window; C must survive as a newly uploaded reference. A no-cache retry of C's version then
+re-uploads an object already in the initial listing; retention must keep it because this run uploaded it. A missing
 local bucket makes a layer SDK upload fail without a success result. The runner removes the container in `finally`,
 verifies its removal, and writes a source-bound `report.json` and worker logs under ignored `apps/cli/.stacktape/`
-output. Pass `--out <empty-directory>` to keep the evidence elsewhere. This lane is not part of the default gate because
-it needs Docker; a missing Docker daemon fails the opt-in command.
+output. Pass `--out <empty-directory>` to keep the evidence elsewhere. Both upload commands, combined packaging
+acceptance and candidate qualification select this lane. It is outside the default offline PR gate because it needs
+Docker; a missing Docker daemon fails the selected command.
 
 Use an emulator only for the services and operations a test actually exercises. Run the current application code through
 normal AWS clients, point them at an owned local endpoint, assert service state or a durable application result, and

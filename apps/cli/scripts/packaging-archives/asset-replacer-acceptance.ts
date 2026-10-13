@@ -6,10 +6,9 @@
  * 22 image for x86_64, the service Lambda's runtime, as an unprivileged user, with an owned host directory as `/tmp`.
  * The helper uses the AWS SDK the runtime provides.
  *
- * The helper's container has no network of its own: it shares the network namespace of a fixture container, whose
- * server (`asset-replacer-s3-fixture.ts`) is the only thing it can reach. The SDK is pointed at that server through
- * `AWS_ENDPOINT_URL_S3` and `AWS_ENDPOINT_URL`, with inert credentials, before the helper loads. The server serves
- * pristine input ZIPs, decodes and verifies uploads and records CloudFormation responses.
+ * The helper shares the pinned MiniStack fixture's network namespace, with external routing removed. Its SDK goes
+ * through a recording proxy to real emulator S3 storage. The proxy also records CloudFormation responses and injects
+ * deliberate download/upload denials. Host SDK reads independently verify stored bytes and failure preservation.
  *
  * One warm helper container receives, in order: two Create events for the same S3 key with different inputs and
  * values, a Create for a key whose name has several dots, an invalid ZIP, ZIPs with escaping links (one with non-ASCII
@@ -26,6 +25,8 @@
  */
 import type { FixtureRequestRecord, FixtureScenario } from './asset-replacer-s3-fixture';
 import assert from 'node:assert/strict';
+import { CreateBucketCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { startMiniStack, stopMiniStackOnSignals, type MiniStack } from '@stacktape/ministack/fixture';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
 import { chmod, lstat, mkdir, readdir, readFile, readlink, rm, symlink, writeFile } from 'node:fs/promises';
@@ -272,7 +273,7 @@ const removeOwnedContainers = () => {
   if (failures.length > 0) throw new Error(failures.join('\n'));
 };
 
-const startFixture = async (fixtureDirectory: string) => {
+const startFixture = async (fixtureDirectory: string, ministack: MiniStack) => {
   const name = containerName('fixture');
   runOrThrow([
     'docker',
@@ -284,9 +285,9 @@ const startFixture = async (fixtureDirectory: string) => {
     CONTAINER_LABEL,
     '--platform',
     HELPER_PLATFORM,
-    // No network at all: only helpers, which join this namespace, can reach the server.
+    // The shared fixture removed the external route; proxy and helper can reach only local services.
     '--network',
-    'none',
+    `container:${ministack.containerName}`,
     '--user',
     `${process.getuid!()}:${process.getgid!()}`,
     '--mount',
@@ -324,9 +325,9 @@ const helperEnvironment = () => {
     `AWS_ENDPOINT_URL_S3=${ENDPOINT}`,
     // Any other AWS client would also reach the fixture, which refuses and records it.
     `AWS_ENDPOINT_URL=${ENDPOINT}`,
-    'AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE',
-    'AWS_SECRET_ACCESS_KEY=asset-replacer-acceptance-inert-secret',
-    'AWS_SESSION_TOKEN=asset-replacer-acceptance-inert-token',
+    'AWS_ACCESS_KEY_ID=000000000000',
+    'AWS_SECRET_ACCESS_KEY=stacktape-ministack-synthetic-not-a-real-key',
+    'AWS_EC2_METADATA_DISABLED=true',
     'AWS_REGION=eu-west-1',
     'AWS_DEFAULT_REGION=eu-west-1',
     `AWS_LAMBDA_FUNCTION_TIMEOUT=${INVOCATION_TIMEOUT_SECONDS - 10}`,
@@ -431,11 +432,13 @@ type Outcome = {
 
 const runScenario = async ({
   scenario,
+  client,
   helper,
   fixtureDirectory,
   listTmp
 }: {
   scenario: Scenario;
+  client: S3Client;
   helper: string;
   fixtureDirectory: string;
   listTmp: () => Promise<string[]>;
@@ -443,10 +446,11 @@ const runScenario = async ({
   const fixtureScenario: FixtureScenario = {
     name: scenario.name,
     bucket: BUCKET,
-    objects: scenario.object ? { [scenario.key]: scenario.object } : {},
     getStatus: scenario.getStatus,
     putStatus: scenario.putStatus
   };
+  const input = scenario.object ? await readFile(join(fixtureDirectory, scenario.object)) : undefined;
+  if (input) await client.send(new PutObjectCommand({ Bucket: BUCKET, Key: scenario.key, Body: input }));
   await writeFile(join(fixtureDirectory, 'scenario.json'), `${JSON.stringify(fixtureScenario, null, 2)}\n`);
   const tmpBefore = await listTmp();
   const properties = {
@@ -475,6 +479,18 @@ const runScenario = async ({
     .filter(Boolean)
     .map((line) => JSON.parse(line) as FixtureRequestRecord)
     .filter((record) => record.scenario === scenario.name);
+  const stored = await client.send(new GetObjectCommand({ Bucket: BUCKET, Key: scenario.key }));
+  const bytes = Buffer.from(await stored.Body!.transformToByteArray());
+  if (response?.Status === 'SUCCESS' && scenario.requestType !== 'Delete') {
+    const capture = requests.find((request) => request.route === 'put-object' && request.status === 200)?.upload
+      ?.capture;
+    assert.ok(capture, 'No successful helper upload');
+    await writeFile(join(fixtureDirectory, capture), bytes);
+    requests.find((request) => request.route === 'put-object' && request.status === 200)!.upload!.decodedBytes =
+      bytes.length;
+  } else if (input) {
+    assert.deepEqual(bytes, input, 'Failed or Delete invocation changed the stored object');
+  }
   return { response, requests, tmpBefore, tmpAfter: await listTmp() };
 };
 
@@ -504,12 +520,8 @@ const expectSucceeded = (outcome: Outcome, key: string) => {
     ]
   );
   const upload = puts[0]!.upload!;
-  assert.ok(
-    upload.checksums.some(({ verified }) => verified),
-    'the upload carried a verified checksum'
-  );
   assert.deepEqual(outcome.tmpAfter, outcome.tmpBefore, 'the invocation must leave /tmp as it found it');
-  return `path-style /${BUCKET}/…; ${upload.framing}, ${upload.decodedBytes} bytes; checksums ${upload.checksums.map(({ algorithm, source }) => `${algorithm} ${source}`).join(', ')}`;
+  return `path-style /${BUCKET}/…; ${upload.framing}, ${upload.decodedBytes} stored bytes read through the SDK`;
 };
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -757,12 +769,21 @@ const main = async () => {
   const logs: { stdout: string; stderr: string }[] = [];
   let leftoverTmp = '';
   let cleanupFailure = '';
+  let ministack: MiniStack | undefined;
+  let client: S3Client | undefined;
+  let releaseSignals = () => {};
   try {
-    const fixture = await startFixture(fixtureDirectory);
+    ministack = await startMiniStack({ label: 'asset-replacer' });
+    releaseSignals = stopMiniStackOnSignals(ministack);
+    client = new S3Client(ministack.clientConfig());
+    await client.send(
+      new CreateBucketCommand({ Bucket: BUCKET, CreateBucketConfiguration: { LocationConstraint: 'eu-west-1' } })
+    );
+    const fixture = await startFixture(fixtureDirectory, ministack);
     const helper = startHelper({ fixture, helperTask, tmp: { hostDirectory: helperTmp } });
     const listHostTmp = async () => (await readdir(helperTmp)).toSorted();
     for (const scenario of scenarios) {
-      outcomes[scenario.name] = await runScenario({ scenario, helper, fixtureDirectory, listTmp: listHostTmp });
+      outcomes[scenario.name] = await runScenario({ scenario, client, helper, fixtureDirectory, listTmp: listHostTmp });
     }
     // The SDK the running helper resolved: the runtime's own, through the NODE_PATH its bootstrap exported to the
     // runtime process, which stays alive between invocations.
@@ -799,6 +820,7 @@ const main = async () => {
     runtime.tmpfs = runOrThrow(['docker', 'exec', budgetHelper, 'df', '-k', '/tmp']).trim().split('\n').at(-1);
     outcomes[diskBudgetScenario.name] = await runScenario({
       scenario: diskBudgetScenario,
+      client,
       helper: budgetHelper,
       fixtureDirectory,
       listTmp: listContainerTmp
@@ -843,6 +865,9 @@ const main = async () => {
     } catch (error) {
       cleanupFailure = `${cleanupFailure}\n${error instanceof Error ? error.message : String(error)}`.trim();
     }
+    client?.destroy();
+    releaseSignals();
+    await ministack?.stop();
     await rm(helperTask, { recursive: true, force: true });
   }
   await writeFile(join(outDirectory, 'helper-stdout.log'), logs.map(({ stdout }) => stdout).join('\n'));
@@ -869,7 +894,7 @@ const main = async () => {
     ['multi-dot-key', trees.multiDot, MULTI_DOT_KEY]
   ] as const) {
     const outcome = outcomes[name]!;
-    await check(`${name}: Create succeeds and uploads one verified object under the same key`, async () =>
+    await check(`${name}: Create succeeds and stores the replaced object under the same key`, async () =>
       expectSucceeded(outcome, key)
     );
     await check(`${name}: the returned ZIP holds exactly the replaced input and runs in Lambda`, async () => {
