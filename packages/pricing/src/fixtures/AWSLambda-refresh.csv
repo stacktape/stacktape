@@ -1,0 +1,7 @@
+Synthetic AWS-shaped offer for refresh coverage; not a live price quote
+fixture
+fixture
+fixture
+fixture
+Service Code,Group,Region Code,Unit,Price Per Unit,Currency
+AWSLambda,AWS-Lambda-Requests,us-east-1,Requests,0.0000002,USD

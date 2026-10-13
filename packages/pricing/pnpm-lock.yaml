@@ -42,6 +42,9 @@ importers:
         specifier: ^4.13.0
         version: 4.13.0(debug@4.4.3)
     devDependencies:
+      '@stacktape/ministack':
+        specifier: workspace:*
+        version: link:../ministack
       '@types/bun':
         specifier: 'catalog:'
         version: 1.4.0

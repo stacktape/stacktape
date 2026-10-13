@@ -48,6 +48,7 @@
         "src/lambdas/**/index.ts",
         "src/lambdas/*.ts",
         "src/api/external-contract.ts",
+        "src/integrations/posthog-consumer.fixture.ts",
         "prisma/prisma.config.ts",
         "scripts/**/*.ts",
         "stacktape.ts",
