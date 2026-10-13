@@ -402,6 +402,8 @@ const verify = async () => {
       mode: 'reference',
       maxItems: 5
     });
+    assert.equal(filtered.ok, true);
+    assert((filtered.data?.references as unknown[]).length > 0, 'The resource filter must return matching docs');
     assert(
       (filtered.data?.references as Array<{ route: string }>).every(
         ({ route }) => route === '/config-reference/relational-database'
@@ -442,6 +444,19 @@ const verify = async () => {
     assert.equal(override.ok, true);
     assert.equal((override.data?.args as Record<string, unknown>).region, 'ap-southeast-2');
     assert.equal((override.data?.args as Record<string, unknown>).awsAccount, 'override');
+    assert.equal((override.data?.args as Record<string, unknown>).autoConfirmOperation, true);
+    const sqlPlan = await call('stacktape_cli', {
+      action: 'plan',
+      command: 'query:sql',
+      stage: 'dev',
+      region: 'eu-west-1',
+      resourceName: 'database',
+      args: { query: 'SELECT 1;' }
+    });
+    assert.equal(sqlPlan.ok, true);
+    assert.equal((sqlPlan.data?.args as Record<string, unknown>).sql, 'SELECT 1;');
+    assert.equal((sqlPlan.data?.args as Record<string, unknown>).query, undefined);
+    assert.equal((sqlPlan.data?.policy as Record<string, unknown>).requiresConfirmation, false);
     const devPlan = await call('stacktape_dev', { action: 'plan', args: { cwd: project, projectName: 'docs' } });
     assert.equal(devPlan.ok, true);
     assert.equal((devPlan.data?.args as Record<string, unknown>).stage, 'dev');
