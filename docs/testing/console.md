@@ -34,6 +34,8 @@ pnpm --filter @stacktape/console-api-app test:db --secrets
 pnpm --filter @stacktape/console-api-app test:db --security
 pnpm --filter @stacktape/console-api-app test:db --insights
 pnpm --filter @stacktape/console-api-app test:db --gitlab
+pnpm --filter @stacktape/console-api-app test:db --gitlab-lifecycle
+pnpm --filter @stacktape/console-api-app test:db --bitbucket-pairing
 pnpm --filter @stacktape/console-api-app test:db --runner
 pnpm --filter @stacktape/console-api-app test:db --git-deploy
 pnpm --filter @stacktape/console-api-app test:db --incident-agent
@@ -98,6 +100,11 @@ webhook delivery and authenticated incident actions. It also invokes the built u
 Lambda image and checks the monitoring sweeper through its Lambda proxy. Build the helpers first with
 `pnpm --filter @stacktape/cli build:dev-artifacts`; the lane needs `openssl`, `unzip`, Docker and the local
 `public.ecr.aws/lambda/nodejs:22` image. All fixtures use isolated databases and loopback endpoints.
+
+`--gitlab-lifecycle` runs OAuth, clone credential rotation, disconnect and recovery with PostgreSQL leases and MiniStack
+Secrets Manager. `--bitbucket-pairing` sends locally signed FIT requests through HTTP and claims them through the
+production Console router, checking workspace ownership, concurrent claim, expiry, reinstall and credential cleanup.
+Both use loopback provider HTTP and need no shared-dev access.
 
 `--git-deploy` runs authenticated provider ingress, durable webhook/operation workers, runner dispatch and completion
 with real API middleware, disposable PostgreSQL and MiniStack S3 payloads, SQS queues, SSM parameters, Secrets Manager

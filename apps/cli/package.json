@@ -78,6 +78,7 @@
     "test:layer-upload:ministack": "bun scripts/packaging-archives/layer-upload-ministack-acceptance.ts",
     "test:static-sites": "bun test tests/static-sites/build.spec.ts tests/static-sites/input.spec.ts",
     "test:static-sites:ministack": "bun test tests/static-sites/content-sync.spec.ts",
+    "test:security-inventory:ministack": "bun test tests/ministack/security-inventory.spec.ts",
     "test:ministack:deploy": "bun scripts/ministack/run-deploy-lane.ts",
     "test:packaging-archives": "bun test scripts/packaging-archives",
     "test:mcp-docs": "bun test src/commands/mcp",
