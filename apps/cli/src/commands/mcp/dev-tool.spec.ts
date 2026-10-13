@@ -1,102 +1,100 @@
 import { describe, expect, test } from 'bun:test';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { createDevToolHandler } from './dev-tool';
-import type { RunStacktapeResult } from './cli-jsonl-runner';
 
-type Envelope = {
-  ok: boolean;
-  code: string;
-  data?: Record<string, unknown>;
+// Dev startup itself belongs to S15. These local daemons isolate MCP's handle routing and HTTP envelope handling.
+const daemon = async () => {
+  const state = { stopped: false, rebuilt: [] as string[] };
+  const server = createServer((request, response) => {
+    const path = new URL(request.url!, 'http://127.0.0.1').pathname;
+    let data: Record<string, unknown> = {};
+    if (path === '/health') data = { healthy: !state.stopped };
+    else if (path === '/status') data = { stopped: state.stopped, rebuilt: state.rebuilt };
+    else if (request.method === 'POST' && path === '/stop') state.stopped = true;
+    else if (request.method === 'POST' && path.startsWith('/rebuild/'))
+      state.rebuilt.push(decodeURIComponent(path.slice('/rebuild/'.length)));
+    else {
+      response.writeHead(500);
+      response.end('Unexpected dev API route');
+      return;
+    }
+    response.setHeader('content-type', 'application/json');
+    response.end(JSON.stringify({ ok: true, code: 'OK', data }));
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  return {
+    state,
+    port: (server.address() as AddressInfo).port,
+    close: async () => {
+      server.closeAllConnections();
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) =>
+          error && (error as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING' ? reject(error) : resolve()
+        )
+      );
+    }
+  };
 };
 
-const readEnvelope = (result: { structuredContent?: unknown }): Envelope => result.structuredContent as Envelope;
-
-const successfulStart = ({ cwd, port }: { cwd?: string; port: number }): RunStacktapeResult => ({
-  ok: true,
-  code: 'OK',
-  message: 'Dev mode started.',
-  data: { agentPort: port },
-  events: [],
-  logEvents: [],
-  outputEvents: [],
-  resolvedContext: { cwd: cwd || process.cwd() }
-});
-
 describe('MCP dev session routing', () => {
-  test('uses explicit opaque handles for mutating operations and isolates concurrent sessions', async () => {
-    const apiCalls: Array<{ port: number; method: string; path: string; body?: Record<string, unknown> }> = [];
-    let nextId = 0;
-    const handler = createDevToolHandler({
-      createId: () => `session-${++nextId}`,
-      now: () => new Date('2026-08-09T10:00:00.000Z'),
-      runCli: async ({ args, cwd }) => successfulStart({ cwd, port: Number(args?.agentPort) }),
-      requestDevApi: async (request) => {
-        apiCalls.push(request);
-        return { ok: true };
-      }
-    });
-
-    const first = readEnvelope(
-      await handler({ action: 'start', args: { cwd: 'C:\\projects\\first', agentPort: 7101 } })
-    );
-    const second = readEnvelope(
-      await handler({ action: 'start', args: { cwd: 'C:\\projects\\second', agentPort: 7102 } })
-    );
-    expect(first.data?.session).toMatchObject({ devSessionId: 'session-1', agentPort: 7101 });
-    expect(second.data?.session).toMatchObject({ devSessionId: 'session-2', agentPort: 7102 });
-
-    expect(readEnvelope(await handler({ action: 'stop' }))).toMatchObject({
-      ok: false,
-      code: 'AMBIGUOUS_DEV_SESSION'
-    });
-    expect(readEnvelope(await handler({ action: 'rebuild_all', args: { devSessionId: 'unknown' } }))).toMatchObject({
-      ok: false,
-      code: 'NOT_FOUND'
-    });
-    expect(apiCalls).toEqual([]);
-
-    expect(readEnvelope(await handler({ action: 'stop', args: { devSessionId: 'session-1' } }))).toMatchObject({
-      ok: true,
-      code: 'OK'
-    });
-    expect(apiCalls).toEqual([
-      { port: 7101, method: 'GET', path: '/health' },
-      { port: 7101, method: 'POST', path: '/stop', body: {} }
-    ]);
-
-    expect(readEnvelope(await handler({ action: 'status' }))).toMatchObject({ ok: true, code: 'OK' });
-    expect(apiCalls.slice(-2)).toEqual([
-      { port: 7102, method: 'GET', path: '/health' },
-      { port: 7102, method: 'GET', path: '/status?verbose=true' }
-    ]);
-
-    const callsBeforeReplay = apiCalls.length;
-    expect(readEnvelope(await handler({ action: 'stop', args: { devSessionId: 'session-1' } }))).toMatchObject({
-      ok: false,
-      code: 'NOT_FOUND'
-    });
-    expect(apiCalls).toHaveLength(callsBeforeReplay);
-  });
-
-  test('requires a handle for rebuild and stop even when one session is active', async () => {
-    let apiCallCount = 0;
-    const handler = createDevToolHandler({
-      createId: () => 'only-session',
-      runCli: async ({ args, cwd }) => successfulStart({ cwd, port: Number(args?.agentPort) }),
-      requestDevApi: async () => {
-        apiCallCount += 1;
-        return { ok: true };
-      }
-    });
-    await handler({ action: 'start', args: { agentPort: 7201 } });
-
-    for (const action of ['rebuild', 'rebuild_all', 'stop'] as const) {
-      expect(
-        readEnvelope(await handler({ action, args: action === 'rebuild' ? { workload: 'api' } : {} }))
-      ).toMatchObject({
-        ok: false,
-        code: 'DEV_SESSION_ID_REQUIRED'
+  test('rebuilds and stops only the daemon selected by its live session handle', async () => {
+    const first = await daemon();
+    let second: Awaited<ReturnType<typeof daemon>> | undefined;
+    try {
+      second = await daemon();
+      const handler = createDevToolHandler({
+        runCli: async ({ args, cwd }) => ({
+          ok: true,
+          code: 'OK',
+          message: 'Fixture daemon started.',
+          data: { agentPort: args?.agentPort },
+          events: [],
+          logEvents: [],
+          outputEvents: [],
+          resolvedContext: { cwd: cwd || process.cwd() }
+        })
       });
+      const one = (await handler({ action: 'start', args: { agentPort: first.port } })).structuredContent;
+      const two = (await handler({ action: 'start', args: { agentPort: second.port } })).structuredContent;
+      const idOf = (result: typeof one) => (result.data?.session as { devSessionId: string }).devSessionId;
+      const firstId = idOf(one);
+      const secondId = idOf(two);
+      expect(firstId).not.toBe(secondId);
+      expect((await handler({ action: 'status' })).structuredContent.code).toBe('AMBIGUOUS_DEV_SESSION');
+      for (const action of ['rebuild', 'rebuild_all', 'stop'] as const) {
+        expect((await handler({ action })).structuredContent.code).toBe('AMBIGUOUS_DEV_SESSION');
+      }
+      expect((await handler({ action: 'stop', args: { devSessionId: 'unknown' } })).structuredContent.code).toBe(
+        'NOT_FOUND'
+      );
+      expect(first.state).toEqual({ stopped: false, rebuilt: [] });
+      expect(second.state).toEqual({ stopped: false, rebuilt: [] });
+      expect(
+        (await handler({ action: 'rebuild', args: { devSessionId: firstId, workload: 'api worker' } }))
+          .structuredContent.ok
+      ).toBe(true);
+      expect(first.state.rebuilt).toEqual(['api worker']);
+      expect(second.state.rebuilt).toEqual([]);
+      expect((await handler({ action: 'stop', args: { devSessionId: firstId } })).structuredContent.ok).toBe(true);
+      expect(first.state.stopped).toBe(true);
+      expect(second.state.stopped).toBe(false);
+      expect((await handler({ action: 'stop', args: { devSessionId: firstId } })).structuredContent.code).toBe(
+        'NOT_FOUND'
+      );
+      expect((await handler({ action: 'status' })).structuredContent.data?.status).toMatchObject({
+        stopped: false,
+        rebuilt: []
+      });
+      for (const action of ['rebuild', 'rebuild_all', 'stop'] as const) {
+        expect((await handler({ action })).structuredContent.code).toBe('DEV_SESSION_ID_REQUIRED');
+      }
+      expect((await handler({ action: 'stop', args: { devSessionId: secondId } })).structuredContent.ok).toBe(true);
+      expect(second.state.stopped).toBe(true);
+      expect((await handler({ action: 'status' })).structuredContent.code).toBe('NOT_FOUND');
+    } finally {
+      await second?.close();
+      await first.close();
     }
-    expect(apiCallCount).toBe(0);
   });
 });

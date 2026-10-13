@@ -4,13 +4,118 @@ import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { Client } from '@modelcontextprotocol/client';
+import { Client, isInputRequiredResult, type InputRequiredResult } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 import { getPlatform } from '@utils/bin-executable';
 import { withPersistedApiKey } from '../src/app/global-state-manager/api-key-storage';
 import type { PersistedState } from '../src/app/global-state-manager/types';
 import { buildBinaryFile, copyMcpDocs } from './release/build-cli-sources';
 import packageJson from '../package.json';
+
+type RetrievalFixture = {
+  name: string;
+  query: string;
+  expectedRoutes: string[];
+  maxRank: number;
+};
+
+const retrievalFixtures: RetrievalFixture[] = [
+  {
+    name: 'Next.js deployment workflow',
+    query: 'How do I deploy a Next.js app with Stacktape?',
+    expectedRoutes: ['/resources/frontend/nextjs'],
+    maxRank: 1
+  },
+  {
+    name: 'Lambda property reference',
+    query: 'What is the timeout property for Lambda functions?',
+    expectedRoutes: ['/config-reference/function'],
+    maxRank: 1
+  },
+  {
+    name: 'Lambda logs workflow',
+    query: 'How do I view logs for a deployed function?',
+    expectedRoutes: [
+      '/observability/logs',
+      '/local-development/debugging-lambda-functions',
+      '/cli/logs',
+      '/cli/debug-logs'
+    ],
+    maxRank: 3
+  },
+  {
+    name: 'DynamoDB CLI diagnostics',
+    query: 'How do I query DynamoDB from the CLI?',
+    expectedRoutes: ['/cli/query-dynamodb', '/cli/debug-dynamodb', '/resources/databases/dynamodb'],
+    maxRank: 3
+  },
+  {
+    name: 'S3 bucket referenceable params',
+    query: 'What referenceable params does an S3 bucket expose?',
+    expectedRoutes: ['/resources/storage/s3-bucket', '/configuration/referenceable-parameters'],
+    maxRank: 3
+  },
+  {
+    name: 'Relational database property lookup',
+    query: 'What properties are available for relational database?',
+    expectedRoutes: ['/config-reference/relational-database'],
+    maxRank: 1
+  },
+  {
+    name: 'Secrets in environment variables',
+    query: 'How do I use secrets in environment variables?',
+    expectedRoutes: ['/configuration/secrets'],
+    maxRank: 2
+  },
+  {
+    name: 'Custom domain on web service',
+    query: 'How do I attach a custom domain to a web service?',
+    expectedRoutes: ['/resources/compute/web-service', '/resources/networking/custom-domains'],
+    maxRank: 3
+  },
+  {
+    name: 'Connecting Lambda to Postgres',
+    query: 'How do I connect a Lambda function to a Postgres database and use the connection string?',
+    expectedRoutes: ['/configuration/connecting-resources', '/resources/compute/lambda-function'],
+    maxRank: 2
+  },
+  {
+    name: 'Preview changes command',
+    query: 'What CLI command previews deployment changes before I deploy?',
+    expectedRoutes: ['/cli/diff', '/cli/preview-changes', '/deployment-and-lifecycle/previewing-changes'],
+    maxRank: 2
+  },
+  {
+    name: 'SQL diagnostics command',
+    query: 'How do I run a SQL query against an RDS database with the CLI debug command?',
+    expectedRoutes: ['/cli/query-sql', '/cli/debug-sql'],
+    maxRank: 1
+  },
+  {
+    name: 'SQL diagnostics natural command-line wording',
+    query: 'How do I query production postgres from the command line to check a row?',
+    expectedRoutes: ['/cli/query-sql', '/cli/debug-sql'],
+    maxRank: 1
+  },
+  {
+    name: 'Schedule trigger workflow',
+    query: 'How do I trigger a Lambda function on a cron schedule every day?',
+    expectedRoutes: ['/resources/triggers/schedule-triggers'],
+    maxRank: 3
+  },
+  {
+    name: 'DynamoDB stream trigger workflow',
+    query: 'How do I trigger a Lambda function from a DynamoDB stream?',
+    expectedRoutes: ['/resources/triggers/dynamodb-streams'],
+    maxRank: 5
+  },
+  {
+    name: 'DynamoDB integration property lookup',
+    query: 'DynamoDbIntegration streamArn startingPosition batchSize config reference',
+    expectedRoutes: ['/resources/triggers/dynamodb-streams'],
+    maxRank: 7
+  }
+];
 
 type Envelope = { schemaVersion: string; ok: boolean; code: string; data?: Record<string, unknown> };
 
@@ -46,29 +151,87 @@ const verify = async () => {
   const apiKey = 'j12-loopback-only-key';
   const fakeModelKey = ['sk', 'ant', 'api03', 'J12SyntheticKey'.repeat(6)].join('-');
   const handoff = `# J12 incident\n\nDiagnostic evidence using ${fakeModelKey}\npostgresql://test:synthetic-password@localhost/db`;
+  const signalKinds = [
+    'ERROR_GROUP',
+    'ALARM_FIRING',
+    'UPTIME_DOWN',
+    'PROBER_SILENT',
+    'SYNTHETIC_FAILING',
+    'STACK_UNHEALTHY'
+  ];
+  const incidents = Array.from({ length: 100 }, (_, index) => ({
+    id: `inc_${index}`,
+    status: 'OPEN',
+    severity: 'ERROR',
+    title: `Failure ${index}: ${'x'.repeat(180)}`,
+    project: 'shop',
+    stage: 'production',
+    region: 'eu-west-1',
+    isProduction: true,
+    openedAt: '2026-09-24T10:00:00.000Z',
+    acknowledgedAt: null,
+    resolvedAt: null,
+    resolveReason: null,
+    deploymentVersion: 'v000042',
+    gitCommit: 'abc123',
+    signals: Array.from({ length: 12 }, (_, i) => ({
+      kind: signalKinds[i % signalKinds.length],
+      state: i % 3 ? 'ACTIVE' : 'RECOVERED',
+      title: 'signal-evidence-' + 'y'.repeat(180)
+    }))
+  }));
+  const organizations = new Map([['org_j12', { id: 'org_j12', name: 'J12', isCurrent: true }]]);
   const requests: Array<{ procedure: string; input: Record<string, unknown>; authenticated: boolean }> = [];
   let started: () => void = () => {};
   let disconnected: () => void = () => {};
   let holdRequest = false;
   const server = createServer((request, response) => {
-    const url = new URL(request.url ?? '/', 'http://127.0.0.1');
-    const procedure = url.pathname.replace(/^\/stacktape-api\//, '');
-    const input = (JSON.parse(url.searchParams.get('input') ?? '{}') as Record<string, Record<string, unknown>>)['0'];
-    const authenticated = request.headers.stp_api_key === apiKey;
-    requests.push({ procedure, input, authenticated });
-    if (holdRequest) {
-      response.on('close', () => disconnected());
-      started();
-      return;
-    }
-    response.writeHead(authenticated ? 200 : 401, { 'content-type': 'application/json' });
-    response.end(
-      JSON.stringify([
-        authenticated && procedure === 'incidentHandoffFromCli'
-          ? { result: { data: { markdown: handoff } } }
-          : { error: { message: 'Unexpected request', code: -32001, data: { code: 'UNAUTHORIZED', httpStatus: 401 } } }
-      ])
-    );
+    void (async () => {
+      const url = new URL(request.url ?? '/', 'http://127.0.0.1');
+      const procedure = url.pathname.replace(/^\/stacktape-api\//, '');
+      let body = '';
+      for await (const chunk of request) body += String(chunk);
+      const input = (
+        JSON.parse(body || url.searchParams.get('input') || '{}') as Record<string, Record<string, unknown>>
+      )['0'];
+      const authenticated = request.headers.stp_api_key === apiKey;
+      requests.push({ procedure, input, authenticated });
+      if (holdRequest) {
+        response.on('close', () => disconnected());
+        started();
+        return;
+      }
+      let data: unknown;
+      if (authenticated && procedure === 'incidentHandoffFromCli' && input.incidentId !== 'inc_denied')
+        data = { markdown: handoff };
+      else if (authenticated && procedure === 'incidentsFromCli') {
+        assert.deepEqual(input, { project: 'shop', stage: 'production', status: 'ALL', limit: 100 });
+        data = incidents;
+      } else if (authenticated && procedure === 'listOrganizationsFromCli') data = [...organizations.values()];
+      else if (authenticated && procedure === 'deleteOrganizationFromCli') {
+        assert.equal(input.id, 'org_j12');
+        organizations.delete(String(input.id));
+        data = { success: true };
+      }
+      const status = !authenticated ? 401 : data === undefined ? 404 : 200;
+      response.writeHead(status, { 'content-type': 'application/json' });
+      response.end(
+        JSON.stringify([
+          status === 200
+            ? { result: { data } }
+            : {
+                error: {
+                  message: 'Incident not found or access denied',
+                  code: status === 401 ? -32001 : -32004,
+                  data: { code: status === 401 ? 'UNAUTHORIZED' : 'NOT_FOUND', httpStatus: status }
+                }
+              }
+        ])
+      );
+    })().catch((error: unknown) => {
+      response.writeHead(500, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ error: String(error) }));
+    });
   });
   let client: Client | undefined;
   let transport: StdioClientTransport | undefined;
@@ -79,7 +242,15 @@ const verify = async () => {
     await mkdir(project);
     await writeFile(
       join(project, 'package.json'),
-      JSON.stringify({ name: 'j12-fixture', dependencies: { stacktape: '*' } })
+      JSON.stringify({
+        name: 'j12-fixture',
+        dependencies: { stacktape: '*' },
+        scripts: {
+          deploy: 'stacktape deploy --stage dev --region us-east-1 --projectName docs',
+          'deploy:production':
+            'stacktape deploy --stage production --region eu-central-1 --aa prod-account --hs --projectName docs'
+        }
+      })
     );
     await writeFile(
       join(project, 'stacktape.ts'),
@@ -130,12 +301,30 @@ const verify = async () => {
       AWS_CONFIG_FILE: join(home, 'absent-config'),
       AWS_SHARED_CREDENTIALS_FILE: join(home, 'absent-credentials')
     };
+    const legacyClient = new Client({ name: 'j12-legacy-client', version: '1.0.0' }, { capabilities: {} });
+    const legacyTransport = new StdioClientTransport({
+      command: binary,
+      args: ['mcp'],
+      cwd: project,
+      env,
+      stderr: 'pipe'
+    });
+    try {
+      await assert.rejects(
+        legacyClient.connect(legacyTransport, { timeout: 5_000 }),
+        /version|legacy|protocol|support/i
+      );
+    } finally {
+      await legacyClient.close();
+      await legacyTransport.close();
+    }
     client = new Client(
       { name: 'j12-executable-client', version: '1.0.0' },
       {
         supportedProtocolVersions: ['2026-07-28'],
         versionNegotiation: { mode: { pin: '2026-07-28' } },
-        capabilities: {}
+        capabilities: { elicitation: { form: {} } },
+        inputRequired: { autoFulfill: false }
       }
     );
     transport = new StdioClientTransport({ command: binary, args: ['mcp'], cwd: project, env, stderr: 'pipe' });
@@ -160,6 +349,21 @@ const verify = async () => {
 
     const call = async (name: string, args: Record<string, unknown>) =>
       envelope(await client!.callTool({ name, arguments: args }, { timeout: 30_000 }));
+    for (const fixture of retrievalFixtures) {
+      const found = await call('stacktape_docs', {
+        action: 'search',
+        query: fixture.query,
+        mode: 'reference',
+        maxItems: Math.max(5, fixture.maxRank)
+      });
+      assert.equal(found.ok, true);
+      const routes = (found.data?.references as Array<{ route: string }>).map(({ route }) => route);
+      const rank = routes.findIndex((route) => fixture.expectedRoutes.includes(route));
+      assert(
+        rank >= 0 && rank < fixture.maxRank,
+        `${fixture.name}: expected rank <= ${fixture.maxRank}, got ${routes.join(', ')}`
+      );
+    }
     const search = await call('stacktape_docs', {
       action: 'search',
       query: 'lambda timeout property',
@@ -170,6 +374,7 @@ const verify = async () => {
     const references = search.data?.references as Array<{ route: string; headingPath: string[] }>;
     assert.equal(references.length, 1);
     const docs = await call('stacktape_docs', { action: 'get', route: references[0].route, propertyName: 'timeout' });
+    assert.equal(references[0].route, '/config-reference/function');
     assert.equal(docs.ok, true);
     assert.match(String(docs.data?.content), /timeout\?: number/);
     const headingDocs = await call('stacktape_docs', {
@@ -185,17 +390,62 @@ const verify = async () => {
     });
     assert.equal(fallbackDocs.ok, true);
     assert.equal(fallbackDocs.data?.selectorFallback, 'definitionName-as-propertyName');
+    assert.equal(
+      (await call('stacktape_docs', { action: 'get', route: references[0].route, propertyName: 'j12_missing' })).code,
+      'NOT_FOUND'
+    );
+    const filtered = await call('stacktape_docs', {
+      action: 'search',
+      query: 'database properties',
+      docKind: 'config-reference',
+      resourceType: 'relational-database',
+      mode: 'reference',
+      maxItems: 5
+    });
+    assert(
+      (filtered.data?.references as Array<{ route: string }>).every(
+        ({ route }) => route === '/config-reference/relational-database'
+      )
+    );
+    for (const [route, expected] of [
+      ['/cli/aws-profile-update', '--logLevel'],
+      ['/getting-started/starter-projects', 'stacktape init --starterId'],
+      ['/config-reference/alarms', 'notificationChannels']
+    ]) {
+      const rendered = await call('stacktape_docs', { action: 'get', route, includeFullPage: true });
+      assert.equal(rendered.ok, true);
+      assert(String(rendered.data?.content).includes(expected), `${route}: missing rendered content ${expected}`);
+      assert(!String(rendered.data?.content).includes('@@LLM_DOCS_'));
+    }
     const listed = await call('stacktape_cli', { action: 'list', category: 'deployment' });
     assert((listed.data?.commands as Array<{ command: string }>).some((command) => command.command === 'deploy'));
     const plan = await call('stacktape_cli', {
       action: 'plan',
       command: 'diff',
       stage: 'production',
-      region: 'eu-west-1',
       projectName: 'docs'
     });
     assert.equal(plan.ok, true);
     assert.equal(plan.data?.command, 'diff');
+    const planArgs = plan.data?.args as Record<string, unknown>;
+    assert.equal(planArgs.region, 'eu-central-1');
+    assert.equal(planArgs.awsAccount, 'prod-account');
+    assert.equal(planArgs.hotSwap, undefined, 'Deploy-only flags must not reach diff');
+    const override = await call('stacktape_cli', {
+      action: 'plan',
+      command: 'deploy',
+      stage: 'production',
+      region: 'ap-southeast-2',
+      awsAccount: 'override',
+      projectName: 'docs'
+    });
+    assert.equal(override.ok, true);
+    assert.equal((override.data?.args as Record<string, unknown>).region, 'ap-southeast-2');
+    assert.equal((override.data?.args as Record<string, unknown>).awsAccount, 'override');
+    const devPlan = await call('stacktape_dev', { action: 'plan', args: { cwd: project, projectName: 'docs' } });
+    assert.equal(devPlan.ok, true);
+    assert.equal((devPlan.data?.args as Record<string, unknown>).stage, 'dev');
+    assert.equal((devPlan.data?.args as Record<string, unknown>).hotSwap, undefined);
     assert.equal((plan.data?.args as Record<string, unknown>).configPath, 'stacktape.ts');
     assert.equal((plan.data?.args as Record<string, unknown>).projectName, 'docs');
     assert.equal(
@@ -212,6 +462,24 @@ const verify = async () => {
     const scan = await call('stacktape_project', { action: 'scan' });
     assert.equal(scan.ok, true);
     assert.deepEqual(scan.data?.suggestedDefaults, { configPath: 'stacktape.ts', currentWorkingDirectory: '.' });
+    assert.deepEqual(
+      (scan.data?.configCandidates as Array<{ resourceConstructors: string[] }>)[0].resourceConstructors,
+      ['Bucket']
+    );
+    for (const name of ['a', 'b']) {
+      await mkdir(join(project, name));
+      await writeFile(join(project, name, 'package.json'), JSON.stringify({ name }));
+    }
+    assert.equal(
+      ((await call('stacktape_project', { action: 'scan', maxFiles: 1 })).data?.packageJsonFiles as unknown[]).length,
+      1
+    );
+    assert.equal(
+      ((await call('stacktape_project', { action: 'scan', maxFiles: 50 })).data?.packageJsonFiles as unknown[]).length,
+      3
+    );
+    await writeFile(join(project, 'a', 'stacktape.ts'), 'export default {};');
+    assert.equal((await call('stacktape_project', { action: 'scan' })).data?.totalConfigCandidates, 2);
     assert.equal((await call('stacktape_cli', { action: 'describe', command: 'deploy' })).data?.safety, 'mutating');
     assert.equal(
       (await call('stacktape_cli', { action: 'run', command: 'deploy', args: { stage: 'j12', region: 'eu-west-1' } }))
@@ -241,6 +509,40 @@ const verify = async () => {
       ).code,
       'VALIDATION_ERROR'
     );
+    for (const [command, args] of [
+      ['info:whoami', { apiKey: 'j12-raw-key' }],
+      [
+        'query:sql',
+        {
+          stage: 'dev',
+          region: 'eu-west-1',
+          resourceName: 'db',
+          sql: 'WITH gone AS (DELETE FROM users RETURNING *) SELECT * FROM gone'
+        }
+      ],
+      ['aws:call', { stage: 'dev', region: 'eu-west-1', service: 'secretsmanager', command: 'GetSecretValue' }],
+      ['query:redis', { stage: 'dev', region: 'eu-west-1', resourceName: 'cache', operation: 'set' }],
+      ['query:dynamodb', { stage: 'dev', region: 'eu-west-1', resourceName: 'data', operation: 'write' }],
+      ['query:opensearch', { stage: 'dev', region: 'eu-west-1', resourceName: 'search', operation: 'write' }],
+      ['secret:set', { region: 'eu-west-1', secretName: 'db.password' }],
+      ['secret:get', { region: 'eu-west-1' }],
+      ['package', { stage: 'dev', region: 'eu-west-1', configPath: 'stacktape.ts' }]
+    ] as const) {
+      assert.equal(
+        (await call('stacktape_cli', { action: 'run', command, args, confirm: true })).code,
+        'VALIDATION_ERROR',
+        command
+      );
+    }
+    assert.equal((await call('stacktape_incident', { action: 'show' })).code, 'VALIDATION_ERROR');
+    assert.equal(
+      (await call('stacktape_cli', { action: 'describe', command: 'aws:call' })).data?.requiresConfirmation,
+      false
+    );
+    assert.equal(
+      (await call('stacktape_cli', { action: 'describe', command: 'secret:get' })).data?.sensitiveOutput,
+      true
+    );
     assert.equal(requests.length, 0, 'Rejected requests must not reach the control plane');
     const incident = await call('stacktape_incident', { action: 'show', incidentId: 'inc_j12' });
     assert.equal(incident.ok, true);
@@ -252,6 +554,76 @@ const verify = async () => {
     assert(!JSON.stringify(incident).includes(fakeModelKey), 'Model key leaked through MCP');
     assert(!JSON.stringify(incident).includes('synthetic-password'), 'Database password leaked through MCP');
     console.info('PASS executable MCP invalid requests, real CLI child and sensitive output');
+
+    const denied = await call('stacktape_incident', { action: 'show', incidentId: 'inc_denied' });
+    assert.equal(denied.ok, false);
+    assert.equal(denied.data?.content, undefined, 'Denied incidents must not look like successful empty context');
+    const page = await call('stacktape_incident', {
+      action: 'list',
+      projectName: 'shop',
+      stage: 'production',
+      status: 'ALL',
+      limit: 100
+    });
+    assert.equal(page.ok, true, JSON.stringify({ page, requests: requests.slice(-3) }));
+    const items = page.data?.incidents as Array<Record<string, unknown>>;
+    assert(items.length > 0 && items.length < 100);
+    assert.equal(page.data?.omitted, 100 - items.length);
+    assert.equal(items[0].id, 'inc_0');
+    assert.deepEqual(items[0].signals, { total: 12, active: 8, kinds: signalKinds.slice(0, 5) });
+    assert(JSON.stringify(page).length < 30_000);
+    assert(!JSON.stringify(page).includes('signal-evidence-'));
+    console.info('PASS executable MCP incident listing, bounded evidence and denied lookup');
+
+    // Use a harmless loopback organization to exercise the actual destructive CLI child.
+    const original = {
+      action: 'run',
+      command: 'org:delete',
+      cwd: project,
+      args: { organizationId: 'org_j12' },
+      confirm: true
+    };
+    const requireConfirmation = async () => {
+      // SDK 2.0 callTool validates final outputSchema against input_required. Use its protocol API for this intermediate result.
+      const result = await client!.request(
+        { method: 'tools/call', params: { name: 'stacktape_cli', arguments: original } },
+        { allowInputRequired: true }
+      );
+      assert(isInputRequiredResult(result));
+      return result as unknown as InputRequiredResult;
+    };
+    const retry = (required: InputRequiredResult, args = original, accept = true) => ({
+      name: 'stacktape_cli',
+      arguments: args,
+      requestState: required.requestState,
+      inputResponses: {
+        [Object.keys(required.inputRequests!)[0]]: {
+          action: accept ? ('accept' as const) : ('decline' as const),
+          ...(accept ? { content: { confirm: true } } : {})
+        }
+      }
+    });
+    const first = await requireConfirmation();
+    const mark = requests.length;
+    const changed = retry(first, { ...original, args: { organizationId: 'org_other' } });
+    assert.equal(envelope(await client.callTool(changed)).code, 'USER_CONFIRMATION_REQUIRED');
+    assert.equal(
+      envelope(await client.callTool(retry(await requireConfirmation(), original, false))).code,
+      'USER_CONFIRMATION_DECLINED'
+    );
+    assert.equal(requests.length, mark, 'Mismatched and declined confirmation must not launch a CLI child');
+    assert(organizations.has('org_j12'));
+    const accepted = retry(await requireConfirmation());
+    assert.equal(envelope(await client.callTool(accepted)).ok, true);
+    assert.equal(
+      organizations.has('org_j12'),
+      false,
+      'Accepted confirmation must execute the real organization deletion'
+    );
+    const afterDelete = requests.length;
+    assert.equal(envelope(await client.callTool(accepted)).code, 'USER_CONFIRMATION_REQUIRED');
+    assert.equal(requests.length, afterDelete, 'Replaying confirmation must not launch another CLI child');
+    console.info('PASS executable MCP exact-target confirmation, decline and replay protection');
 
     holdRequest = true;
     const requestStarted = new Promise<void>((resolve) => {
