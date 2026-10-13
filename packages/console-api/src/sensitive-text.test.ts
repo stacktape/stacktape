@@ -56,6 +56,11 @@ test('masks personal identifiers while keeping the shape a developer can still r
     'user [redacted:email]@example.com not found'
   );
   assert.equal(scrubSensitiveText('client 203.0.113.42 timed out'), 'client [redacted:ip] timed out');
+  assert.equal(
+    scrubSensitiveText('connect ECONNREFUSED 127.0.0.1:5432, listening on 0.0.0.0:3000'),
+    'connect ECONNREFUSED 127.0.0.1:5432, listening on 0.0.0.0:3000',
+    'loopback and the any-address identify no one'
+  );
   assert.equal(scrubSensitiveText('peer 2001:0db8:85a3:0000:0000:8a2e:0370:7334 closed'), 'peer [redacted:ip] closed');
   assert.equal(scrubSensitiveText('card 4242 4242 4242 4242 declined'), 'card [redacted:card] declined');
   assert.equal(

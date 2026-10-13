@@ -66,6 +66,10 @@ test('a failed deploy, a link opened twice and a stopped CLI each say what to do
   // The container's last lines keep their line breaks.
   const reported = page.locator('li', { hasText: 'Essential container in task exited' });
   await expect(reported).toHaveCSS('white-space', 'pre-wrap');
+  // The cause in plain words first; the CLI's own message one click away.
+  await expect(page.getByText('The app tried to reach PostgreSQL at 127.0.0.1:5432')).toBeVisible();
+  await page.getByRole('button', { name: 'Show the original error' }).click();
+  await expect(page.locator('pre', { hasText: 'Stack action create failed.' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Deploy again' })).toBeEnabled();
 
   await wizard.stop();

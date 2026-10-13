@@ -102,6 +102,8 @@ const isCardNumber = (candidate: string) => {
 };
 
 const isIpv4 = (candidate: string) => candidate.split('.').every((octet) => Number(octet) <= 255);
+/** Loopback and the any-address identify no one, and "ECONNREFUSED 127.0.0.1:5432" is how a developer sees the cause. */
+const isLocalIpv4 = (candidate: string) => candidate.startsWith('127.') || candidate === '0.0.0.0';
 
 export const scrubSensitiveText = (text: string): string => {
   if (!text) return text;
@@ -113,7 +115,7 @@ export const scrubSensitiveText = (text: string): string => {
   result = result.replace(URL_CREDENTIALS, '$1[redacted:credentials]@');
   result = result.replace(KEY_VALUE, '$1[redacted]');
   result = result.replace(EMAIL, (match) => `[redacted:email]@${match.slice(match.indexOf('@') + 1)}`);
-  result = result.replace(IPV4, (match) => (isIpv4(match) ? '[redacted:ip]' : match));
+  result = result.replace(IPV4, (match) => (isIpv4(match) && !isLocalIpv4(match) ? '[redacted:ip]' : match));
   result = result.replace(IPV6, '[redacted:ip]');
   result = result.replace(CARD_NUMBER, (match) => (isCardNumber(match) ? '[redacted:card]' : match));
   result = result.replace(
