@@ -562,9 +562,10 @@ export const lanes: readonly Lane[] = [
     level: 'process',
     tier: 'change',
     tests: ['apps/cli/tests/local-development/container-cleanup.spec.ts'],
-    requires: ['docker'],
+    requires: ['docker', 'network'],
     release: 'every-candidate',
-    proves: 'Real Docker cleanup removes abandoned and stopped containers while preserving live and legacy sessions.'
+    proves:
+      'Real Docker cleanup removes abandoned and stopped containers while preserving live and legacy sessions; network is only for the fixture image.'
   },
   {
     id: 'local-dev-next',
