@@ -1291,7 +1291,8 @@ export const lanes: readonly Lane[] = [
     tier: 'change',
     tests: [
       'apps/console/api/scripts/incident-agent-database.test.ts',
-      'apps/console/api/scripts/incident-agent-runtime.test.ts'
+      'apps/console/api/scripts/incident-agent-runtime.test.ts',
+      'apps/console/api/scripts/incident-handoff-database.test.ts'
     ],
     requires: ['console', 'docker', 'network'],
     release: 'every-candidate',
@@ -1968,7 +1969,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/github-repository-pagination.test.ts',
       'apps/console/api/src/services/gitlab-app.test.ts',
       'apps/console/api/src/services/incident-engine.test.ts',
-      'apps/console/api/src/services/incident-handoff.test.ts',
+
       'apps/console/api/src/services/paddle.test.ts',
       'apps/console/api/src/services/prisma-proxy.test.ts',
       'apps/console/api/src/services/remote-deploy/aws/ec2.test.ts',
@@ -2083,7 +2084,6 @@ export const lanes: readonly Lane[] = [
       'apps/vscode-extension/src/language-server/schema-resolver.test.ts',
       'packages/analytics/src/posthog.test.ts',
       'packages/analytics/src/privacy.test.ts',
-      'packages/aws-read-only/src/executor.test.ts',
       'packages/aws-read-only/src/operations.test.ts',
       'packages/cloudformation/tests/generator.test.ts',
       'packages/cloudformation/tests/intrinsics.test.ts',
@@ -2354,13 +2354,44 @@ export const lanes: readonly Lane[] = [
     release: 'every-candidate'
   },
   {
+    id: 'cli-setup-token',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/cli',
+      'exec',
+      'bun',
+      'test',
+      'src/commands/ai-connect/claude-setup-token.spec.ts'
+    ],
+    level: 'process',
+    tier: 'pr',
+    tests: ['apps/cli/src/commands/ai-connect/claude-setup-token.spec.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves:
+      'Pasted subscription tokens parse on every platform; recorded sign-in output is captured and removed where a PTY recorder is available.',
+    selections: ['cli']
+  },
+  {
     id: 'aws-read-only-test',
     command: ['pnpm', '--filter', '@stacktape/aws-read-only', 'run', 'test'],
     level: 'focused',
     tier: 'pr',
-    tests: ['packages/aws-read-only/src'],
+    tests: ['packages/aws-read-only/src/operations.test.ts'],
     requires: [],
     release: 'every-candidate'
+  },
+  {
+    id: 'aws-read-only-ministack',
+    command: ['pnpm', '--filter', '@stacktape/aws-read-only', 'run', 'test:ministack'],
+    level: 'process',
+    tier: 'change',
+    tests: ['packages/aws-read-only/src/executor.ministack.test.ts'],
+    requires: ['docker', 'network'],
+    release: 'every-candidate',
+    proves:
+      'Real SDK reads against seeded MiniStack state mask environments and refuse writes and plaintext credential reads.'
   },
   {
     id: 'ui-react-test',
@@ -4724,6 +4755,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/e2e/incident-run-live.spec.ts'
     ],
     lanes: [
+      'cli-setup-token',
       'console-database-incident-agent',
       'console-browser-offline',
       'console-browser-incident-run-live',
@@ -4743,9 +4775,13 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/services/incident-agent-runner-programs.ts',
       'packages/aws-read-only/**'
     ],
-    tests: ['apps/console/api/scripts/incident-agent-runtime.test.ts', 'packages/aws-read-only/src/executor.test.ts'],
+    tests: [
+      'apps/console/api/scripts/incident-agent-runtime.test.ts',
+      'packages/aws-read-only/src/executor.ministack.test.ts'
+    ],
     lanes: [
       'aws-read-only-test',
+      'aws-read-only-ministack',
       'console-database-incident-agent',
       'console-runner-runtime',
       'console-runner-runtime-2',
@@ -4763,7 +4799,7 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/services/incident-handoff.ts',
       'apps/console/api/src/services/incident-agent-runner-job.ts'
     ],
-    tests: ['apps/console/api/src/services/incident-handoff.test.ts'],
+    tests: ['apps/console/api/scripts/incident-handoff-database.test.ts'],
     lanes: [
       'console-database-incident-agent',
       'console-runner-runtime',
