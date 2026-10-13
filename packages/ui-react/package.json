@@ -42,6 +42,10 @@
       "types": "./dist/icon-button/IconButton.d.ts",
       "default": "./dist/icon-button/IconButton.js"
     },
+    "./install-platform": {
+      "types": "./dist/install-platform/detectInstallPlatform.d.ts",
+      "default": "./dist/install-platform/detectInstallPlatform.js"
+    },
     "./isometric-diagram": {
       "types": "./dist/isometric-diagram/IsometricDiagram.d.ts",
       "default": "./dist/isometric-diagram/IsometricDiagram.js"
