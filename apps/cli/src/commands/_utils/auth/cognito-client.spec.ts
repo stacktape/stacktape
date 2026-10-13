@@ -1,18 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { classifyCognitoFailure, createGoogleAuthorizationUrl, startGoogleSignIn } from './cognito-client';
-
-test('Google CLI login requires a fresh federated authentication', () => {
-  const url = createGoogleAuthorizationUrl({
-    redirectUri: 'http://localhost:19835/callback',
-    challenge: 'challenge',
-    state: 'state'
-  });
-
-  expect(url.searchParams.get('identity_provider')).toBe('Google');
-  expect(url.searchParams.get('prompt')).toBe('login');
-  expect(url.searchParams.get('code_challenge_method')).toBe('S256');
-  expect(url.searchParams.get('state')).toBe('state');
-});
+import { classifyCognitoFailure, startGoogleSignIn } from './cognito-client';
 
 describe('classifyCognitoFailure', () => {
   const cognitoError = (name: string, message: string) => Object.assign(new Error(message), { name });
@@ -64,13 +51,14 @@ describe('the Google callback listener', () => {
 
   test('escapes the error it was sent, and reports the failure', async () => {
     const { attempt, callback } = await start();
-    const injected = '<img src=x onerror=alert(1)>"\'&';
+    const injected = `<img src=x onerror=alert(1)>"'&${'x'.repeat(500)}`;
 
     const response = await fetch(`${callback}?error=${encodeURIComponent(injected)}`);
     const html = await response.text();
 
     expect(html).not.toContain('<img');
     expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;&quot;&#39;&amp;');
+    expect(html).not.toContain('x'.repeat(201));
     // Belt and braces: even unescaped markup could not run a script on this origin.
     expect(response.headers.get('content-security-policy')).toContain("default-src 'none'");
     expect(await attempt.result).toEqual({ success: false, error: injected });
@@ -109,7 +97,11 @@ describe('the Google callback listener', () => {
 });
 
 describe('Google sign-in completes through the callback page and token HTTP exchange', () => {
-  test.each([true, false])('token endpoint success=%s', async (succeeds) => {
+  test.each([
+    [true, 'terminal'],
+    [true, 'wizard'],
+    [false, 'terminal']
+  ] as const)('token endpoint success=%s returnTo=%s', async (succeeds, returnTo) => {
     const { createHash } = await import('node:crypto');
     let submitted: URLSearchParams | undefined;
     const provider = Bun.serve({
@@ -122,12 +114,15 @@ describe('Google sign-in completes through the callback page and token HTTP exch
           : new Response('invalid_grant', { status: 400 });
       }
     });
-    const attempt = await startGoogleSignIn({ returnTo: 'terminal', port: 0 });
+    const attempt = await startGoogleSignIn({ returnTo, port: 0 });
     if (attempt.started === false) {
       provider.stop(true);
       throw new Error(attempt.error);
     }
     const authorize = new URL(attempt.authorizationUrl);
+    expect(authorize.searchParams.get('identity_provider')).toBe('Google');
+    expect(authorize.searchParams.get('prompt')).toBe('login');
+    expect(authorize.searchParams.get('code_challenge_method')).toBe('S256');
     const callback = authorize.searchParams.get('redirect_uri')!;
     const originalFetch = globalThis.fetch;
     // Cognito is the external dependency. The production callback listener and fetch serialization stay real.
@@ -161,13 +156,18 @@ describe('Google sign-in completes through the callback page and token HTTP exch
         authorize.searchParams.get('code_challenge')
       );
       const nonce = /<style nonce="([^"]+)"/.exec(html)![1];
+      expect(/<script nonce="([^"]+)"/.exec(html)?.[1]).toBe(nonce);
       expect(response.headers.get('content-security-policy')).toContain(`'nonce-${nonce}'`);
       expect(response.headers.get('cache-control')).toContain('no-store');
       expect(html).not.toContain('j6-fixture-id-token');
       expect(html).not.toContain('fixture-code');
+      expect(html).not.toMatch(/(src|href)=/);
+      expect(html).not.toContain('url(');
+      expect(response.headers.get('content-security-policy')).toContain(`script-src 'nonce-${nonce}'`);
       if (succeeds) {
         expect(html).toContain('Signed in');
-        expect(html).toContain('return to your terminal');
+        expect(html).toContain(returnTo === 'wizard' ? 'return to the Stacktape wizard' : 'return to your terminal');
+        expect(html).toContain('window.close()');
         expect(await attempt.result).toMatchObject({ success: true, idToken: 'j6-fixture-id-token' });
       } else {
         expect(html).toContain('Sign-in did not finish');

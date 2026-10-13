@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, mock, test } from 'bun:test';
-import { operationReporter } from '@application-services/operation-manager';
+import { afterEach, describe, expect, test } from 'bun:test';
+import { operationReporter, operationSession } from '@application-services/operation-manager';
 import { GlobalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 
@@ -19,30 +19,29 @@ describe.serial('automatic AWS credential refresh', () => {
     const manager = new TestGlobalStateManager();
     const credentials = manager.credentials;
     const warnings: string[] = [];
-    const finishedEvents: unknown[] = [];
     const originalWarn = tuiManager.warn;
-    const originalFinishEvent = operationReporter.finishEvent;
+    operationSession.reset();
     tuiManager.warn = (message: string) => warnings.push(message);
-    operationReporter.finishEvent = mock(async (event) => {
-      finishedEvents.push(event);
-    }) as typeof operationReporter.finishEvent;
     restores.push(() => {
       tuiManager.warn = originalWarn;
-      operationReporter.finishEvent = originalFinishEvent;
+      operationSession.reset();
       manager.stopCredentialRefresh();
     });
     manager.loadValidatedAwsCredentials = async () => {
+      operationReporter.startEvent({ eventType: 'LOAD_AWS_CREDENTIALS', description: 'Loading AWS credentials' });
       throw new Error('temporary refresh failure');
     };
 
     await expect(manager.runScheduledRefresh()).resolves.toBeUndefined();
 
+    const activity = Object.values(operationSession.store.getSnapshot().activities).find(
+      ({ eventType }) => eventType === 'LOAD_AWS_CREDENTIALS'
+    );
+    expect(activity?.status).not.toBe('running');
+    expect(activity?.finalMessage).toBe('Automatic AWS credential refresh failed.');
     expect(manager.credentials).toBe(credentials);
     expect(manager.credentialsRefreshTimeout).toBeDefined();
     expect(warnings).toEqual(['Automatic AWS credential refresh failed. Retrying in 30 seconds.']);
-    expect(finishedEvents).toEqual([
-      { eventType: 'LOAD_AWS_CREDENTIALS', finalMessage: 'Automatic AWS credential refresh failed.' }
-    ]);
   });
 
   test('does not refresh or retry after shutdown', async () => {
