@@ -102,6 +102,14 @@ const ADAPTERS: Adapter[] = [
     runtimeImage: 'public.ecr.aws/lambda/nodejs:22',
     dynamicRoute: { path: '/api/hello', expectedText: 'Hello from Next.js API route on Lambda!' },
     expectsAssets: true
+  },
+  {
+    starter: 'nextjs-saas',
+    frameworkPackage: 'next',
+    resourceType: 'nextjs-web',
+    runtimeImage: 'public.ecr.aws/lambda/nodejs:22',
+    dynamicRoute: { path: '/api/health', expectedText: 'healthy' },
+    expectsAssets: true
   }
 ];
 
@@ -227,7 +235,15 @@ const addRuntimeProbes = async (starter: string, project: string) => {
     await mkdir(dirname(join(project, path)), { recursive: true });
     await writeFile(join(project, path), contents);
   };
-  if (starter === 'nextjs-serverless') {
+  if (starter === 'nextjs-serverless' || starter === 'nextjs-saas') {
+    if (starter === 'nextjs-saas') {
+      // Force sharp's host lifecycle script to fail regardless of download/cache availability. OpenNext swallows
+      // that error and emits no sharp package. Stacktape must skip host scripts and build it for Lambda instead.
+      await write(
+        'open-next.config.ts',
+        `export default { default: { runtime: 'node' }, imageOptimization: { install: { packages: ['sharp@0.32.6'], additionalArgs: '--arch=unsupported --target=invalid' } } };\n`
+      );
+    }
     await write(
       'next.config.ts',
       `export default { images: { remotePatterns: [{ protocol: 'http', hostname: '127.0.0.1' }] } };\n`
@@ -426,7 +442,7 @@ const runAdapter = async ({ adapter, work }: { adapter: Adapter; work: string })
       );
     }
 
-    if (['nextjs-serverless', 'nuxt-serverless', 'remix-serverless'].includes(starter)) {
+    if (['nextjs-serverless', 'nextjs-saas', 'nuxt-serverless', 'remix-serverless'].includes(starter)) {
       const first = await invoke(httpEvent({ path: '/api/session' }));
       const cookies = first.cookies ?? [];
       check(
@@ -453,7 +469,7 @@ const runAdapter = async ({ adapter, work }: { adapter: Adapter; work: string })
       report.session = { first, second };
     }
 
-    if (starter === 'nextjs-serverless') {
+    if (adapter.resourceType === 'nextjs-web') {
       const imageZip = zips.find((workload) => /image/i.test(workload.jobName));
       if (!imageZip) throw new Error('Next did not package its image optimizer ZIP.');
       const imageDirectory = await extractZip(imageZip.artifactPath);

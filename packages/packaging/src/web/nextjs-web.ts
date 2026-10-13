@@ -52,7 +52,12 @@ type PackagedNextjsWeb = NextjsWeb['properties'] & {
   };
 };
 
-type OpenNextConfig = Pick<UpstreamOpenNextConfig, 'buildCommand' | 'default' | 'functions'>;
+type OpenNextConfig = Pick<UpstreamOpenNextConfig, 'buildCommand' | 'default' | 'functions'> & {
+  // The pinned AWS builder supports install options absent from the older OpenNext type package.
+  imageOptimization?: UpstreamOpenNextConfig['imageOptimization'] & {
+    install?: { packages: string[]; additionalArgs?: string };
+  };
+};
 const OPEN_NEXT_BUILD_PACKAGE = '@opennextjs/aws@3.10.4';
 /** Any URL string: `prisma generate` reads it from the config file but does not use it. */
 const PRISMA_GENERATE_PLACEHOLDER_URL = 'postgresql://stacktape:generate@127.0.0.1:5432/generate';
@@ -98,6 +103,7 @@ export const createNextjsWebArtifacts = async ({
       const configFileName = await createTemporaryOpenNextConfigFile({
         resource,
         cwd,
+        sharpVersion: copyEnv.SHARP_VERSION,
         createPackagingError,
         loadModuleExport
       });
@@ -160,8 +166,8 @@ export const createNextjsWebArtifacts = async ({
   // create custom resource wrapper to use open-next built dynamo inserter resource
   await createDynamoInsertWrapper({ distFolderPath });
 
-  // OpenNext emits sharp's JS package, but its host install can omit the native binary (and a Windows binary
-  // cannot run in Lambda). Materialize the exact emitted version in the target runtime before hashing the ZIP.
+  // OpenNext installs the JS package without host lifecycle scripts. Materialize the exact emitted version and
+  // its native binaries in the target runtime before hashing the ZIP.
   const imageFunctionPath = join(distFolderPath, 'image-optimization-function');
   const sharp = await resolveInstalledNodePackage({
     applicationRoot: imageFunctionPath,
@@ -393,15 +399,23 @@ const respondToCf = async ({
 const createTemporaryOpenNextConfigFile = async ({
   resource,
   cwd,
+  sharpVersion,
   createPackagingError,
   loadModuleExport
 }: {
   resource: PackagedNextjsWeb;
   cwd: string;
+  sharpVersion: string | undefined;
   createPackagingError: CreatePackagingError;
   loadModuleExport: LoadModuleExport;
 }) => {
-  const openNextConfig = await getOpenNextConfig({ resource, cwd, createPackagingError, loadModuleExport });
+  const openNextConfig = await getOpenNextConfig({
+    resource,
+    cwd,
+    sharpVersion,
+    createPackagingError,
+    loadModuleExport
+  });
   const fileContent = `const config = ${JSON.stringify(openNextConfig, null, 4)};
 
 export default config;
@@ -418,11 +432,13 @@ export default config;
 const getOpenNextConfig = async ({
   resource,
   cwd,
+  sharpVersion,
   createPackagingError,
   loadModuleExport
 }: {
   resource: PackagedNextjsWeb;
   cwd: string;
+  sharpVersion: string | undefined;
   createPackagingError: CreatePackagingError;
   loadModuleExport: LoadModuleExport;
 }): Promise<OpenNextConfig> => {
@@ -455,9 +471,22 @@ const getOpenNextConfig = async ({
     .catch(() => undefined);
   const windowsDefaultBuildCommand = getWindowsNextBuildCommand(installedNextVersion);
   const buildCommand = resource.buildCommand || (process.platform === 'win32' ? windowsDefaultBuildCommand : undefined);
+  // OpenNext swallows native install failures and then emits no sharp package. Its host install only needs package
+  // metadata: Stacktape installs the native dependencies in the Lambda build image below. Keep user-selected
+  // packages/options and OpenNext 3.10.4's default sharp version (including its SHARP_VERSION override).
+  const imageInstall = userOpenNextConfig.imageOptimization?.install ?? {
+    packages: [`sharp@${sharpVersion ?? '0.32.6'}`]
+  };
 
   const finalConfig: OpenNextConfig = {
     ...userOpenNextConfig,
+    imageOptimization: {
+      ...userOpenNextConfig.imageOptimization,
+      install: {
+        ...imageInstall,
+        additionalArgs: `${imageInstall.additionalArgs ?? ''} --ignore-scripts`.trim()
+      }
+    },
     ...(buildCommand ? { buildCommand } : {})
   };
   if (resource.useEdgeLambda) {
