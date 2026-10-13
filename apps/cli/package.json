@@ -108,7 +108,8 @@
     "test:local-dev": "bun test src/commands/dev src/commands/dev-stop src/utils/ports.test.ts scripts/real-aws/lambda-dev-canary.spec.ts",
     "test:local-dev:next": "bun test tests/local-development/next-dev.spec.ts",
     "test:local-dev:ministack": "bun test tests/ministack/local-dev.spec.ts",
-    "test:real-aws-lambda-dev": "bun --no-env-file scripts/real-aws/lambda-dev-canary.ts"
+    "test:real-aws-lambda-dev": "bun --no-env-file scripts/real-aws/lambda-dev-canary.ts",
+    "test:image-builders:ministack": "bun test tests/image-builders"
   },
   "dependencies": {
     "@aws-cdk/cloudformation-diff": "2.187.4",

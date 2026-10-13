@@ -623,6 +623,30 @@ export const lanes: readonly Lane[] = [
     selections: ['vscode-host']
   },
   {
+    id: 'dockerfile-image',
+    command: ['pnpm', '--filter', '@stacktape/packaging', 'run', 'test:dockerfile-image-e2e'],
+    level: 'process',
+    tier: 'change',
+    tests: ['packages/packaging/scripts/dockerfile-image-e2e.ts'],
+    requires: ['docker'],
+    release: 'every-candidate',
+    proves:
+      'Authored Dockerfile images rebuild for instructions, arguments and consumed files, and reuse ignored edits.',
+    selections: ['packaging-images']
+  },
+  {
+    id: 'image-builders-ministack',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:image-builders:ministack'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/tests/image-builders/ecr.spec.ts'],
+    requires: ['docker'],
+    release: 'every-candidate',
+    proves:
+      'Real ECR metadata is listed and deleted across batches and registry authorization is decoded on MiniStack.',
+    selections: ['packaging-images']
+  },
+  {
     id: 'language-lambdas',
     command: ['pnpm', '--filter', '@stacktape/packaging', 'run', 'test:language-lambdas'],
     level: 'process',
@@ -2037,7 +2061,6 @@ export const lanes: readonly Lane[] = [
       'packages/packaging/src/fs/files-hashing.test.ts',
       'packages/packaging/src/fs/files.test.ts',
       'packages/packaging/src/fs/temporary-file.test.ts',
-      'packages/packaging/src/image/cache-identity.test.ts',
       'packages/packaging/src/image/railpack.test.ts',
       'packages/packaging/src/process/command.test.ts',
       'packages/packaging/src/split-bundler/bundler-chunk-graph.test.ts',
@@ -3562,7 +3585,8 @@ export const slices: readonly Slice[] = [
     journeys: ['J3'],
     paths: [
       'packages/packaging/src/bundlers/go/**',
-      'packages/packaging/src/buildpacks/**',
+      'packages/packaging/src/buildpacks/go-lambda-buildpack.ts',
+      'packages/packaging/src/buildpacks/rust-lambda-buildpack.ts',
       'packages/packaging/src/bundlers/rust/**'
     ],
     tests: ['packages/packaging/src/bundlers/rust/utils.test.ts'],
@@ -3570,10 +3594,6 @@ export const slices: readonly Slice[] = [
       'packaging-test',
       'packaging-images',
       'packaging-images-2',
-      'packaging-lambdas',
-      'packaging-lambdas-2',
-      'packaging-lambdas-3',
-      'packaging-lambdas-4',
       'project-qualification',
       'project-qualification-2'
     ],
@@ -3602,7 +3622,10 @@ export const slices: readonly Slice[] = [
     promise: '.NET builds preserve referenced projects and configuration.',
     status: 'active',
     journeys: ['J3'],
-    paths: ['packages/packaging/src/bundlers/dotnet/**'],
+    paths: [
+      'packages/packaging/src/bundlers/dotnet/**',
+      'packages/packaging/src/buildpacks/dotnet-lambda-buildpack.ts'
+    ],
     tests: [],
     lanes: [
       'packaging-test',
@@ -3648,6 +3671,8 @@ export const slices: readonly Slice[] = [
     journeys: ['J3'],
     paths: [
       'packages/packaging/src/image/**',
+      'apps/cli/src/aws/ecr.ts',
+      'apps/cli/src/utils/docker.ts',
       'packages/packaging/src/docker/**',
       'apps/cli/src/domain/packaging-manager/es-install-scripts.ts',
       'apps/cli/src/domain/packaging-manager/railpack-command.ts',
@@ -3658,11 +3683,12 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/packaging-manager/railpack-command.spec.ts',
       'apps/cli/src/utils/__tests__/docker-secret-handling.test.ts',
       'apps/cli/tests/characterization/aws-ecr.spec.ts',
+      'apps/cli/tests/image-builders/ecr.spec.ts',
+      'packages/packaging/scripts/dockerfile-image-e2e.ts',
       'packages/packaging/scripts/synthetic-docker-smoke.ts',
       'packages/packaging/scripts/synthetic-es-image-deps-e2e.ts',
       'packages/packaging/src/buildpacks/project-root.test.ts',
       'packages/packaging/src/docker/dockerfiles.test.ts',
-      'packages/packaging/src/image/cache-identity.test.ts',
       'packages/packaging/src/image/railpack.test.ts'
     ],
     lanes: [
@@ -3670,13 +3696,12 @@ export const slices: readonly Slice[] = [
       'cli-2',
       'cli-3',
       'packaging-test',
+      'dockerfile-image',
+      'image-builders-ministack',
       'packaging-images',
       'packaging-images-2',
       'external-tools',
-      'packaging-archives',
-      'packaging-archives-2',
       'packaging-archives-3',
-      'packaging-archives-4',
       'cli-test-docker-secrets'
     ]
   },

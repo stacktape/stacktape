@@ -49,6 +49,7 @@
     "test:split-assets-e2e": "bun run scripts/synthetic-split-assets-e2e.ts",
     "test": "bun test src",
     "typecheck": "tsc -p tsconfig.json",
+    "test:dockerfile-image-e2e": "bun run scripts/dockerfile-image-e2e.ts",
     "test:language-lambdas": "bun test ./scripts/lambda-e2e",
     "test:node-lambda:offline": "bun test src/bundlers/es src/es src/split-bundler"
   },
