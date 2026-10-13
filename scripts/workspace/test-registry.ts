@@ -2254,6 +2254,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/controllers/git-provider-writes.test.ts',
       'apps/console/api/src/database/rds-tls.test.ts',
       'apps/console/api/src/deployments/invocation-id.test.ts',
+      'apps/console/api/src/deployments/operation-description.test.ts',
       'apps/console/api/src/http-server.test.ts',
       'apps/console/api/src/integrations/git/bitbucket-forge-events.test.ts',
       'apps/console/api/src/integrations/git/connection-authorization.test.ts',
@@ -4693,6 +4694,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/notification-manager/events.ts',
       'apps/cli/src/utils/cli.ts',
       'apps/console/api/src/deployments/invocation-id.ts',
+      'apps/console/api/src/deployments/operation-description.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/cloudformation-resources.ts'
     ],
     tests: [
@@ -4700,6 +4702,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/notification-manager/events.test.ts',
       'apps/console/api/scripts/cli-console-database.test.ts',
       'apps/console/api/src/deployments/invocation-id.test.ts',
+      'apps/console/api/src/deployments/operation-description.test.ts',
       'apps/console/ui/e2e/isolated-deployment.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/cloudformation-resources.test.ts',
       'packages/stack-info/src/metric-targets.test.ts',
