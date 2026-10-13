@@ -11,7 +11,7 @@ test('captures stdout, stderr, exit status, cwd, and environment at the process 
     const result = await runCapturedProcess({
       args: [
         '-e',
-        "console.log(`${process.cwd()}|${process.env.STP_PROCESS_FIXTURE}`); console.error('expected stderr'); process.exitCode = 7"
+        "console.log(`${process.cwd()}|${process.env.STP_PROCESS_FIXTURE}`); process.stdout.write('x'.repeat(1024 * 1024)); process.stderr.write('y'.repeat(1024 * 1024)); process.exitCode = 7"
       ],
       command: process.execPath,
       cwd,
@@ -20,10 +20,11 @@ test('captures stdout, stderr, exit status, cwd, and environment at the process 
 
     assert.equal(result.code, 7);
     // The child reports the directory as it was given; on Windows that can be an 8.3 spelling of the same path.
-    const [reportedCwd, fixture] = result.stdout.trim().split('|');
+    const [reportedCwd, fixture] = result.stdout.split('\n')[0]!.split('|');
     assert.equal(fixture, 'visible');
     assert.equal(await realpath(reportedCwd ?? ''), await realpath(cwd));
-    assert.equal(result.stderr.trim(), 'expected stderr');
+    assert.equal(result.stdout.split('\n')[1]?.length, 1024 * 1024);
+    assert.equal(result.stderr.length, 1024 * 1024);
   } finally {
     await rm(cwd, { force: true, recursive: true });
   }
@@ -38,17 +39,6 @@ test('reports a missing executable without crashing diagnostic callers', async (
 
   assert.equal(result.code, 1);
   assert.match(result.stderr, /ENOENT|not found/i);
-});
-
-test('waits for all piped output before returning a successful child result', async () => {
-  const result = await runCapturedProcess({
-    command: process.execPath,
-    args: ['-e', "process.stdout.write('x'.repeat(1024 * 1024)); process.stderr.write('y'.repeat(1024 * 1024));"],
-    cwd: process.cwd()
-  });
-  assert.equal(result.code, 0);
-  assert.equal(result.stdout.length, 1024 * 1024);
-  assert.equal(result.stderr.length, 1024 * 1024);
 });
 
 test('can reject a missing executable for execution callers', async () => {
