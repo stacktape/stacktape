@@ -42,23 +42,32 @@ helper artifacts instead, and the report marks them as supplied.
 ## Node.js Lambdas through the package command
 
 `pnpm --filter @stacktape/cli run test:node-lambda` runs the CLI's own `package` command as a child process, in an
-isolated home with every AWS and Stacktape request routed to the offline guard, on a TypeScript project outside the
-repository: an ESM split group whose shared module becomes a chunk layer, with a dynamic `import()`, a file asset, an
-ESM-only dependency and `@aws-sdk/client-s3`, and a CommonJS `.cjs` function packaged for Node.js 22. Each ZIP is
-extracted with `unzip` and invoked in the official Lambda image for its runtime as the unprivileged user, with the
-layers at `/opt` and source maps enabled: the shared chunk must load from the layer and not be duplicated, the dynamic
-import and the asset must resolve under `/var/task`, the AWS SDK must come from `/var/runtime` and be absent from the
-ZIP, `__dirname` must be `/var/task`, and a thrown error must name the original TypeScript file and line. Then an
-unchanged repeat must reproduce every digest and the layer bytes, an edit of one function must change only its digest,
-and the untouched project built from another directory must reproduce the first digests and layer bytes, and no file of
-a function or layer may mention the build host's temporary or home directory. `--keep` leaves the fixture and the CLI's
-build directories. It needs Docker and `unzip`, not AWS.
+isolated home with AWS identity and stack reads routed to the shared MiniStack fixture (only unsupported Cost Explorer,
+Budgets and CloudTrail reads use the boundary fake), on a TypeScript project outside the repository: an ESM split group
+whose shared module becomes a chunk layer, with a dynamic `import()`, a file asset, an ESM-only dependency and
+`@aws-sdk/client-s3`, and a CommonJS `.cjs` function packaged for Node.js 22. Each ZIP is extracted with `unzip` and
+invoked in the official Lambda image for its runtime as the unprivileged user, with the layers at `/opt` and source maps
+enabled: the shared chunk must load from the layer and not be duplicated, the dynamic import and the asset must resolve
+under `/var/task`, the AWS SDK must come from `/var/runtime` and be absent from the ZIP, `__dirname` must be
+`/var/task`, and a thrown error must name the original TypeScript file and line. Then an unchanged repeat must reproduce
+every digest and the layer bytes, an edit of one function must change only its digest, and the untouched project built
+from another directory must reproduce the first digests and layer bytes, and no file of a function or layer may mention
+the build host's temporary or home directory. `--keep` leaves the fixture and the CLI's build directories. It needs
+Docker and `unzip`, not AWS.
 
 The lane splits across hosts: `--export <dir>` runs the build phase only (the CLI packages, digests are compared) and
 copies the first and edited builds' ZIPs and assembled `/opt` into the directory with a manifest, on any host the CLI
-supports, Windows included; `--import <dir>` runs the Lambda runtime checks on that directory on Linux. A Windows
-packaging job is the export phase on a Windows runner with the directory uploaded as an artifact, and the import phase
-on a Linux runner that downloads it.
+supports, Windows included (Docker is required for MiniStack); `--import <dir>` runs the Lambda runtime checks on that
+directory on Linux. A Windows packaging job is the export phase on a Windows runner with the directory uploaded as an
+artifact, and the import phase on a Linux runner that downloads it.
+
+## Native Node installation cache
+
+`pnpm --filter @stacktape/packaging run test:node-lambda-e2e` builds and executes split/native artifacts with five
+package managers. It also reuses a completed native install with further builds disabled and installs
+architecture-specific bcrypt bytes for x64 and arm64 in one cache root, then loads each in its matching Node runtime.
+Docker must already support both `linux/amd64` and `linux/arm64` builds and execution (native or through configured
+emulation). The lane needs dependency-download network and never configures host emulation or contacts AWS.
 
 ## SSR starters in the Lambda runtime
 

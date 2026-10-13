@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, spyOn, test } from 'bun:test';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildSplitBundle } from './bundler';
@@ -52,46 +54,34 @@ const runBuild = async ({
   });
 
 describe('split bundle failure translation', () => {
-  test('creates one semantic error for build diagnostics', async () => {
+  test('a missing entrypoint reports the original build diagnostics once', async () => {
     const { root } = await createFixture();
-    const detailsSeen: PackagingErrorDetails[] = [];
-    const errorsCreated: Error[] = [];
-    const createPackagingError = (details: PackagingErrorDetails) => {
-      detailsSeen.push(details);
-      const error = new Error(details.message, details.cause === undefined ? undefined : { cause: details.cause });
-      errorsCreated.push(error);
-      return error;
-    };
-
     const missingEntrypoint = join(root, 'src', 'missing.ts');
-    const error = await runBuild({ cwd: root, entryfilePath: missingEntrypoint, createPackagingError }).catch(
-      (caught: unknown) => caught
-    );
-
-    expect(errorsCreated).toHaveLength(1);
-    expect(error).toBe(errorsCreated[0]);
-    expect(detailsSeen[0]?.message).toStartWith('Split bundle build failed:');
-    expect(detailsSeen[0]?.message).not.toContain('Split bundle failed: Split bundle build failed:');
+    const error = await runBuild({
+      cwd: root,
+      entryfilePath: missingEntrypoint,
+      createPackagingError: createTestPackagingError
+    }).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toStartWith('Split bundle build failed:');
+    expect((error as Error).message).toContain('missing.ts');
+    expect((error as Error).message.match(/Split bundle/g)).toHaveLength(1);
   });
 
   test('preserves an unexpected Bun failure as the semantic error cause', async () => {
     const { root, entryfilePath } = await createFixture();
     const buildFailure = new Error('Bun could not start the build');
     const buildSpy = spyOn(Bun, 'build').mockRejectedValue(buildFailure);
-    const detailsSeen: PackagingErrorDetails[] = [];
-    const createPackagingError = (details: PackagingErrorDetails) => {
-      detailsSeen.push(details);
-      return new Error(details.message, details.cause === undefined ? undefined : { cause: details.cause });
-    };
-
-    const error = await runBuild({ cwd: root, entryfilePath, createPackagingError }).catch((caught: unknown) => caught);
-    buildSpy.mockRestore();
-
-    expect(error).toBeInstanceOf(Error);
-    expect(detailsSeen).toHaveLength(1);
-    expect(detailsSeen[0]?.message).toStartWith('Split bundle failed:');
-    expect(detailsSeen[0]?.cause).toBe(buildFailure);
-    expect((error as Error).cause).toBe(buildFailure);
+    try {
+      const error = await runBuild({ cwd: root, entryfilePath, createPackagingError: createTestPackagingError }).catch(
+        (caught: unknown) => caught
+      );
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toStartWith('Split bundle failed:');
+      expect((error as Error).cause).toBe(buildFailure);
+    } finally {
+      buildSpy.mockRestore();
+    }
   });
 });
 
@@ -119,7 +109,21 @@ describe('split bundle entrypoint mapping', () => {
       createPackagingError: createTestPackagingError
     });
 
-    expect(await Bun.file(join(rootDist, 'index.js')).text()).toContain('root-handler');
-    expect(await Bun.file(join(apiDist, 'index.js')).text()).toContain('api-handler');
+    for (const [directory, expected] of [
+      [rootDist, 'root-handler'],
+      [apiDist, 'api-handler']
+    ] as const) {
+      const execution = spawnSync(
+        process.env.npm_node_execpath || 'node',
+        [
+          '--input-type=module',
+          '--eval',
+          `import handler from ${JSON.stringify(pathToFileURL(join(directory, 'index.js')).href)}; console.log(JSON.stringify(await handler()));`
+        ],
+        { cwd: root, encoding: 'utf8', timeout: 10_000 }
+      );
+      expect(execution.status, execution.stderr).toBe(0);
+      expect(JSON.parse(execution.stdout)).toEqual({ source: expected });
+    }
   });
 });

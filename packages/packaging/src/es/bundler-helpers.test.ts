@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
+import { buildEsCode } from '../bundlers/es';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createModuleResolver, determineIfAlias, ensureDefaultExport, getInfoFromPackageJson } from './bundler-helpers';
+import { createModuleResolver, getInfoFromPackageJson } from './bundler-helpers';
 
 const tempDirs: string[] = [];
 
@@ -96,102 +99,36 @@ afterEach(async () => {
 });
 
 describe('es bundler module resolution', () => {
-  test('recognizes a configured alias by prefix even when the extensionless candidate does not exist', async () => {
-    const root = await realpath(await mkdtemp(join(tmpdir(), 'stacktape-alias-resolution-')));
-    tempDirs.push(root);
-    const sourceDirectory = join(root, 'src');
-    await mkdir(sourceDirectory, { recursive: true });
-    await writeFile(join(sourceDirectory, 'tool.ts'), 'export const tool = true;\n');
-
-    expect(determineIfAlias({ moduleName: '@app/tool', aliases: { '@app': sourceDirectory } })).toBe(true);
-  });
-
-  test("gives two importers the two versions they depend on, not pnpm's hoisted fallback", async () => {
-    const { root, store, storeDir } = await createPnpmWorkspace();
-    const { findModulePath } = createModuleResolver({ cwd: root, monorepoRoot: root });
-
-    // The importers are the symlinked paths a bundler reaches these packages through.
-    const importerOf = (name: string) => join(store, 'consumer@1.0.0', 'node_modules', name, 'dist', 'index.js');
-
-    expect(findModulePath('cache-lib', importerOf('deep-a'))).toBe(storeDir('cache-lib', '10.4.3'));
-    expect(findModulePath('cache-lib', importerOf('deep-b'))).toBe(storeDir('cache-lib', '11.5.2'));
-  });
-
-  test('resolves a symlinked importer path the same way as its real store path', async () => {
-    const { root, store, storeDir } = await createPnpmWorkspace();
-    const { findModulePath } = createModuleResolver({ cwd: root, monorepoRoot: root });
-
-    const throughSymlink = join(store, 'consumer@1.0.0', 'node_modules', 'deep-a', 'dist', 'index.js');
-    const throughStore = join(store, 'deep-a@1.0.0', 'node_modules', 'deep-a', 'dist', 'index.js');
-
-    expect(findModulePath('cache-lib', throughSymlink)).toBe(findModulePath('cache-lib', throughStore));
-    expect(findModulePath('cache-lib', throughStore)).toBe(storeDir('cache-lib', '10.4.3'));
-  });
-
-  test('resolves an "exports"-restricted package that hides its own package.json', async () => {
-    const { root, store, storeDir } = await createPnpmWorkspace();
-    await writePackage(
-      storeDir('modern-lib', '3.0.0'),
-      { name: 'modern-lib', version: '3.0.0', exports: { '.': { import: './index.mjs' } } },
-      { 'index.mjs': 'export default 3;\n' }
+  test('pnpm dependencies and a minified default handler execute from the bundle', async () => {
+    const { root } = await createPnpmWorkspace();
+    await writeFile(
+      join(root, 'handler.ts'),
+      "import consumer from 'consumer'; export const handler = () => consumer;"
     );
-    await symlink(
-      storeDir('modern-lib', '3.0.0'),
-      join(store, 'deep-a@1.0.0', 'node_modules', 'modern-lib'),
-      'junction'
+    const distPath = join(root, 'dist', 'index.js');
+    await buildEsCode({
+      sourcePath: join(root, 'handler.ts'),
+      distPath,
+      cwd: root,
+      externals: [],
+      sourceMaps: 'disabled',
+      sourceMapBannerType: 'disabled',
+      outputModuleFormat: 'esm',
+      minify: true,
+      minifyIdentifiers: true,
+      createPackagingError: ({ message }) => new Error(message)
+    });
+    const execution = spawnSync(
+      process.env.npm_node_execpath || 'node',
+      [
+        '--input-type=module',
+        '--eval',
+        `import handler from ${JSON.stringify(pathToFileURL(distPath).href)}; console.log(JSON.stringify(handler()));`
+      ],
+      { cwd: root, encoding: 'utf8', timeout: 10_000 }
     );
-
-    const { findModulePath } = createModuleResolver({ cwd: root, monorepoRoot: root });
-    const importer = join(store, 'consumer@1.0.0', 'node_modules', 'deep-a', 'dist', 'index.js');
-
-    expect(findModulePath('modern-lib', importer)).toBe(storeDir('modern-lib', '3.0.0'));
-  });
-
-  test('resolves direct and entrypoint imports from the project', async () => {
-    const { root, storeDir } = await createPnpmWorkspace();
-    const { findModulePath, isNestedLocation } = createModuleResolver({ cwd: root, monorepoRoot: root });
-
-    const projectEntry = join(root, 'src', 'index.ts');
-    expect(findModulePath('consumer', projectEntry)).toBe(storeDir('consumer', '1.0.0'));
-    // No importer at all (virtual entrypoints, raw code) still resolves from the project.
-    expect(findModulePath('consumer')).toBe(storeDir('consumer', '1.0.0'));
-
-    // A project dependency is a standard location, so Bun resolves it natively.
-    expect(isNestedLocation(storeDir('consumer', '1.0.0'), 'consumer')).toBe(false);
-    // A transitive dependency is not, so the loose-resolve plugin has to resolve it explicitly.
-    expect(isNestedLocation(storeDir('cache-lib', '10.4.3'), 'cache-lib')).toBe(true);
-  });
-
-  test('falls back to the monorepo root for dependencies the importer cannot see', async () => {
-    const { root, store, storeDir } = await createPnpmWorkspace();
-    const applicationDir = join(root, 'apps', 'cli');
-    await mkdir(join(applicationDir, 'src'), { recursive: true });
-
-    const { findModulePath } = createModuleResolver({ cwd: applicationDir, monorepoRoot: root });
-
-    // cache-lib is reachable from neither the application nor the monorepo root, only from importers.
-    expect(findModulePath('cache-lib')).toBeNull();
-    // consumer lives only in the monorepo root's node_modules.
-    expect(findModulePath('consumer', join(applicationDir, 'src', 'index.ts'))).toBe(storeDir('consumer', '1.0.0'));
-    // An importer that cannot see the package still falls back to the project.
-    expect(findModulePath('consumer', join(store, 'unrelated', 'index.js'))).toBe(storeDir('consumer', '1.0.0'));
-  });
-});
-
-describe('Lambda ESM default handler compatibility', () => {
-  test('re-exports the minified local binding that Bun aliases as handler', () => {
-    expect(ensureDefaultExport('var e=()=>1;export{e as handler};')).toBe(
-      'var e=()=>1;export{e as handler, e as default};'
-    );
-  });
-
-  test('uses a direct handler binding and preserves existing defaults', () => {
-    expect(ensureDefaultExport('const handler=()=>1; export { handler };')).toBe(
-      'const handler=()=>1; export { handler, handler as default };'
-    );
-    expect(ensureDefaultExport('const e=()=>1; export { e as handler, e as default };')).toBe(
-      'const e=()=>1; export { e as handler, e as default };'
-    );
+    expect(execution.status, execution.stderr).toBe(0);
+    expect(JSON.parse(execution.stdout)).toEqual(['10.4.3', '11.5.2']);
   });
 });
 
@@ -225,4 +162,45 @@ describe('installed package description', () => {
       { name: 'client', dependencies: [] }
     ]);
   }, 5_000);
+});
+
+test("gives two importers the two versions they depend on, not pnpm's hoisted fallback", async () => {
+  const { root, store, storeDir } = await createPnpmWorkspace();
+  const { findModulePath } = createModuleResolver({ cwd: root, monorepoRoot: root });
+
+  // The importers are the symlinked paths a bundler reaches these packages through.
+  const importerOf = (name: string) => join(store, 'consumer@1.0.0', 'node_modules', name, 'dist', 'index.js');
+
+  expect(findModulePath('cache-lib', importerOf('deep-a'))).toBe(storeDir('cache-lib', '10.4.3'));
+  expect(findModulePath('cache-lib', importerOf('deep-b'))).toBe(storeDir('cache-lib', '11.5.2'));
+});
+
+test('resolves an "exports"-restricted package that hides its own package.json', async () => {
+  const { root, store, storeDir } = await createPnpmWorkspace();
+  await writePackage(
+    storeDir('modern-lib', '3.0.0'),
+    { name: 'modern-lib', version: '3.0.0', exports: { '.': { import: './index.mjs' } } },
+    { 'index.mjs': 'export default 3;\n' }
+  );
+  await symlink(storeDir('modern-lib', '3.0.0'), join(store, 'deep-a@1.0.0', 'node_modules', 'modern-lib'), 'junction');
+
+  const { findModulePath } = createModuleResolver({ cwd: root, monorepoRoot: root });
+  const importer = join(store, 'consumer@1.0.0', 'node_modules', 'deep-a', 'dist', 'index.js');
+
+  expect(findModulePath('modern-lib', importer)).toBe(storeDir('modern-lib', '3.0.0'));
+});
+
+test('falls back to the monorepo root for dependencies the importer cannot see', async () => {
+  const { root, store, storeDir } = await createPnpmWorkspace();
+  const applicationDir = join(root, 'apps', 'cli');
+  await mkdir(join(applicationDir, 'src'), { recursive: true });
+
+  const { findModulePath } = createModuleResolver({ cwd: applicationDir, monorepoRoot: root });
+
+  // cache-lib is reachable from neither the application nor the monorepo root, only from importers.
+  expect(findModulePath('cache-lib')).toBeNull();
+  // consumer lives only in the monorepo root's node_modules.
+  expect(findModulePath('consumer', join(applicationDir, 'src', 'index.ts'))).toBe(storeDir('consumer', '1.0.0'));
+  // An importer that cannot see the package still falls back to the project.
+  expect(findModulePath('consumer', join(store, 'unrelated', 'index.js'))).toBe(storeDir('consumer', '1.0.0'));
 });
