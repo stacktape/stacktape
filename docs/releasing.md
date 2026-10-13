@@ -40,7 +40,7 @@ pnpm check:integrated
 # Install and invoke the supplied npm package and native binary on this host, without rebuilding them.
 pnpm --filter @stacktape/cli test:release-artifact -- --candidate-dir "$RC_DIRECTORY" --version "$RC_VERSION"
 
-for suite in '' --runner --gitlab --security --issues --incidents --incident-agent --sign-up --console-access --secrets --cli-console --incident-journey --git-deploy --insights --billing --isolated-browser; do
+for suite in '' --runner --gitlab --security --issues --incidents --incident-agent --sign-up --console-access --secrets --cli-console --incident-journey --alerts --uptime --git-deploy --insights --billing --isolated-browser; do
   if [ -n "$suite" ]; then
     pnpm --filter @stacktape/console-api-app test:db "$suite"
   else
