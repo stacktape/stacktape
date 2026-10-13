@@ -1434,6 +1434,7 @@ export const lanes: readonly Lane[] = [
     tier: 'change',
     tests: ['apps/console/api/scripts/bitbucket-pairing-database.test.ts'],
     requires: ['console', 'docker'],
+    release: 'every-candidate',
     proves:
       'Signed Forge pairing and Console HTTP authorization commit one workspace connection in PostgreSQL and MiniStack.',
     selections: ['console-database-bitbucket-pairing']
@@ -1445,6 +1446,7 @@ export const lanes: readonly Lane[] = [
     tier: 'change',
     tests: ['apps/console/api/scripts/gitlab-lifecycle-database.test.ts'],
     requires: ['console', 'docker'],
+    release: 'every-candidate',
     proves: 'Real GitLab OAuth, clone rotation and recovery use PostgreSQL leases and MiniStack Secrets Manager.',
     selections: ['console-database-gitlab-lifecycle']
   },
@@ -1463,6 +1465,7 @@ export const lanes: readonly Lane[] = [
     tier: 'change',
     tests: ['apps/console/api/scripts/github-actions-cleanup.test.ts'],
     requires: ['console', 'docker'],
+    release: 'every-candidate',
     proves:
       'Retirement and stale-poll regressions preserve runner ownership until MiniStack credential cleanup succeeds.'
   },
