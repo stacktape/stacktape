@@ -1,0 +1,9 @@
+{
+  "name": "static-site-scenario",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prepare-site": "bun prepare.ts",
+    "build": "bun build.ts"
+  }
+}
