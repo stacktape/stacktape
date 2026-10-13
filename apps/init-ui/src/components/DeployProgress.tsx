@@ -82,7 +82,7 @@ export function DeployProgress({
             : ''}
           {keptPartialProgress === true
             ? ' What was created before the failure is still in your account, and it bills until you remove it. The clean-up command below removes it.'
-            : ' AWS rolled this attempt back, so nothing it created is left running or billing.'}
+            : ' CloudFormation rolls a failed deploy back and removes what the attempt created; it can still be finishing that for a few minutes.'}
         </Alert>
       )}
 

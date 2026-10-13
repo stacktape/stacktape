@@ -1,5 +1,5 @@
-import type { Page } from '@playwright/test';
-import { expect, test } from './fixtures';
+import { expect, type Page } from '@playwright/test';
+import { test } from './fixtures';
 
 const analyzeAndReview = async (page: Page) => {
   await page.getByRole('button', { name: 'Analyze my project' }).click();

@@ -11,6 +11,7 @@ import { RegionPicker } from '../components/RegionPicker';
 import { SignInPanel } from '../components/SignInPanel';
 import { stackCommand } from '../deploy-commands';
 import type { SignInRequest, WizardState } from '../session';
+import { gapsToList } from '../gaps';
 import { requiredSecrets, secretCommand } from '../required-secrets';
 import { organizationLabel } from '../sign-in';
 
@@ -243,8 +244,7 @@ export function DeployStep({
   const resources = Object.entries(state.composition?.resources ?? {});
   const publicNames = resources.filter(([, resource]) => PUBLIC_TYPES.has(resource.type)).map(([name]) => name);
   const hasDatabase = resources.some(([, resource]) => resource.type === 'relational-database');
-  const existingTools = new Set((state.facts?.existingDeployments ?? []).map((existing) => existing.tool));
-  const gaps = (state.composition?.gaps ?? []).filter((gap) => !existingTools.has(gap.subject));
+  const gaps = gapsToList(state.composition?.gaps ?? [], state.facts?.existingDeployments ?? []);
   const secrets = requiredSecrets(state.composition?.resources ?? {});
   const monthly = state.composition?.price?.monthly;
   const checkedTarget =

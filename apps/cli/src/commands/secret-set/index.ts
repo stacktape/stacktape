@@ -45,10 +45,13 @@ export const commandSecretSet = async () => {
   // Interactive mode with guided UI
   tuiManager.intro('Create Secret');
 
-  const secretName = await tuiManager.promptText({
-    message: 'Secret name:',
-    description: '(unique name for the AWS Secrets Manager secret)'
-  });
+  // A name given on the command line (the init wizard prints commands with one) is not asked for again.
+  const secretName =
+    args.secretName ??
+    (await tuiManager.promptText({
+      message: 'Secret name:',
+      description: '(unique name for the AWS Secrets Manager secret)'
+    }));
   const provideOption = await tuiManager.promptSelect({
     message: 'How do you want to provide the secret value?',
     options: provideOptions.map((option) => ({ label: option, value: option }))

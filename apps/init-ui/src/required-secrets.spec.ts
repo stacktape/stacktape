@@ -21,7 +21,13 @@ describe('requiredSecrets', () => {
       },
       worker: {
         type: 'worker-service',
-        properties: { environment: [{ name: 'RMQ_URL', value: "$Secret('rmq_url')" }] }
+        properties: {
+          environment: [
+            { name: 'RMQ_URL', value: "$Secret('rmq_url')" },
+            // The app reads the generated password too; it is still generated, not asked for.
+            { name: 'POSTGRES_PASSWORD', value: "$Secret('shop-mainDatabase.password')" }
+          ]
+        }
       }
     };
     expect(requiredSecrets(resources)).toEqual(['payments', 'rmq_url']);

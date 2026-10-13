@@ -19,10 +19,13 @@ const GENERATED_PATHS: readonly RegExp[] = [
 
 export const requiredSecrets = (resources: Record<string, unknown>): string[] => {
   const names = new Set<string>();
+  // A generated secret stays generated wherever else it is referenced (an app reading the database password from
+  // its environment), the same way the deploy's preflight classifies it by name.
+  const generated = new Set<string>();
   const visit = (value: unknown, path: string) => {
     if (typeof value === 'string') {
-      if (GENERATED_PATHS.some((pattern) => pattern.test(path))) return;
-      for (const match of value.matchAll(SECRET_REFERENCE)) names.add(match[1]!);
+      const target = GENERATED_PATHS.some((pattern) => pattern.test(path)) ? generated : names;
+      for (const match of value.matchAll(SECRET_REFERENCE)) target.add(match[1]!);
       return;
     }
     if (Array.isArray(value)) {
@@ -34,7 +37,7 @@ export const requiredSecrets = (resources: Record<string, unknown>): string[] =>
     }
   };
   visit(resources, '');
-  return [...names].toSorted();
+  return [...names].filter((name) => !generated.has(name)).toSorted();
 };
 
 /** The command that creates one secret. The value is prompted for, so it never lands in shell history. */

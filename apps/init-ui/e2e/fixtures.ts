@@ -120,5 +120,3 @@ export const test = base.extend<{ startWizard: (scenario: WizardScenario) => Pro
     }
   }
 });
-
-export { expect } from '@playwright/test';

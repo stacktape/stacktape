@@ -16,6 +16,7 @@ import { Spinner } from '@stacktape/ui-react/spinner';
 import type { WizardState } from '../session';
 import { DecisionRow } from '../components/DecisionRow';
 import { Evidence } from '../components/Evidence';
+import { gapsToList } from '../gaps';
 
 /** Heavy on purpose, light on arrival: the diagram and its icon catalogue load after the page. */
 const Diagram = lazy(() => import('../components/Diagram'));
@@ -362,9 +363,7 @@ export function ReviewStep({
   const existingDeployments = state.facts?.existingDeployments ?? [];
   // The alert about another platform already says this; repeating it under "Before you deploy" made
   // one fact look like two things to do.
-  const gaps = (state.composition?.gaps ?? []).filter(
-    (gap) => !existingDeployments.some((deployment) => deployment.tool === gap.subject)
-  );
+  const gaps = gapsToList(state.composition?.gaps ?? [], existingDeployments);
   const decisions = state.facts?.decisions ?? [];
   // With nothing notable, a "Show 1 smaller one" link under an empty list hides the only content.
   const notable = decisions.some((decision) => decision.notable)

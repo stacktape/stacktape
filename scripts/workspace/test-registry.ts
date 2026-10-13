@@ -3218,6 +3218,7 @@ export const lanes: readonly Lane[] = [
       'src/decisions.spec.ts',
       'src/deploy-commands.spec.ts',
       'src/deploy-model.spec.ts',
+      'src/gaps.spec.ts',
       'src/required-secrets.spec.ts',
       'src/sign-in.spec.ts'
     ],
@@ -3227,6 +3228,7 @@ export const lanes: readonly Lane[] = [
       'apps/init-ui/src/decisions.spec.ts',
       'apps/init-ui/src/deploy-commands.spec.ts',
       'apps/init-ui/src/deploy-model.spec.ts',
+      'apps/init-ui/src/gaps.spec.ts',
       'apps/init-ui/src/required-secrets.spec.ts',
       'apps/init-ui/src/sign-in.spec.ts'
     ],
@@ -3499,6 +3501,7 @@ export const slices: readonly Slice[] = [
       'apps/init-ui/src/decisions.spec.ts',
       'apps/init-ui/src/deploy-commands.spec.ts',
       'apps/init-ui/src/deploy-model.spec.ts',
+      'apps/init-ui/src/gaps.spec.ts',
       'apps/init-ui/src/required-secrets.spec.ts',
       'apps/init-ui/src/sign-in.spec.ts',
       'apps/init-ui/src/steps/ReviewStep.spec.ts',

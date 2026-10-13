@@ -12,16 +12,20 @@ import { join } from 'node:path';
 import { runGreenfieldMission } from '../../src/init/missions/greenfield';
 import { createRailpackPlanner } from '../../src/init/railpack-planner';
 
-const [name, repositoryRoot] = process.argv.slice(2);
-if (name === undefined || repositoryRoot === undefined) {
-  throw new Error('Usage: record-facts.ts <name> <repository-directory>');
-}
+const main = async () => {
+  const [name, repositoryRoot] = process.argv.slice(2);
+  if (name === undefined || repositoryRoot === undefined) {
+    throw new Error('Usage: record-facts.ts <name> <repository-directory>');
+  }
 
-const result = await runGreenfieldMission({
-  repositoryRoot,
-  projectName: name,
-  planner: createRailpackPlanner(repositoryRoot)
-});
-const target = join(import.meta.dir, 'projects', `${name}.json`);
-await writeFile(target, `${JSON.stringify(result.facts, null, 2)}\n`);
-console.log(`Wrote ${target}`);
+  const result = await runGreenfieldMission({
+    repositoryRoot,
+    projectName: name,
+    planner: createRailpackPlanner(repositoryRoot)
+  });
+  const target = join(import.meta.dir, 'projects', `${name}.json`);
+  await writeFile(target, `${JSON.stringify(result.facts, null, 2)}\n`);
+  console.log(`Wrote ${target}`);
+};
+
+void main();
