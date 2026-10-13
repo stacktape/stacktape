@@ -5359,7 +5359,10 @@ export const slices: readonly Slice[] = [
     paths: [
       'packages/analytics/**',
       'apps/cli/src/utils/telemetry.ts',
+      'apps/cli/src/utils/telemetry-completion.fixture.ts',
+      'apps/cli/src/init/telemetry-init.fixture.ts',
       'apps/console/api/src/integrations/posthog.ts',
+      'apps/console/api/src/integrations/posthog-consumer.fixture.ts',
       'apps/cli/src/init/telemetry.ts'
     ],
     tests: [
