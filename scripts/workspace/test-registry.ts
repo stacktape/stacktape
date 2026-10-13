@@ -2015,7 +2015,6 @@ export const lanes: readonly Lane[] = [
       'apps/cli/scripts/init-e2e/trust-boundary.spec.ts',
       'apps/cli/scripts/init-real-project-corpus-cases.spec.ts',
       'apps/cli/scripts/init-real-project-corpus.spec.ts',
-      'apps/cli/scripts/init-synthetic-project-corpus-expectations.spec.ts',
       'apps/cli/scripts/install-scripts/checksums.spec.ts',
       'apps/cli/scripts/operations/deployment-script.spec.ts',
       'apps/cli/scripts/operations/diagnostics.spec.ts',
@@ -2891,8 +2890,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/scripts/build-npm-declarations.spec.ts',
       'apps/cli/scripts/verify-npm-declarations.spec.ts',
       'apps/cli/scripts/init-real-project-corpus-cases.spec.ts',
-      'apps/cli/scripts/init-real-project-corpus.spec.ts',
-      'apps/cli/scripts/init-synthetic-project-corpus-expectations.spec.ts'
+      'apps/cli/scripts/init-real-project-corpus.spec.ts'
     ],
     requires: [],
     release: 'every-candidate'
@@ -3446,7 +3444,6 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/init-e2e/first-deployment.spec.ts',
       'apps/cli/scripts/init-real-project-corpus-cases.spec.ts',
       'apps/cli/scripts/init-real-project-corpus.spec.ts',
-      'apps/cli/scripts/init-synthetic-project-corpus-expectations.spec.ts',
       'apps/cli/src/init/composed-config-semantics.spec.ts',
       'apps/cli/src/init/eval/baseline.spec.ts',
       'apps/cli/src/init/eval/importers-e2e.spec.ts',
