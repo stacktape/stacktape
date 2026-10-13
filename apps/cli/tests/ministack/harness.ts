@@ -63,11 +63,13 @@ export type FamilyProject = {
 export const createFamilyProject = async ({
   familyName,
   out,
-  ministack
+  ministack,
+  securityScanningEnabled = false
 }: {
   familyName: string;
   out: string;
   ministack: MiniStack;
+  securityScanningEnabled?: boolean;
 }): Promise<FamilyProject> => {
   const projectName = `mini${familyName.replaceAll(/[^a-z0-9]/gi, '')}`.toLowerCase();
   const directory = join(out, familyName);
@@ -79,7 +81,11 @@ export const createFamilyProject = async ({
     join(directory, 'package.json'),
     `${JSON.stringify({ name: projectName, private: true, type: 'module' }, null, 2)}\n`
   );
-  const controlPlane = await startControlPlaneFake({ projectName, awsAccountId: ministack.defaultAccount.accountId });
+  const controlPlane = await startControlPlaneFake({
+    projectName,
+    awsAccountId: ministack.defaultAccount.accountId,
+    securityScanningEnabled
+  });
   return {
     projectName,
     stackName: `${projectName}-${STAGE}`,
@@ -121,12 +127,14 @@ export const runSourceCli = async ({
   project,
   step,
   ministack,
-  logName = step
+  logName = step,
+  scannerPath
 }: {
   project: FamilyProject;
   step: DeployStep;
   ministack: MiniStack;
   logName?: string;
+  scannerPath?: string;
 }): Promise<CliStepResult> => {
   const invocationId = `${project.projectName}-${step}-${randomUUID().slice(0, 8)}`;
   const account = ministack.defaultAccount;
@@ -142,7 +150,8 @@ export const runSourceCli = async ({
     MINISTACK_SECRET_ACCESS_KEY: account.credentials.secretAccessKey,
     // MiniStack has no usable Cost Explorer or Budgets; the CLI allows skipping discovery only on loopback endpoints.
     STP_SKIP_COST_DISCOVERY: '1',
-    STP_CUSTOM_TRPC_API_ENDPOINT: project.controlPlane.endpoint
+    STP_CUSTOM_TRPC_API_ENDPOINT: project.controlPlane.endpoint,
+    ...(scannerPath ? { STACKTAPE_TRIVY_PATH: scannerPath } : {})
   };
   const args = [
     process.execPath,
