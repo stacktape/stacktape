@@ -2354,6 +2354,26 @@ export const lanes: readonly Lane[] = [
     release: 'every-candidate'
   },
   {
+    id: 'cli-setup-token',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/cli',
+      'exec',
+      'bun',
+      'test',
+      'src/commands/ai-connect/claude-setup-token.spec.ts'
+    ],
+    level: 'process',
+    tier: 'pr',
+    tests: ['apps/cli/src/commands/ai-connect/claude-setup-token.spec.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves:
+      'Pasted subscription tokens parse on every platform; recorded sign-in output is captured and removed where a PTY recorder is available.',
+    selections: ['cli']
+  },
+  {
     id: 'aws-read-only-test',
     command: ['pnpm', '--filter', '@stacktape/aws-read-only', 'run', 'test'],
     level: 'focused',
@@ -4735,6 +4755,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/e2e/incident-run-live.spec.ts'
     ],
     lanes: [
+      'cli-setup-token',
       'console-database-incident-agent',
       'console-browser-offline',
       'console-browser-incident-run-live',
