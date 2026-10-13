@@ -81,11 +81,26 @@ Lambda image and checks the monitoring sweeper through its Lambda proxy. Build t
 `public.ecr.aws/lambda/nodejs:22` image. All fixtures use isolated databases and loopback endpoints.
 
 `--git-deploy` runs authenticated provider ingress, durable webhook/operation workers, runner dispatch and completion
-against loopback transports, with real API middleware and disposable PostgreSQL. It uses a ready runner fixture; EC2
-provisioning and AMI qualification remain separate. Dispatched deployment, Actions and cancellation scripts execute in a
-network-disabled `node:24-bookworm` container with controlled external tools and a systemd stand-in. A local file relay
-forwards only the suite's AWS/API HTTP requests, including real CLI and runner completion callbacks, across Docker
-Desktop and WSL.
+with real API middleware, disposable PostgreSQL and MiniStack S3 payloads, SQS queues, SSM parameters, Secrets Manager
+credentials, CloudWatch Logs and CloudFormation metadata. Controlled runner execution and lost responses remain fault
+fixtures. It uses a ready runner fixture; EC2 provisioning and AMI qualification remain separate. Dispatched deployment,
+Actions and cancellation scripts execute in a network-disabled `node:24-bookworm` container with controlled external
+tools and a systemd stand-in. A local file relay forwards only the suite's AWS/API HTTP requests, including real CLI and
+runner completion callbacks, across Docker Desktop and WSL.
+
+Runner AWS state has two standalone offline lanes:
+
+```sh
+pnpm --filter @stacktape/console-api-app test:runner:aws:offline
+pnpm --filter @stacktape/console-api-app test:remote-session:aws:offline
+```
+
+The first uses MiniStack EC2, IAM and regional SSM pointers to verify cleanup recovery, policy replacement and gated AMI
+publication. The second selects a real MiniStack ECS task and container; Session Manager alone uses a loopback protocol
+fixture because the pinned emulator rejects `StartSession`. Both lanes own their emulator and verify cleanup. The
+Docker-free `test:runner:rules` lane runs parsing, pricing, redaction, artifact policy and controlled readiness failures
+in per-PR CI. `--git-deploy` also verifies that authenticated rollback preserves the chosen version through queueing,
+dispatch, the executed CLI arguments and terminal reporting.
 
 The billing suite sends Paddle Classic form events through the real webhook and reads plan restrictions and receipts
 through the production HTTP router. It exercises production billing with synthetic credentials and loopback Paddle, AWS
