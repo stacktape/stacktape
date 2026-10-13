@@ -16,14 +16,15 @@ const waitFor = async (description: string, ready: () => boolean, timeout = 5000
 
 // Bore's serde unit variant is the JSON string "Heartbeat"; all other messages carry an object.
 // https://github.com/ekzhang/bore/blob/main/src/shared.rs
-for (const behavior of ['heartbeat', 'reconnect-cleanup', 'startup-cleanup'] as const) {
-  test(`a dev tunnel ${behavior === 'heartbeat' ? 'forwards bytes after a real bore heartbeat' : behavior === 'reconnect-cleanup' ? 'cancels an in-flight reconnect during cleanup' : 'cannot finish startup after cleanup'}`, async () => {
+for (const behavior of ['heartbeat', 'reconnect-cleanup', 'startup-cleanup', 'relay-reset'] as const) {
+  test(`a dev tunnel ${behavior === 'heartbeat' ? 'forwards bytes after a real bore heartbeat' : behavior === 'reconnect-cleanup' ? 'cancels an in-flight reconnect during cleanup' : behavior === 'relay-reset' ? 'survives a relay reset while opening the local connection' : 'cannot finish startup after cleanup'}`, async () => {
     const directory = await mkdtemp(join(tmpdir(), 'stacktape-bore-session-'));
     const sockets = new Set<Socket>();
     const remotes = new Map<string, Socket>();
     let control: Socket | undefined;
     let pending: Socket | undefined;
     let hellos = 0;
+    let accepts = 0;
     const relay = createServer((remote) => {
       sockets.add(remote);
       remote.once('close', () => sockets.delete(remote));
@@ -53,6 +54,11 @@ for (const behavior of ['heartbeat', 'reconnect-cleanup', 'startup-cleanup'] as 
           socket.write(JSON.stringify({ Hello: publicPort }) + '\0');
           if (behavior === 'heartbeat') socket.write('"Heartbeat"\0');
         } else if (message.Accept) {
+          if (behavior === 'relay-reset' && ++accepts === 1) {
+            socket.resetAndDestroy();
+            remotes.get(message.Accept)!.destroy();
+            return;
+          }
           const remote = remotes.get(message.Accept)!;
           socket.pipe(remote);
           remote.pipe(socket);
@@ -69,12 +75,28 @@ for (const behavior of ['heartbeat', 'reconnect-cleanup', 'startup-cleanup'] as 
     await writeFile(
       driver,
       `
-import { createServer, createConnection } from 'node:net';
+import { createServer, createConnection, Socket } from 'node:net';
 import { applicationManager } from ${JSON.stringify(resolve(import.meta.dir, '../../../app/application-manager/index.ts'))};
 import { startTunnel, registerTunnelCleanupHook, getActiveTunnels } from ${JSON.stringify(join(import.meta.dir, 'index.ts'))};
-const local = createServer(socket => socket.once('data', data => socket.write('database:' + data)));
+const localSockets = new Set();
+const local = createServer(socket => {
+  localSockets.add(socket);
+  socket.on('close', () => localSockets.delete(socket));
+  socket.once('data', data => socket.write('database:' + data));
+});
 await new Promise(resolve => local.listen(0, '127.0.0.1', resolve));
 registerTunnelCleanupHook();
+if (${JSON.stringify(behavior)} === 'relay-reset') {
+  // Deliberate timing injection: keep real TCP, but hold the local connect notification until the relay reset arrives.
+  const emit = Socket.prototype.emit;
+  Socket.prototype.emit = function(event, ...args) {
+    if (event === 'connect' && this.remotePort === local.address().port) {
+      setTimeout(() => emit.call(this, event, ...args), 150);
+      return true;
+    }
+    return emit.call(this, event, ...args);
+  };
+}
 if (${JSON.stringify(behavior)} === 'startup-cleanup') {
   // Inject cancellation between the settled handshake and the public startup promise's continuation.
   const originalCheck = AbortSignal.prototype.throwIfAborted;
@@ -95,6 +117,16 @@ if (${JSON.stringify(behavior)} === 'startup-cleanup') {
   local.close();
 } else {
 const tunnel = await startTunnel('db', local.address().port);
+if (${JSON.stringify(behavior)} === 'relay-reset') {
+  await new Promise((resolve, reject) => {
+    const socket = createConnection({host:'127.0.0.1', port:tunnel.publicPort});
+    const timer = setTimeout(() => { socket.destroy(); reject(new Error('reset connection did not close')); }, 2000);
+    socket.on('error', () => {});
+    socket.once('close', () => { clearTimeout(timer); resolve(); });
+  });
+  await new Promise(resolve => setTimeout(resolve, 300));
+  if (localSockets.size) throw new Error('failed relay left a database connection open');
+}
 const answer = await new Promise((resolve, reject) => {
   const socket = createConnection({host:'127.0.0.1',port:tunnel.publicPort}, () => socket.write(Buffer.from([113, 0, 117, 101, 114, 121])));
   const timer = setTimeout(() => { socket.destroy(); reject(new Error('tunnel request timed out')); }, 2000);

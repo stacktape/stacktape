@@ -5,7 +5,7 @@ import { request as httpsRequest } from 'node:https';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { readFileSync, unlinkSync } from 'fs-extra';
+import { readFileSync, rmSync } from 'fs-extra';
 import crypto from 'node:crypto';
 import net from 'node:net';
 import tls from 'node:tls';
@@ -447,7 +447,14 @@ describe('proxy - large request body', () => {
         req.on('end', () => {
           const body = Buffer.concat(chunks);
           res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ receivedBytes: body.length, method: req.method, path: req.url }));
+          res.end(
+            JSON.stringify({
+              receivedBytes: body.length,
+              digest: crypto.createHash('sha256').update(body).digest('hex'),
+              method: req.method,
+              path: req.url
+            })
+          );
         });
       });
       server.listen(BACKEND_PORT, '127.0.0.1', () => resolve(server));
@@ -469,7 +476,7 @@ describe('proxy - large request body', () => {
 
   test('proxies 1MB POST body correctly', async () => {
     const bodySize = 1024 * 1024; // 1MB
-    const largeBody = Buffer.alloc(bodySize, 'A');
+    const largeBody = crypto.randomBytes(bodySize);
 
     const res = await fetch(`http://127.0.0.1:${PROXY_PORT}/upload`, {
       method: 'POST',
@@ -478,8 +485,9 @@ describe('proxy - large request body', () => {
     });
 
     expect(res.status).toBe(200);
-    const json = (await res.json()) as { receivedBytes: number; method: string; path: string };
+    const json = (await res.json()) as { receivedBytes: number; digest: string; method: string; path: string };
     expect(json.receivedBytes).toBe(bodySize);
+    expect(json.digest).toBe(crypto.createHash('sha256').update(largeBody).digest('hex'));
     expect(json.method).toBe('POST');
     expect(json.path).toBe('/upload');
   });
@@ -489,10 +497,9 @@ describe('proxy - large request body', () => {
 
 /** Generate a self-signed cert+key for testing */
 const generateSelfSignedCert = (): { cert: Buffer; key: Buffer } => {
+  const keyPath = join(tmpdir(), `test-key-${process.pid}.pem`);
+  const certPath = join(tmpdir(), `test-cert-${process.pid}.pem`);
   try {
-    const keyPath = join(tmpdir(), `test-key-${process.pid}.pem`);
-    const certPath = join(tmpdir(), `test-cert-${process.pid}.pem`);
-
     execFileSync(
       'openssl',
       [
@@ -517,11 +524,12 @@ const generateSelfSignedCert = (): { cert: Buffer; key: Buffer } => {
 
     const key = readFileSync(keyPath);
     const cert = readFileSync(certPath);
-    unlinkSync(keyPath);
-    unlinkSync(certPath);
     return { cert, key };
-  } catch {
-    return { cert: Buffer.alloc(0), key: Buffer.alloc(0) };
+  } catch (error) {
+    throw new Error('TLS proxy qualification requires a working openssl executable.', { cause: error });
+  } finally {
+    rmSync(keyPath, { force: true });
+    rmSync(certPath, { force: true });
   }
 };
 
@@ -558,14 +566,11 @@ describe('proxy - TLS / HTTPS', () => {
   let proxyServer: ProxyServer;
   let backend: HttpServer;
   const certs = generateSelfSignedCert();
-  const hasCerts = certs.cert.length > 0;
 
   const PROXY_PORT = 19150;
   const BACKEND_PORT = 19151;
 
   beforeAll(async () => {
-    if (!hasCerts) return;
-
     backend = await startBackend(BACKEND_PORT, 'tls-backend');
 
     proxyServer = createProxyServer({
@@ -580,13 +585,10 @@ describe('proxy - TLS / HTTPS', () => {
   });
 
   afterAll(async () => {
-    if (!hasCerts) return;
     await Promise.all([closeServer(proxyServer), closeServer(backend)]);
   });
 
   test('accepts TLS connections and proxies HTTPS requests', async () => {
-    if (!hasCerts) return; // Skip if openssl not available
-
     const response = await fetchTlsJson(PROXY_PORT, '/api/test');
     expect(response.status).toBe(200);
     expect(response.body.body).toBe('tls-backend');
@@ -595,8 +597,6 @@ describe('proxy - TLS / HTTPS', () => {
   });
 
   test('TLS proxy handles WebSocket upgrade over HTTPS', async () => {
-    if (!hasCerts) return;
-
     const wsBackend = await startWebSocketBackend(19152);
     const wsProxy = createProxyServer({
       getRoutes: () => [{ hostname: 'wss.dev.localhost', port: 19152 }],
@@ -644,8 +644,6 @@ describe('proxy - TLS / HTTPS', () => {
   });
 
   test('returns 404 for unknown host over TLS', async () => {
-    if (!hasCerts) return;
-
     const res = await new Promise<{ status: string; body: string }>((resolve, reject) => {
       const socket = tls.connect({ port: PROXY_PORT, host: '127.0.0.1', rejectUnauthorized: false }, () => {
         socket.write('GET / HTTP/1.1\r\n' + 'Host: unknown.dev.localhost\r\n' + 'Connection: close\r\n' + '\r\n');
@@ -671,8 +669,6 @@ describe('proxy - TLS / HTTPS', () => {
   });
 
   test('plain TCP to TLS proxy fails gracefully (no crash)', async () => {
-    if (!hasCerts) return;
-
     // Send plain HTTP to a TLS-enabled proxy — should fail without crashing the server
     const result = await new Promise<'closed' | 'error' | 'timeout'>((resolve) => {
       const socket = net.createConnection({ port: PROXY_PORT, host: '127.0.0.1' }, () => {

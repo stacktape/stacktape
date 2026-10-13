@@ -4,6 +4,7 @@ import {
   clearPortCache,
   extractPortFromCommand,
   findAvailablePort,
+  getDefaultPort,
   parsePortFromError,
   releasePorts,
   reservePorts
@@ -58,3 +59,14 @@ test.each([
   ['', null],
   ['bun run dev -- --port 8080 --host 0.0.0.0', 8080]
 ])('parses an explicit command port in %s', (input, port) => expect(extractPortFromCommand(input)).toBe(port));
+
+// Defaults matter when a customer's command and dev config do not select a port.
+test.each([
+  ['next', 3000],
+  ['vite', 5173],
+  ['astro', 4321],
+  ['angular', 4200],
+  ['sveltekit', 5173],
+  ['nuxt', 3000],
+  ['unknown-framework', 3000]
+])('allocates the conventional default for %s', (framework, port) => expect(getDefaultPort(framework)).toBe(port));

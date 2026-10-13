@@ -406,16 +406,21 @@ const proxyRemoteConnection = async ({
     // Accept switches this stream to raw database bytes. Detach and pause before sending it:
     // the relay can immediately send binary data containing the JSON frame delimiter.
     const { socket: remoteConnection, bufferedData } = acceptConnection.intoSocket();
+    const close = () => {
+      if (localConnection) closeSocketPair(localConnection, remoteConnection);
+      else remoteConnection.destroy();
+    };
+    // Keep error handling continuous while the local connection is still opening.
+    remoteConnection.once('error', close);
+    remoteConnection.once('close', close);
     await acceptConnection.send({ type: 'Accept', connectionId });
     localConnection = await connectToLocalResource(localPort);
     signal.throwIfAborted();
+    if (remoteConnection.destroyed) throw new Error('Relay connection closed while opening the local resource.');
     activeConnections.add(localConnection);
     activeConnections.add(remoteConnection);
-    const close = () => closeSocketPair(localConnection!, remoteConnection);
     localConnection.once('error', close);
-    remoteConnection.once('error', close);
     localConnection.once('close', close);
-    remoteConnection.once('close', close);
     if (bufferedData.length > 0) localConnection.write(bufferedData);
     localConnection.pipe(remoteConnection);
     remoteConnection.pipe(localConnection);

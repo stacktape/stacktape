@@ -557,6 +557,16 @@ export const lanes: readonly Lane[] = [
       'Dev-stop kills owned descendants, stable proxy URLs follow rebuilds, and local port allocation avoids foreign listeners.'
   },
   {
+    id: 'local-dev-containers',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:local-dev:containers'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/tests/local-development/container-cleanup.spec.ts'],
+    requires: ['docker'],
+    release: 'every-candidate',
+    proves: 'Real Docker cleanup removes abandoned and stopped containers while preserving live and legacy sessions.'
+  },
+  {
     id: 'local-dev-next',
     command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:local-dev:next'],
     level: 'process',
@@ -3320,6 +3330,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/utils/ports.test.ts',
       'apps/cli/tests/characterization/dev-support-template.spec.ts',
       'apps/cli/tests/local-development/next-dev.spec.ts',
+      'apps/cli/tests/local-development/container-cleanup.spec.ts',
       'apps/cli/tests/ministack/local-dev.spec.ts',
       'apps/cli/scripts/real-aws/lambda-dev-canary.ts'
     ],
@@ -3329,6 +3340,7 @@ export const slices: readonly Slice[] = [
       'cli-3',
       'local-dev',
       'local-dev-next',
+      'local-dev-containers',
       'local-dev-ministack',
       'local-dev-lambda-live',
       'local-dev-live',

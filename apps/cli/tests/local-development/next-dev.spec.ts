@@ -12,8 +12,8 @@ import { registerDevServerCleanupHook } from '../../src/commands/dev/dev-server'
 import { stopNamedProxy } from '../../src/commands/dev/named-proxy/manager';
 import { startNextjsWebDevServer } from '../../src/commands/dev/nextjs-web';
 
-const listening = (port: number) =>
-  fetch(`http://127.0.0.1:${port}`, { headers: { Connection: 'close' }, signal: AbortSignal.timeout(500) });
+const listening = (port: number, timeout = 500) =>
+  fetch(`http://127.0.0.1:${port}`, { headers: { Connection: 'close' }, signal: AbortSignal.timeout(timeout) });
 
 test('a real Next dev server uses injected local parameters, serves edits at its stable URL and releases its ports', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'stacktape-next-dev-'));
@@ -70,6 +70,9 @@ test('a real Next dev server uses injected local parameters, serves edits at its
     });
     expect(state.status).toBe('ready');
     expect(state.url).toBeDefined();
+    expect(state.port).toBeGreaterThan(port);
+    const backendPort = state.port!;
+    expect(await (await listening(backendPort, 15_000)).text()).toContain('first-render: <!-- -->local-database-value');
     const url = new URL(state.url!);
     proxyPort = Number(url.port);
     const request = () =>
@@ -91,6 +94,7 @@ test('a real Next dev server uses injected local parameters, serves edits at its
     }
     expect(rendered).toContain('edited-render: <!-- -->local-database-value');
     await Promise.all(applicationManager.cleanUpHooks.map((hook) => hook({ success: true, interrupted: false })));
+    await expect(listening(backendPort)).rejects.toThrow();
     expect((await request()).status).toBe(404);
     expect(await (await listening(port)).text()).toBe('foreign');
   } finally {
