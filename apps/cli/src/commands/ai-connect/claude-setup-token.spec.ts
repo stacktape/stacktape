@@ -3,7 +3,11 @@ import { chmodSync, existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { CliError } from '@utils/errors';
-import { captureSetupTokenThroughPseudoTerminal, pseudoTerminalRecorder } from './claude-setup-token';
+import {
+  captureSetupTokenThroughPseudoTerminal,
+  extractSetupToken,
+  pseudoTerminalRecorder
+} from './claude-setup-token';
 
 /**
  * The risky boundary is the pseudo-terminal recording: `claude setup-token` draws through a TTY, so the token is
@@ -24,6 +28,22 @@ const standInClaude = (body: string) => {
 };
 
 const TOKEN = `sk-ant-oat01-${'x'.repeat(40)}_-abc`;
+// The manual paste fallback uses this parser even on Windows and machines without `script`.
+test('pasted input selects the last subscription token, strips terminal markup and rejects API keys', () => {
+  const oldToken = `sk-ant-oat01-${'y'.repeat(30)}`;
+  for (const [input, expected] of [
+    [TOKEN, TOKEN],
+    [`${oldToken}\n${TOKEN}`, TOKEN],
+    [`\u001b[32msk-ant-oat01-\u001b[0m${'x'.repeat(40)}_-abc`, TOKEN],
+    [`${TOKEN}\n\u001b]8;;https://example.test/${oldToken}\u0007link\u001b]8;;\u0007`, TOKEN],
+    [`${TOKEN}\n\u001b]8;;https://example.test/${oldToken}\u001b\\link\u001b]8;;\u001b\\`, TOKEN],
+    [`sk-ant-api03-${'z'.repeat(40)}`, null],
+    ['sk-ant-oat01-short', null],
+    ['', null]
+  ] as const)
+    expect(extractSetupToken(input)).toBe(expected);
+});
+
 const recorder = pseudoTerminalRecorder();
 const describeWithRecorder = recorder ? describe : describe.skip;
 

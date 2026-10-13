@@ -12,6 +12,7 @@ import { executeAwsSdkCommand } from './executor';
 let ministack: MiniStack;
 let previousEnvironment: NodeJS.ProcessEnv;
 const originalRequests = { http: http.request, https: https.request };
+let sentRequests = 0;
 
 // The SDK uses Node's HTTP transport. Reject a client that ignores its configured emulator endpoint before transport.
 const guardAwsRequest = (send: typeof http.request): typeof http.request =>
@@ -24,6 +25,7 @@ const guardAwsRequest = (send: typeof http.request): typeof http.request =>
     const expected = new URL(ministack.endpoint);
     if (hostname !== expected.hostname || port !== expected.port)
       throw new Error('The executor test must use its MiniStack endpoint.');
+    sentRequests += 1;
     return send(...args);
   }) as typeof http.request;
 const secretValue = 'incident-fixture-value-that-must-not-leave';
@@ -32,7 +34,7 @@ beforeAll(async () => {
   previousEnvironment = { ...process.env };
   ministack = await startMiniStack({ label: 'read-only-executor' });
   Object.assign(process.env, ministack.childEnvironment());
-  for (const service of ['CLOUDFORMATION', 'ECS', 'LAMBDA', 'SECRETS_MANAGER', 'SSM'])
+  for (const service of ['CLOUDFORMATION', 'DYNAMODB', 'ECS', 'LAMBDA', 'SECRETS_MANAGER', 'SFN', 'SSM'])
     process.env[`AWS_ENDPOINT_URL_${service}`] = ministack.endpoint;
   http.request = guardAwsRequest(originalRequests.http);
   https.request = guardAwsRequest(originalRequests.https);
@@ -69,6 +71,7 @@ beforeAll(async () => {
                 Runtime: 'nodejs22.x',
                 Handler: 'index.handler',
                 MemorySize: 512,
+                Timeout: 30,
                 Role: 'arn:aws:iam::000000000000:role/fixture',
                 Code: { ZipFile: 'exports.handler = async () => ({ statusCode: 200 });' },
                 Environment: { Variables: { DATABASE_URL: secretValue, STAGE: secretValue } }
@@ -143,6 +146,7 @@ test('an investigation reads real metadata and receives environment names with e
 }, 30_000);
 
 test('refused writes and plaintext reads leave the actual parameter intact and disclose no stored value', async () => {
+  const requestsBeforeRefusals = sentRequests;
   for (const [service, operation, input] of [
     ['ssm', 'GetParameter', { Name: '/app/db-password', WithDecryption: true }],
     ['ssm', 'GetParameters', { Names: ['/app/db-password'], WithDecryption: true }],
@@ -150,7 +154,15 @@ test('refused writes and plaintext reads leave the actual parameter intact and d
     ['ssm', 'GetParameterHistory', { Name: '/app/db-password', WithDecryption: true }],
     ['ssm', 'DeleteParameterCommand', { Name: '/app/db-password' }],
     ['secretsmanager', 'GetSecretValue', { SecretId: 'db' }],
-    ['LAMBDA', 'DeleteFunctionCommand', { FunctionName: 'orders' }]
+    ['LAMBDA', 'DeleteFunctionCommand', { FunctionName: 'orders' }],
+    ['lambda', 'DeleteFunction', { FunctionName: 'orders' }],
+    ['LAMBDA', 'UpdateFunctionConfiguration', { FunctionName: 'orders', Timeout: 1 }],
+    ['dynamodb', 'PutItem', { TableName: 'orders', Item: { id: { S: '1' } } }],
+    [
+      'stepfunctions',
+      'StartExecution',
+      { stateMachineArn: 'arn:aws:states:eu-west-1:000000000000:stateMachine:orders' }
+    ]
   ] as const) {
     // oxlint-disable-next-line no-await-in-loop -- assert each refusal independently.
     const result = await call(service, operation, input);
@@ -160,6 +172,7 @@ test('refused writes and plaintext reads leave the actual parameter intact and d
     });
     expect(JSON.stringify(result)).not.toContain(secretValue);
   }
+  expect(sentRequests).toBe(requestsBeforeRefusals);
   const client = new SSMClient(ministack.clientConfig());
   try {
     expect(
@@ -168,7 +181,10 @@ test('refused writes and plaintext reads leave the actual parameter intact and d
   } finally {
     client.destroy();
   }
-  expect((await call('lambda', 'GetFunctionConfiguration', { FunctionName: 'orders' })).ok).toBe(true);
+  expect(await call('lambda', 'GetFunctionConfiguration', { FunctionName: 'orders' })).toMatchObject({
+    ok: true,
+    data: { Timeout: 30 }
+  });
   const wrongEndpoint = await startLoopbackAwsEndpoint();
   try {
     process.env.AWS_ENDPOINT_URL_SSM = process.env.AWS_ENDPOINT_URL;
