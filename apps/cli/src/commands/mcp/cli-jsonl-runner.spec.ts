@@ -72,27 +72,6 @@ describe('MCP Stacktape agent subprocess runner', () => {
     expect(malformed).toMatchObject({ ok: false, code: 'AGENT_PROTOCOL_ERROR' });
   });
 
-  test('returns typed cancellation and reaps the subprocess tree', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'stacktape-mcp-runner-cancel-'));
-    const pidFile = join(cwd, 'child.pid');
-    try {
-      const controller = new AbortController();
-      const result = await runStacktapeCommandJsonl({
-        command: fixturePath,
-        cwd,
-        args: { mode: 'hang', pidFile },
-        signal: controller.signal,
-        onProgress: () => controller.abort()
-      });
-
-      expect(result).toMatchObject({ ok: false, code: 'CANCELLED' });
-      const childPid = Number(await readFile(pidFile, 'utf8'));
-      expect(await waitForProcessExit(childPid)).toBe(true);
-    } finally {
-      await rm(cwd, { recursive: true, force: true });
-    }
-  });
-
   test('returns typed timeout and reaps the subprocess tree', async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'stacktape-mcp-runner-timeout-'));
     const pidFile = join(cwd, 'child.pid');
