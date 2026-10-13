@@ -352,7 +352,8 @@ export const lanes: readonly Lane[] = [
     tests: ['apps/cli/tests/config-loading-ministack/secrets.spec.ts'],
     requires: ['docker'],
     release: 'every-candidate',
-    proves: 'Real Secret and SSM directives resolve versioned AWS values and safe errors against MiniStack.'
+    proves:
+      'Local Secret and SSM directives read current values after rotation; deployed references remain pinned and errors hide values.'
   },
   {
     id: 'synthesis-families',
@@ -1844,12 +1845,13 @@ export const lanes: readonly Lane[] = [
     tests: [
       'apps/console/ui/e2e/isolated-console.test.ts',
       'apps/console/ui/e2e/isolated-deployment.test.ts',
-      'apps/console/ui/e2e/isolated-security.test.ts'
+      'apps/console/ui/e2e/isolated-security.test.ts',
+      'apps/console/ui/e2e/isolated-first-run.test.ts'
     ],
     requires: ['console', 'docker', 'chromium', 'network'],
     release: 'every-candidate',
     proves:
-      'Issue-state persistence, tenant denial, failed-deploy context and security coverage through the real UI, local HTTP router and disposable PostgreSQL.',
+      'Issue-state persistence, tenant denial, failed-deploy context, security coverage and the first-deploy hand-off through the real UI, local HTTP router and disposable PostgreSQL.',
     selections: ['console-browser-isolated']
   },
   {
@@ -2365,6 +2367,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-console.test.ts',
       'apps/console/ui/e2e/isolated-deployment.test.ts',
       'apps/console/ui/e2e/isolated-security.test.ts',
+      'apps/console/ui/e2e/isolated-first-run.test.ts',
       'apps/console/ui/e2e/issues.spec.ts',
       'apps/console/ui/e2e/privacy-probe.spec.ts',
       'apps/console/ui/e2e/project-access.spec.ts',
@@ -3387,7 +3390,6 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/characterization/config-runtime.spec.ts',
       'apps/cli/tests/config-loading/directives.spec.ts',
       'apps/cli/tests/config-loading/conversion.spec.ts',
-      'apps/cli/tests/config-loading-ministack/secrets.spec.ts',
       'packages/config-authoring/src/config.spec.ts',
       'packages/config-authoring/src/converter.spec.ts',
       'packages/config-authoring/src/resource-types.acceptance.ts',
@@ -4999,6 +5001,9 @@ export const slices: readonly Slice[] = [
     journeys: ['J5'],
     paths: [
       'apps/console/ui/scripts/secrets-parameters-database.test.ts',
+      'apps/cli/src/domain/config-manager/built-in-directives.ts',
+      'apps/cli/src/utils/stack-info-map-sensitive-values.ts',
+      'apps/cli/tests/config-loading-ministack/**',
       'packages/ministack/**',
       'apps/cli/scripts/network-guard-preload.ts',
       'apps/cli/src/commands/secret-*/**',
@@ -5018,6 +5023,7 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/console/ui/scripts/secrets-parameters-database.test.ts',
+      'apps/cli/tests/config-loading-ministack/secrets.spec.ts',
       'apps/console/api/scripts/console-secrets-database.test.ts',
       'apps/console/ui/src/aws/dynamic-references.test.ts',
       'apps/console/ui/src/aws/secrets-commands.test.ts',
@@ -5027,6 +5033,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Environment/environment.test.ts'
     ],
     lanes: [
+      'config-loading-ministack',
       'console-api',
       'console-api-2',
       'console-ui',
@@ -5035,7 +5042,7 @@ export const slices: readonly Slice[] = [
       'console-database-console-access',
       'console-database-secrets'
     ],
-    contributors: ['S43']
+    contributors: ['S02', 'S43']
   },
   {
     id: 'S53',
@@ -5352,9 +5359,17 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/pages/MetricsPage/org-metrics.test.ts',
       'apps/console/ui/src/pages/SyntheticsPage/synthetics-presentation.test.ts',
       'apps/console/ui/src/pages/OverviewPage/overview-metrics.test.ts',
+      'apps/console/ui/e2e/isolated-first-run.test.ts',
       'apps/console/ui/src/utils/dates.test.ts'
     ],
-    lanes: ['console-ui', 'console-ui-2', 'console-ui-3', 'console-observability-readers', 'console-database-insights'],
+    lanes: [
+      'console-ui',
+      'console-ui-2',
+      'console-ui-3',
+      'console-observability-readers',
+      'console-database-insights',
+      'console-browser-isolated'
+    ],
     contributors: ['S66']
   },
   {

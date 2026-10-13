@@ -306,13 +306,8 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
       },
       localResolveFunction: () => async (secretReference: string) => {
         const secretName = secretReference.split('.')[0];
-        const secretVersionId =
-          stackManager?.existingStackDetails?.stackOutput[getStackOutputName(secretName, 'CurrentSecretVersionId')];
         try {
-          const { SecretString: secretValue } = await awsSdkManager.secrets.get({
-            secretId: secretName,
-            versionId: secretVersionId
-          });
+          const { SecretString: secretValue } = await awsSdkManager.secrets.get({ secretId: secretName });
           if (!secretValue) {
             throw new Error(`Secret "${secretName}" is not valid string secret.`);
           }
