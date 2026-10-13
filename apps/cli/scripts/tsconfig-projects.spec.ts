@@ -99,6 +99,7 @@ describe('TypeScript project ownership', () => {
       './data-safety/**/*.ts',
       './synthesis-families/**/*.ts',
       './ministack/**/*.ts',
+      './static-sites/*.ts',
       './data-connections/**/*.ts',
       './generated-access/**/*.ts'
     ]);
