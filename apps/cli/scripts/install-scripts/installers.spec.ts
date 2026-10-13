@@ -8,6 +8,18 @@ import { prepareInstallAssets } from '../publish-install-scripts';
 import { generateReleaseChecksums } from '../release/checksums';
 
 const installers = ['linux', 'linux-arm', 'alpine', 'macos', 'macos-arm'];
+
+/** What `uname -m` and `sysctl -n hw.optional.arm64` report on a machine. */
+type Machine = { processor: string; appleSilicon?: boolean };
+
+/** Each installer's own kind of machine. */
+const NATIVE_MACHINES: Record<string, Machine> = {
+  linux: { processor: 'x86_64' },
+  'linux-arm': { processor: 'aarch64' },
+  alpine: { processor: 'x86_64' },
+  macos: { processor: 'x86_64' },
+  'macos-arm': { processor: 'arm64', appleSilicon: true }
+};
 const stale = [
   'llm-docs/old.txt',
   'ai-docs/old.txt',
@@ -17,7 +29,7 @@ const stale = [
   'session-manager-plugin/old'
 ];
 
-const fixture = async (platform: string) => {
+const fixture = async (platform: string, machine: Machine = NATIVE_MACHINES[platform]) => {
   const root = await mkdtemp(join(tmpdir(), 'stacktape-installer-'));
   try {
     const home = join(root, 'home');
@@ -31,8 +43,22 @@ const fixture = async (platform: string) => {
     await writeFile(join(payload, 'stacktape'), '#!/bin/sh\nprintf "candidate executable: %s\\n" "$*"\n');
     await mkdir(join(payload, 'llm-docs'));
     await writeFile(join(payload, 'llm-docs', 'current.txt'), 'current docs');
-    await tar.c({ gzip: true, file: join(downloads, `${platform}.tar.gz`), cwd: payload }, ['stacktape', 'llm-docs']);
+    // Every archive of the release, so an installer that picks another platform's build still finds it.
+    for (const archive of installers) {
+      await tar.c({ gzip: true, file: join(downloads, `${archive}.tar.gz`), cwd: payload }, ['stacktape', 'llm-docs']);
+    }
     await generateReleaseChecksums({ directory: downloads });
+    const requests = join(root, 'requests.log');
+    await writeFile(
+      join(commands, 'uname'),
+      `#!/bin/sh\nif [ "$1" = -m ]; then echo ${machine.processor}; else exec ${Bun.which('uname')} "$@"; fi\n`,
+      { mode: 0o755 }
+    );
+    await writeFile(
+      join(commands, 'sysctl'),
+      machine.appleSilicon ? '#!/bin/sh\necho 1\n' : '#!/bin/sh\necho "sysctl: unknown oid" >&2\nexit 1\n',
+      { mode: 0o755 }
+    );
     // Substitute only the download boundary. Every other command, including hashing and extraction, is real.
     await writeFile(
       join(commands, 'curl'),
@@ -47,6 +73,7 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 [ -n "$output" ] && [ -n "\${url:-}" ] || exit 81
+printf '%s\\n' "\${url##*/}" >> "$INSTALLER_REQUESTS"
 cp "$INSTALLER_DOWNLOADS/\${url##*/}" "$output"
 `,
       { mode: 0o755 }
@@ -71,13 +98,19 @@ cp "$INSTALLER_DOWNLOADS/\${url##*/}" "$output"
           SHELL: '/bin/bash',
           TMPDIR: root,
           INSTALLER_DOWNLOADS: downloads,
+          INSTALLER_REQUESTS: requests,
           ...extra
         },
         stdout: 'pipe',
         stderr: 'pipe',
         timeout: 15_000
       });
-    return { root, bin, home, downloads, run };
+    /** The release archives the installer downloaded, without the checksum manifest. */
+    const downloaded = async () =>
+      existsSync(requests)
+        ? (await readFile(requests, 'utf8')).split('\n').filter((name) => name && name !== 'SHA256SUMS')
+        : [];
+    return { root, bin, home, downloads, run, downloaded };
   } catch (error) {
     await rm(root, { recursive: true, force: true });
     throw error;
@@ -142,3 +175,41 @@ test.skipIf(process.platform === 'win32')(
     }
   }
 );
+
+// A visitor may copy the installer for the other architecture, for instance when the website guesses Apple silicon for
+// an Intel Mac. Every Linux and macOS installer installs the build the machine's processor runs.
+test.skipIf(process.platform === 'win32').each([
+  { installer: 'linux', machine: { processor: 'aarch64' }, expected: 'linux-arm.tar.gz' },
+  { installer: 'linux-arm', machine: { processor: 'x86_64' }, expected: 'linux.tar.gz' },
+  { installer: 'macos', machine: { processor: 'arm64', appleSilicon: true }, expected: 'macos-arm.tar.gz' },
+  { installer: 'macos-arm', machine: { processor: 'x86_64' }, expected: 'macos.tar.gz' },
+  // A Rosetta shell on Apple silicon reports x86_64; the native build is still the right one.
+  { installer: 'macos-arm', machine: { processor: 'x86_64', appleSilicon: true }, expected: 'macos-arm.tar.gz' }
+])(
+  '$installer installer on $machine.processor (Apple silicon: $machine.appleSilicon) installs $expected',
+  async ({ installer, machine, expected }) => {
+    const { root, bin, run, downloaded } = await fixture(installer, machine);
+    try {
+      const result = run();
+      expect(result.exitCode, result.stdout.toString() + result.stderr.toString()).toBe(0);
+      expect(await downloaded()).toEqual([expected]);
+      expect(existsSync(join(bin, 'stacktape'))).toBe(true);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+  30_000
+);
+
+test.skipIf(process.platform === 'win32')('a Linux installer refuses a processor without a build', async () => {
+  const { root, bin, run, downloaded } = await fixture('linux', { processor: 'armv7l' });
+  try {
+    const result = run();
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stdout.toString()).toContain('Stacktape has no Linux build for the armv7l processor.');
+    expect(await downloaded()).toEqual([]);
+    expect(existsSync(join(bin, 'stacktape'))).toBe(false);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

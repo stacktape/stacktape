@@ -381,7 +381,7 @@ jobs:
           bun scripts/verify-release-artifact.ts
           --candidate-dir "$RUNNER_TEMP/native-candidate" --version "$RELEASE_VERSION" --qualify-tools
       - name: Execute the Windows installer integrity and upgrade scenario
-        if: matrix.platform == 'win'
+        if: startsWith(matrix.platform, 'win')
         working-directory: apps/cli
         run: bun test scripts/install-scripts/windows.spec.ts
 
