@@ -611,6 +611,24 @@ export const lanes: readonly Lane[] = [
     selections: ['packaging-lambdas']
   },
   {
+    id: 'tanstack-starter-materialization',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/cli',
+      'exec',
+      'bun',
+      'test',
+      'tests/characterization/tanstack-starter-materialization.spec.ts'
+    ],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/tests/characterization/tanstack-starter-materialization.spec.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'TanStack init preserves dependency overrides required to install a compatible build graph.'
+  },
+  {
     id: 'packaging-ssr',
     command: ['pnpm', '--filter', '@stacktape/packaging', 'run', 'test:ssr'],
     level: 'process',
@@ -3570,14 +3588,24 @@ export const slices: readonly Slice[] = [
     journeys: ['J3'],
     paths: [
       'packages/packaging/src/web/ssr-web-shared.ts',
+      'apps/cli/src/commands/init/using-starter-project/utils.ts',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/ssr-web-shared.ts',
       'apps/cli/starter-projects/solidstart-serverless/**',
       'apps/cli/starter-projects/nuxt-serverless/**',
       'apps/cli/starter-projects/remix-serverless/**',
       'apps/cli/starter-projects/tanstack-start-serverless/**'
     ],
-    tests: ['apps/cli/scripts/packaging-archives/ssr-web-acceptance.ts'],
-    lanes: ['packaging-ssr', 'packaging-test', 'cli-packaged-web', 'starter-qualification']
+    tests: [
+      'apps/cli/scripts/packaging-archives/ssr-web-acceptance.ts',
+      'apps/cli/tests/characterization/tanstack-starter-materialization.spec.ts'
+    ],
+    lanes: [
+      'tanstack-starter-materialization',
+      'packaging-ssr',
+      'packaging-test',
+      'cli-packaged-web',
+      'starter-qualification'
+    ]
   },
   {
     id: 'S31',
