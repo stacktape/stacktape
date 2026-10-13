@@ -3538,7 +3538,10 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/web/ssr-web-shared.ts',
       'packages/packaging/scripts/synthetic-web-framework-e2e.ts',
       'packages/packaging/src/web/build-coordinator.ts',
-      'packages/packaging/src/web/node-runtime-files.ts'
+      'packages/packaging/src/web/node-runtime-files.ts',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/ssr-web-shared.ts',
+      'apps/cli/starter-projects/astro-serverless/**',
+      'apps/cli/starter-projects/sveltekit-serverless/**'
     ],
     tests: [
       'packages/packaging/scripts/synthetic-web-framework-e2e.ts',
@@ -3554,6 +3557,7 @@ export const slices: readonly Slice[] = [
     journeys: ['J3'],
     paths: [
       'packages/packaging/src/web/ssr-web-shared.ts',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/ssr-web-shared.ts',
       'apps/cli/starter-projects/solidstart-serverless/**',
       'apps/cli/starter-projects/nuxt-serverless/**',
       'apps/cli/starter-projects/remix-serverless/**',
