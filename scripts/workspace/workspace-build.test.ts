@@ -55,6 +55,7 @@ test('Turbo schedules generated editor inputs and shared UI before development c
   const result = spawnSync(
     process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm',
     [
+      '--config.verify-deps-before-run=false',
       'exec',
       'turbo',
       'run',
