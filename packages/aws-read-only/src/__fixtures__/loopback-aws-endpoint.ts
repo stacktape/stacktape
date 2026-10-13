@@ -11,8 +11,6 @@ type RecordedAwsRequest = { method: string; path: string; target?: string };
  */
 export const startLoopbackAwsEndpoint = async () => {
   const requests: RecordedAwsRequest[] = [];
-  // A test sets this to answer a request with its own JSON body; anything it leaves unanswered gets the default.
-  let respond: ((request: RecordedAwsRequest) => string | undefined) | undefined;
   const server = createServer((request, response) => {
     request.resume();
     request.on('end', () => {
@@ -28,7 +26,7 @@ export const startLoopbackAwsEndpoint = async () => {
       response.writeHead(200, {
         'content-type': isJsonProtocol ? 'application/x-amz-json-1.1' : 'application/json'
       });
-      response.end(respond?.(recorded) ?? (isJsonProtocol ? '{}' : '{"Functions":[]}'));
+      response.end(isJsonProtocol ? '{}' : '{"Functions":[]}');
     });
   });
   await new Promise<void>((resolveListen) => server.listen(0, '127.0.0.1', resolveListen));
@@ -43,9 +41,6 @@ export const startLoopbackAwsEndpoint = async () => {
 
   return {
     requests,
-    respondWith: (handler: typeof respond) => {
-      respond = handler;
-    },
     close: async () => {
       if (previousEndpoint === undefined) delete process.env.AWS_ENDPOINT_URL;
       else process.env.AWS_ENDPOINT_URL = previousEndpoint;
@@ -54,38 +49,4 @@ export const startLoopbackAwsEndpoint = async () => {
       await new Promise<void>((resolveClose) => server.close(() => resolveClose()));
     }
   };
-};
-
-// An application secret as AWS stores it in plain function and container environments.
-export const environmentValue = ['loopback', 'environment', 'value', 'must', 'not', 'leave'].join('-');
-const functionConfiguration = {
-  FunctionName: 'orders',
-  Runtime: 'nodejs22.x',
-  MemorySize: 512,
-  Environment: { Variables: { DATABASE_URL: environmentValue, STAGE: environmentValue } }
-};
-
-/** Lambda and ECS reads answered the way AWS answers them, environment values included. */
-export const answerWithEnvironments = ({ path, target }: { path: string; target?: string }) => {
-  if (target === 'AmazonEC2ContainerServiceV20141113.DescribeTaskDefinition') {
-    return JSON.stringify({
-      taskDefinition: {
-        family: 'orders',
-        containerDefinitions: [
-          {
-            name: 'api',
-            image: 'orders:42',
-            environment: [{ name: 'API_TOKEN', value: environmentValue }],
-            secrets: [{ name: 'DB_PASSWORD', valueFrom: 'arn:aws:secretsmanager:eu-west-1:123456789012:secret:db' }]
-          }
-        ]
-      }
-    });
-  }
-  if (path.endsWith('/configuration')) return JSON.stringify(functionConfiguration);
-  if (path.startsWith('/2015-03-31/functions/orders')) {
-    return JSON.stringify({ Configuration: functionConfiguration, Code: { RepositoryType: 'S3' } });
-  }
-  if (path.startsWith('/2015-03-31/functions')) return JSON.stringify({ Functions: [functionConfiguration] });
-  return undefined;
 };

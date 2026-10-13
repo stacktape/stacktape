@@ -50,6 +50,13 @@ cover the change, extending it when necessary. These suites use the disposable d
 currently defaults to a pinned PostgreSQL 15.14 image matching Console's configured RDS major version. Override it only
 to qualify a deliberate database upgrade. `pnpm dev:console` instead exercises the real shared dev data plane.
 
+The hosted-run suite runs funding, runtime and handoff files in separate processes. For a focused rerun, use
+`--incident-agent-funding`, `--incident-agent-runtime` or `--incident-handoff`. MiniStack owns Secrets Manager, SSM
+parameters, SQS messages, CloudFormation stack metadata, Lambda configurations and log-group metadata. The fixture keeps
+controlled remote-execution faults, cross-account AssumeRole, metrics and Logs Insights outside the emulator. The
+runtime scenarios execute the pinned agents against loopback provider and GitHub responses; no live credentials or
+shared-dev reservation are needed.
+
 The `--cli-console` suite runs source CLI processes against the production HTTP router and disposable PostgreSQL. It
 covers deployment reporting and Console read responses, endpoint-scoped login/logout, token exchange, organization and
 project commands, and isolated AWS profiles/defaults. STS identity, CloudFormation, S3, ECR, resource tags and
