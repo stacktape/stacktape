@@ -1413,7 +1413,8 @@ export const lanes: readonly Lane[] = [
     tests: ['apps/console/api/scripts/billing-database.test.ts'],
     requires: ['console', 'docker', 'network'],
     release: 'every-candidate',
-    proves: 'Real billing services and persistence through the isolated PostgreSQL feature suite.',
+    proves:
+      'Signed billing events and monthly charges through HTTP/PostgreSQL, with CUR objects and stack updates on MiniStack.',
     selections: ['console-database-billing']
   },
   {
@@ -2155,7 +2156,6 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/aws/browser-access.test.ts',
       'apps/console/api/src/aws/context.test.ts',
       'apps/console/api/src/billing/fees.test.ts',
-      'apps/console/api/src/billing/month-boundaries.test.ts',
       'apps/console/api/src/billing/paddle-signature.test.ts',
       'apps/console/api/src/config.test.ts',
       'apps/console/api/src/controllers/bitbucket-pull-request-commit.test.ts',
@@ -2204,7 +2204,6 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/gitlab-app.test.ts',
       'apps/console/api/src/services/incident-engine.test.ts',
 
-      'apps/console/api/src/services/paddle.test.ts',
       'apps/console/api/src/services/prisma-proxy.test.ts',
       'apps/console/api/src/services/remote-deploy/aws/ssm.test.ts',
       'apps/console/api/src/services/remote-deploy/dispatch-retry.test.ts',
@@ -3094,7 +3093,6 @@ export const lanes: readonly Lane[] = [
     tier: 'pr',
     tests: [
       'apps/console/api/src/billing/fees.test.ts',
-      'apps/console/api/src/billing/month-boundaries.test.ts',
       'apps/console/api/src/billing/paddle-signature.test.ts',
       'apps/console/api/src/security/cvss.test.ts',
       'apps/console/api/src/security/inventory-grading.test.ts'
@@ -4861,14 +4859,13 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/billing/**',
       'apps/console/api/src/services/payments.ts',
       'apps/console/api/src/lambdas/paddle-hooks.ts',
+      'apps/console/api/src/lambdas/handle-billing-attribution.ts',
       'apps/console/api/src/services/paddle.ts'
     ],
     tests: [
       'apps/console/api/scripts/billing-database.test.ts',
       'apps/console/api/src/billing/fees.test.ts',
-      'apps/console/api/src/billing/month-boundaries.test.ts',
-      'apps/console/api/src/billing/paddle-signature.test.ts',
-      'apps/console/api/src/services/paddle.test.ts'
+      'apps/console/api/src/billing/paddle-signature.test.ts'
     ],
     lanes: ['console-fast-rules', 'console-api', 'console-api-2', 'console-database-billing']
   },
