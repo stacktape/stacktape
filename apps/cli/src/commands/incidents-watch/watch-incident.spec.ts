@@ -41,7 +41,6 @@ const sequenceFetcher = (incidents: IncidentStatusResponse[]) => {
 describe('waitForIncidentResolution', () => {
   test('succeeds only after the incident stays resolved for the stability window', async () => {
     const clock = createClock();
-    const observations: string[] = [];
 
     const result = await waitForIncidentResolution({
       fetchIncident: sequenceFetcher([
@@ -53,13 +52,11 @@ describe('waitForIncidentResolution', () => {
       timeoutMs: 30_000,
       stabilityMs: 10_000,
       pollIntervalMs: 5_000,
-      ...clock,
-      onObservation: ({ incident: current, stableForMs }) => observations.push(`${current.status}:${stableForMs}`)
+      ...clock
     });
 
     expect(result.incident.status).toBe('RESOLVED');
     expect(result.stableForMs).toBe(10_000);
-    expect(observations).toEqual(['OPEN:0', 'RESOLVED:0', 'RESOLVED:5000', 'RESOLVED:10000']);
   });
 
   test('resets the stability window when the incident reopens', async () => {

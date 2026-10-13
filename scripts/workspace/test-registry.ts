@@ -1251,6 +1251,15 @@ export const lanes: readonly Lane[] = [
     selections: ['console-database-security']
   },
   {
+    id: 'console-database-issue-triage',
+    command: ['pnpm', '--filter', '@stacktape/console-api-app', 'run', 'test:db', '--issue-triage'],
+    level: 'api-db',
+    tier: 'change',
+    tests: ['apps/console/api/scripts/issue-triage.test.ts'],
+    requires: ['console', 'docker'],
+    release: 'every-candidate'
+  },
+  {
     id: 'console-database-issues',
     command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test:db', '--issues'],
     level: 'api-db',
@@ -1960,8 +1969,6 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/gitlab-app.test.ts',
       'apps/console/api/src/services/incident-engine.test.ts',
       'apps/console/api/src/services/incident-handoff.test.ts',
-      'apps/console/api/src/services/incident-paging.test.ts',
-      'apps/console/api/src/services/issue-access.test.ts',
       'apps/console/api/src/services/paddle.test.ts',
       'apps/console/api/src/services/prisma-proxy.test.ts',
       'apps/console/api/src/services/remote-deploy/aws/ec2.test.ts',
@@ -2783,6 +2790,44 @@ export const lanes: readonly Lane[] = [
     release: 'every-candidate',
     proves:
       'Offline Console infrastructure contracts and assembled support template pass cfn-lint (install cfn-lint 1.53.3 first).'
+  },
+  {
+    id: 'cli-issue-incident-rules',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/cli',
+      'exec',
+      'bun',
+      'test',
+      'helper-lambdas/stacktapeServiceLambda/issue-processor/index.test.ts',
+      'src/commands/incidents-watch/watch-incident.spec.ts'
+    ],
+    level: 'focused',
+    tier: 'pr',
+    tests: [
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/issue-processor/index.test.ts',
+      'apps/cli/src/commands/incidents-watch/watch-incident.spec.ts'
+    ],
+    requires: [],
+    release: 'every-candidate'
+  },
+  {
+    id: 'console-incident-rules',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/console-api-app',
+      'exec',
+      'bun',
+      'test',
+      'src/services/incident-engine.test.ts'
+    ],
+    level: 'focused',
+    tier: 'pr',
+    tests: ['apps/console/api/src/services/incident-engine.test.ts'],
+    requires: ['console'],
+    release: 'every-candidate'
   },
   {
     id: 'console-fast-rules',
@@ -4574,12 +4619,21 @@ export const slices: readonly Slice[] = [
     promise: 'Runtime errors become scoped, redacted issues without duplicates.',
     status: 'active',
     journeys: ['J7'],
-    paths: ['apps/console/api/src/issues/**', 'apps/cli/src/utils/log-collector/**'],
+    paths: [
+      'apps/console/api/src/issues/**',
+      'apps/cli/src/utils/log-collector/**',
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/issue-processor/**'
+    ],
     tests: [
       'apps/cli/helper-lambdas/stacktapeServiceLambda/issue-processor/index.test.ts',
       'apps/console/api/scripts/issues-database.test.ts'
     ],
-    lanes: ['cli-test-helper-lambdas', 'console-database-issues', 'console-database-incident-journey'],
+    lanes: [
+      'cli-issue-incident-rules',
+      'cli-test-helper-lambdas',
+      'console-database-issues',
+      'console-database-incident-journey'
+    ],
     contributors: ['S56']
   },
   {
@@ -4594,11 +4648,17 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/issues-*/**'
     ],
     tests: [
-      'apps/console/api/src/services/issue-access.test.ts',
+      'apps/console/api/scripts/issue-triage.test.ts',
       'apps/console/ui/e2e/isolated-console.test.ts',
       'apps/console/ui/e2e/issues.spec.ts'
     ],
-    lanes: ['console-api', 'console-api-2', 'console-browser-isolated', 'console-browser-issues']
+    lanes: [
+      'console-database-issue-triage',
+      'console-api',
+      'console-api-2',
+      'console-browser-isolated',
+      'console-browser-issues'
+    ]
   },
   {
     id: 'S56',
@@ -4617,10 +4677,11 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/incidents-watch/watch-incident.spec.ts',
       'apps/console/api/scripts/incident-journey.test.ts',
       'apps/console/api/scripts/incidents-database.test.ts',
-      'apps/console/api/src/services/incident-engine.test.ts',
-      'apps/console/api/src/services/incident-paging.test.ts'
+      'apps/console/api/src/services/incident-engine.test.ts'
     ],
     lanes: [
+      'cli-issue-incident-rules',
+      'console-incident-rules',
       'console-api',
       'console-api-2',
       'console-database-incidents',
