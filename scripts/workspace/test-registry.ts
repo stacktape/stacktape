@@ -1467,6 +1467,48 @@ export const lanes: readonly Lane[] = [
     selections: ['console-database-runner']
   },
   {
+    id: 'console-database-bitbucket-pairing',
+    command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test:db', '--bitbucket-pairing'],
+    level: 'api-db',
+    tier: 'change',
+    tests: ['apps/console/api/scripts/bitbucket-pairing-database.test.ts'],
+    requires: ['console', 'docker'],
+    release: 'every-candidate',
+    proves:
+      'Signed Forge pairing and Console HTTP authorization commit one workspace connection in PostgreSQL and MiniStack.',
+    selections: ['console-database-bitbucket-pairing']
+  },
+  {
+    id: 'console-database-gitlab-lifecycle',
+    command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test:db', '--gitlab-lifecycle'],
+    level: 'api-db',
+    tier: 'change',
+    tests: ['apps/console/api/scripts/gitlab-lifecycle-database.test.ts'],
+    requires: ['console', 'docker'],
+    release: 'every-candidate',
+    proves: 'Real GitLab OAuth, clone rotation and recovery use PostgreSQL leases and MiniStack Secrets Manager.',
+    selections: ['console-database-gitlab-lifecycle']
+  },
+  {
+    id: 'console-github-actions-cleanup',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/console-api-app',
+      'exec',
+      'bun',
+      'test',
+      'scripts/github-actions-cleanup.test.ts'
+    ],
+    level: 'focused',
+    tier: 'change',
+    tests: ['apps/console/api/scripts/github-actions-cleanup.test.ts'],
+    requires: ['console', 'docker'],
+    release: 'every-candidate',
+    proves:
+      'Retirement and stale-poll regressions preserve runner ownership until MiniStack credential cleanup succeeds.'
+  },
+  {
     id: 'console-database-gitlab',
     command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test:db', '--gitlab'],
     level: 'api-db',
@@ -2210,8 +2252,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/integrations/git/repository-url.test.ts',
       'apps/console/api/src/integrations/git/webhook-action-identity.test.ts',
       'apps/console/api/src/integrations/git/webhook-security.test.ts',
-      'apps/console/api/src/lambdas/bitbucket-app/index.test.ts',
-      'apps/console/api/src/lambdas/github-app/github-actions-handler.test.ts',
+      'apps/console/api/scripts/github-actions-cleanup.test.ts',
       'apps/console/api/src/lambdas/github-app/github-actions-trust.test.ts',
       'apps/console/api/src/lambdas/github-app/github-webhook-auth.test.ts',
       'apps/console/api/src/lambdas/github-app/utils.test.ts',
@@ -2255,7 +2296,6 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/remote-deploy/ec2/ssm-readiness.test.ts',
       'apps/console/api/src/services/remote-deploy/redact-output.test.ts',
       'apps/console/api/scripts/remote-session-aws.test.ts',
-      'apps/console/api/src/services/rotating-oauth-token.test.ts',
       'apps/console/api/src/services/runners/cost-estimate.test.ts',
       'apps/console/api/src/services/runners/telemetry.test.ts',
       'apps/console/api/src/services/slack-app/actions.test.ts',
@@ -4755,7 +4795,7 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/integrations/git/repository-url.test.ts',
       'apps/console/api/src/integrations/git/webhook-action-identity.test.ts',
       'apps/console/api/src/integrations/git/webhook-security.test.ts',
-      'apps/console/api/src/lambdas/github-app/github-actions-handler.test.ts',
+      'apps/console/api/scripts/github-actions-cleanup.test.ts',
       'apps/console/api/src/lambdas/github-app/github-actions-trust.test.ts',
       'apps/console/api/src/lambdas/github-app/github-webhook-auth.test.ts',
       'apps/console/api/src/lambdas/github-app/utils.test.ts',
@@ -4768,6 +4808,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/repository-option.test.tsx'
     ],
     lanes: [
+      'console-github-actions-cleanup',
       'console-api',
       'console-api-2',
       'console-database-git-deploy',
@@ -4788,21 +4829,21 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/integrations/git/gitlab-events.ts',
       'apps/console/api/src/integrations/git/gitlab-webhooks.ts',
       'apps/console/api/src/services/git-connection-secret-store.ts',
-      'apps/console/api/src/services/git-provider-oauth.ts',
-      'apps/console/api/src/services/rotating-oauth-token.ts'
+      'apps/console/api/src/services/git-provider-oauth.ts'
     ],
     tests: [
+      'apps/console/api/scripts/gitlab-lifecycle-database.test.ts',
       'apps/console/api/scripts/gitlab-database.test.ts',
       'apps/console/api/src/integrations/git/gitlab-events.test.ts',
       'apps/console/api/src/integrations/git/gitlab-webhooks.test.ts',
       'apps/console/api/src/services/git-connection-secret-store.test.ts',
       'apps/console/api/src/services/git-provider-oauth.test.ts',
       'apps/console/api/src/services/gitlab-app.test.ts',
-      'apps/console/api/src/services/rotating-oauth-token.test.ts',
       'apps/console/ui/e2e/git-connections-ui.spec.ts',
       'apps/console/api/scripts/run-db-integration.ts'
     ],
     lanes: [
+      'console-database-gitlab-lifecycle',
       'console-api',
       'console-api-2',
       'console-database-gitlab',
@@ -4826,13 +4867,14 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/integrations/git/bitbucket-forge-events.ts'
     ],
     tests: [
+      'apps/console/api/scripts/bitbucket-pairing-database.test.ts',
       'apps/console/api/src/controllers/bitbucket-pull-request-commit.test.ts',
       'apps/console/api/src/integrations/git/bitbucket-forge-events.test.ts',
-      'apps/console/api/src/lambdas/bitbucket-app/index.test.ts',
       'apps/console/api/src/services/bitbucket-forge.test.ts',
       'apps/console/bitbucket-forge/e2e/packaged-ui.spec.ts'
     ],
     lanes: [
+      'console-database-bitbucket-pairing',
       'console-api',
       'console-api-2',
       'console-database-git-deploy',
