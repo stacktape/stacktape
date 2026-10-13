@@ -24,6 +24,18 @@ upload code, with local stand-ins for S3, CloudFormation and Docker: they must r
 ones, and rebuild after a mode-only change exactly where the archive changes. It needs Docker and `unzip`. Pass
 `--zip-dir` and `--7z-dir` for tools not on `PATH`; a native tool it cannot find is reported as not qualified.
 
+## Python, Java and Ruby Lambda artifacts
+
+`pnpm --filter @stacktape/packaging run test:language-lambdas` builds locked Python and Ruby projects and Maven/Gradle
+reactors through the real Lambda buildpacks. It extracts their ZIPs with `unzip` and invokes the handlers in official
+Lambda runtime images as an unprivileged user. Python must load a native wheel, its selected extra and production group
+without pytest. Python 3.14 covers locked and unlocked selectors, empty dependencies and native imports; stale locks
+must fail. A separate Pipfile fixture verifies production-only installation through pipenv. Ruby must load the locked
+native gem from its packaged location on Ruby 3.4 and 4.0 without development/test gems. Maven on Java 17 and Gradle on
+Java 21 must preserve a sibling library and classpath resource, bind the configured handler, and report an invalid
+handler method usefully. The lane requires Docker and network access for build tools, images and dependencies; it is a
+change/release gate, outside fast PR CI. `pnpm test:packaging-e2e` includes it.
+
 ## Asset replacement
 
 `pnpm --filter @stacktape/cli run test:asset-replacer` runs the service helper's Next.js asset replacer as a stack does.
@@ -74,10 +86,14 @@ emulation). The lane needs dependency-download network and never configures host
 `pnpm --filter @stacktape/cli run test:ssr-web` materializes each SSR starter (Astro, Nuxt, SolidStart, SvelteKit,
 TanStack Start, Remix, Next.js) as `stacktape init` writes it and packages it with the `package` command the same way;
 the CLI installs the dependencies and runs the framework build. The server function ZIP is extracted and invoked in the
-Lambda Node.js 24 image as the unprivileged user with HTTP API v2 events: the index page must be HTML, the starter's
-`/api/hello` route must answer from server code, an unknown path must get the framework's not-found status, a request
-with a cookie must still be served, and the build must leave hashed assets for the hosting bucket.
-`--starter <id>[,<id>]` selects starters. It needs Docker, `unzip` and network for the installs, not AWS.
+Lambda image for the deployed runtime (Node.js 22 for Next, 24 for the other adapters) as the unprivileged user with
+HTTP API v2 events: the index page must be HTML, the starter's `/api/hello` route must answer from server code, an
+unknown path must get the framework's not-found status, a request with a cookie must still be served, and the build must
+leave hashed assets for the hosting bucket. Temporary routes added to the materialized Next, Nuxt and Remix apps must
+emit two independent secure cookies and read them on the next v2 request. A TanStack route must render its dynamic path
+parameter. Next's image optimizer ZIP must convert a local HTTP PNG source to WebP in Lambda, exercising its native
+dependency. The shipped starters remain unchanged. `--starter <id>[,<id>]` selects starters. It needs Docker, `unzip`
+and network for the installs, not AWS.
 
 ## Helper Lambdas in the Lambda runtime
 

@@ -558,6 +558,22 @@ export const lanes: readonly Lane[] = [
     selections: ['packaging-images']
   },
   {
+    id: 'language-lambdas',
+    command: ['pnpm', '--filter', '@stacktape/packaging', 'run', 'test:language-lambdas'],
+    level: 'process',
+    tier: 'change',
+    tests: [
+      'packages/packaging/scripts/lambda-e2e/python.test.ts',
+      'packages/packaging/scripts/lambda-e2e/python-pipfile.test.ts',
+      'packages/packaging/scripts/lambda-e2e/java.test.ts',
+      'packages/packaging/scripts/lambda-e2e/ruby.test.ts'
+    ],
+    requires: ['docker', 'network'],
+    release: 'every-candidate',
+    proves:
+      'Python wheels, Java reactor handlers and Ruby native gems execute from their ZIPs in official Lambda runtimes.'
+  },
+  {
     id: 'packaging-images',
     command: ['pnpm', '--filter', '@stacktape/packaging', 'run', 'test:docker-smoke'],
     level: 'process',
@@ -633,6 +649,39 @@ export const lanes: readonly Lane[] = [
     release: 'every-candidate',
     proves: 'Built artifacts execute in their target runtimes.',
     selections: ['packaging-lambdas']
+  },
+  {
+    id: 'tanstack-starter-materialization',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/cli',
+      'exec',
+      'bun',
+      'test',
+      'tests/ssr/tanstack-starter-materialization.spec.ts'
+    ],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/tests/ssr/tanstack-starter-materialization.spec.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'TanStack init preserves dependency overrides required to install a compatible build graph.'
+  },
+  {
+    id: 'packaging-ssr',
+    command: ['pnpm', '--filter', '@stacktape/packaging', 'run', 'test:ssr'],
+    level: 'process',
+    tier: 'pr',
+    tests: [
+      'packages/packaging/src/web/nextjs-web.test.ts',
+      'packages/packaging/src/web/ssr-packaging.test.ts',
+      'packages/packaging/src/web/ssr-web-shared.test.ts'
+    ],
+    requires: [],
+    release: 'every-candidate',
+    proves:
+      'Offline SSR packaging produces runnable ZIPs, isolates concurrent builds and keeps private files out of public assets.'
   },
   {
     id: 'packaging-web',
@@ -1935,10 +1984,9 @@ export const lanes: readonly Lane[] = [
       'packages/packaging/src/split-bundler/function-digest.test.ts',
       'packages/packaging/src/split-bundler/layer-assignment.test.ts',
       'packages/packaging/src/split-bundler/layer-builder.test.ts',
-      'packages/packaging/src/web/build-coordinator.test.ts',
       'packages/packaging/src/web/nextjs-web.test.ts',
-      'packages/packaging/src/web/node-runtime-files.test.ts',
       'packages/packaging/src/web/ssr-web-shared.test.ts',
+      'packages/packaging/src/web/ssr-packaging.test.ts',
       'packages/pricing/src/pricing.test.ts',
       'packages/stack-info/src/metric-targets.test.ts',
       'packages/stack-info/src/normalize.test.ts',
@@ -3409,15 +3457,24 @@ export const slices: readonly Slice[] = [
     promise: 'Python projects package with correct dependencies.',
     status: 'active',
     journeys: ['J3'],
-    paths: ['packages/packaging/src/bundlers/py/**', 'packages/packaging/src/buildpacks/**'],
-    tests: ['packages/packaging/src/bundlers/py/utils.test.ts'],
-    lanes: [
-      'packaging-test',
-      'packaging-images',
-      'packaging-images-2',
-      'project-qualification',
-      'project-qualification-2'
+    paths: [
+      'packages/packaging/scripts/e2e-helpers.ts',
+      'packages/packaging/scripts/lambda-e2e/harness.ts',
+      'packages/packaging/src/docker/dockerfiles.ts',
+      'packages/packaging/scripts/lambda-e2e/fixtures/python/**',
+      'packages/packaging/scripts/lambda-e2e/fixtures/python-selection/**',
+      'packages/packaging/scripts/lambda-e2e/fixtures/python-empty/**',
+      'packages/packaging/scripts/lambda-e2e/fixtures/python-pipfile/**',
+      'packages/packaging/src/bundlers/py/**',
+      'packages/packaging/src/buildpacks/py-lambda-buildpack.ts'
     ],
+    tests: [
+      'packages/packaging/scripts/lambda-e2e/python.test.ts',
+      'packages/packaging/scripts/lambda-e2e/python-selection.test.ts',
+      'packages/packaging/scripts/lambda-e2e/python-pipfile.test.ts',
+      'packages/packaging/src/bundlers/py/utils.test.ts'
+    ],
+    lanes: ['packaging-test', 'language-lambdas', 'project-qualification', 'project-qualification-2'],
     contributors: ['S27']
   },
   {
@@ -3446,15 +3503,17 @@ export const slices: readonly Slice[] = [
     promise: 'Java builds preserve modules, resources and entrypoints.',
     status: 'active',
     journeys: ['J3'],
-    paths: ['packages/packaging/src/bundlers/java/**'],
-    tests: ['packages/packaging/src/bundlers/java/index.test.ts'],
-    lanes: [
-      'packaging-test',
-      'packaging-images',
-      'packaging-images-2',
-      'project-qualification',
-      'project-qualification-2'
+    paths: [
+      'packages/packaging/scripts/e2e-helpers.ts',
+      'packages/packaging/scripts/lambda-e2e/harness.ts',
+      'packages/packaging/src/docker/dockerfiles.ts',
+      'packages/packaging/src/buildpacks/project-root.ts',
+      'packages/packaging/src/buildpacks/java-lambda-buildpack.ts',
+      'packages/packaging/scripts/lambda-e2e/fixtures/java-*/**',
+      'packages/packaging/src/bundlers/java/**'
     ],
+    tests: ['packages/packaging/scripts/lambda-e2e/java.test.ts', 'packages/packaging/src/bundlers/java/index.test.ts'],
+    lanes: ['packaging-test', 'language-lambdas', 'project-qualification', 'project-qualification-2'],
     contributors: ['S27']
   },
   {
@@ -3481,15 +3540,17 @@ export const slices: readonly Slice[] = [
     promise: 'Ruby artifacts resolve their gems and handler.',
     status: 'active',
     journeys: ['J3'],
-    paths: ['packages/packaging/src/bundlers/ruby/**'],
-    tests: [],
-    lanes: [
-      'packaging-test',
-      'packaging-images',
-      'packaging-images-2',
-      'project-qualification',
-      'project-qualification-2'
+    paths: [
+      'packages/packaging/scripts/e2e-helpers.ts',
+      'packages/packaging/scripts/lambda-e2e/harness.ts',
+      'packages/packaging/src/docker/dockerfiles.ts',
+      'packages/packaging/src/buildpacks/project-root.ts',
+      'packages/packaging/src/buildpacks/rb-lambda-buildpack.ts',
+      'packages/packaging/scripts/lambda-e2e/fixtures/ruby/**',
+      'packages/packaging/src/bundlers/ruby/**'
     ],
+    tests: ['packages/packaging/scripts/lambda-e2e/ruby.test.ts'],
+    lanes: ['packaging-test', 'language-lambdas', 'project-qualification', 'project-qualification-2'],
     contributors: ['S27']
   },
   {
@@ -3548,9 +3609,17 @@ export const slices: readonly Slice[] = [
     promise: 'Next.js/OpenNext produces a working deployed artifact.',
     status: 'active',
     journeys: ['J3'],
-    paths: ['packages/packaging/src/web/nextjs-web.ts'],
+    paths: [
+      'packages/packaging/src/web/nextjs-web.ts',
+      'packages/packaging/src/web/node-runtime-files.ts',
+      'packages/packaging/src/es/native-dependencies.ts',
+      'packages/packaging/src/bundlers/node-version.ts',
+      'apps/cli/src/domain/packaging-manager/index.ts',
+      'apps/cli/src/domain/config-manager/utils/nextjs-webs.ts',
+      'apps/cli/starter-projects/nextjs-serverless/**'
+    ],
     tests: ['packages/packaging/src/web/nextjs-web.test.ts'],
-    lanes: ['packaging-test', 'cli-packaged-web', 'starter-qualification', 'cli-runtime-acceptances'],
+    lanes: ['packaging-ssr', 'packaging-test', 'cli-packaged-web', 'starter-qualification'],
     contributors: ['S30']
   },
   {
@@ -3562,15 +3631,18 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/web/ssr-web-shared.ts',
       'packages/packaging/scripts/synthetic-web-framework-e2e.ts',
       'packages/packaging/src/web/build-coordinator.ts',
-      'packages/packaging/src/web/node-runtime-files.ts'
+      'packages/packaging/src/web/node-runtime-files.ts',
+      'packages/packaging/src/es/native-dependencies.ts',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/ssr-web-shared.ts',
+      'apps/cli/starter-projects/astro-serverless/**',
+      'apps/cli/starter-projects/sveltekit-serverless/**'
     ],
     tests: [
       'packages/packaging/scripts/synthetic-web-framework-e2e.ts',
-      'packages/packaging/src/web/build-coordinator.test.ts',
-      'packages/packaging/src/web/node-runtime-files.test.ts',
-      'packages/packaging/src/web/ssr-web-shared.test.ts'
+      'packages/packaging/src/web/ssr-web-shared.test.ts',
+      'packages/packaging/src/web/ssr-packaging.test.ts'
     ],
-    lanes: ['packaging-test', 'packaging-web', 'cli-packaged-web', 'cli-runtime-acceptances']
+    lanes: ['packaging-ssr', 'packaging-test', 'packaging-web', 'cli-packaged-web']
   },
   {
     id: 'S30',
@@ -3579,12 +3651,24 @@ export const slices: readonly Slice[] = [
     journeys: ['J3'],
     paths: [
       'packages/packaging/src/web/ssr-web-shared.ts',
+      'apps/cli/src/commands/init/using-starter-project/utils.ts',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/ssr-web-shared.ts',
+      'apps/cli/starter-projects/solidstart-serverless/**',
       'apps/cli/starter-projects/nuxt-serverless/**',
       'apps/cli/starter-projects/remix-serverless/**',
       'apps/cli/starter-projects/tanstack-start-serverless/**'
     ],
-    tests: ['apps/cli/scripts/packaging-archives/ssr-web-acceptance.ts'],
-    lanes: ['packaging-test', 'cli-packaged-web', 'starter-qualification', 'cli-runtime-acceptances']
+    tests: [
+      'apps/cli/scripts/packaging-archives/ssr-web-acceptance.ts',
+      'apps/cli/tests/ssr/tanstack-starter-materialization.spec.ts'
+    ],
+    lanes: [
+      'tanstack-starter-materialization',
+      'packaging-ssr',
+      'packaging-test',
+      'cli-packaged-web',
+      'starter-qualification'
+    ]
   },
   {
     id: 'S31',

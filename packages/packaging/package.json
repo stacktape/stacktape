@@ -39,6 +39,7 @@
     "./web/ssr-web-shared": "./src/web/ssr-web-shared.ts"
   },
   "scripts": {
+    "test:ssr": "bun test src/web",
     "test:docker-smoke": "bun run scripts/synthetic-docker-smoke.ts",
     "test:node-lambda-e2e": "bun run scripts/synthetic-node-lambda-e2e.ts",
     "test:web-framework-e2e": "bun run scripts/synthetic-web-framework-e2e.ts",
@@ -49,6 +50,7 @@
     "test": "bun test src",
     "typecheck": "tsc -p tsconfig.json",
     "test:dockerfile-image-e2e": "bun run scripts/dockerfile-image-e2e.ts",
+    "test:language-lambdas": "bun test ./scripts/lambda-e2e",
     "test:node-lambda:offline": "bun test src/bundlers/es src/es src/split-bundler"
   },
   "dependencies": {

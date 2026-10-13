@@ -1,0 +1,15 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    bigdecimal (4.1.1)
+    rake (13.2.1)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  bigdecimal (>= 4.0, < 5)
+  rake (= 13.2.1)
+
+BUNDLED WITH
+   2.6.2

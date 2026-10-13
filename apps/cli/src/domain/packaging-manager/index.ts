@@ -1370,7 +1370,12 @@ export class PackagingManager {
       archiveItem,
       createPackagingError: createCliPackagingError,
       executeProcess: exec,
-      loadModuleExport: loadPackagingModuleExport
+      loadModuleExport: loadPackagingModuleExport,
+      runDocker: this.#dockerRunners.runDocker,
+      nativeDependencyInstallationRootPath: join(
+        fsPaths.absoluteBuildFolderPath({ invocationId: globalStateManager.invocationId }),
+        '_bin-install'
+      )
     });
     packagingOutputs.forEach((result) => this.#recordPackagedJob(result));
   };

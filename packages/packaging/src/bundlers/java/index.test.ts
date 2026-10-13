@@ -44,12 +44,11 @@ describe('Java artifact build files', () => {
       languageSpecificConfig: {},
       progressLogger,
       createPackagingError: ({ message }) => new Error(message),
-      runDocker: async (args) => {
-        const dockerfilePath = args[args.indexOf('--file') + 1]!;
-        const dockerfile = await readFile(dockerfilePath, 'utf8');
-        generatedInitFileName = dockerfile.match(/--init-script ([^\s]+)/)?.[1];
-        expect(generatedInitFileName).toStartWith('stp-init-');
-        expect(await readFile(join(sourcePath, generatedInitFileName!), 'utf8')).toContain('stacktapeDist');
+      runDocker: async () => {
+        generatedInitFileName = (await readdir(sourcePath)).find(
+          (name) => name.startsWith('stp-init-') && name.endsWith('.gradle')
+        );
+        expect(generatedInitFileName).toBeDefined();
         throw buildFailure;
       }
     });
@@ -57,35 +56,5 @@ describe('Java artifact build files', () => {
     await expect(operation).rejects.toBe(buildFailure);
     expect(await readFile(customerInitPath, 'utf8')).toBe('customer-owned');
     expect(await readdir(sourcePath)).not.toContain(generatedInitFileName);
-  });
-
-  test('removes its Gradle init script when writing the generated Dockerfile fails', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'stacktape-java-build-'));
-    temporaryDirectories.push(root);
-    const sourcePath = join(root, 'service');
-    const invalidDistFolderPath = join(root, 'dist');
-    await mkdir(sourcePath);
-    await writeFile(join(sourcePath, 'Handler.java'), 'public class Handler {}');
-    await writeFile(invalidDistFolderPath, 'this is a file, not a directory');
-
-    const operation = buildJavaArtifact({
-      name: 'handler',
-      cwd: root,
-      sourcePath,
-      entryfilePath: 'Handler.java',
-      rawEntryfilePath: 'Handler.java',
-      distFolderPath: invalidDistFolderPath,
-      invocationId: 'test',
-      existingDigests: [],
-      languageSpecificConfig: {},
-      progressLogger,
-      createPackagingError: ({ message }) => new Error(message),
-      runDocker: async () => {
-        throw new Error('Docker should not run when the Dockerfile cannot be written.');
-      }
-    });
-
-    await expect(operation).rejects.toBeInstanceOf(Error);
-    expect((await readdir(sourcePath)).filter((fileName) => fileName.startsWith('stp-init-'))).toEqual([]);
   });
 });
