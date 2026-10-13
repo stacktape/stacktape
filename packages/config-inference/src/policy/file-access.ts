@@ -10,7 +10,7 @@
  * agent to behave.
  */
 
-import { basename, posix } from 'node:path';
+import { basename } from 'node:path';
 
 /**
  * Directories whose contents are never interesting and frequently enormous.
@@ -237,19 +237,3 @@ export const extractEnvironmentVariableNames = (fileContents: string): string[] 
 
   return names;
 };
-
-/**
- * Whether a repository-relative path is inside one of the declared roots.
- *
- * Lexical only, and POSIX only. Real-path resolution (the symlink-escape case) needs the filesystem
- * and therefore belongs to the tool layer that already has it open.
- */
-export const isWithinRoots = (repoRelativePath: string, roots: readonly string[]): boolean =>
-  roots.some((root) => {
-    const normalized = posix.normalize(root);
-    if (normalized === '.' || normalized === '') {
-      return true;
-    }
-    const prefix = normalized.endsWith('/') ? normalized : `${normalized}/`;
-    return repoRelativePath === normalized || repoRelativePath.startsWith(prefix);
-  });

@@ -507,18 +507,23 @@ describe('assembleCandidateFacts', () => {
   });
 
   it('keeps a Go server and its same-named React client as two services', async () => {
-    const repoRoot = await makeRepo({
-      'go.mod': 'module github.com/acme/notes\n\ngo 1.24\n\nrequire github.com/labstack/echo/v4 v4.13.0\n',
-      'main.go': 'package main\n',
-      'scripts/Dockerfile': 'FROM golang:1.24\nCOPY . .\nEXPOSE 5230\nCMD ["notes"]\n',
-      'web/package.json': JSON.stringify({
-        name: 'notes',
-        scripts: { build: 'vite build' },
-        dependencies: { react: '^19.0.0' },
-        devDependencies: { vite: '^7.0.0' }
+    // The repository directory is the root service's name (memos), so it has to match the client package's name
+    // for the merge-by-name rule this test guards to be reached at all.
+    const repoRoot = join(
+      await makeRepo({
+        'notes/go.mod': 'module github.com/acme/notes\n\ngo 1.24\n\nrequire github.com/labstack/echo/v4 v4.13.0\n',
+        'notes/main.go': 'package main\n',
+        'notes/scripts/Dockerfile': 'FROM golang:1.24\nCOPY . .\nEXPOSE 5230\nCMD ["notes"]\n',
+        'notes/web/package.json': JSON.stringify({
+          name: 'notes',
+          scripts: { build: 'vite build' },
+          dependencies: { react: '^19.0.0' },
+          devDependencies: { vite: '^7.0.0' }
+        }),
+        'notes/web/index.html': '<div id="root"></div>'
       }),
-      'web/index.html': '<div id="root"></div>'
-    });
+      'notes'
+    );
 
     const { facts } = await assembleCandidateFacts({
       root: repoRoot,
