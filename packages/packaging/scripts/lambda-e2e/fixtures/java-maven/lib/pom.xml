@@ -1,0 +1,1 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"><modelVersion>4.0.0</modelVersion><parent><groupId>smoke</groupId><artifactId>parent</artifactId><version>1.0.0</version></parent><artifactId>lib</artifactId></project>
