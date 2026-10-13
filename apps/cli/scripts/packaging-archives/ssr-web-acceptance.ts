@@ -7,14 +7,14 @@
  * resolves exactly the committed versions; the framework version installed must equal the lockfile's. The source CLI
  * runs `package` as a child process in an isolated home with every AWS and Stacktape request routed to the offline
  * guard; the CLI installs the dependencies and runs the framework's build itself. The server function ZIP is
- * extracted with `unzip` and invoked in the official Lambda Node.js image as an unprivileged user that owns none of
+ * extracted with `unzip` and invoked in the official Lambda Node.js image for its deployed runtime (22 for Next, 24 for the other adapters) as an unprivileged user that owns none of
  * the files, with HTTP API v2 events as the gateway sends them: the index page must be HTML, the starter's dynamic
  * API route must answer with its message, and an unknown path must get the framework's not-found status. The index
  * request carries a cookie as a browser would. Temporary Next, Nuxt and Remix routes exercise two response cookies
  * and feed them back into the next request; a temporary TanStack route reads a dynamic path parameter. Next also
  * executes its image optimizer ZIP. The build must leave hashed static assets for the hosting bucket.
  *
- * It needs Docker, `unzip`, the local Lambda Node.js 24 image (pulled when missing) and network access for the
+ * It needs Docker, `unzip`, the local Lambda Node.js 22/24 images (pulled when missing) and network access for the
  * starters' dependency installs; it contacts no AWS service.
  *
  *   bun scripts/packaging-archives/ssr-web-acceptance.ts [--starter <id>[,<id>...]] [--out <new or empty directory>]
@@ -34,6 +34,7 @@ import { ensureLambdaImage, extractZip, invokeInLambdaRuntime, listLeftoverConta
 type Adapter = {
   starter: string;
   resourceType: string;
+  runtimeImage?: string;
   /** A route rendered by server code, not a static file. */
   dynamicRoute?: { path: string; expectedText: string };
   /**
@@ -98,6 +99,7 @@ const ADAPTERS: Adapter[] = [
     starter: 'nextjs-serverless',
     frameworkPackage: 'next',
     resourceType: 'nextjs-web',
+    runtimeImage: 'public.ecr.aws/lambda/nodejs:22',
     dynamicRoute: { path: '/api/hello', expectedText: 'Hello from Next.js API route on Lambda!' },
     expectsAssets: true
   }
@@ -284,6 +286,7 @@ export const Route = createFileRoute('/probe/$value')({
 
 const runAdapter = async ({ adapter, work }: { adapter: Adapter; work: string }) => {
   const { starter } = adapter;
+  const runtimeImage = adapter.runtimeImage ?? LAMBDA_IMAGE;
   const caseWork = join(work, starter);
   const project = join(caseWork, starter);
   const report: Record<string, unknown> = { starter, resourceType: adapter.resourceType };
@@ -378,7 +381,7 @@ const runAdapter = async ({ adapter, work }: { adapter: Adapter; work: string })
       const invocation = await invokeInLambdaRuntime({
         functionDirectory: functionDirectory!,
         handler: 'index-wrap.handler',
-        image: LAMBDA_IMAGE,
+        image: runtimeImage,
         event,
         timeoutMs: 120_000
       });
@@ -474,7 +477,7 @@ export const handler = async (event, context) => {
         const invocation = await invokeInLambdaRuntime({
           functionDirectory: imageDirectory,
           handler: 'probe.handler',
-          image: LAMBDA_IMAGE,
+          image: runtimeImage,
           event: { ...httpEvent({ path: '/_next/image' }), headers: { accept: 'image/webp' } },
           timeoutMs: 120_000
         });
@@ -531,19 +534,27 @@ const main = async () => {
   await mkdir(out, { recursive: true });
   if ((await readdir(out)).length > 0) throw new Error(`Refusing to write into ${out}: it is not empty.`);
   await ensureDevCliArtifacts();
-  const image = ensureLambdaImage(LAMBDA_IMAGE);
+  const images = Object.fromEntries(
+    [
+      ...new Set(
+        ADAPTERS.filter((adapter) => selectedStarters.includes(adapter.starter)).map(
+          (adapter) => adapter.runtimeImage ?? LAMBDA_IMAGE
+        )
+      )
+    ].map((image) => [image, ensureLambdaImage(image)])
+  );
   const work = await mkdtemp(join(tmpdir(), 'stacktape-ssr-web-acceptance-'));
   const reports: unknown[] = [];
   try {
     for (const adapter of ADAPTERS.filter((candidate) => selectedStarters.includes(candidate.starter))) {
       reports.push(await runAdapter({ adapter, work }));
-      await writeJsonAtomic(join(out, 'report.json'), { out, image, work, starters: reports, checks });
+      await writeJsonAtomic(join(out, 'report.json'), { out, images, work, starters: reports, checks });
     }
   } finally {
     const leftovers = listLeftoverContainers();
     check('all', 'no acceptance container is left behind', leftovers.length === 0, leftovers.join(', ') || 'none');
     if (!keep) await rm(work, { recursive: true, force: true }).catch(() => undefined);
-    await writeJsonAtomic(join(out, 'report.json'), { out, image, work, starters: reports, checks });
+    await writeJsonAtomic(join(out, 'report.json'), { out, images, work, starters: reports, checks });
   }
   const failed = checks.filter((entry) => !entry.ok);
   if (failed.length > 0) {

@@ -21,6 +21,7 @@ import { createTemporaryBuildFile } from '../fs/temporary-file';
 import { runWebBuildExclusive } from './build-coordinator';
 import { resolveInstalledNodePackage } from './node-runtime-files';
 import { copyDockerInstalledModulesForLambda } from '../es/native-dependencies';
+import { resolveNodeVersion } from '../bundlers/node-version';
 
 type NextjsWebBundlingProps = {
   resource: PackagedNextjsWeb;
@@ -38,7 +39,7 @@ type NextjsWebBundlingProps = {
   nativeDependencyInstallationRootPath: string;
 };
 
-type PackagedFunction = { name: string; handler: string };
+type PackagedFunction = { name: string; handler: string; runtime?: string | undefined };
 type PackagedNextjsWeb = NextjsWeb['properties'] & {
   name: string;
   _nestedResources: {
@@ -173,11 +174,19 @@ export const createNextjsWebArtifacts = async ({
       message: `Could not resolve the sharp runtime package for nextjs-web "${resource.name}" image optimization.`
     });
   }
+  // Replace host binaries and command links instead of overlaying them with the Docker installation's symlinks.
+  await Promise.all([
+    remove(join(imageFunctionPath, 'node_modules', 'sharp')),
+    remove(join(imageFunctionPath, 'node_modules', '.bin'))
+  ]);
   await copyDockerInstalledModulesForLambda({
     dependencies: [{ ...sharp, dependencyType: 'root' }],
     installationRootPath: nativeDependencyInstallationRootPath,
     distFolderPath: imageFunctionPath,
-    lambdaRuntimeVersion: 24,
+    lambdaRuntimeVersion: resolveNodeVersion({
+      runtime: resource._nestedResources.imageFunction.runtime,
+      target: 'lambda'
+    }),
     packageManager: 'npm',
     dockerBuildOutputArchitecture: 'linux/amd64',
     runDocker
