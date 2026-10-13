@@ -5,6 +5,8 @@ import clsx from 'clsx';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { BiCheck, BiCopy } from 'react-icons/bi';
 import { IconButton } from '@stacktape/ui-react/icon-button';
+import type { InstallPlatform } from '@stacktape/ui-react/install-platform';
+import { detectInstallPlatform } from '@stacktape/ui-react/install-platform';
 import { colors } from '@/styles/variables';
 import { marked } from 'marked';
 import { convertYamlToTypescript } from '@/utils/yaml-to-typescript';
@@ -568,27 +570,20 @@ const copyToClipboard = async (text: string) => {
   document.body.removeChild(textarea);
 };
 
-const getIsAppleSilicon = () => {
-  const webGlContext = document.createElement('canvas').getContext('webgl');
-  const debugInfo = webGlContext?.getExtension('WEBGL_debug_renderer_info');
-  const renderer = (debugInfo && webGlContext?.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)) || '';
-  return Boolean(renderer.match(/Apple/) && !renderer.match(/Apple GPU/));
+/** Tab labels that name the visitor's system, most specific first. A block whose tabs name systems opens on it. */
+const PREFERRED_TAB_LABELS: Record<`${InstallPlatform['os']}-${InstallPlatform['arch']}`, string[]> = {
+  'macos-arm64': ['macOS (Apple silicon)', 'macOS'],
+  'macos-x64': ['macOS (Intel)', 'macOS'],
+  'linux-x64': ['Linux (x64)', 'Linux'],
+  'linux-arm64': ['Linux (ARM64)', 'Linux'],
+  'windows-x64': ['Windows (x64)', 'Windows (PowerShell)', 'Windows'],
+  'windows-arm64': ['Windows (ARM64)', 'Windows (PowerShell)', 'Windows']
 };
 
-const getPlatform = () => {
-  if (navigator.platform.includes('Win')) return 'windows';
-  if (navigator.platform.includes('Linux')) return 'linux';
-  if (getIsAppleSilicon()) return 'macos-arm';
-  return 'macos';
-};
-
-const getPreferredTabLabels = () => {
-  const platform = getPlatform();
-  if (platform === 'windows') return ['Windows (PowerShell)', 'Windows'];
-  if (platform === 'linux') return ['Linux'];
-  if (platform === 'macos-arm') return ['macOS (ARM)', 'Macos ARM', 'macOS'];
-  return ['macOS', 'Macos'];
-};
+const findPreferredTab = (tabs: CodeTab[], platform: InstallPlatform) =>
+  PREFERRED_TAB_LABELS[`${platform.os}-${platform.arch}`]
+    .map((label) => tabs.find((tab) => String(tab.label) === label))
+    .find(Boolean);
 
 const getDisplayTabLabel = (label: ReactNode) => {
   if (label === 'stacktape.ts') return 'TypeScript';
@@ -606,15 +601,20 @@ function TabSwitcher({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 });
+  const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, top: 3, width: 0, height: 0 });
   const [hydrated, setHydrated] = useState(false);
 
   const updateIndicator = useCallback(() => {
     const activeButton = buttonRefs.current[activeIndex];
     if (!activeButton) return;
     // offset* keeps the pill aligned with the container's positioning context (no getBoundingClientRect
-    // rounding drift), matching the console app's Tabs.
-    setIndicatorStyle({ left: activeButton.offsetLeft, width: activeButton.offsetWidth });
+    // rounding drift), matching the console app's Tabs. The top follows the active tab onto a wrapped row.
+    setIndicatorStyle({
+      left: activeButton.offsetLeft,
+      top: activeButton.offsetTop,
+      width: activeButton.offsetWidth,
+      height: activeButton.offsetHeight
+    });
   }, [activeIndex]);
 
   // Measure before paint so the hand-off from the static CSS pill to the sliding indicator is seamless.
@@ -644,7 +644,7 @@ function TabSwitcher({
   return (
     <div className="flex mb-2">
       <div ref={containerRef} className={clsx('stp-tab-container', hydrated && 'is-hydrated')}>
-        <div className="stp-tab-indicator" style={{ left: indicatorStyle.left, width: indicatorStyle.width }} />
+        <div className="stp-tab-indicator" style={indicatorStyle} />
         {tabs.map((tab, index) => {
           const isActive = activeIndex === index;
           return (
@@ -712,10 +712,8 @@ export function CodeBlockNew({ tabs, lang, intellisense = false, stacktapeConfig
   const [renderError, setRenderError] = useState<string | null>(null);
   const codeContainerRef = useRef<HTMLDivElement>(null);
   const resolvedTabLabels = resolvedTabs.map((tab) => String(tab.label)).join('\u0000');
-  const activeTab =
-    resolvedTabs.find((tab) => String(tab.label) === activeTabLabel) ||
-    resolvedTabs.find((tab) => getPreferredTabLabels().includes(String(tab.label))) ||
-    resolvedTabs[0];
+  const tabChosen = useRef(false);
+  const activeTab = resolvedTabs.find((tab) => String(tab.label) === activeTabLabel) || resolvedTabs[0];
 
   const activeTabCode = activeTab.code;
   const activeTabLang = activeTab.lang;
@@ -737,12 +735,25 @@ export function CodeBlockNew({ tabs, lang, intellisense = false, stacktapeConfig
   const activeIndex = resolvedTabs.findIndex((tab) => tab.label === activeTab.label);
 
   useEffect(() => {
-    const preferredLabels = getPreferredTabLabels();
-    const matchedTab = resolvedTabs.find((tab) => preferredLabels.includes(String(tab.label)));
     setActiveTabLabel((currentLabel) => {
       if (resolvedTabs.some((tab) => String(tab.label) === currentLabel)) return currentLabel;
-      return String((matchedTab || resolvedTabs[0])?.label ?? '');
+      return String(resolvedTabs[0]?.label ?? '');
     });
+  }, [resolvedTabLabels, resolvedTabs]);
+
+  // After hydration, a block whose tabs name operating systems opens on the visitor's, unless they already chose.
+  useEffect(() => {
+    let cancelled = false;
+    const preselect = async () => {
+      const platform = await detectInstallPlatform();
+      if (cancelled || tabChosen.current || !platform) return;
+      const preferredTab = findPreferredTab(resolvedTabs, platform);
+      if (preferredTab) setActiveTabLabel(String(preferredTab.label));
+    };
+    void preselect();
+    return () => {
+      cancelled = true;
+    };
   }, [resolvedTabLabels, resolvedTabs]);
 
   useEffect(() => {
@@ -903,6 +914,7 @@ export function CodeBlockNew({ tabs, lang, intellisense = false, stacktapeConfig
   };
 
   const handleTabClick = (index: number) => {
+    tabChosen.current = true;
     setActiveTabLabel(String(resolvedTabs[index].label));
     setAnimationKey((value) => value + 1);
   };
