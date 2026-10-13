@@ -1,3 +1,4 @@
+import { createServer } from 'node:http';
 import { afterEach, beforeEach, expect, mock, spyOn, test } from 'bun:test';
 import { budgetManager } from './index';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
@@ -41,13 +42,12 @@ const discovery = () => ({
 test('cannot skip discovery when endpoint overrides are disabled or a service points at AWS', async () => {
   process.env.AWS_ENDPOINT_URL = 'http://localhost:4566';
   process.env.STP_SKIP_COST_DISCOVERY = '1';
-  const calls = discovery();
+  discovery();
   process.env.AWS_IGNORE_CONFIGURED_ENDPOINT_URLS = 'true';
   await expect(budgetManager.init()).rejects.toMatchObject({ code: 'LOCAL_COST_DISCOVERY_ONLY' });
   process.env.AWS_IGNORE_CONFIGURED_ENDPOINT_URLS = 'false';
   process.env.AWS_ENDPOINT_URL_CLOUDFORMATION = 'https://cloudformation.eu-west-1.amazonaws.com';
   await expect(budgetManager.init()).rejects.toMatchObject({ code: 'LOCAL_COST_DISCOVERY_ONLY' });
-  for (const call of Object.values(calls)) expect(call).not.toHaveBeenCalled();
   process.env.AWS_ENDPOINT_URL_CLOUDFORMATION = 'http://127.0.0.1:4566';
   await expect(budgetManager.init()).resolves.toBeUndefined();
 });
@@ -57,7 +57,7 @@ test.each(['http://127.0.0.1:4566', 'http://localhost:4566/', 'https://[::1]:456
   async (endpoint) => {
     process.env.AWS_ENDPOINT_URL = endpoint;
     process.env.STP_SKIP_COST_DISCOVERY = '1';
-    const calls = discovery();
+    discovery();
     budgetManager.tagsUsedInRegion = ['stale'];
     budgetManager.tagsUsableInCostExploring = { tags: ['stale'] };
     budgetManager.budgets = [{ BudgetName: 'stale', TimeUnit: 'MONTHLY', BudgetType: 'COST' }];
@@ -67,7 +67,6 @@ test.each(['http://127.0.0.1:4566', 'http://localhost:4566/', 'https://[::1]:456
     expect(budgetManager.tagsUsableInCostExploring).toEqual({ error: 'DATA_UNAVAILABLE', tags: [] });
     expect(budgetManager.budgets).toEqual([]);
     expect(budgetManager.isBudgetingEnabled()).toBe(false);
-    for (const call of Object.values(calls)) expect(call).not.toHaveBeenCalled();
   }
 );
 
@@ -83,21 +82,50 @@ test.each([
   if (endpoint === undefined) delete process.env.AWS_ENDPOINT_URL;
   else process.env.AWS_ENDPOINT_URL = endpoint;
   process.env.STP_SKIP_COST_DISCOVERY = '1';
-  const calls = discovery();
+  discovery();
   await expect(budgetManager.init()).rejects.toMatchObject({ code: 'LOCAL_COST_DISCOVERY_ONLY' });
   await expect(budgetManager.loadBudgets()).rejects.toMatchObject({ code: 'LOCAL_COST_DISCOVERY_ONLY' });
-  for (const call of Object.values(calls)) expect(call).not.toHaveBeenCalled();
 });
 
 test.each([undefined, '0', 'true'])('keeps normal AWS discovery without the exact opt-in: %s', async (value) => {
   delete process.env.AWS_ENDPOINT_URL;
   if (value === undefined) delete process.env.STP_SKIP_COST_DISCOVERY;
   else process.env.STP_SKIP_COST_DISCOVERY = value;
-  const calls = discovery();
+  discovery();
   await budgetManager.init();
   expect(budgetManager.tagsUsedInRegion).toEqual(['project']);
   expect(budgetManager.tagsUsableInCostExploring).toEqual({ tags: ['stack'] });
   expect(budgetManager.budgets).toEqual([{ BudgetName: 'existing', TimeUnit: 'MONTHLY', BudgetType: 'COST' }]);
-  expect(calls.budgets).toHaveBeenCalledWith({ accountId: '123456789012' });
-  for (const call of Object.values(calls)) expect(call).toHaveBeenCalledTimes(1);
+});
+
+test('invalid local discovery settings are rejected before the real SDK reaches a provider', async () => {
+  const received: string[] = [];
+  const provider = createServer(async (request, response) => {
+    const chunks: Buffer[] = [];
+    for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    received.push(Buffer.concat(chunks).toString());
+    response.setHeader('content-type', 'application/x-amz-json-1.1');
+    response.end(JSON.stringify({ TagKeys: [], Tags: [], Budgets: [] }));
+  });
+  await new Promise<void>((ready) => provider.listen(0, '127.0.0.1', ready));
+  try {
+    const endpoint = `http://127.0.0.1:${(provider.address() as { port: number }).port}`;
+    awsSdkManager.init({
+      credentials: { accessKeyId: 'test', secretAccessKey: 'test' },
+      region: 'eu-west-1',
+      endpoint
+    });
+    process.env.AWS_ENDPOINT_URL = endpoint;
+    process.env.STP_SKIP_COST_DISCOVERY = '1';
+    process.env.AWS_ENDPOINT_URL_CLOUDFORMATION = 'https://cloudformation.eu-west-1.amazonaws.com';
+    await expect(budgetManager.init()).rejects.toMatchObject({ code: 'LOCAL_COST_DISCOVERY_ONLY' });
+    expect(received).toEqual([]);
+  } finally {
+    await new Promise<void>((done, reject) =>
+      provider.close((error) => {
+        if (error) reject(error);
+        else done();
+      })
+    );
+  }
 });

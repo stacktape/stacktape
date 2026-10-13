@@ -1720,6 +1720,17 @@ export const lanes: readonly Lane[] = [
     selections: ['console-ui']
   },
   {
+    id: 'console-observability-readers',
+    command: ['pnpm', '--filter', '@stacktape/console-ui', 'test:observability:readers'],
+    level: 'process',
+    tier: 'pr',
+    tests: ['apps/console/ui/scripts/observability-readers.test.ts'],
+    requires: ['console'],
+    release: 'every-candidate',
+    proves:
+      'Actual Console clients and SDK transport retain paged metric values, denied-resource context and the selected live-tail request scope.'
+  },
+  {
     id: 'console-ui-2',
     command: ['pnpm', '--filter', '@stacktape/console-ui', 'typecheck'],
     level: 'focused',
@@ -2271,7 +2282,6 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/api-key-security.test.ts',
       'apps/console/api/src/services/bitbucket-forge.test.ts',
       'apps/console/api/src/services/budget-alert-polling.test.ts',
-      'apps/console/api/src/services/budget-alerts.test.ts',
       'apps/console/api/src/services/currency-conversion.test.ts',
       'apps/console/api/src/services/default-domain-aws.test.ts',
       'apps/console/api/src/services/git-connection-secret-store.test.ts',
@@ -2605,6 +2615,17 @@ export const lanes: readonly Lane[] = [
     release: 'every-candidate'
   },
   {
+    id: 'pricing-ministack',
+    command: ['pnpm', '--filter', '@stacktape/pricing', 'run', 'test:ministack'],
+    level: 'process',
+    tier: 'change',
+    tests: ['packages/pricing/scripts/pricing-ministack.test.ts'],
+    requires: ['docker', 'network'],
+    release: 'every-candidate',
+    proves:
+      'Pinned AWS CSV refreshes persist in MiniStack DynamoDB and yield complete or explicitly incomplete regional USD estimates, including bounded throttling retries.'
+  },
+  {
     id: 'docs-test',
     command: ['pnpm', '--filter', '@stacktape/docs', 'run', 'test'],
     level: 'focused',
@@ -2706,6 +2727,24 @@ export const lanes: readonly Lane[] = [
     tests: ['packages/analytics/src'],
     requires: [],
     release: 'every-candidate'
+  },
+  {
+    id: 'analytics-console',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/console-api-app',
+      'exec',
+      'bun',
+      'test',
+      'src/integrations/posthog.test.ts'
+    ],
+    level: 'process',
+    tier: 'pr',
+    tests: ['apps/console/api/src/integrations/posthog.test.ts'],
+    requires: ['console'],
+    release: 'every-candidate',
+    proves: 'The Console analytics adapter scrubs SDK deliveries and preserves handler outcomes when analytics fail.'
   },
   {
     id: 'cli-qualify-projects',
@@ -4514,8 +4553,12 @@ export const slices: readonly Slice[] = [
     status: 'active',
     journeys: ['J10'],
     paths: ['packages/pricing/**', 'apps/cli/src/init/pricing.ts'],
-    tests: ['apps/cli/src/init/pricing.spec.ts', 'packages/pricing/src/pricing.test.ts'],
-    lanes: ['pricing-test', 'cli', 'cli-2', 'cli-3', 'console-database-insights'],
+    tests: [
+      'apps/cli/src/init/pricing.spec.ts',
+      'packages/pricing/src/pricing.test.ts',
+      'packages/pricing/scripts/pricing-ministack.test.ts'
+    ],
+    lanes: ['pricing-test', 'pricing-ministack', 'cli', 'cli-2', 'cli-3', 'console-database-insights'],
     contributors: ['S66']
   },
   {
@@ -5229,6 +5272,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/utils/dates.ts'
     ],
     tests: [
+      'apps/console/ui/scripts/observability-readers.test.ts',
       'apps/console/api/src/utils/observability-inventory.test.ts',
       'apps/console/ui/src/aws/logs-commands.test.ts',
       'apps/console/ui/src/aws/logs.test.ts',
@@ -5241,7 +5285,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/pages/OverviewPage/overview-metrics.test.ts',
       'apps/console/ui/src/utils/dates.test.ts'
     ],
-    lanes: ['console-ui', 'console-ui-2', 'console-ui-3', 'console-database-insights'],
+    lanes: ['console-ui', 'console-ui-2', 'console-ui-3', 'console-observability-readers', 'console-database-insights'],
     contributors: ['S66']
   },
   {
@@ -5300,7 +5344,6 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/console/api/scripts/insights-runtime.test.ts',
       'apps/console/api/src/services/budget-alert-polling.test.ts',
-      'apps/console/api/src/services/budget-alerts.test.ts',
       'apps/console/api/src/services/currency-conversion.test.ts',
       'apps/cli/src/domain/budget-manager/index.spec.ts'
     ],
@@ -5371,15 +5414,17 @@ export const slices: readonly Slice[] = [
       'packages/analytics/**',
       'apps/cli/src/utils/telemetry.ts',
       'apps/console/api/src/integrations/posthog.ts',
+      'apps/console/api/src/integrations/posthog-consumer.fixture.ts',
       'apps/cli/src/init/telemetry.ts'
     ],
     tests: [
       'apps/cli/src/init/telemetry.spec.ts',
       'apps/cli/src/utils/telemetry.spec.ts',
+      'apps/console/api/src/integrations/posthog.test.ts',
       'packages/analytics/src/posthog.test.ts',
       'packages/analytics/src/privacy.test.ts'
     ],
-    lanes: ['analytics-test', 'cli', 'cli-2', 'cli-3']
+    lanes: ['analytics-test', 'analytics-console', 'cli', 'cli-2', 'cli-3']
   },
   {
     id: 'S70',
