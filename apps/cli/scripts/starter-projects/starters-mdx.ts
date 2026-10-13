@@ -396,6 +396,14 @@ const generateMdxPrerequisites = ({ usedResourceTypes }: StarterProjectMetadata)
 
   </details>
   <details>
+  <summary>Install on Windows ARM (Powershell)</summary>
+
+  \`\`\`bash
+  iwr https://installs.stacktape.com/windows-arm.ps1 -useb | iex
+  \`\`\`
+
+  </details>
+  <details>
   <summary>Install on Linux</summary>
 
   \`\`\`bash
