@@ -83,6 +83,25 @@ describe('runAgentSessionWithRetry', () => {
     expect(outcome.stopReason).toBe('complete');
   });
 
+  it('stops after the configured retries when the provider stays throttled', async () => {
+    const { hooks } = collectEvents();
+    let attempts = 0;
+
+    const outcome = await runAgentSessionWithRetry(input(), hooks, {
+      provider: 'claude-code',
+      executable: 'claude',
+      retryDelaysMs: [1, 1],
+      spawner: async () => {
+        attempts += 1;
+        return claudeResult({ exitCode: 1, stdout: '', stderr: '429 too many requests' });
+      }
+    });
+
+    // Each attempt spends the user's subscription, so the retry list is a hard ceiling.
+    expect(attempts).toBe(3);
+    expect(outcome).toMatchObject({ stopReason: 'error', errorMessage: 'Claude Code was rate limited.' });
+  });
+
   it('gives up on a failure that is not worth retrying', async () => {
     const { hooks } = collectEvents();
     let attempts = 0;

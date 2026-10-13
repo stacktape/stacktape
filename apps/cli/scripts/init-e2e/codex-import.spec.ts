@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { copyFile, readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { afterEach, expect, test } from 'bun:test';
 import { validateConfigYaml } from '../code-generation/validate-config-string';
@@ -106,6 +106,7 @@ test('Codex repairs refused facts and completes init with only cited contributio
     }
   });
   expect(init.exitCode, init.output).toBe(0);
+  expect(init.output).not.toContain('could not finish');
   const results = toolResults(init.agentLog);
   expect(results.find((entry) => entry.tool === 'get_project_brief')?.result).toMatchObject({
     brief: { services: [expect.objectContaining({ name: 'billing', path: '.' })] },
@@ -155,6 +156,29 @@ test('Codex repairs refused facts and completes init with only cited contributio
   expect(existsSync(dirname(invocation!.cwd))).toBe(false);
   expect(existsSync(join(sandbox.project, 'agent-patch.txt'))).toBe(false);
   expect(await readFile(join(sandbox.project, 'src/config.js'), 'utf8')).toBe(sourceBefore);
+}, 90_000);
+
+test('with Claude Code and Codex both installed, init drives Claude Code, whose built-ins can all be switched off', async () => {
+  const sandbox = await newSandbox();
+  const shim = process.platform === 'win32' ? ['codex.cmd', 'claude.cmd'] : ['codex', 'claude'];
+  await copyFile(join(sandbox.bin, shim[0]!), join(sandbox.bin, shim[1]!));
+  const init = await runSourceInit({
+    sandbox,
+    agent: {
+      behavior: 'run',
+      calls: [
+        { tool: 'read_file', arguments: { path: 'src/config.js' } },
+        { tool: 'submit_facts', arguments: submission }
+      ]
+    }
+  });
+  expect(init.exitCode, init.output).toBe(0);
+  expect(init.output).toContain('Using claude-code (');
+  const invocation = init.agentLog.find(
+    (entry): entry is Extract<AgentLogEntry, { type: 'invocation' }> => entry.type === 'invocation'
+  );
+  expect(invocation?.argv[0]).toBe('-p');
+  expect(await readFile(configPath(sandbox), 'utf8')).toContain("$Secret('payments_api_token')");
 }, 90_000);
 
 const failures: Array<[string, AgentScript, string]> = [

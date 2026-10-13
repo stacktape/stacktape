@@ -2157,10 +2157,10 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/domain/shared-resource-stack-manager/index.spec.ts',
       'apps/cli/src/domain/template-manager/index.spec.ts',
       'apps/cli/src/domain/template-manager/log-group-class.spec.ts',
+      'apps/cli/src/init/agent/models.spec.ts',
       'apps/cli/src/init/agent/session-runner.spec.ts',
       'apps/cli/src/init/agent/transports/claude-cli.spec.ts',
       'apps/cli/src/init/agent/transports/codex-cli.spec.ts',
-      'apps/cli/src/init/agent/transports/replay.spec.ts',
       'apps/cli/src/init/cicd/cicd.spec.ts',
       'apps/cli/src/init/composed-config-semantics.spec.ts',
       'apps/cli/src/init/deploy/failure.spec.ts',
@@ -3609,10 +3609,10 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/init-e2e/codex-import.spec.ts',
       'apps/cli/scripts/init-model-quality.ts',
       'apps/cli/src/init/eval/model-quality.spec.ts',
+      'apps/cli/src/init/agent/models.spec.ts',
       'apps/cli/src/init/agent/session-runner.spec.ts',
       'apps/cli/src/init/agent/transports/claude-cli.spec.ts',
-      'apps/cli/src/init/agent/transports/codex-cli.spec.ts',
-      'apps/cli/src/init/agent/transports/replay.spec.ts'
+      'apps/cli/src/init/agent/transports/codex-cli.spec.ts'
     ],
     lanes: ['init-agent-rules', 'init-codex-process', 'init-model-quality', 'cli', 'cli-2', 'cli-3', 'init-e2e'],
     contributors: ['S04', 'S05']

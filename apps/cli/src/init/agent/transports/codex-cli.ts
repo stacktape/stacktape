@@ -119,18 +119,6 @@ export const parseCodexStream = (lines: readonly string[]): CodexStreamResult =>
       continue;
     }
 
-    if (type.endsWith('tool_call') || type === 'item.tool_call') {
-      const name = typeof event.name === 'string' ? canonicalToolName(event.name) : 'tool';
-      events.push({ type: 'tool-call', name, summary: name });
-      continue;
-    }
-
-    if (type.includes('agent_message') || type === 'item.assistant_message') {
-      const text = typeof event.text === 'string' ? event.text : typeof event.message === 'string' ? event.message : '';
-      if (text !== '') events.push({ type: 'text', text });
-      continue;
-    }
-
     if (isRecord(event.usage)) {
       usage.inputTokens += typeof event.usage.input_tokens === 'number' ? event.usage.input_tokens : 0;
       usage.outputTokens += typeof event.usage.output_tokens === 'number' ? event.usage.output_tokens : 0;

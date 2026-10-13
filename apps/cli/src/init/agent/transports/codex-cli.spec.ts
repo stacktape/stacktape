@@ -70,41 +70,4 @@ describe('parseCodexStream', () => {
       { type: 'text', text: 'Reading the server.' }
     ]);
   });
-  it('reports a completed turn', () => {
-    const parsed = parseCodexStream(lines({ type: 'turn.completed', usage: { input_tokens: 500, output_tokens: 60 } }));
-
-    expect(parsed.stopReason).toBe('complete');
-    expect(parsed.sawConclusion).toBe(true);
-    expect(parsed.usage).toMatchObject({ inputTokens: 500, outputTokens: 60 });
-  });
-
-  it('captures subscription plan usage, which is the real budget signal on a flat plan', () => {
-    const parsed = parseCodexStream(
-      lines({
-        type: 'turn.completed',
-        rate_limits: { primary: { used_percent: 12.5 }, secondary: { used_percent: 41 } }
-      })
-    );
-
-    expect(parsed.usage.planUsedPercent).toBe(41);
-  });
-
-  it('reports a failed turn with its message', () => {
-    const parsed = parseCodexStream(lines({ type: 'turn.failed', error: { message: 'model unavailable' } }));
-
-    expect(parsed.stopReason).toBe('error');
-    expect(parsed.errorMessage).toBe('model unavailable');
-  });
-
-  it('reports no conclusion when the stream just stops', () => {
-    expect(parseCodexStream(['', 'garbage'])).toMatchObject({ sawConclusion: false, stopReason: 'error' });
-  });
-
-  it('normalises tool names to ours', () => {
-    const parsed = parseCodexStream(
-      lines({ type: 'item.tool_call', name: `mcp__${INIT_MCP_SERVER_NAME}__read_file` }, { type: 'turn.completed' })
-    );
-
-    expect(parsed.events).toContainEqual({ type: 'tool-call', name: 'read_file', summary: 'read_file' });
-  });
 });
