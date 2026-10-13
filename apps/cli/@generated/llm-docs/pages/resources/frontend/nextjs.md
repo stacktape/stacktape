@@ -101,6 +101,8 @@ DynamoDB does not require VPC access, so `joinDefaultVpc` is not needed here. Fo
 
 ## Build and dev
 
+Install and start Docker on the machine that runs `stacktape deploy` or `stacktape package`. Stacktape uses it to build the image optimizer's native dependencies for the Lambda runtime, including when deployment runs in CI.
+
 A Stacktape Next.js resource runs the Next.js build from `appDirectory`, and `buildCommand` lets teams replace the default build command when their repository has a custom script. Dev mode also has a small override surface: `dev.command` defaults to `next dev`, but can be changed when a package manager script is the canonical way to run the app locally.
 
 Use `buildCommand` when the default `next build` does not fit your setup — for example, when a monorepo needs `pnpm --filter web build` or when the app must run a prebuild step. Leave `buildCommand` unset when a normal Next.js build works from `appDirectory`; fewer custom commands make CI and local behavior easier to reason about.
