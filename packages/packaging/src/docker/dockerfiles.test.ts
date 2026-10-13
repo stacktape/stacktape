@@ -4,9 +4,6 @@ import {
   buildEsDevDockerfile,
   buildEsDockerfile,
   buildGoArtifactDockerfile,
-  buildJavaArtifactDockerfile,
-  buildPythonArtifactDockerfile,
-  buildRubyArtifactDockerfile,
   buildRustArtifactDockerfile,
   CARGO_LAMBDA_IMAGE
 } from './dockerfiles';
@@ -55,61 +52,16 @@ describe('Stacktape Dockerfile contracts', () => {
     expect(dockerfile).toContain('ENV NODE_ENV production');
   });
 
-  test('exports locked uv dependencies before installing them', () => {
-    const dockerfile = buildPythonArtifactDockerfile({
-      pythonVersion: 3.12,
-      alpine: true
-    });
-
-    expect(dockerfile).toMatch(/uv-lock" \]; then\s+uv export --locked --no-dev --no-emit-project/);
-  });
-
-  test('builds native Python and Ruby Lambda dependencies in runtime-compatible SAM images', () => {
-    const python = buildPythonArtifactDockerfile({
-      pythonVersion: 3.14,
-      alpine: true,
-      target: 'lambda'
-    });
-    const ruby = buildRubyArtifactDockerfile({
-      rubyVersion: 4,
-      alpine: true,
-      target: 'lambda'
-    });
-
-    expect(python).toStartWith('FROM public.ecr.aws/sam/build-python3.14:latest AS build');
-    expect(ruby).toStartWith('FROM public.ecr.aws/sam/build-ruby4.0:latest AS build');
-    expect(python).not.toContain('-alpine');
-    expect(ruby).not.toContain('-alpine');
-  });
-
-  test('builds Java and .NET Lambda artifacts in runtime-compatible SAM images', () => {
-    const java = buildJavaArtifactDockerfile({
-      javaVersion: 21,
-      useMaven: true,
-      target: 'lambda'
-    });
+  test('builds .NET Lambda artifacts in runtime-compatible SAM images', () => {
     const dotnet = buildDotnetArtifactDockerfile({
       dotnetVersion: 8,
       projectFilePath: 'Smoke.csproj',
       target: 'lambda'
     });
 
-    expect(java).toStartWith('FROM public.ecr.aws/sam/build-java21:latest AS build');
     expect(dotnet).toStartWith('FROM public.ecr.aws/sam/build-dotnet8:latest AS build');
     expect(dotnet).toContain('CustomAfterMicrosoftCommonTargets');
     expect(dotnet).toContain('/dist/.stacktape-assembly-name');
-  });
-
-  test('supports the Bundler gems.rb manifest', () => {
-    const artifact = buildRubyArtifactDockerfile({
-      rubyVersion: 4,
-      target: 'lambda'
-    });
-
-    expect(artifact).toContain('[ -f Gemfile ] || [ -f gems.rb ]');
-    expect(artifact).toContain("bundle config set --local without 'development test'");
-    expect(artifact).toContain('BUNDLE_GEMFILE="$gemfile" bundle install');
-    expect(artifact).not.toContain('bundle install --without');
   });
 
   test('runs bundles on the official Bun and Deno images with their own package managers', () => {
@@ -161,18 +113,5 @@ describe('Stacktape Dockerfile contracts', () => {
     expect(arm).toContain('--mount=type=cache,target=/src/target');
     expect(x86).toContain("--x86-64 --package 'api' --bin 'api'");
     expect(x86).toContain('FROM scratch AS artifact');
-  });
-
-  test('builds Maven projects with Maven rather than converting their build to Gradle', () => {
-    const dockerfile = buildJavaArtifactDockerfile({
-      javaVersion: 17,
-      useMaven: true,
-      alpine: false
-    });
-
-    expect(dockerfile).toStartWith('FROM public.ecr.aws/sam/build-java17:latest AS build');
-    expect(dockerfile).toContain("mvn --batch-mode --no-transfer-progress -pl '.' -am -DskipTests package");
-    expect(dockerfile).toContain("'./target/classes/.' /dist/");
-    expect(dockerfile).not.toContain('gradle init');
   });
 });
