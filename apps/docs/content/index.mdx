@@ -93,6 +93,16 @@ Run `stacktape deploy` and you get a live API Gateway endpoint with your custom 
       { label: 'pnpm (global)', lang: 'bash', code: `pnpm add -g stacktape` },
       { label: 'pnpm (local)', lang: 'bash', code: `pnpm add stacktape` }
     ]} />
+    Or install the standalone binary, which needs no Node.js. The tab for your system is selected for you.
+    <CodeBlock tabs={[
+      { label: 'macOS (Apple silicon)', lang: 'bash', code: `curl -L https://installs.stacktape.com/macos-arm.sh | sh` },
+      { label: 'macOS (Intel)', lang: 'bash', code: `curl -L https://installs.stacktape.com/macos.sh | sh` },
+      { label: 'Linux (x64)', lang: 'bash', code: `curl -L https://installs.stacktape.com/linux.sh | sh` },
+      { label: 'Linux (ARM64)', lang: 'bash', code: `curl -L https://installs.stacktape.com/linux-arm.sh | sh` },
+      { label: 'Alpine Linux', lang: 'bash', code: `curl -L https://installs.stacktape.com/alpine.sh | sh` },
+      { label: 'Windows (x64)', lang: 'bash', code: `iwr https://installs.stacktape.com/windows.ps1 -useb | iex` },
+      { label: 'Windows (ARM64)', lang: 'bash', code: `iwr https://installs.stacktape.com/windows-arm.ps1 -useb | iex` }
+    ]} />
   </Step>
   <Step title="Initialize a project">
     Scaffold a starter, or drop a `stacktape.ts` into an existing repo.
