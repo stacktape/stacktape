@@ -10,6 +10,8 @@
  * 1. ZIP contents: `reports` holds both assets, `orders` only the logo, `health` none;
  * 2. a targeted edit of `report-template.bin` changes only `reports`' split-function digest; `orders`, `health` and the
  *    layer keep theirs.
+ * 3. rebuilding the same output folders removes stale chunks; function ZIPs carry no layered chunks or maps;
+ * 4. a same-size edit of shared code changes its layer and both consumers, preserving the isolated function.
  * The report records every function's ZIP and unzipped bytes and digests.
  *
  *   bun run scripts/synthetic-split-assets-e2e.ts [--out <new or empty directory>]
@@ -40,7 +42,7 @@ const containerLabel = `stacktape.test=split-assets-${Date.now()}`;
 const sha256 = (value: string | Uint8Array) => createHash('sha256').update(value).digest('hex');
 const FUNCTIONS = ['reports', 'orders', 'health'] as const;
 type FunctionName = (typeof FUNCTIONS)[number];
-type AssetRead = { path: string; sha256: string };
+type AssetRead = { path: string; sha256: string; marker?: string };
 type HandlerResponse = { function: string; template?: AssetRead; logo?: AssetRead; ok?: boolean };
 
 const writeFixture = async () => {
@@ -56,7 +58,7 @@ const writeFixture = async () => {
       "import logoPath from '../assets/logo.bin';",
       '',
       "export const read = (path: string) => ({ path, sha256: createHash('sha256').update(readFileSync(path)).digest('hex') });",
-      'export const logo = () => read(logoPath);',
+      "export const logo = () => ({ ...read(logoPath), marker: 'first' });",
       ''
     ].join('\n')
   );
@@ -83,10 +85,11 @@ const writeFixture = async () => {
 /** One production split build of the fixture, its layer, digests and ZIPs, each function invoked from its ZIP. */
 const buildStep = async (step: string) => {
   const root = join(out, step);
+  const buildDirectory = join(out, 'build');
   const { layerArtifacts, chunksByFunction: chunksOf } = await buildSplitProjectWithLayers({
     project,
     names: FUNCTIONS,
-    directory: root
+    directory: buildDirectory
   });
   const layers = await Promise.all(
     layerArtifacts.map(async (layer) => {
@@ -104,7 +107,7 @@ const buildStep = async (step: string) => {
   );
   const functions = {} as Record<FunctionName, Record<string, unknown> & { digest: string; assets: string[] }>;
   for (const name of FUNCTIONS) {
-    const distFolderPath = join(root, 'functions', name);
+    const distFolderPath = join(buildDirectory, 'functions', name);
     const usedLayers = layers.filter((layer) => layer.chunks.some((chunk) => chunksOf.get(name)!.has(basename(chunk))));
     // oxlint-disable-next-line no-await-in-loop -- Functions are packaged and invoked one at a time.
     const digest = await getSplitFunctionDigest({
@@ -195,6 +198,11 @@ try {
     FUNCTIONS.map((name) => `${name}: ${base.functions[name].assets.join(', ') || 'none'}`).join('; ')
   );
 
+  await Promise.all([
+    write(join(out, 'build/layers/layer-1/nodejs/chunks/obsolete.js'), 'obsolete'),
+    write(join(out, 'build/shared/obsolete.js'), 'obsolete'),
+    write(join(out, 'build/functions/reports/chunks/obsolete.js'), 'obsolete')
+  ]);
   await write(join(project, 'src', 'assets', 'report-template.bin'), randomBytes(32 * 1024));
   const edited = await buildStep('edited-template');
   report.editedTemplate = edited;
@@ -207,6 +215,33 @@ try {
       (edited.functions.reports.response as HandlerResponse).template?.sha256 ===
         (await sourceHash('report-template.bin')),
     `changed: ${changed.join(', ') || 'none'}; layer ${base.layers[0]?.contentHash?.slice(0, 12)} → ${edited.layers[0]?.contentHash?.slice(0, 12)}`
+  );
+  const packagedFiles = await readdir(join(out, 'build'), { recursive: true });
+  check(
+    'rebuilding the same output paths removes stale shared, layer and function files',
+    !packagedFiles.some((file) => file.endsWith('obsolete.js')),
+    packagedFiles.filter((file) => file.endsWith('obsolete.js')).join(', ') || 'none'
+  );
+  check(
+    'layered chunks and maps are absent from their consumers’ function ZIPs',
+    FUNCTIONS.every(
+      (name) => !(edited.functions[name].entries as string[]).some((entry) => entry.startsWith('chunks/'))
+    ),
+    FUNCTIONS.map((name) => `${name}: ${(edited.functions[name].entries as string[]).join(', ')}`).join('; ')
+  );
+  const sharedSource = join(project, 'src/lib/shared.ts');
+  await write(sharedSource, (await readFile(sharedSource, 'utf8')).replace("marker: 'first'", "marker: 'other'"));
+  const editedShared = await buildStep('edited-shared');
+  report.editedShared = editedShared;
+  check(
+    'a same-size shared-code edit changes the layer and both consumers, preserving the isolated function',
+    editedShared.layers[0]?.contentHash !== edited.layers[0]?.contentHash &&
+      editedShared.functions.reports.digest !== edited.functions.reports.digest &&
+      editedShared.functions.orders.digest !== edited.functions.orders.digest &&
+      editedShared.functions.health.digest === edited.functions.health.digest &&
+      (editedShared.functions.reports.response as HandlerResponse).logo?.marker === 'other' &&
+      (editedShared.functions.orders.response as HandlerResponse).logo?.marker === 'other',
+    `layer ${edited.layers[0]?.contentHash} → ${editedShared.layers[0]?.contentHash}`
   );
   report.bytes = Object.fromEntries(
     FUNCTIONS.map((name) => [
@@ -245,4 +280,4 @@ try {
   );
   console.log(`Report: ${join(out, 'report.json')}`);
 }
-if (results.some(({ ok }) => !ok) || results.length < 4) process.exitCode = 1;
+if (results.some(({ ok }) => !ok) || results.length < 7) process.exitCode = 1;

@@ -572,6 +572,16 @@ export const lanes: readonly Lane[] = [
     selections: ['packaging-images']
   },
   {
+    id: 'node-lambda-offline',
+    command: ['pnpm', '--filter', '@stacktape/packaging', 'run', 'test:node-lambda:offline'],
+    level: 'process',
+    tier: 'pr',
+    tests: ['packages/packaging/src/bundlers/es', 'packages/packaging/src/es', 'packages/packaging/src/split-bundler'],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'Real single and split bundles execute offline; packaging rules and past regressions stay protected.'
+  },
+  {
     id: 'packaging-lambdas',
     command: ['pnpm', '--filter', '@stacktape/packaging', 'run', 'test:node-lambda-e2e'],
     level: 'process',
@@ -579,7 +589,8 @@ export const lanes: readonly Lane[] = [
     tests: ['packages/packaging/scripts/synthetic-node-lambda-e2e.ts'],
     requires: ['docker', 'network'],
     release: 'every-candidate',
-    proves: 'Built artifacts execute in their target runtimes.',
+    proves:
+      'Node artifacts execute with shared/native layers; native installations isolate architectures and reuse completed bytes.',
     selections: ['packaging-lambdas']
   },
   {
@@ -743,6 +754,7 @@ export const lanes: readonly Lane[] = [
     tier: 'change',
     tests: [
       'apps/cli/tests/ministack/deploy-loop.spec.ts',
+      'apps/cli/tests/ministack/split-lambda-family.ts',
       'apps/cli/tests/ministack/domain-cache.spec.ts',
       'apps/cli/tests/ministack/domain-add.spec.ts'
     ],
@@ -3326,6 +3338,7 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/es/package-manager-install.test.ts'
     ],
     lanes: [
+      'node-lambda-offline',
       'cli',
       'cli-2',
       'cli-3',
@@ -3337,7 +3350,6 @@ export const slices: readonly Slice[] = [
       'cli-packaged-lambda',
       'project-qualification',
       'project-qualification-2',
-      'cli-runtime-acceptances',
       'cli-test-real-aws-canary'
     ],
     contributors: ['S32']
@@ -3353,6 +3365,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/packaging-manager/split-bundling-policy.ts'
     ],
     tests: [
+      'apps/cli/tests/ministack/split-lambda-family.ts',
       'apps/cli/src/domain/packaging-manager/native-layer-groups.test.ts',
       'apps/cli/src/domain/packaging-manager/split-bundling-policy.test.ts',
       'packages/packaging/scripts/synthetic-split-assets-e2e.ts',
@@ -3367,6 +3380,7 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/split-bundler/layer-builder.test.ts'
     ],
     lanes: [
+      'node-lambda-offline',
       'ministack-deploy',
       'cli',
       'cli-2',
@@ -3379,7 +3393,6 @@ export const slices: readonly Slice[] = [
       'cli-packaged-lambda',
       'artifact-upload',
       'artifact-upload-2',
-      'cli-runtime-acceptances',
       'cli-test-real-aws-canary'
     ],
     contributors: ['S19', 'S33']
