@@ -6,11 +6,9 @@ import { resetDomainServiceInitialization } from '@utils/decorators';
  * `prepareArtifactsForStackDeployment` packages every workload and finalizes the template, and
  * `DeploymentArtifactManager.uploadAllArtifacts` uploads what changed. These are the calls, on the same managers, that
  * decide in a real deployment which functions are rebuilt, which objects are reused and which layers are uploaded.
- * Only what lies outside the CLI is replaced:
+ * The shared MiniStack fixture supplies S3 and CloudFormation:
  *
- * - the default lane keeps the deployment bucket in a local directory; the opt-in emulator lane uses the CLI's real
- *   S3 SDK requests against a local emulator bucket;
- * - CloudFormation reports an existing stack whose last deployment is `lastVersion`;
+ * - S3 stores the actual ZIPs; CloudFormation holds the existing stack, deployment bucket and version output;
  * - Docker is the fixture's stand-in on PATH (see `split-project-fixture.ts`);
  * - every other AWS request is refused before it leaves the process.
  *
@@ -18,11 +16,11 @@ import { resetDomainServiceInitialization } from '@utils/decorators';
  *
  *   bun --preload <cli>/scripts/test-preload.ts <cli>/scripts/packaging-archives/deploy-artifacts-worker.ts <request.json>
  */
-import type { StackDetails } from '@domain-services/cloudformation-stack-manager/types';
 import type { StackContext } from '@domain-services/stack-context';
 import type { Pluggable } from '@aws-sdk/types';
-import { copyFile, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, join, relative } from 'node:path';
+import { seedArtifactStack } from './artifact-stack-fixture';
+import { readFile, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
@@ -37,7 +35,6 @@ import { templateManager } from '@domain-services/template-manager';
 import { prepareTemplateForDeploy } from '@domain-services/template-manager/finalize';
 import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from '@stacktape/config-authoring';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
-import { outputNames } from '@stacktape/naming/stack-output-names';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { fsPaths } from 'src/config/runtime-paths';
 import { getConfigManagerContext } from '../../src/commands/_utils/initialization';
@@ -45,10 +42,8 @@ import { prepareArtifactsForStackDeployment } from '../../src/commands/deploy';
 import { SPLIT_FUNCTIONS } from './split-project-fixture';
 
 export type DeployArtifactsRequest = {
-  /** The default lane's deployment bucket: one file per S3 key. */
-  bucketDirectory?: string;
   /** Local AWS emulator endpoint. When set, S3 requests use the CLI's real SDK path. */
-  localAwsEndpoint?: string;
+  localAwsEndpoint: string;
   /** The deployment version the stack reports as its last one, such as `v000001`. */
   lastVersion: string;
   resultPath: string;
@@ -89,31 +84,18 @@ const REGION = 'eu-west-1';
 const STACK_HASH = 'acceptx1';
 const PROJECT_NAME = 'archive-acceptance';
 const STAGE = 'cache';
-const STACK_NAME = `${PROJECT_NAME}-${STAGE}`;
-
-/** Rejects every AWS SDK request before it is signed or sent. */
-const refuseAwsRequests: Pluggable<object, object> = {
-  applyToStack: (stack) => {
-    stack.add(
-      (_next, context) => async () => {
-        throw new Error(`The acceptance must not contact AWS (${context.clientName}.${context.commandName}).`);
-      },
-      { step: 'initialize', name: 'refuseAwsRequestsInAcceptance' }
-    );
-  }
-};
 
 /** In the emulator lane, only the deliberately selected S3 boundary may make requests. */
-const allowOnlyS3Requests: Pluggable<object, object> = {
+const allowOnlyArtifactRequests: Pluggable<object, object> = {
   applyToStack: (stack) => {
     stack.add(
       (next, context) => async (args) => {
-        if (context.clientName !== 'S3Client') {
+        if (!['S3Client', 'CloudFormationClient'].includes(context.clientName)) {
           throw new Error(`Unexpected AWS request (${context.clientName}.${context.commandName}).`);
         }
         return next(args);
       },
-      { step: 'initialize', name: 'allowOnlyS3RequestsInAcceptance' }
+      { step: 'initialize', name: 'allowOnlyArtifactRequestsInAcceptance' }
     );
   }
 };
@@ -124,22 +106,14 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
 const s3KeyOf = (location: unknown) =>
   isRecord(location) && typeof location.S3Key === 'string' ? location.S3Key : undefined;
 
-const listBucketKeys = async (directory: string): Promise<string[]> =>
-  (await readdir(directory, { recursive: true, withFileTypes: true }))
-    .filter((entry) => entry.isFile())
-    .map((entry) => relative(directory, join(entry.parentPath, entry.name)).replace(/\\/g, '/'))
-    .toSorted();
-
 const main = async () => {
   const request = JSON.parse(await readFile(process.argv[2]!, 'utf8')) as DeployArtifactsRequest;
-  if (request.localAwsEndpoint && !/^http:\/\/127\.0\.0\.1:\d+$/.test(request.localAwsEndpoint)) {
+  if (!/^http:\/\/127\.0\.0\.1:\d+$/.test(request.localAwsEndpoint)) {
     throw new Error('The local AWS endpoint must use 127.0.0.1 and an explicit port.');
-  }
-  if (!request.localAwsEndpoint && !request.bucketDirectory) {
-    throw new Error('The filesystem bucket directory is required.');
   }
   const project = process.cwd();
   const stackHash = request.stackHash ?? STACK_HASH;
+  const STACK_NAME = `${PROJECT_NAME}-${STAGE}-${stackHash}`;
   const bucketName = awsResourceNames.deploymentBucket(stackHash);
   if (
     request.failLayerUploadToBucket &&
@@ -151,64 +125,32 @@ const main = async () => {
 
   awsSdkManager.init({
     // The emulator lane passes the fixture's synthetic credentials; the emulator scopes buckets by that account.
-    credentials: request.localAwsEndpoint
-      ? {
-          accessKeyId: process.env.AWS_ACCESS_KEY_ID || 'test',
-          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'test'
-        }
-      : { accessKeyId: 'acceptance-forbidden', secretAccessKey: 'acceptance-forbidden' },
+    credentials: {
+      accessKeyId: '000000000000',
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'test'
+    },
     region: REGION,
-    endpoint: request.localAwsEndpoint ?? 'http://127.0.0.1:9',
-    plugins: [request.localAwsEndpoint ? allowOnlyS3Requests : refuseAwsRequests]
+    endpoint: request.localAwsEndpoint,
+    plugins: [allowOnlyArtifactRequests]
   });
-  const { cloudFormation, s3, ecr } = awsSdkManager;
-  cloudFormation.getDetails = async () =>
-    ({
-      StackName: STACK_NAME,
-      StackId: `arn:aws:cloudformation:${REGION}:123456789999:stack/${STACK_NAME}/acceptance`,
-      StackStatus: 'UPDATE_COMPLETE',
-      CreationTime: new Date(0),
-      Outputs: [{ OutputKey: outputNames.deploymentVersion(), OutputValue: request.lastVersion }],
-      stackOutput: { [outputNames.deploymentVersion()]: request.lastVersion }
-    }) as StackDetails;
-  cloudFormation.getResources = async () => [
-    {
-      LogicalResourceId: 'StpDeploymentBucket',
-      PhysicalResourceId: bucketName,
-      ResourceType: 'AWS::S3::Bucket',
-      ResourceStatus: 'UPDATE_COMPLETE',
-      LastUpdatedTimestamp: new Date(0)
-    }
-  ];
-  // The previous template only feeds the change preview, never an artifact decision.
-  cloudFormation.getTemplate = async () => ({ Resources: {} });
-  if (request.localAwsEndpoint) {
-    const uploadFile = s3.uploadFile.bind(s3);
-    s3.uploadFile = async (input) => {
-      if (input.bucketName !== bucketName) throw new Error(`Unexpected bucket ${input.bucketName}.`);
-      const result = await uploadFile(
-        request.failLayerUploadToBucket && input.s3Key.startsWith('shared-layer-')
-          ? { ...input, bucketName: request.failLayerUploadToBucket }
-          : input
-      );
-      uploadedKeys.push(input.s3Key);
-      return result;
-    };
-  } else {
-    const bucketDirectory = request.bucketDirectory!;
-    s3.listObjects = async (listedBucket: string) => {
-      if (listedBucket !== bucketName) throw new Error(`Unexpected bucket ${listedBucket}.`);
-      return (await listBucketKeys(bucketDirectory)).map((Key) => ({ Key }));
-    };
-    s3.uploadFile = async ({ bucketName: uploadBucket, filePath, s3Key }) => {
-      if (uploadBucket !== bucketName) throw new Error(`Unexpected bucket ${uploadBucket}.`);
-      await mkdir(dirname(join(bucketDirectory, s3Key)), { recursive: true });
-      await copyFile(filePath, join(bucketDirectory, s3Key));
-      uploadedKeys.push(s3Key);
-      return { $metadata: {}, Bucket: uploadBucket, Key: s3Key };
-    };
-    s3.waitForBucketExists = async () => {};
-  }
+  await seedArtifactStack({
+    endpoint: request.localAwsEndpoint,
+    stackName: STACK_NAME,
+    bucketName,
+    lastVersion: request.lastVersion
+  });
+  const { s3, ecr } = awsSdkManager;
+  const uploadFile = s3.uploadFile.bind(s3);
+  s3.uploadFile = async (input) => {
+    if (input.bucketName !== bucketName) throw new Error(`Unexpected bucket ${input.bucketName}.`);
+    const result = await uploadFile(
+      request.failLayerUploadToBucket && input.s3Key.startsWith('shared-layer-')
+        ? { ...input, bucketName: request.failLayerUploadToBucket }
+        : input
+    );
+    uploadedKeys.push(input.s3Key);
+    return result;
+  };
   ecr.listImages = async () => [];
 
   operationReporter.setSilentMode(true);

@@ -49,7 +49,8 @@
     "test": "bun test src",
     "typecheck": "tsc -p tsconfig.json",
     "test:language-lambdas": "bun test ./scripts/lambda-e2e",
-    "test:node-lambda:offline": "bun test src/bundlers/es src/es src/split-bundler"
+    "test:node-lambda:offline": "bun test src/bundlers/es src/es src/split-bundler",
+    "test:archive-build:e2e": "bun test ./scripts/archive-build-e2e.ts"
   },
   "dependencies": {
     "@balena/dockerignore": "1.0.2",

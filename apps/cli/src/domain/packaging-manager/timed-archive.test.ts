@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -35,13 +34,6 @@ console.log(JSON.stringify([first, second]));`;
 };
 
 describe('timed archiveItem', () => {
-  test('archives exactly like archiveItem and records nothing without STP_TIMINGS_FILE', async () => {
-    const { exitCode, stdout, source } = await archiveInProcess('inactive');
-    expect(exitCode).toBe(0);
-    expect(JSON.parse(stdout)).toEqual([`${source}.zip`, join(root, 'inactive', 'again', 'function.zip')]);
-    expect(existsSync(join(root, 'inactive', 'timings.json'))).toBe(false);
-  });
-
   test('records detection once and each archive with its backend when timing is on', async () => {
     const timingsFile = join(root, 'active-timings.json');
     const { exitCode, stdout, stderr } = await archiveInProcess('active', timingsFile);

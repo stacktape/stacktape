@@ -21,11 +21,10 @@ import { resetDomainServiceInitialization } from '@utils/decorators';
  *
  *   bun --preload <cli>/scripts/test-preload.ts <cli>/scripts/packaging-archives/docker-preparation-worker.ts <request.json>
  */
-import type { StackDetails } from '@domain-services/cloudformation-stack-manager/types';
 import type { StackContext } from '@domain-services/stack-context';
 import type { StacktapeConfig } from '@stacktape/config';
 import type { Pluggable } from '@aws-sdk/types';
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -35,12 +34,15 @@ import { deploymentArtifactManager } from '@domain-services/deployment-artifact-
 import { ec2Manager } from '@domain-services/ec2-manager';
 import { packagingManager } from '@domain-services/packaging-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
-import { outputNames } from '@stacktape/naming/stack-output-names';
+import { seedArtifactStack } from './artifact-stack-fixture';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
+import { fsPaths } from '../../src/config/runtime-paths';
 import { getConfigManagerContext } from '../../src/commands/_utils/initialization';
 
 export type DockerPreparationRequest = {
   command: 'package' | 'deploy';
+  localAwsEndpoint?: string;
+  stackHash?: string;
   resources: StacktapeConfig['resources'];
   resultPath: string;
   /** The `--disableLayerOptimization` argument. */
@@ -86,16 +88,15 @@ const writeRegistry = (registryPath: string, images: RegistryImage[]) =>
 
 const REGION = 'eu-west-1';
 const ACCOUNT_ID = '123456789999';
-const STACK_HASH = 'dockprep1';
 const PROJECT_NAME = 'docker-preparation';
 const STAGE = 'acceptance';
-const STACK_NAME = `${PROJECT_NAME}-${STAGE}`;
 
 /** Rejects every AWS SDK request before it is signed or sent. */
 const refuseAwsRequests: Pluggable<object, object> = {
   applyToStack: (stack) => {
     stack.add(
-      (_next, context) => async () => {
+      (next, context) => async (args) => {
+        if (['S3Client', 'CloudFormationClient'].includes(context.clientName)) return next(args);
         throw new Error(`The acceptance must not contact AWS (${context.clientName}.${context.commandName}).`);
       },
       { step: 'initialize', name: 'refuseAwsRequestsInAcceptance' }
@@ -114,45 +115,40 @@ const describeError = (error: unknown): NonNullable<DockerPreparationResult['err
 const main = async () => {
   const request = JSON.parse(await readFile(process.argv[2]!, 'utf8')) as DockerPreparationRequest;
   const project = process.cwd();
+  const STACK_HASH = request.stackHash ?? 'dockprep1';
+  const STACK_NAME = `${PROJECT_NAME}-${STAGE}-${STACK_HASH}`;
   let ecrAuthorizations = 0;
 
   awsSdkManager.init({
-    credentials: { accessKeyId: 'acceptance-forbidden', secretAccessKey: 'acceptance-forbidden' },
+    credentials: {
+      accessKeyId: request.localAwsEndpoint ? '000000000000' : 'acceptance-forbidden',
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'acceptance-forbidden'
+    },
     region: REGION,
-    endpoint: 'http://127.0.0.1:9',
+    endpoint: request.localAwsEndpoint ?? 'http://127.0.0.1:9',
     plugins: [refuseAwsRequests]
   });
-  const { cloudFormation, s3, ecr } = awsSdkManager;
+  const { s3, ecr } = awsSdkManager;
   const { deployment } = request;
   const lastVersion = deployment?.lastVersion ?? 'v000001';
   const uploadedKeys: string[] = [];
   const deletedImageTags: string[] = [];
   const deletedImageDigests: string[] = [];
-  cloudFormation.getDetails = async () =>
-    ({
-      StackName: STACK_NAME,
-      StackId: `arn:aws:cloudformation:${REGION}:${ACCOUNT_ID}:stack/${STACK_NAME}/acceptance`,
-      StackStatus: 'UPDATE_COMPLETE',
-      CreationTime: new Date(0),
-      Outputs: [{ OutputKey: outputNames.deploymentVersion(), OutputValue: lastVersion }],
-      stackOutput: { [outputNames.deploymentVersion()]: lastVersion }
-    }) as StackDetails;
-  cloudFormation.getResources = async () => [
-    {
-      LogicalResourceId: 'StpDeploymentBucket',
-      PhysicalResourceId: awsResourceNames.deploymentBucket(STACK_HASH),
-      ResourceType: 'AWS::S3::Bucket',
-      ResourceStatus: 'UPDATE_COMPLETE',
-      LastUpdatedTimestamp: new Date(0)
-    }
-  ];
-  cloudFormation.getTemplate = async () => ({ Resources: {} });
-  s3.listObjects = async () => [];
-  s3.uploadFile = async ({ s3Key }) => {
-    uploadedKeys.push(s3Key);
-    return { $metadata: {}, Key: s3Key };
-  };
-  s3.waitForBucketExists = async () => {};
+  if (request.command === 'deploy') {
+    if (!request.localAwsEndpoint) throw new Error('Deploy fixture needs the shared MiniStack endpoint');
+    await seedArtifactStack({
+      endpoint: request.localAwsEndpoint,
+      stackName: STACK_NAME,
+      bucketName: awsResourceNames.deploymentBucket(STACK_HASH),
+      lastVersion
+    });
+    const uploadFile = s3.uploadFile.bind(s3);
+    s3.uploadFile = async (input) => {
+      const result = await uploadFile(input);
+      uploadedKeys.push(input.s3Key);
+      return result;
+    };
+  }
   ecr.listImages = async () =>
     deployment
       ? (await readRegistry(deployment.registryPath)).map(({ tag, digest }) => ({
@@ -273,6 +269,15 @@ const main = async () => {
       sharedLayers = layers.map(({ layerNumber, layerPath }) => ({ layerNumber, zipPath: `${layerPath}.zip` }));
     }
     if (deployment) {
+      // This scenario protects image caching and retention; template synthesis is exercised by the deploy loop.
+      // Supply the template artifacts that the real S3 uploader requires instead of discarding its file reads.
+      const cfPath = fsPaths.absoluteCfTemplateFilePath({ invocationId: globalStateManager.invocationId });
+      const stpPath = fsPaths.absoluteStpTemplateFilePath({ invocationId: globalStateManager.invocationId });
+      await mkdir(dirname(cfPath), { recursive: true });
+      await Promise.all([
+        writeFile(cfPath, 'Resources: {}\n'),
+        writeFile(stpPath, JSON.stringify({ resources: request.resources }))
+      ]);
       // As the deploy command does around the stack update, which is outside this acceptance.
       await deploymentArtifactManager.uploadAllArtifacts({ useHotswap: false });
       await deploymentArtifactManager.deleteAllObsoleteArtifacts();

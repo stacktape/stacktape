@@ -47,9 +47,9 @@ describe('multi-file hashing', () => {
 
   test('distinguishes file identity even when contents are equal', async () => {
     const root = await createRoot();
-    await Promise.all([writeFile(join(root, 'first'), 'same'), writeFile(join(root, 'second'), 'same')]);
+    await Promise.all([writeFile(join(root, 'first'), 'same'), writeFile(join(root, 'other'), 'same')]);
 
-    expect(await digest(root, ['first'])).not.toBe(await digest(root, ['second']));
+    expect(await digest(root, ['first'])).not.toBe(await digest(root, ['other']));
   });
 
   test('is stable across different checkout paths with the same relative files', async () => {
