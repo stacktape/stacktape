@@ -32,7 +32,7 @@ import { createHash } from 'node:crypto';
 import { cp, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { startOfflineAwsServer } from '../qualification/offline-aws';
+import { startOfflineAwsServer, type OfflineAwsServer } from '../qualification/offline-aws';
 import { outputTail } from '../qualification/process';
 import { writeJsonAtomic } from '../qualification/report';
 import { cliDirectory, ensureDevCliArtifacts, packageWithSourceCli } from '../qualification/source-cli-packaging';
@@ -53,7 +53,7 @@ const optionValue = (flag: string) => {
 };
 /**
  * `--export <dir>` runs the build phase only (the CLI packages, digests are compared) and copies the first and edited
- * builds' artifacts there; `--import <dir>` runs the invoke phase only on such a directory. The build phase runs on
+ * builds' artifacts there; `--import <dir>` runs the invoke phase only on such a directory. The build phase needs Docker for MiniStack on
  * any host the CLI supports, including Windows; the invoke phase needs Docker and `unzip` on Linux.
  */
 const exportDirectory = optionValue('--export');
@@ -256,57 +256,60 @@ type PackageRun = {
 };
 
 /** One `package` of the project at `project`, leaving its build directory, with `/opt` assembled from its layers. */
-const packageProject = async ({ project, label }: { project: string; label: string }): Promise<PackageRun> => {
-  const offlineServer = await startOfflineAwsServer();
-  try {
-    const packaged = await packageWithSourceCli({
-      label,
-      projectName: 'node-lambda-acceptance',
-      projectRoot: project,
-      configPath: join(project, 'stacktape.yml'),
-      templatePath: join(out, `${label}-template.yml`),
-      offlineServer,
-      command: 'package'
-    });
-    const functions = {} as Record<FunctionName, PackagedFunction>;
-    for (const workload of packaged.details.packagedWorkloads as Partial<PackagedFunction>[]) {
-      const { jobName, digest, artifactPath } = workload;
-      if (typeof jobName !== 'string' || typeof digest !== 'string' || typeof artifactPath !== 'string') {
-        throw new Error(`The package command reported a workload without an artifact: ${JSON.stringify(workload)}`);
-      }
-      functions[jobName as FunctionName] = { jobName, digest, artifactPath };
+const packageProject = async ({
+  project,
+  label,
+  offlineServer
+}: {
+  project: string;
+  label: string;
+  offlineServer: OfflineAwsServer;
+}): Promise<PackageRun> => {
+  const packaged = await packageWithSourceCli({
+    label,
+    projectName: 'node-lambda-acceptance',
+    projectRoot: project,
+    configPath: join(project, 'stacktape.yml'),
+    templatePath: join(out, `${label}-template.yml`),
+    offlineServer,
+    command: 'package'
+  });
+  const functions = {} as Record<FunctionName, PackagedFunction>;
+  for (const workload of packaged.details.packagedWorkloads as Partial<PackagedFunction>[]) {
+    const { jobName, digest, artifactPath } = workload;
+    if (typeof jobName !== 'string' || typeof digest !== 'string' || typeof artifactPath !== 'string') {
+      throw new Error(`The package command reported a workload without an artifact: ${JSON.stringify(workload)}`);
     }
-    for (const name of FUNCTIONS) {
-      if (!functions[name]) throw new Error(`The package command did not package ${name}.`);
-    }
-    // `<invocation>/build/lambdas/<job>-<digest>.zip`; the layers of the same build are beside them.
-    const buildDirectory = dirname(dirname(functions.esm.artifactPath));
-    const layersRoot = join(buildDirectory, 'layers');
-    const layerNames = (await readdir(layersRoot).catch(() => [])).toSorted();
-    const layers = await Promise.all(
-      layerNames.map(async (name) => ({
-        path: join(layersRoot, name),
-        listing: await listExtractedEntries(join(layersRoot, name))
-      }))
-    );
-    let optDirectory: string | undefined;
-    if (layers.length > 0) {
-      optDirectory = join(out, label, 'opt');
-      await mkdir(optDirectory, { recursive: true });
-      for (const layer of layers) {
-        await cp(layer.path, optDirectory, { recursive: true });
-      }
-    }
-    return {
-      invocationId: packaged.invocationId,
-      invocationDirectory: dirname(buildDirectory),
-      functions,
-      layers,
-      optDirectory
-    };
-  } finally {
-    await offlineServer.close();
+    functions[jobName as FunctionName] = { jobName, digest, artifactPath };
   }
+  for (const name of FUNCTIONS) {
+    if (!functions[name]) throw new Error(`The package command did not package ${name}.`);
+  }
+  // `<invocation>/build/lambdas/<job>-<digest>.zip`; the layers of the same build are beside them.
+  const buildDirectory = dirname(dirname(functions.esm.artifactPath));
+  const layersRoot = join(buildDirectory, 'layers');
+  const layerNames = (await readdir(layersRoot).catch(() => [])).toSorted();
+  const layers = await Promise.all(
+    layerNames.map(async (name) => ({
+      path: join(layersRoot, name),
+      listing: await listExtractedEntries(join(layersRoot, name))
+    }))
+  );
+  let optDirectory: string | undefined;
+  if (layers.length > 0) {
+    optDirectory = join(out, label, 'opt');
+    await mkdir(optDirectory, { recursive: true });
+    for (const layer of layers) {
+      await cp(layer.path, optDirectory, { recursive: true });
+    }
+  }
+  return {
+    invocationId: packaged.invocationId,
+    invocationDirectory: dirname(buildDirectory),
+    functions,
+    layers,
+    optDirectory
+  };
 };
 
 type Response = Record<string, unknown>;
@@ -608,8 +611,10 @@ const main = async () => {
       : {};
   const work = await mkdtemp(join(tmpdir(), 'stacktape-node-lambda-acceptance-'));
   const report: Record<string, unknown> = { out, images, work };
+  let offlineServer: OfflineAwsServer | undefined;
   const runs: PackageRun[] = [];
   try {
+    offlineServer = await startOfflineAwsServer();
     const project = join(work, 'project');
     await writeFixture(project);
     const sharedLine =
@@ -621,15 +626,18 @@ const main = async () => {
     await cp(project, relocated, { recursive: true });
 
     console.log('Packaging the fixture with the source CLI (first run)...');
-    const first = await packageProject({ project, label: 'first' });
+    const first = await packageProject({ project, offlineServer, label: 'first' });
     runs.push(first);
     report.first = first;
+    if (process.env.STP_NODE_LAMBDA_FAIL_AFTER_PACKAGE === '1') {
+      throw new Error('Deliberate acceptance failure after packaging');
+    }
     check('split group emits a shared layer', first.layers.length >= 1, `${first.layers.length} shared layer(s)`);
 
     if (exportDirectory === undefined) await invokeFirst({ first, sharedLine, report });
 
     console.log('Packaging the unchanged project again...');
-    const second = await packageProject({ project, label: 'second' });
+    const second = await packageProject({ project, offlineServer, label: 'second' });
     runs.push(second);
     report.second = second;
     check(
@@ -647,7 +655,7 @@ const main = async () => {
     console.log('Editing esm.ts and packaging again...');
     const esmSource = join(project, 'src', 'esm.ts');
     await writeFile(esmSource, (await readFile(esmSource, 'utf8')).replace("'esm-v1'", "'esm-v2'"));
-    const edited = await packageProject({ project, label: 'edited' });
+    const edited = await packageProject({ project, offlineServer, label: 'edited' });
     runs.push(edited);
     report.edited = edited;
     check(
@@ -666,7 +674,7 @@ const main = async () => {
     if (exportDirectory === undefined) await invokeEdited({ edited });
 
     console.log('Packaging the untouched copy from another directory...');
-    const moved = await packageProject({ project: relocated, label: 'relocated' });
+    const moved = await packageProject({ project: relocated, offlineServer, label: 'relocated' });
     runs.push(moved);
     report.relocated = moved;
     check(
@@ -688,19 +696,23 @@ const main = async () => {
       console.log(`Exported the artifacts of the first and edited builds to ${exportDirectory}.`);
     }
   } finally {
-    // The build phase starts no container and needs no Docker; the check would only fail where there is none.
-    if (exportDirectory === undefined) {
-      const leftovers = listLeftoverContainers();
-      check('no acceptance container is left behind', leftovers.length === 0, leftovers.join(', ') || 'none');
+    try {
+      await offlineServer?.close();
+    } finally {
+      // Runtime containers are used only when invoking; MiniStack cleanup is verified by its fixture.
+      if (exportDirectory === undefined) {
+        const leftovers = listLeftoverContainers();
+        check('no acceptance container is left behind', leftovers.length === 0, leftovers.join(', ') || 'none');
+      }
+      if (!keep) {
+        await rm(work, { recursive: true, force: true }).catch(() => undefined);
+        await Promise.all(
+          runs.map((run) => rm(run.invocationDirectory, { recursive: true, force: true }).catch(() => undefined))
+        );
+      }
+      report.checks = checks;
+      await writeJsonAtomic(join(out, 'report.json'), report);
     }
-    if (!keep) {
-      await rm(work, { recursive: true, force: true }).catch(() => undefined);
-      await Promise.all(
-        runs.map((run) => rm(run.invocationDirectory, { recursive: true, force: true }).catch(() => undefined))
-      );
-    }
-    report.checks = checks;
-    await writeJsonAtomic(join(out, 'report.json'), report);
   }
   const failed = checks.filter((entry) => !entry.ok);
   if (failed.length > 0) {

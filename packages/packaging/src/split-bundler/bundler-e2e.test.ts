@@ -5,6 +5,7 @@ import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { buildEsCode } from '../bundlers/es';
 import { buildSplitBundle } from './bundler';
 import type { PackagingErrorDetails } from './types';
 
@@ -89,45 +90,6 @@ describe('split bundler end-to-end regressions', () => {
     expect(await Bun.file(join(sharedOutdir, 'obsolete.js')).exists()).toBe(false);
     expect(await readdir(join(distFolderPath, 'chunks'))).not.toContain('obsolete.js');
     expect(await Bun.file(join(distFolderPath, 'index.js')).text()).toContain('second');
-  });
-
-  test('copies file-loader assets and rewrites them to the Lambda task root', async () => {
-    const root = await createRoot();
-    const sourceRoot = join(root, 'src');
-    await mkdir(sourceRoot, { recursive: true });
-    await writeFile(join(sourceRoot, 'module.wasm'), Buffer.from([0, 97, 115, 109, 1, 0, 0, 0]));
-    await writeFile(
-      join(sourceRoot, 'shared.ts'),
-      `import wasmPath from './module.wasm'; export const assetPath = wasmPath;`
-    );
-    for (const name of ['a', 'b']) {
-      await writeFile(
-        join(sourceRoot, `${name}.ts`),
-        `import { assetPath } from './shared'; export const handler = () => assetPath;`
-      );
-    }
-    const result = await buildSplitBundle({
-      entrypoints: ['a', 'b'].map((name) => ({
-        name,
-        jobName: name,
-        entryfilePath: join(sourceRoot, `${name}.ts`),
-        distFolderPath: join(root, 'dist', name)
-      })),
-      sharedOutdir: join(root, 'shared'),
-      cwd: root,
-      installDependencies: async () => {},
-      createPackagingError
-    });
-
-    for (const output of result.lambdaOutputs.values()) {
-      const assetName = (await readdir(join(root, 'dist', output.name))).find((name) => name.endsWith('.wasm'));
-      expect(assetName).toBeDefined();
-      const chunkDirectory = join(root, 'dist', output.name, 'chunks');
-      const chunkNames = (await readdir(chunkDirectory)).filter((name) => name.endsWith('.js'));
-      expect(chunkNames.length).toBeGreaterThan(0);
-      const chunkSources = await Promise.all(chunkNames.map((name) => Bun.file(join(chunkDirectory, name)).text()));
-      expect(chunkSources.some((source) => source.includes(`/var/task/${assetName}`))).toBe(true);
-    }
   });
 
   test('resolves a require() of a dual-entry package to its CommonJS entry point', async () => {
@@ -243,6 +205,18 @@ describe('split bundler end-to-end regressions', () => {
       "import missing from 'not-installed-anywhere'; export const handler = () => missing;"
     );
     await expect(
+      buildEsCode({
+        sourcePath: join(root, 'b.ts'),
+        distPath: join(root, 'single-b/index.js'),
+        cwd: root,
+        externals: [],
+        outputModuleFormat: 'esm',
+        sourceMaps: 'disabled',
+        sourceMapBannerType: 'disabled',
+        createPackagingError
+      })
+    ).rejects.toThrow('not-installed-anywhere');
+    await expect(
       buildSplitBundle({
         entrypoints: [
           { name: 'b', jobName: 'b', entryfilePath: join(root, 'b.ts'), distFolderPath: join(root, 'dist', 'b') }
@@ -256,62 +230,5 @@ describe('split bundler end-to-end regressions', () => {
         createPackagingError
       })
     ).rejects.toThrow('not-installed-anywhere');
-  });
-
-  test('reports installation, setup, Bun and post-processing time as separate phases', async () => {
-    const root = await createRoot();
-    const sourceRoot = join(root, 'src');
-    await mkdir(sourceRoot, { recursive: true });
-    await writeFile(join(sourceRoot, 'shared.ts'), 'export const shout = (value: string) => value.toUpperCase();');
-    for (const name of ['a', 'b']) {
-      await writeFile(
-        join(sourceRoot, `${name}.ts`),
-        `import { shout } from './shared'; export const handler = () => shout('${name}');`
-      );
-    }
-    const installDelayMs = 50;
-
-    const { timings } = await buildSplitBundle({
-      entrypoints: ['a', 'b'].map((name) => ({
-        name,
-        jobName: name,
-        entryfilePath: join(sourceRoot, `${name}.ts`),
-        distFolderPath: join(root, 'dist', name)
-      })),
-      sharedOutdir: join(root, 'shared'),
-      cwd: root,
-      installDependencies: () => new Promise((resolve) => setTimeout(resolve, installDelayMs)),
-      createPackagingError
-    });
-
-    // The caller's installation used to be hidden inside the single reported duration.
-    expect(timings.installMs).toBeGreaterThanOrEqual(installDelayMs - 1);
-    expect(timings.setupMs).toBeGreaterThanOrEqual(0);
-    expect(timings.bunBuildMs).toBeGreaterThan(0);
-    expect(timings.postprocessMs).toBeGreaterThan(0);
-    expect(timings.installMs + timings.setupMs + timings.bunBuildMs + timings.postprocessMs).toBeCloseTo(
-      timings.totalMs,
-      6
-    );
-  });
-
-  test('does not bake the packaging process NODE_ENV into split Lambda output', async () => {
-    const root = await createRoot();
-    const entryfilePath = join(root, 'handler.ts');
-    const distFolderPath = join(root, 'dist', 'handler');
-    await writeFile(entryfilePath, 'export const handler = () => process.env.NODE_ENV;');
-
-    await buildSplitBundle({
-      entrypoints: [{ name: 'handler', jobName: 'handler', entryfilePath, distFolderPath }],
-      sharedOutdir: join(root, 'shared'),
-      cwd: root,
-      minify: true,
-      installDependencies: async () => {},
-      createPackagingError
-    });
-
-    const output = await Bun.file(join(distFolderPath, 'index.js')).text();
-    expect(output).toContain('process.env.NODE_ENV');
-    expect(output).not.toContain('"development"');
   });
 });

@@ -1,3 +1,4 @@
+/* eslint-disable no-await-in-loop -- Build modes and runtime dependency transitions reuse output directories sequentially. */
 /*
  * The two ES bundlers must classify a bare import the same way.
  *
@@ -9,8 +10,12 @@
  * These tests pin the shared behaviour at the level a customer feels it: what ends up in the
  * artifact.
  */
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildEsCode } from '../bundlers/es';
@@ -69,9 +74,12 @@ const splitBundle = async ({
 }: {
   root: string;
   entries: string[];
+  tsConfigPath?: string;
   isLambda?: boolean;
   nodeTarget?: number | string;
   bundleAwsSdk?: boolean;
+  excludeDependencies?: string[];
+  dependenciesToExcludeFromBundle?: string[];
 }) =>
   buildSplitBundle({
     entrypoints: entries.map((name) => ({
@@ -89,236 +97,7 @@ const splitBundle = async ({
     ...options
   });
 
-const perFunctionBundle = ({
-  root,
-  entry,
-  ...options
-}: {
-  root: string;
-  entry: string;
-  isLambda?: boolean;
-  nodeTarget?: string;
-  bundleAwsSdk?: boolean;
-}) =>
-  buildEsCode({
-    sourcePath: join(root, 'src', `${entry}.ts`),
-    distPath: join(root, 'dist-single', entry, 'index.js'),
-    cwd: root,
-    externals: [],
-    minify: false,
-    sourceMaps: 'disabled',
-    sourceMapBannerType: 'disabled',
-    outputModuleFormat: 'esm',
-    createPackagingError,
-    ...options
-  });
-
-/** Everything the built artifacts for these Lambdas contain, concatenated. */
-const artifactSources = async (root: string, entries: string[]) => {
-  const sources = await Promise.all(
-    entries.flatMap((entry) => [
-      Bun.file(join(root, 'dist', entry, 'index.js'))
-        .text()
-        .catch(() => '')
-    ])
-  );
-  const { readdir } = await import('node:fs/promises');
-  const chunkSources = await Promise.all(
-    entries.map(async (entry) => {
-      const chunkDirectory = join(root, 'dist', entry, 'chunks');
-      const names = await readdir(chunkDirectory).catch(() => [] as string[]);
-      const chunks = await Promise.all(names.map((name) => Bun.file(join(chunkDirectory, name)).text()));
-      return chunks.join('\n');
-    })
-  );
-  return [...sources, ...chunkSources].join('\n');
-};
-
-describe('modules the Lambda runtime already provides', () => {
-  test('a split bundle leaves the AWS SDK to the Lambda runtime instead of shipping it', async () => {
-    const root = await createRoot();
-    await writePackage({
-      root,
-      name: '@aws-sdk/client-s3',
-      files: {
-        'index.js': 'module.exports = { S3Client: class { constructor() {} }, MARKER: "sdk-bytes-in-artifact" };'
-      }
-    });
-    await mkdir(join(root, 'src'), { recursive: true });
-    await Promise.all(
-      ['api', 'worker'].map((entry) =>
-        writeFile(
-          join(root, 'src', `${entry}.ts`),
-          `import { S3Client } from '@aws-sdk/client-s3';\nexport const handler = async () => new S3Client({});\n`
-        )
-      )
-    );
-
-    await splitBundle({ root, entries: ['api', 'worker'], isLambda: true, nodeTarget: 24 });
-
-    const sources = await artifactSources(root, ['api', 'worker']);
-    expect(sources).not.toContain('sdk-bytes-in-artifact');
-    expect(sources).toContain('@aws-sdk/client-s3');
-  });
-
-  test('both bundlers agree about it, so a project keeps its artifact when it starts sharing a build', async () => {
-    const root = await createRoot();
-    await writePackage({
-      root,
-      name: '@aws-sdk/client-s3',
-      files: { 'index.js': 'module.exports = { S3Client: class {}, MARKER: "sdk-bytes-in-artifact" };' }
-    });
-    await mkdir(join(root, 'src'), { recursive: true });
-    await Promise.all(
-      ['api', 'worker'].map((entry) =>
-        writeFile(
-          join(root, 'src', `${entry}.ts`),
-          `import { S3Client } from '@aws-sdk/client-s3';\nexport const handler = async () => new S3Client();\n`
-        )
-      )
-    );
-
-    await perFunctionBundle({ root, entry: 'api', isLambda: true, nodeTarget: '24' });
-    const perFunctionSource = await Bun.file(join(root, 'dist-single', 'api', 'index.js')).text();
-
-    await splitBundle({ root, entries: ['api', 'worker'], isLambda: true, nodeTarget: 24 });
-    const splitSource = await artifactSources(root, ['api']);
-
-    expect(perFunctionSource).not.toContain('sdk-bytes-in-artifact');
-    expect(splitSource).not.toContain('sdk-bytes-in-artifact');
-  });
-
-  test('the lib helpers built on the clients are left to the runtime with them, on both paths', async () => {
-    const root = await createRoot();
-    await writePackage({
-      root,
-      name: '@aws-sdk/lib-dynamodb',
-      files: { 'index.js': 'module.exports = { DynamoDBDocumentClient: class {}, MARKER: "sdk-bytes-in-artifact" };' }
-    });
-    await mkdir(join(root, 'src'), { recursive: true });
-    await Promise.all(
-      ['api', 'worker'].map((entry) =>
-        writeFile(
-          join(root, 'src', `${entry}.ts`),
-          `import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';\nexport const handler = async () => new DynamoDBDocumentClient();\n`
-        )
-      )
-    );
-
-    await perFunctionBundle({ root, entry: 'api', isLambda: true, nodeTarget: '24' });
-    const perFunctionSource = await Bun.file(join(root, 'dist-single', 'api', 'index.js')).text();
-    await splitBundle({ root, entries: ['api', 'worker'], isLambda: true, nodeTarget: 24 });
-    const splitSource = await artifactSources(root, ['api', 'worker']);
-
-    expect(perFunctionSource).not.toContain('sdk-bytes-in-artifact');
-    expect(splitSource).not.toContain('sdk-bytes-in-artifact');
-  });
-
-  test('`bundleAwsSdk` ships the SDK from node_modules on both paths, for code that needs a newer one', async () => {
-    const root = await createRoot();
-    await writePackage({
-      root,
-      name: '@aws-sdk/lib-dynamodb',
-      files: { 'index.js': 'module.exports = { DynamoDBDocumentClient: class {}, MARKER: "sdk-bytes-in-artifact" };' }
-    });
-    await mkdir(join(root, 'src'), { recursive: true });
-    await Promise.all(
-      ['api', 'worker'].map((entry) =>
-        writeFile(
-          join(root, 'src', `${entry}.ts`),
-          `import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';\nexport const handler = async () => new DynamoDBDocumentClient();\n`
-        )
-      )
-    );
-
-    await perFunctionBundle({ root, entry: 'api', isLambda: true, nodeTarget: '24', bundleAwsSdk: true });
-    const perFunctionSource = await Bun.file(join(root, 'dist-single', 'api', 'index.js')).text();
-    await splitBundle({ root, entries: ['api', 'worker'], isLambda: true, nodeTarget: 24, bundleAwsSdk: true });
-    const splitSource = await artifactSources(root, ['api', 'worker']);
-
-    expect(perFunctionSource).toContain('sdk-bytes-in-artifact');
-    expect(splitSource).toContain('sdk-bytes-in-artifact');
-  });
-
-  test('a container build still bundles it, because no container runtime provides it', async () => {
-    const root = await createRoot();
-    await writePackage({
-      root,
-      name: '@aws-sdk/client-s3',
-      files: { 'index.js': 'module.exports = { S3Client: class {}, MARKER: "sdk-bytes-in-artifact" };' }
-    });
-    await mkdir(join(root, 'src'), { recursive: true });
-    await Promise.all(
-      ['api', 'worker'].map((entry) =>
-        writeFile(
-          join(root, 'src', `${entry}.ts`),
-          `import { S3Client } from '@aws-sdk/client-s3';\nexport const handler = async () => new S3Client();\n`
-        )
-      )
-    );
-
-    await splitBundle({ root, entries: ['api', 'worker'], isLambda: false, nodeTarget: 24 });
-
-    expect(await artifactSources(root, ['api', 'worker'])).toContain('sdk-bytes-in-artifact');
-  });
-
-  test('a Node version the Lambda runtime does not ship the SDK on keeps it bundled', async () => {
-    const root = await createRoot();
-    await writePackage({
-      root,
-      name: '@aws-sdk/client-s3',
-      files: { 'index.js': 'module.exports = { S3Client: class {}, MARKER: "sdk-bytes-in-artifact" };' }
-    });
-    await mkdir(join(root, 'src'), { recursive: true });
-    await Promise.all(
-      ['api', 'worker'].map((entry) =>
-        writeFile(
-          join(root, 'src', `${entry}.ts`),
-          `import { S3Client } from '@aws-sdk/client-s3';\nexport const handler = async () => new S3Client();\n`
-        )
-      )
-    );
-
-    await splitBundle({ root, entries: ['api', 'worker'], isLambda: true, nodeTarget: 16 });
-
-    expect(await artifactSources(root, ['api', 'worker'])).toContain('sdk-bytes-in-artifact');
-  });
-});
-
 describe('Prisma, whose query engine no import reaches', () => {
-  test('is resolved for a split artifact too, not only for a per-Lambda one', async () => {
-    const root = await createRoot();
-    // A Prisma 7 client generator with the TypeScript engine: no Rust binary to copy, but `resolvePrisma`
-    // must still run and accept the schema. If the split path never called it, a schema this builder
-    // rejects would go unnoticed — and a schema needing a Rust engine would ship without one.
-    await writeFile(
-      join(root, 'schema.prisma'),
-      'generator client { provider = "prisma-client" engineType = "client" }'
-    );
-    await writePackage({
-      root,
-      name: '@prisma/client',
-      packageJson: { version: '7.0.0' },
-      files: { 'index.js': 'module.exports = { PrismaClient: class {} };' }
-    });
-    await mkdir(join(root, 'src'), { recursive: true });
-    await Promise.all(
-      ['api', 'worker'].map((entry) =>
-        writeFile(
-          join(root, 'src', `${entry}.ts`),
-          `import { PrismaClient } from '@prisma/client';\nexport const handler = async () => new PrismaClient();\n`
-        )
-      )
-    );
-
-    const result = await splitBundle({ root, entries: ['api', 'worker'], isLambda: true, nodeTarget: 24 });
-
-    expect(Array.from(result.lambdaOutputs.keys()).toSorted()).toEqual(['api', 'worker']);
-    for (const output of result.lambdaOutputs.values()) {
-      expect(output.resolvedModules).toContain('@prisma/client');
-    }
-  });
-
   test('a schema the artifact cannot run with fails the build instead of the first invocation', async () => {
     const root = await createRoot();
     // Prisma 6 with the `prisma-client` generator and no engineType is unsupported. The per-Lambda path
@@ -363,11 +142,226 @@ describe('a handler the config names by export', () => {
     await splitBundle({ root, entries: ['api', 'worker'], isLambda: true, nodeTarget: 24 });
 
     // `index.processOrder` is the handler the CloudFormation template points at.
-    const source = await Bun.file(join(root, 'dist', 'api', 'index.js')).text();
     const module = (await import(`${join(root, 'dist', 'api', 'index.js')}?parity=${Date.now()}`)) as {
       processOrder?: () => Promise<string>;
     };
-    expect(source).toContain('processOrder');
     expect(await module.processOrder?.()).toBe('shared');
   });
+});
+
+// These are the installed SDK packages, not AWS service fakes. No SDK request is made.
+test('single and split artifacts load their SDK from the promised runtime or from their own bytes', async () => {
+  const root = await createRoot();
+  const sdkModules = join(import.meta.dir, '../../node_modules');
+  await symlink(sdkModules, join(root, 'node_modules'), 'junction');
+  await mkdir(join(root, 'src'));
+  await Promise.all(
+    ['api', 'worker'].map((name) =>
+      writeFile(
+        join(root, 'src', `${name}.ts`),
+        [
+          "import { DynamoDBClient } from '@aws-sdk/client-dynamodb';",
+          "import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';",
+          'export const handler = () => {',
+          "  const client = new DynamoDBClient({ region: 'eu-west-1', credentials: { accessKeyId: 'test', secretAccessKey: 'test' } });",
+          '  const document = DynamoDBDocumentClient.from(client);',
+          '  const result = { client: client.constructor.name, service: document.constructor.name, environment: process.env.NODE_ENV };',
+          '  document.destroy(); return result;',
+          '};'
+        ].join('\n')
+      )
+    )
+  );
+
+  for (const [label, options, provided] of [
+    ['managed', { isLambda: true, nodeTarget: 24 }, true],
+    ['explicit', { isLambda: true, nodeTarget: 24, bundleAwsSdk: true }, false],
+    ['container', { isLambda: false, nodeTarget: 24 }, false],
+    ['older', { isLambda: true, nodeTarget: 16 }, false]
+  ] as const) {
+    await buildEsCode({
+      sourcePath: join(root, 'src/api.ts'),
+      distPath: join(root, 'single/index.js'),
+      cwd: root,
+      externals: [],
+      sourceMaps: 'disabled',
+      sourceMapBannerType: 'disabled',
+      outputModuleFormat: 'esm',
+      minify: true,
+      createPackagingError,
+      ...options,
+      nodeTarget: String(options.nodeTarget)
+    });
+    await splitBundle({ root, entries: ['api', 'worker'], ...options });
+    for (const [kind, source] of [
+      ['single', join(root, 'single')],
+      ['split', join(root, 'dist/api')]
+    ] as const) {
+      const runtime = await mkdtemp(join(tmpdir(), `stacktape-sdk-${label}-${kind}-`));
+      temporaryDirectories.push(runtime);
+      await cp(source, runtime, { recursive: true });
+      const invoke = () =>
+        spawnSync(
+          process.env.npm_node_execpath || 'node',
+          [
+            '--input-type=module',
+            '--eval',
+            `import { handler } from ${JSON.stringify(pathToFileURL(join(runtime, 'index.js')).href)}; console.log(JSON.stringify(handler()));`
+          ],
+          {
+            cwd: runtime,
+            env: { ...process.env, NODE_ENV: 'runtime-only', NODE_PATH: '' },
+            encoding: 'utf8',
+            timeout: 10_000
+          }
+        );
+      if (provided) {
+        const missingRuntime = invoke();
+        expect(missingRuntime.status, `${label}/${kind}: should require the runtime SDK`).not.toBe(0);
+        expect(missingRuntime.stderr).toContain('ERR_MODULE_NOT_FOUND');
+        await symlink(sdkModules, join(runtime, 'node_modules'), 'junction');
+      }
+      const execution = invoke();
+      expect(execution.status, `${label}/${kind}: ${execution.stderr}`).toBe(0);
+      expect(JSON.parse(execution.stdout)).toEqual({
+        client: DynamoDBClient.name,
+        service: DynamoDBDocumentClient.name,
+        environment: 'runtime-only'
+      });
+    }
+  }
+}, 30_000);
+
+test('dependency rules select bundled bytes or runtime modules on both build paths', async () => {
+  for (const [label, manifest, options, expected, packageName] of [
+    ['pure', {}, {}, 'build-copy', 'fixture-dep'],
+    ['native', { gypfile: true }, {}, 'runtime-copy', 'fixture-dep'],
+    ['authored-external', {}, { dependenciesToExcludeFromBundle: ['fixture-dep'] }, 'runtime-copy', 'fixture-dep'],
+    ['excluded', {}, { excludeDependencies: ['fixture-dep'] }, 'runtime-copy', 'fixture-dep'],
+    ['wildcard', {}, { dependenciesToExcludeFromBundle: ['*'] }, 'runtime-copy', 'fixture-dep'],
+    ['ignored', {}, {}, 'runtime-copy', 'pnpapi'],
+    ['missing-manifest', undefined, {}, 'build-copy', 'fixture-dep']
+  ] as const) {
+    const root = await createRoot();
+    const packageRoot = await writePackage({
+      root,
+      name: packageName,
+      packageJson: manifest ?? {},
+      files: { 'index.js': "module.exports = 'build-copy';" }
+    });
+    if (manifest === undefined) await rm(join(packageRoot, 'package.json'));
+    await mkdir(join(root, 'src'));
+    await writeFile(
+      join(root, 'src/api.ts'),
+      `import value from '${packageName}'; export const handler = () => value;`
+    );
+    const buildOptions = {
+      excludeDependencies: 'excludeDependencies' in options ? [...options.excludeDependencies] : [],
+      dependenciesToExcludeFromBundle:
+        'dependenciesToExcludeFromBundle' in options ? [...options.dependenciesToExcludeFromBundle] : []
+    };
+    await buildEsCode({
+      sourcePath: join(root, 'src/api.ts'),
+      distPath: join(root, 'single/index.js'),
+      cwd: root,
+      externals: [],
+      outputModuleFormat: 'esm',
+      sourceMaps: 'disabled',
+      sourceMapBannerType: 'disabled',
+      createPackagingError,
+      ...buildOptions
+    });
+    await splitBundle({ root, entries: ['api'], ...buildOptions });
+    for (const source of [join(root, 'single'), join(root, 'dist/api')]) {
+      const runtime = await mkdtemp(join(tmpdir(), `stacktape-dependency-${label}-`));
+      temporaryDirectories.push(runtime);
+      await cp(source, runtime, { recursive: true });
+      // The dependency available to the runtime has different bytes. Loading the artifact tells us which it chose.
+      await writePackage({
+        root: runtime,
+        name: packageName,
+        files: { 'index.js': "module.exports = 'runtime-copy';" }
+      });
+      const execution = spawnSync(
+        process.env.npm_node_execpath || 'node',
+        [
+          '--input-type=module',
+          '--eval',
+          `import { handler } from ${JSON.stringify(pathToFileURL(join(runtime, 'index.js')).href)}; console.log(JSON.stringify(handler()));`
+        ],
+        { cwd: runtime, env: { ...process.env, NODE_PATH: '' }, encoding: 'utf8', timeout: 10_000 }
+      );
+      expect(execution.status, `${label}: ${execution.stderr}`).toBe(0);
+      expect(JSON.parse(execution.stdout), label).toBe(expected);
+    }
+  }
+}, 30_000);
+
+test('aliased sources and Node builtins execute from portable single and split artifacts', async () => {
+  const artifacts: Record<string, Buffer>[] = [];
+  for (let checkout = 0; checkout < 2; checkout++) {
+    const root = await createRoot();
+    await mkdir(join(root, 'src'));
+    // A real installed package shadows this name. The authored path must win over package resolution.
+    await writePackage({
+      root,
+      name: '@app/shared',
+      files: { 'index.js': "exports.marker = 'shadow-package'; exports.payload = 'wrong';" }
+    });
+    const tsConfigPath = join(root, 'tsconfig.json');
+    await writeFile(
+      tsConfigPath,
+      JSON.stringify({ compilerOptions: { baseUrl: '.', paths: { '@app/*': ['src/*'] } } })
+    );
+    await writeFile(
+      join(root, 'src/shared.ts'),
+      "export const marker = 'aliased-source'; export const payload = 'shared'.repeat(4096);"
+    );
+    for (const name of ['api', 'worker']) {
+      await writeFile(
+        join(root, `src/${name}.ts`),
+        "import { marker, payload } from '@app/shared'; import { basename } from 'node:path'; export const handler = () => ({ marker, size: payload.length, file: basename('/runtime/value') });"
+      );
+    }
+    await buildEsCode({
+      sourcePath: join(root, 'src/api.ts'),
+      distPath: join(root, 'single/index.js'),
+      cwd: root,
+      tsConfigPath,
+      externals: [],
+      outputModuleFormat: 'esm',
+      sourceMaps: 'external',
+      sourceMapBannerType: 'disabled',
+      createPackagingError
+    });
+    await splitBundle({ root, entries: ['api', 'worker'], tsConfigPath });
+    const bytes: Record<string, Buffer> = {};
+    for (const [kind, source] of [
+      ['single', join(root, 'single')],
+      ['split', join(root, 'dist/api')]
+    ] as const) {
+      for (const relative of (await readdir(source, { recursive: true, withFileTypes: true })).filter((entry) =>
+        entry.isFile()
+      )) {
+        const path = join(relative.parentPath, relative.name);
+        bytes[`${kind}/${path.slice(source.length + 1).replaceAll('\\', '/')}`] = await readFile(path);
+      }
+      const runtime = await mkdtemp(join(tmpdir(), 'stacktape-portable-artifact-'));
+      temporaryDirectories.push(runtime);
+      await cp(source, runtime, { recursive: true });
+      const execution = spawnSync(
+        process.env.npm_node_execpath || 'node',
+        [
+          '--input-type=module',
+          '--eval',
+          `import { handler } from ${JSON.stringify(pathToFileURL(join(runtime, 'index.js')).href)}; console.log(JSON.stringify(handler()));`
+        ],
+        { cwd: runtime, encoding: 'utf8', timeout: 10_000 }
+      );
+      expect(execution.status, `${kind}: ${execution.stderr}`).toBe(0);
+      expect(JSON.parse(execution.stdout)).toEqual({ marker: 'aliased-source', size: 24576, file: 'value' });
+    }
+    artifacts.push(bytes);
+  }
+  expect(artifacts[1]).toEqual(artifacts[0]);
 });

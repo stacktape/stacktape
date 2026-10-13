@@ -47,7 +47,8 @@
     "test:lambda-source-map-e2e": "bun run scripts/synthetic-lambda-source-map-e2e.ts",
     "test:split-assets-e2e": "bun run scripts/synthetic-split-assets-e2e.ts",
     "test": "bun test src",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "test:node-lambda:offline": "bun test src/bundlers/es src/es src/split-bundler"
   },
   "dependencies": {
     "@balena/dockerignore": "1.0.2",
@@ -67,6 +68,8 @@
     "yauzl": "^3.4.0"
   },
   "devDependencies": {
+    "@aws-sdk/client-dynamodb": "3.1121.0",
+    "@aws-sdk/lib-dynamodb": "3.1121.0",
     "@types/archiver": "^8.0.0",
     "@types/bun": "catalog:",
     "@types/fs-extra": "^11.0.4",
