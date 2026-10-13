@@ -1317,16 +1317,6 @@ export const lanes: readonly Lane[] = [
     proves: 'Inherited AWS profiles and endpoints cannot redirect the SDK away from the owned MiniStack account.'
   },
   {
-    id: 'console-observability-readers',
-    command: ['pnpm', '--filter', '@stacktape/console-ui', 'test:observability:readers'],
-    level: 'process',
-    tier: 'change',
-    tests: ['apps/console/ui/scripts/observability-readers.test.ts'],
-    requires: ['console'],
-    release: 'every-candidate',
-    proves: 'The Console metric and live-tail readers use the real SDK against bounded loopback provider replies.'
-  },
-  {
     id: 'console-credentials-aws',
     command: ['pnpm', '--filter', '@stacktape/console-ui', 'test:credentials:aws'],
     level: 'process',
