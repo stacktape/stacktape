@@ -103,7 +103,7 @@ export const DECISION_COPY: Record<string, DecisionCopy> = {
   'sqlite-persistence': {
     summary: () => 'Moving your SQLite data to a real database',
     detail: () =>
-      'SQLite keeps everything in a file next to your app. On AWS your app is replaced on every deploy, and the file goes with it — so this moves that data somewhere it survives.',
+      'SQLite keeps everything in a file next to your app. On AWS your app is replaced on every deploy, and the file goes with it, so this moves that data somewhere it survives.',
     option: (value) =>
       value === 'migrate-to-managed-database'
         ? 'Move it to a managed database'
@@ -156,7 +156,7 @@ export const DECISION_COPY: Record<string, DecisionCopy> = {
         ? `Packaging ${text(parameters, 'serviceName', 'your app')} with Stacktape instead of the Dockerfile`
         : `Using your Dockerfile for ${text(parameters, 'serviceName', 'your app')}`,
     detail: () =>
-      'Your Dockerfile looks like a standard template, and Stacktape’s own packaging is tuned and kept up to date — so we use that. The Dockerfile stays in your repository untouched; switch back here anytime.',
+      'Your Dockerfile looks like a standard template, and Stacktape’s own packaging is tuned and kept up to date, so we use that. The Dockerfile stays in your repository untouched; switch back here anytime.',
     option: (value) => (value === 'stacktape-packaging' ? 'Stacktape packaging' : 'Your Dockerfile')
   },
 
@@ -178,7 +178,7 @@ export const DECISION_COPY: Record<string, DecisionCopy> = {
     option: (value) => (value === 'build-time' ? 'When the app is built' : 'When the app starts'),
     consequence: (value) =>
       value === 'build-time'
-        ? 'For anything the browser reads — NEXT_PUBLIC_, VITE_, and so on.'
+        ? 'For anything the browser reads, such as NEXT_PUBLIC_ and VITE_ variables.'
         : 'For anything only your server reads.'
   },
 

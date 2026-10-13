@@ -295,7 +295,7 @@ export const connect = async (): Promise<Session> => {
 
   if (!response.ok) {
     throw new SessionError(
-      'This wizard session is no longer available in this browser. Run `stacktape init` again to start a new one.'
+      'Either this link was already opened in another browser, or stacktape init has stopped. Run stacktape init in your project again to start a new session.'
     );
   }
 
