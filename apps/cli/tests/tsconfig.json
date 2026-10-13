@@ -9,6 +9,7 @@
     "./data-safety/**/*.ts",
     "./synthesis-families/**/*.ts",
     "./ministack/**/*.ts",
+    "./local-development/**/*.ts",
     "./static-sites/*.ts",
     "./data-connections/**/*.ts",
     "./generated-access/**/*.ts"

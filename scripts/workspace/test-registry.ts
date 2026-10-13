@@ -541,6 +541,66 @@ export const lanes: readonly Lane[] = [
     selections: ['init-e2e']
   },
   {
+    id: 'local-dev',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:local-dev'],
+    level: 'process',
+    tier: 'change',
+    tests: [
+      'apps/cli/src/commands/dev',
+      'apps/cli/src/commands/dev-stop',
+      'apps/cli/src/utils/ports.test.ts',
+      'apps/cli/scripts/real-aws/lambda-dev-canary.spec.ts'
+    ],
+    requires: [],
+    release: 'every-candidate',
+    proves:
+      'Dev-stop kills owned descendants, stable proxy URLs follow rebuilds, and local port allocation avoids foreign listeners.'
+  },
+  {
+    id: 'local-dev-containers',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:local-dev:containers'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/tests/local-development/container-cleanup.spec.ts'],
+    requires: ['docker', 'network'],
+    release: 'every-candidate',
+    proves:
+      'Real Docker cleanup removes abandoned and stopped containers while preserving live and legacy sessions; network is only for the fixture image.'
+  },
+  {
+    id: 'local-dev-next',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:local-dev:next'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/tests/local-development/next-dev.spec.ts'],
+    requires: ['network'],
+    release: 'every-candidate',
+    proves:
+      'A pinned real Next dev server receives local parameters, serves edits through its stable URL and cleans up; network is only for fixture installation.'
+  },
+  {
+    id: 'local-dev-ministack',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:local-dev:ministack'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/tests/ministack/local-dev.spec.ts'],
+    requires: ['docker'],
+    release: 'every-candidate',
+    proves:
+      'MiniStack stores local tunnel parameters and restored Lambda environments; the real dev HTTP agent redacts reads and denies mutation.'
+  },
+  {
+    id: 'local-dev-lambda-live',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:real-aws-lambda-dev'],
+    level: 'live-aws',
+    tier: 'release',
+    tests: ['apps/cli/scripts/real-aws/lambda-dev-canary.ts'],
+    requires: ['aws', 'network', 'docker'],
+    release: 'affected-external-contract',
+    proves:
+      'A deployed Lambda queries initial and edited local PostgreSQL data through the real dev tunnel; logs, environment restore and deletion are verified.'
+  },
+  {
     id: 'local-dev-live',
     command: ['pnpm', 'test:aws', '--aws-scenario=dev-mode-local-loop'],
     level: 'live-aws',
@@ -1504,6 +1564,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/scripts/qualification/report.spec.ts',
       'apps/cli/scripts/qualification/runner-integration.spec.ts',
       'apps/cli/scripts/real-aws/dev-mode-canary.spec.ts',
+      'apps/cli/scripts/real-aws/lambda-dev-canary.spec.ts',
       'apps/cli/scripts/real-aws/init-canary-client.spec.ts',
       'apps/cli/scripts/real-aws/init-canary-fixtures.spec.ts',
       'apps/cli/scripts/real-aws/init-canary.spec.ts',
@@ -1556,13 +1617,12 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/commands/dev-stop/dev-stop.test.ts',
       'apps/cli/src/commands/dev/__tests__/dev-server-process.test.ts',
       'apps/cli/src/commands/dev/__tests__/port-utils.test.ts',
-      'apps/cli/src/commands/dev/agent-server-aws-sdk.spec.ts',
-      'apps/cli/src/commands/dev/cleanup-orphaned-containers.test.ts',
       'apps/cli/src/commands/dev/cleanup-utils.spec.ts',
       'apps/cli/src/commands/dev/dev-mode-utils.spec.ts',
       'apps/cli/src/commands/dev/dev-stack-config-fingerprint.spec.ts',
       'apps/cli/src/commands/dev/dev-stack-safety.spec.ts',
       'apps/cli/src/commands/dev/local-resources/redis.spec.ts',
+      'apps/cli/src/commands/dev/tunnel-manager/session.spec.ts',
       'apps/cli/src/commands/dev/named-proxy/__tests__/manager.test.ts',
       'apps/cli/src/commands/dev/named-proxy/__tests__/proxy.test.ts',
       'apps/cli/src/commands/dev/named-proxy/__tests__/utils.test.ts',
@@ -3255,23 +3315,38 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/cli/scripts/real-aws/dev-mode-canary.spec.ts',
+      'apps/cli/scripts/real-aws/lambda-dev-canary.spec.ts',
       'apps/cli/src/commands/dev-stop/dev-stop.test.ts',
       'apps/cli/src/commands/dev/__tests__/dev-server-process.test.ts',
       'apps/cli/src/commands/dev/__tests__/port-utils.test.ts',
-      'apps/cli/src/commands/dev/agent-server-aws-sdk.spec.ts',
-      'apps/cli/src/commands/dev/cleanup-orphaned-containers.test.ts',
       'apps/cli/src/commands/dev/cleanup-utils.spec.ts',
       'apps/cli/src/commands/dev/dev-mode-utils.spec.ts',
       'apps/cli/src/commands/dev/dev-stack-config-fingerprint.spec.ts',
       'apps/cli/src/commands/dev/dev-stack-safety.spec.ts',
       'apps/cli/src/commands/dev/local-resources/redis.spec.ts',
+      'apps/cli/src/commands/dev/tunnel-manager/session.spec.ts',
       'apps/cli/src/commands/dev/named-proxy/__tests__/manager.test.ts',
       'apps/cli/src/commands/dev/named-proxy/__tests__/proxy.test.ts',
       'apps/cli/src/commands/dev/named-proxy/__tests__/utils.test.ts',
       'apps/cli/src/utils/ports.test.ts',
-      'apps/cli/tests/characterization/dev-support-template.spec.ts'
+      'apps/cli/tests/characterization/dev-support-template.spec.ts',
+      'apps/cli/tests/local-development/next-dev.spec.ts',
+      'apps/cli/tests/local-development/container-cleanup.spec.ts',
+      'apps/cli/tests/ministack/local-dev.spec.ts',
+      'apps/cli/scripts/real-aws/lambda-dev-canary.ts'
     ],
-    lanes: ['cli', 'cli-2', 'cli-3', 'local-dev-live', 'cli-test-real-aws-dev-canary']
+    lanes: [
+      'cli',
+      'cli-2',
+      'cli-3',
+      'local-dev',
+      'local-dev-next',
+      'local-dev-containers',
+      'local-dev-ministack',
+      'local-dev-lambda-live',
+      'local-dev-live',
+      'cli-test-real-aws-dev-canary'
+    ]
   },
   {
     id: 'S16',
