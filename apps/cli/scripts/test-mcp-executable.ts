@@ -1,10 +1,16 @@
 import assert from 'node:assert/strict';
-import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { Client, isInputRequiredResult, type InputRequiredResult } from '@modelcontextprotocol/client';
+import {
+  Client,
+  ProtocolError,
+  ProtocolErrorCode,
+  isInputRequiredResult,
+  type InputRequiredResult
+} from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 import { getPlatform } from '@utils/bin-executable';
 import { withPersistedApiKey } from '../src/app/global-state-manager/api-key-storage';
@@ -310,10 +316,12 @@ const verify = async () => {
       stderr: 'pipe'
     });
     try {
-      await assert.rejects(
-        legacyClient.connect(legacyTransport, { timeout: 5_000 }),
-        /version|legacy|protocol|support/i
-      );
+      await assert.rejects(legacyClient.connect(legacyTransport, { timeout: 5_000 }), (error: unknown) => {
+        assert(error instanceof ProtocolError);
+        assert.equal(error.code, ProtocolErrorCode.UnsupportedProtocolVersion);
+        assert.deepEqual((error.data as { supported: string[] }).supported, ['2026-07-28']);
+        return true;
+      });
     } finally {
       await legacyClient.close();
       await legacyTransport.close();
@@ -445,6 +453,24 @@ const verify = async () => {
     assert.equal((override.data?.args as Record<string, unknown>).region, 'ap-southeast-2');
     assert.equal((override.data?.args as Record<string, unknown>).awsAccount, 'override');
     assert.equal((override.data?.args as Record<string, unknown>).autoConfirmOperation, true);
+    for (const [safety, commands] of [
+      ['destructive', ['delete', 'secret:delete', 'aws-profile:delete', 'org:delete']],
+      ['mutating', ['deploy', 'rollback', 'domain:add', 'issues:resolve', 'container:exec']],
+      ['interactive', ['login', 'init', 'dev', 'dev:stop', 'bastion:session', 'bastion:tunnel', 'container:session']]
+    ] as const) {
+      for (const command of commands) {
+        const described = await call('stacktape_cli', { action: 'describe', command });
+        assert.equal(described.ok, true);
+        assert.equal(described.data?.safety, safety, command);
+        assert.equal(described.data?.requiresConfirmation, safety !== 'interactive', command);
+        const refused = await call('stacktape_cli', {
+          action: 'run',
+          command,
+          ...(safety === 'interactive' ? { confirm: true } : {})
+        });
+        assert.equal(refused.code, safety === 'interactive' ? 'UNSUPPORTED_COMMAND' : 'CONFIRMATION_REQUIRED', command);
+      }
+    }
     const sqlPlan = await call('stacktape_cli', {
       action: 'plan',
       command: 'query:sql',
@@ -457,6 +483,70 @@ const verify = async () => {
     assert.equal((sqlPlan.data?.args as Record<string, unknown>).sql, 'SELECT 1;');
     assert.equal((sqlPlan.data?.args as Record<string, unknown>).query, undefined);
     assert.equal((sqlPlan.data?.policy as Record<string, unknown>).requiresConfirmation, false);
+    const runnerPlan = await call('stacktape_cli', {
+      action: 'plan',
+      command: 'deploy',
+      stage: 'dev',
+      region: 'eu-west-1',
+      args: { runner: 'ec2' }
+    });
+    assert.equal(runnerPlan.ok, true, JSON.stringify(runnerPlan));
+    assert.equal((runnerPlan.data?.args as Record<string, unknown>).runner, 'ec2');
+    assert.equal(
+      (
+        await call('stacktape_cli', {
+          action: 'plan',
+          command: 'deploy',
+          stage: 'dev',
+          region: 'eu-west-1',
+          args: { runner: 'lambda' }
+        })
+      ).code,
+      'VALIDATION_ERROR'
+    );
+    const validatePlan = await call('stacktape_cli', {
+      action: 'plan',
+      command: 'validate',
+      stage: 'dev',
+      region: 'eu-west-1',
+      args: { withPackage: true, thorough: true }
+    });
+    assert.equal(validatePlan.ok, true, JSON.stringify(validatePlan));
+    assert.equal((validatePlan.data?.args as Record<string, unknown>).withPackage, true);
+    assert.equal((validatePlan.data?.args as Record<string, unknown>).thorough, true);
+    for (const args of [{ withCloud: true }, { onlyWorkloads: ['api'] }]) {
+      assert.equal(
+        (
+          await call('stacktape_cli', {
+            action: 'plan',
+            command: 'validate',
+            stage: 'dev',
+            region: 'eu-west-1',
+            args
+          })
+        ).code,
+        'VALIDATION_ERROR'
+      );
+    }
+    for (const [command, operation, supportedReadOnlyOperations] of [
+      ['query:redis', 'get', ['keys', 'get', 'ttl', 'info', 'type']],
+      ['query:dynamodb', 'scan', ['scan', 'query', 'get', 'schema', 'sample']],
+      ['query:opensearch', 'search', ['search', 'get', 'indices', 'mapping', 'count']]
+    ] as const) {
+      const args = { stage: 'dev', region: 'eu-west-1', resourceName: 'data', operation, key: 'session' };
+      if (command !== 'query:redis') delete (args as { key?: string }).key;
+      const planned = await call('stacktape_cli', { action: 'plan', command, args });
+      assert.equal(planned.ok, true, `${command}: ${JSON.stringify(planned)}`);
+      assert.equal(
+        (planned.data?.policy as Record<string, unknown>).requiresConfirmation,
+        false,
+        `${command} must stay read-only`
+      );
+      assert.equal((planned.data?.args as Record<string, unknown>).operation, operation);
+      const rejected = await call('stacktape_cli', { action: 'run', command, args: { ...args, operation: 'write' } });
+      assert.equal(rejected.code, 'VALIDATION_ERROR');
+      assert.deepEqual(rejected.data?.supportedReadOnlyOperations, [...supportedReadOnlyOperations]);
+    }
     const devPlan = await call('stacktape_dev', { action: 'plan', args: { cwd: project, projectName: 'docs' } });
     assert.equal(devPlan.ok, true);
     assert.equal((devPlan.data?.args as Record<string, unknown>).stage, 'dev');
@@ -474,6 +564,22 @@ const verify = async () => {
       ).code,
       'UNSUPPORTED_COMMAND'
     );
+    const otherProject = join(directory, 'explicit-cwd');
+    await mkdir(otherProject);
+    await writeFile(join(otherProject, 'package.json'), JSON.stringify({ dependencies: { stacktape: '*' } }));
+    const installed = await call('stacktape_cli', {
+      action: 'run',
+      command: 'mcp:add',
+      cwd: otherProject,
+      confirm: true
+    });
+    assert.equal(installed.ok, true);
+    const context = installed.data?.resolvedContext as { cwd: string };
+    assert.equal(await realpath(context.cwd), await realpath(otherProject));
+    const otherConfig = JSON.parse(await readFile(join(otherProject, '.mcp.json'), 'utf8'));
+    assert.equal(otherConfig.mcpServers.stacktape.command, 'node_modules/.bin/stacktape');
+    await assert.rejects(stat(join(project, '.mcp.json')), { code: 'ENOENT' });
+    console.info('PASS executable MCP explicit cwd writes only the selected project');
     const scan = await call('stacktape_project', { action: 'scan' });
     assert.equal(scan.ok, true);
     assert.deepEqual(scan.data?.suggestedDefaults, { configPath: 'stacktape.ts', currentWorkingDirectory: '.' });
@@ -558,6 +664,11 @@ const verify = async () => {
       (await call('stacktape_cli', { action: 'describe', command: 'secret:get' })).data?.sensitiveOutput,
       true
     );
+    assert.equal(
+      (await call('stacktape_cli', { action: 'run', command: 'j12_unknown_command' })).code,
+      'UNKNOWN_COMMAND'
+    );
+    console.info('PASS executable MCP command classification, supported reads and argument surfaces');
     assert.equal(requests.length, 0, 'Rejected requests must not reach the control plane');
     const incident = await call('stacktape_incident', { action: 'show', incidentId: 'inc_j12' });
     assert.equal(incident.ok, true);

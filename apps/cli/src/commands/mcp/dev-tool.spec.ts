@@ -76,6 +76,11 @@ describe('MCP dev session routing', () => {
       ).toBe(true);
       expect(first.state.rebuilt).toEqual(['api worker']);
       expect(second.state.rebuilt).toEqual([]);
+      expect((await handler({ action: 'rebuild_all', args: { devSessionId: secondId } })).structuredContent.ok).toBe(
+        true
+      );
+      expect(first.state.rebuilt).toEqual(['api worker']);
+      expect(second.state.rebuilt).toEqual(['all']);
       expect((await handler({ action: 'stop', args: { devSessionId: firstId } })).structuredContent.ok).toBe(true);
       expect(first.state.stopped).toBe(true);
       expect(second.state.stopped).toBe(false);
@@ -84,7 +89,7 @@ describe('MCP dev session routing', () => {
       );
       expect((await handler({ action: 'status' })).structuredContent.data?.status).toMatchObject({
         stopped: false,
-        rebuilt: []
+        rebuilt: ['all']
       });
       for (const action of ['rebuild', 'rebuild_all', 'stop'] as const) {
         expect((await handler({ action })).structuredContent.code).toBe('DEV_SESSION_ID_REQUIRED');
