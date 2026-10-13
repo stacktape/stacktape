@@ -97,6 +97,20 @@ test('a Developer resolves an issue and the change survives reload', async ({ te
 Qualify a new helper through its first consumer: expected state observed, a legitimate failure detected, repeated and
 concurrent runs independent, cleanup verified after a deliberate failure, and no route to live endpoints.
 
+## CLI operations
+
+`pnpm --filter @stacktape/cli test:operations:rules` runs the fast, offline rule and terminal-control tests.
+`test:operations` starts one shared MiniStack container, allocates isolated accounts and runs the built source CLI with
+loopback Console responses. CloudFormation, STS, S3, Lambda and log storage use MiniStack; the proxy supplies deliberate
+faults and operations the pinned emulator lacks. Session tests replace the native vendor transport: MiniStack 1.5.26
+rejects SSM `StartSession` with `InvalidAction`, so these tests do not qualify live Session Manager or ECS networking.
+
+`pnpm --filter @stacktape/cli test:operations:db` runs the SQL, Redis, DynamoDB and OpenSearch command scenarios. It
+uses MiniStack for SSM connection parameters and DynamoDB, plus disposable PostgreSQL, Redis and OpenSearch services.
+`J9_QUERY_SERVICES=sql,redis,dynamodb,opensearch` selects the database scenarios. The runner owns bounded subprocesses
+and verifies MiniStack removal; database helpers verify their container removal. Run these Docker lanes sequentially on
+a shared machine. Neither command uses developer AWS credentials.
+
 ## Isolated Console application
 
 ```sh

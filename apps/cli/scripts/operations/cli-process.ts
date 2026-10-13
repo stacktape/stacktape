@@ -1,3 +1,5 @@
+import { CloudFormationClient, CreateStackCommand, UpdateStackCommand } from '@aws-sdk/client-cloudformation';
+import type { MiniStackAccount } from '@stacktape/ministack/fixture';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -8,6 +10,7 @@ import { developerIdentity, LOOPBACK_API_KEY, startLoopbackConsole } from './loo
 import { startLoopbackAws, toQueryXml } from './loopback-aws';
 import type { StackInfoMap } from '@stacktape/stack-info/contracts';
 
+const accounts: MiniStackAccount[] = JSON.parse(process.env.J9_MINISTACK_ACCOUNTS ?? '[]');
 const cliDirectory = resolve(import.meta.dir, '../..');
 
 const terminateProcessTree = async (child: ReturnType<typeof Bun.spawn>) => {
@@ -55,18 +58,25 @@ export const buildOperationsCli = async () => {
 
 export const createOperationsFixture = async (cliPath: string, extraEnvironment: Record<string, string> = {}) => {
   const directory = await mkdtemp(join(tmpdir(), 'stacktape-j9-'));
-  const aws = await startLoopbackAws();
-  const api = await startLoopbackConsole({ identity: developerIdentity({ projectName: 'j9-operations' }) });
+  const endpoint = process.env.J9_MINISTACK_ENDPOINT;
+  const account = endpoint ? accounts.shift() : undefined;
+  if (endpoint && !account) throw new Error('Operations runner did not allocate a MiniStack account.');
+  const accountId = account?.accountId;
+  const aws = await startLoopbackAws(endpoint);
+  const api = await startLoopbackConsole({
+    identity: developerIdentity({ projectName: 'j9-operations', ...(endpoint ? { accountId } : {}) })
+  });
   const children = new Map<ReturnType<typeof Bun.spawn>, Promise<unknown>>();
   const home = join(directory, 'home');
   await mkdir(home, { recursive: true });
   // These commands never invoke helper Lambdas. An empty artifact directory satisfies the startup inventory.
   await mkdir(join(directory, '__stacktape-dist/dev/helper-lambdas'), { recursive: true });
-  aws.on('sts.GetCallerIdentity', () => ({
-    kind: 'xml',
-    operation: 'GetCallerIdentity',
-    result: toQueryXml({ Account: '111122223333', Arn: 'arn:aws:iam::111122223333:user/j9', UserId: 'j9' })
-  }));
+  if (!endpoint)
+    aws.on('sts.GetCallerIdentity', () => ({
+      kind: 'xml',
+      operation: 'GetCallerIdentity',
+      result: toQueryXml({ Account: '111122223333', Arn: 'arn:aws:iam::111122223333:user/j9', UserId: 'j9' })
+    }));
   const env = {
     PATH: process.env.PATH,
     HOME: home,
@@ -78,6 +88,7 @@ export const createOperationsFixture = async (cliPath: string, extraEnvironment:
     STP_CUSTOM_TRPC_API_ENDPOINT: api.endpoint,
     AWS_EC2_METADATA_DISABLED: 'true',
     J9_AWS_ENDPOINT: aws.endpoint,
+    ...(endpoint ? { J9_ACCOUNT_ID: accountId, J9_SECRET_ACCESS_KEY: account!.credentials.secretAccessKey } : {}),
     ...extraEnvironment
   };
   const start = (args: string[], { tty = false, timeoutMs = 30_000 }: { tty?: boolean; timeoutMs?: number } = {}) => {
@@ -175,6 +186,12 @@ export const createOperationsFixture = async (cliPath: string, extraEnvironment:
   return {
     directory,
     home,
+    // Setup clients bypass the fault proxy; assertions can inspect independently stored emulator state.
+    clientConfig: () => {
+      if (!endpoint)
+        throw new Error('Run this scenario through test:operations or test:operations:db (MiniStack required).');
+      return { endpoint, region: 'eu-west-1' as const, credentials: account!.credentials, forcePathStyle: true };
+    },
     aws,
     api,
     start,
@@ -201,40 +218,33 @@ export const createOperationsFixture = async (cliPath: string, extraEnvironment:
 
 export const targetArgs = ['--projectName', 'j9-operations', '--stage', 'test', '--region', 'eu-west-1'];
 
-/** A deployed stack returned at the AWS wire boundary. Command loading, SDK parsing and stack-info handling stay real. */
-export const seedDeployedStack = (
+/** Seed a deployed stack in MiniStack. Its reads and CLI log writes use the real SDK and service state. */
+export const seedDeployedStack = async (
   fixture: Awaited<ReturnType<typeof createOperationsFixture>>,
-  resources: StackInfoMap['resources'] = {}
+  resources: StackInfoMap['resources'] = {},
+  templateResources: Record<string, unknown> = { FixtureBucket: { Type: 'AWS::S3::Bucket' } }
 ) => {
-  const { aws, api } = fixture;
-  const xml = (operation: string, value: unknown) => ({ kind: 'xml' as const, operation, result: toQueryXml(value) });
-  aws.on('cloudformation.DescribeStacks', () =>
-    xml('DescribeStacks', {
-      Stacks: [
-        {
-          StackName: 'j9-operations-test',
-          StackId: 'arn:aws:cloudformation:eu-west-1:111122223333:stack/j9-operations-test/fixture',
-          CreationTime: '2026-01-01T00:00:00Z',
-          StackStatus: 'CREATE_COMPLETE',
-          Description: 'STP-stack_j9-operations_test_fixture',
-          Outputs: [
-            {
-              OutputKey: 'StpStackInfoMap',
-              OutputValue: JSON.stringify({ resources, metadata: {}, customOutputs: {} })
-            }
-          ]
-        }
-      ]
+  const client = new CloudFormationClient(fixture.clientConfig());
+  const input = {
+    StackName: 'j9-operations-test',
+    TemplateBody: JSON.stringify({
+      Description: 'STP-stack_j9-operations_test_fixture',
+      Resources: templateResources,
+      Outputs: { StpStackInfoMap: { Value: JSON.stringify({ resources, metadata: {}, customOutputs: {} }) } }
     })
-  );
-  aws.on('cloudformation.ListStackResources', () => xml('ListStackResources', { StackResourceSummaries: [] }));
-  aws.on('cloudformation.GetTemplate', () => xml('GetTemplate', { TemplateBody: JSON.stringify({ Resources: {} }) }));
-  api.on('reportEvent', () => ({ success: true }));
-  api.on('globalConfig', () => ({ alarms: [], deploymentNotifications: [], guardrails: [] }));
-  aws.on('logs.DescribeLogGroups', ({ input }) => ({
-    kind: 'json',
-    body: { logGroups: [{ logGroupName: input.logGroupNamePrefix }] }
-  }));
-  aws.on('logs.CreateLogStream', () => ({ kind: 'json', body: {} }));
-  aws.on('logs.PutLogEvents', () => ({ kind: 'json', body: {} }));
+  };
+  try {
+    try {
+      await client.send(new CreateStackCommand(input));
+    } catch (error) {
+      if ((error as Error).name !== 'AlreadyExistsException') throw error;
+      await client.send(new UpdateStackCommand(input)).catch((failure: unknown) => {
+        if (!(failure instanceof Error) || !failure.message.includes('No updates are to be performed')) throw failure;
+      });
+    }
+  } finally {
+    client.destroy();
+  }
+  fixture.api.on('reportEvent', () => ({ success: true }));
+  fixture.api.on('globalConfig', () => ({ alarms: [], deploymentNotifications: [], guardrails: [] }));
 };
