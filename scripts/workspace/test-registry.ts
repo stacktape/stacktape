@@ -4859,6 +4859,7 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/billing/**',
       'apps/console/api/src/services/payments.ts',
       'apps/console/api/src/lambdas/paddle-hooks.ts',
+      'apps/console/api/src/lambdas/handle-billing-attribution.ts',
       'apps/console/api/src/services/paddle.ts'
     ],
     tests: [
