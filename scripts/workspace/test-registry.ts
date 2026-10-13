@@ -68,7 +68,8 @@ export const lanes: readonly Lane[] = [
       'scripts/workspace/check-architecture.test.ts',
       'scripts/workspace/check-docs.test.ts',
       'scripts/workspace/test-registry.test.ts',
-      'scripts/workspace/test-ci.test.ts'
+      'scripts/workspace/test-ci.test.ts',
+      'scripts/workspace/workspace-build.test.ts'
     ],
     requires: [],
     release: 'every-candidate',
@@ -5444,6 +5445,11 @@ export const slices: readonly Slice[] = [
     status: 'active',
     journeys: ['J13'],
     paths: [
+      'apps/cli/scripts/typecheck.mts',
+      'apps/cli/package.json',
+      'apps/cli/**/tsconfig.json',
+      'turbo.json',
+      'apps/console/ui/turbo.json',
       'packages/ministack/src/fixture.ts',
       'apps/console/api/scripts/insights-environment.ts',
       'apps/console/api/scripts/cli-console-network.ts',
@@ -5456,6 +5462,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/playwright*.ts'
     ],
     tests: [
+      'scripts/workspace/workspace-build.test.ts',
       'scripts/workspace/test-ci.test.ts',
       'scripts/workspace/test-plan.test.ts',
       'apps/console/api/scripts/cli-console-network.test.ts',
