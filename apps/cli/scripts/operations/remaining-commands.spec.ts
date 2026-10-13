@@ -1,3 +1,4 @@
+import { DynamoDBClient, CreateTableCommand, PutItemCommand, ScanCommand } from '@aws-sdk/client-dynamodb';
 import { afterAll, beforeAll, expect, test } from 'bun:test';
 import stripAnsi from 'strip-ansi';
 import { parse } from 'yaml';
@@ -27,36 +28,47 @@ const messages = (stdout: string, command: string) =>
 test('aws:call returns actual SDK data, rejects mutations before sending them, and reports service denial', async () => {
   const fixture = await createOperationsFixture(cli.path);
   try {
-    seedDeployedStack(fixture);
-    fixture.aws.on('dynamodb.Scan', ({ input }) => {
-      expect(input).toMatchObject({ TableName: 'j9-records', Limit: 1 });
-      return { kind: 'json', body: { Items: [{ id: { S: 'first' } }], Count: 1 } };
-    });
-    const args = ['aws:call', '--service', 'dynamodb', ...targetArgs, '--agent'];
-    const read = await fixture.run([...args, '--command', 'Scan', '--input', '{"TableName":"j9-records","Limit":1}']);
-    expect(read.exitCode).toBe(0);
-    const result = messages(read.stdout, 'aws:call').find(
-      (message) => typeof message === 'string' && message.startsWith('{')
-    );
-    expect(JSON.parse(result as string)).toMatchObject({
-      ok: true,
-      data: { Items: [{ id: { S: 'first' } }], Count: 1 }
-    });
-    const mutation = await fixture.run([...args, '--command', 'PutItem', '--input', '{"TableName":"j9-records"}']);
-    expect(mutation.exitCode).toBe(1);
-    expect(parseCliJsonl(mutation.stdout, 'aws:call').result.code).toBe('CLI_AWS_CALL_COMMAND_NOT_ALLOWED');
-    expect(fixture.aws.callsTo('dynamodb.PutItem')).toHaveLength(0);
-    fixture.aws.on('dynamodb.Scan', () => ({
-      kind: 'error',
-      code: 'AccessDeniedException',
-      message: 'j9 read denied',
-      status: 403
-    }));
-    const denied = await fixture.run([...args, '--command', 'Scan']);
-    expect(denied.exitCode).toBe(1);
-    expect(parseCliJsonl(denied.stdout, 'aws:call').result.code).toBe('CLI_AWS_CALL_FAILED');
-    expect(denied.stdout).toContain('j9 read denied');
-    noUnexpected(fixture);
+    await seedDeployedStack(fixture);
+    const dynamo = new DynamoDBClient(fixture.clientConfig());
+    try {
+      await dynamo.send(
+        new CreateTableCommand({
+          TableName: 'j9-records',
+          AttributeDefinitions: [{ AttributeName: 'id', AttributeType: 'S' }],
+          KeySchema: [{ AttributeName: 'id', KeyType: 'HASH' }],
+          BillingMode: 'PAY_PER_REQUEST'
+        })
+      );
+      await dynamo.send(new PutItemCommand({ TableName: 'j9-records', Item: { id: { S: 'first' } } }));
+      const args = ['aws:call', '--service', 'dynamodb', ...targetArgs, '--agent'];
+      const read = await fixture.run([...args, '--command', 'Scan', '--input', '{"TableName":"j9-records","Limit":1}']);
+      expect(read.exitCode).toBe(0);
+      const result = messages(read.stdout, 'aws:call').find(
+        (message) => typeof message === 'string' && message.startsWith('{')
+      );
+      expect(JSON.parse(result as string)).toMatchObject({
+        ok: true,
+        data: { Items: [{ id: { S: 'first' } }], Count: 1 }
+      });
+      const mutation = await fixture.run([...args, '--command', 'PutItem', '--input', '{"TableName":"j9-records"}']);
+      expect(mutation.exitCode).toBe(1);
+      expect(parseCliJsonl(mutation.stdout, 'aws:call').result.code).toBe('CLI_AWS_CALL_COMMAND_NOT_ALLOWED');
+      expect(fixture.aws.callsTo('dynamodb.PutItem')).toHaveLength(0);
+      fixture.aws.on('dynamodb.Scan', () => ({
+        kind: 'error',
+        code: 'AccessDeniedException',
+        message: 'j9 read denied',
+        status: 403
+      }));
+      const denied = await fixture.run([...args, '--command', 'Scan']);
+      expect(denied.exitCode).toBe(1);
+      expect(parseCliJsonl(denied.stdout, 'aws:call').result.code).toBe('CLI_AWS_CALL_FAILED');
+      expect(denied.stdout).toContain('j9 read denied');
+      expect((await dynamo.send(new ScanCommand({ TableName: 'j9-records' }))).Items).toEqual([{ id: { S: 'first' } }]);
+      noUnexpected(fixture);
+    } finally {
+      dynamo.destroy();
+    }
   } finally {
     await fixture.close();
   }

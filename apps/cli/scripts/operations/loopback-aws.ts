@@ -1,3 +1,4 @@
+import { assertLocalAwsEndpoint } from '@stacktape/ministack/fixture';
 import { randomUUID } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -32,7 +33,7 @@ export type AwsReply =
   /** Never answers; the child process must give up or be interrupted. */
   | { kind: 'hang' };
 
-export type AwsHandler = (request: AwsRequest) => AwsReply | Promise<AwsReply>;
+export type AwsHandler = (request: AwsRequest) => AwsReply | undefined | Promise<AwsReply | undefined>;
 
 const XML_NAMESPACES: Record<string, string> = {
   sts: 'https://sts.amazonaws.com/doc/2011-06-15/',
@@ -173,7 +174,8 @@ export type LoopbackAws = {
   close: () => Promise<void>;
 };
 
-export const startLoopbackAws = async (): Promise<LoopbackAws> => {
+export const startLoopbackAws = async (upstream?: string): Promise<LoopbackAws> => {
+  if (upstream) assertLocalAwsEndpoint(upstream);
   const handlers = new Map<string, AwsHandler>();
   const requests: AwsRequest[] = [];
   const unexpected: string[] = [];
@@ -188,7 +190,20 @@ export const startLoopbackAws = async (): Promise<LoopbackAws> => {
       const handler =
         handlers.get(key) ??
         [...handlers.entries()].find(([pattern]) => pattern.endsWith('*') && key.startsWith(pattern.slice(0, -1)))?.[1];
-      if (!handler) {
+      const reply = await handler?.(request);
+      if (!reply && upstream) {
+        const forwarded = await fetch(`${upstream}${incoming.url}`, {
+          method: incoming.method,
+          headers: Object.fromEntries(
+            Object.entries(incoming.headers).filter(([key]) => !['host', 'connection', 'content-length'].includes(key))
+          ) as Record<string, string>,
+          ...(request.rawBytes.length ? { body: request.rawBytes } : {})
+        });
+        response.writeHead(forwarded.status, Object.fromEntries(forwarded.headers));
+        response.end(Buffer.from(await forwarded.arrayBuffer()));
+        return;
+      }
+      if (!reply) {
         unexpected.push(key);
         send(response, request, {
           kind: 'raw',
@@ -198,7 +213,6 @@ export const startLoopbackAws = async (): Promise<LoopbackAws> => {
         });
         return;
       }
-      const reply = await handler(request);
       if (reply.kind === 'hang') {
         hanging.add(response);
         response.on('close', () => hanging.delete(response));
