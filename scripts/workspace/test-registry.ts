@@ -1083,6 +1083,7 @@ export const lanes: readonly Lane[] = [
     level: 'process',
     tier: 'change',
     tests: [
+      'apps/cli/tests/ministack/security-deploy.spec.ts',
       'apps/cli/tests/ministack/deploy-loop.spec.ts',
       'apps/cli/tests/ministack/split-lambda-family.ts',
       'apps/cli/tests/ministack/domain-cache.spec.ts',
@@ -1721,6 +1722,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/components/Observability/time-range.test.ts',
       'apps/console/ui/src/components/Observability/inventory.test.ts',
       'apps/console/ui/src/pages/MetricsPage/org-metrics.test.ts',
+      'apps/console/ui/src/pages/SyntheticsPage/synthetics-presentation.test.ts',
       'apps/console/ui/src/components/CompoundViews/ActivityList.helpers.test.ts',
       'apps/console/ui/src/components/StacktapeEditor/monaco-yaml.test.ts',
       'apps/console/ui/src/components/StacktapeEditor/resolved-config-display.test.ts',
@@ -2398,6 +2400,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/pages/AlarmsPage/cloudwatch-alarms.test.ts',
       'apps/console/ui/src/pages/DomainsPage/domains.test.ts',
       'apps/console/ui/src/pages/MetricsPage/org-metrics.test.ts',
+      'apps/console/ui/src/pages/SyntheticsPage/synthetics-presentation.test.ts',
       'apps/console/ui/src/pages/OverviewPage/overview-metrics.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/repository-option.test.tsx',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Environment/environment.test.ts',
@@ -3531,6 +3534,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/init/preflight/**'
     ],
     tests: [
+      'apps/cli/tests/ssr/tanstack-starter-materialization.spec.ts',
       'apps/cli/scripts/init-e2e/deploy-consent.spec.ts',
       'apps/cli/scripts/init-e2e/packaging-failure.spec.ts',
       'apps/cli/scripts/init-e2e/ci-pipelines.spec.ts',
@@ -3552,6 +3556,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/qualification/run-starter-packaging.ts'
     ],
     lanes: [
+      'tanstack-starter-materialization',
       'cli',
       'cli-2',
       'cli-3',
@@ -4318,17 +4323,15 @@ export const slices: readonly Slice[] = [
       'apps/cli/starter-projects/remix-serverless/**',
       'apps/cli/starter-projects/tanstack-start-serverless/**'
     ],
-    tests: [
-      'apps/cli/scripts/packaging-archives/ssr-web-acceptance.ts',
-      'apps/cli/tests/ssr/tanstack-starter-materialization.spec.ts'
-    ],
+    tests: ['apps/cli/scripts/packaging-archives/ssr-web-acceptance.ts'],
     lanes: [
       'tanstack-starter-materialization',
       'packaging-ssr',
       'packaging-test',
       'cli-packaged-web',
       'starter-qualification'
-    ]
+    ],
+    contributors: ['S06']
   },
   {
     id: 'S31',
@@ -5225,6 +5228,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/_utils/security-inventory-step.ts'
     ],
     tests: [
+      'apps/cli/tests/ministack/security-deploy.spec.ts',
       'apps/cli/tests/ministack/security-inventory.spec.ts',
       'apps/cli/src/domain/security-inventory/cyclonedx.spec.ts',
       'apps/cli/src/domain/security-inventory/trivy.spec.ts',
@@ -5234,6 +5238,7 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/security/osv-client.test.ts'
     ],
     lanes: [
+      'ministack-deploy',
       'cli-security-rules',
       'cli-security-inventory-ministack',
       'console-fast-rules',
@@ -5342,6 +5347,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/components/Observability/inventory.test.ts',
       'apps/console/ui/src/components/Observability/time-range.test.ts',
       'apps/console/ui/src/pages/MetricsPage/org-metrics.test.ts',
+      'apps/console/ui/src/pages/SyntheticsPage/synthetics-presentation.test.ts',
       'apps/console/ui/src/pages/OverviewPage/overview-metrics.test.ts',
       'apps/console/ui/src/utils/dates.test.ts'
     ],

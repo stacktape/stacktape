@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { cp, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { getStarterProjectMetadata } from '../../scripts/starter-projects/utils';
@@ -21,6 +21,30 @@ test('TanStack init preserves the authored dependency overrides needed by its bu
 
     const materialized = JSON.parse(await readFile(manifestPath, 'utf8')) as { overrides?: Record<string, string> };
     expect(materialized.overrides).toEqual(authored.overrides);
+  } finally {
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
+// Package managers use different manifest fields for the same dependency-resolution promise.
+test('starter init preserves nested npm overrides, pnpm configuration and Yarn resolutions', async () => {
+  const project = await mkdtemp(join(tmpdir(), 'stacktape-starter-resolution-'));
+  try {
+    const authored = {
+      overrides: { parent: { child: '2.0.0' } },
+      pnpm: { overrides: { 'parent>child': '2.0.0' }, onlyBuiltDependencies: ['sharp'] },
+      resolutions: { 'parent/child': '2.0.0' }
+    };
+    const manifestPath = join(project, 'package.json');
+    await writeFile(manifestPath, JSON.stringify(authored));
+    const metadata = await getStarterProjectMetadata({
+      absoluteProjectPath: join(import.meta.dir, '../../starter-projects/tanstack-start-serverless')
+    });
+
+    await adjustPackageJson({ absoluteProjectPath: project, metadata });
+
+    const materialized = JSON.parse(await readFile(manifestPath, 'utf8'));
+    expect(materialized).toMatchObject(authored);
   } finally {
     await rm(project, { recursive: true, force: true });
   }

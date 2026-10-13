@@ -32,7 +32,7 @@ export const adjustPackageJson = async ({
   const { hasPrisma } = metadata;
   const packageJsonPath = join(absoluteProjectPath, 'package.json');
   const packageJson = await readJson(packageJsonPath, { encoding: 'utf8' });
-  const { dependencies, devDependencies, scripts, workspaces } = packageJson;
+  const { dependencies, devDependencies, scripts, workspaces, overrides, pnpm, resolutions } = packageJson;
 
   const content = {
     name: metadata.starterProjectId,
@@ -40,6 +40,9 @@ export const adjustPackageJson = async ({
     private: true,
     ...(packageJson.type && { type: packageJson.type }),
     ...(workspaces && { workspaces }),
+    ...(overrides && { overrides }),
+    ...(pnpm && { pnpm }),
+    ...(resolutions && { resolutions }),
     bugs: {
       url: 'https://github.com/stacktape/stacktape/issues'
     },

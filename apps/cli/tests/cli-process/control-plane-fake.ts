@@ -36,12 +36,14 @@ const listen = (server: Server) =>
 export const startControlPlaneFake = async ({
   projectName,
   permissions = ['deployments:delete-non-production', 'deployments:delete-production', 'deployments:deploy'],
-  awsAccountId = FAKE_AWS_ACCOUNT_ID
+  awsAccountId = FAKE_AWS_ACCOUNT_ID,
+  securityScanningEnabled = false
 }: {
   projectName: string;
   permissions?: string[];
   /** The connected account's ID; the CLI compares it with STS, so an emulator-backed run passes the emulator's. */
   awsAccountId?: string;
+  securityScanningEnabled?: boolean;
 }): Promise<ControlPlaneFake> => {
   const calls: ControlPlaneCall[] = [];
   const unexpectedProcedures: string[] = [];
@@ -53,7 +55,7 @@ export const startControlPlaneFake = async ({
         id: 'org-cli-process',
         name: 'CLI process organization',
         role: 'OWNER',
-        securityScanningEnabled: false,
+        securityScanningEnabled,
         issuesEnabled: false
       },
       connectedAwsAccounts: [
