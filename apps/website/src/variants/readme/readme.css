@@ -769,8 +769,11 @@ a:hover .rm-arrow {
   -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent);
 }
 
+/* Exactly one line high: baseline alignment otherwise adds a pixel or two per line, and the pre's reserved height
+ * would no longer match the tallest tab. */
 .rm-code__line {
   display: flex;
+  height: 1.6em;
   align-items: baseline;
   gap: 10px;
   white-space: nowrap;
@@ -2931,6 +2934,17 @@ a:hover .rm-arrow {
 
   .rm-hbtn--start {
     --stp-button-padding-x: 12px;
+  }
+}
+
+/* "Apple silicon" and Copy no longer share a row; the short label keeps the block at two rows. */
+@media (max-width: 359px) {
+  .rm-code__arch .stp-ui-tab__label--full {
+    display: none;
+  }
+
+  .rm-code__arch .stp-ui-tab__label--compact {
+    display: inline;
   }
 }
 

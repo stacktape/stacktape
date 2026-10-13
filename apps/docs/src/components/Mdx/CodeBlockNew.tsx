@@ -86,7 +86,8 @@ const SHIKI_LANGS = [
   'sql'
 ] as const;
 
-const shikiRuntimePromise = import('shiki').then(async ({ createHighlighter }) => {
+const createShikiRuntime = async (): Promise<ShikiRuntime> => {
+  const { createHighlighter } = await import('shiki');
   const highlighter = await createHighlighter({ themes: [SHIKI_THEME], langs: SHIKI_LANGS as unknown as string[] });
   const loadedLangs = new Set(highlighter.getLoadedLanguages());
   return {
@@ -101,7 +102,7 @@ const shikiRuntimePromise = import('shiki').then(async ({ createHighlighter }) =
         })
       )
   } satisfies ShikiRuntime;
-});
+};
 
 const normalizeLanguage = (lang?: string | null) => {
   const normalized = (lang || 'text').toLowerCase();
@@ -509,7 +510,13 @@ const decorateRenderedHtml = ({ html, highlightedLineNumbers }: { html: string; 
   return pre.outerHTML;
 };
 
-const getShikiRuntime = async () => shikiRuntimePromise;
+let shikiRuntimePromise: Promise<ShikiRuntime> | undefined;
+
+/** One highlighter per page, created when the first code block renders rather than when this module loads. */
+const getShikiRuntime = () => {
+  shikiRuntimePromise ??= createShikiRuntime();
+  return shikiRuntimePromise;
+};
 
 const renderWithShiki = async ({
   runtime,

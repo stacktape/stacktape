@@ -15,7 +15,10 @@ export type InstallPlatformNavigator = {
   };
 };
 
-/** The architecture a Mac runs when nothing says otherwise: every Mac sold since 2023 is Apple silicon. */
+/**
+ * The architecture assumed when nothing says otherwise: every Mac sold since 2023 is Apple silicon. A wrong guess only
+ * changes the command shown: every installer installs the build the machine's processor runs.
+ */
 const DEFAULT_ARCH: Record<InstallOs, InstallArch> = { macos: 'arm64', linux: 'x64', windows: 'x64' };
 
 const detectOs = (navigator: InstallPlatformNavigator): InstallOs | undefined => {
@@ -31,7 +34,8 @@ const detectOs = (navigator: InstallPlatformNavigator): InstallOs | undefined =>
   if (/Windows NT/.test(userAgent)) return 'windows';
   // iPadOS presents a desktop Safari user agent; only a touch screen tells it from a Mac.
   if (/Macintosh|Mac OS X/.test(userAgent)) return (navigator.maxTouchPoints ?? 0) > 1 ? undefined : 'macos';
-  if (/Linux|X11|CrOS/.test(userAgent)) return 'linux';
+  // Not X11 alone: FreeBSD, OpenBSD and Solaris browsers report it too, and no Stacktape build runs there.
+  if (/Linux|CrOS/.test(userAgent)) return 'linux';
   return undefined;
 };
 
