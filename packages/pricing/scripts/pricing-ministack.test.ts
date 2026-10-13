@@ -14,7 +14,7 @@ import type { PricingInfo } from '../src/catalog';
 let ministack: MiniStack;
 let documentClient: DynamoDBDocumentClient;
 const environment = { ...process.env };
-const faults = { unprocessedReads: 0, unprocessedWrites: 0 };
+const faults = { unprocessedReads: 0, unprocessedWrites: 0, injectedReadFaults: 0 };
 // Deliberate throttling is the only substituted DynamoDB behavior. All successful reads and writes go to MiniStack.
 const proxy = createServer(async (req, res) => {
   try {
@@ -25,6 +25,7 @@ const proxy = createServer(async (req, res) => {
     const operation = String(req.headers['x-amz-target']).split('.').at(-1);
     res.setHeader('content-type', 'application/x-amz-json-1.0');
     if (operation === 'BatchGetItem' && faults.unprocessedReads-- > 0) {
+      faults.injectedReadFaults++;
       res.end(JSON.stringify({ Responses: {}, UnprocessedKeys: input.RequestItems }));
     } else if (operation === 'BatchWriteItem' && faults.unprocessedWrites-- > 0) {
       res.end(JSON.stringify({ UnprocessedItems: input.RequestItems }));
@@ -133,6 +134,7 @@ afterAll(async () => {
 beforeEach(() => {
   faults.unprocessedReads = 0;
   faults.unprocessedWrites = 0;
+  faults.injectedReadFaults = 0;
 });
 describe('estimator', () => {
   test('prices a stack completely from the pinned catalog in a listed region', async () => {
@@ -289,6 +291,7 @@ describe('estimator', () => {
     );
     expect(result.incomplete).toBe(false);
     expect(result.flatMonthlyCost).toBeCloseTo((0.005 + 0.0104) * HOURS_PER_MONTH, 10);
+    expect(faults.injectedReadFaults).toBe(1);
   });
 
   test('reports a stack as unpriced, not free, when prices cannot be read', async () => {
@@ -332,4 +335,79 @@ test('throttled writes eventually persist, while exhausted retries leave no appa
   expect(
     (await documentClient.send(new GetCommand({ TableName: PINNED_TABLE, Key: { productName: 'product-lost' } }))).Item
   ).toBeUndefined();
+});
+
+// Independently named/rated offers let a removed refresh entry show up as missing stored customer pricing.
+test('refresh retains every dynamic offer and every static product as a usable USD catalog row', async () => {
+  const table = 'full-offer-pricing';
+  await documentClient.send(
+    new CreateTableCommand({
+      TableName: table,
+      KeySchema: [{ AttributeName: 'productName', KeyType: 'HASH' }],
+      AttributeDefinitions: [{ AttributeName: 'productName', AttributeType: 'S' }],
+      BillingMode: 'PAY_PER_REQUEST'
+    })
+  );
+  await refreshPricingTableInternal({
+    dynamoDbTableName: table,
+    downloadDirectory: 'unused-in-test',
+    dependencies: {
+      downloadPricing: ({ awsServiceOfferCode }) =>
+        parsePricingCsvFile(
+          PINNED_CATALOG_FILES[awsServiceOfferCode] ??
+            join(import.meta.dir, '../src/fixtures', `${awsServiceOfferCode}-refresh.csv`)
+        ),
+      writePrices: loadProductPricesIntoDynamoTable
+    }
+  });
+  const stored = (await documentClient.send(new ScanCommand({ TableName: table }))).Items!;
+  const dynamic: Record<string, [string, string]> = {
+    'EC2-instance-t3.micro-Linux': ['0.0104000000', 'Hrs'],
+    'ECS-cpu-AMD64-Linux': ['0.0404800000', 'hours'],
+    'EFS-storage': ['0.3000000000', 'GB-Mo'],
+    'ApiGateway-http-api-requests': ['0.0000010000', 'Requests'],
+    'ElastiCache-instance-cache.t4g.micro': ['0.02', 'Hrs'],
+    'RDS-instance-db.t4g.micro-postgres': ['0.03', 'Hrs'],
+    'OpenSearch-instance-t3.small.search': ['0.04', 'Hrs'],
+    'S3-storage': ['0.023', 'GB-Mo'],
+    'DynamoDB-storage': ['0.25', 'GB-Mo'],
+    'Lambda-price-per-request': ['0.0000002', 'Requests']
+  };
+  const staticPrices: Record<string, [string, string]> = {
+    'Atlas-MongoDB-M2': ['0.0125', 'hr'],
+    'Atlas-MongoDB-M5': ['0.034', 'hr'],
+    'Atlas-MongoDB-M10': ['0.08', 'hr'],
+    'Atlas-MongoDB-M20': ['0.20', 'hr'],
+    'Atlas-MongoDB-M30': ['0.54', 'hr'],
+    'Atlas-MongoDB-M40': ['1.04', 'hr'],
+    'Atlas-MongoDB-M50': ['2.00', 'hr'],
+    'Atlas-MongoDB-M60': ['3.95', 'hr'],
+    'Atlas-MongoDB-M80': ['7.30', 'hr'],
+    'Atlas-MongoDB-M140': ['10.99', 'hr'],
+    'Atlas-MongoDB-M200': ['14.59', 'hr'],
+    'Atlas-MongoDB-M300': ['21.85', 'hr'],
+    'Atlas-MongoDB-M400': ['22.40', 'hr'],
+    'Atlas-MongoDB-M700': ['33.26', 'hr'],
+    'WAF-firewall': ['0.007', 'hr'],
+    'WAF-firewall-rule': ['0.0013', 'hr'],
+    'WAF-firewall-requests': ['0.6', 'per million requests'],
+    'Events-published-messages': ['1.0', '1M requests'],
+    'CloudFront-price-per-10000-req': ['0.009', '10,000 requests'],
+    'UpstashRedis-price-per-100k-commands': ['0.2', '100,000 commands'],
+    'Cognito-mau': ['0.0055', '1 mau'],
+    'EC2-public-ip': ['0.005', 'hr']
+  };
+  for (const [region, prices] of [
+    ['us-east-1', dynamic],
+    ['ALL_REGIONS', staticPrices]
+  ] as const)
+    for (const [productName, [pricePerUnit, unit]] of Object.entries(prices))
+      expect(stored).toContainEqual(
+        expect.objectContaining({
+          productName,
+          prices: expect.objectContaining({
+            [region]: expect.objectContaining({ currency: 'USD', pricePerUnit, unit })
+          })
+        })
+      );
 });

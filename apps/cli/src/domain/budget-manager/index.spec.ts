@@ -1,3 +1,4 @@
+import { createServer } from 'node:http';
 import { afterEach, beforeEach, expect, mock, spyOn, test } from 'bun:test';
 import { budgetManager } from './index';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
@@ -95,4 +96,36 @@ test.each([undefined, '0', 'true'])('keeps normal AWS discovery without the exac
   expect(budgetManager.tagsUsedInRegion).toEqual(['project']);
   expect(budgetManager.tagsUsableInCostExploring).toEqual({ tags: ['stack'] });
   expect(budgetManager.budgets).toEqual([{ BudgetName: 'existing', TimeUnit: 'MONTHLY', BudgetType: 'COST' }]);
+});
+
+test('invalid local discovery settings are rejected before the real SDK reaches a provider', async () => {
+  const received: string[] = [];
+  const provider = createServer(async (request, response) => {
+    const chunks: Buffer[] = [];
+    for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    received.push(Buffer.concat(chunks).toString());
+    response.setHeader('content-type', 'application/x-amz-json-1.1');
+    response.end(JSON.stringify({ TagKeys: [], Tags: [], Budgets: [] }));
+  });
+  await new Promise<void>((ready) => provider.listen(0, '127.0.0.1', ready));
+  try {
+    const endpoint = `http://127.0.0.1:${(provider.address() as { port: number }).port}`;
+    awsSdkManager.init({
+      credentials: { accessKeyId: 'test', secretAccessKey: 'test' },
+      region: 'eu-west-1',
+      endpoint
+    });
+    process.env.AWS_ENDPOINT_URL = endpoint;
+    process.env.STP_SKIP_COST_DISCOVERY = '1';
+    process.env.AWS_ENDPOINT_URL_CLOUDFORMATION = 'https://cloudformation.eu-west-1.amazonaws.com';
+    await expect(budgetManager.init()).rejects.toMatchObject({ code: 'LOCAL_COST_DISCOVERY_ONLY' });
+    expect(received).toEqual([]);
+  } finally {
+    await new Promise<void>((done, reject) =>
+      provider.close((error) => {
+        if (error) reject(error);
+        else done();
+      })
+    );
+  }
 });
