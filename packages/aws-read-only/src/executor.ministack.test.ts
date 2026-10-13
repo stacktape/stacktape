@@ -1,19 +1,41 @@
+import http from 'node:http';
+import https from 'node:https';
 import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { CloudFormationClient, CreateStackCommand, DescribeStacksCommand } from '@aws-sdk/client-cloudformation';
 import { ECSClient, RegisterTaskDefinitionCommand } from '@aws-sdk/client-ecs';
 import { CreateSecretCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 import { GetParameterCommand, PutParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
 import { startMiniStack, type MiniStack } from '@stacktape/ministack/fixture';
+import { startLoopbackAwsEndpoint } from './__fixtures__/loopback-aws-endpoint';
 import { executeAwsSdkCommand } from './executor';
 
 let ministack: MiniStack;
 let previousEnvironment: NodeJS.ProcessEnv;
+const originalRequests = { http: http.request, https: https.request };
+
+// The SDK uses Node's HTTP transport. Reject a client that ignores its configured emulator endpoint before transport.
+const guardAwsRequest = (send: typeof http.request): typeof http.request =>
+  ((...args: Parameters<typeof http.request>) => {
+    const target: unknown = args[0];
+    const address = typeof target === 'string' ? new URL(target) : target;
+    const options = address as URL | http.RequestOptions;
+    const hostname = options.hostname ?? ('host' in options ? options.host : undefined);
+    const port = String(options.port ?? '');
+    const expected = new URL(ministack.endpoint);
+    if (hostname !== expected.hostname || port !== expected.port)
+      throw new Error('The executor test must use its MiniStack endpoint.');
+    return send(...args);
+  }) as typeof http.request;
 const secretValue = 'incident-fixture-value-that-must-not-leave';
 
 beforeAll(async () => {
   previousEnvironment = { ...process.env };
   ministack = await startMiniStack({ label: 'read-only-executor' });
   Object.assign(process.env, ministack.childEnvironment());
+  for (const service of ['CLOUDFORMATION', 'ECS', 'LAMBDA', 'SECRETS_MANAGER', 'SSM'])
+    process.env[`AWS_ENDPOINT_URL_${service}`] = ministack.endpoint;
+  http.request = guardAwsRequest(originalRequests.http);
+  https.request = guardAwsRequest(originalRequests.https);
   const cfn = new CloudFormationClient(ministack.clientConfig());
   const secrets = new SecretsManagerClient(ministack.clientConfig());
   const ssm = new SSMClient(ministack.clientConfig());
@@ -73,6 +95,8 @@ beforeAll(async () => {
 }, 120_000);
 
 afterAll(async () => {
+  http.request = originalRequests.http;
+  https.request = originalRequests.https;
   process.env = previousEnvironment;
   await ministack?.stop();
 });
@@ -145,4 +169,25 @@ test('refused writes and plaintext reads leave the actual parameter intact and d
     client.destroy();
   }
   expect((await call('lambda', 'GetFunctionConfiguration', { FunctionName: 'orders' })).ok).toBe(true);
+  const wrongEndpoint = await startLoopbackAwsEndpoint();
+  try {
+    process.env.AWS_ENDPOINT_URL_SSM = process.env.AWS_ENDPOINT_URL;
+    expect(await call('ssm', 'DescribeParameters')).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('must use its MiniStack endpoint')
+    });
+    expect(wrongEndpoint.requests).toEqual([]);
+  } finally {
+    process.env.AWS_ENDPOINT_URL_SSM = ministack.endpoint;
+    await wrongEndpoint.close();
+  }
+  process.env.AWS_ENDPOINT_URL_SSM = 'https://outside.invalid';
+  try {
+    expect(await call('ssm', 'DescribeParameters')).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('must use its MiniStack endpoint')
+    });
+  } finally {
+    process.env.AWS_ENDPOINT_URL_SSM = ministack.endpoint;
+  }
 }, 30_000);
