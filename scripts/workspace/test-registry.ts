@@ -1133,13 +1133,27 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/scripts/console-access-database.test.ts',
       'apps/console/api/scripts/console-tenancy-database.test.ts',
       'apps/console/api/scripts/console-aws-connection-database.test.ts',
-      'apps/console/ui/scripts/console-s3-ministack.test.ts',
-      'apps/console/api/scripts/console-secrets-database.test.ts'
+      'apps/console/ui/scripts/console-s3-ministack.test.ts'
     ],
     requires: ['console', 'docker', 'network'],
     release: 'every-candidate',
     proves: 'Real console-access services and persistence through the isolated PostgreSQL feature suite.',
     selections: ['console-database-console-access']
+  },
+  {
+    id: 'console-database-secrets',
+    command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test:db', '--secrets'],
+    level: 'api-db',
+    tier: 'change',
+    tests: [
+      'apps/console/api/scripts/console-secrets-database.test.ts',
+      'apps/console/ui/scripts/secrets-parameters-database.test.ts'
+    ],
+    requires: ['console', 'docker', 'network'],
+    release: 'every-candidate',
+    proves:
+      'Production Console AWS helpers obtain scoped credentials through HTTP/PostgreSQL and persist secret/parameter CRUD and pinned reads in MiniStack.',
+    selections: ['console-database-secrets']
   },
   {
     id: 'console-database-cli-console',
@@ -1339,13 +1353,11 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/cloudformation-resources.test.ts',
       'apps/console/ui/src/aws/dynamic-references.test.ts',
       'apps/console/ui/src/aws/secrets-commands.test.ts',
-      'apps/console/ui/src/aws/secrets.test.ts',
       'apps/console/ui/src/aws/logs-commands.test.ts',
       'apps/console/ui/src/aws/logs.test.ts',
       'apps/console/ui/src/aws/s3-commands.test.ts',
       'apps/console/ui/src/aws/sensitive-values.test.ts',
       'apps/console/ui/src/aws/ssm-commands.test.ts',
-      'apps/console/ui/src/aws/ssm.test.ts',
       'apps/console/ui/src/components/AwsRegionSelect/region-catalog.test.ts',
       'apps/console/ui/src/components/Observability/time-range.test.ts',
       'apps/console/ui/src/components/Observability/inventory.test.ts',
@@ -2033,10 +2045,8 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/aws/logs.test.ts',
       'apps/console/ui/src/aws/s3-commands.test.ts',
       'apps/console/ui/src/aws/secrets-commands.test.ts',
-      'apps/console/ui/src/aws/secrets.test.ts',
       'apps/console/ui/src/aws/sensitive-values.test.ts',
       'apps/console/ui/src/aws/ssm-commands.test.ts',
-      'apps/console/ui/src/aws/ssm.test.ts',
       'apps/console/ui/src/aws/traces-commands.test.ts',
       'apps/console/ui/src/components/AwsRegionSelect/region-catalog.test.ts',
       'apps/console/ui/src/components/CompoundViews/ActivityList.helpers.test.ts',
@@ -4545,6 +4555,7 @@ export const slices: readonly Slice[] = [
     status: 'active',
     journeys: ['J5'],
     paths: [
+      'apps/console/ui/scripts/secrets-parameters-database.test.ts',
       'packages/ministack/**',
       'apps/cli/scripts/network-guard-preload.ts',
       'apps/cli/src/commands/secret-*/**',
@@ -4563,13 +4574,12 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Environment/environment.ts'
     ],
     tests: [
+      'apps/console/ui/scripts/secrets-parameters-database.test.ts',
       'apps/console/api/scripts/console-secrets-database.test.ts',
       'apps/console/ui/src/aws/dynamic-references.test.ts',
       'apps/console/ui/src/aws/secrets-commands.test.ts',
-      'apps/console/ui/src/aws/secrets.test.ts',
       'apps/console/ui/src/aws/sensitive-values.test.ts',
       'apps/console/ui/src/aws/ssm-commands.test.ts',
-      'apps/console/ui/src/aws/ssm.test.ts',
       'apps/console/ui/src/pages/3rdPartyProviders/provider-credentials.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Environment/environment.test.ts'
     ],
@@ -4579,7 +4589,8 @@ export const slices: readonly Slice[] = [
       'console-ui',
       'console-ui-2',
       'console-ui-3',
-      'console-database-console-access'
+      'console-database-console-access',
+      'console-database-secrets'
     ],
     contributors: ['S43']
   },
