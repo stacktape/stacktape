@@ -61,6 +61,7 @@ afterEach(async () => {
 });
 
 describe('custom artifact packaging contract', () => {
+  // Cold archive setup can exceed Bun's five-second default on Windows CI.
   test('produces a deployable zip and tracks every source file', async () => {
     const { source, output } = await createWorkspace();
     await writeFile(join(source, 'config.json'), '{"enabled":true}\n');
@@ -86,7 +87,7 @@ describe('custom artifact packaging contract', () => {
     expect(JSON.parse(zip.getEntry('config.json')?.getData().toString('utf8') ?? '')).toEqual({
       enabled: true
     });
-  });
+  }, 15_000);
 
   test('uses content-based digests for cache hits and source changes', async () => {
     const { source, output } = await createWorkspace();
