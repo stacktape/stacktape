@@ -16,7 +16,7 @@ const lane = (id: string, tier: Lane['tier'], requires: Lane['requires'] = []): 
   release: 'every-candidate'
 });
 
-test('the actual CI runner executes only available PR lanes and stops on the first failed command', async (context) => {
+test('the actual CI runner generates sources, executes only available PR lanes and stops on the first failed command', async (context) => {
   const root = await mkdtemp(join(tmpdir(), 'stacktape-ci-runner-'));
   context.after(() => rm(root, { recursive: true, force: true }));
   await mkdir(join(root, 'scripts/workspace'), { recursive: true });
@@ -57,7 +57,7 @@ test('the actual CI runner executes only available PR lanes and stops on the fir
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(
     (await results()).map(({ id }) => id),
-    ['public', 'last']
+    ['exec', 'public', 'last']
   );
   const expectedDirectory = await realpath(root);
   const directories = await Promise.all((await results()).map(({ cwd }) => realpath(cwd)));
@@ -69,7 +69,7 @@ test('the actual CI runner executes only available PR lanes and stops on the fir
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(
     (await results()).map(({ id }) => id),
-    ['public', 'private', 'last']
+    ['exec', 'public', 'private', 'last']
   );
   await rm(record);
   result = run('private');
@@ -77,7 +77,7 @@ test('the actual CI runner executes only available PR lanes and stops on the fir
   assert.match(result.stderr, /private failed \(exit 7\)/);
   assert.deepEqual(
     (await results()).map(({ id }) => id),
-    ['public', 'private']
+    ['exec', 'public', 'private']
   );
   await rm(record);
   await writeFile(registryPath, `export const lanes = ${JSON.stringify([lane('heavy', 'pr', ['docker'])])};`);
