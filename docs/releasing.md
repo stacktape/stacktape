@@ -4,8 +4,9 @@ This is the reusable publishing procedure. Track v4-specific launch actions in
 [V4 launch readiness](../apps/console/documents/releases/v4-readiness.md) (private), and product priorities in the
 [owner's checklist](../apps/console/documents/releases/v4-product-checklist.md). Publication does not deploy Console.
 
-`.github/workflows/release.yml` is the only release path. It always builds and verifies the same six platform archives,
-checksum manifest, and npm tarball. The explicit channel changes only the public pointers:
+`.github/workflows/release.yml` is the only release path. It always builds and verifies the same seven platform archives
+(Linux x64 and arm64, Alpine x64, macOS x64 and arm64, Windows x64 and arm64), checksum manifest, and npm tarball. The
+explicit channel changes only the public pointers:
 
 | Channel   | Version example   | npm tag   | GitHub release | Installer endpoint                       |
 | --------- | ----------------- | --------- | -------------- | ---------------------------------------- |
