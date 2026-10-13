@@ -1,14 +1,14 @@
 GEM
   remote: https://rubygems.org/
   specs:
-    json (2.10.2)
+    bigdecimal (4.1.1)
     rake (13.2.1)
 
 PLATFORMS
   ruby
 
 DEPENDENCIES
-  json (~> 2.10.0)
+  bigdecimal (>= 4.0, < 5)
   rake (= 13.2.1)
 
 BUNDLED WITH

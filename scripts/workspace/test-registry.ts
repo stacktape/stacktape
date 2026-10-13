@@ -3407,12 +3407,15 @@ export const slices: readonly Slice[] = [
       'packages/packaging/scripts/lambda-e2e/harness.ts',
       'packages/packaging/src/docker/dockerfiles.ts',
       'packages/packaging/scripts/lambda-e2e/fixtures/python/**',
+      'packages/packaging/scripts/lambda-e2e/fixtures/python-selection/**',
+      'packages/packaging/scripts/lambda-e2e/fixtures/python-empty/**',
       'packages/packaging/scripts/lambda-e2e/fixtures/python-pipfile/**',
       'packages/packaging/src/bundlers/py/**',
       'packages/packaging/src/buildpacks/py-lambda-buildpack.ts'
     ],
     tests: [
       'packages/packaging/scripts/lambda-e2e/python.test.ts',
+      'packages/packaging/scripts/lambda-e2e/python-selection.test.ts',
       'packages/packaging/scripts/lambda-e2e/python-pipfile.test.ts',
       'packages/packaging/src/bundlers/py/utils.test.ts'
     ],

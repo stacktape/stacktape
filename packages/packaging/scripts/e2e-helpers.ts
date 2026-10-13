@@ -183,7 +183,7 @@ export const run = async (
   args: string[],
   cwd?: string,
   env?: Record<string, string | undefined>,
-  timeoutMs = 240_000
+  timeoutMs = command === 'docker' ? 420_000 : 240_000
 ) => {
   const child = Bun.spawn(
     process.platform === 'win32' && ['pnpm', 'npm', 'npx', 'yarn'].includes(command.toLowerCase())
@@ -196,7 +196,11 @@ export const run = async (
       stderr: 'pipe'
     }
   );
-  const timer = setTimeout(() => child.kill(), timeoutMs);
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    child.kill();
+  }, timeoutMs);
   let stdout: string;
   let stderr: string;
   let exitCode: number;
@@ -208,6 +212,9 @@ export const run = async (
     ]);
   } finally {
     clearTimeout(timer);
+  }
+  if (timedOut) {
+    throw new Error(`${command} ${args.join(' ')} timed out after ${timeoutMs}ms.\n${stderr || stdout}`);
   }
   if (exitCode !== 0) {
     throw new Error(`${command} ${args.join(' ')} failed (${exitCode}).\n${stderr || stdout}`);

@@ -7,7 +7,8 @@ import { actions, ensureRuntimeImage, extractArtifact, withProject } from './har
 for (const manager of ['maven', 'gradle'] as const) {
   test(`Java ${manager} reactor ZIP binds a Lambda handler with sibling library, resource and useful invalid-handler error`, async () => {
     await withProject(`java-${manager}`, async (root, project) => {
-      const runtimeImage = 'public.ecr.aws/lambda/java:21';
+      const version = manager === 'maven' ? 17 : 21;
+      const runtimeImage = `public.ecr.aws/lambda/java:${version}`;
       await ensureRuntimeImage(runtimeImage);
       const output = await buildJavaLambda({
         ...actions,
@@ -15,7 +16,7 @@ for (const manager of ['maven', 'gradle'] as const) {
         name: `java-${manager}`,
         entryfilePath: 'app/src/main/java/smoke/Handler.java',
         distFolderPath: join(root, 'dist'),
-        javaVersion: 21
+        javaVersion: version
         // Detect Maven/Gradle from the project, as a zero-config customer would.
       });
       const invocation = {

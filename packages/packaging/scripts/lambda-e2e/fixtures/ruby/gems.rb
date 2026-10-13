@@ -1,5 +1,5 @@
 source "https://rubygems.org"
-gem "json", "~> 2.10.0"
+gem "bigdecimal", ">= 4.0", "< 5"
 group :development, :test do
   gem "rake", "13.2.1"
 end
