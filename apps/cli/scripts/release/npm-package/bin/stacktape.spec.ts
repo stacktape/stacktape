@@ -44,6 +44,7 @@ test.skipIf(process.platform === 'win32')(
       }
       const archive = join(root, archiveName);
       await tar.c({ file: archive, gzip: true, cwd: payload }, ['stacktape', 'helper-lambdas']);
+      await writeFile(join(root, 'release notes.txt'), 'Adjacent release notes are not archive payloads.');
       const manifestPath = await generateReleaseChecksums({ directory: root });
       const manifest = await readFile(manifestPath, 'utf8');
       let downloads = 0;

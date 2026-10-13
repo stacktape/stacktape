@@ -21,7 +21,7 @@
 import type { Subprocess } from 'bun';
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync } from 'node:fs';
-import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { gzipSync } from 'node:zlib';
 import { dirname, join, resolve } from 'node:path';
@@ -153,6 +153,17 @@ const hostileTar = (
     chunks.push(header.block!, body, Buffer.alloc((512 - (body.length % 512)) % 512));
   }
   return gzipSync(Buffer.concat([...chunks, Buffer.alloc(1024)]));
+};
+
+// Inspect every potential escape location without following archive-created symlinks.
+const findEscapedMembers = async (directory: string): Promise<string[]> => {
+  const found: string[] = [];
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name);
+    if (entry.name === 'escaped-member') found.push(path);
+    if (entry.isDirectory() && !entry.isSymbolicLink()) found.push(...(await findEscapedMembers(path)));
+  }
+  return found;
 };
 
 type Route = { body: Uint8Array; mode: 'ok' | 'refuse' | 'stall' | 'slow' | 'hang' };
@@ -582,7 +593,11 @@ const main = async () => {
       ['session-manager-plugin', 'macos', 'sessionmanager-bundle.zip']
     ] as const) {
       const executable = archives[archive]!.executable;
-      for (const attack of ['siblings', 'symlink', ...(archive.endsWith('.zip') ? [] : ['hardlink'])] as const) {
+      for (const attack of [
+        'siblings',
+        'symlink',
+        ...(archive.endsWith('.zip') ? [] : ['hardlink', 'in-bounds-symlink'])
+      ] as const) {
         await rm(dirname(finalPath(tool, platform)), { recursive: true, force: true });
         const escaped = join(work, 'escaped-member');
         let body: Uint8Array;
@@ -608,11 +623,16 @@ const main = async () => {
               ...(attack === 'siblings'
                 ? { body: syntheticExecutable(tool) }
                 : {
-                    type: attack === 'symlink' ? ('SymbolicLink' as const) : ('Link' as const),
+                    type:
+                      attack === 'symlink' || attack === 'in-bounds-symlink'
+                        ? ('SymbolicLink' as const)
+                        : ('Link' as const),
                     linkpath:
-                      attack === 'symlink'
-                        ? '../'.repeat(5 + (executable.split('/').length - 1)) + 'outside-extraction'
-                        : sentinel
+                      attack === 'in-bounds-symlink'
+                        ? '.'
+                        : attack === 'symlink'
+                          ? '../'.repeat(5 + (executable.split('/').length - 1)) + 'outside-extraction'
+                          : sentinel
                   })
             }
           ]);
@@ -628,18 +648,25 @@ const main = async () => {
         manifest[tool].assets[platform] = { ...asset(tool, platform, archive, sha256(body)), bytes: body.length };
         await writeFile(manifestPath, JSON.stringify(manifest));
         const result = await resolveIn(tool, platform);
+        const published = await lstat(finalPath(tool, platform))
+          .then(() => true)
+          .catch((error: NodeJS.ErrnoException) => {
+            if (error.code === 'ENOENT') return false;
+            throw error;
+          });
+        const escapedMembers = await findEscapedMembers(work);
         const safe =
           attack === 'siblings'
             ? result.ok && versionOf(result.path!) === `${tool} synthetic ${VERSIONS[tool]}`
-            : !result.ok && !existsSync(finalPath(tool, platform));
+            : !result.ok && !published;
         check(
           `${archives[archive]!.archive} ${attack} cannot escape extraction or publish a link`,
           safe &&
-            !existsSync(escaped) &&
+            escapedMembers.length === 0 &&
             (await readFile(sentinel, 'utf8')) === 'untouched outside file' &&
             ((await stat(sentinel)).mode & 0o777) === 0o600 &&
             leftovers(tool).length === 0,
-          JSON.stringify({ result, safe, escaped: existsSync(escaped), mode: (await stat(sentinel)).mode & 0o777 })
+          JSON.stringify({ result, safe, published, escapedMembers, mode: (await stat(sentinel)).mode & 0o777 })
         );
       }
       await rm(dirname(finalPath(tool, platform)), { recursive: true, force: true });

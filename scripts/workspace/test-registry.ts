@@ -2,7 +2,7 @@
 // Edit this source when adding tests or lanes; neither audit files nor private source are imported.
 export type Tier = 'pr' | 'change' | 'release';
 export type Level = 'focused' | 'process' | 'api-db' | 'browser' | 'live-aws';
-export type Requirement = 'console' | 'docker' | 'chromium' | 'network' | 'aws' | 'reservation';
+export type Requirement = 'console' | 'docker' | 'chromium' | 'network' | 'aws' | 'reservation' | 'powershell';
 export type Lane = {
   id: string;
   command: readonly string[];
@@ -885,11 +885,13 @@ export const lanes: readonly Lane[] = [
     tier: 'pr',
     tests: [
       'apps/cli/scripts/install-scripts/installers.spec.ts',
+      'apps/cli/scripts/release/dispatch.spec.ts',
       'apps/cli/scripts/release/npm-package/bin/stacktape.spec.ts'
     ],
     requires: [],
     release: 'every-candidate',
-    proves: 'Full shell installers and npm launcher reject bad integrity, upgrade and execute offline.',
+    proves:
+      'Installers and launcher reject bad integrity and execute offline; release dispatch preserves inputs and source.',
     selections: ['release-installation']
   },
   {
@@ -898,7 +900,7 @@ export const lanes: readonly Lane[] = [
     level: 'process',
     tier: 'change',
     tests: ['apps/cli/scripts/install-scripts/windows.spec.ts'],
-    requires: [],
+    requires: ['powershell'],
     release: 'every-candidate',
     proves: 'PowerShell is required: the complete Windows installer rejects tampering and removes stale payloads.',
     selections: ['release-installation']
@@ -941,6 +943,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/scripts/release/verify-published-release.spec.ts',
       'apps/cli/scripts/release-workflow.spec.ts',
       'apps/cli/scripts/platform-runtime.spec.ts',
+      'apps/cli/scripts/release/dispatch.spec.ts',
       'apps/cli/scripts/release/npm-package/bin/stacktape.spec.ts',
       'apps/cli/scripts/install-scripts/checksums.spec.ts'
     ],
@@ -4211,6 +4214,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/release/candidate-assets.spec.ts',
       'apps/cli/scripts/platform-runtime.spec.ts',
       'apps/cli/scripts/release/checksums.spec.ts',
+      'apps/cli/scripts/release/dispatch.spec.ts',
       'apps/cli/scripts/release/npm-package/bin/stacktape.spec.ts',
       'apps/cli/scripts/release/pnpm-pack.spec.ts',
       'apps/cli/scripts/release/trigger-release.spec.ts',

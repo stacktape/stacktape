@@ -300,7 +300,11 @@ export const extractExecutable = async ({
   await tar.x({
     file: tarPath,
     cwd: extracted,
-    filter: (path) => path.replace(/^\.\//, '') === asset.executable
+    // Only executable bytes may enter the cache. Even an in-bounds symlink becomes invalid after staging is removed.
+    filter: (path, entry) =>
+      path.replace(/^\.\//, '') === asset.executable &&
+      'type' in entry &&
+      (entry.type === 'File' || entry.type === 'OldFile')
   });
   const entryPath = join(extracted, asset.executable);
   if (!existsSync(entryPath)) throw missing();
