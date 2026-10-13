@@ -2,7 +2,7 @@
 // Edit this source when adding tests or lanes; neither audit files nor private source are imported.
 export type Tier = 'pr' | 'change' | 'release';
 export type Level = 'focused' | 'process' | 'api-db' | 'browser' | 'live-aws';
-export type Requirement = 'console' | 'docker' | 'chromium' | 'network' | 'aws' | 'reservation';
+export type Requirement = 'console' | 'docker' | 'chromium' | 'network' | 'aws' | 'reservation' | 'powershell';
 export type Lane = {
   id: string;
   command: readonly string[];
@@ -905,12 +905,70 @@ export const lanes: readonly Lane[] = [
     selections: ['external-tools']
   },
   {
+    id: 'release-rules',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:release-rules'],
+    level: 'focused',
+    tier: 'pr',
+    tests: [
+      'apps/cli/scripts/release/candidate-assets.spec.ts',
+      'apps/cli/scripts/release/checksums.spec.ts',
+      'apps/cli/scripts/release/trigger-release.spec.ts',
+      'apps/cli/scripts/release/validate-release-input.spec.ts',
+      'apps/cli/scripts/release/verify-published-release.spec.ts',
+      'apps/cli/scripts/install-scripts/checksums.spec.ts',
+      'apps/cli/src/utils/bin-executable.spec.ts'
+    ],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'Release parsing, archive compatibility and publication bytes remain valid.',
+    selections: ['release-installation']
+  },
+  {
+    id: 'release-downloads',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:release-downloads'],
+    level: 'process',
+    tier: 'pr',
+    tests: [
+      'apps/cli/scripts/install-scripts/installers.spec.ts',
+      'apps/cli/scripts/release/dispatch.spec.ts',
+      'apps/cli/scripts/release/npm-package/bin/stacktape.spec.ts'
+    ],
+    requires: [],
+    release: 'every-candidate',
+    proves:
+      'Installers and launcher reject bad integrity and execute offline; release dispatch preserves inputs and source.',
+    selections: ['release-installation']
+  },
+  {
+    id: 'windows-installer',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:installers:windows'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/scripts/install-scripts/windows.spec.ts'],
+    requires: ['powershell'],
+    release: 'every-candidate',
+    proves: 'PowerShell is required: the complete Windows installer rejects tampering and removes stale payloads.',
+    selections: ['release-installation']
+  },
+  {
+    id: 'native-candidate',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:release-native'],
+    level: 'process',
+    tier: 'release',
+    tests: ['apps/cli/scripts/verify-release-artifact.ts'],
+    requires: ['network'],
+    release: 'every-candidate',
+    proves:
+      'Supplied candidate runs on its native host, including Windows aliases and bundled Session Manager; pinned tools execute.',
+    selections: ['release-installation']
+  },
+  {
     id: 'release-installation',
     command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:release-artifact'],
     level: 'process',
     tier: 'change',
     tests: ['apps/cli/scripts/verify-release-artifact.ts'],
-    requires: [],
+    requires: ['network'],
     release: 'every-candidate',
     proves: 'The actual release package and binary can be installed and invoked.',
     selections: ['release-installation']
@@ -922,6 +980,7 @@ export const lanes: readonly Lane[] = [
     tier: 'change',
     tests: [
       'apps/cli/scripts/cloudformation-diff-artifact.spec.ts',
+      'apps/cli/scripts/release/candidate-assets.spec.ts',
       'apps/cli/scripts/release/checksums.spec.ts',
       'apps/cli/scripts/release/pnpm-pack.spec.ts',
       'apps/cli/scripts/release/trigger-release.spec.ts',
@@ -929,6 +988,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/scripts/release/verify-published-release.spec.ts',
       'apps/cli/scripts/release-workflow.spec.ts',
       'apps/cli/scripts/platform-runtime.spec.ts',
+      'apps/cli/scripts/release/dispatch.spec.ts',
       'apps/cli/scripts/release/npm-package/bin/stacktape.spec.ts',
       'apps/cli/scripts/install-scripts/checksums.spec.ts'
     ],
@@ -1912,14 +1972,10 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/commands/init/using-starter-project/utils.spec.ts',
       'apps/cli/src/commands/init/utils/git-detection.spec.ts',
       'apps/cli/src/commands/logs/infrequent-access.spec.ts',
-      'apps/cli/src/commands/mcp/cli-agent-contract.spec.ts',
+      'apps/cli/src/commands/mcp/model-safety.spec.ts',
       'apps/cli/src/commands/mcp/cli-command-tools.spec.ts',
       'apps/cli/src/commands/mcp/cli-jsonl-runner.spec.ts',
       'apps/cli/src/commands/mcp/dev-tool.spec.ts',
-      'apps/cli/src/commands/mcp/docs-query-fixtures.spec.ts',
-      'apps/cli/src/commands/mcp/lexical-index.spec.ts',
-      'apps/cli/src/commands/mcp/mcp-server-modern.spec.ts',
-      'apps/cli/src/commands/mcp/project-scan.spec.ts',
       'apps/cli/src/commands/mcp/tool-output.spec.ts',
       'apps/cli/src/commands/script-run/stdio.spec.ts',
       'apps/cli/src/config/local-state-paths.spec.ts',
@@ -2604,7 +2660,7 @@ export const lanes: readonly Lane[] = [
     level: 'process',
     tier: 'change',
     tests: ['apps/cli/scripts/verify-release-artifact.ts'],
-    requires: [],
+    requires: ['network'],
     release: 'every-candidate'
   },
   {
@@ -2677,10 +2733,20 @@ export const lanes: readonly Lane[] = [
     release: 'every-candidate'
   },
   {
+    id: 'mcp-corpus',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:llm-docs:corpus'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/scripts/llm-docs/corpus-generation.spec.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'Real docs generation produces unique retrievable chunks and readable, accurate AWS-call guidance.'
+  },
+  {
     id: 'cli-test-llm-docs',
     command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:llm-docs'],
     level: 'focused',
-    tier: 'change',
+    tier: 'pr',
     tests: ['apps/cli/scripts/generate-llm-docs.spec.ts'],
     requires: [],
     release: 'every-candidate'
@@ -2707,21 +2773,8 @@ export const lanes: readonly Lane[] = [
     id: 'cli-test-mcp-docs',
     command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:mcp-docs'],
     level: 'focused',
-    tier: 'change',
+    tier: 'pr',
     tests: ['apps/cli/src/commands/mcp'],
-    requires: [],
-    release: 'every-candidate'
-  },
-  {
-    id: 'cli-test-mcp-production',
-    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:mcp-production'],
-    level: 'focused',
-    tier: 'change',
-    tests: [
-      'apps/cli/scripts/package-helper-lambdas.ts',
-      'apps/cli/scripts/test-mcp-executable.ts',
-      'apps/cli/scripts/test-mcp-production-eval.ts'
-    ],
     requires: [],
     release: 'every-candidate'
   },
@@ -4203,13 +4256,25 @@ export const slices: readonly Slice[] = [
     promise: 'Shipped CLI packages/binaries install and execute.',
     status: 'active',
     journeys: ['J13'],
-    paths: ['apps/cli/scripts/release/**', 'apps/cli/src/utils/bin-executable.ts'],
+    paths: [
+      'apps/cli/scripts/release/**',
+      'apps/cli/scripts/install-scripts/**',
+      'apps/cli/scripts/build-dist-package.ts',
+      'apps/cli/scripts/build-npm.ts',
+      'apps/cli/scripts/verify-release-artifact.ts',
+      'apps/cli/scripts/publish-install-scripts.ts',
+      'apps/cli/src/utils/bin-executable.ts',
+      '.github/workflows/release.yml'
+    ],
     tests: [
       'apps/cli/scripts/cloudformation-diff-artifact.spec.ts',
       'apps/cli/scripts/install-scripts/checksums.spec.ts',
+      'apps/cli/scripts/install-scripts/installers.spec.ts',
+      'apps/cli/scripts/install-scripts/windows.spec.ts',
+      'apps/cli/scripts/release/candidate-assets.spec.ts',
       'apps/cli/scripts/platform-runtime.spec.ts',
-      'apps/cli/scripts/release-workflow.spec.ts',
       'apps/cli/scripts/release/checksums.spec.ts',
+      'apps/cli/scripts/release/dispatch.spec.ts',
       'apps/cli/scripts/release/npm-package/bin/stacktape.spec.ts',
       'apps/cli/scripts/release/pnpm-pack.spec.ts',
       'apps/cli/scripts/release/trigger-release.spec.ts',
@@ -4219,6 +4284,10 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/verify-release-artifact.ts'
     ],
     lanes: [
+      'release-rules',
+      'release-downloads',
+      'windows-installer',
+      'native-candidate',
       'release-installation',
       'release-installation-2',
       'cli-test-characterization-npm',
@@ -4230,24 +4299,25 @@ export const slices: readonly Slice[] = [
     promise: 'MCP clients can discover and use the shipped CLI interface.',
     status: 'active',
     journeys: ['J12'],
-    paths: ['apps/cli/src/commands/mcp/**', 'apps/cli/src/commands/mcp-add/**'],
+    paths: [
+      'apps/cli/src/commands/mcp/**',
+      'apps/cli/src/commands/mcp-add/**',
+      'apps/cli/scripts/generate-llm-docs.ts',
+      'apps/cli/scripts/llm-docs/**'
+    ],
     tests: [
       'apps/cli/scripts/e2e-mcp/run-e2e.ts',
       'apps/cli/scripts/generate-llm-docs.spec.ts',
+      'apps/cli/scripts/llm-docs/corpus-generation.spec.ts',
       'apps/cli/scripts/test-mcp-executable.ts',
-      'apps/cli/scripts/test-mcp-production-eval.ts',
       'apps/cli/scripts/test-mcp-server.ts',
-      'apps/cli/src/commands/mcp/cli-agent-contract.spec.ts',
+      'apps/cli/src/commands/mcp/model-safety.spec.ts',
       'apps/cli/src/commands/mcp/cli-command-tools.spec.ts',
       'apps/cli/src/commands/mcp/cli-jsonl-runner.spec.ts',
       'apps/cli/src/commands/mcp/dev-tool.spec.ts',
-      'apps/cli/src/commands/mcp/docs-query-fixtures.spec.ts',
-      'apps/cli/src/commands/mcp/lexical-index.spec.ts',
-      'apps/cli/src/commands/mcp/mcp-server-modern.spec.ts',
-      'apps/cli/src/commands/mcp/project-scan.spec.ts',
       'apps/cli/src/commands/mcp/tool-output.spec.ts'
     ],
-    lanes: ['mcp-executable', 'cli-test-mcp-docs', 'cli-test-mcp-production', 'cli-test-llm-docs']
+    lanes: ['mcp-executable', 'mcp-corpus', 'cli-test-mcp-docs', 'cli-test-llm-docs']
   },
   {
     id: 'S36',
@@ -5318,9 +5388,15 @@ export const slices: readonly Slice[] = [
     promise: 'External tools resolve safely on first use and remain usable offline.',
     status: 'active',
     journeys: ['J13'],
-    paths: ['apps/cli/src/utils/external-tools.ts', 'apps/cli/scripts/external-tools-e2e.ts'],
+    paths: [
+      'apps/cli/src/utils/external-tools.ts',
+      'apps/cli/src/config/external-tools.json',
+      'apps/cli/scripts/pin-external-tools.ts',
+      'apps/cli/scripts/external-tools-e2e.ts',
+      'apps/cli/scripts/release/verify-external-tools.ts'
+    ],
     tests: ['apps/cli/scripts/external-tools-e2e.ts'],
-    lanes: ['external-tools']
+    lanes: ['external-tools', 'native-candidate']
   },
   {
     id: 'S73',
@@ -5369,6 +5445,7 @@ export const slices: readonly Slice[] = [
 
 // Harness, benchmark and repository-policy tests have explicit tooling ownership.
 export const toolingTests: readonly string[] = [
+  'apps/cli/scripts/release-workflow.spec.ts',
   'packages/ministack/src/fixture.test.ts',
   'apps/cli/scripts/analyze-bundle.spec.ts',
   'apps/cli/scripts/generate-starter-projects-metadata.spec.ts',
