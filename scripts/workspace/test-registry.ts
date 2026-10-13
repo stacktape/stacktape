@@ -619,11 +619,11 @@ export const lanes: readonly Lane[] = [
       'exec',
       'bun',
       'test',
-      'tests/characterization/tanstack-starter-materialization.spec.ts'
+      'tests/ssr/tanstack-starter-materialization.spec.ts'
     ],
     level: 'process',
     tier: 'change',
-    tests: ['apps/cli/tests/characterization/tanstack-starter-materialization.spec.ts'],
+    tests: ['apps/cli/tests/ssr/tanstack-starter-materialization.spec.ts'],
     requires: [],
     release: 'every-candidate',
     proves: 'TanStack init preserves dependency overrides required to install a compatible build graph.'
@@ -3555,7 +3555,15 @@ export const slices: readonly Slice[] = [
     promise: 'Next.js/OpenNext produces a working deployed artifact.',
     status: 'active',
     journeys: ['J3'],
-    paths: ['packages/packaging/src/web/nextjs-web.ts', 'apps/cli/src/domain/packaging-manager/index.ts'],
+    paths: [
+      'packages/packaging/src/web/nextjs-web.ts',
+      'packages/packaging/src/web/node-runtime-files.ts',
+      'packages/packaging/src/es/native-dependencies.ts',
+      'packages/packaging/src/bundlers/node-version.ts',
+      'apps/cli/src/domain/packaging-manager/index.ts',
+      'apps/cli/src/domain/config-manager/utils/nextjs-webs.ts',
+      'apps/cli/starter-projects/nextjs-serverless/**'
+    ],
     tests: ['packages/packaging/src/web/nextjs-web.test.ts'],
     lanes: ['packaging-ssr', 'packaging-test', 'cli-packaged-web', 'starter-qualification'],
     contributors: ['S30']
@@ -3570,6 +3578,7 @@ export const slices: readonly Slice[] = [
       'packages/packaging/scripts/synthetic-web-framework-e2e.ts',
       'packages/packaging/src/web/build-coordinator.ts',
       'packages/packaging/src/web/node-runtime-files.ts',
+      'packages/packaging/src/es/native-dependencies.ts',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/ssr-web-shared.ts',
       'apps/cli/starter-projects/astro-serverless/**',
       'apps/cli/starter-projects/sveltekit-serverless/**'
@@ -3597,7 +3606,7 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/cli/scripts/packaging-archives/ssr-web-acceptance.ts',
-      'apps/cli/tests/characterization/tanstack-starter-materialization.spec.ts'
+      'apps/cli/tests/ssr/tanstack-starter-materialization.spec.ts'
     ],
     lanes: [
       'tanstack-starter-materialization',
