@@ -34,8 +34,14 @@ pnpm --filter @stacktape/console-api-app test:db --git-deploy
 pnpm --filter @stacktape/console-api-app test:db --incident-agent
 pnpm --filter @stacktape/console-api-app test:db --sign-up
 pnpm --filter @stacktape/console-api-app test:db --console-access
+pnpm --filter @stacktape/console-api-app test:db --secrets
 pnpm --filter @stacktape/console-api-app test:db --cli-console
 ```
+
+`--secrets` runs the source CLI and production Console AWS helpers and credential cache through the real HTTP API and
+isolated PostgreSQL, with Secrets Manager, SSM and Lambda configuration on MiniStack. It checks CRUD, fresh-client
+reads, pagination, version selectors, account/region isolation and denied credentials. ECS metadata and cross-account
+STS remain explicit fixtures; browser interaction runs separately.
 
 Pass the flag directly: an extra `--` is forwarded to this script and rejected. The `--incident-agent` suite also spawns
 the source CLI for `stacktape ai:connect`, so the runner first builds the CLI dev artifacts
@@ -43,6 +49,13 @@ the source CLI for `stacktape ai:connect`, so the runner first builds the CLI de
 cover the change, extending it when necessary. These suites use the disposable database, not shared dev. The runner
 currently defaults to a pinned PostgreSQL 15.14 image matching Console's configured RDS major version. Override it only
 to qualify a deliberate database upgrade. `pnpm dev:console` instead exercises the real shared dev data plane.
+
+The hosted-run suite runs funding, runtime and handoff files in separate processes. For a focused rerun, use
+`--incident-agent-funding`, `--incident-agent-runtime` or `--incident-handoff`. MiniStack owns Secrets Manager, SSM
+parameters, SQS messages, CloudFormation stack metadata, Lambda configurations and log-group metadata. The fixture keeps
+controlled remote-execution faults, cross-account AssumeRole, metrics and Logs Insights outside the emulator. The
+runtime scenarios execute the pinned agents against loopback provider and GitHub responses; no live credentials or
+shared-dev reservation are needed.
 
 The `--cli-console` suite runs source CLI processes against the production HTTP router and disposable PostgreSQL. It
 covers deployment reporting and Console read responses, endpoint-scoped login/logout, token exchange, organization and

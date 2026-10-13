@@ -135,6 +135,9 @@ importers:
         specifier: 3.974.5
         version: 3.974.5
     devDependencies:
+      '@stacktape/ministack':
+        specifier: workspace:*
+        version: link:../ministack
       '@types/bun':
         specifier: 'catalog:'
         version: 1.4.0
