@@ -323,9 +323,61 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  qualify-native:
+    name: Install candidate on ${{ matrix.platform }}
+    needs: assemble
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 9
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux
+            runner: ubuntu-24.04
+          - platform: linux-arm
+            runner: ubuntu-24.04-arm
+          - platform: macos
+            runner: macos-15-intel
+          - platform: macos-arm
+            runner: macos-15
+          - platform: win
+            runner: windows-2025
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: false
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.17.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.1
+      - run: pnpm install --frozen-lockfile
+      - name: Download the assembled candidate without rebuilding
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: stacktape-${{ inputs.version }}-candidate
+          path: ${{ runner.temp }}/native-candidate
+      - name: Install and execute the supplied npm package, binary and tools
+        working-directory: apps/cli
+        run: >-
+          bun scripts/verify-release-artifact.ts
+          --candidate-dir "$RUNNER_TEMP/native-candidate" --version "$RELEASE_VERSION" --qualify-tools
+      - name: Execute the Windows installer integrity and upgrade scenario
+        if: matrix.platform == 'win'
+        working-directory: apps/cli
+        run: bun test scripts/install-scripts/windows.spec.ts
+
   publish:
     name: Publish ${{ inputs.channel }}
-    needs: assemble
+    needs: [assemble, qualify-native]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: release-publish
@@ -509,7 +561,7 @@ jobs:
           source_sha=$(printf '%s' "$run_json" | jq -r .head_sha)
           printf '%s' "$source_sha" | grep -Eq '^[0-9a-f]{40}$'
           jobs=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RECOVERY_RUN_ID/jobs?per_page=100")
-          for job_name in 'Verify public workspace' 'Build linux' 'Build linux-arm' 'Build alpine' 'Build macos' 'Build macos-arm' 'Build win' 'Assemble verified candidate'; do
+          for job_name in 'Verify public workspace' 'Build linux' 'Build linux-arm' 'Build alpine' 'Build macos' 'Build macos-arm' 'Build win' 'Assemble verified candidate' 'Install candidate on linux' 'Install candidate on linux-arm' 'Install candidate on macos' 'Install candidate on macos-arm' 'Install candidate on win'; do
             printf '%s' "$jobs" | jq -e --arg name "$job_name" 'any(.jobs[]; .name == $name and .conclusion == "success")' >/dev/null
           done
           printf '%s' "$jobs" | jq -e --arg name "Publish $RELEASE_CHANNEL" \
