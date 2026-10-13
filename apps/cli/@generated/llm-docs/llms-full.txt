@@ -9421,6 +9421,8 @@ Deployment fails with an error if Stacktape cannot fetch the named secret, with 
 > **Warning:** The secret's `VersionId` is baked into the CloudFormation template at deploy time. If you update a secret in AWS Secrets Manager after deployment, the running stack continues using the old version until you redeploy. This means secret rotation requires a redeployment to take effect.
 
 
+When the CLI resolves `$Secret()` locally, including in `stacktape dev` and scripts, it reads the current secret value (`AWSCURRENT`), just as `$SsmParam()` reads the current parameter value. A prior deployment does not pin local directive resolution. See [Secrets](/configuration/secrets#how-secret-resolution-works) for the distinction between local directives and deployed database credentials.
+
 For JSON-formatted secrets, use dot notation to extract a single top-level key — `$Secret('secret-name.key')` splits on the first `.` to determine the secret name and the JSON key:
 
 
@@ -11520,20 +11522,24 @@ not resolve to a truthy value, the deployment fails with a descriptive error.
 
 ## How $Secret() resolution works
 
-The `$Secret()` directive resolves in two phases depending on the command context: deploy time and dev mode.
+The `$Secret()` directive resolves differently at deploy time and when the CLI reads values locally.
 
 **At deploy time**, Stacktape fetches the secret from AWS Secrets Manager, records the current version ID as a
 CloudFormation stack output, and inserts a dynamic reference (`{{resolve:secretsmanager:secretName:SecretString:jsonKey::versionId}}`)
 into the template. AWS CloudFormation resolves the actual value when creating or updating the resource. The secret
 value never appears in the CloudFormation template itself — only the reference string does.
 
-**In [dev mode](/local-development/dev-mode-overview)** (`stacktape dev`), `$Secret()` resolves the secret value
-by calling AWS Secrets Manager. When the current stack has a recorded `CurrentSecretVersionId` output from a prior
-deployment, Stacktape passes that version ID to Secrets Manager to fetch the pinned version.
+**During local resolution**, including [dev mode](/local-development/dev-mode-overview) (`stacktape dev`) and
+scripts, `$Secret()` reads the current value from AWS Secrets Manager (`AWSCURRENT`), just as `$SsmParam()` reads the
+current parameter value. Updating a secret takes effect the next time the CLI resolves it locally, even if the stack
+was deployed with an older version. This applies to both whole secrets and JSON keys.
+
+Commands that connect to deployed databases, such as `query-sql` and `query-redis`, use the secret version embedded in
+the deployed connection string so their credentials match the database.
 
 **Version pinning**: Each deployment pins to the secret version that was current at deploy time. If someone updates
-the secret value between deployments, running workloads continue using the pinned version until the next redeployment.
-This means updating a secret requires a redeploy to take effect in running workloads.
+the secret value between deployments, deployed workloads continue using the pinned version until the next redeployment.
+This means updating a secret requires a redeploy to take effect in deployed workloads.
 
 ## Retrieving and managing secrets
 

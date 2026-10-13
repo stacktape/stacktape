@@ -164,6 +164,13 @@ Also qualify local development with `pnpm test:aws --aws-scenario=dev-mode-local
 `STP_AWS_DEV_CANARY_*` guards and recovery state from the
 [dev-mode canary procedure](../apps/cli/scripts/real-aws/README.md#dev-mode-canary).
 
+Before publishing the v4 CLI, run `pnpm --filter @stacktape/cli test:config-loading:ministack` on the candidate. Its
+rotation scenario must show local `$Secret()` and `$SsmParam()` directives reading current values while deployed
+connection strings still use their pinned secret version. The resolver is owned by
+`apps/cli/src/domain/config-manager/built-in-directives.ts`; deployed connection-string resolution is owned by
+`apps/cli/src/utils/stack-info-map-sensitive-values.ts`. After upgrading, restart existing `stacktape dev` sessions to
+use the new resolver. This CLI publication requires no stack or database migration.
+
 When a new database feature flag or heavy lane is added, add it to this sequence and to
 `scripts/workspace/test-plan.ts`.
 
