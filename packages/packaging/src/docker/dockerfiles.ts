@@ -350,22 +350,35 @@ export const buildPythonArtifactDockerfile = ({
         ? 'RUN apk add --no-cache build-base'
         : 'RUN apt-get update && apt-get install -y build-essential';
   const installUvCommand = alpine ? 'RUN pip install uv' : 'RUN pip install uv';
+  // pip compile selects groups with --group and omits project input for only-groups.
+  // export instead accepts --no-group/--only-group; exclusions win on both paths.
   const installDepsCommand = `RUN set -e; \
-compile_uv_args=""; \
-for extra in $STP_PY_UV_OPTIONAL_DEPENDENCIES; do compile_uv_args="$compile_uv_args --extra $extra"; done; \
-for group in $STP_PY_UV_WITH_GROUPS; do compile_uv_args="$compile_uv_args --group $group"; done; \
-for group in $STP_PY_UV_WITHOUT_GROUPS; do compile_uv_args="$compile_uv_args --no-group $group"; done; \
-for group in $STP_PY_UV_ONLY_GROUPS; do compile_uv_args="$compile_uv_args --only-group $group"; done; \
+compile_uv_args=""; export_uv_args=""; \
+for extra in $STP_PY_UV_OPTIONAL_DEPENDENCIES; do compile_uv_args="$compile_uv_args --extra $extra"; export_uv_args="$export_uv_args --extra $extra"; done; \
+for group in $STP_PY_UV_WITH_GROUPS; do \
+  export_uv_args="$export_uv_args --group $group"; \
+  case " $STP_PY_UV_WITHOUT_GROUPS " in *" $group "*) ;; *) compile_uv_args="$compile_uv_args --group $group" ;; esac; \
+done; \
+for group in $STP_PY_UV_WITHOUT_GROUPS; do export_uv_args="$export_uv_args --no-group $group"; done; \
+if [ -n "$STP_PY_UV_ONLY_GROUPS" ]; then compile_uv_args=""; fi; \
+for group in $STP_PY_UV_ONLY_GROUPS; do \
+  export_uv_args="$export_uv_args --only-group $group"; \
+  case " $STP_PY_UV_WITHOUT_GROUPS " in *" $group "*) ;; *) compile_uv_args="$compile_uv_args --group $group" ;; esac; \
+done; \
 if [ -n "$STP_PY_DEP_FILE" ]; then \
   if [ "$STP_PY_DEP_TYPE" = "pipfile" ]; then \
     if [ ! -f Pipfile.lock ]; then uvx --from pipenv pipenv lock; fi; \
     uvx --from pipenv pipenv requirements > /tmp/requirements.txt; \
     uv pip install --system --target . -r /tmp/requirements.txt; \
   elif [ "$STP_PY_DEP_TYPE" = "pyproject" ]; then \
-    uv pip compile "$STP_PY_DEP_FILE" $compile_uv_args -o /tmp/requirements.txt; \
+    if [ -z "$STP_PY_UV_ONLY_GROUPS" ]; then \
+      uv pip compile "$STP_PY_DEP_FILE" $compile_uv_args -o /tmp/requirements.txt; \
+    elif [ -n "$compile_uv_args" ]; then \
+      uv pip compile $compile_uv_args -o /tmp/requirements.txt; \
+    else touch /tmp/requirements.txt; fi; \
     uv pip install --system --target . -r /tmp/requirements.txt; \
   elif [ "$STP_PY_DEP_TYPE" = "uv-lock" ]; then \
-    uv export --locked --no-dev --no-emit-project $compile_uv_args -o /tmp/requirements.txt; \
+    uv export --locked --no-dev --no-emit-project $export_uv_args -o /tmp/requirements.txt; \
     uv pip install --system --target . -r /tmp/requirements.txt; \
   else \
     uv pip install --system --target . -r "$STP_PY_DEP_FILE"; \

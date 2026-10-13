@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { configureNativeRuntimeForPlatform, resolveSupportedPlatform } from '@utils/bin-executable';
+import { resolveSupportedPlatform } from '@utils/bin-executable';
 
 /**
  * Opens the real CLI entry's interactive launcher as a process on a Linux host presented as `host`, and returns the
@@ -59,25 +59,6 @@ describe('release platform runtime', () => {
     );
     expect(() => resolveSupportedPlatform({ platform: 'win32', arch: 'arm64' })).toThrow('Unsupported platform');
     expect(() => resolveSupportedPlatform({ platform: 'darwin', arch: 'ia32' })).toThrow('Unsupported platform');
-  });
-
-  test('selects OpenTUI musl on Alpine only', () => {
-    const originalLibc = process.env.OPENTUI_LIBC;
-    try {
-      process.env.OPENTUI_LIBC = 'glibc';
-      configureNativeRuntimeForPlatform('alpine');
-      expect(process.env.OPENTUI_LIBC).toBe('musl');
-
-      process.env.OPENTUI_LIBC = 'custom';
-      configureNativeRuntimeForPlatform('linux');
-      expect(process.env.OPENTUI_LIBC).toBe('custom');
-    } finally {
-      if (originalLibc === undefined) {
-        delete process.env.OPENTUI_LIBC;
-      } else {
-        process.env.OPENTUI_LIBC = originalLibc;
-      }
-    }
   });
 
   // OpenTUI reads its libc choice once, when the launcher first imports it, so the entry must configure it earlier.

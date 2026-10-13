@@ -1,5 +1,5 @@
 /* eslint-disable no-await-in-loop -- Docker builds and runtime probes are deliberately serialized to bound host load. */
-import { mkdtemp, rm, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathExists } from 'fs-extra';
@@ -242,6 +242,90 @@ try {
     });
   }
 
+  console.log('Reusing a completed native installation while its exporter is unavailable...');
+  const reusedLayer = await buildNativeBinaryLayer({
+    dependencies: nativeOutput.dependenciesToInstallInDocker,
+    installationRootPath: nativeInstallationRoot,
+    layerBasePath: join(buildRoot, 'reused-native-layer'),
+    lambdaRuntimeVersion: 24,
+    packageManager: 'pnpm',
+    dockerBuildOutputArchitecture: 'linux/amd64',
+    usedByLambdas: ['native'],
+    // Deliberate fault injection: a completed install must work even when another Docker build cannot run.
+    runDocker: async () => {
+      throw new Error('Completed native installation tried to rebuild');
+    }
+  });
+  if (!reusedLayer || reusedLayer.contentHash !== nativeLayers.get('pnpm')?.contentHash) {
+    throw new Error('Completed native installation changed its artifact bytes');
+  }
+  await assertRunOutput({
+    dockerArgs: [
+      '--platform',
+      'linux/amd64',
+      '--mount',
+      `type=bind,source=${reusedLayer.layerPath},target=/opt,readonly`,
+      'node:24-bookworm-slim',
+      'node',
+      '-e',
+      "const b=require('/opt/nodejs/node_modules/bcrypt'); b.hash('secret',4).then(h=>b.compare('secret',h)).then(v=>console.log('reused-native:'+v))"
+    ],
+    expected: 'reused-native:true'
+  });
+
+  console.log('Isolating actual x64 and arm64 native installs in the same cache root...');
+  for (const [platform, architecture] of [
+    ['linux/amd64', 'x64'],
+    ['linux/arm64', 'arm64']
+  ] as const) {
+    const layer = await buildNativeBinaryLayer({
+      dependencies: nativeOutput.dependenciesToInstallInDocker,
+      installationRootPath: join(buildRoot, 'architecture-installations'),
+      layerBasePath: join(buildRoot, `architecture-${architecture}`),
+      lambdaRuntimeVersion: 24,
+      packageManager: 'npm',
+      dockerBuildOutputArchitecture: platform,
+      usedByLambdas: [architecture],
+      runDocker: async (commands) => {
+        const dockerfilePath = join(commands.at(-1)!, 'Dockerfile');
+        const dockerfile = await readFile(dockerfilePath, 'utf8');
+        // Model an architecture-sensitive postinstall using real Docker/Node. bcrypt ships every prebuild;
+        // keep only the platform this installer can load, as native packages commonly do at install time.
+        const postinstall =
+          "const fs=require('node:fs');const root='node_modules/bcrypt/prebuilds';for(const dir of fs.readdirSync(root)){if(!dir.startsWith('linux-'+process.arch))fs.rmSync(root+'/'+dir,{recursive:true});}fs.writeFileSync('node_modules/install-architecture',process.arch);";
+        await writeFile(
+          dockerfilePath,
+          dockerfile.replace(
+            'FROM scratch AS artifact',
+            `RUN node -e ${JSON.stringify(postinstall)}\n\nFROM scratch AS artifact`
+          )
+        );
+        return runDocker(commands);
+      }
+    });
+    if (!layer) throw new Error(`${platform} did not emit a native layer`);
+    const installedArchitecture = await readFile(
+      join(layer.layerPath, 'nodejs/node_modules/install-architecture'),
+      'utf8'
+    );
+    if (installedArchitecture !== architecture) {
+      throw new Error(`${platform} reused the wrong native installation: ${installedArchitecture}`);
+    }
+    await assertRunOutput({
+      dockerArgs: [
+        '--platform',
+        platform,
+        '--mount',
+        `type=bind,source=${layer.layerPath},target=/opt,readonly`,
+        'node:24-bookworm-slim',
+        'node',
+        '-e',
+        "const b=require('/opt/nodejs/node_modules/bcrypt'); b.hash('secret',4).then(h=>b.compare('secret',h)).then(v=>console.log('architecture-native:'+process.arch+':'+v))"
+      ],
+      expected: `architecture-native:${architecture}:true`
+    });
+  }
+
   console.log('Building an isolated incompatible bcrypt 5 layer...');
   const bcrypt5Dependencies: SplitBundleDependency[] = nativeOutput.dependenciesToInstallInDocker.map(
     ({ name, note, hasBinary, peerDependencies, optionalPeerDependencies }) => ({
@@ -479,7 +563,7 @@ try {
   }
 
   console.log(
-    'Synthetic Node Lambda E2E passed: split/shared/native layers, five package managers, version isolation, real ZIPs, Lambda Node 24 execution, and standalone hot-swap.'
+    'Synthetic Node Lambda E2E passed: split/shared/native layers, five package managers, architecture isolation, completed-install reuse, version isolation, real ZIPs, Lambda Node 24 execution, and standalone hot-swap.'
   );
 } finally {
   await Promise.all([...containers].map((name) => run('docker', ['rm', '--force', name]).catch(() => undefined)));

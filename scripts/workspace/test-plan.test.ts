@@ -27,7 +27,10 @@ test('a change to the MiniStack fixture or the CLI network guard selects every l
       'ministack-deploy',
       'cli-stack-operations',
       'artifact-upload-2',
-      'console-database-console-access'
+      'console-database-console-access',
+      'console-database-secrets',
+      'console-database-alerts',
+      'console-database-incident-journey'
     ]) {
       assert.ok(ids.has(lane), `${lane} is not selected for a change to ${path}`);
     }

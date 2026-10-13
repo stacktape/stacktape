@@ -38,9 +38,9 @@ pnpm install --frozen-lockfile
 pnpm check:integrated
 
 # Install and invoke the supplied npm package and native binary on this host, without rebuilding them.
-pnpm --filter @stacktape/cli test:release-artifact -- --candidate-dir "$RC_DIRECTORY" --version "$RC_VERSION"
+pnpm --filter @stacktape/cli test:release-native -- --candidate-dir "$RC_DIRECTORY" --version "$RC_VERSION"
 
-for suite in '' --runner --gitlab --security --issues --incidents --incident-agent --sign-up --console-access --cli-console --incident-journey --git-deploy --insights --billing --isolated-browser; do
+for suite in '' --runner --gitlab --security --issues --incidents --incident-agent --sign-up --console-access --secrets --cli-console --incident-journey --alerts --uptime --git-deploy --insights --billing --isolated-browser; do
   if [ -n "$suite" ]; then
     pnpm --filter @stacktape/console-api-app test:db "$suite"
   else
@@ -54,11 +54,11 @@ pnpm --filter @stacktape/bitbucket-forge-app test:e2e
 pnpm test:console:browser:offline
 pnpm --filter @stacktape/console-ui test:e2e:sessions
 
-for lane in test:docker-smoke test:node-lambda-e2e test:web-framework-e2e test:es-image-deps-e2e \
+for lane in test:archive-build:e2e test:docker-smoke test:node-lambda-e2e test:web-framework-e2e test:es-image-deps-e2e \
   test:directory-inventory-e2e test:lambda-source-map-e2e test:split-assets-e2e; do
   pnpm --filter @stacktape/packaging run "$lane"
 done
-for lane in test:lambda-archives test:asset-replacer test:docker-preparation test:layer-upload \
+for lane in test:lambda-archives test:asset-replacer test:docker-preparation \
   test:layer-upload:ministack test:fresh-install test:external-tools test:node-lambda test:ssr-web \
   test:helper-lambda-runtime test:operations:db; do
   pnpm --filter @stacktape/cli run "$lane"
@@ -89,6 +89,15 @@ exercise MCP against the exact extracted binary instead of rebuilding it, run
 `pnpm --filter @stacktape/cli exec bun scripts/test-mcp-executable.ts --candidate-binary=/absolute/path/to/stacktape`
 (use `stacktape.exe` on Windows). This keeps the candidate's sibling payloads in place and isolates its state and HTTP
 fixture.
+
+The release workflow installs the assembled candidate on Linux x64/ARM64, macOS x64/ARM64 and Windows x64 before
+publication. Its existing Alpine container smoke executes the musl candidate and both pinned tools. None of these native
+jobs rebuilds the candidate. For local qualification, `test:release-native` requires `--candidate-dir` and `--version`,
+or `STP_RELEASE_CANDIDATE_DIR` and `STP_RELEASE_CANDIDATE_VERSION`; it downloads the pinned vendor tools only in this
+explicit release lane. Routine `test:release-artifact` builds locally and needs the npm registry for the launcher’s
+runtime dependencies. Its subsequent launcher invocations forbid downloads. `test:release-downloads` runs full shell
+installers and the npm launcher with local downloads; `test:installers:windows` requires PowerShell on PATH and runs the
+complete Windows integrity/upgrade scenario.
 
 Repeat supplied-artifact installation on all six native OS/architecture/libc targets. The shell fixtures in
 `test:external-tools` run on Linux/macOS; the Windows artifact must separately exercise its bundled Session Manager

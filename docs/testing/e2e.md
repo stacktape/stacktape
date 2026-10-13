@@ -36,7 +36,7 @@ Reuse these before writing new setup code. Rows marked **duplicate** are consoli
 | Artifact uploads against MiniStack       | [layer upload acceptance](../../apps/cli/scripts/packaging-archives/layer-upload-ministack-acceptance.ts)                                              | The deploy path's S3 uploads, reuse and retention on the shared fixture.                                                                                                                              |
 | Shared UI in a browser                   | [gallery fixture](../../packages/ui-react/e2e/fixtures.ts)                                                                                             | Loopback Vite server per worker, external traffic rejected, fresh context per test.                                                                                                                   |
 | Disposable PostgreSQL                    | [database runner](../../apps/console/api/scripts/run-db-integration.ts)                                                                                | Pinned 15.14, real migrations, verified container removal. Private.                                                                                                                                   |
-| Console identities and providers         | [incident-agent fixtures](../../apps/console/api/scripts/incident-agent-fixtures.ts)                                                                   | Locally signed tokens, loopback server, AWS/GitHub/model fakes, fixture Git repositories. Private.                                                                                                    |
+| Console identities and providers         | [incident-agent fixtures](../../apps/console/api/scripts/incident-agent-fixtures.ts)                                                                   | Locally signed tokens, loopback providers, real Git repositories; [hosted AWS fixture](../../apps/console/api/scripts/incident-agent-ministack.ts) uses MiniStack for supported services. Private.    |
 | Isolated Console application             | [isolated Console fixtures](../../apps/console/ui/e2e/isolated-console-fixtures.ts)                                                                    | Shared UI/API startup, signed sessions and cleanup, consumed by issue and deployment browser journeys. Private.                                                                                       |
 | Shared-dev Console sign-in               | [browser fixtures](../../apps/console/ui/e2e/fixtures.ts)                                                                                              | Real dev Cognito login, cached per worker. Needs the reservation.                                                                                                                                     |
 | Live AWS scenario                        | [real-AWS scripts](../../apps/cli/scripts/real-aws/README.md)                                                                                          | Account check, owned names, recovery state, verified cleanup.                                                                                                                                         |
@@ -96,6 +96,20 @@ test('a Developer resolves an issue and the change survives reload', async ({ te
 
 Qualify a new helper through its first consumer: expected state observed, a legitimate failure detected, repeated and
 concurrent runs independent, cleanup verified after a deliberate failure, and no route to live endpoints.
+
+## CLI operations
+
+`pnpm --filter @stacktape/cli test:operations:rules` runs the fast, offline rule and terminal-control tests.
+`test:operations` starts one shared MiniStack container, allocates isolated accounts and runs the built source CLI with
+loopback Console responses. CloudFormation, STS, S3, Lambda and log storage use MiniStack; the proxy supplies deliberate
+faults and operations the pinned emulator lacks. Session tests replace the native vendor transport: MiniStack 1.5.26
+rejects SSM `StartSession` with `InvalidAction`, so these tests do not qualify live Session Manager or ECS networking.
+
+`pnpm --filter @stacktape/cli test:operations:db` runs the SQL, Redis, DynamoDB and OpenSearch command scenarios. It
+uses MiniStack for SSM connection parameters and DynamoDB, plus disposable PostgreSQL, Redis and OpenSearch services.
+`J9_QUERY_SERVICES=sql,redis,dynamodb,opensearch` selects the database scenarios. The runner owns bounded subprocesses
+and verifies MiniStack removal; database helpers verify their container removal. Run these Docker lanes sequentially on
+a shared machine. Neither command uses developer AWS credentials.
 
 ## Isolated Console application
 

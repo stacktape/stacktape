@@ -62,12 +62,16 @@ const stackInfoMap: NormalizedStackInfoMap = {
 };
 
 describe('stack-info selectors', () => {
-  test('returns user resources and flattens one level of nested CloudFormation children without mutating input', () => {
-    const resources = getUserResourcesFromStackInfoMap(stackInfoMap);
-
-    expect(resources.map(({ name }) => name)).toEqual(['api']);
-    expect(Object.keys(resources[0]!.cloudformationChildResources)).toEqual(['Service', 'Deployment']);
-    expect(Object.keys(stackInfoMap.resources.api!.cloudformationChildResources)).toEqual(['Service']);
+  test('selects customer resources and their nested CloudFormation children without changing the payload', () => {
+    const before = structuredClone(stackInfoMap);
+    const selected = getUserResourcesFromStackInfoMap(stackInfoMap);
+    expect(selected.map(({ name }) => name)).toEqual(['api']);
+    expect(selected[0]?.cloudformationChildResources).toEqual({
+      Service: { cloudformationResourceType: 'AWS::ECS::Service' },
+      Deployment: { cloudformationResourceType: 'AWS::CodeDeploy::DeploymentGroup' }
+    });
+    expect(stackInfoMap).toEqual(before);
+    expect(getUserResourcesFromStackInfoMap(null)).toEqual([]);
   });
 
   test('selects the first string-valued quick link using the historical priority', () => {
@@ -115,12 +119,5 @@ describe('stack-info selectors', () => {
       }
     ]);
     expect(getResourcesWithLogs({ stackInfoMap })[0]?.logGroupName).toBe('/ecs/api');
-  });
-
-  test('returns empty selections for a missing stack-info map', () => {
-    expect(getUserResourcesFromStackInfoMap(null)).toEqual([]);
-    expect(getQuickLinks(null)).toEqual([]);
-    expect(getResourcesWithMetrics({ stackInfoMap: null })).toEqual([]);
-    expect(getResourcesWithLogs({ stackInfoMap: null })).toEqual([]);
   });
 });

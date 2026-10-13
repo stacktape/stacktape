@@ -2,7 +2,7 @@
 // Edit this source when adding tests or lanes; neither audit files nor private source are imported.
 export type Tier = 'pr' | 'change' | 'release';
 export type Level = 'focused' | 'process' | 'api-db' | 'browser' | 'live-aws';
-export type Requirement = 'console' | 'docker' | 'chromium' | 'network' | 'aws' | 'reservation';
+export type Requirement = 'console' | 'docker' | 'chromium' | 'network' | 'aws' | 'reservation' | 'powershell';
 export type Lane = {
   id: string;
   command: readonly string[];
@@ -98,6 +98,44 @@ export const lanes: readonly Lane[] = [
     selections: ['cli']
   },
   {
+    id: 'cli-security-rules',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/cli',
+      'exec',
+      'bun',
+      'test',
+      'src/domain/security-inventory/cyclonedx.spec.ts',
+      'src/domain/security-inventory/trivy.spec.ts',
+      'src/domain/config-manager/utils/guardrails.spec.ts',
+      'src/domain/config-manager/utils/security-posture.spec.ts'
+    ],
+    level: 'focused',
+    tier: 'pr',
+    tests: [
+      'apps/cli/src/domain/security-inventory/cyclonedx.spec.ts',
+      'apps/cli/src/domain/security-inventory/trivy.spec.ts',
+      'apps/cli/src/domain/config-manager/utils/guardrails.spec.ts',
+      'apps/cli/src/domain/config-manager/utils/security-posture.spec.ts'
+    ],
+    requires: [],
+    release: 'every-candidate',
+    proves:
+      'Authored configurations enforce guardrails and posture; inventory parsing and scanner downloads preserve integrity.'
+  },
+  {
+    id: 'cli-security-inventory-ministack',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:security-inventory:ministack'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/tests/ministack/security-inventory.spec.ts'],
+    requires: ['docker'],
+    release: 'every-candidate',
+    proves:
+      'The deploy inventory path uploads bytes and digests, reuses unchanged packages and publishes changed packages on MiniStack.'
+  },
+  {
     id: 'cli-2',
     command: ['pnpm', '--filter', '@stacktape/cli', 'test:cli-smoke'],
     level: 'process',
@@ -120,6 +158,16 @@ export const lanes: readonly Lane[] = [
     selections: ['cli']
   },
   {
+    id: 'cli-target-arguments',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'exec', 'bun', 'test', 'src/utils/stage-arguments.spec.ts'],
+    level: 'focused',
+    tier: 'pr',
+    tests: ['apps/cli/src/utils/stage-arguments.spec.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'CLI deployment target names remain strings; missing stage values cannot select a saved default.'
+  },
+  {
     id: 'naming',
     command: ['pnpm', '--filter', '@stacktape/naming', 'test'],
     level: 'focused',
@@ -140,6 +188,46 @@ export const lanes: readonly Lane[] = [
     release: 'every-candidate',
     proves: 'Stable resource names, logical IDs, hashes and their consumers preserve compatibility.',
     selections: ['naming']
+  },
+  {
+    id: 'static-sites',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:static-sites'],
+    level: 'process',
+    tier: 'pr',
+    tests: ['apps/cli/tests/static-sites/build.spec.ts', 'apps/cli/tests/static-sites/input.spec.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves:
+      'A nested static project builds assets for deep pages; sync mode errors and regional acceleration rules stay correct.'
+  },
+  {
+    id: 'ministack-static-content-sync',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:static-sites:ministack'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/tests/static-sites/content-sync.spec.ts'],
+    requires: ['docker'],
+    release: 'every-candidate',
+    proves:
+      'Real configured/direct CLI syncs target the right bucket; SDK uploads report progress, store metadata, remove obsolete content and restore versions.'
+  },
+  {
+    id: 'static-starter-qualification',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/cli',
+      'run',
+      'qualify:starters',
+      '--',
+      '--starter=astro-static,react-spa-vitejs'
+    ],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/scripts/qualification/run-starter-packaging.ts'],
+    requires: ['docker', 'network'],
+    release: 'every-candidate',
+    proves: 'The Astro static and Vite SPA starters package through the current source CLI.'
   },
   {
     id: 'synthesis',
@@ -338,12 +426,57 @@ export const lanes: readonly Lane[] = [
     selections: ['cli-stack-operations']
   },
   {
+    id: 'cli-operation-rules',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:operations:rules'],
+    level: 'focused',
+    tier: 'pr',
+    tests: [
+      'apps/cli/src/utils/ssm-session.spec.ts',
+      'apps/cli/src/commands/script-run/stdio.spec.ts',
+      'apps/cli/src/aws/fetch-handler.spec.ts',
+      'apps/cli/src/commands/logs/infrequent-access.spec.ts',
+      'apps/cli/src/app/tui-manager/dev/__tests__/log-normalize.test.ts',
+      'apps/cli/src/app/tui-manager/format/text.spec.ts',
+      'apps/cli/src/app/tui-manager/launcher/__tests__/data.test.ts',
+      'apps/cli/src/app/tui-manager/progress/__tests__/sink.test.ts',
+      'apps/cli/src/app/tui-manager/progress/__tests__/stream-presenter.test.ts',
+      'apps/cli/src/app/tui-manager/prompt/__tests__/sink.test.ts',
+      'apps/cli/src/app/tui-manager/progress/views/__tests__/dashboard.test.tsx',
+      'apps/cli/src/app/tui-manager/dev/views/__tests__/dashboard.test.tsx',
+      'apps/cli/src/commands/_utils/__tests__/debug-formatters.test.ts',
+      'apps/cli/tests/characterization/aws-cost-management.spec.ts',
+      'apps/cli/tests/characterization/aws-observability.spec.ts',
+      'apps/cli/tests/characterization/private-registry-pagination.spec.ts',
+      'apps/cli/tests/characterization/diagnostic-command-inputs.spec.ts',
+      'apps/cli/tests/characterization/sql-read-only.spec.ts',
+      'apps/cli/tests/characterization/cli-contract.spec.ts',
+      'apps/cli/tests/characterization/cli-input-parsing.spec.ts',
+      'apps/cli/tests/characterization/command-error-modernization.spec.ts',
+      'apps/cli/tests/characterization/error-contract.spec.ts'
+    ],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'CLI parsing, error/output contracts and terminal controls retain distinct offline protections.',
+    selections: ['cli-operations']
+  },
+  {
+    id: 'cli-terminal-ownership',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:operations:terminal'],
+    level: 'process',
+    tier: 'pr',
+    tests: ['apps/cli/scripts/operations/terminal-ownership.spec.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'Real terminal prompts, inherited children and dev SIGINT preserve terminal ownership and cleanup output.',
+    selections: ['cli-operations']
+  },
+  {
     id: 'cli-operations',
     command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:operations'],
     level: 'process',
     tier: 'change',
     tests: ['apps/cli/scripts/operations'],
-    requires: [],
+    requires: ['docker'],
     release: 'every-candidate',
     proves: 'CLI output, diagnostics, sessions and operational commands work through real processes.',
     selections: ['cli-operations']
@@ -501,6 +634,66 @@ export const lanes: readonly Lane[] = [
     selections: ['init-e2e']
   },
   {
+    id: 'local-dev',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:local-dev'],
+    level: 'process',
+    tier: 'change',
+    tests: [
+      'apps/cli/src/commands/dev',
+      'apps/cli/src/commands/dev-stop',
+      'apps/cli/src/utils/ports.test.ts',
+      'apps/cli/scripts/real-aws/lambda-dev-canary.spec.ts'
+    ],
+    requires: [],
+    release: 'every-candidate',
+    proves:
+      'Dev-stop kills owned descendants, stable proxy URLs follow rebuilds, and local port allocation avoids foreign listeners.'
+  },
+  {
+    id: 'local-dev-containers',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:local-dev:containers'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/tests/local-development/container-cleanup.spec.ts'],
+    requires: ['docker', 'network'],
+    release: 'every-candidate',
+    proves:
+      'Real Docker cleanup removes abandoned and stopped containers while preserving live and legacy sessions; network is only for the fixture image.'
+  },
+  {
+    id: 'local-dev-next',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:local-dev:next'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/tests/local-development/next-dev.spec.ts'],
+    requires: ['network'],
+    release: 'every-candidate',
+    proves:
+      'A pinned real Next dev server receives local parameters, serves edits through its stable URL and cleans up; network is only for fixture installation.'
+  },
+  {
+    id: 'local-dev-ministack',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:local-dev:ministack'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/tests/ministack/local-dev.spec.ts'],
+    requires: ['docker'],
+    release: 'every-candidate',
+    proves:
+      'MiniStack stores local tunnel parameters and restored Lambda environments; the real dev HTTP agent redacts reads and denies mutation.'
+  },
+  {
+    id: 'local-dev-lambda-live',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:real-aws-lambda-dev'],
+    level: 'live-aws',
+    tier: 'release',
+    tests: ['apps/cli/scripts/real-aws/lambda-dev-canary.ts'],
+    requires: ['aws', 'network', 'docker'],
+    release: 'affected-external-contract',
+    proves:
+      'A deployed Lambda queries initial and edited local PostgreSQL data through the real dev tunnel; logs, environment restore and deletion are verified.'
+  },
+  {
     id: 'local-dev-live',
     command: ['pnpm', 'test:aws', '--aws-scenario=dev-mode-local-loop'],
     level: 'live-aws',
@@ -534,6 +727,46 @@ export const lanes: readonly Lane[] = [
     selections: ['vscode-host']
   },
   {
+    id: 'dockerfile-image',
+    command: ['pnpm', '--filter', '@stacktape/packaging', 'run', 'test:dockerfile-image-e2e'],
+    level: 'process',
+    tier: 'change',
+    tests: ['packages/packaging/scripts/dockerfile-image-e2e.ts'],
+    requires: ['docker'],
+    release: 'every-candidate',
+    proves:
+      'Authored Dockerfile images rebuild for instructions, arguments and consumed files, and reuse ignored edits.',
+    selections: ['packaging-images']
+  },
+  {
+    id: 'image-builders-ministack',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:image-builders:ministack'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/tests/image-builders/ecr.spec.ts'],
+    requires: ['docker'],
+    release: 'every-candidate',
+    proves:
+      'Real ECR metadata is listed and deleted across batches and registry authorization is decoded on MiniStack.',
+    selections: ['packaging-images']
+  },
+  {
+    id: 'language-lambdas',
+    command: ['pnpm', '--filter', '@stacktape/packaging', 'run', 'test:language-lambdas'],
+    level: 'process',
+    tier: 'change',
+    tests: [
+      'packages/packaging/scripts/lambda-e2e/python.test.ts',
+      'packages/packaging/scripts/lambda-e2e/python-pipfile.test.ts',
+      'packages/packaging/scripts/lambda-e2e/java.test.ts',
+      'packages/packaging/scripts/lambda-e2e/ruby.test.ts'
+    ],
+    requires: ['docker', 'network'],
+    release: 'every-candidate',
+    proves:
+      'Python wheels, Java reactor handlers and Ruby native gems execute from their ZIPs in official Lambda runtimes.'
+  },
+  {
     id: 'packaging-images',
     command: ['pnpm', '--filter', '@stacktape/packaging', 'run', 'test:docker-smoke'],
     level: 'process',
@@ -556,6 +789,16 @@ export const lanes: readonly Lane[] = [
     selections: ['packaging-images']
   },
   {
+    id: 'node-lambda-offline',
+    command: ['pnpm', '--filter', '@stacktape/packaging', 'run', 'test:node-lambda:offline'],
+    level: 'process',
+    tier: 'pr',
+    tests: ['packages/packaging/src/bundlers/es', 'packages/packaging/src/es', 'packages/packaging/src/split-bundler'],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'Real single and split bundles execute offline; packaging rules and past regressions stay protected.'
+  },
+  {
     id: 'packaging-lambdas',
     command: ['pnpm', '--filter', '@stacktape/packaging', 'run', 'test:node-lambda-e2e'],
     level: 'process',
@@ -563,7 +806,8 @@ export const lanes: readonly Lane[] = [
     tests: ['packages/packaging/scripts/synthetic-node-lambda-e2e.ts'],
     requires: ['docker', 'network'],
     release: 'every-candidate',
-    proves: 'Built artifacts execute in their target runtimes.',
+    proves:
+      'Node artifacts execute with shared/native layers; native installations isolate architectures and reuse completed bytes.',
     selections: ['packaging-lambdas']
   },
   {
@@ -598,6 +842,39 @@ export const lanes: readonly Lane[] = [
     release: 'every-candidate',
     proves: 'Built artifacts execute in their target runtimes.',
     selections: ['packaging-lambdas']
+  },
+  {
+    id: 'tanstack-starter-materialization',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/cli',
+      'exec',
+      'bun',
+      'test',
+      'tests/ssr/tanstack-starter-materialization.spec.ts'
+    ],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/tests/ssr/tanstack-starter-materialization.spec.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'TanStack init preserves dependency overrides required to install a compatible build graph.'
+  },
+  {
+    id: 'packaging-ssr',
+    command: ['pnpm', '--filter', '@stacktape/packaging', 'run', 'test:ssr'],
+    level: 'process',
+    tier: 'pr',
+    tests: [
+      'packages/packaging/src/web/nextjs-web.test.ts',
+      'packages/packaging/src/web/ssr-packaging.test.ts',
+      'packages/packaging/src/web/ssr-web-shared.test.ts'
+    ],
+    requires: [],
+    release: 'every-candidate',
+    proves:
+      'Offline SSR packaging produces runnable ZIPs, isolates concurrent builds and keeps private files out of public assets.'
   },
   {
     id: 'packaging-web',
@@ -646,10 +923,10 @@ export const lanes: readonly Lane[] = [
   {
     id: 'packaging-archives-4',
     command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:fresh-install'],
-    level: 'focused',
+    level: 'process',
     tier: 'change',
     tests: ['apps/cli/scripts/packaging-archives/fresh-install-acceptance.ts'],
-    requires: ['network'],
+    requires: ['docker', 'network'],
     release: 'every-candidate',
     proves: 'Lambda archives, asset replacement, Docker preparation and fresh source installation work.',
     selections: ['packaging-archives']
@@ -666,12 +943,70 @@ export const lanes: readonly Lane[] = [
     selections: ['external-tools']
   },
   {
+    id: 'release-rules',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:release-rules'],
+    level: 'focused',
+    tier: 'pr',
+    tests: [
+      'apps/cli/scripts/release/candidate-assets.spec.ts',
+      'apps/cli/scripts/release/checksums.spec.ts',
+      'apps/cli/scripts/release/trigger-release.spec.ts',
+      'apps/cli/scripts/release/validate-release-input.spec.ts',
+      'apps/cli/scripts/release/verify-published-release.spec.ts',
+      'apps/cli/scripts/install-scripts/checksums.spec.ts',
+      'apps/cli/src/utils/bin-executable.spec.ts'
+    ],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'Release parsing, archive compatibility and publication bytes remain valid.',
+    selections: ['release-installation']
+  },
+  {
+    id: 'release-downloads',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:release-downloads'],
+    level: 'process',
+    tier: 'pr',
+    tests: [
+      'apps/cli/scripts/install-scripts/installers.spec.ts',
+      'apps/cli/scripts/release/dispatch.spec.ts',
+      'apps/cli/scripts/release/npm-package/bin/stacktape.spec.ts'
+    ],
+    requires: [],
+    release: 'every-candidate',
+    proves:
+      'Installers and launcher reject bad integrity and execute offline; release dispatch preserves inputs and source.',
+    selections: ['release-installation']
+  },
+  {
+    id: 'windows-installer',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:installers:windows'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/scripts/install-scripts/windows.spec.ts'],
+    requires: ['powershell'],
+    release: 'every-candidate',
+    proves: 'PowerShell is required: the complete Windows installer rejects tampering and removes stale payloads.',
+    selections: ['release-installation']
+  },
+  {
+    id: 'native-candidate',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:release-native'],
+    level: 'process',
+    tier: 'release',
+    tests: ['apps/cli/scripts/verify-release-artifact.ts'],
+    requires: ['network'],
+    release: 'every-candidate',
+    proves:
+      'Supplied candidate runs on its native host, including Windows aliases and bundled Session Manager; pinned tools execute.',
+    selections: ['release-installation']
+  },
+  {
     id: 'release-installation',
     command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:release-artifact'],
     level: 'process',
     tier: 'change',
     tests: ['apps/cli/scripts/verify-release-artifact.ts'],
-    requires: [],
+    requires: ['network'],
     release: 'every-candidate',
     proves: 'The actual release package and binary can be installed and invoked.',
     selections: ['release-installation']
@@ -683,6 +1018,7 @@ export const lanes: readonly Lane[] = [
     tier: 'change',
     tests: [
       'apps/cli/scripts/cloudformation-diff-artifact.spec.ts',
+      'apps/cli/scripts/release/candidate-assets.spec.ts',
       'apps/cli/scripts/release/checksums.spec.ts',
       'apps/cli/scripts/release/pnpm-pack.spec.ts',
       'apps/cli/scripts/release/trigger-release.spec.ts',
@@ -690,6 +1026,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/scripts/release/verify-published-release.spec.ts',
       'apps/cli/scripts/release-workflow.spec.ts',
       'apps/cli/scripts/platform-runtime.spec.ts',
+      'apps/cli/scripts/release/dispatch.spec.ts',
       'apps/cli/scripts/release/npm-package/bin/stacktape.spec.ts',
       'apps/cli/scripts/install-scripts/checksums.spec.ts'
     ],
@@ -699,15 +1036,34 @@ export const lanes: readonly Lane[] = [
     selections: ['release-installation']
   },
   {
-    id: 'artifact-upload',
-    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:layer-upload'],
-    level: 'focused',
-    tier: 'change',
-    tests: ['apps/cli/scripts/packaging-archives/layer-upload-acceptance.ts'],
+    id: 'archive-contracts',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/cli',
+      'exec',
+      'bun',
+      'test',
+      './tests/characterization/packaging-contract.spec.ts'
+    ],
+    level: 'process',
+    tier: 'pr',
+    tests: ['apps/cli/tests/characterization/packaging-contract.spec.ts'],
     requires: [],
     release: 'every-candidate',
-    proves: 'Layer upload and retention work against the SDK wire protocol and MiniStack.',
-    selections: ['artifact-upload']
+    proves: 'Real custom ZIPs preserve content identity, cache reuse, file modes, source inventory and size limits.',
+    selections: ['packaging-archives']
+  },
+  {
+    id: 'archive-build-e2e',
+    command: ['pnpm', '--filter', '@stacktape/packaging', 'run', 'test:archive-build:e2e'],
+    level: 'process',
+    tier: 'change',
+    tests: ['packages/packaging/scripts/archive-build-e2e.ts'],
+    requires: ['docker'],
+    release: 'every-candidate',
+    proves: 'Real Docker exports and images omit local state, remove stale files and clean temporary build inputs.',
+    selections: ['packaging-archives']
   },
   {
     id: 'artifact-upload-2',
@@ -727,6 +1083,7 @@ export const lanes: readonly Lane[] = [
     tier: 'change',
     tests: [
       'apps/cli/tests/ministack/deploy-loop.spec.ts',
+      'apps/cli/tests/ministack/split-lambda-family.ts',
       'apps/cli/tests/ministack/domain-cache.spec.ts',
       'apps/cli/tests/ministack/domain-add.spec.ts'
     ],
@@ -810,6 +1167,135 @@ export const lanes: readonly Lane[] = [
     selections: ['init-corpus']
   },
   {
+    id: 'console-access-rules',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/console-api-app',
+      'exec',
+      'bun',
+      'test',
+      '--isolate',
+      'src/http-server.test.ts',
+      'src/lambdas/sign-up-user-name.test.ts',
+      'src/services/api-key-security.test.ts',
+      'src/utils/safe-error.test.ts',
+      'src/organizations/personal-organization.test.ts',
+      'src/aws/browser-access.test.ts',
+      'src/aws/context.test.ts',
+      'infrastructure/console-connection/connection-template.test.ts'
+    ],
+    level: 'focused',
+    tier: 'pr',
+    tests: [
+      'apps/console/api/src/http-server.test.ts',
+      'apps/console/api/src/lambdas/sign-up-user-name.test.ts',
+      'apps/console/api/src/services/api-key-security.test.ts',
+      'apps/console/api/src/utils/safe-error.test.ts',
+      'apps/console/api/src/organizations/personal-organization.test.ts',
+      'apps/console/api/src/aws/browser-access.test.ts',
+      'apps/console/api/src/aws/context.test.ts',
+      'apps/console/api/infrastructure/console-connection/connection-template.test.ts'
+    ],
+    requires: ['console'],
+    release: 'every-candidate',
+    proves:
+      'Credential compatibility, safe logging, naming and session policy contracts, with real loopback SDK refresh and failure handling.',
+    selections: ['console-access-rules']
+  },
+  {
+    id: 'console-cli-permission-rules',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/cli',
+      'exec',
+      'bun',
+      'test',
+      '--preload',
+      './scripts/network-guard-preload.ts',
+      'src/commands/_utils/__tests__/permission-guards.test.ts'
+    ],
+    level: 'focused',
+    tier: 'pr',
+    tests: ['apps/cli/src/commands/_utils/__tests__/permission-guards.test.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves:
+      'CLI admission selects the actual stage permission and rejects inaccessible projects with actionable errors.',
+    selections: ['console-cli-permission-rules']
+  },
+  {
+    id: 'console-alert-rules',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/console-api-app',
+      'exec',
+      'bun',
+      'test',
+      '--preload',
+      '../../cli/scripts/network-guard-preload.ts',
+      '--isolate',
+      'src/messages/email-messages.test.ts',
+      'src/model-helpers/index.test.ts',
+      'src/services/slack-app/actions.test.ts',
+      'src/services/slack-app/budget-card.test.ts',
+      'src/services/slack-app/client.test.ts',
+      'src/services/slack-app/deployment-card.test.ts',
+      'src/services/slack-app/evidence.test.ts',
+      'src/services/slack-app/ignore-modal.test.ts',
+      'src/services/slack-app/render-actions.test.ts',
+      'src/services/slack-app/security-card.test.ts',
+      'src/services/slack-app/signing.test.ts'
+    ],
+    level: 'focused',
+    tier: 'pr',
+    tests: [
+      'apps/console/api/src/messages/email-messages.test.ts',
+      'apps/console/api/src/model-helpers/index.test.ts',
+      'apps/console/api/src/services/slack-app/actions.test.ts',
+      'apps/console/api/src/services/slack-app/budget-card.test.ts',
+      'apps/console/api/src/services/slack-app/client.test.ts',
+      'apps/console/api/src/services/slack-app/deployment-card.test.ts',
+      'apps/console/api/src/services/slack-app/evidence.test.ts',
+      'apps/console/api/src/services/slack-app/ignore-modal.test.ts',
+      'apps/console/api/src/services/slack-app/render-actions.test.ts',
+      'apps/console/api/src/services/slack-app/security-card.test.ts',
+      'apps/console/api/src/services/slack-app/signing.test.ts'
+    ],
+    requires: ['console'],
+    release: 'every-candidate',
+    proves: 'Alert parsing, redaction, formatting and Slack HTTP channel behavior remain offline and fast.'
+  },
+  {
+    id: 'uptime-rules',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/cli',
+      'exec',
+      'bun',
+      'test',
+      '--preload',
+      './scripts/network-guard-preload.ts',
+      '--isolate',
+      'helper-lambdas/stacktapeServiceLambda/alarm-notifications/index.test.ts',
+      'helper-lambdas/uptimeProber/manifest.spec.ts',
+      'src/domain/config-manager/utils/uptime-checks.spec.ts'
+    ],
+    level: 'focused',
+    tier: 'pr',
+    tests: [
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/alarm-notifications/index.test.ts',
+      'apps/cli/helper-lambdas/uptimeProber/manifest.spec.ts',
+      'apps/cli/src/domain/config-manager/utils/uptime-checks.spec.ts'
+    ],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'Uptime config/manifest compatibility and actual alarm HTTP reporting remain offline and fast.'
+  },
+  {
     id: 'console-api',
     command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test'],
     level: 'focused',
@@ -860,12 +1346,27 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/scripts/console-access-database.test.ts',
       'apps/console/api/scripts/console-tenancy-database.test.ts',
       'apps/console/api/scripts/console-aws-connection-database.test.ts',
-      'apps/console/api/scripts/console-secrets-database.test.ts'
+      'apps/console/ui/scripts/console-s3-ministack.test.ts'
     ],
     requires: ['console', 'docker', 'network'],
     release: 'every-candidate',
     proves: 'Real console-access services and persistence through the isolated PostgreSQL feature suite.',
     selections: ['console-database-console-access']
+  },
+  {
+    id: 'console-database-secrets',
+    command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test:db', '--secrets'],
+    level: 'api-db',
+    tier: 'change',
+    tests: [
+      'apps/console/api/scripts/console-secrets-database.test.ts',
+      'apps/console/ui/scripts/secrets-parameters-database.test.ts'
+    ],
+    requires: ['console', 'docker', 'network'],
+    release: 'every-candidate',
+    proves:
+      'Production Console AWS helpers obtain scoped credentials through HTTP/PostgreSQL and persist secret/parameter CRUD and pinned reads in MiniStack.',
+    selections: ['console-database-secrets']
   },
   {
     id: 'console-database-cli-console',
@@ -878,8 +1379,33 @@ export const lanes: readonly Lane[] = [
     ],
     requires: ['console', 'docker', 'network'],
     release: 'every-candidate',
-    proves: 'Real cli-console services and persistence through the isolated PostgreSQL feature suite.',
+    proves:
+      'Source CLI identity and deployment reporting through HTTP/PostgreSQL; MiniStack stack updates, stored artifacts and Console metadata readback.',
     selections: ['console-database-cli-console']
+  },
+  {
+    id: 'console-database-alerts',
+    command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test:db', '--alerts'],
+    level: 'api-db',
+    tier: 'change',
+    tests: ['apps/console/api/scripts/alerts-database.test.ts'],
+    requires: ['console', 'docker', 'network'],
+    release: 'every-candidate',
+    proves:
+      'Delivery leases, receipt repair, signed Slack permissions and provider contracts through PostgreSQL, real SDKs and MiniStack SQS/Secrets Manager/SES.',
+    selections: ['console-database-alerts']
+  },
+  {
+    id: 'console-database-uptime',
+    command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test:db', '--uptime'],
+    level: 'api-db',
+    tier: 'change',
+    tests: ['apps/console/api/scripts/uptime-database.test.ts'],
+    requires: ['console', 'docker', 'network'],
+    release: 'every-candidate',
+    proves:
+      'Regional quorum, concurrent retries, revision grace, rejected probes and bucket aggregates through HTTP/PostgreSQL.',
+    selections: ['console-database-uptime']
   },
   {
     id: 'console-database-incident-journey',
@@ -925,7 +1451,8 @@ export const lanes: readonly Lane[] = [
     tests: ['apps/console/api/scripts/billing-database.test.ts'],
     requires: ['console', 'docker', 'network'],
     release: 'every-candidate',
-    proves: 'Real billing services and persistence through the isolated PostgreSQL feature suite.',
+    proves:
+      'Signed billing events and monthly charges through HTTP/PostgreSQL, with CUR objects and stack updates on MiniStack.',
     selections: ['console-database-billing']
   },
   {
@@ -938,6 +1465,48 @@ export const lanes: readonly Lane[] = [
     release: 'every-candidate',
     proves: 'Real runner services and persistence through the isolated PostgreSQL feature suite.',
     selections: ['console-database-runner']
+  },
+  {
+    id: 'console-database-bitbucket-pairing',
+    command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test:db', '--bitbucket-pairing'],
+    level: 'api-db',
+    tier: 'change',
+    tests: ['apps/console/api/scripts/bitbucket-pairing-database.test.ts'],
+    requires: ['console', 'docker'],
+    release: 'every-candidate',
+    proves:
+      'Signed Forge pairing and Console HTTP authorization commit one workspace connection in PostgreSQL and MiniStack.',
+    selections: ['console-database-bitbucket-pairing']
+  },
+  {
+    id: 'console-database-gitlab-lifecycle',
+    command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test:db', '--gitlab-lifecycle'],
+    level: 'api-db',
+    tier: 'change',
+    tests: ['apps/console/api/scripts/gitlab-lifecycle-database.test.ts'],
+    requires: ['console', 'docker'],
+    release: 'every-candidate',
+    proves: 'Real GitLab OAuth, clone rotation and recovery use PostgreSQL leases and MiniStack Secrets Manager.',
+    selections: ['console-database-gitlab-lifecycle']
+  },
+  {
+    id: 'console-github-actions-cleanup',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/console-api-app',
+      'exec',
+      'bun',
+      'test',
+      'scripts/github-actions-cleanup.test.ts'
+    ],
+    level: 'focused',
+    tier: 'change',
+    tests: ['apps/console/api/scripts/github-actions-cleanup.test.ts'],
+    requires: ['console', 'docker'],
+    release: 'every-candidate',
+    proves:
+      'Retirement and stale-poll regressions preserve runner ownership until MiniStack credential cleanup succeeds.'
   },
   {
     id: 'console-database-gitlab',
@@ -960,6 +1529,15 @@ export const lanes: readonly Lane[] = [
     release: 'every-candidate',
     proves: 'Real security services and persistence through the isolated PostgreSQL feature suite.',
     selections: ['console-database-security']
+  },
+  {
+    id: 'console-database-issue-triage',
+    command: ['pnpm', '--filter', '@stacktape/console-api-app', 'run', 'test:db', '--issue-triage'],
+    level: 'api-db',
+    tier: 'change',
+    tests: ['apps/console/api/scripts/issue-triage.test.ts'],
+    requires: ['console', 'docker'],
+    release: 'every-candidate'
   },
   {
     id: 'console-database-issues',
@@ -993,7 +1571,8 @@ export const lanes: readonly Lane[] = [
     tier: 'change',
     tests: [
       'apps/console/api/scripts/incident-agent-database.test.ts',
-      'apps/console/api/scripts/incident-agent-runtime.test.ts'
+      'apps/console/api/scripts/incident-agent-runtime.test.ts',
+      'apps/console/api/scripts/incident-handoff-database.test.ts'
     ],
     requires: ['console', 'docker', 'network'],
     release: 'every-candidate',
@@ -1010,6 +1589,56 @@ export const lanes: readonly Lane[] = [
     release: 'every-candidate',
     proves: 'Real sign-up services and persistence through the isolated PostgreSQL feature suite.',
     selections: ['console-database-sign-up']
+  },
+  {
+    id: 'console-runner-rules',
+    command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test:runner:rules'],
+    level: 'focused',
+    tier: 'pr',
+    tests: [
+      'apps/console/api/infrastructure/ec2-runner-image/ami-publication.test.ts',
+      'apps/console/api/infrastructure/ec2-runner-image/ec2-runner.pkr.test.ts',
+      'apps/console/api/src/services/remote-deploy/aws/ssm.test.ts',
+      'apps/console/api/src/services/remote-deploy/dispatch-retry.test.ts',
+      'apps/console/api/src/services/remote-deploy/ec2/auto-stop-state.test.ts',
+      'apps/console/api/src/services/remote-deploy/ec2/capacity.test.ts',
+      'apps/console/api/src/services/remote-deploy/ec2/ensure-runner.test.ts',
+      'apps/console/api/src/services/remote-deploy/ec2/poll-status.test.ts',
+      'apps/console/api/src/services/remote-deploy/ec2/preseeded-tools-script.test.ts',
+      'apps/console/api/src/services/remote-deploy/ec2/runner-iam-policy.test.ts',
+      'apps/console/api/src/services/remote-deploy/ec2/runner-launch-state.test.ts',
+      'apps/console/api/src/services/remote-deploy/ec2/shell-quote.test.ts',
+      'apps/console/api/src/services/remote-deploy/ec2/ssm-readiness.test.ts',
+      'apps/console/api/src/services/remote-deploy/redact-output.test.ts',
+      'apps/console/api/src/services/runners/cost-estimate.test.ts',
+      'apps/console/api/src/services/runners/telemetry.test.ts'
+    ],
+    requires: ['console'],
+    release: 'every-candidate',
+    proves:
+      'Runner parsing, pricing, redaction and launch rules plus controlled readiness failures run offline in seconds.'
+  },
+  {
+    id: 'console-remote-session-aws-offline',
+    command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test:remote-session:aws:offline'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/console/api/scripts/remote-session-aws.test.ts'],
+    requires: ['console', 'docker'],
+    release: 'every-candidate',
+    proves:
+      'Remote sessions select running ECS tasks on MiniStack; Session Manager alone remains an unsupported-service fixture.'
+  },
+  {
+    id: 'console-runner-aws-offline',
+    command: ['pnpm', '--filter', '@stacktape/console-api-app', 'test:runner:aws:offline'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/console/api/scripts/runner-aws.test.ts'],
+    requires: ['console', 'docker'],
+    release: 'every-candidate',
+    proves:
+      'MiniStack stores runner IAM policies and EC2 state while real reconciliation and cleanup recover from injected denials.'
   },
   {
     id: 'console-runner-runtime',
@@ -1053,17 +1682,13 @@ export const lanes: readonly Lane[] = [
     tests: [
       'apps/console/ui/src/aws/traces-commands.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/cloudformation-resources.test.ts',
-      'apps/console/ui/src/aws/access-cache.test.ts',
       'apps/console/ui/src/aws/dynamic-references.test.ts',
       'apps/console/ui/src/aws/secrets-commands.test.ts',
-      'apps/console/ui/src/aws/secrets.test.ts',
       'apps/console/ui/src/aws/logs-commands.test.ts',
       'apps/console/ui/src/aws/logs.test.ts',
       'apps/console/ui/src/aws/s3-commands.test.ts',
-      'apps/console/ui/src/aws/s3.test.ts',
       'apps/console/ui/src/aws/sensitive-values.test.ts',
       'apps/console/ui/src/aws/ssm-commands.test.ts',
-      'apps/console/ui/src/aws/ssm.test.ts',
       'apps/console/ui/src/components/AwsRegionSelect/region-catalog.test.ts',
       'apps/console/ui/src/components/Observability/time-range.test.ts',
       'apps/console/ui/src/components/Observability/inventory.test.ts',
@@ -1093,6 +1718,17 @@ export const lanes: readonly Lane[] = [
     release: 'every-candidate',
     proves: 'Console UI helpers compile and the production bundle is valid.',
     selections: ['console-ui']
+  },
+  {
+    id: 'console-observability-readers',
+    command: ['pnpm', '--filter', '@stacktape/console-ui', 'test:observability:readers'],
+    level: 'process',
+    tier: 'pr',
+    tests: ['apps/console/ui/scripts/observability-readers.test.ts'],
+    requires: ['console'],
+    release: 'every-candidate',
+    proves:
+      'Actual Console clients and SDK transport retain paged metric values, denied-resource context and the selected live-tail request scope.'
   },
   {
     id: 'console-ui-2',
@@ -1349,6 +1985,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/scripts/operations/diagnostics.spec.ts',
       'apps/cli/scripts/operations/fixture.spec.ts',
       'apps/cli/scripts/operations/output.spec.ts',
+      'apps/cli/scripts/operations/validate.spec.ts',
       'apps/cli/scripts/operations/remaining-commands.spec.ts',
       'apps/cli/scripts/operations/sessions.spec.ts',
       'apps/cli/scripts/packaging-archives/lambda-runtime.spec.ts',
@@ -1379,6 +2016,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/scripts/qualification/report.spec.ts',
       'apps/cli/scripts/qualification/runner-integration.spec.ts',
       'apps/cli/scripts/real-aws/dev-mode-canary.spec.ts',
+      'apps/cli/scripts/real-aws/lambda-dev-canary.spec.ts',
       'apps/cli/scripts/real-aws/init-canary-client.spec.ts',
       'apps/cli/scripts/real-aws/init-canary-fixtures.spec.ts',
       'apps/cli/scripts/real-aws/init-canary.spec.ts',
@@ -1394,29 +2032,23 @@ export const lanes: readonly Lane[] = [
       'apps/cli/scripts/tsconfig-projects.spec.ts',
       'apps/cli/scripts/verify-npm-declarations.spec.ts',
       'apps/cli/scripts/verify-source-cli-aws-readonly.spec.ts',
-      'apps/cli/src/app/application-manager/__tests__/handle-exit-signal.test.ts',
       'apps/cli/src/app/global-state-manager/api-key-storage.spec.ts',
       'apps/cli/src/app/global-state-manager/credential-refresh.spec.ts',
       'apps/cli/src/app/global-state-manager/credential-source.test.ts',
       'apps/cli/src/app/global-state-manager/runner-credentials.test.ts',
       'apps/cli/src/app/operation-invocation-context.spec.ts',
-      'apps/cli/src/app/operation-manager/__tests__/journal.test.ts',
       'apps/cli/src/app/stacktape-trpc-api-manager/index.spec.ts',
-      'apps/cli/src/app/stacktape-trpc-api-manager/recorded-command-args.spec.ts',
-      'apps/cli/src/app/tui-manager/__tests__/cleanup-logging.test.ts',
       'apps/cli/src/app/tui-manager/dev/__tests__/log-normalize.test.ts',
       'apps/cli/src/app/tui-manager/dev/views/__tests__/dashboard.test.tsx',
       'apps/cli/src/app/tui-manager/format/text.spec.ts',
       'apps/cli/src/app/tui-manager/launcher/__tests__/data.test.ts',
-      'apps/cli/src/app/tui-manager/progress/__tests__/cf-progress.test.ts',
       'apps/cli/src/app/tui-manager/progress/__tests__/sink.test.ts',
       'apps/cli/src/app/tui-manager/progress/__tests__/stream-presenter.test.ts',
       'apps/cli/src/app/tui-manager/progress/views/__tests__/dashboard.test.tsx',
       'apps/cli/src/app/tui-manager/prompt/__tests__/sink.test.ts',
-      'apps/cli/src/app/tui-manager/runtime/presentation-controller.test.ts',
       'apps/cli/src/aws/cloudformation.spec.ts',
       'apps/cli/src/aws/fetch-handler.spec.ts',
-      'apps/cli/src/aws/log-collector/index.spec.ts',
+      'apps/cli/scripts/operations/log-collector.spec.ts',
       'apps/cli/src/aws/redact-request-input.spec.ts',
       'apps/cli/src/aws/s3-upload-options.spec.ts',
       'apps/cli/src/aws/sdk-manager/utils.spec.ts',
@@ -1424,36 +2056,29 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/commands/_utils/__tests__/permission-guards.test.ts',
       'apps/cli/src/commands/_utils/auth/cognito-client.spec.ts',
       'apps/cli/src/commands/_utils/auth/oauth-callback-page.spec.ts',
-      'apps/cli/src/commands/_utils/security-inventory-step.spec.ts',
+      'apps/cli/tests/ministack/security-inventory.spec.ts',
       'apps/cli/src/commands/ai-connect/claude-setup-token.spec.ts',
-      'apps/cli/src/commands/bastion-tunnel/index.test.ts',
       'apps/cli/src/commands/deploy/ec2-runner-config-path.spec.ts',
       'apps/cli/src/commands/dev-stop/dev-stop.test.ts',
       'apps/cli/src/commands/dev/__tests__/dev-server-process.test.ts',
       'apps/cli/src/commands/dev/__tests__/port-utils.test.ts',
-      'apps/cli/src/commands/dev/agent-server-aws-sdk.spec.ts',
-      'apps/cli/src/commands/dev/cleanup-orphaned-containers.test.ts',
       'apps/cli/src/commands/dev/cleanup-utils.spec.ts',
       'apps/cli/src/commands/dev/dev-mode-utils.spec.ts',
       'apps/cli/src/commands/dev/dev-stack-config-fingerprint.spec.ts',
       'apps/cli/src/commands/dev/dev-stack-safety.spec.ts',
       'apps/cli/src/commands/dev/local-resources/redis.spec.ts',
+      'apps/cli/src/commands/dev/tunnel-manager/session.spec.ts',
       'apps/cli/src/commands/dev/named-proxy/__tests__/manager.test.ts',
       'apps/cli/src/commands/dev/named-proxy/__tests__/proxy.test.ts',
       'apps/cli/src/commands/dev/named-proxy/__tests__/utils.test.ts',
       'apps/cli/src/commands/incidents-watch/watch-incident.spec.ts',
-      'apps/cli/src/commands/info-stack/agent-contract.spec.ts',
       'apps/cli/src/commands/init/using-starter-project/utils.spec.ts',
       'apps/cli/src/commands/init/utils/git-detection.spec.ts',
       'apps/cli/src/commands/logs/infrequent-access.spec.ts',
-      'apps/cli/src/commands/mcp/cli-agent-contract.spec.ts',
+      'apps/cli/src/commands/mcp/model-safety.spec.ts',
       'apps/cli/src/commands/mcp/cli-command-tools.spec.ts',
       'apps/cli/src/commands/mcp/cli-jsonl-runner.spec.ts',
       'apps/cli/src/commands/mcp/dev-tool.spec.ts',
-      'apps/cli/src/commands/mcp/docs-query-fixtures.spec.ts',
-      'apps/cli/src/commands/mcp/lexical-index.spec.ts',
-      'apps/cli/src/commands/mcp/mcp-server-modern.spec.ts',
-      'apps/cli/src/commands/mcp/project-scan.spec.ts',
       'apps/cli/src/commands/mcp/tool-output.spec.ts',
       'apps/cli/src/commands/script-run/stdio.spec.ts',
       'apps/cli/src/config/local-state-paths.spec.ts',
@@ -1529,6 +2154,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/utils/aws-config.spec.ts',
       'apps/cli/src/utils/bin-executable.spec.ts',
       'apps/cli/src/utils/cli.spec.ts',
+      'apps/cli/src/utils/stage-arguments.spec.ts',
       'apps/cli/src/utils/decorators.spec.ts',
       'apps/cli/src/utils/directives.spec.ts',
       'apps/cli/src/utils/domains.test.ts',
@@ -1536,8 +2162,6 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/utils/git.spec.ts',
       'apps/cli/src/utils/helper-lambdas.spec.ts',
       'apps/cli/src/utils/ports.test.ts',
-      'apps/cli/src/utils/ssm-session-process.spec.ts',
-      'apps/cli/src/utils/ssm-session-retry.spec.ts',
       'apps/cli/src/utils/ssm-session.spec.ts',
       'apps/cli/src/utils/stack-info-map-diff.spec.ts',
       'apps/cli/src/utils/telemetry.spec.ts',
@@ -1554,8 +2178,6 @@ export const lanes: readonly Lane[] = [
       'apps/cli/tests/characterization/aws-sdk-client-construction.spec.ts',
       'apps/cli/tests/characterization/aws-sdk-manager.spec.ts',
       'apps/cli/tests/characterization/aws-secrets.spec.ts',
-      'apps/cli/tests/characterization/aws-service-lookups.spec.ts',
-      'apps/cli/tests/characterization/aws-systems-manager.spec.ts',
       'apps/cli/tests/characterization/catalog-exports.spec.ts',
       'apps/cli/tests/characterization/cli-contract.spec.ts',
       'apps/cli/tests/characterization/cli-input-parsing.spec.ts',
@@ -1573,7 +2195,6 @@ export const lanes: readonly Lane[] = [
       'apps/cli/tests/characterization/event-bus-integration.spec.ts',
       'apps/cli/tests/characterization/global-state-runtime.spec.ts',
       'apps/cli/tests/characterization/lambda-version-publication.spec.ts',
-      'apps/cli/tests/characterization/local-command-context.spec.ts',
       'apps/cli/tests/characterization/naming-ownership.spec.ts',
       'apps/cli/tests/characterization/nextjs-materialization.spec.ts',
       'apps/cli/tests/characterization/no-real-aws-test-guard.spec.ts',
@@ -1581,7 +2202,6 @@ export const lanes: readonly Lane[] = [
       'apps/cli/tests/characterization/packaging-contract.spec.ts',
       'apps/cli/tests/characterization/packaging-smoke-fixture.spec.ts',
       'apps/cli/tests/characterization/private-registry-pagination.spec.ts',
-      'apps/cli/tests/characterization/s3-operations.spec.ts',
       'apps/cli/tests/characterization/sql-read-only.spec.ts',
       'apps/cli/tests/characterization/stack-event-pagination.spec.ts',
       'apps/cli/tests/characterization/synthesis-contract.spec.ts',
@@ -1603,7 +2223,9 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/scripts/cli-console-network.test.ts',
       'apps/console/api/scripts/console-access-database.test.ts',
       'apps/console/api/scripts/console-aws-connection-database.test.ts',
+      'apps/console/ui/scripts/console-s3-ministack.test.ts',
       'apps/console/api/scripts/console-secrets-database.test.ts',
+      'apps/console/ui/scripts/secrets-parameters-database.test.ts',
       'apps/console/api/scripts/console-tenancy-database.test.ts',
       'apps/console/api/scripts/git-deploy-journey.test.ts',
       'apps/console/api/scripts/gitlab-database.test.ts',
@@ -1615,6 +2237,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/scripts/insights-environment.test.ts',
       'apps/console/api/scripts/insights-runtime.test.ts',
       'apps/console/api/scripts/issues-database.test.ts',
+      'apps/console/api/scripts/runner-aws.test.ts',
       'apps/console/api/scripts/runner-build-cache.test.ts',
       'apps/console/api/scripts/runner-database.test.ts',
       'apps/console/api/scripts/runner-scripts.test.ts',
@@ -1624,7 +2247,6 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/aws/browser-access.test.ts',
       'apps/console/api/src/aws/context.test.ts',
       'apps/console/api/src/billing/fees.test.ts',
-      'apps/console/api/src/billing/month-boundaries.test.ts',
       'apps/console/api/src/billing/paddle-signature.test.ts',
       'apps/console/api/src/config.test.ts',
       'apps/console/api/src/controllers/bitbucket-pull-request-commit.test.ts',
@@ -1642,17 +2264,14 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/integrations/git/repository-url.test.ts',
       'apps/console/api/src/integrations/git/webhook-action-identity.test.ts',
       'apps/console/api/src/integrations/git/webhook-security.test.ts',
-      'apps/console/api/src/lambdas/bitbucket-app/index.test.ts',
-      'apps/console/api/src/lambdas/github-app/github-actions-handler.test.ts',
+      'apps/console/api/scripts/github-actions-cleanup.test.ts',
       'apps/console/api/src/lambdas/github-app/github-actions-trust.test.ts',
       'apps/console/api/src/lambdas/github-app/github-webhook-auth.test.ts',
       'apps/console/api/src/lambdas/github-app/utils.test.ts',
       'apps/console/api/src/lambdas/proxy-lambda-imports.test.ts',
       'apps/console/api/src/lambdas/sign-up-user-name.test.ts',
-      'apps/console/api/src/lambdas/slack-app/index.test.ts',
       'apps/console/api/src/lambdas/webhook-delivery.test.ts',
       'apps/console/api/src/messages/email-messages.test.ts',
-      'apps/console/api/src/middlewares.test.ts',
       'apps/console/api/src/model-helpers/index.test.ts',
       'apps/console/api/src/organizations/personal-organization.test.ts',
       'apps/console/api/src/runtime-parameters-process.test.ts',
@@ -1660,14 +2279,10 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/security/cvss.test.ts',
       'apps/console/api/src/security/inventory-grading.test.ts',
       'apps/console/api/src/security/osv-client.test.ts',
-      'apps/console/api/src/security/report-ingestion.test.ts',
       'apps/console/api/src/services/alarm-event-counts.test.ts',
-      'apps/console/api/src/services/alert-router.test.ts',
       'apps/console/api/src/services/api-key-security.test.ts',
-      'apps/console/api/src/services/aws-primary-region.test.ts',
       'apps/console/api/src/services/bitbucket-forge.test.ts',
       'apps/console/api/src/services/budget-alert-polling.test.ts',
-      'apps/console/api/src/services/budget-alerts.test.ts',
       'apps/console/api/src/services/currency-conversion.test.ts',
       'apps/console/api/src/services/default-domain-aws.test.ts',
       'apps/console/api/src/services/git-connection-secret-store.test.ts',
@@ -1677,35 +2292,21 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/github-repository-pagination.test.ts',
       'apps/console/api/src/services/gitlab-app.test.ts',
       'apps/console/api/src/services/incident-engine.test.ts',
-      'apps/console/api/src/services/incident-handoff.test.ts',
-      'apps/console/api/src/services/incident-paging.test.ts',
-      'apps/console/api/src/services/issue-access.test.ts',
-      'apps/console/api/src/services/paddle.test.ts',
+
       'apps/console/api/src/services/prisma-proxy.test.ts',
-      'apps/console/api/src/services/remote-deploy/aws/ec2.test.ts',
-      'apps/console/api/src/services/remote-deploy/aws/iam.test.ts',
-      'apps/console/api/src/services/remote-deploy/aws/s3.test.ts',
       'apps/console/api/src/services/remote-deploy/aws/ssm.test.ts',
-      'apps/console/api/src/services/remote-deploy/dispatch-queue.test.ts',
       'apps/console/api/src/services/remote-deploy/dispatch-retry.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/auto-stop-state.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/capacity.test.ts',
-      'apps/console/api/src/services/remote-deploy/ec2/cleanup.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/ensure-runner.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/poll-status.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/preseeded-tools-script.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/runner-iam-policy.test.ts',
-      'apps/console/api/src/services/remote-deploy/ec2/runner-iam-reconciliation.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/runner-launch-state.test.ts',
-      'apps/console/api/src/services/remote-deploy/ec2/runner-paths.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/shell-quote.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/ssm-readiness.test.ts',
-      'apps/console/api/src/services/remote-deploy/github-actions-dispatch-lease.test.ts',
-      'apps/console/api/src/services/remote-deploy/orchestrator-recovery.test.ts',
       'apps/console/api/src/services/remote-deploy/redact-output.test.ts',
-      'apps/console/api/src/services/remote-deploy/stack-actions.test.ts',
-      'apps/console/api/src/services/remote-session.test.ts',
-      'apps/console/api/src/services/rotating-oauth-token.test.ts',
+      'apps/console/api/scripts/remote-session-aws.test.ts',
       'apps/console/api/src/services/runners/cost-estimate.test.ts',
       'apps/console/api/src/services/runners/telemetry.test.ts',
       'apps/console/api/src/services/slack-app/actions.test.ts',
@@ -1714,14 +2315,9 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/slack-app/deployment-card.test.ts',
       'apps/console/api/src/services/slack-app/evidence.test.ts',
       'apps/console/api/src/services/slack-app/ignore-modal.test.ts',
-      'apps/console/api/src/services/slack-app/interactions.test.ts',
       'apps/console/api/src/services/slack-app/render-actions.test.ts',
-      'apps/console/api/src/services/slack-app/render.test.ts',
       'apps/console/api/src/services/slack-app/security-card.test.ts',
       'apps/console/api/src/services/slack-app/signing.test.ts',
-      'apps/console/api/src/services/slack-app/thread-registry.test.ts',
-      'apps/console/api/src/services/uptime-ingestion.test.ts',
-      'apps/console/api/src/utils/connected-aws-account.test.ts',
       'apps/console/api/src/utils/observability-inventory.test.ts',
       'apps/console/api/src/utils/retry.test.ts',
       'apps/console/api/src/utils/safe-error.test.ts',
@@ -1752,17 +2348,13 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/scripts/copy-stacktape-config-schema.test.ts',
       'apps/console/ui/scripts/dev-api-url.test.ts',
       'apps/console/ui/scripts/e2e-credentials.test.ts',
-      'apps/console/ui/src/aws/access-cache.test.ts',
       'apps/console/ui/src/aws/dynamic-references.test.ts',
       'apps/console/ui/src/aws/logs-commands.test.ts',
       'apps/console/ui/src/aws/logs.test.ts',
       'apps/console/ui/src/aws/s3-commands.test.ts',
-      'apps/console/ui/src/aws/s3.test.ts',
       'apps/console/ui/src/aws/secrets-commands.test.ts',
-      'apps/console/ui/src/aws/secrets.test.ts',
       'apps/console/ui/src/aws/sensitive-values.test.ts',
       'apps/console/ui/src/aws/ssm-commands.test.ts',
-      'apps/console/ui/src/aws/ssm.test.ts',
       'apps/console/ui/src/aws/traces-commands.test.ts',
       'apps/console/ui/src/components/AwsRegionSelect/region-catalog.test.ts',
       'apps/console/ui/src/components/CompoundViews/ActivityList.helpers.test.ts',
@@ -1799,7 +2391,6 @@ export const lanes: readonly Lane[] = [
       'apps/vscode-extension/src/language-server/schema-resolver.test.ts',
       'packages/analytics/src/posthog.test.ts',
       'packages/analytics/src/privacy.test.ts',
-      'packages/aws-read-only/src/executor.test.ts',
       'packages/aws-read-only/src/operations.test.ts',
       'packages/cloudformation/tests/generator.test.ts',
       'packages/cloudformation/tests/intrinsics.test.ts',
@@ -1859,12 +2450,7 @@ export const lanes: readonly Lane[] = [
       'packages/naming/src/stack-contracts.test.ts',
       'packages/naming/src/stack-identity.test.ts',
       'packages/packaging/src/artifact/archive-entries.test.ts',
-      'packages/packaging/src/artifact/custom-artifact.test.ts',
-      'packages/packaging/src/artifact/docker-artifact-build.test.ts',
       'packages/packaging/src/artifact/file-selection.test.ts',
-      'packages/packaging/src/artifact/generated-image-build.test.ts',
-      'packages/packaging/src/artifact/lambda-limits.test.ts',
-      'packages/packaging/src/artifact/zip-metadata.test.ts',
       'packages/packaging/src/buildpacks/project-root.test.ts',
       'packages/packaging/src/bundlers/digest.test.ts',
       'packages/packaging/src/bundlers/es/decorator-metadata.test.ts',
@@ -1889,7 +2475,6 @@ export const lanes: readonly Lane[] = [
       'packages/packaging/src/fs/files-hashing.test.ts',
       'packages/packaging/src/fs/files.test.ts',
       'packages/packaging/src/fs/temporary-file.test.ts',
-      'packages/packaging/src/image/cache-identity.test.ts',
       'packages/packaging/src/image/railpack.test.ts',
       'packages/packaging/src/process/command.test.ts',
       'packages/packaging/src/split-bundler/bundler-chunk-graph.test.ts',
@@ -1901,10 +2486,9 @@ export const lanes: readonly Lane[] = [
       'packages/packaging/src/split-bundler/function-digest.test.ts',
       'packages/packaging/src/split-bundler/layer-assignment.test.ts',
       'packages/packaging/src/split-bundler/layer-builder.test.ts',
-      'packages/packaging/src/web/build-coordinator.test.ts',
       'packages/packaging/src/web/nextjs-web.test.ts',
-      'packages/packaging/src/web/node-runtime-files.test.ts',
       'packages/packaging/src/web/ssr-web-shared.test.ts',
+      'packages/packaging/src/web/ssr-packaging.test.ts',
       'packages/pricing/src/pricing.test.ts',
       'packages/stack-info/src/metric-targets.test.ts',
       'packages/stack-info/src/normalize.test.ts',
@@ -2032,6 +2616,17 @@ export const lanes: readonly Lane[] = [
     release: 'every-candidate'
   },
   {
+    id: 'pricing-ministack',
+    command: ['pnpm', '--filter', '@stacktape/pricing', 'run', 'test:ministack'],
+    level: 'process',
+    tier: 'change',
+    tests: ['packages/pricing/scripts/pricing-ministack.test.ts'],
+    requires: ['docker', 'network'],
+    release: 'every-candidate',
+    proves:
+      'Pinned AWS CSV refreshes persist in MiniStack DynamoDB and yield complete or explicitly incomplete regional USD estimates, including bounded throttling retries.'
+  },
+  {
     id: 'docs-test',
     command: ['pnpm', '--filter', '@stacktape/docs', 'run', 'test'],
     level: 'focused',
@@ -2077,13 +2672,44 @@ export const lanes: readonly Lane[] = [
     release: 'every-candidate'
   },
   {
+    id: 'cli-setup-token',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/cli',
+      'exec',
+      'bun',
+      'test',
+      'src/commands/ai-connect/claude-setup-token.spec.ts'
+    ],
+    level: 'process',
+    tier: 'pr',
+    tests: ['apps/cli/src/commands/ai-connect/claude-setup-token.spec.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves:
+      'Pasted subscription tokens parse on every platform; recorded sign-in output is captured and removed where a PTY recorder is available.',
+    selections: ['cli']
+  },
+  {
     id: 'aws-read-only-test',
     command: ['pnpm', '--filter', '@stacktape/aws-read-only', 'run', 'test'],
     level: 'focused',
     tier: 'pr',
-    tests: ['packages/aws-read-only/src'],
+    tests: ['packages/aws-read-only/src/operations.test.ts'],
     requires: [],
     release: 'every-candidate'
+  },
+  {
+    id: 'aws-read-only-ministack',
+    command: ['pnpm', '--filter', '@stacktape/aws-read-only', 'run', 'test:ministack'],
+    level: 'process',
+    tier: 'change',
+    tests: ['packages/aws-read-only/src/executor.ministack.test.ts'],
+    requires: ['docker', 'network'],
+    release: 'every-candidate',
+    proves:
+      'Real SDK reads against seeded MiniStack state mask environments and refuse writes and plaintext credential reads.'
   },
   {
     id: 'ui-react-test',
@@ -2102,6 +2728,24 @@ export const lanes: readonly Lane[] = [
     tests: ['packages/analytics/src'],
     requires: [],
     release: 'every-candidate'
+  },
+  {
+    id: 'analytics-console',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/console-api-app',
+      'exec',
+      'bun',
+      'test',
+      'src/integrations/posthog.test.ts'
+    ],
+    level: 'process',
+    tier: 'pr',
+    tests: ['apps/console/api/src/integrations/posthog.test.ts'],
+    requires: ['console'],
+    release: 'every-candidate',
+    proves: 'The Console analytics adapter scrubs SDK deliveries and preserves handler outcomes when analytics fail.'
   },
   {
     id: 'cli-qualify-projects',
@@ -2136,7 +2780,7 @@ export const lanes: readonly Lane[] = [
     level: 'process',
     tier: 'change',
     tests: ['apps/cli/scripts/verify-release-artifact.ts'],
-    requires: [],
+    requires: ['network'],
     release: 'every-candidate'
   },
   {
@@ -2209,10 +2853,20 @@ export const lanes: readonly Lane[] = [
     release: 'every-candidate'
   },
   {
+    id: 'mcp-corpus',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:llm-docs:corpus'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/scripts/llm-docs/corpus-generation.spec.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'Real docs generation produces unique retrievable chunks and readable, accurate AWS-call guidance.'
+  },
+  {
     id: 'cli-test-llm-docs',
     command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:llm-docs'],
     level: 'focused',
-    tier: 'change',
+    tier: 'pr',
     tests: ['apps/cli/scripts/generate-llm-docs.spec.ts'],
     requires: [],
     release: 'every-candidate'
@@ -2239,21 +2893,8 @@ export const lanes: readonly Lane[] = [
     id: 'cli-test-mcp-docs',
     command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:mcp-docs'],
     level: 'focused',
-    tier: 'change',
+    tier: 'pr',
     tests: ['apps/cli/src/commands/mcp'],
-    requires: [],
-    release: 'every-candidate'
-  },
-  {
-    id: 'cli-test-mcp-production',
-    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:mcp-production'],
-    level: 'focused',
-    tier: 'change',
-    tests: [
-      'apps/cli/scripts/package-helper-lambdas.ts',
-      'apps/cli/scripts/test-mcp-executable.ts',
-      'apps/cli/scripts/test-mcp-production-eval.ts'
-    ],
     requires: [],
     release: 'every-candidate'
   },
@@ -2323,11 +2964,11 @@ export const lanes: readonly Lane[] = [
   {
     id: 'cli-test-source-cli-aws-readonly',
     command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:source-cli:aws-readonly'],
-    level: 'focused',
-    tier: 'change',
+    level: 'live-aws',
+    tier: 'release',
     tests: ['apps/cli/scripts/verify-source-cli-aws-readonly.ts'],
-    requires: [],
-    release: 'every-candidate'
+    requires: ['aws', 'network'],
+    release: 'affected-external-contract'
   },
   {
     id: 'cli-test-starter-projects',
@@ -2515,6 +3156,44 @@ export const lanes: readonly Lane[] = [
       'Offline Console infrastructure contracts and assembled support template pass cfn-lint (install cfn-lint 1.53.3 first).'
   },
   {
+    id: 'cli-issue-incident-rules',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/cli',
+      'exec',
+      'bun',
+      'test',
+      'helper-lambdas/stacktapeServiceLambda/issue-processor/index.test.ts',
+      'src/commands/incidents-watch/watch-incident.spec.ts'
+    ],
+    level: 'focused',
+    tier: 'pr',
+    tests: [
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/issue-processor/index.test.ts',
+      'apps/cli/src/commands/incidents-watch/watch-incident.spec.ts'
+    ],
+    requires: [],
+    release: 'every-candidate'
+  },
+  {
+    id: 'console-incident-rules',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/console-api-app',
+      'exec',
+      'bun',
+      'test',
+      'src/services/incident-engine.test.ts'
+    ],
+    level: 'focused',
+    tier: 'pr',
+    tests: ['apps/console/api/src/services/incident-engine.test.ts'],
+    requires: ['console'],
+    release: 'every-candidate'
+  },
+  {
     id: 'console-fast-rules',
     command: [
       'pnpm',
@@ -2531,7 +3210,6 @@ export const lanes: readonly Lane[] = [
     tier: 'pr',
     tests: [
       'apps/console/api/src/billing/fees.test.ts',
-      'apps/console/api/src/billing/month-boundaries.test.ts',
       'apps/console/api/src/billing/paddle-signature.test.ts',
       'apps/console/api/src/security/cvss.test.ts',
       'apps/console/api/src/security/inventory-grading.test.ts'
@@ -3134,23 +3812,38 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/cli/scripts/real-aws/dev-mode-canary.spec.ts',
+      'apps/cli/scripts/real-aws/lambda-dev-canary.spec.ts',
       'apps/cli/src/commands/dev-stop/dev-stop.test.ts',
       'apps/cli/src/commands/dev/__tests__/dev-server-process.test.ts',
       'apps/cli/src/commands/dev/__tests__/port-utils.test.ts',
-      'apps/cli/src/commands/dev/agent-server-aws-sdk.spec.ts',
-      'apps/cli/src/commands/dev/cleanup-orphaned-containers.test.ts',
       'apps/cli/src/commands/dev/cleanup-utils.spec.ts',
       'apps/cli/src/commands/dev/dev-mode-utils.spec.ts',
       'apps/cli/src/commands/dev/dev-stack-config-fingerprint.spec.ts',
       'apps/cli/src/commands/dev/dev-stack-safety.spec.ts',
       'apps/cli/src/commands/dev/local-resources/redis.spec.ts',
+      'apps/cli/src/commands/dev/tunnel-manager/session.spec.ts',
       'apps/cli/src/commands/dev/named-proxy/__tests__/manager.test.ts',
       'apps/cli/src/commands/dev/named-proxy/__tests__/proxy.test.ts',
       'apps/cli/src/commands/dev/named-proxy/__tests__/utils.test.ts',
       'apps/cli/src/utils/ports.test.ts',
-      'apps/cli/tests/characterization/dev-support-template.spec.ts'
+      'apps/cli/tests/characterization/dev-support-template.spec.ts',
+      'apps/cli/tests/local-development/next-dev.spec.ts',
+      'apps/cli/tests/local-development/container-cleanup.spec.ts',
+      'apps/cli/tests/ministack/local-dev.spec.ts',
+      'apps/cli/scripts/real-aws/lambda-dev-canary.ts'
     ],
-    lanes: ['cli', 'cli-2', 'cli-3', 'local-dev-live', 'cli-test-real-aws-dev-canary']
+    lanes: [
+      'cli',
+      'cli-2',
+      'cli-3',
+      'local-dev',
+      'local-dev-next',
+      'local-dev-containers',
+      'local-dev-ministack',
+      'local-dev-lambda-live',
+      'local-dev-live',
+      'cli-test-real-aws-dev-canary'
+    ]
   },
   {
     id: 'S16',
@@ -3169,17 +3862,11 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/cli/scripts/operations/deployment-script.spec.ts',
-      'apps/cli/scripts/operations/output.spec.ts',
       'apps/cli/scripts/operations/sessions.spec.ts',
-      'apps/cli/src/commands/bastion-tunnel/index.test.ts',
       'apps/cli/src/commands/script-run/stdio.spec.ts',
-      'apps/cli/src/utils/ssm-session-process.spec.ts',
-      'apps/cli/src/utils/ssm-session-retry.spec.ts',
-      'apps/cli/src/utils/ssm-session.spec.ts',
-      'apps/cli/tests/characterization/aws-systems-manager.spec.ts',
-      'apps/cli/tests/characterization/local-command-context.spec.ts'
+      'apps/cli/src/utils/ssm-session.spec.ts'
     ],
-    lanes: ['cli', 'cli-2', 'cli-3', 'cli-operations']
+    lanes: ['cli-operation-rules', 'cli', 'cli-2', 'cli-3', 'cli-operations']
   },
   {
     id: 'S17',
@@ -3199,22 +3886,23 @@ export const slices: readonly Slice[] = [
       'packages/aws-read-only/src/operations.ts'
     ],
     tests: [
+      'apps/cli/scripts/operations/validate.spec.ts',
+      'apps/cli/scripts/operations/queries-docker.ts',
       'apps/cli/scripts/operations/diagnostics.spec.ts',
       'apps/cli/scripts/test-fetch-handler.ts',
       'apps/cli/scripts/verify-source-cli-aws-readonly.spec.ts',
       'apps/cli/src/aws/fetch-handler.spec.ts',
-      'apps/cli/src/aws/log-collector/index.spec.ts',
-      'apps/cli/src/commands/info-stack/agent-contract.spec.ts',
+      'apps/cli/scripts/operations/log-collector.spec.ts',
       'apps/cli/src/commands/logs/infrequent-access.spec.ts',
       'apps/cli/tests/characterization/aws-cost-management.spec.ts',
       'apps/cli/tests/characterization/aws-observability.spec.ts',
-      'apps/cli/tests/characterization/aws-service-lookups.spec.ts',
       'apps/cli/tests/characterization/diagnostic-command-inputs.spec.ts',
       'apps/cli/tests/characterization/private-registry-pagination.spec.ts',
       'apps/cli/tests/characterization/sql-read-only.spec.ts',
       'packages/aws-read-only/src/operations.test.ts'
     ],
     lanes: [
+      'cli-operation-rules',
       'cli',
       'cli-2',
       'cli-3',
@@ -3253,7 +3941,6 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/app/global-state-manager/runner-credentials.test.ts',
       'apps/cli/src/app/operation-invocation-context.spec.ts',
       'apps/cli/src/app/stacktape-trpc-api-manager/index.spec.ts',
-      'apps/cli/src/app/stacktape-trpc-api-manager/recorded-command-args.spec.ts',
       'apps/cli/src/commands/_utils/auth/cognito-client.spec.ts',
       'apps/cli/src/commands/_utils/auth/oauth-callback-page.spec.ts',
       'apps/cli/src/config/local-state-paths.spec.ts',
@@ -3311,6 +3998,7 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/es/package-manager-install.test.ts'
     ],
     lanes: [
+      'node-lambda-offline',
       'cli',
       'cli-2',
       'cli-3',
@@ -3322,7 +4010,6 @@ export const slices: readonly Slice[] = [
       'cli-packaged-lambda',
       'project-qualification',
       'project-qualification-2',
-      'cli-runtime-acceptances',
       'cli-test-real-aws-canary'
     ],
     contributors: ['S32']
@@ -3338,6 +4025,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/packaging-manager/split-bundling-policy.ts'
     ],
     tests: [
+      'apps/cli/tests/ministack/split-lambda-family.ts',
       'apps/cli/src/domain/packaging-manager/native-layer-groups.test.ts',
       'apps/cli/src/domain/packaging-manager/split-bundling-policy.test.ts',
       'packages/packaging/scripts/synthetic-split-assets-e2e.ts',
@@ -3352,6 +4040,7 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/split-bundler/layer-builder.test.ts'
     ],
     lanes: [
+      'node-lambda-offline',
       'ministack-deploy',
       'cli',
       'cli-2',
@@ -3362,9 +4051,7 @@ export const slices: readonly Slice[] = [
       'packaging-lambdas-3',
       'packaging-lambdas-4',
       'cli-packaged-lambda',
-      'artifact-upload',
       'artifact-upload-2',
-      'cli-runtime-acceptances',
       'cli-test-real-aws-canary'
     ],
     contributors: ['S19', 'S33']
@@ -3374,15 +4061,24 @@ export const slices: readonly Slice[] = [
     promise: 'Python projects package with correct dependencies.',
     status: 'active',
     journeys: ['J3'],
-    paths: ['packages/packaging/src/bundlers/py/**', 'packages/packaging/src/buildpacks/**'],
-    tests: ['packages/packaging/src/bundlers/py/utils.test.ts'],
-    lanes: [
-      'packaging-test',
-      'packaging-images',
-      'packaging-images-2',
-      'project-qualification',
-      'project-qualification-2'
+    paths: [
+      'packages/packaging/scripts/e2e-helpers.ts',
+      'packages/packaging/scripts/lambda-e2e/harness.ts',
+      'packages/packaging/src/docker/dockerfiles.ts',
+      'packages/packaging/scripts/lambda-e2e/fixtures/python/**',
+      'packages/packaging/scripts/lambda-e2e/fixtures/python-selection/**',
+      'packages/packaging/scripts/lambda-e2e/fixtures/python-empty/**',
+      'packages/packaging/scripts/lambda-e2e/fixtures/python-pipfile/**',
+      'packages/packaging/src/bundlers/py/**',
+      'packages/packaging/src/buildpacks/py-lambda-buildpack.ts'
     ],
+    tests: [
+      'packages/packaging/scripts/lambda-e2e/python.test.ts',
+      'packages/packaging/scripts/lambda-e2e/python-selection.test.ts',
+      'packages/packaging/scripts/lambda-e2e/python-pipfile.test.ts',
+      'packages/packaging/src/bundlers/py/utils.test.ts'
+    ],
+    lanes: ['packaging-test', 'language-lambdas', 'project-qualification', 'project-qualification-2'],
     contributors: ['S27']
   },
   {
@@ -3392,7 +4088,8 @@ export const slices: readonly Slice[] = [
     journeys: ['J3'],
     paths: [
       'packages/packaging/src/bundlers/go/**',
-      'packages/packaging/src/buildpacks/**',
+      'packages/packaging/src/buildpacks/go-lambda-buildpack.ts',
+      'packages/packaging/src/buildpacks/rust-lambda-buildpack.ts',
       'packages/packaging/src/bundlers/rust/**'
     ],
     tests: ['packages/packaging/src/bundlers/rust/utils.test.ts'],
@@ -3400,10 +4097,6 @@ export const slices: readonly Slice[] = [
       'packaging-test',
       'packaging-images',
       'packaging-images-2',
-      'packaging-lambdas',
-      'packaging-lambdas-2',
-      'packaging-lambdas-3',
-      'packaging-lambdas-4',
       'project-qualification',
       'project-qualification-2'
     ],
@@ -3414,15 +4107,17 @@ export const slices: readonly Slice[] = [
     promise: 'Java builds preserve modules, resources and entrypoints.',
     status: 'active',
     journeys: ['J3'],
-    paths: ['packages/packaging/src/bundlers/java/**'],
-    tests: ['packages/packaging/src/bundlers/java/index.test.ts'],
-    lanes: [
-      'packaging-test',
-      'packaging-images',
-      'packaging-images-2',
-      'project-qualification',
-      'project-qualification-2'
+    paths: [
+      'packages/packaging/scripts/e2e-helpers.ts',
+      'packages/packaging/scripts/lambda-e2e/harness.ts',
+      'packages/packaging/src/docker/dockerfiles.ts',
+      'packages/packaging/src/buildpacks/project-root.ts',
+      'packages/packaging/src/buildpacks/java-lambda-buildpack.ts',
+      'packages/packaging/scripts/lambda-e2e/fixtures/java-*/**',
+      'packages/packaging/src/bundlers/java/**'
     ],
+    tests: ['packages/packaging/scripts/lambda-e2e/java.test.ts', 'packages/packaging/src/bundlers/java/index.test.ts'],
+    lanes: ['packaging-test', 'language-lambdas', 'project-qualification', 'project-qualification-2'],
     contributors: ['S27']
   },
   {
@@ -3430,7 +4125,10 @@ export const slices: readonly Slice[] = [
     promise: '.NET builds preserve referenced projects and configuration.',
     status: 'active',
     journeys: ['J3'],
-    paths: ['packages/packaging/src/bundlers/dotnet/**'],
+    paths: [
+      'packages/packaging/src/bundlers/dotnet/**',
+      'packages/packaging/src/buildpacks/dotnet-lambda-buildpack.ts'
+    ],
     tests: [],
     lanes: [
       'packaging-test',
@@ -3446,15 +4144,17 @@ export const slices: readonly Slice[] = [
     promise: 'Ruby artifacts resolve their gems and handler.',
     status: 'active',
     journeys: ['J3'],
-    paths: ['packages/packaging/src/bundlers/ruby/**'],
-    tests: [],
-    lanes: [
-      'packaging-test',
-      'packaging-images',
-      'packaging-images-2',
-      'project-qualification',
-      'project-qualification-2'
+    paths: [
+      'packages/packaging/scripts/e2e-helpers.ts',
+      'packages/packaging/scripts/lambda-e2e/harness.ts',
+      'packages/packaging/src/docker/dockerfiles.ts',
+      'packages/packaging/src/buildpacks/project-root.ts',
+      'packages/packaging/src/buildpacks/rb-lambda-buildpack.ts',
+      'packages/packaging/scripts/lambda-e2e/fixtures/ruby/**',
+      'packages/packaging/src/bundlers/ruby/**'
     ],
+    tests: ['packages/packaging/scripts/lambda-e2e/ruby.test.ts'],
+    lanes: ['packaging-test', 'language-lambdas', 'project-qualification', 'project-qualification-2'],
     contributors: ['S27']
   },
   {
@@ -3474,6 +4174,8 @@ export const slices: readonly Slice[] = [
     journeys: ['J3'],
     paths: [
       'packages/packaging/src/image/**',
+      'apps/cli/src/aws/ecr.ts',
+      'apps/cli/src/utils/docker.ts',
       'packages/packaging/src/docker/**',
       'apps/cli/src/domain/packaging-manager/es-install-scripts.ts',
       'apps/cli/src/domain/packaging-manager/railpack-command.ts',
@@ -3484,11 +4186,12 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/packaging-manager/railpack-command.spec.ts',
       'apps/cli/src/utils/__tests__/docker-secret-handling.test.ts',
       'apps/cli/tests/characterization/aws-ecr.spec.ts',
+      'apps/cli/tests/image-builders/ecr.spec.ts',
+      'packages/packaging/scripts/dockerfile-image-e2e.ts',
       'packages/packaging/scripts/synthetic-docker-smoke.ts',
       'packages/packaging/scripts/synthetic-es-image-deps-e2e.ts',
       'packages/packaging/src/buildpacks/project-root.test.ts',
       'packages/packaging/src/docker/dockerfiles.test.ts',
-      'packages/packaging/src/image/cache-identity.test.ts',
       'packages/packaging/src/image/railpack.test.ts'
     ],
     lanes: [
@@ -3496,13 +4199,12 @@ export const slices: readonly Slice[] = [
       'cli-2',
       'cli-3',
       'packaging-test',
+      'dockerfile-image',
+      'image-builders-ministack',
       'packaging-images',
       'packaging-images-2',
       'external-tools',
-      'packaging-archives',
-      'packaging-archives-2',
       'packaging-archives-3',
-      'packaging-archives-4',
       'cli-test-docker-secrets'
     ]
   },
@@ -3511,9 +4213,17 @@ export const slices: readonly Slice[] = [
     promise: 'Next.js/OpenNext produces a working deployed artifact.',
     status: 'active',
     journeys: ['J3'],
-    paths: ['packages/packaging/src/web/nextjs-web.ts'],
+    paths: [
+      'packages/packaging/src/web/nextjs-web.ts',
+      'packages/packaging/src/web/node-runtime-files.ts',
+      'packages/packaging/src/es/native-dependencies.ts',
+      'packages/packaging/src/bundlers/node-version.ts',
+      'apps/cli/src/domain/packaging-manager/index.ts',
+      'apps/cli/src/domain/config-manager/utils/nextjs-webs.ts',
+      'apps/cli/starter-projects/nextjs-serverless/**'
+    ],
     tests: ['packages/packaging/src/web/nextjs-web.test.ts'],
-    lanes: ['packaging-test', 'cli-packaged-web', 'starter-qualification', 'cli-runtime-acceptances'],
+    lanes: ['packaging-ssr', 'packaging-test', 'cli-packaged-web', 'starter-qualification'],
     contributors: ['S30']
   },
   {
@@ -3525,15 +4235,18 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/web/ssr-web-shared.ts',
       'packages/packaging/scripts/synthetic-web-framework-e2e.ts',
       'packages/packaging/src/web/build-coordinator.ts',
-      'packages/packaging/src/web/node-runtime-files.ts'
+      'packages/packaging/src/web/node-runtime-files.ts',
+      'packages/packaging/src/es/native-dependencies.ts',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/ssr-web-shared.ts',
+      'apps/cli/starter-projects/astro-serverless/**',
+      'apps/cli/starter-projects/sveltekit-serverless/**'
     ],
     tests: [
       'packages/packaging/scripts/synthetic-web-framework-e2e.ts',
-      'packages/packaging/src/web/build-coordinator.test.ts',
-      'packages/packaging/src/web/node-runtime-files.test.ts',
-      'packages/packaging/src/web/ssr-web-shared.test.ts'
+      'packages/packaging/src/web/ssr-web-shared.test.ts',
+      'packages/packaging/src/web/ssr-packaging.test.ts'
     ],
-    lanes: ['packaging-test', 'packaging-web', 'cli-packaged-web', 'cli-runtime-acceptances']
+    lanes: ['packaging-ssr', 'packaging-test', 'packaging-web', 'cli-packaged-web']
   },
   {
     id: 'S30',
@@ -3542,12 +4255,24 @@ export const slices: readonly Slice[] = [
     journeys: ['J3'],
     paths: [
       'packages/packaging/src/web/ssr-web-shared.ts',
+      'apps/cli/src/commands/init/using-starter-project/utils.ts',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/ssr-web-shared.ts',
+      'apps/cli/starter-projects/solidstart-serverless/**',
       'apps/cli/starter-projects/nuxt-serverless/**',
       'apps/cli/starter-projects/remix-serverless/**',
       'apps/cli/starter-projects/tanstack-start-serverless/**'
     ],
-    tests: ['apps/cli/scripts/packaging-archives/ssr-web-acceptance.ts'],
-    lanes: ['packaging-test', 'cli-packaged-web', 'starter-qualification', 'cli-runtime-acceptances']
+    tests: [
+      'apps/cli/scripts/packaging-archives/ssr-web-acceptance.ts',
+      'apps/cli/tests/ssr/tanstack-starter-materialization.spec.ts'
+    ],
+    lanes: [
+      'tanstack-starter-materialization',
+      'packaging-ssr',
+      'packaging-test',
+      'cli-packaged-web',
+      'starter-qualification'
+    ]
   },
   {
     id: 'S31',
@@ -3557,11 +4282,19 @@ export const slices: readonly Slice[] = [
     paths: [
       'packages/packaging/src/web/hosting-bucket-build.ts',
       'apps/cli/src/commands/bucket-sync/**',
+      'apps/cli/src/domain/packaging-manager/index.ts',
+      'apps/cli/src/domain/packaging-manager/dependency-installer.ts',
+      'apps/cli/src/domain/deployment-artifact-manager/index.ts',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/hosting-buckets/**',
       'apps/cli/src/aws/s3-sync/**',
       'apps/cli/src/aws/s3.ts'
     ],
-    tests: ['apps/cli/tests/characterization/s3-operations.spec.ts'],
-    lanes: ['synthesis', 'synthesis-2', 'starter-qualification'],
+    tests: [
+      'apps/cli/tests/static-sites/build.spec.ts',
+      'apps/cli/tests/static-sites/input.spec.ts',
+      'apps/cli/tests/static-sites/content-sync.spec.ts'
+    ],
+    lanes: ['static-sites', 'ministack-static-content-sync', 'static-starter-qualification'],
     contributors: ['S04']
   },
   {
@@ -3571,6 +4304,7 @@ export const slices: readonly Slice[] = [
     journeys: ['J3'],
     paths: [
       'packages/packaging/src/artifact/**',
+      'packages/packaging/scripts/archive-build-e2e.ts',
       'apps/cli/scripts/packaging-archives/**',
       'apps/cli/helper-lambdas/**',
       'apps/cli/src/domain/packaging-manager/timed-archive.ts',
@@ -3584,6 +4318,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/index.test.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/asset-replacer.test.ts',
       'apps/cli/scripts/packaging-archives/asset-replacer-acceptance.ts',
+      'packages/packaging/scripts/archive-build-e2e.ts',
       'apps/cli/scripts/packaging-archives/docker-preparation-acceptance.ts',
       'apps/cli/scripts/packaging-archives/fresh-install-acceptance.ts',
       'apps/cli/scripts/packaging-archives/lambda-archive-acceptance.ts',
@@ -3593,18 +4328,15 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/utils/zip.test.ts',
       'apps/cli/tests/characterization/packaging-contract.spec.ts',
       'packages/packaging/src/artifact/archive-entries.test.ts',
-      'packages/packaging/src/artifact/custom-artifact.test.ts',
-      'packages/packaging/src/artifact/docker-artifact-build.test.ts',
       'packages/packaging/src/artifact/file-selection.test.ts',
-      'packages/packaging/src/artifact/generated-image-build.test.ts',
-      'packages/packaging/src/artifact/lambda-limits.test.ts',
-      'packages/packaging/src/artifact/zip-metadata.test.ts',
       'packages/packaging/src/fs/files-hashing.test.ts',
       'packages/packaging/src/fs/files.test.ts',
       'packages/packaging/src/fs/temporary-file.test.ts',
       'apps/cli/scripts/packaging-archives/helper-lambda-sdk.spec.ts'
     ],
     lanes: [
+      'archive-contracts',
+      'archive-build-e2e',
       'ministack-deploy',
       'packaging-test',
       'packaging-archives',
@@ -3613,7 +4345,6 @@ export const slices: readonly Slice[] = [
       'packaging-archives-4',
       'helper-lambda-runtime',
       'cli-test-helper-lambdas',
-      'cli-runtime-acceptances',
       'cli-test-characterization-helper-lambdas',
       'cli-test-packaging-archives'
     ]
@@ -3631,27 +4362,38 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/network-guard-preload.ts'
     ],
     tests: [
-      'apps/cli/scripts/packaging-archives/layer-upload-acceptance.ts',
       'apps/cli/scripts/packaging-archives/layer-upload-ministack-acceptance.ts',
       'apps/cli/src/aws/s3-upload-options.spec.ts',
       'apps/cli/src/domain/deployment-artifact-manager/retention.test.ts',
       'apps/cli/src/domain/deployment-artifact-manager/template-url.spec.ts',
       'apps/cli/src/domain/deployment-artifact-manager/utils.spec.ts'
     ],
-    lanes: ['artifact-upload', 'artifact-upload-2', 'cli', 'cli-2', 'cli-3']
+    lanes: ['artifact-upload-2', 'cli', 'cli-2', 'cli-3']
   },
   {
     id: 'S34',
     promise: 'Shipped CLI packages/binaries install and execute.',
     status: 'active',
     journeys: ['J13'],
-    paths: ['apps/cli/scripts/release/**', 'apps/cli/src/utils/bin-executable.ts'],
+    paths: [
+      'apps/cli/scripts/release/**',
+      'apps/cli/scripts/install-scripts/**',
+      'apps/cli/scripts/build-dist-package.ts',
+      'apps/cli/scripts/build-npm.ts',
+      'apps/cli/scripts/verify-release-artifact.ts',
+      'apps/cli/scripts/publish-install-scripts.ts',
+      'apps/cli/src/utils/bin-executable.ts',
+      '.github/workflows/release.yml'
+    ],
     tests: [
       'apps/cli/scripts/cloudformation-diff-artifact.spec.ts',
       'apps/cli/scripts/install-scripts/checksums.spec.ts',
+      'apps/cli/scripts/install-scripts/installers.spec.ts',
+      'apps/cli/scripts/install-scripts/windows.spec.ts',
+      'apps/cli/scripts/release/candidate-assets.spec.ts',
       'apps/cli/scripts/platform-runtime.spec.ts',
-      'apps/cli/scripts/release-workflow.spec.ts',
       'apps/cli/scripts/release/checksums.spec.ts',
+      'apps/cli/scripts/release/dispatch.spec.ts',
       'apps/cli/scripts/release/npm-package/bin/stacktape.spec.ts',
       'apps/cli/scripts/release/pnpm-pack.spec.ts',
       'apps/cli/scripts/release/trigger-release.spec.ts',
@@ -3661,6 +4403,10 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/verify-release-artifact.ts'
     ],
     lanes: [
+      'release-rules',
+      'release-downloads',
+      'windows-installer',
+      'native-candidate',
       'release-installation',
       'release-installation-2',
       'cli-test-characterization-npm',
@@ -3672,24 +4418,25 @@ export const slices: readonly Slice[] = [
     promise: 'MCP clients can discover and use the shipped CLI interface.',
     status: 'active',
     journeys: ['J12'],
-    paths: ['apps/cli/src/commands/mcp/**', 'apps/cli/src/commands/mcp-add/**'],
+    paths: [
+      'apps/cli/src/commands/mcp/**',
+      'apps/cli/src/commands/mcp-add/**',
+      'apps/cli/scripts/generate-llm-docs.ts',
+      'apps/cli/scripts/llm-docs/**'
+    ],
     tests: [
       'apps/cli/scripts/e2e-mcp/run-e2e.ts',
       'apps/cli/scripts/generate-llm-docs.spec.ts',
+      'apps/cli/scripts/llm-docs/corpus-generation.spec.ts',
       'apps/cli/scripts/test-mcp-executable.ts',
-      'apps/cli/scripts/test-mcp-production-eval.ts',
       'apps/cli/scripts/test-mcp-server.ts',
-      'apps/cli/src/commands/mcp/cli-agent-contract.spec.ts',
+      'apps/cli/src/commands/mcp/model-safety.spec.ts',
       'apps/cli/src/commands/mcp/cli-command-tools.spec.ts',
       'apps/cli/src/commands/mcp/cli-jsonl-runner.spec.ts',
       'apps/cli/src/commands/mcp/dev-tool.spec.ts',
-      'apps/cli/src/commands/mcp/docs-query-fixtures.spec.ts',
-      'apps/cli/src/commands/mcp/lexical-index.spec.ts',
-      'apps/cli/src/commands/mcp/mcp-server-modern.spec.ts',
-      'apps/cli/src/commands/mcp/project-scan.spec.ts',
       'apps/cli/src/commands/mcp/tool-output.spec.ts'
     ],
-    lanes: ['mcp-executable', 'cli-test-mcp-docs', 'cli-test-mcp-production', 'cli-test-llm-docs']
+    lanes: ['mcp-executable', 'mcp-corpus', 'cli-test-mcp-docs', 'cli-test-llm-docs']
   },
   {
     id: 'S36',
@@ -3807,8 +4554,12 @@ export const slices: readonly Slice[] = [
     status: 'active',
     journeys: ['J10'],
     paths: ['packages/pricing/**', 'apps/cli/src/init/pricing.ts'],
-    tests: ['apps/cli/src/init/pricing.spec.ts', 'packages/pricing/src/pricing.test.ts'],
-    lanes: ['pricing-test', 'cli', 'cli-2', 'cli-3', 'console-database-insights'],
+    tests: [
+      'apps/cli/src/init/pricing.spec.ts',
+      'packages/pricing/src/pricing.test.ts',
+      'packages/pricing/scripts/pricing-ministack.test.ts'
+    ],
+    lanes: ['pricing-test', 'pricing-ministack', 'cli', 'cli-2', 'cli-3', 'console-database-insights'],
     contributors: ['S66']
   },
   {
@@ -3830,7 +4581,6 @@ export const slices: readonly Slice[] = [
       'apps/console/api/scripts/sign-up-database.test.ts',
       'apps/console/api/src/http-server.test.ts',
       'apps/console/api/src/lambdas/sign-up-user-name.test.ts',
-      'apps/console/api/src/middlewares.test.ts',
       'apps/console/api/src/services/api-key-security.test.ts',
       'apps/console/api/src/utils/safe-error.test.ts',
       'apps/console/ui/e2e/auth-pages.spec.ts',
@@ -3840,6 +4590,7 @@ export const slices: readonly Slice[] = [
       'scripts/workspace/console-dev-reservation.ts'
     ],
     lanes: [
+      'console-access-rules',
       'console-api',
       'console-api-2',
       'console-ui',
@@ -3860,6 +4611,7 @@ export const slices: readonly Slice[] = [
     status: 'active',
     journeys: ['J5'],
     paths: [
+      'apps/cli/src/commands/_utils/permission-guards.ts',
       'apps/console/api/src/organizations/**',
       'apps/console/api/src/api/**',
       'apps/console/ui/src/pages/UsersPage/**',
@@ -3873,6 +4625,8 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/pages/UsersPage/organization-member-limit.test.ts'
     ],
     lanes: [
+      'console-access-rules',
+      'console-cli-permission-rules',
       'console-api',
       'console-api-2',
       'console-ui',
@@ -3891,9 +4645,11 @@ export const slices: readonly Slice[] = [
     journeys: ['J5'],
     paths: [
       'apps/console/api/src/aws/**',
+      'apps/console/api/infrastructure/console-connection/**',
       'apps/console/api/src/lambdas/handle-account-connection.ts',
       'apps/console/ui/src/pages/AwsAccountsPage/**',
       'apps/console/api/src/services/aws-primary-region.ts',
+      'apps/console/api/src/services/connection-stack-delete.ts',
       'apps/console/api/src/utils/connected-aws-account.ts',
       'apps/console/ui/src/aws/access-cache.ts',
       'apps/console/ui/src/aws/s3-commands.ts',
@@ -3903,18 +4659,16 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/console/api/infrastructure/console-connection/connection-template.test.ts',
       'apps/console/api/scripts/console-aws-connection-database.test.ts',
+      'apps/console/ui/scripts/console-s3-ministack.test.ts',
       'apps/console/api/src/aws/browser-access.test.ts',
       'apps/console/api/src/aws/context.test.ts',
-      'apps/console/api/src/services/aws-primary-region.test.ts',
-      'apps/console/api/src/utils/connected-aws-account.test.ts',
       'apps/console/ui/e2e/admin.spec.ts',
       'apps/console/ui/e2e/region-select-ui.spec.ts',
-      'apps/console/ui/src/aws/access-cache.test.ts',
       'apps/console/ui/src/aws/s3-commands.test.ts',
-      'apps/console/ui/src/aws/s3.test.ts',
       'apps/console/ui/src/components/AwsRegionSelect/region-catalog.test.ts'
     ],
     lanes: [
+      'console-access-rules',
       'console-api',
       'console-api-2',
       'console-ui',
@@ -3938,11 +4692,13 @@ export const slices: readonly Slice[] = [
       'packages/console-api/**',
       'apps/console/api/src/services/stack-operation-progress.ts',
       'apps/cli/src/domain/notification-manager/events.ts',
+      'apps/cli/src/utils/cli.ts',
       'apps/console/api/src/deployments/invocation-id.ts',
       'apps/console/api/src/deployments/operation-description.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/cloudformation-resources.ts'
     ],
     tests: [
+      'apps/cli/src/utils/stage-arguments.spec.ts',
       'apps/cli/src/domain/notification-manager/events.test.ts',
       'apps/console/api/scripts/cli-console-database.test.ts',
       'apps/console/api/src/deployments/invocation-id.test.ts',
@@ -3954,6 +4710,10 @@ export const slices: readonly Slice[] = [
       'packages/stack-info/src/selectors.test.ts'
     ],
     lanes: [
+      'cli-target-arguments',
+      'cli',
+      'cli-2',
+      'cli-3',
       'stack-info-test',
       'console-api-test',
       'console-ui',
@@ -3988,19 +4748,17 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/console/api/infrastructure/ec2-runner-image/ami-publication.test.ts',
       'apps/console/api/infrastructure/ec2-runner-image/ec2-runner.pkr.test.ts',
+      'apps/console/api/scripts/runner-aws.test.ts',
       'apps/console/api/scripts/runner-build-cache.test.ts',
       'apps/console/api/scripts/runner-database.test.ts',
       'apps/console/api/scripts/runner-scripts.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/auto-stop-state.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/capacity.test.ts',
-      'apps/console/api/src/services/remote-deploy/ec2/cleanup.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/ensure-runner.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/poll-status.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/preseeded-tools-script.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/runner-iam-policy.test.ts',
-      'apps/console/api/src/services/remote-deploy/ec2/runner-iam-reconciliation.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/runner-launch-state.test.ts',
-      'apps/console/api/src/services/remote-deploy/ec2/runner-paths.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/shell-quote.test.ts',
       'apps/console/api/src/services/remote-deploy/ec2/ssm-readiness.test.ts',
       'apps/console/api/src/services/runners/cost-estimate.test.ts',
@@ -4010,8 +4768,10 @@ export const slices: readonly Slice[] = [
       'apps/console/api/scripts/qualify-ec2-runner.ts'
     ],
     lanes: [
+      'console-runner-rules',
       'console-api',
       'console-api-2',
+      'console-runner-aws-offline',
       'console-runner-runtime',
       'console-runner-runtime-2',
       'console-database-runner',
@@ -4032,23 +4792,21 @@ export const slices: readonly Slice[] = [
     paths: [
       'apps/console/api/src/services/remote-deploy/**',
       'apps/console/api/src/lambdas/remote-operation-worker.ts',
-      'apps/console/api/src/services/remote-session.ts'
+      'apps/console/api/src/services/remote-session.ts',
+      'apps/cli/src/config/cli/commands.ts',
+      'apps/cli/src/utils/cli.ts',
+      'apps/cli/src/utils/validator.ts'
     ],
     tests: [
       'apps/console/api/scripts/git-deploy-journey.test.ts',
-      'apps/console/api/src/services/remote-deploy/aws/ec2.test.ts',
-      'apps/console/api/src/services/remote-deploy/aws/iam.test.ts',
-      'apps/console/api/src/services/remote-deploy/aws/s3.test.ts',
       'apps/console/api/src/services/remote-deploy/aws/ssm.test.ts',
-      'apps/console/api/src/services/remote-deploy/dispatch-queue.test.ts',
       'apps/console/api/src/services/remote-deploy/dispatch-retry.test.ts',
-      'apps/console/api/src/services/remote-deploy/github-actions-dispatch-lease.test.ts',
-      'apps/console/api/src/services/remote-deploy/orchestrator-recovery.test.ts',
       'apps/console/api/src/services/remote-deploy/redact-output.test.ts',
-      'apps/console/api/src/services/remote-deploy/stack-actions.test.ts',
-      'apps/console/api/src/services/remote-session.test.ts'
+      'apps/console/api/scripts/remote-session-aws.test.ts'
     ],
     lanes: [
+      'console-runner-rules',
+      'console-remote-session-aws-offline',
       'console-api',
       'console-api-2',
       'console-runner-runtime',
@@ -4083,7 +4841,7 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/integrations/git/repository-url.test.ts',
       'apps/console/api/src/integrations/git/webhook-action-identity.test.ts',
       'apps/console/api/src/integrations/git/webhook-security.test.ts',
-      'apps/console/api/src/lambdas/github-app/github-actions-handler.test.ts',
+      'apps/console/api/scripts/github-actions-cleanup.test.ts',
       'apps/console/api/src/lambdas/github-app/github-actions-trust.test.ts',
       'apps/console/api/src/lambdas/github-app/github-webhook-auth.test.ts',
       'apps/console/api/src/lambdas/github-app/utils.test.ts',
@@ -4096,6 +4854,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/repository-option.test.tsx'
     ],
     lanes: [
+      'console-github-actions-cleanup',
       'console-api',
       'console-api-2',
       'console-database-git-deploy',
@@ -4116,21 +4875,21 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/integrations/git/gitlab-events.ts',
       'apps/console/api/src/integrations/git/gitlab-webhooks.ts',
       'apps/console/api/src/services/git-connection-secret-store.ts',
-      'apps/console/api/src/services/git-provider-oauth.ts',
-      'apps/console/api/src/services/rotating-oauth-token.ts'
+      'apps/console/api/src/services/git-provider-oauth.ts'
     ],
     tests: [
+      'apps/console/api/scripts/gitlab-lifecycle-database.test.ts',
       'apps/console/api/scripts/gitlab-database.test.ts',
       'apps/console/api/src/integrations/git/gitlab-events.test.ts',
       'apps/console/api/src/integrations/git/gitlab-webhooks.test.ts',
       'apps/console/api/src/services/git-connection-secret-store.test.ts',
       'apps/console/api/src/services/git-provider-oauth.test.ts',
       'apps/console/api/src/services/gitlab-app.test.ts',
-      'apps/console/api/src/services/rotating-oauth-token.test.ts',
       'apps/console/ui/e2e/git-connections-ui.spec.ts',
       'apps/console/api/scripts/run-db-integration.ts'
     ],
     lanes: [
+      'console-database-gitlab-lifecycle',
       'console-api',
       'console-api-2',
       'console-database-gitlab',
@@ -4154,13 +4913,14 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/integrations/git/bitbucket-forge-events.ts'
     ],
     tests: [
+      'apps/console/api/scripts/bitbucket-pairing-database.test.ts',
       'apps/console/api/src/controllers/bitbucket-pull-request-commit.test.ts',
       'apps/console/api/src/integrations/git/bitbucket-forge-events.test.ts',
-      'apps/console/api/src/lambdas/bitbucket-app/index.test.ts',
       'apps/console/api/src/services/bitbucket-forge.test.ts',
       'apps/console/bitbucket-forge/e2e/packaged-ui.spec.ts'
     ],
     lanes: [
+      'console-database-bitbucket-pairing',
       'console-api',
       'console-api-2',
       'console-database-git-deploy',
@@ -4176,6 +4936,7 @@ export const slices: readonly Slice[] = [
     status: 'active',
     journeys: ['J5'],
     paths: [
+      'apps/console/ui/scripts/secrets-parameters-database.test.ts',
       'packages/ministack/**',
       'apps/cli/scripts/network-guard-preload.ts',
       'apps/cli/src/commands/secret-*/**',
@@ -4194,13 +4955,12 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Environment/environment.ts'
     ],
     tests: [
+      'apps/console/ui/scripts/secrets-parameters-database.test.ts',
       'apps/console/api/scripts/console-secrets-database.test.ts',
       'apps/console/ui/src/aws/dynamic-references.test.ts',
       'apps/console/ui/src/aws/secrets-commands.test.ts',
-      'apps/console/ui/src/aws/secrets.test.ts',
       'apps/console/ui/src/aws/sensitive-values.test.ts',
       'apps/console/ui/src/aws/ssm-commands.test.ts',
-      'apps/console/ui/src/aws/ssm.test.ts',
       'apps/console/ui/src/pages/3rdPartyProviders/provider-credentials.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Environment/environment.test.ts'
     ],
@@ -4210,7 +4970,8 @@ export const slices: readonly Slice[] = [
       'console-ui',
       'console-ui-2',
       'console-ui-3',
-      'console-database-console-access'
+      'console-database-console-access',
+      'console-database-secrets'
     ],
     contributors: ['S43']
   },
@@ -4223,14 +4984,13 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/billing/**',
       'apps/console/api/src/services/payments.ts',
       'apps/console/api/src/lambdas/paddle-hooks.ts',
+      'apps/console/api/src/lambdas/handle-billing-attribution.ts',
       'apps/console/api/src/services/paddle.ts'
     ],
     tests: [
       'apps/console/api/scripts/billing-database.test.ts',
       'apps/console/api/src/billing/fees.test.ts',
-      'apps/console/api/src/billing/month-boundaries.test.ts',
-      'apps/console/api/src/billing/paddle-signature.test.ts',
-      'apps/console/api/src/services/paddle.test.ts'
+      'apps/console/api/src/billing/paddle-signature.test.ts'
     ],
     lanes: ['console-fast-rules', 'console-api', 'console-api-2', 'console-database-billing']
   },
@@ -4239,12 +4999,21 @@ export const slices: readonly Slice[] = [
     promise: 'Runtime errors become scoped, redacted issues without duplicates.',
     status: 'active',
     journeys: ['J7'],
-    paths: ['apps/console/api/src/issues/**', 'apps/cli/src/utils/log-collector/**'],
+    paths: [
+      'apps/console/api/src/issues/**',
+      'apps/cli/src/utils/log-collector/**',
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/issue-processor/**'
+    ],
     tests: [
       'apps/cli/helper-lambdas/stacktapeServiceLambda/issue-processor/index.test.ts',
       'apps/console/api/scripts/issues-database.test.ts'
     ],
-    lanes: ['cli-test-helper-lambdas', 'console-database-issues', 'console-database-incident-journey'],
+    lanes: [
+      'cli-issue-incident-rules',
+      'cli-test-helper-lambdas',
+      'console-database-issues',
+      'console-database-incident-journey'
+    ],
     contributors: ['S56']
   },
   {
@@ -4259,11 +5028,17 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/issues-*/**'
     ],
     tests: [
-      'apps/console/api/src/services/issue-access.test.ts',
+      'apps/console/api/scripts/issue-triage.test.ts',
       'apps/console/ui/e2e/isolated-console.test.ts',
       'apps/console/ui/e2e/issues.spec.ts'
     ],
-    lanes: ['console-api', 'console-api-2', 'console-browser-isolated', 'console-browser-issues']
+    lanes: [
+      'console-database-issue-triage',
+      'console-api',
+      'console-api-2',
+      'console-browser-isolated',
+      'console-browser-issues'
+    ]
   },
   {
     id: 'S56',
@@ -4282,10 +5057,11 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/incidents-watch/watch-incident.spec.ts',
       'apps/console/api/scripts/incident-journey.test.ts',
       'apps/console/api/scripts/incidents-database.test.ts',
-      'apps/console/api/src/services/incident-engine.test.ts',
-      'apps/console/api/src/services/incident-paging.test.ts'
+      'apps/console/api/src/services/incident-engine.test.ts'
     ],
     lanes: [
+      'cli-issue-incident-rules',
+      'console-incident-rules',
       'console-api',
       'console-api-2',
       'console-database-incidents',
@@ -4328,6 +5104,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/e2e/incident-run-live.spec.ts'
     ],
     lanes: [
+      'cli-setup-token',
       'console-database-incident-agent',
       'console-browser-offline',
       'console-browser-incident-run-live',
@@ -4347,9 +5124,13 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/services/incident-agent-runner-programs.ts',
       'packages/aws-read-only/**'
     ],
-    tests: ['apps/console/api/scripts/incident-agent-runtime.test.ts', 'packages/aws-read-only/src/executor.test.ts'],
+    tests: [
+      'apps/console/api/scripts/incident-agent-runtime.test.ts',
+      'packages/aws-read-only/src/executor.ministack.test.ts'
+    ],
     lanes: [
       'aws-read-only-test',
+      'aws-read-only-ministack',
       'console-database-incident-agent',
       'console-runner-runtime',
       'console-runner-runtime-2',
@@ -4367,7 +5148,7 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/services/incident-handoff.ts',
       'apps/console/api/src/services/incident-agent-runner-job.ts'
     ],
-    tests: ['apps/console/api/src/services/incident-handoff.test.ts'],
+    tests: ['apps/console/api/scripts/incident-handoff-database.test.ts'],
     lanes: [
       'console-database-incident-agent',
       'console-runner-runtime',
@@ -4388,16 +5169,17 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/_utils/security-inventory-step.ts'
     ],
     tests: [
-      'apps/cli/src/commands/_utils/security-inventory-step.spec.ts',
+      'apps/cli/tests/ministack/security-inventory.spec.ts',
       'apps/cli/src/domain/security-inventory/cyclonedx.spec.ts',
       'apps/cli/src/domain/security-inventory/trivy.spec.ts',
       'apps/console/api/scripts/security-database.test.ts',
       'apps/console/api/src/security/cvss.test.ts',
       'apps/console/api/src/security/inventory-grading.test.ts',
-      'apps/console/api/src/security/osv-client.test.ts',
-      'apps/console/api/src/security/report-ingestion.test.ts'
+      'apps/console/api/src/security/osv-client.test.ts'
     ],
     lanes: [
+      'cli-security-rules',
+      'cli-security-inventory-ministack',
       'console-fast-rules',
       'console-api',
       'console-api-2',
@@ -4434,7 +5216,11 @@ export const slices: readonly Slice[] = [
     status: 'active',
     journeys: ['J7'],
     paths: [
+      'packages/ministack/**',
+      'apps/cli/scripts/network-guard-preload.ts',
       'apps/console/api/src/services/alert-router.ts',
+      'apps/console/api/src/services/alert-channel-test.ts',
+      'apps/console/api/src/services/aws-ses.ts',
       'apps/console/api/src/services/slack-app/**',
       'apps/console/api/src/lambdas/webhook-delivery.ts',
       'apps/console/api/src/lambdas/slack-app/index.ts',
@@ -4442,25 +5228,23 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/model-helpers/index.ts'
     ],
     tests: [
+      'apps/console/api/scripts/alerts-database.test.ts',
       'apps/console/api/scripts/smoke-test-slack-secret-notifications.ts',
-      'apps/console/api/src/lambdas/slack-app/index.test.ts',
       'apps/console/api/src/messages/email-messages.test.ts',
       'apps/console/api/src/model-helpers/index.test.ts',
-      'apps/console/api/src/services/alert-router.test.ts',
       'apps/console/api/src/services/slack-app/actions.test.ts',
       'apps/console/api/src/services/slack-app/budget-card.test.ts',
       'apps/console/api/src/services/slack-app/client.test.ts',
       'apps/console/api/src/services/slack-app/deployment-card.test.ts',
       'apps/console/api/src/services/slack-app/evidence.test.ts',
       'apps/console/api/src/services/slack-app/ignore-modal.test.ts',
-      'apps/console/api/src/services/slack-app/interactions.test.ts',
       'apps/console/api/src/services/slack-app/render-actions.test.ts',
-      'apps/console/api/src/services/slack-app/render.test.ts',
       'apps/console/api/src/services/slack-app/security-card.test.ts',
-      'apps/console/api/src/services/slack-app/signing.test.ts',
-      'apps/console/api/src/services/slack-app/thread-registry.test.ts'
+      'apps/console/api/src/services/slack-app/signing.test.ts'
     ],
     lanes: [
+      'console-alert-rules',
+      'console-database-alerts',
       'console-api',
       'console-api-2',
       'console-database-incident-journey',
@@ -4491,6 +5275,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/utils/dates.ts'
     ],
     tests: [
+      'apps/console/ui/scripts/observability-readers.test.ts',
       'apps/console/api/src/utils/observability-inventory.test.ts',
       'apps/console/ui/src/aws/logs-commands.test.ts',
       'apps/console/ui/src/aws/logs.test.ts',
@@ -4503,7 +5288,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/pages/OverviewPage/overview-metrics.test.ts',
       'apps/console/ui/src/utils/dates.test.ts'
     ],
-    lanes: ['console-ui', 'console-ui-2', 'console-ui-3', 'console-database-insights'],
+    lanes: ['console-ui', 'console-ui-2', 'console-ui-3', 'console-observability-readers', 'console-database-insights'],
     contributors: ['S66']
   },
   {
@@ -4512,6 +5297,9 @@ export const slices: readonly Slice[] = [
     status: 'active',
     journeys: ['J7'],
     paths: [
+      'packages/ministack/**',
+      'apps/cli/scripts/network-guard-preload.ts',
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/alarm-notifications/**',
       'apps/cli/helper-lambdas/uptimeProber/**',
       'apps/console/api/src/services/uptime-ingestion.ts',
       'apps/console/api/src/lambdas/monitoring-sweeper.ts',
@@ -4520,11 +5308,11 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/pages/AlarmsPage/cloudwatch-alarms.ts'
     ],
     tests: [
+      'apps/console/api/scripts/uptime-database.test.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/alarm-notifications/index.test.ts',
       'apps/cli/helper-lambdas/uptimeProber/manifest.spec.ts',
       'apps/cli/src/domain/config-manager/utils/uptime-checks.spec.ts',
       'apps/console/api/src/services/alarm-event-counts.test.ts',
-      'apps/console/api/src/services/uptime-ingestion.test.ts',
       'apps/console/ui/src/pages/AlarmsPage/cloudwatch-alarms.test.ts',
       'apps/cli/scripts/package-helper-lambdas.ts',
       'apps/cli/scripts/run-source-tests.ts',
@@ -4532,6 +5320,9 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/verify-helper-lambda-artifacts.ts'
     ],
     lanes: [
+      'uptime-rules',
+      'cli-test-helper-lambdas',
+      'console-database-uptime',
       'console-api',
       'console-api-2',
       'console-ui',
@@ -4556,7 +5347,6 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/console/api/scripts/insights-runtime.test.ts',
       'apps/console/api/src/services/budget-alert-polling.test.ts',
-      'apps/console/api/src/services/budget-alerts.test.ts',
       'apps/console/api/src/services/currency-conversion.test.ts',
       'apps/cli/src/domain/budget-manager/index.spec.ts'
     ],
@@ -4568,7 +5358,7 @@ export const slices: readonly Slice[] = [
     status: 'active',
     journeys: ['J10'],
     paths: [
-      'apps/cli/src/domain/config-manager/utils/guardrails.spec.ts',
+      'apps/cli/src/domain/config-manager/utils/validation.ts',
       'apps/cli/src/domain/config-manager/utils/security-posture.ts',
       'apps/console/ui/src/pages/GuardrailsPage/**',
       'packages/console-api/src/guardrails.ts'
@@ -4577,7 +5367,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/config-manager/utils/guardrails.spec.ts',
       'apps/cli/src/domain/config-manager/utils/security-posture.spec.ts'
     ],
-    lanes: ['cli', 'cli-2', 'cli-3', 'console-database-insights'],
+    lanes: ['cli-security-rules', 'cli', 'cli-2', 'cli-3', 'console-database-insights'],
     contributors: ['S66']
   },
   {
@@ -4627,15 +5417,17 @@ export const slices: readonly Slice[] = [
       'packages/analytics/**',
       'apps/cli/src/utils/telemetry.ts',
       'apps/console/api/src/integrations/posthog.ts',
+      'apps/console/api/src/integrations/posthog-consumer.fixture.ts',
       'apps/cli/src/init/telemetry.ts'
     ],
     tests: [
       'apps/cli/src/init/telemetry.spec.ts',
       'apps/cli/src/utils/telemetry.spec.ts',
+      'apps/console/api/src/integrations/posthog.test.ts',
       'packages/analytics/src/posthog.test.ts',
       'packages/analytics/src/privacy.test.ts'
     ],
-    lanes: ['analytics-test', 'cli', 'cli-2', 'cli-3']
+    lanes: ['analytics-test', 'analytics-console', 'cli', 'cli-2', 'cli-3']
   },
   {
     id: 'S70',
@@ -4681,7 +5473,6 @@ export const slices: readonly Slice[] = [
       'scripts/workspace/check-staged-secrets.ts',
       'apps/cli/scripts/generate-committed-artifacts.ts',
       'apps/cli/tests/synthesis-families/run-with-cfn-lint.ts',
-      'apps/cli/scripts/operations/queries-docker.ts',
       'apps/cli/scripts/init-real-project-corpus.ts',
       'apps/cli/scripts/init-synthetic-project-corpus.ts',
       'apps/cli/scripts/validate-synthetic-project-corpus.ts',
@@ -4722,9 +5513,15 @@ export const slices: readonly Slice[] = [
     promise: 'External tools resolve safely on first use and remain usable offline.',
     status: 'active',
     journeys: ['J13'],
-    paths: ['apps/cli/src/utils/external-tools.ts', 'apps/cli/scripts/external-tools-e2e.ts'],
+    paths: [
+      'apps/cli/src/utils/external-tools.ts',
+      'apps/cli/src/config/external-tools.json',
+      'apps/cli/scripts/pin-external-tools.ts',
+      'apps/cli/scripts/external-tools-e2e.ts',
+      'apps/cli/scripts/release/verify-external-tools.ts'
+    ],
     tests: ['apps/cli/scripts/external-tools-e2e.ts'],
-    lanes: ['external-tools']
+    lanes: ['external-tools', 'native-candidate']
   },
   {
     id: 'S73',
@@ -4745,36 +5542,35 @@ export const slices: readonly Slice[] = [
     status: 'active',
     journeys: ['J9'],
     paths: [
+      'apps/cli/scripts/operations/terminal-driver.ts',
       'apps/cli/src/app/tui-manager/**',
       'apps/cli/src/app/tui-manager/output/**',
       'apps/cli/src/app/command-lifecycle/**'
     ],
     tests: [
-      'apps/cli/src/app/application-manager/__tests__/handle-exit-signal.test.ts',
-      'apps/cli/src/app/operation-manager/__tests__/journal.test.ts',
-      'apps/cli/src/app/tui-manager/__tests__/cleanup-logging.test.ts',
+      'apps/cli/scripts/operations/output.spec.ts',
+      'apps/cli/scripts/operations/terminal-ownership.spec.ts',
       'apps/cli/src/app/tui-manager/dev/__tests__/log-normalize.test.ts',
       'apps/cli/src/app/tui-manager/dev/views/__tests__/dashboard.test.tsx',
       'apps/cli/src/app/tui-manager/format/text.spec.ts',
       'apps/cli/src/app/tui-manager/launcher/__tests__/data.test.ts',
-      'apps/cli/src/app/tui-manager/progress/__tests__/cf-progress.test.ts',
       'apps/cli/src/app/tui-manager/progress/__tests__/sink.test.ts',
       'apps/cli/src/app/tui-manager/progress/__tests__/stream-presenter.test.ts',
       'apps/cli/src/app/tui-manager/progress/views/__tests__/dashboard.test.tsx',
       'apps/cli/src/app/tui-manager/prompt/__tests__/sink.test.ts',
-      'apps/cli/src/app/tui-manager/runtime/presentation-controller.test.ts',
       'apps/cli/src/commands/_utils/__tests__/debug-formatters.test.ts',
       'apps/cli/tests/characterization/cli-contract.spec.ts',
       'apps/cli/tests/characterization/cli-input-parsing.spec.ts',
       'apps/cli/tests/characterization/command-error-modernization.spec.ts',
       'apps/cli/tests/characterization/error-contract.spec.ts'
     ],
-    lanes: ['cli', 'cli-2', 'cli-3', 'cli-operations']
+    lanes: ['cli-operation-rules', 'cli-terminal-ownership', 'cli', 'cli-2', 'cli-3', 'cli-operations']
   }
 ];
 
 // Harness, benchmark and repository-policy tests have explicit tooling ownership.
 export const toolingTests: readonly string[] = [
+  'apps/cli/scripts/release-workflow.spec.ts',
   'packages/ministack/src/fixture.test.ts',
   'apps/cli/scripts/analyze-bundle.spec.ts',
   'apps/cli/scripts/generate-starter-projects-metadata.spec.ts',
@@ -4843,7 +5639,7 @@ export const toolingTests: readonly string[] = [
 ];
 
 // Add the kit agent's implemented lane here and attach it to these slices. Placeholders are not runnable lanes.
-export const pendingMiniStackLanes = [{ id: 'ministack-static-content-sync', slices: ['S31'] }] as const;
+export const pendingMiniStackLanes = [] as const;
 
 export const laneIdsForSelection = (selection: string): string[] =>
   lanes.filter((lane) => lane.selections?.includes(selection)).map((lane) => lane.id);

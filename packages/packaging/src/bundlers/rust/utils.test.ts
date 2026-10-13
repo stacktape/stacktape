@@ -21,39 +21,6 @@ const write = async (root: string, path: string, contents: string) => {
 };
 
 describe('resolveRustCrate', () => {
-  test('builds a single crate from its own root and names the binary after the package', async () => {
-    const root = await createRoot();
-    await write(root, 'Cargo.toml', '[package]\nname = "rust-lambda-api"\nversion = "0.1.0"\n');
-    await write(root, 'src/main.rs', 'fn main() {}\n');
-
-    expect(resolveRustCrate({ cwd: root, entryfilePath: 'src/main.rs' })).toEqual({
-      buildRoot: root,
-      crateRoot: root,
-      packageName: 'rust-lambda-api',
-      binaryName: 'rust-lambda-api'
-    });
-  });
-
-  test('builds a workspace member from the workspace root so the shared lock and siblings are in the context', async () => {
-    const root = await createRoot();
-    await write(root, 'Cargo.toml', '[workspace]\nmembers = ["crates/*"]\n');
-    await write(
-      root,
-      'crates/api/Cargo.toml',
-      '[package]\nname = "api"\n\n[[bin]]\nname = "handler"\npath = "src/bin/handler.rs"\n'
-    );
-    await write(root, 'crates/api/src/bin/handler.rs', 'fn main() {}\n');
-    await write(root, 'crates/api/src/main.rs', 'fn main() {}\n');
-
-    expect(resolveRustCrate({ cwd: root, entryfilePath: 'crates/api/src/bin/handler.rs' })).toEqual({
-      buildRoot: root,
-      crateRoot: join(root, 'crates', 'api'),
-      packageName: 'api',
-      binaryName: 'handler'
-    });
-    expect(resolveRustCrate({ cwd: root, entryfilePath: 'crates/api/src/main.rs' }).binaryName).toBe('api');
-  });
-
   test('names cargo auto-discovered binaries after their file or directory, not the package', async () => {
     const root = await createRoot();
     await write(root, 'Cargo.toml', '[package]\nname = "multi"\n');

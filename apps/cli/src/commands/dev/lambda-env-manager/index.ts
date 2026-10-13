@@ -371,26 +371,27 @@ export const updateLambdaEnvVarsWithTunnels = async ({
         // This ensures env vars like STP_DYNAMO_DB_NAME are set even if they don't exist yet
         for (const [paramName, paramValue] of Object.entries(localResource.referencableParams)) {
           const envVarName = injectedParameterEnvVarName(resourceName, paramName);
-          // Only set if not already set, or if it contains localhost references that need updating
-          if (!currentEnvVars[envVarName]) {
-            newEnvVars[envVarName] = paramValue;
-            hasChanges = true;
-          } else if (
-            currentEnvVars[envVarName].includes('localhost') ||
-            currentEnvVars[envVarName].includes('127.0.0.1') ||
-            currentEnvVars[envVarName].includes('host.docker.internal')
-          ) {
-            // Update localhost references with tunnel URL
-            newEnvVars[envVarName] = buildTunnelConnectionString(currentEnvVars[envVarName], tunnel);
+          // A deployed function normally points at its deployed database. Dev must select the local
+          // resource's credentials/database as well as its relay address, even when the old value is remote.
+          const tunnelValue =
+            paramName === 'host'
+              ? tunnel.publicHost
+              : paramName === 'port'
+                ? String(tunnel.publicPort)
+                : paramName === 'endpoint'
+                  ? `http://${tunnel.publicHost}:${tunnel.publicPort}`
+                  : buildTunnelConnectionString(paramValue, tunnel);
+          if (newEnvVars[envVarName] !== tunnelValue) {
+            newEnvVars[envVarName] = tunnelValue;
             hasChanges = true;
           }
         }
 
         // Explicitly update standard Stacktape env vars if they exist
         const connectionStringKey = `STP_${upperResourceName}_CONNECTION_STRING`;
-        if (currentEnvVars[connectionStringKey]) {
-          const newValue = buildTunnelConnectionString(currentEnvVars[connectionStringKey], tunnel);
-          if (newValue !== currentEnvVars[connectionStringKey]) {
+        if (newEnvVars[connectionStringKey]) {
+          const newValue = buildTunnelConnectionString(newEnvVars[connectionStringKey], tunnel);
+          if (newValue !== newEnvVars[connectionStringKey]) {
             newEnvVars[connectionStringKey] = newValue;
             hasChanges = true;
           }
@@ -430,11 +431,8 @@ export const updateLambdaEnvVarsWithTunnels = async ({
     } catch (err) {
       failed.push(lambda.name);
       tuiManager.warn(`Failed to update Lambda ${lambda.name}: ${err.message}`);
-      // Remove failed backup
-      const backupIndex = envBackups.findIndex((b) => b.functionName === lambda.functionName);
-      if (backupIndex !== -1) {
-        envBackups.splice(backupIndex, 1);
-      }
+      // The update may have been accepted before its status poll failed. Keep the original
+      // environment until cleanup restores it, including after partial startup failure.
     }
   }
 

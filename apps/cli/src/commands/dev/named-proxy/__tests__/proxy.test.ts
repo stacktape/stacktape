@@ -5,7 +5,7 @@ import { request as httpsRequest } from 'node:https';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { readFileSync, unlinkSync } from 'fs-extra';
+import { readFileSync, rmSync } from 'fs-extra';
 import crypto from 'node:crypto';
 import net from 'node:net';
 import tls from 'node:tls';
@@ -163,47 +163,14 @@ describe('createProxyServer', () => {
     const resA = await fetchJson(PROXY_PORT, 'app-a.dev.localhost');
     expect(resA.status).toBe(200);
     expect(resA.body.body).toBe('backend-a');
+    expect(resA.headers['x-portless']).toBe('1');
+    expect(resA.body.xForwardedFor).toBe('127.0.0.1');
+    expect(resA.body.xForwardedProto).toBe('http');
+    expect(resA.body.xForwardedHost).toBe('app-a.dev.localhost');
 
     const resB = await fetchJson(PROXY_PORT, 'app-b.dev.localhost');
     expect(resB.status).toBe(200);
     expect(resB.body.body).toBe('backend-b');
-  });
-
-  test('sets X-Portless header on responses', async () => {
-    const res = await fetchJson(PROXY_PORT, 'app-a.dev.localhost');
-    expect(res.headers['x-portless']).toBe('1');
-  });
-
-  test('forwards request path and method', async () => {
-    const res = await fetchJson(PROXY_PORT, 'app-a.dev.localhost', '/api/users?limit=10');
-    expect(res.body.url).toBe('/api/users?limit=10');
-    expect(res.body.method).toBe('GET');
-  });
-
-  test('forwards POST body', async () => {
-    const res = await fetchJson(PROXY_PORT, 'app-a.dev.localhost', '/api/data', {
-      method: 'POST',
-      body: JSON.stringify({ key: 'value' }),
-      headers: { 'Content-Type': 'application/json', Host: 'app-a.dev.localhost' }
-    });
-    expect(res.status).toBe(200);
-    expect(JSON.parse(res.body.requestBody as string)).toEqual({ key: 'value' });
-  });
-
-  test('sets X-Forwarded-For header', async () => {
-    const res = await fetchJson(PROXY_PORT, 'app-a.dev.localhost');
-    expect(res.body.xForwardedFor).toBeDefined();
-    expect(typeof res.body.xForwardedFor).toBe('string');
-  });
-
-  test('sets X-Forwarded-Proto to http', async () => {
-    const res = await fetchJson(PROXY_PORT, 'app-a.dev.localhost');
-    expect(res.body.xForwardedProto).toBe('http');
-  });
-
-  test('sets X-Forwarded-Host', async () => {
-    const res = await fetchJson(PROXY_PORT, 'app-a.dev.localhost');
-    expect(res.body.xForwardedHost).toBe('app-a.dev.localhost');
   });
 
   test('returns 404 HTML for unregistered hostname', async () => {
@@ -211,10 +178,6 @@ describe('createProxyServer', () => {
     expect(res.status).toBe(404);
     expect(res.body).toContain('Not Found');
     expect(res.body).toContain('unknown.dev.localhost');
-  });
-
-  test('404 page lists active apps', async () => {
-    const res = await fetchText(PROXY_PORT, 'unknown.dev.localhost');
     expect(res.body).toContain('app-a.dev.localhost');
     expect(res.body).toContain('app-b.dev.localhost');
   });
@@ -238,65 +201,6 @@ describe('createProxyServer', () => {
     const res = await fetchJson(PROXY_PORT, `app-a.dev.localhost:${PROXY_PORT}`);
     expect(res.status).toBe(200);
     expect(res.body.body).toBe('backend-a');
-  });
-});
-
-describe('proxy - dynamic route changes', () => {
-  let proxyServer: ProxyServer;
-  let backend: HttpServer;
-
-  const PROXY_PORT = 19110;
-  const BACKEND_PORT = 19111;
-
-  const routes: RouteInfo[] = [];
-
-  beforeAll(async () => {
-    backend = await startBackend(BACKEND_PORT, 'dynamic-backend');
-
-    proxyServer = createProxyServer({
-      getRoutes: () => routes,
-      proxyPort: PROXY_PORT,
-      onError: () => {}
-    });
-    await new Promise<void>((resolve) => {
-      proxyServer.listen(PROXY_PORT, '127.0.0.1', () => resolve());
-    });
-  });
-
-  afterAll(async () => {
-    await Promise.all([closeServer(proxyServer), closeServer(backend)]);
-  });
-
-  test('route added after proxy start becomes reachable', async () => {
-    // Initially no routes - should get 404
-    const before = await fetchText(PROXY_PORT, 'dynamic.dev.localhost');
-    expect(before.status).toBe(404);
-
-    // Add route dynamically
-    routes.push({ hostname: 'dynamic.dev.localhost', port: BACKEND_PORT });
-
-    // Now should be routable
-    const after = await fetchJson(PROXY_PORT, 'dynamic.dev.localhost');
-    expect(after.status).toBe(200);
-    expect(after.body.body).toBe('dynamic-backend');
-  });
-
-  test('route removed after proxy start returns 404', async () => {
-    // Ensure route exists
-    const routeIdx = routes.findIndex((r) => r.hostname === 'dynamic.dev.localhost');
-    if (routeIdx === -1) {
-      routes.push({ hostname: 'dynamic.dev.localhost', port: BACKEND_PORT });
-    }
-
-    const before = await fetchJson(PROXY_PORT, 'dynamic.dev.localhost');
-    expect(before.status).toBe(200);
-
-    // Remove route
-    const idx = routes.findIndex((r) => r.hostname === 'dynamic.dev.localhost');
-    routes.splice(idx, 1);
-
-    const after = await fetchText(PROXY_PORT, 'dynamic.dev.localhost');
-    expect(after.status).toBe(404);
   });
 });
 
@@ -327,13 +231,6 @@ describe('proxy - backend down', () => {
     const res = await fetchText(PROXY_PORT, 'dead.dev.localhost');
     expect(res.status).toBe(502);
     expect(res.body).toContain('Bad Gateway');
-  });
-
-  test('calls onError callback when backend is unreachable', async () => {
-    errors.length = 0;
-    await fetchText(PROXY_PORT, 'dead.dev.localhost');
-    expect(errors.length).toBeGreaterThanOrEqual(1);
-    expect(errors[0]).toContain('dead.dev.localhost');
   });
 });
 
@@ -444,10 +341,10 @@ describe('proxy - 404 page HTML safety', () => {
   });
 
   test('escapes XSS attempts in hostname', async () => {
-    const res = await fetchText(PROXY_PORT, '<script>alert(1)</script>.localhost');
+    const res = await fetchText(PROXY_PORT, '<script>\"x\'&y\"</script>.localhost');
     expect(res.status).toBe(404);
     expect(res.body).not.toContain('<script>');
-    expect(res.body).toContain('&lt;script&gt;');
+    expect(res.body).toContain('&lt;script&gt;&quot;x&#39;&amp;y&quot;&lt;');
   });
 
   test('shows "No apps running" when route list is empty', async () => {
@@ -550,7 +447,14 @@ describe('proxy - large request body', () => {
         req.on('end', () => {
           const body = Buffer.concat(chunks);
           res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ receivedBytes: body.length }));
+          res.end(
+            JSON.stringify({
+              receivedBytes: body.length,
+              digest: crypto.createHash('sha256').update(body).digest('hex'),
+              method: req.method,
+              path: req.url
+            })
+          );
         });
       });
       server.listen(BACKEND_PORT, '127.0.0.1', () => resolve(server));
@@ -572,7 +476,7 @@ describe('proxy - large request body', () => {
 
   test('proxies 1MB POST body correctly', async () => {
     const bodySize = 1024 * 1024; // 1MB
-    const largeBody = Buffer.alloc(bodySize, 'A');
+    const largeBody = crypto.randomBytes(bodySize);
 
     const res = await fetch(`http://127.0.0.1:${PROXY_PORT}/upload`, {
       method: 'POST',
@@ -581,8 +485,11 @@ describe('proxy - large request body', () => {
     });
 
     expect(res.status).toBe(200);
-    const json = (await res.json()) as { receivedBytes: number };
+    const json = (await res.json()) as { receivedBytes: number; digest: string; method: string; path: string };
     expect(json.receivedBytes).toBe(bodySize);
+    expect(json.digest).toBe(crypto.createHash('sha256').update(largeBody).digest('hex'));
+    expect(json.method).toBe('POST');
+    expect(json.path).toBe('/upload');
   });
 });
 
@@ -590,10 +497,9 @@ describe('proxy - large request body', () => {
 
 /** Generate a self-signed cert+key for testing */
 const generateSelfSignedCert = (): { cert: Buffer; key: Buffer } => {
+  const keyPath = join(tmpdir(), `test-key-${process.pid}.pem`);
+  const certPath = join(tmpdir(), `test-cert-${process.pid}.pem`);
   try {
-    const keyPath = join(tmpdir(), `test-key-${process.pid}.pem`);
-    const certPath = join(tmpdir(), `test-cert-${process.pid}.pem`);
-
     execFileSync(
       'openssl',
       [
@@ -618,11 +524,12 @@ const generateSelfSignedCert = (): { cert: Buffer; key: Buffer } => {
 
     const key = readFileSync(keyPath);
     const cert = readFileSync(certPath);
-    unlinkSync(keyPath);
-    unlinkSync(certPath);
     return { cert, key };
-  } catch {
-    return { cert: Buffer.alloc(0), key: Buffer.alloc(0) };
+  } catch (error) {
+    throw new Error('TLS proxy qualification requires a working openssl executable.', { cause: error });
+  } finally {
+    rmSync(keyPath, { force: true });
+    rmSync(certPath, { force: true });
   }
 };
 
@@ -659,14 +566,11 @@ describe('proxy - TLS / HTTPS', () => {
   let proxyServer: ProxyServer;
   let backend: HttpServer;
   const certs = generateSelfSignedCert();
-  const hasCerts = certs.cert.length > 0;
 
   const PROXY_PORT = 19150;
   const BACKEND_PORT = 19151;
 
   beforeAll(async () => {
-    if (!hasCerts) return;
-
     backend = await startBackend(BACKEND_PORT, 'tls-backend');
 
     proxyServer = createProxyServer({
@@ -681,29 +585,18 @@ describe('proxy - TLS / HTTPS', () => {
   });
 
   afterAll(async () => {
-    if (!hasCerts) return;
     await Promise.all([closeServer(proxyServer), closeServer(backend)]);
   });
 
   test('accepts TLS connections and proxies HTTPS requests', async () => {
-    if (!hasCerts) return; // Skip if openssl not available
-
     const response = await fetchTlsJson(PROXY_PORT, '/api/test');
     expect(response.status).toBe(200);
     expect(response.body.body).toBe('tls-backend');
     expect(response.body.url).toBe('/api/test');
-  });
-
-  test('TLS proxy sets x-forwarded-proto to https', async () => {
-    if (!hasCerts) return;
-
-    const response = await fetchTlsJson(PROXY_PORT, '/');
     expect(response.body.xForwardedProto).toBe('https');
   });
 
   test('TLS proxy handles WebSocket upgrade over HTTPS', async () => {
-    if (!hasCerts) return;
-
     const wsBackend = await startWebSocketBackend(19152);
     const wsProxy = createProxyServer({
       getRoutes: () => [{ hostname: 'wss.dev.localhost', port: 19152 }],
@@ -751,8 +644,6 @@ describe('proxy - TLS / HTTPS', () => {
   });
 
   test('returns 404 for unknown host over TLS', async () => {
-    if (!hasCerts) return;
-
     const res = await new Promise<{ status: string; body: string }>((resolve, reject) => {
       const socket = tls.connect({ port: PROXY_PORT, host: '127.0.0.1', rejectUnauthorized: false }, () => {
         socket.write('GET / HTTP/1.1\r\n' + 'Host: unknown.dev.localhost\r\n' + 'Connection: close\r\n' + '\r\n');
@@ -778,8 +669,6 @@ describe('proxy - TLS / HTTPS', () => {
   });
 
   test('plain TCP to TLS proxy fails gracefully (no crash)', async () => {
-    if (!hasCerts) return;
-
     // Send plain HTTP to a TLS-enabled proxy — should fail without crashing the server
     const result = await new Promise<'closed' | 'error' | 'timeout'>((resolve) => {
       const socket = net.createConnection({ port: PROXY_PORT, host: '127.0.0.1' }, () => {

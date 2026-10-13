@@ -38,10 +38,12 @@ export class ConsoleProcedureError extends Error {
 
 export const developerIdentity = ({
   projectName,
-  role = 'OWNER'
+  role = 'OWNER',
+  accountId = OFFLINE_ACCOUNT_ID
 }: {
   projectName: string;
   role?: string;
+  accountId?: string;
 }): CurrentUserAndOrgDataResponse => ({
   user: { id: 'user_operations', name: 'Operations Tester', email: 'operations@example.test' },
   organization: { id: 'org_operations', name: 'Operations Org', role, securityScanningEnabled: false },
@@ -50,7 +52,7 @@ export const developerIdentity = ({
       id: 'acc_operations',
       organizationId: 'org_operations',
       name: 'operations-account',
-      awsAccountId: OFFLINE_ACCOUNT_ID,
+      awsAccountId: accountId,
       state: 'ACTIVE',
       primaryRegions: ['eu-west-1'],
       defaultRegion: 'eu-west-1',

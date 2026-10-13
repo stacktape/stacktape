@@ -5,17 +5,15 @@ import { join } from 'node:path';
 import { describeNextPackagingError, getWindowsNextBuildCommand, hasDefaultPrismaSchema } from './nextjs-web';
 
 describe('Windows Next.js build command', () => {
-  test('does not pass the unsupported webpack option to Next.js 14 or 15', () => {
-    expect(getWindowsNextBuildCommand('14.2.35')).toStartWith('npx next build &&');
-    expect(getWindowsNextBuildCommand('15.5.0')).toStartWith('npx next build &&');
-  });
-
-  test('forces webpack when Next.js 16 would otherwise default to Turbopack', () => {
-    expect(getWindowsNextBuildCommand('16.1.0')).toStartWith('npx next build --webpack &&');
-  });
-
-  test('uses the broadly compatible command when the installed version cannot be read', () => {
-    expect(getWindowsNextBuildCommand(undefined)).toStartWith('npx next build &&');
+  test('selects the compatible build command for installed Next versions', () => {
+    for (const [version, prefix] of [
+      ['14.2.35', 'npx next build &&'],
+      ['15.5.0', 'npx next build &&'],
+      ['16.1.0', 'npx next build --webpack &&'],
+      [undefined, 'npx next build &&']
+    ] as const) {
+      expect(getWindowsNextBuildCommand(version)).toStartWith(prefix);
+    }
   });
 });
 

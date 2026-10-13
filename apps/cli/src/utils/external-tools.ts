@@ -287,6 +287,10 @@ export const extractExecutable = async ({
   if (asset.archive === 'zip') {
     const entry = new AdmZip(archivePath).getEntry(asset.executable);
     if (!entry || entry.isDirectory) throw missing();
+    // Unix ZIP attributes may describe a symlink (whose data is its target), not executable bytes.
+    // Windows archives can omit the Unix file type altogether.
+    const fileType = (entry.attr >>> 16) & 0o170000;
+    if (fileType !== 0 && fileType !== 0o100000) throw missing();
     await writeFile(target, entry.getData());
     return target;
   }
@@ -296,7 +300,11 @@ export const extractExecutable = async ({
   await tar.x({
     file: tarPath,
     cwd: extracted,
-    filter: (path) => path.replace(/^\.\//, '') === asset.executable
+    // Only executable bytes may enter the cache. Even an in-bounds symlink becomes invalid after staging is removed.
+    filter: (path, entry) =>
+      path.replace(/^\.\//, '') === asset.executable &&
+      'type' in entry &&
+      (entry.type === 'File' || entry.type === 'OldFile')
   });
   const entryPath = join(extracted, asset.executable);
   if (!existsSync(entryPath)) throw missing();

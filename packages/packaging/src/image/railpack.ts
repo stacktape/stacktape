@@ -152,10 +152,14 @@ const isRailpackConfigurationVariable = (name: string) => name.startsWith('RAILP
  */
 export const applyStacktapePlanPolicy = ({
   plan,
-  startCommand
+  startCommand,
+  buildCommand,
+  installCommand
 }: {
   plan: RailpackPlan;
   startCommand: string | undefined;
+  buildCommand?: string | undefined;
+  installCommand?: string | undefined;
 }): RailpackPlan => {
   let result = plan;
   if (plan.secrets?.some(isRailpackConfigurationVariable)) {
@@ -170,6 +174,34 @@ export const applyStacktapePlanPolicy = ({
       : plan.steps;
     result = { ...result, secrets: plan.secrets.filter((name) => !isRailpackConfigurationVariable(name)), steps };
   }
+  // Railpack 0.40.1 emits an authored command as `sh -c '<command>'` without escaping quotes inside it.
+  // Correct only that exact wrapper for commands the user supplied; provider-generated commands stay intact.
+  const authoredCommands = new Set([buildCommand, installCommand].filter((command) => command !== undefined));
+  let repairedCommand = false;
+  const steps =
+    authoredCommands.size > 0 && Array.isArray(result.steps)
+      ? result.steps.map((step) => {
+          if (typeof step !== 'object' || step === null) return step;
+          const commands = (step as { commands?: unknown }).commands;
+          if (!Array.isArray(commands)) return step;
+          return Object.assign({}, step, {
+            commands: commands.map((command: unknown) => {
+              if (typeof command !== 'object' || command === null) return command;
+              const { cmd, customName } = command as { cmd?: unknown; customName?: unknown };
+              if (
+                typeof customName !== 'string' ||
+                !authoredCommands.has(customName) ||
+                !customName.includes("'") ||
+                cmd !== `sh -c '${customName}'`
+              )
+                return command;
+              repairedCommand = true;
+              return Object.assign({}, command, { cmd: `sh -c '${customName.replaceAll("'", `'"'"'`)}'` });
+            })
+          });
+        })
+      : result.steps;
+  if (repairedCommand) result = { ...result, steps };
   const detectedStart = result.deploy?.startCommand;
   if (startCommand === undefined && detectedStart?.startsWith(DJANGO_MIGRATE_PREFIX)) {
     result = {
@@ -259,7 +291,12 @@ export const buildUsingRailpack = async ({
       hint: 'Railpack detects the language from the project files in the source directory. Set startCommand, buildCommand or installCommand when detection is incomplete, or use dockerfile packaging for full control.'
     });
   }
-  const plan = applyStacktapePlanPolicy({ plan: prepared.plan as RailpackPlan, startCommand });
+  const plan = applyStacktapePlanPolicy({
+    plan: prepared.plan as RailpackPlan,
+    startCommand,
+    buildCommand,
+    installCommand
+  });
   const buildEnvironmentHash = getBuildEnvironmentHash(buildVariables);
   const { checksum: contextChecksum, includedFilePaths } = await getDockerContextChecksum({
     absoluteBuildContextPath: absoluteSourceDirectoryPath,

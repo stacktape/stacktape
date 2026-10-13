@@ -43,7 +43,7 @@ test('redirected help is readable and early failures preserve the JSONL result c
 test('script progress preserves captured stdout and stderr and finishes with one JSONL result', async () => {
   const fixture = await createOperationsFixture(cli.path);
   try {
-    seedDeployedStack(fixture);
+    await seedDeployedStack(fixture);
     await writeFile(
       join(fixture.directory, 'emit.ts'),
       "console.log('\\u001b[31mj9-out\\u001b[0m'); console.error('j9-err');"
@@ -63,19 +63,27 @@ test('script progress preserves captured stdout and stderr and finishes with one
         }
       })
     );
-    for (const format of (process.platform === 'win32' ? ['plain', 'jsonl'] : ['plain', 'jsonl', 'tty']) as Array<
-      'plain' | 'jsonl' | 'tty'
-    >) {
+    for (const format of (process.platform === 'win32'
+      ? ['plain', 'jsonl']
+      : ['plain', 'jsonl', 'tty', 'dashboard']) as Array<'plain' | 'jsonl' | 'tty' | 'dashboard'>) {
       const run = await fixture.start(
-        ['script:run', '--scriptName', 'report', '--outputFormat', format, ...targetArgs],
-        { tty: format === 'tty' }
+        [
+          'script:run',
+          '--scriptName',
+          'report',
+          '--outputFormat',
+          format === 'dashboard' ? 'tty' : format,
+          ...(format === 'dashboard' ? ['--ui', 'dashboard'] : []),
+          ...targetArgs
+        ],
+        { tty: format === 'tty' || format === 'dashboard' }
       ).finished;
       expect(run.exitCode, run.stdout + run.stderr).toBe(0);
       expect(run.stderr).toBe('');
-      if (format !== 'tty') expect(run.stdout).toBe(stripAnsi(run.stdout));
+      if (format !== 'tty' && format !== 'dashboard') expect(run.stdout).toBe(stripAnsi(run.stdout));
       if (format !== 'jsonl') {
         const output = stripAnsi(run.stdout);
-        expect(output).toContain('Running script report');
+        expect(output).toContain(format === 'dashboard' ? 'report finished' : 'Running script report');
         expect(output).toContain('j9-out');
         expect(output).toContain('j9-err');
         expect(output).toContain('SCRIPT "report" COMPLETED');
@@ -99,7 +107,7 @@ test('script progress preserves captured stdout and stderr and finishes with one
 test('a failed script returns a nonzero exit and an actionable final result without success completion', async () => {
   const fixture = await createOperationsFixture(cli.path);
   try {
-    seedDeployedStack(fixture);
+    await seedDeployedStack(fixture);
     await writeFile(join(fixture.directory, 'fail.ts'), "console.error('j9-script-failure'); process.exit(7);");
     await writeFile(
       join(fixture.directory, 'stacktape.yml'),
@@ -145,7 +153,7 @@ test.skipIf(process.platform === 'win32')(
   async () => {
     const fixture = await createOperationsFixture(cli.path);
     try {
-      seedDeployedStack(fixture);
+      await seedDeployedStack(fixture);
       await writeFile(
         join(fixture.directory, 'wait.ts'),
         `import { writeFileSync } from 'node:fs';
@@ -240,6 +248,85 @@ test.skipIf(process.platform === 'win32')(
       expect(result.exitCode).toBe(0);
       expect(await Bun.file(join(fixture.home, '.aws/credentials')).exists()).toBe(false);
       expect(stripAnsi(result.stdout)).not.toContain('Saved credentials');
+    } finally {
+      await fixture.close();
+    }
+  },
+  60_000
+);
+
+test('disabled dev TUI prints cleanup messages and plain shutdown leaves no terminal controls', async () => {
+  const fixture = await createOperationsFixture(cli.path);
+  try {
+    const driver = join(fixture.directory, 'cleanup.ts');
+    await writeFile(
+      driver,
+      `import { tuiManager } from ${JSON.stringify(join(import.meta.dir, '../../src/app/tui-manager/index.ts'))};
+tuiManager.setOutputFormat('plain');
+tuiManager.setDevTuiActive(true);
+tuiManager.info('Stopping tunnels...');
+await tuiManager.stop();`
+    );
+    const child = Bun.spawn(
+      [process.execPath, '--no-env-file', '--preload', join(import.meta.dir, 'offline-preload.ts'), driver],
+      {
+        cwd: fixture.directory,
+        env: { PATH: process.env.PATH, HOME: fixture.home },
+        stdout: 'pipe',
+        stderr: 'pipe'
+      }
+    );
+    const [code, stdout, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text()
+    ]);
+    expect(code).toBe(0);
+    expect(stdout).toContain('Stopping tunnels...');
+    expect(stdout).toBe(stripAnsi(stdout));
+    expect(stderr).toBe('');
+  } finally {
+    await fixture.close();
+  }
+}, 30_000);
+
+test.skipIf(process.platform === 'win32')(
+  'a PTY switches between stream and dashboard while preserving the script and final transcript',
+  async () => {
+    const fixture = await createOperationsFixture(cli.path);
+    try {
+      await seedDeployedStack(fixture);
+      await writeFile(
+        join(fixture.directory, 'wait.ts'),
+        `import { existsSync, writeFileSync } from 'node:fs';
+console.log('switch-script-ready');
+while (!existsSync('finish')) await Bun.sleep(20);
+writeFileSync('script-finished', 'done');
+console.log('switch-script-finished');`
+      );
+      await writeFile(
+        join(fixture.directory, 'stacktape.yml'),
+        JSON.stringify({
+          resources: {},
+          scripts: {
+            wait: { type: 'local-script', properties: { executeScript: 'wait.ts', stdioMode: 'capture' } }
+          }
+        })
+      );
+      const run = fixture.start(['script:run', '--scriptName', 'wait', ...targetArgs, '--ui', 'stream'], { tty: true });
+      await run.waitFor('switch-script-ready');
+      run.write('\x14');
+      await run.waitFor('ACTIVITY');
+      const cursor = run.output().length;
+      run.write('\x14');
+      await run.waitFor('Running script', cursor);
+      await writeFile(join(fixture.directory, 'finish'), 'done');
+      const result = await run.finished;
+      expect(result.exitCode, stripAnsi(result.stdout)).toBe(0);
+      expect(stripAnsi(result.stdout.slice(cursor))).toContain('switch-script-finished');
+      expect(stripAnsi(result.stdout.slice(cursor))).toContain('SCRIPT "wait" COMPLETED');
+      expect(await readFile(join(fixture.directory, 'script-finished'), 'utf8')).toBe('done');
+      expect(result.stderr).toBe('');
     } finally {
       await fixture.close();
     }
