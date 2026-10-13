@@ -403,7 +403,8 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   if (config.allBucketsToSync.length) {
     await injectEnvironmentToHostedHtmlFiles();
     await deploymentArtifacts.syncBuckets();
-    await deploymentArtifacts.saveBucketSyncManifest(stack.nextVersion);
+    // Stack details were refreshed after deploy; nextVersion now belongs to the next operation.
+    await deploymentArtifacts.saveBucketSyncManifest(stack.lastVersion);
     await writeEnvironmentDotenvFile();
   }
 

@@ -77,8 +77,9 @@ This short queue comes from the slice audit; the registry records selection, not
 | 10   | S37–S41, S70, S34, S69 | Docs/website/control/editor/diagram interactions, consumer CSS, native installers, analytics consumers.     |
 
 The kit agent owns the MiniStack fixtures, deploy harness and lane implementations. The registry's
-`pendingMiniStackLanes` names the static-content and deployment-lifecycle registration slots; they are not runnable or
-passing evidence. Register implemented lanes with exact commands and owned tests when integrating that work.
+`pendingMiniStackLanes` names unfinished registration slots; they are not runnable or passing evidence. Deployment
+lifecycle coverage runs in the existing `ministack-deploy` lane. Register other implemented lanes with exact commands
+and owned tests when integrating that work.
 
 Console PR lanes include offline migration history, package export boundaries and infrastructure contracts plus
 assembled support-template `cfn-lint`. Install `cfn-lint==1.53.3` before running `pnpm test:ci` with Console present; CI

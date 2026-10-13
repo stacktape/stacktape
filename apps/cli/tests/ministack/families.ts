@@ -11,7 +11,12 @@ import type { StackResourceSummary } from '@aws-sdk/client-cloudformation';
 import { CloudWatchLogsClient, FilterLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
 import { DescribeTableCommand, DynamoDBClient, GetItemCommand, PutItemCommand } from '@aws-sdk/client-dynamodb';
 import { DescribeEventBusCommand, EventBridgeClient } from '@aws-sdk/client-eventbridge';
-import { GetFunctionConfigurationCommand, InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda';
+import {
+  GetFunctionConfigurationCommand,
+  GetLayerVersionByArnCommand,
+  InvokeCommand,
+  LambdaClient
+} from '@aws-sdk/client-lambda';
 import {
   DeleteObjectCommand,
   GetBucketNotificationConfigurationCommand,
@@ -24,6 +29,7 @@ import { PublishCommand, SNSClient } from '@aws-sdk/client-sns';
 import { GetQueueAttributesCommand, SendMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
 import type { MiniStack } from '@stacktape/ministack/fixture';
 import type { DeployStep } from './harness';
+import { splitLambdaFamily } from './split-lambda-family';
 
 export type Version = 1 | 2;
 
@@ -58,7 +64,7 @@ export const destroyEffectClients = (clients: EffectClients) => {
 
 export type EffectContext = {
   step: Exclude<DeployStep, 'delete'>;
-  /** The config version deployed: 1 after create, 2 after update and the unchanged redeploy. */
+  /** The config version deployed: 1 after create/rollback; 2 after update, unchanged redeploy and diff. */
   version: Version;
   endpoint: string;
   resources: StackResourceSummary[];
@@ -136,8 +142,8 @@ const assertFunctionRuns = async (context: EffectContext, functionName: string) 
   context.checks.push(`${functionName} executes version ${context.version} with its memory setting`);
 };
 
-const assertBucketKeepsData = async (context: EffectContext, bucket: string) => {
-  if (context.step === 'create') {
+const assertBucketKeepsData = async (context: EffectContext, bucket: string, synced = false) => {
+  if (!synced && context.step === 'create') {
     await context.clients.s3.send(
       new PutObjectCommand({ Bucket: bucket, Key: 'probe-state', Body: 'survives-update' })
     );
@@ -159,10 +165,11 @@ const removeProbeObjects = async (
 };
 
 export const families: Family[] = [
+  splitLambdaFamily,
   {
     name: 'lambda-http-api',
     knownGap:
-      "MiniStack's Ref of AWS::ApiGatewayV2::Stage returns `<apiId>/<stageName>`, and Stacktape passes that Ref as the Stage of the default-domain ApiMapping; MiniStack then fails the mapping with BadRequestException 'Invalid stage identifier specified' (AWS returns the stage name). No upstream issue yet; see the handoff.",
+      "MiniStack's Ref of AWS::ApiGatewayV2::Stage returns `<apiId>/<stageName>`, and Stacktape passes that Ref as the Stage of the default-domain ApiMapping; MiniStack then fails the mapping with BadRequestException 'Invalid stage identifier specified' (AWS returns the stage name). ministackorg/ministack#2164.",
     config: (version) => ({
       resources: {
         gateway: { type: 'http-api-gateway' },
@@ -197,7 +204,10 @@ export const families: Family[] = [
     name: 'bucket-queue-table-function',
     config: (version) => ({
       resources: {
-        bucket: { type: 'bucket' },
+        bucket: {
+          type: 'bucket',
+          properties: { versioning: true, directoryUpload: { directoryPath: 'sync-content' } }
+        },
         queue: { type: 'sqs-queue', properties: { visibilityTimeoutSeconds: version === 1 ? 60 : 90 } },
         table: {
           type: 'dynamo-db-table',
@@ -209,13 +219,13 @@ export const families: Family[] = [
         })
       }
     }),
-    files: (version) => ({ 'handler.ts': handlerSource(version) }),
+    files: (version) => ({ 'handler.ts': handlerSource(version), 'sync-content/probe-state': 'survives-update' }),
     assertEffects: async (context) => {
       const functionName = context.physical('HandlerFunction');
       await assertFunctionRuns(context, functionName);
       // The stack also holds Stacktape's deployment bucket; only the configured bucket is the customer's.
       const bucket = context.physical('BucketBucket');
-      await assertBucketKeepsData(context, bucket);
+      await assertBucketKeepsData(context, bucket, true);
       const [queue] = context.physicalOfType('AWS::SQS::Queue');
       assert.ok(queue, 'the stack has no queue');
       const url = queueUrl(context.endpoint, queue);
@@ -239,8 +249,7 @@ export const families: Family[] = [
       const marker = `queue-${context.step}-${context.version}`;
       await context.clients.sqs.send(new SendMessageCommand({ QueueUrl: url, MessageBody: marker }));
       await awaitLogLine(context, functionName, marker, 'an SQS message');
-    },
-    beforeDelete: (context) => removeProbeObjects(context, ['probe-state'])
+    }
   },
   {
     name: 'sns-fan-out',
@@ -368,6 +377,8 @@ export const absenceProbes: Record<string, (clients: EffectClients, endpoint: st
     'AWS::S3::Bucket': (clients, _endpoint, id) => clients.s3.send(new HeadBucketCommand({ Bucket: id })),
     'AWS::DynamoDB::GlobalTable': (clients, _endpoint, id) =>
       clients.dynamo.send(new DescribeTableCommand({ TableName: id })),
+    'AWS::Lambda::LayerVersion': (clients, _endpoint, id) =>
+      clients.lambda.send(new GetLayerVersionByArnCommand({ Arn: id })),
     'AWS::Lambda::Function': (clients, _endpoint, id) =>
       clients.lambda.send(new GetFunctionConfigurationCommand({ FunctionName: id })),
     'AWS::Events::EventBus': (clients, _endpoint, id) => clients.events.send(new DescribeEventBusCommand({ Name: id })),

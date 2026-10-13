@@ -288,6 +288,44 @@ export const lanes: readonly Lane[] = [
     selections: ['synthesis-families']
   },
   {
+    id: 'deployment-rules',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/cli',
+      'exec',
+      'bun',
+      'test',
+      'src/domain/deployment-change-plan/index.spec.ts',
+      'src/utils/stack-info-map-diff.spec.ts',
+      'src/commands/deploy/ec2-runner-config-path.spec.ts',
+      'src/aws/cloudformation.spec.ts',
+      'src/aws/ecs-contracts.spec.ts',
+      'src/domain/shared-resource-stack-manager/index.spec.ts',
+      'tests/characterization/lambda-version-publication.spec.ts',
+      'tests/characterization/cloudformation-stack-operations.spec.ts',
+      'tests/characterization/stack-event-pagination.spec.ts'
+    ],
+    level: 'focused',
+    tier: 'pr',
+    tests: [
+      'apps/cli/src/domain/deployment-change-plan/index.spec.ts',
+      'apps/cli/src/utils/stack-info-map-diff.spec.ts',
+      'apps/cli/src/commands/deploy/ec2-runner-config-path.spec.ts',
+      'apps/cli/src/aws/cloudformation.spec.ts',
+      'apps/cli/src/aws/ecs-contracts.spec.ts',
+      'apps/cli/src/domain/shared-resource-stack-manager/index.spec.ts',
+      'apps/cli/tests/characterization/lambda-version-publication.spec.ts',
+      'apps/cli/tests/characterization/cloudformation-stack-operations.spec.ts',
+      'apps/cli/tests/characterization/stack-event-pagination.spec.ts'
+    ],
+    requires: [],
+    release: 'every-candidate',
+    proves:
+      'Change plans, replacement risks, ECS mapping contracts, version publication and malformed service responses preserve deployment safety.',
+    selections: ['deployment-rules']
+  },
+  {
     id: 'cli-stack-operations',
     command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:cli-process'],
     level: 'process',
@@ -296,7 +334,7 @@ export const lanes: readonly Lane[] = [
     requires: ['docker', 'network'],
     release: 'every-candidate',
     proves:
-      'The CLI process refuses unsafe operations, performs confirmed deletion and keeps its deployment bucket in MiniStack.',
+      'The CLI process cancels destructive prompts, enforces termination protection and recovers failed rollbacks while observing artifacts in MiniStack.',
     selections: ['cli-stack-operations']
   },
   {
@@ -542,6 +580,16 @@ export const lanes: readonly Lane[] = [
     selections: ['packaging-images']
   },
   {
+    id: 'node-lambda-offline',
+    command: ['pnpm', '--filter', '@stacktape/packaging', 'run', 'test:node-lambda:offline'],
+    level: 'process',
+    tier: 'pr',
+    tests: ['packages/packaging/src/bundlers/es', 'packages/packaging/src/es', 'packages/packaging/src/split-bundler'],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'Real single and split bundles execute offline; packaging rules and past regressions stay protected.'
+  },
+  {
     id: 'packaging-lambdas',
     command: ['pnpm', '--filter', '@stacktape/packaging', 'run', 'test:node-lambda-e2e'],
     level: 'process',
@@ -549,7 +597,8 @@ export const lanes: readonly Lane[] = [
     tests: ['packages/packaging/scripts/synthetic-node-lambda-e2e.ts'],
     requires: ['docker', 'network'],
     release: 'every-candidate',
-    proves: 'Built artifacts execute in their target runtimes.',
+    proves:
+      'Node artifacts execute with shared/native layers; native installations isolate architectures and reuse completed bytes.',
     selections: ['packaging-lambdas']
   },
   {
@@ -713,13 +762,14 @@ export const lanes: readonly Lane[] = [
     tier: 'change',
     tests: [
       'apps/cli/tests/ministack/deploy-loop.spec.ts',
+      'apps/cli/tests/ministack/split-lambda-family.ts',
       'apps/cli/tests/ministack/domain-cache.spec.ts',
       'apps/cli/tests/ministack/domain-add.spec.ts'
     ],
     requires: ['docker', 'network'],
     release: 'every-candidate',
     proves:
-      'The source CLI creates, updates, redeploys unchanged and deletes each resource family on MiniStack with the effects observed through the real SDK.',
+      'The source CLI creates, updates, redeploys unchanged, previews, rolls back and deletes on MiniStack; real SDKs observe runtime, data and artifacts.',
     selections: ['ministack-deploy']
   },
   {
@@ -1533,10 +1583,8 @@ export const lanes: readonly Lane[] = [
       'apps/cli/tests/characterization/aws-cloudfront.spec.ts',
       'apps/cli/tests/characterization/aws-cost-management.spec.ts',
       'apps/cli/tests/characterization/aws-domains.spec.ts',
-      'apps/cli/tests/characterization/aws-ec2.spec.ts',
       'apps/cli/tests/characterization/aws-ecr.spec.ts',
       'apps/cli/tests/characterization/aws-ecs.spec.ts',
-      'apps/cli/tests/characterization/aws-lambda.spec.ts',
       'apps/cli/tests/characterization/aws-observability.spec.ts',
       'apps/cli/tests/characterization/aws-retry-http.spec.ts',
       'apps/cli/tests/characterization/aws-sdk-client-construction.spec.ts',
@@ -1572,7 +1620,6 @@ export const lanes: readonly Lane[] = [
       'apps/cli/tests/characterization/s3-operations.spec.ts',
       'apps/cli/tests/characterization/sql-read-only.spec.ts',
       'apps/cli/tests/characterization/stack-event-pagination.spec.ts',
-      'apps/cli/tests/characterization/stack-lifecycle-operations.spec.ts',
       'apps/cli/tests/characterization/synthesis-contract.spec.ts',
       'apps/cli/tests/characterization/template-finalization-idempotence.spec.ts',
       'apps/cli/tests/characterization/trpc-auth-surfaces.spec.ts',
@@ -3046,6 +3093,10 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/cloudformation-stack-manager/**',
       'apps/cli/src/domain/cloudformation-registry-manager/**',
       'apps/cli/src/aws/cloudformation.ts',
+      'apps/cli/src/aws/cloudformation-stacks.ts',
+      'apps/cli/src/aws/ecs.ts',
+      'apps/cli/src/aws/lambda.ts',
+      'apps/cli/src/domain/deployment-artifact-manager/index.ts',
       'apps/cli/src/domain/shared-resource-stack-manager/index.ts',
       'apps/cli/src/utils/stack-info-map-diff.ts',
       'apps/cli/tests/ministack/**',
@@ -3054,21 +3105,19 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/cli/src/aws/cloudformation.spec.ts',
+      'apps/cli/src/aws/ecs-contracts.spec.ts',
       'apps/cli/src/commands/deploy/ec2-runner-config-path.spec.ts',
-      'apps/cli/src/domain/cloudformation-registry-manager/index.spec.ts',
       'apps/cli/src/domain/deployment-change-plan/index.spec.ts',
       'apps/cli/src/domain/shared-resource-stack-manager/index.spec.ts',
       'apps/cli/src/utils/stack-info-map-diff.spec.ts',
-      'apps/cli/tests/characterization/aws-ec2.spec.ts',
       'apps/cli/tests/characterization/aws-ecs.spec.ts',
-      'apps/cli/tests/characterization/aws-lambda.spec.ts',
       'apps/cli/tests/characterization/cloudformation-stack-operations.spec.ts',
       'apps/cli/tests/characterization/lambda-version-publication.spec.ts',
       'apps/cli/tests/characterization/stack-event-pagination.spec.ts',
-      'apps/cli/tests/characterization/stack-lifecycle-operations.spec.ts',
       'apps/cli/tests/ministack/deploy-loop.spec.ts'
     ],
     lanes: [
+      'deployment-rules',
       'synthesis',
       'synthesis-2',
       'data-safety',
@@ -3091,6 +3140,8 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/cf-rollback/**',
       'apps/cli/src/commands/diff/**',
       'apps/cli/src/domain/cloudformation-stack-manager/**',
+      'apps/cli/src/aws/cloudformation-stacks.ts',
+      'apps/cli/src/domain/deployment-artifact-manager/index.ts',
       'packages/ministack/**',
       'apps/cli/scripts/network-guard-preload.ts'
     ],
@@ -3294,6 +3345,7 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/es/package-manager-install.test.ts'
     ],
     lanes: [
+      'node-lambda-offline',
       'cli',
       'cli-2',
       'cli-3',
@@ -3305,7 +3357,6 @@ export const slices: readonly Slice[] = [
       'cli-packaged-lambda',
       'project-qualification',
       'project-qualification-2',
-      'cli-runtime-acceptances',
       'cli-test-real-aws-canary'
     ],
     contributors: ['S32']
@@ -3321,6 +3372,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/packaging-manager/split-bundling-policy.ts'
     ],
     tests: [
+      'apps/cli/tests/ministack/split-lambda-family.ts',
       'apps/cli/src/domain/packaging-manager/native-layer-groups.test.ts',
       'apps/cli/src/domain/packaging-manager/split-bundling-policy.test.ts',
       'packages/packaging/scripts/synthetic-split-assets-e2e.ts',
@@ -3335,6 +3387,7 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/split-bundler/layer-builder.test.ts'
     ],
     lanes: [
+      'node-lambda-offline',
       'ministack-deploy',
       'cli',
       'cli-2',
@@ -3347,7 +3400,6 @@ export const slices: readonly Slice[] = [
       'cli-packaged-lambda',
       'artifact-upload',
       'artifact-upload-2',
-      'cli-runtime-acceptances',
       'cli-test-real-aws-canary'
     ],
     contributors: ['S19', 'S33']
@@ -4826,10 +4878,7 @@ export const toolingTests: readonly string[] = [
 ];
 
 // Add the kit agent's implemented lane here and attach it to these slices. Placeholders are not runnable lanes.
-export const pendingMiniStackLanes = [
-  { id: 'ministack-static-content-sync', slices: ['S31'] },
-  { id: 'ministack-deploy-lifecycle', slices: ['S09', 'S13', 'S14'] }
-] as const;
+export const pendingMiniStackLanes = [{ id: 'ministack-static-content-sync', slices: ['S31'] }] as const;
 
 export const laneIdsForSelection = (selection: string): string[] =>
   lanes.filter((lane) => lane.selections?.includes(selection)).map((lane) => lane.id);
