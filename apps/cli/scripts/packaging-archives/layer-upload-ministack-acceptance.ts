@@ -1,6 +1,6 @@
 /**
- * Opt-in local AWS integration pilot for artifact uploads. The existing layer-upload acceptance covers packaging,
- * cache and retention in more depth; this lane checks the same deploy path through real S3 SDK requests.
+ * Artifact upload scenario through real packaging, template finalization, S3 and CloudFormation on shared MiniStack.
+ * Changed, unchanged and reverted builds exercise ZIP bytes, extraction, reuse and real retention deletion.
  *
  * Run with `pnpm --filter @stacktape/cli run test:layer-upload:ministack` with Docker available.
  * The shared MiniStack fixture owns the disposable container on a loopback port with synthetic credentials and stops
@@ -8,11 +8,18 @@
  */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { chmod, readFile, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
-import { CreateBucketCommand, GetObjectCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
+import { chmod, lstat, readdir, readFile, readlink, rm, writeFile } from 'node:fs/promises';
+import { join, relative, resolve } from 'node:path';
+import {
+  CreateBucketCommand,
+  GetObjectCommand,
+  ListObjectsV2Command,
+  PutObjectCommand,
+  S3Client
+} from '@aws-sdk/client-s3';
 import { MINISTACK_IMAGE, startMiniStack, stopMiniStackOnSignals, type MiniStack } from '@stacktape/ministack/fixture';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
+import { extractZip } from './lambda-runtime';
 import yargsParser from 'yargs-parser';
 import { claimOutputDirectory, createSourceTracker, describeSourceIdentity } from '../perf/measurement-context';
 import type { DeployArtifactsRequest, DeployArtifactsResult } from './deploy-artifacts-worker';
@@ -30,6 +37,21 @@ const FAILURE_BUCKET = awsResourceNames.deploymentBucket(FAILURE_HASH);
 const MISSING_BUCKET = awsResourceNames.deploymentBucket('missingx1');
 const WORKER_TIMEOUT_MS = 120_000;
 const sha256 = (value: Uint8Array) => createHash('sha256').update(value).digest('hex');
+
+const describeTree = async (root: string) =>
+  (
+    await Promise.all(
+      (
+        await readdir(root, { recursive: true, withFileTypes: true })
+      ).map(async (entry) => {
+        const path = join(entry.parentPath, entry.name);
+        const name = relative(root, path);
+        if (entry.isSymbolicLink()) return `${name} link ${await readlink(path)}`;
+        if (entry.isDirectory()) return `${name} directory`;
+        return `${name} file ${(await lstat(path)).mode & 0o777} ${sha256(await readFile(path))}`;
+      })
+    )
+  ).toSorted();
 
 const main = async () => {
   const args = yargsParser(process.argv.slice(2), { string: ['out'] });
@@ -76,6 +98,10 @@ const main = async () => {
       await client.send(
         new CreateBucketCommand({ Bucket: FAILURE_BUCKET, CreateBucketConfiguration: { LocationConstraint: REGION } })
       );
+      // A hand-placed root object once crashed the next deployment. It must survive artifact loading and retention.
+      const note = Buffer.from('customer-owned deployment note');
+      await client.send(new PutObjectCommand({ Bucket: BUCKET, Key: 'notes.txt', Body: note }));
+      await client.send(new PutObjectCommand({ Bucket: RETENTION_BUCKET, Key: 'probe-state', Body: note }));
       const fixture = await writeSplitProjectFixture(join(out, 'fixture'));
       const rejectedRequest: DeployArtifactsRequest = {
         localAwsEndpoint: 'https://s3.amazonaws.com',
@@ -121,11 +147,13 @@ const main = async () => {
           projectFixture = fixture,
           stackHash,
           previousVersionsToKeep,
+          noCache,
           deleteObsoleteArtifacts
         }: {
           projectFixture?: SplitProjectFixture;
           stackHash?: string;
           previousVersionsToKeep?: number;
+          noCache?: boolean;
           deleteObsoleteArtifacts?: boolean;
         } = {}
       ) => {
@@ -135,7 +163,8 @@ const main = async () => {
           resultPath: join(out, `${label}.result.json`),
           ...(stackHash ? { stackHash } : {}),
           ...(previousVersionsToKeep === undefined ? {} : { previousVersionsToKeep }),
-          ...(deleteObsoleteArtifacts ? { deleteObsoleteArtifacts } : {})
+          ...(deleteObsoleteArtifacts ? { deleteObsoleteArtifacts } : {}),
+          ...(noCache ? { noCache } : {})
         };
         const requestPath = join(out, `${label}.request.json`);
         await writeFile(requestPath, `${JSON.stringify(request, null, 2)}\n`);
@@ -181,6 +210,26 @@ const main = async () => {
         const archiveHash = sha256(await readFile(`${layerPath}.zip`));
         assert.equal(await storedHash(s3Key, bucket), archiveHash, `S3 stored the wrong ZIP for ${s3Key}`);
       };
+      const assertLayerExtracts = async (deployment: DeployArtifactsResult, number: number) => {
+        const { layerPath } = layer(deployment, number);
+        const extracted = await extractZip(`${layerPath}.zip`);
+        try {
+          assert.deepEqual(
+            await describeTree(extracted),
+            await describeTree(layerPath),
+            'Layer ZIP changed its contents or modes'
+          );
+        } finally {
+          await rm(extracted, { recursive: true, force: true });
+        }
+      };
+      const assertNotZipped = async (deployment: DeployArtifactsResult, number: number) => {
+        assert.equal(
+          await Bun.file(`${layer(deployment, number).layerPath}.zip`).exists(),
+          false,
+          'Cached layer was zipped'
+        );
+      };
       const assertStoredFunctionZips = async (deployment: DeployArtifactsResult, bucket = BUCKET) => {
         for (const { jobName, digest, skipped } of deployment.jobs) {
           if (skipped) continue;
@@ -212,6 +261,7 @@ const main = async () => {
       for (const number of [0, 1]) {
         assert.ok(seed.uploadedKeys.includes(layer(seed, number).s3Key));
         await assertStoredZip(seed, number);
+        await assertLayerExtracts(seed, number);
       }
       await assertStoredFunctionZips(seed);
       await assertTemplateProtected(seed);
@@ -229,6 +279,8 @@ const main = async () => {
       assert.ok(mixed.uploadedKeys.includes(layer(mixed, 0).s3Key));
       assert.ok(!mixed.uploadedKeys.includes(layer(mixed, 1).s3Key));
       await assertStoredZip(mixed, 0);
+      await assertLayerExtracts(mixed, 0);
+      await assertNotZipped(mixed, 1);
       await assertStoredFunctionZips(mixed);
       assert.equal(await storedHash(layer(mixed, 1).s3Key), await storedHash(layer(seed, 1).s3Key));
       await assertTemplateProtected(mixed);
@@ -241,6 +293,7 @@ const main = async () => {
       };
 
       const unchanged = await run('03-unchanged', mixed.version);
+      for (const number of [0, 1]) await assertNotZipped(unchanged, number);
       assert.deepEqual(
         unchanged.uploadedKeys.toSorted(),
         [`cf-template/${unchanged.version}.yml`, `stp-template/${unchanged.version}.yml`],
@@ -292,6 +345,11 @@ const main = async () => {
       const retainedKeys = await listKeys(RETENTION_BUCKET);
       assert.ok(retainedKeys.includes(keyA), 'Retention removed the object named by the current template');
       assert.equal(await storedHash(keyA, RETENTION_BUCKET), aHash, 'The reused A object changed');
+      assert.equal(
+        await storedHash('probe-state', RETENTION_BUCKET),
+        sha256(note),
+        'Retention touched a non-artifact object'
+      );
       assert.ok(
         !retainedKeys.includes(`cf-template/${buildA.version}.yml`),
         'Retention did not delete an old template'
@@ -303,15 +361,52 @@ const main = async () => {
         storedObjects: retainedKeys.length
       };
 
+      // A newly uploaded function must survive even when the keep window is zero.
+      await writeFile(plainHandler, plainSource.replace("function: 'plain'", "function: 'plain-c'"));
+      const buildC = await run('07-retention-new-upload', buildAAgain.version, {
+        ...retentionOptions,
+        deleteObsoleteArtifacts: true
+      });
+      const keyC = buildC.functions.plain?.s3Key;
+      assert.ok(keyC && keyC !== keyA && keyC !== keyB, 'C did not produce a new function ZIP');
+      assert.ok(buildC.uploadedKeys.includes(keyC), 'C did not upload its changed function');
+      assert.ok(!buildC.retentionProtectedKeys.includes(keyC), 'C was reused instead of uploaded');
+      assert.ok((await listKeys(RETENTION_BUCKET)).includes(keyC), 'Retention deleted the just-uploaded function');
+      await assertStoredFunctionZips(buildC, RETENTION_BUCKET);
+      await assertTemplateProtected(buildC, RETENTION_BUCKET);
+      assert.ok(
+        !(await listKeys(RETENTION_BUCKET)).includes(`cf-template/${buildAAgain.version}.yml`),
+        'The new-upload deletion run did not remove the obsolete template'
+      );
+      scenarios.at(-1)!.assertions = { freshFunctionUploaded: true, uploadedObjectSurvivedDeletion: true };
+
+      // A failed attempt can leave this version's objects in the next retry's initial listing.
+      const retryC = await run('08-retention-upload-retry', buildAAgain.version, {
+        ...retentionOptions,
+        noCache: true,
+        deleteObsoleteArtifacts: true
+      });
+      assert.equal(retryC.version, buildC.version, 'The retry advanced the deployment version');
+      assert.equal(retryC.functions.plain?.s3Key, keyC, 'The retry did not replace the pre-existing C object');
+      assert.ok(retryC.uploadedKeys.includes(keyC), 'The no-cache retry did not upload C');
+      assert.ok(!retryC.retentionProtectedKeys.includes(keyC), 'C was recorded as reused in the retry');
+      assert.ok(
+        (await listKeys(RETENTION_BUCKET)).includes(keyC),
+        'Retention deleted the just-uploaded retry function'
+      );
+      await assertStoredFunctionZips(retryC, RETENTION_BUCKET);
+      await assertTemplateProtected(retryC, RETENTION_BUCKET);
+      scenarios.at(-1)!.assertions = { existingVersionUploadedAgain: true, uploadedObjectSurvivedDeletion: true };
+
       const failureFixture = await writeSplitProjectFixture(join(out, 'failure-fixture'));
       const failedRequest: DeployArtifactsRequest = {
         localAwsEndpoint: endpoint,
         stackHash: FAILURE_HASH,
         failLayerUploadToBucket: MISSING_BUCKET,
         lastVersion: 'v000000',
-        resultPath: join(out, '07-failed-layer-upload.result.json')
+        resultPath: join(out, '09-failed-layer-upload.result.json')
       };
-      const failedRequestPath = join(out, '07-failed-layer-upload.request.json');
+      const failedRequestPath = join(out, '09-failed-layer-upload.request.json');
       await writeFile(failedRequestPath, `${JSON.stringify(failedRequest, null, 2)}\n`);
       const failedCommand = [
         process.execPath,
@@ -326,8 +421,8 @@ const main = async () => {
           HOME: process.env.HOME ?? '',
           PATH: failureFixture.dockerDirectory,
           STP_FAKE_DOCKER_INSTALL: failureFixture.dockerInstall,
-          STP_FAKE_DOCKER_LOG: join(out, '07-failed-layer-upload.docker.log'),
-          STP_INVOCATION_ID: '07-failed-layer-upload',
+          STP_FAKE_DOCKER_LOG: join(out, '09-failed-layer-upload.docker.log'),
+          STP_INVOCATION_ID: '09-failed-layer-upload',
           ...ministack.childEnvironment()
         },
         stdout: 'pipe',
@@ -335,8 +430,8 @@ const main = async () => {
         timeout: WORKER_TIMEOUT_MS
       });
       const failedOutput = `${failed.stdout.toString()}${failed.stderr.toString()}`;
-      await writeFile(join(out, '07-failed-layer-upload.output.log'), failedOutput);
-      scenarios.push({ label: '07-failed-layer-upload', command: failedCommand, exitCode: failed.exitCode });
+      await writeFile(join(out, '09-failed-layer-upload.output.log'), failedOutput);
+      scenarios.push({ label: '09-failed-layer-upload', command: failedCommand, exitCode: failed.exitCode });
       assert.equal(failed.signalCode, undefined, 'The failed upload worker timed out or was signaled');
       assert.notEqual(failed.exitCode, 0, 'The failed S3 layer upload reported success');
       assert.match(failedOutput, /NoSuchBucket|not exist|404/i, 'The failure did not come from the missing S3 bucket');

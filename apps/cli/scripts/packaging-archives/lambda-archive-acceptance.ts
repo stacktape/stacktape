@@ -13,7 +13,7 @@
  *    must fail in Lambda, the current packaging code must reject it and emit a working one, an unchanged run must reuse
  *    that one, and a chmod-only change must be rebuilt.
  * 3. Cache upgrade of split functions and their layers. Every deployment runs the deploy command's own packaging and
- *    upload code on a local bucket (see `deploy-artifacts-worker.ts`), so each rebuild, reuse and upload below is the
+ *    upload code on MiniStack S3 and CloudFormation (see `deploy-artifacts-worker.ts`), so each rebuild, reuse and upload below is the
  *    CLI's decision. After objects an older CLI left, the functions are rebuilt and new shared and native layers
  *    uploaded; unchanged, everything is reused; mode-only changes to the native layer's tool, to a Prisma engine and to
  *    the host's umask are rebuilt exactly where the archive changes and reused where it does not.
@@ -31,9 +31,18 @@
  */
 import type { PackagingProgressLogger, RunDocker } from '@stacktape/packaging/runtime-contracts';
 import assert from 'node:assert/strict';
+import {
+  CreateBucketCommand,
+  GetObjectCommand,
+  ListObjectsV2Command,
+  PutObjectCommand,
+  S3Client
+} from '@aws-sdk/client-s3';
+import { startMiniStack, stopMiniStackOnSignals, type MiniStack } from '@stacktape/ministack/fixture';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { existsSync } from 'node:fs';
 import { chmod, lstat, mkdir, readdir, readFile, readlink, rm, symlink, writeFile } from 'node:fs/promises';
-import { delimiter, dirname, join, resolve } from 'node:path';
+import { delimiter, dirname, join, relative, resolve } from 'node:path';
 import { buildLambdaS3Key, buildLayerS3Key } from '@domain-services/deployment-artifact-manager/artifact-names';
 import { parseBucketObjectS3Key } from '@domain-services/deployment-artifact-manager/utils';
 import { createCliPackagingError } from '@domain-services/packaging-manager/errors';
@@ -72,6 +81,8 @@ import {
 
 const CLI_ROOT = resolve(import.meta.dir, '..', '..');
 const WORKER = join(import.meta.dir, 'archive-worker.ts');
+let ministack: MiniStack;
+let artifactClient: S3Client;
 const DEPLOY_WORKER = join(import.meta.dir, 'deploy-artifacts-worker.ts');
 
 type Result = { check: string; ok: boolean; detail?: string | undefined };
@@ -278,35 +289,38 @@ const checkBackend = async ({
 
 /** A deployment bucket, as S3 keys and object bytes, read the way the CLI reads the real one. */
 class ArtifactInventory {
-  readonly objects = new Map<string, Buffer>();
+  private readonly bucket = `archive-${crypto.randomUUID()}`;
+  private initialized = false;
   constructor(private readonly directory: string) {}
-
-  put = async (key: string, zipPath: string) => {
-    this.objects.set(key, await readFile(zipPath));
+  private init = async () => {
+    if (this.initialized) return;
+    await artifactClient.send(
+      new CreateBucketCommand({ Bucket: this.bucket, CreateBucketConfiguration: { LocationConstraint: 'eu-west-1' } })
+    );
+    this.initialized = true;
   };
-
-  /** As `DeploymentArtifactManager.getExistingDigestsForJob`. */
-  existingDigestsFor = (jobName: string) =>
-    [...this.objects.keys()]
+  put = async (key: string, zipPath: string) => {
+    await this.init();
+    await artifactClient.send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: await readFile(zipPath) }));
+  };
+  private keys = async () =>
+    (await artifactClient.send(new ListObjectsV2Command({ Bucket: this.bucket }))).Contents!.map(({ Key }) => Key!);
+  existingDigestsFor = async (jobName: string) =>
+    (await this.keys())
       .map(parseBucketObjectS3Key)
       .filter(({ name }) => name === jobName)
       .map(({ digest }) => digest!);
-
-  /** As `DeploymentArtifactManager#getUserLambdaS3UploadInfo` for a skipped job: the newest object with that digest. */
-  reusableKeyFor = (jobName: string, digest: string) =>
-    [...this.objects.keys()]
+  reusableKeyFor = async (jobName: string, digest: string) =>
+    (await this.keys())
       .map((s3Key) => ({ s3Key, ...parseBucketObjectS3Key(s3Key) }))
       .filter(({ name }) => name === jobName)
       .sort(({ version: left }, { version: right }) => right.localeCompare(left))
       .find((object) => object.digest === digest)?.s3Key;
-
-  /** Writes the stored object to a file so it can be extracted like a download from the bucket. */
   materialize = async (key: string) => {
-    const bytes = this.objects.get(key);
-    assert.ok(bytes, `The bucket has no object ${key}.`);
-    const path = join(this.directory, `${key.replace(/[/]/g, '__')}`);
+    const object = await artifactClient.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
+    const path = join(this.directory, key.replaceAll('/', '__'));
     await mkdir(this.directory, { recursive: true });
-    await writeFile(path, bytes);
+    await writeFile(path, await object.Body!.transformToByteArray());
     return path;
   };
 }
@@ -337,14 +351,14 @@ const customArtifactScenario = async (outDirectory: string) => {
   const jobName = 'custom-function';
   const handler = 'index.handler';
   const inventory = new ArtifactInventory(join(root, 'bucket'));
-  const build = (distFolder: string) =>
+  const build = async (distFolder: string) =>
     buildUsingCustomArtifact({
       name: jobName,
       cwd: root,
       packagePath,
       handler,
       distFolderPath: join(root, distFolder),
-      existingDigests: inventory.existingDigestsFor(jobName),
+      existingDigests: await inventory.existingDigestsFor(jobName),
       progressLogger,
       archiveItem,
       createPackagingError: createCliPackagingError
@@ -383,7 +397,7 @@ const customArtifactScenario = async (outDirectory: string) => {
     const unchanged = await build('dist-unchanged');
     assert.equal(unchanged.outcome, 'skipped');
     assert.equal(unchanged.digest, corrected.digest);
-    assert.equal(inventory.reusableKeyFor(jobName, unchanged.digest), correctedKey);
+    assert.equal(await inventory.reusableKeyFor(jobName, unchanged.digest), correctedKey);
     expectInvocation(await runStoredFunction({ inventory, functionKey: correctedKey }), {
       uid: 993,
       tool1: 'custom-tool',
@@ -440,11 +454,11 @@ const jsBundleScenario = async (outDirectory: string) => {
     progressLogger
   };
   // The directory checksum includes the directory's own name, so every build uses the job name, as the CLI does.
-  const build = (run: string) =>
+  const build = async (run: string) =>
     buildJsBundleLambda({
       ...common,
       distFolderPath: join(root, run, jobName),
-      existingDigests: inventory.existingDigestsFor(jobName),
+      existingDigests: await inventory.existingDigestsFor(jobName),
       archiveItem,
       sizeLimit: 250
     });
@@ -497,7 +511,7 @@ const jsBundleScenario = async (outDirectory: string) => {
     const unchanged = await build('dist-unchanged');
     assert.equal(unchanged.outcome, 'skipped');
     assert.equal(unchanged.digest, corrected.digest);
-    assert.equal(inventory.reusableKeyFor(jobName, unchanged.digest), correctedKey);
+    assert.equal(await inventory.reusableKeyFor(jobName, unchanged.digest), correctedKey);
     expectInvocation(await runStoredFunction({ inventory, functionKey: correctedKey }), {
       uid: 993,
       tool1: 'managed-tool',
@@ -549,7 +563,7 @@ const deploy = async ({
   const directory = join(fixture.root, 'deployments', label);
   await mkdir(directory, { recursive: true });
   const request: DeployArtifactsRequest = {
-    bucketDirectory: bucket,
+    localAwsEndpoint: ministack.endpoint,
     lastVersion,
     resultPath: join(directory, 'result.json')
   };
@@ -561,10 +575,26 @@ const deploy = async ({
     DEPLOY_WORKER,
     join(directory, 'request.json')
   ];
+  const hash = label === '01-recording' ? 'recordx1' : 'acceptx1';
+  request.stackHash = hash;
+  await writeFile(join(directory, 'request.json'), JSON.stringify(request));
+  const deploymentBucket = awsResourceNames.deploymentBucket(hash);
+  // Seed legacy permission-broken artifacts once. Later local files are SDK download materializations only.
+  if (label === '02-corrected') {
+    for (const entry of await readdir(bucket, { recursive: true, withFileTypes: true })) {
+      if (entry.isFile()) {
+        const path = join(entry.parentPath, entry.name);
+        await artifactClient.send(
+          new PutObjectCommand({ Bucket: deploymentBucket, Key: relative(bucket, path), Body: await readFile(path) })
+        );
+      }
+    }
+  }
   const child = Bun.spawnSync(umask ? ['/bin/sh', '-c', `umask ${umask} && exec "$@"`, 'sh', ...command] : command, {
     cwd: fixture.project,
     env: {
       HOME: process.env.HOME ?? '',
+      ...ministack.childEnvironment(),
       PATH: [fixture.dockerDirectory, ...pathDirectories].join(delimiter),
       STP_FAKE_DOCKER_INSTALL: fixture.dockerInstall,
       STP_FAKE_DOCKER_LOG: join(directory, 'docker.log'),
@@ -578,6 +608,13 @@ const deploy = async ({
     throw new Error(
       `Deployment ${label} failed (${child.exitCode}): ${child.stderr.toString() || child.stdout.toString()}`
     );
+  }
+  const objects = await artifactClient.send(new ListObjectsV2Command({ Bucket: deploymentBucket }));
+  for (const { Key } of objects.Contents ?? []) {
+    if (!Key) continue;
+    const object = await artifactClient.send(new GetObjectCommand({ Bucket: deploymentBucket, Key }));
+    await mkdir(dirname(join(bucket, Key)), { recursive: true });
+    await writeFile(join(bucket, Key), await object.Body!.transformToByteArray());
   }
   return { label, ...(JSON.parse(await readFile(request.resultPath, 'utf8')) as DeployArtifactsResult) };
 };
@@ -982,13 +1019,27 @@ const main = async () => {
   const splitProjectPath = zipDirectory ? [zipDirectory] : [];
   let splitProjectDeployments: Awaited<ReturnType<typeof splitProjectScenario>> = [];
   if (args.only !== 'backends') {
-    // The single-artifact scenarios archive in this process, with whatever native tool its own PATH offers.
-    await customArtifactScenario(outDirectory);
-    await jsBundleScenario(outDirectory);
-    await check('split project: every deployment completes', async () => {
-      splitProjectDeployments = await splitProjectScenario({ outDirectory, pathDirectories: splitProjectPath });
-    });
-    await runtimeVerifierScenario(outDirectory);
+    ministack = await startMiniStack({ label: 'lambda-archives' });
+    const releaseSignals = stopMiniStackOnSignals(ministack);
+    artifactClient = new S3Client(ministack.clientConfig());
+    try {
+      await artifactClient.send(
+        new CreateBucketCommand({
+          Bucket: awsResourceNames.deploymentBucket('acceptx1'),
+          CreateBucketConfiguration: { LocationConstraint: 'eu-west-1' }
+        })
+      );
+      await customArtifactScenario(outDirectory);
+      await jsBundleScenario(outDirectory);
+      await check('split project: every deployment completes', async () => {
+        splitProjectDeployments = await splitProjectScenario({ outDirectory, pathDirectories: splitProjectPath });
+      });
+      await runtimeVerifierScenario(outDirectory);
+    } finally {
+      artifactClient.destroy();
+      releaseSignals();
+      await ministack.stop();
+    }
   }
 
   const leftovers = listLeftoverContainers();

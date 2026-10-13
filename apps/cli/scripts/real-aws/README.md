@@ -166,3 +166,26 @@ pnpm --filter @stacktape/cli run test:real-aws-endpoint
 If interrupted, use the same variables and run
 `pnpm --filter @stacktape/cli run test:real-aws-endpoint -- --cleanup-only`. A refused account or existing-name
 preflight grants no cleanup authority. A recovery state mismatch stops deletion.
+
+## Deployed Lambda development canary
+
+`test:real-aws-lambda-dev` seeds a tagged Lambda and IAM role in the disposable `stacktape-e2e` account, then drives the
+production dev tunnel, environment manager and Lambda log printer against local PostgreSQL. The deployed function must
+read the initial row and an edited row through the relay. Dev cleanup must restore its original environment and close
+the tunnel. Final cleanup verifies deletion of the function, role, exact log group and database container. It needs
+Linux, Docker, the `stacktape-e2e` profile and access to the configured bore relay. It does not require a Console API
+key. Each run writes recovery state before attempting resource creation.
+
+```sh
+export STP_AWS_LAMBDA_DEV_DEPLOY=1
+export STP_AWS_LAMBDA_DEV_CONFIRM_DISPOSABLE=this-is-a-disposable-test-account
+export STP_AWS_LAMBDA_DEV_PROFILE=stacktape-e2e
+export STP_AWS_LAMBDA_DEV_EXPECTED_ACCOUNT_ID='<exact disposable account id>'
+export STP_AWS_LAMBDA_DEV_OWNER='<unique lowercase run id>'
+export STP_AWS_LAMBDA_DEV_STATE_FILE='<absolute fresh state file>'
+pnpm --filter @stacktape/cli run test:real-aws-lambda-dev
+```
+
+An interrupted run prints its exact recovery command. Keep the same variables and run
+`pnpm --filter @stacktape/cli run test:real-aws-lambda-dev -- --cleanup-only` before starting another run. This is an
+explicit release lane; normal test commands cannot opt into it.

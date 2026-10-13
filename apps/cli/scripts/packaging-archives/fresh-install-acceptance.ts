@@ -8,10 +8,10 @@
  *
  * 1. The compiled release CLI is built with `scripts/perf/build-release-install.ts` into the output directory, or
  *    `--install` names one already built, and the report marks it as supplied.
- * 2. `fresh-install-worker.ts` runs in the official Lambda Node.js image, for its Node.js and npm, with no network but
- *    loopback, no Docker, no capabilities, a read-only root filesystem and the caller's uid. Of the repository it sees
- *    only `apps/cli/scripts` and the release install, both read-only. It serves a one-package registry and the AWS
- *    stand-in on loopback, writes a project that has only a lockfile, and runs the CLI's `package` twice from the
+ * 2. `fresh-install-worker.ts` runs in the official Lambda Node.js image, for its Node.js and npm. It shares
+ *    MiniStack's network namespace, whose external route is removed, with no Docker, no capabilities, a read-only
+ *    root filesystem and the caller's uid. It sees only `apps/cli/scripts` and the release install, both read-only.
+ *    A one-package registry and MiniStack answer on loopback. It writes a project with only a lockfile and packages it twice from the
  *    project directory, under `/work`, where no `node_modules` exists above the project.
  * 3. Here, each ZIP is extracted with `unzip`. The first run's function runs in the Lambda image as the unprivileged
  *    test user (see `lambda-runtime.ts`) and must return the dependency's value. The repeat must skip the install and
@@ -24,6 +24,7 @@
  * removed.
  */
 import assert from 'node:assert/strict';
+import { startMiniStack, stopMiniStackOnSignals, type MiniStack } from '@stacktape/ministack/fixture';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -86,10 +87,25 @@ const buildReleaseInstall = async (directory: string) => {
 };
 
 /** Runs the worker in its container and returns the container command; the container is removed whatever happens. */
-const runWorker = async ({ executable, work }: { executable: string; work: string }) => {
+const runWorker = async ({
+  executable,
+  work,
+  ministack
+}: {
+  executable: string;
+  work: string;
+  ministack: MiniStack;
+}) => {
   const uid = process.getuid?.();
   const gid = process.getgid?.();
   const name = `stp-fresh-install-${randomUUID().slice(0, 12)}`;
+  const awsEnvironment = Object.fromEntries(
+    Object.entries(ministack.childEnvironment()).map(([key, value]) => [
+      key,
+      value === ministack.endpoint ? 'http://127.0.0.1:4566' : value
+    ])
+  );
+  await writeFile(join(work, 'aws-environment.json'), JSON.stringify(awsEnvironment));
   const command = [
     'docker',
     'run',
@@ -98,7 +114,7 @@ const runWorker = async ({ executable, work }: { executable: string; work: strin
     '--label',
     WORKER_LABEL,
     '--network',
-    'none',
+    `container:${ministack.containerName}`,
     '--user',
     `${uid}:${gid}`,
     '--cap-drop',
@@ -183,8 +199,12 @@ const main = async () => {
   const extracted: Record<string, string> = {};
   const artifacts: Record<string, { zipSha256: string; entriesSha256: string; entries: string[] }> = {};
   let invocation: { status: number; body: string } | null = null;
+  let ministack: MiniStack | undefined;
+  let releaseSignals = () => {};
   try {
-    containerCommand = await runWorker({ executable, work });
+    ministack = await startMiniStack({ label: 'fresh-install' });
+    releaseSignals = stopMiniStackOnSignals(ministack);
+    containerCommand = await runWorker({ executable, work, ministack });
     worker = JSON.parse(await readFile(join(work, 'result.json'), 'utf8')) as WorkerResult;
     for (const run of worker.runs) {
       if (!run.zip) continue;
@@ -209,6 +229,8 @@ const main = async () => {
       throw error;
     });
   } finally {
+    releaseSignals();
+    await ministack?.stop();
     await Promise.all(Object.values(extracted).map((directory) => rm(directory, { recursive: true, force: true })));
   }
 
@@ -218,8 +240,8 @@ const main = async () => {
   ];
   if (worker) {
     const { environment } = worker;
-    check('the container had only loopback, no Docker and no Docker socket', () => {
-      assert.deepEqual(environment.interfaces, ['lo']);
+    check('the container had no external route, Docker executable or Docker socket', () => {
+      assert.equal(environment.hasExternalRoute, false);
       assert.equal(environment.dockerOnPath, null);
       assert.equal(environment.dockerSocket, false);
       return `Bun ${environment.bun}, npm ${environment.npm}`;
