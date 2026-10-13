@@ -34,8 +34,14 @@ pnpm --filter @stacktape/console-api-app test:db --git-deploy
 pnpm --filter @stacktape/console-api-app test:db --incident-agent
 pnpm --filter @stacktape/console-api-app test:db --sign-up
 pnpm --filter @stacktape/console-api-app test:db --console-access
+pnpm --filter @stacktape/console-api-app test:db --secrets
 pnpm --filter @stacktape/console-api-app test:db --cli-console
 ```
+
+`--secrets` runs the source CLI and production Console AWS helpers and credential cache through the real HTTP API and
+isolated PostgreSQL, with Secrets Manager, SSM and Lambda configuration on MiniStack. It checks CRUD, fresh-client
+reads, pagination, version selectors, account/region isolation and denied credentials. ECS metadata and cross-account
+STS remain explicit fixtures; browser interaction runs separately.
 
 Pass the flag directly: an extra `--` is forwarded to this script and rejected. The `--incident-agent` suite also spawns
 the source CLI for `stacktape ai:connect`, so the runner first builds the CLI dev artifacts
