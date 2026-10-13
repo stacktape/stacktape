@@ -1,3 +1,5 @@
+import { Select, type SelectOption } from '@stacktape/ui-react/select';
+
 /**
  * Which AWS region to deploy into.
  *
@@ -17,20 +19,24 @@ const COMMON_REGIONS: Array<{ id: string; label: string }> = [
 
 export function RegionPicker({ value, onChange }: { value: string; onChange: (region: string) => void }) {
   const isCommon = COMMON_REGIONS.some((region) => region.id === value);
+  const options = [
+    ...COMMON_REGIONS.map((region) => ({ value: region.id, label: region.label })),
+    // Whatever the environment already named, when it is not one of the six above.
+    ...(isCommon ? [] : [{ value, label: value }])
+  ];
 
   return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-[0.85rem] font-medium">Region</span>
-      <select className="wizard-input" onChange={(changed) => onChange(changed.target.value)} value={value}>
-        {COMMON_REGIONS.map((region) => (
-          <option key={region.id} value={region.id}>
-            {region.label}
-          </option>
-        ))}
-        {/* Whatever the environment already named, when it is not one of the six above. */}
-        {!isCommon && <option value={value}>{value}</option>}
-      </select>
-      <span className="text-[0.78rem] text-[var(--stp-text-subtle)]">Pick the one closest to your users.</span>
-    </label>
+    <Select
+      controlHeight={35}
+      label="Region"
+      name="region"
+      onChange={(selected) => {
+        if (selected !== null && !Array.isArray(selected)) onChange((selected as SelectOption<string>).value);
+      }}
+      options={options}
+      reserveMessageSpace={false}
+      value={options.find((option) => option.value === value) ?? null}
+      width={260}
+    />
   );
 }

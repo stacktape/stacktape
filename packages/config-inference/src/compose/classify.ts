@@ -57,6 +57,17 @@ const FRAMEWORK_RESOURCES: Readonly<Record<string, ServiceResourceType>> = {
   'tanstack-start': 'tanstack-web'
 };
 
+/** How the frameworks above are written, for the reason shown in the wizard and the file. */
+const FRAMEWORK_NAMES: Readonly<Record<string, string>> = {
+  nextjs: 'Next.js',
+  nuxt: 'Nuxt',
+  sveltekit: 'SvelteKit',
+  astro: 'Astro',
+  remix: 'Remix',
+  'solid-start': 'SolidStart',
+  'tanstack-start': 'TanStack Start'
+};
+
 const evidenceFor = (service: ServiceFact, fields: readonly string[]): Citation[] =>
   service.evidence.filter((citation) => citation.field !== undefined && fields.includes(citation.field)).slice(0, 3);
 
@@ -76,7 +87,7 @@ export const classifyService = (service: ServiceFact): ServiceClassification => 
   if (frameworkResource !== undefined) {
     return {
       resourceType: frameworkResource,
-      reason: `Stacktape has first-class support for ${service.framework}, which handles its build output, routing and caching for you.`,
+      reason: `Stacktape has first-class support for ${FRAMEWORK_NAMES[service.framework ?? ''] ?? service.framework}, which handles its build output, routing and caching for you.`,
       evidence: service.evidence.slice(0, 2)
     };
   }

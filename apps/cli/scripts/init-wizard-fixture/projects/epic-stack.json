@@ -1,0 +1,533 @@
+{
+  "schemaVersion": 1,
+  "packageManager": "npm",
+  "workspaceGlobs": [],
+  "services": [
+    {
+      "name": "epicStackTemplate",
+      "path": ".",
+      "language": "javascript",
+      "runtimeVersion": "22.18.0",
+      "framework": "express",
+      "exposesHttp": true,
+      "port": 8080,
+      "longLivedConnections": "none",
+      "executionModel": "long-running",
+      "buildCommand": "npm run build",
+      "startCommand": "npm run start",
+      "containerEntrypoint": "server/index.ts",
+      "functionTriggers": [],
+      "dockerfile": "other/Dockerfile",
+      "environmentVariables": [
+        {
+          "name": "DATABASE_URL",
+          "role": "infra-dependency",
+          "dependencyName": "localDatabase",
+          "required": true,
+          "evidence": [
+            {
+              "field": "environmentVariables",
+              "file": "prisma/schema.prisma",
+              "line": 11,
+              "quote": "url      = env("
+            },
+            {
+              "field": "dependencies.kind",
+              "file": "prisma/schema.prisma",
+              "line": 5,
+              "quote": "provider        ="
+            },
+            {
+              "file": ".env.example",
+              "line": 3,
+              "quote": "DATABASE_URL="
+            }
+          ]
+        },
+        {
+          "name": "BUCKET_NAME",
+          "role": "infra-dependency",
+          "dependencyName": "storageBucket",
+          "required": true,
+          "evidence": [
+            {
+              "file": "app/utils/storage.server.ts",
+              "line": 6,
+              "quote": "process.env.BUCKET_NAME"
+            }
+          ]
+        },
+        {
+          "name": "GITHUB_CLIENT_ID",
+          "role": "third-party-secret",
+          "required": true,
+          "evidence": [
+            {
+              "file": "app/utils/providers/github.server.ts",
+              "line": 24,
+              "quote": "process.env.GITHUB_CLIENT_ID"
+            },
+            {
+              "file": "app/utils/providers/github.server.ts",
+              "line": 46,
+              "quote": "process.env.GITHUB_CLIENT_ID"
+            }
+          ]
+        },
+        {
+          "name": "GITHUB_CLIENT_SECRET",
+          "role": "third-party-secret",
+          "required": true,
+          "evidence": [
+            {
+              "file": "app/utils/providers/github.server.ts",
+              "line": 47,
+              "quote": "process.env.GITHUB_CLIENT_SECRET"
+            },
+            {
+              "file": "app/utils/providers/github.server.ts",
+              "line": 58,
+              "quote": "process.env.GITHUB_CLIENT_SECRET"
+            }
+          ]
+        },
+        {
+          "name": "GITHUB_TOKEN",
+          "role": "third-party-secret",
+          "required": true,
+          "evidence": [
+            {
+              "file": "app/utils/providers/github.server.ts",
+              "line": 115,
+              "quote": "process.env.GITHUB_TOKEN"
+            }
+          ]
+        },
+        {
+          "name": "HONEYPOT_SECRET",
+          "role": "third-party-secret",
+          "required": true,
+          "evidence": [
+            {
+              "file": "app/utils/honeypot.server.ts",
+              "line": 5,
+              "quote": "process.env.HONEYPOT_SECRET"
+            }
+          ]
+        },
+        {
+          "name": "INTERNAL_COMMAND_TOKEN",
+          "role": "third-party-secret",
+          "required": true,
+          "evidence": [
+            {
+              "file": "app/routes/admin/cache/sqlite.server.ts",
+              "line": 24,
+              "quote": "process.env.INTERNAL_COMMAND_TOKEN"
+            },
+            {
+              "file": "app/routes/admin/cache/sqlite.server.ts",
+              "line": 42,
+              "quote": "process.env.INTERNAL_COMMAND_TOKEN"
+            }
+          ]
+        },
+        {
+          "name": "RESEND_API_KEY",
+          "role": "third-party-secret",
+          "required": true,
+          "evidence": [
+            {
+              "file": "app/utils/email.server.ts",
+              "line": 43,
+              "quote": "process.env.RESEND_API_KEY"
+            },
+            {
+              "file": "app/utils/email.server.ts",
+              "line": 59,
+              "quote": "process.env.RESEND_API_KEY"
+            }
+          ]
+        },
+        {
+          "name": "SENTRY_AUTH_TOKEN",
+          "role": "third-party-secret",
+          "required": true,
+          "evidence": [
+            {
+              "file": "react-router.config.ts",
+              "line": 17,
+              "quote": "process.env.SENTRY_AUTH_TOKEN"
+            },
+            {
+              "file": "vite.config.ts",
+              "line": 72,
+              "quote": "process.env.SENTRY_AUTH_TOKEN"
+            }
+          ]
+        },
+        {
+          "name": "SENTRY_DSN",
+          "role": "third-party-secret",
+          "required": true,
+          "evidence": [
+            {
+              "file": "app/entry.server.tsx",
+              "line": 39,
+              "quote": "process.env.SENTRY_DSN"
+            },
+            {
+              "file": "app/entry.server.tsx",
+              "line": 77,
+              "quote": "process.env.SENTRY_DSN"
+            }
+          ]
+        },
+        {
+          "name": "SESSION_SECRET",
+          "role": "third-party-secret",
+          "required": true,
+          "evidence": [
+            {
+              "file": "app/routes/_auth/webauthn/utils.server.ts",
+              "line": 15,
+              "quote": "process.env.SESSION_SECRET"
+            },
+            {
+              "file": "app/utils/session.server.ts",
+              "line": 9,
+              "quote": "process.env.SESSION_SECRET"
+            }
+          ]
+        },
+        {
+          "name": "ALLOW_INDEXING",
+          "role": "runtime-config",
+          "required": true,
+          "evidence": [
+            {
+              "file": "app/utils/env.server.ts",
+              "line": 63,
+              "quote": "process.env.ALLOW_INDEXING"
+            },
+            {
+              "file": "server/index.ts",
+              "line": 15,
+              "quote": "process.env.ALLOW_INDEXING"
+            }
+          ]
+        },
+        {
+          "name": "AWS_ENDPOINT_URL_S3",
+          "role": "runtime-config",
+          "required": true,
+          "evidence": [
+            {
+              "file": "app/routes/resources/images.tsx",
+              "line": 41,
+              "quote": "process.env.AWS_ENDPOINT_URL_S3"
+            },
+            {
+              "file": "app/utils/storage.server.ts",
+              "line": 5,
+              "quote": "process.env.AWS_ENDPOINT_URL_S3"
+            }
+          ]
+        },
+        {
+          "name": "CACHE_DATABASE_PATH",
+          "role": "runtime-config",
+          "required": true,
+          "evidence": [
+            {
+              "file": "app/utils/cache.server.ts",
+              "line": 22,
+              "quote": "process.env.CACHE_DATABASE_PATH"
+            }
+          ]
+        },
+        {
+          "name": "COMMIT_SHA",
+          "role": "runtime-config",
+          "required": true,
+          "evidence": [
+            {
+              "file": "vite.config.ts",
+              "line": 100,
+              "quote": "process.env.COMMIT_SHA"
+            }
+          ]
+        },
+        {
+          "name": "FLY_APP_NAME",
+          "role": "runtime-config",
+          "required": false,
+          "evidence": [
+            {
+              "file": "app/entry.server.tsx",
+              "line": 35,
+              "quote": "process.env.FLY_APP_NAME"
+            },
+            {
+              "file": "app/entry.server.tsx",
+              "line": 119,
+              "quote": "process.env.FLY_APP_NAME"
+            }
+          ]
+        },
+        {
+          "name": "FLY_REGION",
+          "role": "runtime-config",
+          "required": false,
+          "evidence": [
+            {
+              "file": "app/entry.server.tsx",
+              "line": 34,
+              "quote": "process.env.FLY_REGION"
+            },
+            {
+              "file": "app/entry.server.tsx",
+              "line": 118,
+              "quote": "process.env.FLY_REGION"
+            }
+          ]
+        },
+        {
+          "name": "GITHUB_REDIRECT_URI",
+          "role": "runtime-config",
+          "required": true,
+          "evidence": [
+            {
+              "file": "app/utils/providers/github.server.ts",
+              "line": 48,
+              "quote": "process.env.GITHUB_REDIRECT_URI"
+            },
+            {
+              "file": "app/utils/providers/github.server.ts",
+              "line": 59,
+              "quote": "process.env.GITHUB_REDIRECT_URI"
+            }
+          ]
+        },
+        {
+          "name": "MOCKS",
+          "role": "runtime-config",
+          "required": true,
+          "evidence": [
+            {
+              "file": "app/utils/email.server.ts",
+              "line": 43,
+              "quote": "process.env.MOCKS"
+            },
+            {
+              "file": "index.ts",
+              "line": 19,
+              "quote": "process.env.MOCKS"
+            }
+          ]
+        },
+        {
+          "name": "PLAYWRIGHT_TEST_BASE_URL",
+          "role": "runtime-config",
+          "required": true,
+          "evidence": [
+            {
+              "file": "server/index.ts",
+              "line": 93,
+              "quote": "process.env.PLAYWRIGHT_TEST_BASE_URL"
+            }
+          ]
+        },
+        {
+          "name": "SENTRY_ORG",
+          "role": "runtime-config",
+          "required": true,
+          "evidence": [
+            {
+              "file": "vite.config.ts",
+              "line": 96,
+              "quote": "process.env.SENTRY_ORG"
+            }
+          ]
+        },
+        {
+          "name": "SENTRY_PROJECT",
+          "role": "runtime-config",
+          "required": true,
+          "evidence": [
+            {
+              "file": "vite.config.ts",
+              "line": 97,
+              "quote": "process.env.SENTRY_PROJECT"
+            }
+          ]
+        },
+        {
+          "name": "SKIP_DEPLOYMENT",
+          "role": "runtime-config",
+          "required": true,
+          "evidence": [
+            {
+              "file": "remix.init/index.mjs",
+              "line": 110,
+              "quote": "process.env.SKIP_DEPLOYMENT"
+            }
+          ]
+        },
+        {
+          "name": "SKIP_FORMAT",
+          "role": "runtime-config",
+          "required": true,
+          "evidence": [
+            {
+              "file": "remix.init/index.mjs",
+              "line": 103,
+              "quote": "process.env.SKIP_FORMAT"
+            }
+          ]
+        },
+        {
+          "name": "SKIP_SETUP",
+          "role": "runtime-config",
+          "required": true,
+          "evidence": [
+            {
+              "file": "remix.init/index.mjs",
+              "line": 99,
+              "quote": "process.env.SKIP_SETUP"
+            }
+          ]
+        },
+        {
+          "name": "VITEST",
+          "role": "runtime-config",
+          "required": true,
+          "evidence": [
+            {
+              "file": "vite.config.ts",
+              "line": 15,
+              "quote": "process.env.VITEST"
+            },
+            {
+              "file": "vite.config.ts",
+              "line": 20,
+              "quote": "process.env.VITEST"
+            }
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "file": "fly.toml",
+          "line": 1,
+          "quote": "app = \"epic-stack-template\""
+        },
+        {
+          "field": "startCommand",
+          "file": "package.json",
+          "line": 19,
+          "quote": "\"start\":"
+        },
+        {
+          "field": "buildCommand",
+          "file": "package.json",
+          "line": 13,
+          "quote": "\"build\":"
+        },
+        {
+          "file": "package.json",
+          "line": 81,
+          "quote": "\"express\""
+        },
+        {
+          "field": "containerEntrypoint",
+          "file": "server/index.ts",
+          "line": 207,
+          "quote": "const server = app.listen(portToUse, () => {"
+        },
+        {
+          "field": "dockerfile",
+          "file": "other/Dockerfile",
+          "line": 4,
+          "quote": "FROM node:22-bookworm-slim as base"
+        }
+      ],
+      "source": "probe"
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "localDatabase",
+      "kind": "sqlite",
+      "extensions": [],
+      "consumedBy": ["epicStackTemplate"],
+      "addressedBy": ["DATABASE_URL"],
+      "evidence": [
+        {
+          "field": "environmentVariables",
+          "file": "prisma/schema.prisma",
+          "line": 11,
+          "quote": "url      = env("
+        },
+        {
+          "field": "dependencies.kind",
+          "file": "prisma/schema.prisma",
+          "line": 5,
+          "quote": "provider        ="
+        },
+        {
+          "file": ".env.example",
+          "line": 3,
+          "quote": "DATABASE_URL="
+        }
+      ],
+      "source": "probe"
+    },
+    {
+      "name": "storageBucket",
+      "kind": "object-storage",
+      "extensions": [],
+      "consumedBy": ["epicStackTemplate"],
+      "addressedBy": ["BUCKET_NAME"],
+      "evidence": [
+        {
+          "file": ".env.example",
+          "line": 29,
+          "quote": "BUCKET_NAME="
+        }
+      ],
+      "source": "probe"
+    }
+  ],
+  "existingDeployments": [
+    {
+      "tool": "fly",
+      "managesAws": false,
+      "evidence": [
+        {
+          "file": "fly.toml",
+          "line": 1,
+          "quote": "app"
+        }
+      ],
+      "source": "probe"
+    }
+  ],
+  "migrations": [
+    {
+      "serviceName": "epicStackTemplate",
+      "tool": "prisma",
+      "command": "npx prisma migrate deploy",
+      "runsAt": "unknown",
+      "evidence": [
+        {
+          "file": "package.json",
+          "line": 93,
+          "quote": "\"prisma\""
+        }
+      ]
+    }
+  ],
+  "uncertainties": [],
+  "notes": []
+}

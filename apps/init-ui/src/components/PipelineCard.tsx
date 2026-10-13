@@ -2,6 +2,12 @@ import { Alert } from '@stacktape/ui-react/alert';
 import { Button } from '@stacktape/ui-react/button';
 import type { WizardState } from '../session';
 
+const HOST_NAMES: Record<string, string> = {
+  github: 'GitHub',
+  gitlab: 'GitLab',
+  bitbucket: 'Bitbucket'
+};
+
 const HOST_LABELS: Record<string, string> = {
   github: 'GitHub Actions',
   gitlab: 'GitLab CI/CD',
@@ -69,9 +75,9 @@ export function PipelineCard({
     <section>
       <h3 className="wizard-section-heading">Deploy on every push</h3>
       <p className="wizard-lede mb-4">
-        This project pushes to {HOST_LABELS[host!] ?? host}. We can write a pipeline that deploys{' '}
-        <span className="wizard-code">{stage}</span> whenever the default branch changes. It names the credentials it
-        needs and never creates any.
+        This project pushes to {HOST_NAMES[host!] ?? host}. We can write a {HOST_LABELS[host!] ?? host} pipeline that
+        deploys <span className="wizard-code">{stage}</span> whenever the default branch changes. It names the
+        credentials it needs and never creates any.
       </p>
       <Button isLoading={isBusy} onClick={() => onWrite(stage, region)} variant="secondary">
         Add a {HOST_LABELS[host!] ?? host} pipeline

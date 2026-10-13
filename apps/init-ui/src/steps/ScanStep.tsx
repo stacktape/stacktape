@@ -31,17 +31,19 @@ export function ScanStep({ state, startedAt, isDone }: { state: WizardState; sta
     feed.current?.scrollTo({ top: feed.current.scrollHeight });
   }, [state.timeline.length]);
 
-  const filesRead = state.timeline.filter((entry) => entry.kind === 'tool').length;
+  const filesRead = state.timeline.filter(
+    (entry) => entry.kind === 'tool' && entry.label.startsWith('read_file ')
+  ).length;
 
   if (isDone) {
     return (
       <div className="flex flex-col gap-6">
         <p className="wizard-recap">
           {filesRead === 0
-            ? 'Read straight from your project files — no agent, nothing to wait for.'
+            ? 'Read straight from your project files, without an agent.'
             : `Opened ${filesRead} ${filesRead === 1 ? 'file' : 'files'}${elapsed > 0 ? ` in ${elapsed}s` : ''}, all on this machine.`}
         </p>
-        {filesRead > 0 && (
+        {state.timeline.length > 0 && (
           <div className="flex flex-col items-start gap-4">
             <button className="wizard-disclosure" onClick={() => setShowFeed(!showFeed)} type="button">
               {showFeed ? 'Hide what it opened' : 'Show everything it opened'}
@@ -61,7 +63,9 @@ export function ScanStep({ state, startedAt, isDone }: { state: WizardState; sta
           {/* House copy only: the agent's own prose never becomes a headline. The feed below shows
               what it is actually doing. */}
           <p className="m-0 font-medium">
-            {filesRead === 0 ? 'Reading your project…' : `Reading your project — ${filesRead} files so far`}
+            {filesRead === 0
+              ? 'Reading your project…'
+              : `${filesRead} ${filesRead === 1 ? 'file' : 'files'} read so far`}
           </p>
           <p className="m-0 text-[0.85rem] text-[var(--stp-text-subtle)]">
             {elapsed < 1 ? 'Just started' : `${elapsed}s`} · everything happens on this machine
@@ -79,13 +83,39 @@ export function ScanStep({ state, startedAt, isDone }: { state: WizardState; sta
   );
 }
 
+/**
+ * A tool call as a person would describe it. The label is `<tool> <path or pattern>`, as the agent
+ * transport records it; the tool names are ours (the init MCP tools), not words a developer knows.
+ */
+export const describeEntry = (label: string): string => {
+  const space = label.indexOf(' ');
+  const tool = space < 0 ? label : label.slice(0, space);
+  const subject = space < 0 ? '' : label.slice(space + 1);
+  switch (tool) {
+    case 'read_file':
+      return `Read ${subject}`;
+    case 'list_dir':
+      return `Listed ${subject}`;
+    case 'glob':
+      return `Looked for ${subject}`;
+    case 'grep':
+      return `Searched for ${subject}`;
+    case 'get_project_brief':
+      return 'Read what the scan found';
+    case 'submit_facts':
+      return 'Reported its findings';
+    default:
+      return label;
+  }
+};
+
 /* Keyed by position: this is an append-only feed, so an entry's place in it is its identity, and two
    identical reads really are two events rather than one repeated. */
 const renderEntry = (entry: WizardState['timeline'][number], index: number) => (
   <li className="wizard-code" key={`${index}-${entry.label}`}>
     <span className="text-[var(--stp-text-subtle)]">{entry.kind === 'tool' ? '→' : ' '}</span>{' '}
     <span className={entry.kind === 'tool' ? 'text-[var(--stp-text-muted)]' : 'text-[var(--stp-text-subtle)]'}>
-      {entry.label}
+      {entry.kind === 'tool' ? describeEntry(entry.label) : entry.label}
     </span>
   </li>
 );
