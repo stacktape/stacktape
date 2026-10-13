@@ -39,6 +39,7 @@
     "./web/ssr-web-shared": "./src/web/ssr-web-shared.ts"
   },
   "scripts": {
+    "test:ssr": "bun test src/web",
     "test:docker-smoke": "bun run scripts/synthetic-docker-smoke.ts",
     "test:node-lambda-e2e": "bun run scripts/synthetic-node-lambda-e2e.ts",
     "test:web-framework-e2e": "bun run scripts/synthetic-web-framework-e2e.ts",

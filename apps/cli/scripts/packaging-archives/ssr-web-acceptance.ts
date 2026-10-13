@@ -7,20 +7,20 @@
  * resolves exactly the committed versions; the framework version installed must equal the lockfile's. The source CLI
  * runs `package` as a child process in an isolated home with every AWS and Stacktape request routed to the offline
  * guard; the CLI installs the dependencies and runs the framework's build itself. The server function ZIP is
- * extracted with `unzip` and invoked in the official Lambda Node.js image as an unprivileged user that owns none of
+ * extracted with `unzip` and invoked in the official Lambda Node.js image for its deployed runtime (22 for Next, 24 for the other adapters) as an unprivileged user that owns none of
  * the files, with HTTP API v2 events as the gateway sends them: the index page must be HTML, the starter's dynamic
  * API route must answer with its message, and an unknown path must get the framework's not-found status. The index
- * request carries a cookie as a browser would; no starter route reads or sets cookies, so cookie semantics are not
- * observed here (the packaging package's web-framework E2E proves them for Astro and SvelteKit with purpose-built
- * apps). The build must also leave hashed static assets for the hosting bucket.
+ * request carries a cookie as a browser would. Temporary Next, Nuxt and Remix routes exercise two response cookies
+ * and feed them back into the next request; a temporary TanStack route reads a dynamic path parameter. Next also
+ * executes its image optimizer ZIP. The build must leave hashed static assets for the hosting bucket.
  *
- * It needs Docker, `unzip`, the local Lambda Node.js 24 image (pulled when missing) and network access for the
+ * It needs Docker, `unzip`, the local Lambda Node.js 22/24 images (pulled when missing) and network access for the
  * starters' dependency installs; it contacts no AWS service.
  *
  *   bun scripts/packaging-archives/ssr-web-acceptance.ts [--starter <id>[,<id>...]] [--out <new or empty directory>]
  *     [--keep]
  */
-import { cp, mkdir, mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { generateStarterProject } from '../generate-starter-project';
@@ -34,6 +34,7 @@ import { ensureLambdaImage, extractZip, invokeInLambdaRuntime, listLeftoverConta
 type Adapter = {
   starter: string;
   resourceType: string;
+  runtimeImage?: string;
   /** A route rendered by server code, not a static file. */
   dynamicRoute?: { path: string; expectedText: string };
   /**
@@ -84,6 +85,7 @@ const ADAPTERS: Adapter[] = [
     starter: 'tanstack-start-serverless',
     frameworkPackage: '@tanstack/start',
     resourceType: 'tanstack-web',
+    dynamicRoute: { path: '/probe/t13', expectedText: 'TANSTACK_DYNAMIC:t13' },
     expectsAssets: true
   },
   {
@@ -97,6 +99,7 @@ const ADAPTERS: Adapter[] = [
     starter: 'nextjs-serverless',
     frameworkPackage: 'next',
     resourceType: 'nextjs-web',
+    runtimeImage: 'public.ecr.aws/lambda/nodejs:22',
     dynamicRoute: { path: '/api/hello', expectedText: 'Hello from Next.js API route on Lambda!' },
     expectsAssets: true
   }
@@ -133,8 +136,7 @@ const httpEvent = ({ path, cookies = [] }: { path: string; cookies?: string[] })
     host: 'internal.lambda-url.aws',
     'x-forwarded-host': 'public.example.com',
     'x-forwarded-proto': 'https',
-    accept: 'text/html,application/json;q=0.9,*/*;q=0.8',
-    ...(cookies.length > 0 ? { cookie: cookies.join('; ') } : {})
+    accept: 'text/html,application/json;q=0.9,*/*;q=0.8'
   },
   ...(cookies.length > 0 ? { cookies } : {}),
   requestContext: {
@@ -219,8 +221,72 @@ const lockedVersion = async ({ project, lockfile, name }: { project: string; loc
   return lock.packages?.[`node_modules/${name}`]?.version;
 };
 
+/** Add probes only to the materialized copy; the shipped starter and its pinned dependencies stay intact. */
+const addRuntimeProbes = async (starter: string, project: string) => {
+  const write = async (path: string, contents: string | Buffer) => {
+    await mkdir(dirname(join(project, path)), { recursive: true });
+    await writeFile(join(project, path), contents);
+  };
+  if (starter === 'nextjs-serverless') {
+    await write(
+      'next.config.ts',
+      `export default { images: { remotePatterns: [{ protocol: 'http', hostname: '127.0.0.1' }] } };\n`
+    );
+    await write(
+      'src/app/api/session/route.ts',
+      `import { NextRequest, NextResponse } from 'next/server';
+export const dynamic = 'force-dynamic';
+export function GET(request: NextRequest) {
+  const response = NextResponse.json({ session: request.cookies.get('session')?.value ?? 'missing', theme: request.cookies.get('theme')?.value ?? 'missing' });
+  response.cookies.set('session', 't13', { path: '/', httpOnly: true, secure: true, sameSite: 'lax' });
+  response.cookies.set('theme', 'dark', { path: '/', secure: true, sameSite: 'lax' });
+  return response;
+}
+`
+    );
+  } else if (starter === 'nuxt-serverless') {
+    await write(
+      'server/api/session.get.ts',
+      `import { defineEventHandler, getCookie, setCookie } from 'h3';
+export default defineEventHandler(event => {
+  const session = getCookie(event, 'session') ?? 'missing';
+  const theme = getCookie(event, 'theme') ?? 'missing';
+  setCookie(event, 'session', 't13', { path: '/', httpOnly: true, secure: true, sameSite: 'lax' });
+  setCookie(event, 'theme', 'dark', { path: '/', secure: true, sameSite: 'lax' });
+  return { session, theme };
+});
+`
+    );
+  } else if (starter === 'remix-serverless') {
+    await write(
+      'app/routes/api.session.ts',
+      `import { createCookie, json } from '@remix-run/node';
+const session = createCookie('session', { path: '/', httpOnly: true, secure: true, sameSite: 'lax' });
+const theme = createCookie('theme', { path: '/', secure: true, sameSite: 'lax' });
+export async function loader({ request }: { request: Request }) {
+  const headers = new Headers();
+  headers.append('Set-Cookie', await session.serialize('t13'));
+  headers.append('Set-Cookie', await theme.serialize('dark'));
+  return json({ session: await session.parse(request.headers.get('Cookie')) ?? 'missing', theme: await theme.parse(request.headers.get('Cookie')) ?? 'missing' }, { headers });
+}
+`
+    );
+  } else if (starter === 'tanstack-start-serverless') {
+    await write(
+      'app/routes/probe.$value.tsx',
+      `import { createFileRoute } from '@tanstack/react-router';
+export const Route = createFileRoute('/probe/$value')({
+  loader: ({ params }) => ({ value: params.value }),
+  component: () => <p>{'TANSTACK_DYNAMIC:' + Route.useLoaderData().value}</p>
+});
+`
+    );
+  }
+};
+
 const runAdapter = async ({ adapter, work }: { adapter: Adapter; work: string }) => {
   const { starter } = adapter;
+  const runtimeImage = adapter.runtimeImage ?? LAMBDA_IMAGE;
   const caseWork = join(work, starter);
   const project = join(caseWork, starter);
   const report: Record<string, unknown> = { starter, resourceType: adapter.resourceType };
@@ -233,6 +299,7 @@ const runAdapter = async ({ adapter, work }: { adapter: Adapter; work: string })
     await replacePlaceholdersInStacktapeConfig({ configPath });
     const lockfile = await restoreCommittedLockfile({ starter, project });
     report.lockfile = lockfile;
+    await addRuntimeProbes(starter, project);
     check(starter, 'the starter commits a lockfile to pin its build', lockfile !== undefined, lockfile ?? 'none');
 
     console.log(`${starter}: packaging with the source CLI...`);
@@ -314,7 +381,7 @@ const runAdapter = async ({ adapter, work }: { adapter: Adapter; work: string })
       const invocation = await invokeInLambdaRuntime({
         functionDirectory: functionDirectory!,
         handler: 'index-wrap.handler',
-        image: LAMBDA_IMAGE,
+        image: runtimeImage,
         event,
         timeoutMs: 120_000
       });
@@ -347,6 +414,90 @@ const runAdapter = async ({ adapter, work }: { adapter: Adapter; work: string })
         dynamic.statusCode === 200 && dynamicBody.includes(adapter.dynamicRoute.expectedText),
         `status=${String(dynamic.statusCode)} body=${dynamicBody.slice(0, 120)}`
       );
+    }
+
+    if (starter === 'tanstack-start-serverless') {
+      const alternate = await invoke(httpEvent({ path: '/probe/t42' }));
+      check(
+        starter,
+        'a second path parameter changes the rendered page',
+        alternate.statusCode === 200 && decodeBody(alternate).includes('TANSTACK_DYNAMIC:t42'),
+        `status=${String(alternate.statusCode)} body=${decodeBody(alternate).slice(0, 120)}`
+      );
+    }
+
+    if (['nextjs-serverless', 'nuxt-serverless', 'remix-serverless'].includes(starter)) {
+      const first = await invoke(httpEvent({ path: '/api/session' }));
+      const cookies = first.cookies ?? [];
+      check(
+        starter,
+        'a new session emits two independent secure cookies',
+        first.statusCode === 200 &&
+          JSON.parse(decodeBody(first)).session === 'missing' &&
+          cookies.length === 2 &&
+          cookies.every((cookie) => /;\s*Secure/i.test(cookie) && /;\s*Path=\//i.test(cookie)) &&
+          cookies.some((cookie) => cookie.startsWith('session=') && /;\s*HttpOnly/i.test(cookie)) &&
+          cookies.some((cookie) => cookie.startsWith('theme=')),
+        JSON.stringify(first)
+      );
+      const second = await invoke(
+        httpEvent({ path: '/api/session', cookies: cookies.map((cookie) => cookie.split(';')[0]!) })
+      );
+      const body = JSON.parse(decodeBody(second)) as { session?: string; theme?: string };
+      check(
+        starter,
+        'the next request reads both response cookies',
+        second.statusCode === 200 && body.session === 't13' && body.theme === 'dark',
+        JSON.stringify(second)
+      );
+      report.session = { first, second };
+    }
+
+    if (starter === 'nextjs-serverless') {
+      const imageZip = zips.find((workload) => /image/i.test(workload.jobName));
+      if (!imageZip) throw new Error('Next did not package its image optimizer ZIP.');
+      const imageDirectory = await extractZip(imageZip.artifactPath);
+      try {
+        // The original optimizer handles a real HTTP image source on loopback in the same Lambda container.
+        // It exercises the packaged native sharp dependency without any AWS stand-in or external request.
+        await writeFile(
+          join(imageDirectory, 'probe.mjs'),
+          `import { createServer } from 'node:http';
+import { handler as optimize } from './index.mjs';
+const pixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
+export const handler = async (event, context) => {
+  const server = createServer((_req, res) => { res.setHeader('content-type', 'image/png'); res.end(pixel); });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const query = { url: 'http://127.0.0.1:' + server.address().port + '/pixel.png', w: '64', q: '75' };
+  try { return await optimize({ ...event, rawQueryString: new URLSearchParams(query).toString(), queryStringParameters: query }, context); }
+  finally { await new Promise(resolve => server.close(resolve)); }
+};
+`
+        );
+        const invocation = await invokeInLambdaRuntime({
+          functionDirectory: imageDirectory,
+          handler: 'probe.handler',
+          image: runtimeImage,
+          event: { ...httpEvent({ path: '/_next/image' }), headers: { accept: 'image/webp' } },
+          timeoutMs: 120_000
+        });
+        const response = JSON.parse(invocation.body) as HttpResponse;
+        const bytes = Buffer.from(response.body ?? '', 'base64');
+        check(
+          starter,
+          'the image optimizer ZIP converts PNG to WebP in Lambda',
+          invocation.status === 200 &&
+            response.statusCode === 200 &&
+            response.isBase64Encoded === true &&
+            headerOf(response, 'content-type') === 'image/webp' &&
+            bytes.subarray(0, 4).toString() === 'RIFF' &&
+            bytes.subarray(8, 12).toString() === 'WEBP',
+          JSON.stringify(response)
+        );
+        report.image = response;
+      } finally {
+        await rm(imageDirectory, { recursive: true, force: true });
+      }
     }
 
     const missing = await invoke(httpEvent({ path: '/this-route-does-not-exist-j3' }));
@@ -383,19 +534,27 @@ const main = async () => {
   await mkdir(out, { recursive: true });
   if ((await readdir(out)).length > 0) throw new Error(`Refusing to write into ${out}: it is not empty.`);
   await ensureDevCliArtifacts();
-  const image = ensureLambdaImage(LAMBDA_IMAGE);
+  const images = Object.fromEntries(
+    [
+      ...new Set(
+        ADAPTERS.filter((adapter) => selectedStarters.includes(adapter.starter)).map(
+          (adapter) => adapter.runtimeImage ?? LAMBDA_IMAGE
+        )
+      )
+    ].map((image) => [image, ensureLambdaImage(image)])
+  );
   const work = await mkdtemp(join(tmpdir(), 'stacktape-ssr-web-acceptance-'));
   const reports: unknown[] = [];
   try {
     for (const adapter of ADAPTERS.filter((candidate) => selectedStarters.includes(candidate.starter))) {
       reports.push(await runAdapter({ adapter, work }));
-      await writeJsonAtomic(join(out, 'report.json'), { out, image, work, starters: reports, checks });
+      await writeJsonAtomic(join(out, 'report.json'), { out, images, work, starters: reports, checks });
     }
   } finally {
     const leftovers = listLeftoverContainers();
     check('all', 'no acceptance container is left behind', leftovers.length === 0, leftovers.join(', ') || 'none');
     if (!keep) await rm(work, { recursive: true, force: true }).catch(() => undefined);
-    await writeJsonAtomic(join(out, 'report.json'), { out, image, work, starters: reports, checks });
+    await writeJsonAtomic(join(out, 'report.json'), { out, images, work, starters: reports, checks });
   }
   const failed = checks.filter((entry) => !entry.ok);
   if (failed.length > 0) {
