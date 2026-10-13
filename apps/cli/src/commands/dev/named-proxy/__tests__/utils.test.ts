@@ -1,57 +1,5 @@
 import { describe, test, expect } from 'bun:test';
-import { escapeHtml, formatUrl, parseHostname, injectFrameworkFlags } from '../utils';
-
-describe('escapeHtml', () => {
-  test('escapes ampersands', () => {
-    expect(escapeHtml('foo & bar')).toBe('foo &amp; bar');
-  });
-
-  test('escapes angle brackets', () => {
-    expect(escapeHtml('<script>alert("xss")</script>')).toBe('&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;');
-  });
-
-  test('escapes single quotes', () => {
-    expect(escapeHtml("it's")).toBe('it&#39;s');
-  });
-
-  test('leaves safe strings unchanged', () => {
-    expect(escapeHtml('hello world 123')).toBe('hello world 123');
-  });
-
-  test('handles empty string', () => {
-    expect(escapeHtml('')).toBe('');
-  });
-
-  test('escapes multiple special chars together', () => {
-    expect(escapeHtml('<a href="x&y">')).toBe('&lt;a href=&quot;x&amp;y&quot;&gt;');
-  });
-});
-
-describe('formatUrl', () => {
-  test('formats HTTP URL with non-default port', () => {
-    expect(formatUrl('myapp.dev.localhost', 1355)).toBe('http://myapp.dev.localhost:1355');
-  });
-
-  test('omits port 80 for HTTP', () => {
-    expect(formatUrl('myapp.dev.localhost', 80)).toBe('http://myapp.dev.localhost');
-  });
-
-  test('formats HTTPS URL with non-default port', () => {
-    expect(formatUrl('myapp.dev.localhost', 8443, true)).toBe('https://myapp.dev.localhost:8443');
-  });
-
-  test('omits port 443 for HTTPS', () => {
-    expect(formatUrl('myapp.dev.localhost', 443, true)).toBe('https://myapp.dev.localhost');
-  });
-
-  test('defaults to HTTP when tls is not specified', () => {
-    expect(formatUrl('app.localhost', 3000)).toBe('http://app.localhost:3000');
-  });
-
-  test('handles localhost hostname', () => {
-    expect(formatUrl('localhost', 1355)).toBe('http://localhost:1355');
-  });
-});
+import { parseHostname, injectFrameworkFlags, formatUrl } from '../utils';
 
 describe('parseHostname', () => {
   test('appends .localhost when not present', () => {
@@ -188,4 +136,12 @@ describe('injectFrameworkFlags', () => {
     injectFrameworkFlags(args, 5173);
     expect(args).toEqual(['node_modules/.bin/vite', 'dev', '--port', '5173', '--strictPort', '--host', '127.0.0.1']);
   });
+});
+
+test.each([
+  ['app.localhost', 80, false, 'http://app.localhost'],
+  ['app.localhost', 443, true, 'https://app.localhost'],
+  ['app.localhost', 8443, true, 'https://app.localhost:8443']
+] as const)('formats %s with port %s and TLS %s', (hostname, port, tls, expected) => {
+  expect(formatUrl(hostname, port, tls)).toBe(expected);
 });

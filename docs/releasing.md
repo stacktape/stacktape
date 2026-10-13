@@ -54,11 +54,11 @@ pnpm --filter @stacktape/bitbucket-forge-app test:e2e
 pnpm test:console:browser:offline
 pnpm --filter @stacktape/console-ui test:e2e:sessions
 
-for lane in test:docker-smoke test:node-lambda-e2e test:web-framework-e2e test:es-image-deps-e2e \
+for lane in test:archive-build:e2e test:docker-smoke test:node-lambda-e2e test:web-framework-e2e test:es-image-deps-e2e \
   test:directory-inventory-e2e test:lambda-source-map-e2e test:split-assets-e2e; do
   pnpm --filter @stacktape/packaging run "$lane"
 done
-for lane in test:lambda-archives test:asset-replacer test:docker-preparation test:layer-upload \
+for lane in test:lambda-archives test:asset-replacer test:docker-preparation \
   test:layer-upload:ministack test:fresh-install test:external-tools test:node-lambda test:ssr-web \
   test:helper-lambda-runtime test:operations:db; do
   pnpm --filter @stacktape/cli run "$lane"

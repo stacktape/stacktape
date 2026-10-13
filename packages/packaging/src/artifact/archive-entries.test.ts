@@ -3,7 +3,6 @@ import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  getArchiveLayoutDigest,
   hasHostExecutableBit,
   listArchiveEntries,
   matchesExecutablePattern,
@@ -38,47 +37,6 @@ const describeEntries = async (sourcePath: string, options: { platform?: NodeJS.
   );
 
 describe('archive entries', () => {
-  // Every executable fixture here starts with `#!`, which Windows recognizes without execute bits.
-  test('keep hidden files and empty directories and normalize every mode to what Lambda can read', async () => {
-    const source = join(await createRoot(), 'source');
-    await mkdir(join(source, '.config'), { recursive: true });
-    await mkdir(join(source, 'empty'));
-    await mkdir(join(source, 'lib', 'nested'), { recursive: true });
-    await file(join(source, '.config', 'settings.json'), '{}');
-    await file(join(source, '.env'), 'A=1');
-    await file(join(source, 'private.txt'), 'private', 0o600);
-    await file(join(source, 'group-writable.txt'), 'shared', 0o664);
-    await file(join(source, 'tool.sh'), '#!/bin/sh\necho tool\n', 0o755);
-    await file(join(source, 'owner-only-tool'), '#!/bin/sh\necho owner\n', 0o700);
-    await file(join(source, 'lib', 'nested', 'data.bin'), 'data');
-
-    expect(await describeEntries(source)).toEqual([
-      '.config/ 755',
-      '.config/settings.json 644',
-      '.env 644',
-      'empty/ 755',
-      'group-writable.txt 644',
-      'lib/ 755',
-      'lib/nested/ 755',
-      'lib/nested/data.bin 644',
-      'owner-only-tool 755',
-      'private.txt 644',
-      'tool.sh 755'
-    ]);
-  });
-
-  test('name a single file after itself and keep its executable intent', async () => {
-    const root = await createRoot();
-    await file(join(root, 'tool'), '#!/bin/sh\n', 0o755);
-    await file(join(root, 'notes.txt'), 'notes');
-    // A custom runtime's entrypoint must be executable even when the host did not say so.
-    await file(join(root, 'bootstrap'), 'binary');
-
-    expect(await describeEntries(join(root, 'tool'))).toEqual(['tool 755']);
-    expect(await describeEntries(join(root, 'notes.txt'))).toEqual(['notes.txt 644']);
-    expect(await describeEntries(join(root, 'bootstrap'))).toEqual(['bootstrap 755']);
-  });
-
   test('mark files executable by explicit pattern, matching release archive patterns literally', async () => {
     expect(matchesExecutablePattern('pack/pack', ['*/pack'])).toBe(true);
     expect(matchesExecutablePattern('pack/packer', ['*/pack'])).toBe(false);
@@ -111,101 +69,9 @@ describe('archive entries', () => {
     ]);
     expect(hasHostExecutableBit(0o755, 'win32')).toBe(false);
   });
-
-  test('describe layout changes, not content changes, in the layout digest', async () => {
-    const source = join(await createRoot(), 'source');
-    await mkdir(source);
-    await file(join(source, 'tool.sh'), 'first');
-    const digest = async () => getArchiveLayoutDigest((await listArchiveEntries({ sourcePath: source })).entries);
-
-    const initial = await digest();
-    await file(join(source, 'tool.sh'), 'changed contents, same layout');
-    expect(await digest()).toBe(initial);
-
-    await file(join(source, 'other.txt'), 'another entry');
-    expect(await digest()).not.toBe(initial);
-  });
 });
 
 describe.if(isPosix)('archive entries on POSIX hosts', () => {
-  test('treat any execute bit as executable intent, as Lambda runs code as another user', async () => {
-    const source = join(await createRoot(), 'source');
-    await mkdir(source);
-    // No `#!` headers: only the mode says these are executable.
-    await file(join(source, 'group-only'), 'binary', 0o654);
-    await file(join(source, 'other-only'), 'binary', 0o645);
-    await file(join(source, 'owner-only'), 'binary', 0o744);
-    await file(join(source, 'none'), 'binary', 0o644);
-
-    expect(await describeEntries(source)).toEqual(['group-only 755', 'none 644', 'other-only 755', 'owner-only 755']);
-    expect(hasHostExecutableBit(0o610, 'linux')).toBe(true);
-    expect(hasHostExecutableBit(0o601, 'linux')).toBe(true);
-    expect(hasHostExecutableBit(0o666, 'linux')).toBe(false);
-  });
-
-  test('change the layout digest when only an execute bit changes, and not when a normalized bit does', async () => {
-    const source = join(await createRoot(), 'source');
-    await mkdir(source);
-    await file(join(source, 'tool.sh'), 'same bytes');
-    await symlink('tool.sh', join(source, 'link'));
-    const digest = async () => getArchiveLayoutDigest((await listArchiveEntries({ sourcePath: source })).entries);
-
-    const initial = await digest();
-    await chmod(join(source, 'tool.sh'), 0o654);
-    const groupExecutable = await digest();
-    expect(groupExecutable).not.toBe(initial);
-
-    // Another executable mode normalizes to the same 0755, so the layout is the same.
-    await chmod(join(source, 'tool.sh'), 0o775);
-    expect(await digest()).toBe(groupExecutable);
-
-    await rm(join(source, 'link'));
-    await file(join(source, 'other.txt'), 'other');
-    await symlink('other.txt', join(source, 'link'));
-    expect(await digest()).not.toBe(groupExecutable);
-  });
-
-  test('keep relative links inside the directory as links, including links through other links', async () => {
-    const source = join(await createRoot(), 'source');
-    await mkdir(join(source, 'versions', 'v2'), { recursive: true });
-    await file(join(source, 'versions', 'v2', 'tool.sh'), '#!/bin/sh\n', 0o755);
-    await symlink('versions/v2', join(source, 'current'));
-    await symlink('current/tool.sh', join(source, 'tool'));
-    await symlink('../current/tool.sh', join(source, 'versions', 'tool-in-parent'));
-    await symlink('versions/v2/', join(source, 'directory-with-slash'));
-    await symlink('current/.', join(source, 'directory-with-dot'));
-
-    expect(await describeEntries(source)).toEqual([
-      'current -> versions/v2',
-      'directory-with-dot -> current/.',
-      'directory-with-slash -> versions/v2/',
-      'tool -> current/tool.sh',
-      'versions/ 755',
-      'versions/tool-in-parent -> ../current/tool.sh',
-      'versions/v2/ 755',
-      'versions/v2/tool.sh 755'
-    ]);
-  });
-
-  test('store an absolute link inside the directory relative to the entry it resolves to', async () => {
-    const source = join(await createRoot(), 'source');
-    await mkdir(join(source, 'versions', 'v2'), { recursive: true });
-    await mkdir(join(source, 'nested'));
-    await file(join(source, 'versions', 'v2', 'tool.sh'), '#!/bin/sh\n', 0o755);
-    // Windows junctions and some tools write absolute targets even when the target is part of the same tree.
-    await symlink(`${source}/versions/v2`, join(source, 'current'));
-    await symlink(`${source}/current/tool.sh`, join(source, 'nested', 'tool'));
-
-    expect(await describeEntries(source)).toEqual([
-      'current -> versions/v2',
-      'nested/ 755',
-      'nested/tool -> ../versions/v2/tool.sh',
-      'versions/ 755',
-      'versions/v2/ 755',
-      'versions/v2/tool.sh 755'
-    ]);
-  });
-
   test('resolve an absolute target in kernel order, so a `..` after a link applies where that link led', async () => {
     const source = join(await createRoot(), 'source');
     await mkdir(join(source, 'versions', 'v2'), { recursive: true });

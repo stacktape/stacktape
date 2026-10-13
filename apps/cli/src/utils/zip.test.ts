@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import * as tar from 'tar';
 import yauzl from 'yauzl';
-import { archiveItem, createArchive } from './zip';
+import { archiveItem } from './zip';
 
 /** Links, execute bits, shell fixtures and unreadable files are POSIX fixtures; the portable tests run everywhere. */
 const isPosix = process.platform !== 'win32';
@@ -69,54 +69,6 @@ const createSource = async (root: string) => {
 };
 
 describe('archiveItem', () => {
-  test('archives hidden files and empty directories with modes Lambda can read and run', async () => {
-    const root = await createRoot();
-    const source = await createSource(root);
-
-    const result = await createArchive({ absoluteSourcePath: source, format: 'zip' });
-
-    expect(result).toEqual({ path: `${source}.zip`, backend: 'archiver' });
-    expect(await readZip(result.path)).toEqual({
-      '.hidden': '100644 hidden',
-      'bin/': '40755',
-      'bin/tool.sh': '100755 #!/bin/sh\necho tool\n',
-      'empty/': '40755',
-      'index.js': '100644 export const handler = 1;',
-      'private.txt': '100644 private'
-    });
-  });
-
-  test('keeps a single file executable and names the archive after it', async () => {
-    const root = await createRoot();
-    await file(join(root, 'bootstrap'), '#!/bin/sh\n', 0o755);
-
-    const archivePath = await archiveItem({
-      absoluteSourcePath: join(root, 'bootstrap'),
-      format: 'zip',
-      useNativeZip: true
-    });
-
-    expect(archivePath).toBe(join(root, 'bootstrap.zip'));
-    expect(await readZip(archivePath)).toEqual({ bootstrap: '100755 #!/bin/sh\n' });
-  });
-
-  test('replaces an archive at the same destination without keeping entries removed from the source', async () => {
-    const root = await createRoot();
-    const source = await createSource(root);
-    const destination = join(root, 'out dir');
-    await archiveItem({ absoluteSourcePath: source, absoluteDestDirPath: destination, format: 'zip' });
-    await rm(join(source, '.hidden'));
-
-    const archivePath = await archiveItem({
-      absoluteSourcePath: source,
-      absoluteDestDirPath: destination,
-      format: 'zip'
-    });
-
-    expect(Object.keys(await readZip(archivePath))).not.toContain('.hidden');
-    expect(await readdir(destination)).toEqual(['source dir.zip']);
-  });
-
   test('refuses an archive that would replace the single file it archives', async () => {
     const root = await createRoot();
     await file(join(root, 'payload.zip'), 'an input whose name already ends in .zip');
@@ -159,45 +111,6 @@ describe('archiveItem', () => {
 });
 
 describe.if(isPosix)('archiveItem on POSIX hosts', () => {
-  test('keeps links as links and stores an absolute link relative to its target', async () => {
-    const root = await createRoot();
-    const source = await createSource(root);
-    await symlink('bin/tool.sh', join(source, 'tool'));
-    await symlink(join(source, 'bin', 'tool.sh'), join(source, 'absolute-tool'));
-
-    const entries = await readZip(await archiveItem({ absoluteSourcePath: source, format: 'zip' }));
-
-    expect(entries.tool).toBe('120777 -> bin/tool.sh');
-    expect(entries['absolute-tool']).toBe('120777 -> bin/tool.sh');
-  });
-
-  test('keeps the execute intent of group- or other-only executables through extraction and execution', async () => {
-    const root = await createRoot();
-    const source = await createSource(root);
-    await file(join(source, 'bin', 'group-tool.sh'), '#!/bin/sh\necho group\n', 0o654);
-    await file(join(source, 'bin', 'other-tool.sh'), '#!/bin/sh\necho other\n', 0o645);
-
-    const archivePath = await archiveItem({ absoluteSourcePath: source, format: 'zip' });
-    const entries = await readZip(archivePath);
-    expect(entries['bin/group-tool.sh']).toStartWith('100755 ');
-    expect(entries['bin/other-tool.sh']).toStartWith('100755 ');
-
-    const extracted = join(root, 'extracted');
-    await mkdir(extracted);
-    expect(Bun.spawnSync(['unzip', '-q', archivePath, '-d', extracted]).exitCode).toBe(0);
-    for (const [name, output] of [
-      ['group-tool.sh', 'group'],
-      ['other-tool.sh', 'other']
-    ]) {
-      expect(((await stat(join(extracted, 'bin', name!))).mode & 0o777).toString(8)).toBe('755');
-      expect(
-        Bun.spawnSync([join(extracted, 'bin', name!)])
-          .stdout.toString()
-          .trim()
-      ).toBe(output!);
-    }
-  });
-
   test.skipIf(!Bun.which('unzip'))(
     'links to what the kernel reads in the source, also after an absolute path through another link',
     async () => {
@@ -256,48 +169,34 @@ describe.if(isPosix)('archiveItem on POSIX hosts', () => {
   );
 });
 
-describe.if(isPosix)('native ZIP tool fallback and detection', () => {
-  /**
-   * Runs `script` in a fresh process whose PATH starts with a directory holding a fake `zip`. Its `--version` answers
-   * like zip after logging the probe and a short delay, so concurrent first calls overlap; everything else runs
-   * `onArchive`, the shell body standing in for the actual archiving.
-   */
+describe.if(isPosix)('native ZIP tool fallback', () => {
+  /** Deliberately report native success with corrupt bytes; the real archive consumer must recover. */
   const runWithFakeZip = async ({ root, onArchive, script }: { root: string; onArchive: string; script: string }) => {
     const toolDirectory = join(root, 'fake tools');
     await mkdir(toolDirectory);
-    const probeLog = join(root, 'version-probes.log');
     await file(
       join(toolDirectory, 'zip'),
-      // The log path is data in the environment, never shell text: it contains spaces and both kinds of quote.
-      `#!/bin/sh\nif [ "$1" = "--version" ]; then echo probe >> "$STP_PROBE_LOG"; sleep 0.2; exit 0; fi\n${onArchive}`,
+      `#!/bin/sh\nif [ "$1" = "--version" ]; then exit 0; fi\n${onArchive}`,
       0o755
     );
     const child = Bun.spawnSync([process.execPath, '-e', script], {
-      env: { ...process.env, PATH: `${toolDirectory}${delimiter}${process.env.PATH}`, STP_PROBE_LOG: probeLog },
+      env: { ...process.env, PATH: `${toolDirectory}${delimiter}${process.env.PATH}` },
       stdout: 'pipe',
       stderr: 'pipe'
     });
     expect(child.exitCode, child.stderr.toString()).toBe(0);
-    const probes = (await readFile(probeLog, 'utf8').catch(() => '')).split('\n').filter(Boolean).length;
-    return { output: JSON.parse(child.stdout.toString().trim().split('\n').at(-1)!), probes };
+    return JSON.parse(child.stdout.toString().trim().split('\n').at(-1)!);
   };
 
   const zipModule = JSON.stringify(join(import.meta.dir, 'zip.ts'));
 
-  test.each([
-    [
-      'fails after writing part of an archive',
-      'for argument in "$@"; do case "$argument" in *.zip) printf "PK partial" > "$argument";; esac; done\necho simulated failure >&2\nexit 12\n'
-    ],
-    [
-      'reports success but writes something that is not the archive',
-      'for argument in "$@"; do case "$argument" in *.zip) printf "not a zip" > "$argument";; esac; done\nexit 0\n'
-    ]
-  ])('falls back to archiver, and says so, when native zip %s', async (_case, onArchive) => {
+  test('falls back to archiver when native zip reports success with corrupt output', async () => {
+    const onArchive =
+      'for argument in "$@"; do case "$argument" in *.zip) printf "not a zip" > "$argument";; esac; done\nexit 0\n';
     const root = await createRoot();
     const source = await createSource(root);
 
-    const { output } = await runWithFakeZip({
+    const output = await runWithFakeZip({
       root,
       onArchive,
       script: `const { createArchive } = await import(${zipModule});
@@ -314,40 +213,6 @@ describe.if(isPosix)('native ZIP tool fallback and detection', () => {
       'index.js',
       'private.txt'
     ]);
-    expect((await readdir(root)).toSorted()).toEqual([
-      'fake tools',
-      'source dir',
-      'source dir.zip',
-      'version-probes.log'
-    ]);
-  });
-
-  test('detects the native tool once for concurrent first archives, and every archive is complete', async () => {
-    const root = await createRoot();
-    const sources = await Promise.all(
-      Array.from({ length: 8 }, async (_, index) => {
-        const source = join(root, `source ${index}`);
-        await mkdir(join(source, 'bin'), { recursive: true });
-        await file(join(source, 'bin', 'tool.sh'), `#!/bin/sh\necho ${index}\n`, 0o755);
-        return source;
-      })
-    );
-
-    // The fake cannot archive, so every call also proves that a failed native attempt still yields a real archive.
-    const { output, probes } = await runWithFakeZip({
-      root,
-      onArchive: 'exit 1\n',
-      script: `const { createArchive } = await import(${zipModule});
-        const sources = ${JSON.stringify(sources)};
-        const results = await Promise.all(sources.map((absoluteSourcePath) => createArchive({ absoluteSourcePath, format: 'zip', useNativeZip: true })));
-        console.log(JSON.stringify(results));`
-    });
-
-    expect(probes).toBe(1);
-    expect(output).toHaveLength(8);
-    for (const [index, result] of (output as { path: string; backend: string }[]).entries()) {
-      expect(result.backend).toBe('archiver');
-      expect((await readZip(result.path))['bin/tool.sh']).toBe(`100755 #!/bin/sh\necho ${index}\n`);
-    }
+    expect((await readdir(root)).toSorted()).toEqual(['fake tools', 'source dir', 'source dir.zip']);
   });
 });

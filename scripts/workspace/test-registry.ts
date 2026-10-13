@@ -541,6 +541,66 @@ export const lanes: readonly Lane[] = [
     selections: ['init-e2e']
   },
   {
+    id: 'local-dev',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:local-dev'],
+    level: 'process',
+    tier: 'change',
+    tests: [
+      'apps/cli/src/commands/dev',
+      'apps/cli/src/commands/dev-stop',
+      'apps/cli/src/utils/ports.test.ts',
+      'apps/cli/scripts/real-aws/lambda-dev-canary.spec.ts'
+    ],
+    requires: [],
+    release: 'every-candidate',
+    proves:
+      'Dev-stop kills owned descendants, stable proxy URLs follow rebuilds, and local port allocation avoids foreign listeners.'
+  },
+  {
+    id: 'local-dev-containers',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:local-dev:containers'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/tests/local-development/container-cleanup.spec.ts'],
+    requires: ['docker', 'network'],
+    release: 'every-candidate',
+    proves:
+      'Real Docker cleanup removes abandoned and stopped containers while preserving live and legacy sessions; network is only for the fixture image.'
+  },
+  {
+    id: 'local-dev-next',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:local-dev:next'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/tests/local-development/next-dev.spec.ts'],
+    requires: ['network'],
+    release: 'every-candidate',
+    proves:
+      'A pinned real Next dev server receives local parameters, serves edits through its stable URL and cleans up; network is only for fixture installation.'
+  },
+  {
+    id: 'local-dev-ministack',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:local-dev:ministack'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/tests/ministack/local-dev.spec.ts'],
+    requires: ['docker'],
+    release: 'every-candidate',
+    proves:
+      'MiniStack stores local tunnel parameters and restored Lambda environments; the real dev HTTP agent redacts reads and denies mutation.'
+  },
+  {
+    id: 'local-dev-lambda-live',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:real-aws-lambda-dev'],
+    level: 'live-aws',
+    tier: 'release',
+    tests: ['apps/cli/scripts/real-aws/lambda-dev-canary.ts'],
+    requires: ['aws', 'network', 'docker'],
+    release: 'affected-external-contract',
+    proves:
+      'A deployed Lambda queries initial and edited local PostgreSQL data through the real dev tunnel; logs, environment restore and deletion are verified.'
+  },
+  {
     id: 'local-dev-live',
     command: ['pnpm', 'test:aws', '--aws-scenario=dev-mode-local-loop'],
     level: 'live-aws',
@@ -770,10 +830,10 @@ export const lanes: readonly Lane[] = [
   {
     id: 'packaging-archives-4',
     command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:fresh-install'],
-    level: 'focused',
+    level: 'process',
     tier: 'change',
     tests: ['apps/cli/scripts/packaging-archives/fresh-install-acceptance.ts'],
-    requires: ['network'],
+    requires: ['docker', 'network'],
     release: 'every-candidate',
     proves: 'Lambda archives, asset replacement, Docker preparation and fresh source installation work.',
     selections: ['packaging-archives']
@@ -823,15 +883,34 @@ export const lanes: readonly Lane[] = [
     selections: ['release-installation']
   },
   {
-    id: 'artifact-upload',
-    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:layer-upload'],
-    level: 'focused',
-    tier: 'change',
-    tests: ['apps/cli/scripts/packaging-archives/layer-upload-acceptance.ts'],
+    id: 'archive-contracts',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/cli',
+      'exec',
+      'bun',
+      'test',
+      './tests/characterization/packaging-contract.spec.ts'
+    ],
+    level: 'process',
+    tier: 'pr',
+    tests: ['apps/cli/tests/characterization/packaging-contract.spec.ts'],
     requires: [],
     release: 'every-candidate',
-    proves: 'Layer upload and retention work against the SDK wire protocol and MiniStack.',
-    selections: ['artifact-upload']
+    proves: 'Real custom ZIPs preserve content identity, cache reuse, file modes, source inventory and size limits.',
+    selections: ['packaging-archives']
+  },
+  {
+    id: 'archive-build-e2e',
+    command: ['pnpm', '--filter', '@stacktape/packaging', 'run', 'test:archive-build:e2e'],
+    level: 'process',
+    tier: 'change',
+    tests: ['packages/packaging/scripts/archive-build-e2e.ts'],
+    requires: ['docker'],
+    release: 'every-candidate',
+    proves: 'Real Docker exports and images omit local state, remove stale files and clean temporary build inputs.',
+    selections: ['packaging-archives']
   },
   {
     id: 'artifact-upload-2',
@@ -1505,6 +1584,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/scripts/qualification/report.spec.ts',
       'apps/cli/scripts/qualification/runner-integration.spec.ts',
       'apps/cli/scripts/real-aws/dev-mode-canary.spec.ts',
+      'apps/cli/scripts/real-aws/lambda-dev-canary.spec.ts',
       'apps/cli/scripts/real-aws/init-canary-client.spec.ts',
       'apps/cli/scripts/real-aws/init-canary-fixtures.spec.ts',
       'apps/cli/scripts/real-aws/init-canary.spec.ts',
@@ -1556,13 +1636,12 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/commands/dev-stop/dev-stop.test.ts',
       'apps/cli/src/commands/dev/__tests__/dev-server-process.test.ts',
       'apps/cli/src/commands/dev/__tests__/port-utils.test.ts',
-      'apps/cli/src/commands/dev/agent-server-aws-sdk.spec.ts',
-      'apps/cli/src/commands/dev/cleanup-orphaned-containers.test.ts',
       'apps/cli/src/commands/dev/cleanup-utils.spec.ts',
       'apps/cli/src/commands/dev/dev-mode-utils.spec.ts',
       'apps/cli/src/commands/dev/dev-stack-config-fingerprint.spec.ts',
       'apps/cli/src/commands/dev/dev-stack-safety.spec.ts',
       'apps/cli/src/commands/dev/local-resources/redis.spec.ts',
+      'apps/cli/src/commands/dev/tunnel-manager/session.spec.ts',
       'apps/cli/src/commands/dev/named-proxy/__tests__/manager.test.ts',
       'apps/cli/src/commands/dev/named-proxy/__tests__/proxy.test.ts',
       'apps/cli/src/commands/dev/named-proxy/__tests__/utils.test.ts',
@@ -1982,12 +2061,7 @@ export const lanes: readonly Lane[] = [
       'packages/naming/src/stack-contracts.test.ts',
       'packages/naming/src/stack-identity.test.ts',
       'packages/packaging/src/artifact/archive-entries.test.ts',
-      'packages/packaging/src/artifact/custom-artifact.test.ts',
-      'packages/packaging/src/artifact/docker-artifact-build.test.ts',
       'packages/packaging/src/artifact/file-selection.test.ts',
-      'packages/packaging/src/artifact/generated-image-build.test.ts',
-      'packages/packaging/src/artifact/lambda-limits.test.ts',
-      'packages/packaging/src/artifact/zip-metadata.test.ts',
       'packages/packaging/src/buildpacks/project-root.test.ts',
       'packages/packaging/src/bundlers/digest.test.ts',
       'packages/packaging/src/bundlers/es/decorator-metadata.test.ts',
@@ -3255,23 +3329,38 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/cli/scripts/real-aws/dev-mode-canary.spec.ts',
+      'apps/cli/scripts/real-aws/lambda-dev-canary.spec.ts',
       'apps/cli/src/commands/dev-stop/dev-stop.test.ts',
       'apps/cli/src/commands/dev/__tests__/dev-server-process.test.ts',
       'apps/cli/src/commands/dev/__tests__/port-utils.test.ts',
-      'apps/cli/src/commands/dev/agent-server-aws-sdk.spec.ts',
-      'apps/cli/src/commands/dev/cleanup-orphaned-containers.test.ts',
       'apps/cli/src/commands/dev/cleanup-utils.spec.ts',
       'apps/cli/src/commands/dev/dev-mode-utils.spec.ts',
       'apps/cli/src/commands/dev/dev-stack-config-fingerprint.spec.ts',
       'apps/cli/src/commands/dev/dev-stack-safety.spec.ts',
       'apps/cli/src/commands/dev/local-resources/redis.spec.ts',
+      'apps/cli/src/commands/dev/tunnel-manager/session.spec.ts',
       'apps/cli/src/commands/dev/named-proxy/__tests__/manager.test.ts',
       'apps/cli/src/commands/dev/named-proxy/__tests__/proxy.test.ts',
       'apps/cli/src/commands/dev/named-proxy/__tests__/utils.test.ts',
       'apps/cli/src/utils/ports.test.ts',
-      'apps/cli/tests/characterization/dev-support-template.spec.ts'
+      'apps/cli/tests/characterization/dev-support-template.spec.ts',
+      'apps/cli/tests/local-development/next-dev.spec.ts',
+      'apps/cli/tests/local-development/container-cleanup.spec.ts',
+      'apps/cli/tests/ministack/local-dev.spec.ts',
+      'apps/cli/scripts/real-aws/lambda-dev-canary.ts'
     ],
-    lanes: ['cli', 'cli-2', 'cli-3', 'local-dev-live', 'cli-test-real-aws-dev-canary']
+    lanes: [
+      'cli',
+      'cli-2',
+      'cli-3',
+      'local-dev',
+      'local-dev-next',
+      'local-dev-containers',
+      'local-dev-ministack',
+      'local-dev-lambda-live',
+      'local-dev-live',
+      'cli-test-real-aws-dev-canary'
+    ]
   },
   {
     id: 'S16',
@@ -3484,7 +3573,6 @@ export const slices: readonly Slice[] = [
       'packaging-lambdas-3',
       'packaging-lambdas-4',
       'cli-packaged-lambda',
-      'artifact-upload',
       'artifact-upload-2',
       'cli-test-real-aws-canary'
     ],
@@ -3738,6 +3826,7 @@ export const slices: readonly Slice[] = [
     journeys: ['J3'],
     paths: [
       'packages/packaging/src/artifact/**',
+      'packages/packaging/scripts/archive-build-e2e.ts',
       'apps/cli/scripts/packaging-archives/**',
       'apps/cli/helper-lambdas/**',
       'apps/cli/src/domain/packaging-manager/timed-archive.ts',
@@ -3751,6 +3840,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/index.test.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/asset-replacer.test.ts',
       'apps/cli/scripts/packaging-archives/asset-replacer-acceptance.ts',
+      'packages/packaging/scripts/archive-build-e2e.ts',
       'apps/cli/scripts/packaging-archives/docker-preparation-acceptance.ts',
       'apps/cli/scripts/packaging-archives/fresh-install-acceptance.ts',
       'apps/cli/scripts/packaging-archives/lambda-archive-acceptance.ts',
@@ -3760,18 +3850,15 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/utils/zip.test.ts',
       'apps/cli/tests/characterization/packaging-contract.spec.ts',
       'packages/packaging/src/artifact/archive-entries.test.ts',
-      'packages/packaging/src/artifact/custom-artifact.test.ts',
-      'packages/packaging/src/artifact/docker-artifact-build.test.ts',
       'packages/packaging/src/artifact/file-selection.test.ts',
-      'packages/packaging/src/artifact/generated-image-build.test.ts',
-      'packages/packaging/src/artifact/lambda-limits.test.ts',
-      'packages/packaging/src/artifact/zip-metadata.test.ts',
       'packages/packaging/src/fs/files-hashing.test.ts',
       'packages/packaging/src/fs/files.test.ts',
       'packages/packaging/src/fs/temporary-file.test.ts',
       'apps/cli/scripts/packaging-archives/helper-lambda-sdk.spec.ts'
     ],
     lanes: [
+      'archive-contracts',
+      'archive-build-e2e',
       'ministack-deploy',
       'packaging-test',
       'packaging-archives',
@@ -3780,7 +3867,6 @@ export const slices: readonly Slice[] = [
       'packaging-archives-4',
       'helper-lambda-runtime',
       'cli-test-helper-lambdas',
-      'cli-runtime-acceptances',
       'cli-test-characterization-helper-lambdas',
       'cli-test-packaging-archives'
     ]
@@ -3798,14 +3884,13 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/network-guard-preload.ts'
     ],
     tests: [
-      'apps/cli/scripts/packaging-archives/layer-upload-acceptance.ts',
       'apps/cli/scripts/packaging-archives/layer-upload-ministack-acceptance.ts',
       'apps/cli/src/aws/s3-upload-options.spec.ts',
       'apps/cli/src/domain/deployment-artifact-manager/retention.test.ts',
       'apps/cli/src/domain/deployment-artifact-manager/template-url.spec.ts',
       'apps/cli/src/domain/deployment-artifact-manager/utils.spec.ts'
     ],
-    lanes: ['artifact-upload', 'artifact-upload-2', 'cli', 'cli-2', 'cli-3']
+    lanes: ['artifact-upload-2', 'cli', 'cli-2', 'cli-3']
   },
   {
     id: 'S34',
