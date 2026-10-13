@@ -20,8 +20,11 @@ role_arn=arn:aws:iam::123456789012:role/example
 source_profile=default
 [incomplete]
 aws_access_key_id=synthetic-id
-[malformed]
+[malformed-access-key]
 aws_access_key_id=true
+aws_secret_access_key=synthetic-secret
+[malformed-secret-key]
+aws_access_key_id=synthetic-id
 aws_secret_access_key[]=not-a-string
 `
     );

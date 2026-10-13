@@ -52,8 +52,10 @@ to qualify a deliberate database upgrade. `pnpm dev:console` instead exercises t
 
 The `--cli-console` suite runs source CLI processes against the production HTTP router and disposable PostgreSQL. It
 covers deployment reporting and Console read responses, endpoint-scoped login/logout, token exchange, organization and
-project commands, and isolated AWS profiles/defaults. AWS calls use a loopback wire fixture; external network requests
-are rejected. It needs Docker and builds the CLI dev artifacts before testing.
+project commands, and isolated AWS profiles/defaults. STS identity, CloudFormation, S3, ECR, resource tags and
+deployment logs use the shared MiniStack fixture; the suite substitutes cross-account AssumeRole, Cost Explorer and
+Budgets and deliberate failures. External network requests are rejected. It needs Docker, builds self-contained helper
+Lambdas for the emulator and restores the ordinary CLI dev artifacts during cleanup.
 
 The `--incident-journey` suite extends issue and incident coverage through the production HTTP router, signed loopback
 webhook delivery and authenticated incident actions. It also invokes the built uptime prober in the official Node.js 22
