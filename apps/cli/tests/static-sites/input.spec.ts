@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { validateBucketSyncInput } from '../../src/commands/bucket-sync';
+import { getDirectBucketSyncUploadConfiguration, validateBucketSyncInput } from '../../src/commands/bucket-sync';
 
 test('reports invalid bucket sync modes with a stable, actionable contract', () => {
   let invalidInputError: { category: string; code: string; hints: string[] } | undefined;
@@ -32,4 +32,24 @@ test('reports invalid bucket sync modes with a stable, actionable contract', () 
   }
   expect(() => validateBucketSyncInput({ stage: 'dev', resourceName: 'website' })).not.toThrow();
   expect(() => validateBucketSyncInput({ bucketId: 'customer-assets', sourcePath: 'dist' })).not.toThrow();
+});
+
+// An accelerated endpoint in these unsupported regions makes an otherwise valid customer upload fail.
+test('direct sync disables transfer acceleration in excluded regions and keeps it in supported regions', () => {
+  const cases = [
+    { region: 'eu-north-1', disabled: true },
+    { region: 'ap-east-1', disabled: true },
+    { region: 'ap-northeast-3', disabled: true },
+    { region: 'af-south-1', disabled: true },
+    { region: 'me-south-1', disabled: true },
+    { region: 'eu-south-1', disabled: true },
+    { region: 'eu-west-1', disabled: false },
+    { region: 'us-east-1', disabled: false }
+  ] as const;
+  for (const { region, disabled } of cases) {
+    expect(
+      getDirectBucketSyncUploadConfiguration({ args: {}, directoryPath: '/static-content', region })
+        .disableS3TransferAcceleration
+    ).toBe(disabled);
+  }
 });

@@ -149,7 +149,8 @@ export const lanes: readonly Lane[] = [
     tests: ['apps/cli/tests/static-sites/build.spec.ts', 'apps/cli/tests/static-sites/input.spec.ts'],
     requires: [],
     release: 'every-candidate',
-    proves: 'A nested static project builds real assets and serves deep pages; invalid sync modes fail clearly.'
+    proves:
+      'A nested static project builds assets for deep pages; sync mode errors and regional acceleration rules stay correct.'
   },
   {
     id: 'ministack-static-content-sync',
@@ -159,7 +160,8 @@ export const lanes: readonly Lane[] = [
     tests: ['apps/cli/tests/static-sites/content-sync.spec.ts'],
     requires: ['docker'],
     release: 'every-candidate',
-    proves: 'Real CLI and SDK syncs store bytes and metadata, remove obsolete content and restore object versions.'
+    proves:
+      'Real configured/direct CLI syncs target the right bucket; SDK uploads report progress, store metadata, remove obsolete content and restore versions.'
   },
   {
     id: 'static-starter-qualification',

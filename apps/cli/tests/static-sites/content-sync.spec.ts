@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
+import { CloudFormationClient } from '@aws-sdk/client-cloudformation';
 import {
   CreateBucketCommand,
   type DeleteObjectsCommandInput,
@@ -15,21 +16,54 @@ import {
   S3Client
 } from '@aws-sdk/client-s3';
 import { startMiniStack, type MiniStack } from '@stacktape/ministack/fixture';
-import { AwsS3 } from '../../src/aws/s3';
+import { AwsS3, type S3SyncInfo } from '../../src/aws/s3';
 import { S3Sync } from '../../src/aws/s3-sync';
 import { startControlPlaneFake, type ControlPlaneFake } from '../cli-process/control-plane-fake';
 import { buildOfflineQualificationEnvironment } from '../../scripts/qualification/offline-aws';
 import { assertProcessSucceeded, runProcess } from '../../scripts/qualification/process';
 import { ensureDevCliArtifacts } from '../../scripts/qualification/source-cli-packaging';
+import {
+  createFamilyProject,
+  describeStackResources,
+  runSourceCli,
+  STAGE,
+  writeProjectFiles,
+  type FamilyProject
+} from '../ministack/harness';
 
+const cliRoot = resolve(import.meta.dir, '../..');
+const buildHelpers = async (bundled: boolean) => {
+  assertProcessSucceeded(
+    await runProcess({
+      command: process.execPath,
+      args: [
+        'run',
+        join(cliRoot, 'scripts/package-helper-lambdas.ts'),
+        '--dev',
+        ...(bundled ? ['--bundle-aws-sdk'] : [])
+      ],
+      cwd: cliRoot,
+      timeoutMs: 120_000
+    })
+  );
+};
+let helpersPrepared = false;
 let ministack: MiniStack;
 beforeAll(async () => {
   await ensureDevCliArtifacts();
+  // The deploy harness needs a self-contained helper in MiniStack's local Lambda runtime.
+  // Restore normal development artifacts in teardown, including when startup or a scenario fails.
+  helpersPrepared = true;
+  await buildHelpers(true);
   ministack = await startMiniStack({ label: 't14-static-content' });
 }, 180_000);
 afterAll(async () => {
-  await ministack?.stop();
-});
+  try {
+    await ministack?.stop();
+  } finally {
+    if (helpersPrepared) await buildHelpers(false);
+  }
+}, 120_000);
 
 const capability = (client: S3Client, sync: S3Sync) =>
   new AwsS3({
@@ -61,6 +95,22 @@ test('directory sync stores headers, tags and bytes, preserves optional removals
   const sync = new S3Sync({ clientArgs: config, s3Plugins: [] });
   const s3 = capability(client, sync);
   const bucket = 'static-content';
+  const progressUpdates: S3SyncInfo[] = [];
+  let releaseUpload = () => {};
+  const firstProgress = new Promise<void>((resolveProgress) => {
+    releaseUpload = resolveProgress;
+  });
+  // A real upload stays active until its first progress callback. The deadline releases it for a fault run
+  // with callbacks removed, so that run fails an assertion and still completes normal fixture cleanup.
+  let progressDeadline: ReturnType<typeof setTimeout> | undefined;
+  sync.s3.middlewareStack.add(
+    (next, context) => async (args) => {
+      if (context.commandName === 'PutObjectCommand') await firstProgress;
+      return next(args);
+    },
+    { step: 'initialize', name: 'waitForFirstUploadProgress' }
+  );
+
   try {
     await client.send(new CreateBucketCommand({ Bucket: bucket }));
     await client.send(
@@ -88,7 +138,30 @@ test('directory sync stores headers, tags and bytes, preserves optional removals
         }
       ]
     };
-    await s3.syncDirectory({ bucketName: bucket, uploadConfiguration, deleteRemoved: true, onProgress() {} });
+    progressDeadline = setTimeout(() => releaseUpload(), 2_000);
+    const completedUpload = await s3.syncDirectory({
+      bucketName: bucket,
+      uploadConfiguration,
+      deleteRemoved: true,
+      onProgress(info) {
+        progressUpdates.push({ ...info });
+        releaseUpload();
+      }
+    });
+    clearTimeout(progressDeadline);
+    expect(progressUpdates.some(({ activeTransfers, progressTotal }) => activeTransfers > 0 && progressTotal > 0)).toBe(
+      true
+    );
+    expect(
+      progressUpdates.every(({ progressPercent }) => Number(progressPercent) >= 0 && Number(progressPercent) <= 100)
+    ).toBe(true);
+    expect(completedUpload).toMatchObject({
+      activeTransfers: 0,
+      filesFound: 3,
+      progressAmount: 56,
+      progressTotal: 56,
+      progressPercent: '100.00'
+    });
     expect(await keys(client, bucket)).toEqual(['index.html', 'removed.html', 'static/app.js']);
     expect(await readObject(client, bucket, 'index.html')).toEqual({
       body: '<h1>Release one</h1>',
@@ -143,6 +216,8 @@ test('directory sync stores headers, tags and bytes, preserves optional removals
       metadata: { 'x-stacktape-origin': 'static' }
     });
   } finally {
+    clearTimeout(progressDeadline);
+    releaseUpload();
     sync.s3.destroy();
     client.destroy();
     await rm(root, { recursive: true, force: true });
@@ -151,7 +226,6 @@ test('directory sync stores headers, tags and bytes, preserves optional removals
 
 test('the CLI installs a nested static project dependency before building its deep page and asset', async () => {
   const root = await mkdtemp(join(tmpdir(), 'stacktape-static-package-'));
-  const cliRoot = resolve(import.meta.dir, '../..');
   const account = ministack.account();
   const home = join(root, 'home');
   try {
@@ -260,7 +334,6 @@ test('direct bucket sync runs without a usable config, updates content and delet
   const client = new S3Client(ministack.clientConfig(account, { region: 'eu-north-1' }));
   let controlPlane: ControlPlaneFake | undefined;
   const bucket = 'direct-static-content';
-  const cliRoot = resolve(import.meta.dir, '../..');
   const home = join(root, 'home');
   const env = {
     ...buildOfflineQualificationEnvironment({
@@ -330,6 +403,105 @@ test('direct bucket sync runs without a usable config, updates content and delet
     await controlPlane?.close();
     client.destroy();
     await rm(root, { recursive: true, force: true });
+  }
+}, 180_000);
+
+test('configured bucket sync resolves the deployed resource and source directory without touching another bucket', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'stacktape-static-configured-'));
+  const client = new S3Client(ministack.clientConfig());
+  const cloudFormation = new CloudFormationClient(ministack.clientConfig());
+  let project: FamilyProject | undefined;
+  try {
+    project = await createFamilyProject({ familyName: 'static-configured', out: root, ministack });
+    await writeProjectFiles(project, {
+      'stacktape.yml': `resources:
+  website:
+    type: bucket
+    properties:
+      directoryUpload:
+        directoryPath: public
+        headersPreset: static-website
+        disableS3TransferAcceleration: true
+  unrelated:
+    type: bucket
+`,
+      'public/index.html': '<h1>Deployed baseline</h1>',
+      'public/removed.html': 'old configured page'
+    });
+    const deployed = await runSourceCli({ project, step: 'create', ministack });
+    expect(deployed.exitCode, deployed.tail).toBe(0);
+    const resources = await describeStackResources(cloudFormation, project.stackName);
+    const bucket = resources?.find(
+      ({ LogicalResourceId }) => LogicalResourceId === 'WebsiteBucket'
+    )?.PhysicalResourceId;
+    const unrelatedBucket = resources?.find(
+      ({ LogicalResourceId }) => LogicalResourceId === 'UnrelatedBucket'
+    )?.PhysicalResourceId;
+    expect(bucket).toBeDefined();
+    expect(unrelatedBucket).toBeDefined();
+    await client.send(
+      new PutObjectCommand({ Bucket: unrelatedBucket!, Key: 'keep.txt', Body: 'other resource content' })
+    );
+    await writeProjectFiles(project, {
+      'public/index.html': '<h1>Configured sync update</h1>',
+      'public/added.html': 'new configured page'
+    });
+    await rm(join(project.directory, 'public/removed.html'));
+    const account = ministack.defaultAccount;
+    const result = await runProcess({
+      command: process.execPath,
+      args: [
+        '--preload',
+        join(cliRoot, 'tests/ministack/offline-preload.ts'),
+        join(cliRoot, 'scripts/dev.ts'),
+        'bucket:sync',
+        '--stage',
+        STAGE,
+        '--resourceName',
+        'website',
+        '--projectName',
+        project.projectName,
+        '--region',
+        ministack.region,
+        '--awsAccount',
+        'cli-process-account',
+        '--currentWorkingDirectory',
+        project.directory,
+        '--outputFormat',
+        'jsonl'
+      ],
+      cwd: cliRoot,
+      env: {
+        ...buildOfflineQualificationEnvironment({
+          endpoint: ministack.endpoint,
+          invocationId: 'configured-static-sync',
+          homeDirectory: project.home
+        }),
+        ...ministack.childEnvironment(account),
+        MINISTACK_ENDPOINT: ministack.endpoint,
+        MINISTACK_ACCESS_KEY_ID: account.credentials.accessKeyId,
+        MINISTACK_SECRET_ACCESS_KEY: account.credentials.secretAccessKey,
+        STP_SKIP_COST_DISCOVERY: '1',
+        STP_CUSTOM_TRPC_API_ENDPOINT: project.controlPlane.endpoint
+      },
+      timeoutMs: 60_000
+    });
+    assertProcessSucceeded(result);
+    expect(await readObject(client, bucket!, 'index.html')).toMatchObject({
+      body: '<h1>Configured sync update</h1>',
+      cacheControl: 'public, max-age=0, s-maxage=31536000, must-revalidate'
+    });
+    expect(await keys(client, bucket!)).toEqual(['added.html', 'index.html']);
+    expect(await keys(client, unrelatedBucket!)).toEqual(['keep.txt']);
+    expect((await readObject(client, unrelatedBucket!, 'keep.txt')).body).toBe('other resource content');
+  } finally {
+    try {
+      await project?.close();
+    } finally {
+      cloudFormation.destroy();
+      client.destroy();
+      await rm(root, { recursive: true, force: true });
+    }
   }
 }, 180_000);
 
