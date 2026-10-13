@@ -142,6 +142,46 @@ export const lanes: readonly Lane[] = [
     selections: ['naming']
   },
   {
+    id: 'static-sites',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:static-sites'],
+    level: 'process',
+    tier: 'pr',
+    tests: ['apps/cli/tests/static-sites/build.spec.ts', 'apps/cli/tests/static-sites/input.spec.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves:
+      'A nested static project builds assets for deep pages; sync mode errors and regional acceleration rules stay correct.'
+  },
+  {
+    id: 'ministack-static-content-sync',
+    command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:static-sites:ministack'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/tests/static-sites/content-sync.spec.ts'],
+    requires: ['docker'],
+    release: 'every-candidate',
+    proves:
+      'Real configured/direct CLI syncs target the right bucket; SDK uploads report progress, store metadata, remove obsolete content and restore versions.'
+  },
+  {
+    id: 'static-starter-qualification',
+    command: [
+      'pnpm',
+      '--filter',
+      '@stacktape/cli',
+      'run',
+      'qualify:starters',
+      '--',
+      '--starter=astro-static,react-spa-vitejs'
+    ],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/cli/scripts/qualification/run-starter-packaging.ts'],
+    requires: ['docker', 'network'],
+    release: 'every-candidate',
+    proves: 'The Astro static and Vite SPA starters package through the current source CLI.'
+  },
+  {
     id: 'synthesis',
     command: ['pnpm', '--filter', '@stacktape/cli', 'test:characterization'],
     level: 'focused',
@@ -1691,7 +1731,6 @@ export const lanes: readonly Lane[] = [
       'apps/cli/tests/characterization/packaging-contract.spec.ts',
       'apps/cli/tests/characterization/packaging-smoke-fixture.spec.ts',
       'apps/cli/tests/characterization/private-registry-pagination.spec.ts',
-      'apps/cli/tests/characterization/s3-operations.spec.ts',
       'apps/cli/tests/characterization/sql-read-only.spec.ts',
       'apps/cli/tests/characterization/stack-event-pagination.spec.ts',
       'apps/cli/tests/characterization/synthesis-contract.spec.ts',
@@ -3715,11 +3754,19 @@ export const slices: readonly Slice[] = [
     paths: [
       'packages/packaging/src/web/hosting-bucket-build.ts',
       'apps/cli/src/commands/bucket-sync/**',
+      'apps/cli/src/domain/packaging-manager/index.ts',
+      'apps/cli/src/domain/packaging-manager/dependency-installer.ts',
+      'apps/cli/src/domain/deployment-artifact-manager/index.ts',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/hosting-buckets/**',
       'apps/cli/src/aws/s3-sync/**',
       'apps/cli/src/aws/s3.ts'
     ],
-    tests: ['apps/cli/tests/characterization/s3-operations.spec.ts'],
-    lanes: ['synthesis', 'synthesis-2', 'starter-qualification'],
+    tests: [
+      'apps/cli/tests/static-sites/build.spec.ts',
+      'apps/cli/tests/static-sites/input.spec.ts',
+      'apps/cli/tests/static-sites/content-sync.spec.ts'
+    ],
+    lanes: ['static-sites', 'ministack-static-content-sync', 'static-starter-qualification'],
     contributors: ['S04']
   },
   {
@@ -4999,7 +5046,7 @@ export const toolingTests: readonly string[] = [
 ];
 
 // Add the kit agent's implemented lane here and attach it to these slices. Placeholders are not runnable lanes.
-export const pendingMiniStackLanes = [{ id: 'ministack-static-content-sync', slices: ['S31'] }] as const;
+export const pendingMiniStackLanes = [] as const;
 
 export const laneIdsForSelection = (selection: string): string[] =>
   lanes.filter((lane) => lane.selections?.includes(selection)).map((lane) => lane.id);
