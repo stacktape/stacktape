@@ -49,6 +49,15 @@ describe('inventory merge', () => {
       'api:pkg:npm/lodash@4.17.20',
       'worker:pkg:deb/debian/openssl@3.0.13'
     ]);
+    expect(summarizeInventory(merged)).toEqual({
+      componentCount: 4,
+      workloads: [
+        { name: 'project', source: 'filesystem', componentCount: 1 },
+        { name: 'api', source: 'image', componentCount: 2, artifactDigest: 'abc' },
+        { name: 'worker', source: 'image', componentCount: 1, artifactDigest: 'def' }
+      ],
+      ecosystems: { npm: 2, deb: 2 }
+    });
     const apiOpenssl = merged.components![1]!;
     expect(apiOpenssl.properties).toEqual([
       { name: STACKTAPE_COMPONENT_PROPERTY.workload, value: 'api' },
@@ -100,25 +109,6 @@ describe('inventory merge', () => {
     expect(summarizeInventory(next).workloads).toEqual([
       { name: 'api', source: 'carried-over', componentCount: 1, artifactDigest: 'abc' }
     ]);
-  });
-
-  test('summarizes counts per workload and per package ecosystem', () => {
-    const merged = mergeInventoryParts({
-      parts: [
-        { workload: null, source: 'filesystem', document: trivyDocument([lodash]) },
-        { workload: 'api', artifactDigest: 'abc', source: 'image', document: trivyDocument([openssl, lodash]) }
-      ],
-      application: { name: 'shop-production', version: '7' },
-      tools: []
-    });
-    expect(summarizeInventory(merged)).toEqual({
-      componentCount: 3,
-      workloads: [
-        { name: 'project', source: 'filesystem', componentCount: 1 },
-        { name: 'api', source: 'image', componentCount: 2, artifactDigest: 'abc' }
-      ],
-      ecosystems: { npm: 2, deb: 1 }
-    });
   });
 
   test('tells which previously listed workloads an inventory would silently drop', () => {
