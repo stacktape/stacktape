@@ -51,9 +51,9 @@ try {
   if (process.env.FAIL_BUILD === 'yes') throw new Error('Framework configuration is invalid');
   if (process.env.PEER_BUILD_BARRIER) {
     await writeFile(process.env.PEER_BUILD_BARRIER + '/' + process.env.MARKER, 'building');
-    const deadline = Date.now() + 5000;
-    while (!(await access(process.env.PEER_BUILD_BARRIER + '/' + process.env.PEER_MARKER).then(() => true, () => false))) {
-      if (Date.now() > deadline) throw new Error('An independent application build was blocked');
+    const deadline = Date.now() + 25000;
+    while (!(await access(process.env.PEER_BUILD_BARRIER + '/release').then(() => true, () => false))) {
+      if (Date.now() > deadline) throw new Error('The concurrent build fixture was not released');
       await new Promise(resolve => setTimeout(resolve, 20));
     }
   }
@@ -151,11 +151,30 @@ test('concurrent SSR applications keep runnable ZIPs without serializing indepen
     await setup(peerRoot);
     const barrier = join(root, 'peer-barrier');
     await write(join(barrier, '.ready'), '');
-    const builds = await Promise.allSettled([
-      packageApp(root, 'first', { PEER_BUILD_BARRIER: barrier, PEER_MARKER: 'peer' }),
+    const pendingBuilds = Promise.allSettled([
+      packageApp(root, 'first', { PEER_BUILD_BARRIER: barrier }),
       packageApp(root, 'second'),
-      packageApp(peerRoot, 'peer', { PEER_BUILD_BARRIER: barrier, PEER_MARKER: 'first' })
+      packageApp(peerRoot, 'peer', { PEER_BUILD_BARRIER: barrier })
     ]);
+    let startupError: unknown;
+    try {
+      // Cold npx startup can differ by several seconds on Windows. Hold both framework processes until
+      // the parent observes their ready files; the first child does not time the other's launcher.
+      const deadline = Date.now() + 15_000;
+      // oxlint-disable-next-line no-await-in-loop -- poll ready files from both real framework processes.
+      while (!(await Bun.file(join(barrier, 'first')).exists()) || !(await Bun.file(join(barrier, 'peer')).exists())) {
+        if (Date.now() > deadline) throw new Error('An independent application build was blocked before readiness');
+        // oxlint-disable-next-line no-await-in-loop -- observe the two real framework processes with a deadline.
+        await Bun.sleep(20);
+      }
+    } catch (error) {
+      startupError = error;
+    } finally {
+      // Release and join our children even when serialization prevented the second ready signal.
+      await write(join(barrier, 'release'), 'ready');
+    }
+    const builds = await pendingBuilds;
+    if (startupError) throw startupError;
     const outputs = builds.map((result) => {
       if (result.status === 'rejected') throw result.reason;
       return result.value;

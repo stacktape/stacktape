@@ -1720,6 +1720,17 @@ export const lanes: readonly Lane[] = [
     selections: ['console-ui']
   },
   {
+    id: 'console-observability-readers',
+    command: ['pnpm', '--filter', '@stacktape/console-ui', 'test:observability:readers'],
+    level: 'process',
+    tier: 'pr',
+    tests: ['apps/console/ui/scripts/observability-readers.test.ts'],
+    requires: ['console'],
+    release: 'every-candidate',
+    proves:
+      'Actual Console clients and SDK transport retain paged metric values, denied-resource context and the selected live-tail request scope.'
+  },
+  {
     id: 'console-ui-2',
     command: ['pnpm', '--filter', '@stacktape/console-ui', 'typecheck'],
     level: 'focused',
@@ -2270,7 +2281,6 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/api-key-security.test.ts',
       'apps/console/api/src/services/bitbucket-forge.test.ts',
       'apps/console/api/src/services/budget-alert-polling.test.ts',
-      'apps/console/api/src/services/budget-alerts.test.ts',
       'apps/console/api/src/services/currency-conversion.test.ts',
       'apps/console/api/src/services/default-domain-aws.test.ts',
       'apps/console/api/src/services/git-connection-secret-store.test.ts',
@@ -5256,6 +5266,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/utils/dates.ts'
     ],
     tests: [
+      'apps/console/ui/scripts/observability-readers.test.ts',
       'apps/console/api/src/utils/observability-inventory.test.ts',
       'apps/console/ui/src/aws/logs-commands.test.ts',
       'apps/console/ui/src/aws/logs.test.ts',
@@ -5268,7 +5279,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/pages/OverviewPage/overview-metrics.test.ts',
       'apps/console/ui/src/utils/dates.test.ts'
     ],
-    lanes: ['console-ui', 'console-ui-2', 'console-ui-3', 'console-database-insights'],
+    lanes: ['console-ui', 'console-ui-2', 'console-ui-3', 'console-observability-readers', 'console-database-insights'],
     contributors: ['S66']
   },
   {
@@ -5327,7 +5338,6 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/console/api/scripts/insights-runtime.test.ts',
       'apps/console/api/src/services/budget-alert-polling.test.ts',
-      'apps/console/api/src/services/budget-alerts.test.ts',
       'apps/console/api/src/services/currency-conversion.test.ts',
       'apps/cli/src/domain/budget-manager/index.spec.ts'
     ],
