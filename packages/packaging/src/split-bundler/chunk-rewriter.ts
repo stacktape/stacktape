@@ -1,5 +1,4 @@
 import type { TextEdit } from '../es/source-map-edits';
-import { applyTextEdits } from '../es/source-map-edits';
 
 /**
  * Chunk import path rewriting utilities.
@@ -56,47 +55,7 @@ export const assertOnlyLayerChunkImportsAbsolute = (result: string) => {
   }
 };
 
-/**
- * Rewrite all chunk import paths in file content to use a new prefix.
- *
- * @param content - File content to process
- * @param newPrefix - New prefix for chunk paths (e.g., "./chunks/" or "./")
- * @returns Modified content with rewritten imports
- */
-export const rewriteChunkImports = (content: string, newPrefix: string): string => {
-  const result = applyTextEdits(
-    content,
-    getChunkImportEdits(content, () => newPrefix)
-  );
-  assertNoRootChunkImports(result);
-  return result;
-};
-
 /** Where a layered or a local chunk is imported from: the layer mount, or `localPrefix`. */
 export const getChunkPrefixFor =
   (layeredChunkNames: Set<string>, layerPrefix: string, localPrefix: string) => (chunkFile: string) =>
     layeredChunkNames.has(chunkFile) ? layerPrefix : localPrefix;
-
-/**
- * Rewrite chunk imports selectively based on whether chunks are layered.
- * Layered chunks get the layer prefix, non-layered chunks get the local prefix.
- *
- * @param content - File content to process
- * @param layeredChunkNames - Set of chunk names that are in layers
- * @param layerPrefix - Prefix for layered chunk imports (e.g., "/opt/nodejs/chunks/")
- * @param localPrefix - Prefix for non-layered chunk imports (e.g., "./chunks/" or "./")
- * @returns Modified content with selectively rewritten imports
- */
-export const rewriteChunkImportsSelective = (
-  content: string,
-  layeredChunkNames: Set<string>,
-  layerPrefix: string,
-  localPrefix: string
-): string => {
-  const result = applyTextEdits(
-    content,
-    getChunkImportEdits(content, getChunkPrefixFor(layeredChunkNames, layerPrefix, localPrefix))
-  );
-  assertOnlyLayerChunkImportsAbsolute(result);
-  return result;
-};

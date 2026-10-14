@@ -7,7 +7,12 @@
 import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
 import { ApiGatewayV2Client, GetRoutesCommand } from '@aws-sdk/client-apigatewayv2';
-import type { StackResourceSummary } from '@aws-sdk/client-cloudformation';
+import {
+  CloudFormationClient,
+  DescribeStacksCommand,
+  type StackResourceSummary,
+  UpdateTerminationProtectionCommand
+} from '@aws-sdk/client-cloudformation';
 import { CloudWatchLogsClient, FilterLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
 import { DescribeTableCommand, DynamoDBClient, GetItemCommand, PutItemCommand } from '@aws-sdk/client-dynamodb';
 import { DescribeEventBusCommand, EventBridgeClient } from '@aws-sdk/client-eventbridge';
@@ -22,6 +27,7 @@ import {
   GetBucketNotificationConfigurationCommand,
   GetObjectCommand,
   HeadBucketCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client
 } from '@aws-sdk/client-s3';
@@ -34,6 +40,7 @@ import { splitLambdaFamily } from './split-lambda-family';
 export type Version = 1 | 2;
 
 export type EffectClients = {
+  cloudFormation: CloudFormationClient;
   s3: S3Client;
   lambda: LambdaClient;
   dynamo: DynamoDBClient;
@@ -47,6 +54,7 @@ export type EffectClients = {
 export const createEffectClients = (ministack: MiniStack): EffectClients => {
   const config = ministack.clientConfig();
   return {
+    cloudFormation: new CloudFormationClient(config),
     s3: new S3Client(config),
     lambda: new LambdaClient(config),
     dynamo: new DynamoDBClient(config),
@@ -67,6 +75,7 @@ export type EffectContext = {
   /** The config version deployed: 1 after create/rollback; 2 after update, unchanged redeploy and diff. */
   version: Version;
   endpoint: string;
+  stackName: string;
   resources: StackResourceSummary[];
   clients: EffectClients;
   /** The physical ID of the stack resource with this logical ID. */
@@ -254,6 +263,8 @@ export const families: Family[] = [
   {
     name: 'sns-fan-out',
     config: (version) => ({
+      // One previous version is kept, and the update turns termination protection on.
+      deploymentConfig: { previousVersionsToKeep: 1, terminationProtection: version === 2 },
       resources: {
         topic: { type: 'sns-topic' },
         first: jsBundleFunction(version, { events: [{ type: 'sns', properties: { snsTopicName: 'topic' } }] }),
@@ -269,6 +280,31 @@ export const families: Family[] = [
       const marker = `topic-${context.step}-${context.version}`;
       await context.clients.sns.send(new PublishCommand({ TopicArn: topic, Message: marker }));
       for (const functionName of functions) await awaitLogLine(context, functionName, marker, 'a published message');
+      const [stack] =
+        (await context.clients.cloudFormation.send(new DescribeStacksCommand({ StackName: context.stackName })))
+          .Stacks ?? [];
+      assert.equal(stack?.EnableTerminationProtection, context.version === 2, 'termination protection');
+      context.checks.push(`termination protection is ${context.version === 2 ? 'on' : 'off'} as configured`);
+      if (context.step === 'unchanged') {
+        // Three deployments with one previous version to keep: v000001 is obsolete, v000002 and v000003 remain.
+        const templates = (
+          (
+            await context.clients.s3.send(
+              new ListObjectsV2Command({ Bucket: context.physical('StpDeploymentBucket'), Prefix: 'cf-template/' })
+            )
+          ).Contents ?? []
+        )
+          .map(({ Key }) => Key)
+          .toSorted();
+        assert.deepEqual(templates, ['cf-template/v000002.yml', 'cf-template/v000003.yml'], 'retained templates');
+        context.checks.push('previousVersionsToKeep: 1 keeps the current and one previous template');
+      }
+    },
+    // Termination protection must be off before the stack can be deleted; customers turn it off by redeploying.
+    beforeDelete: async ({ clients, stackName }) => {
+      await clients.cloudFormation.send(
+        new UpdateTerminationProtectionCommand({ StackName: stackName, EnableTerminationProtection: false })
+      );
     }
   },
   {

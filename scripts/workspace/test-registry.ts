@@ -413,7 +413,7 @@ export const lanes: readonly Lane[] = [
     requires: [],
     release: 'every-candidate',
     proves:
-      'Change plans, replacement risks, ECS mapping contracts, version publication and malformed service responses preserve deployment safety.',
+      'Change plans, replacement risks, ECS mapping contracts, version publication and CloudFormation responses preserve deployment safety.',
     selections: ['deployment-rules']
   },
   {
@@ -1096,7 +1096,7 @@ export const lanes: readonly Lane[] = [
     requires: ['docker', 'network'],
     release: 'every-candidate',
     proves:
-      'The source CLI creates, updates, redeploys unchanged, previews, rolls back and deletes on MiniStack; real SDKs observe runtime, data and artifacts.',
+      'The source CLI creates, updates, redeploys unchanged, refuses unconfirmed data loss, previews, rolls back and deletes on MiniStack; real SDKs observe runtime, data, retention and artifacts.',
     selections: ['ministack-deploy']
   },
   {
@@ -2498,9 +2498,8 @@ export const lanes: readonly Lane[] = [
       'packages/packaging/src/bundlers/digest.test.ts',
       'packages/packaging/src/bundlers/es/decorator-metadata.test.ts',
       'packages/packaging/src/bundlers/es/docker-dependency-plan.test.ts',
-      'packages/packaging/src/bundlers/es/file-selection.test.ts',
+      'packages/packaging/src/bundlers/es/lambda-package.test.ts',
       'packages/packaging/src/bundlers/es/minify.test.ts',
-      'packages/packaging/src/bundlers/es/module-resolution.test.ts',
       'packages/packaging/src/bundlers/es/prisma.test.ts',
       'packages/packaging/src/bundlers/es/raw-code.test.ts',
       'packages/packaging/src/bundlers/es/require-condition.test.ts',
@@ -4052,9 +4051,8 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/bundlers/digest.test.ts',
       'packages/packaging/src/bundlers/es/decorator-metadata.test.ts',
       'packages/packaging/src/bundlers/es/docker-dependency-plan.test.ts',
-      'packages/packaging/src/bundlers/es/file-selection.test.ts',
+      'packages/packaging/src/bundlers/es/lambda-package.test.ts',
       'packages/packaging/src/bundlers/es/minify.test.ts',
-      'packages/packaging/src/bundlers/es/module-resolution.test.ts',
       'packages/packaging/src/bundlers/es/prisma.test.ts',
       'packages/packaging/src/bundlers/es/raw-code.test.ts',
       'packages/packaging/src/bundlers/es/require-condition.test.ts',
@@ -4106,7 +4104,8 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/split-bundler/error-format.test.ts',
       'packages/packaging/src/split-bundler/function-digest.test.ts',
       'packages/packaging/src/split-bundler/layer-assignment.test.ts',
-      'packages/packaging/src/split-bundler/layer-builder.test.ts'
+      'packages/packaging/src/split-bundler/layer-builder.test.ts',
+      'packages/packaging/src/split-bundler/layered-runtime.test.ts'
     ],
     lanes: [
       'node-lambda-offline',
