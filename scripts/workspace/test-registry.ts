@@ -1853,7 +1853,8 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-deployment.test.ts',
       'apps/console/ui/e2e/isolated-security.test.ts',
       'apps/console/ui/e2e/isolated-first-run.test.ts',
-      'apps/console/ui/e2e/isolated-organization.test.ts'
+      'apps/console/ui/e2e/isolated-organization.test.ts',
+      'apps/console/ui/e2e/isolated-overview.test.ts'
     ],
     requires: ['console', 'docker', 'chromium', 'network'],
     release: 'every-candidate',
@@ -2377,6 +2378,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-security.test.ts',
       'apps/console/ui/e2e/isolated-first-run.test.ts',
       'apps/console/ui/e2e/isolated-organization.test.ts',
+      'apps/console/ui/e2e/isolated-overview.test.ts',
       'apps/console/ui/e2e/issues.spec.ts',
       'apps/console/ui/e2e/privacy-probe.spec.ts',
       'apps/console/ui/e2e/project-access.spec.ts',
@@ -5379,6 +5381,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/pages/SyntheticsPage/synthetics-presentation.test.ts',
       'apps/console/ui/src/pages/OverviewPage/overview-metrics.test.ts',
       'apps/console/ui/e2e/isolated-first-run.test.ts',
+      'apps/console/ui/e2e/isolated-overview.test.ts',
       'apps/console/ui/src/utils/dates.test.ts'
     ],
     lanes: [

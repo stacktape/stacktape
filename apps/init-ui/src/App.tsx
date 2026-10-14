@@ -32,6 +32,14 @@ export function App() {
   const [connectionState, setConnectionState] = useState<'connected' | 'reconnecting'>('connected');
   const [busy, setBusy] = useState<string | undefined>();
   const [startedAt, setStartedAt] = useState<number>(() => Date.now());
+  /** The saved review, opened again from its summary line. */
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const deploymentStatus = state?.deployment?.status;
+
+  // A deploy that starts puts the review back to its one line, so the progress is what is on screen.
+  useEffect(() => {
+    if (deploymentStatus === 'running') setReviewOpen(false);
+  }, [deploymentStatus]);
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
@@ -75,6 +83,7 @@ export function App() {
   const isActive = (id: string) => steps.find((step) => step.id === id)?.status === 'active';
   const isReached = (id: string) => steps.find((step) => step.id === id)?.status !== 'todo';
   const lede = ledeFor(state);
+  const deploying = deploymentStatus === 'running' || deploymentStatus === 'repairing';
 
   const run = async (label: string, action: () => Promise<unknown>, whenItFails: string) => {
     setBusy(label);
@@ -97,7 +106,7 @@ export function App() {
       </header>
 
       <div className="wizard-page">
-        <GuideRail steps={steps} />
+        <GuideRail openedIds={reviewOpen ? ['review'] : []} steps={steps} />
 
         <div className="wizard-flow">
           {actionFailure !== undefined && (
@@ -123,17 +132,21 @@ export function App() {
             id="start"
             isActive={isActive('start')}
             isMuted={!isActive('start')}
-            {...(isActive('start') ? { title: 'What happens next' } : {})}
+            {...(isActive('start')
+              ? { title: 'What happens next' }
+              : { summary: <StartStep isBusy={false} isDone onStart={() => {}} state={state} /> })}
           >
-            <StartStep
-              isBusy={busy === 'start'}
-              isDone={!isActive('start')}
-              onStart={(agentId, modelId) => {
-                setStartedAt(Date.now());
-                void run('start', () => session.start(agentId, modelId), 'That analysis could not be started.');
-              }}
-              state={state}
-            />
+            {isActive('start') && (
+              <StartStep
+                isBusy={busy === 'start'}
+                isDone={false}
+                onStart={(agentId, modelId) => {
+                  setStartedAt(Date.now());
+                  void run('start', () => session.start(agentId, modelId), 'That analysis could not be started.');
+                }}
+                state={state}
+              />
+            )}
           </Section>
 
           {isReached('read') && (
@@ -142,9 +155,11 @@ export function App() {
               id="read"
               isActive={isActive('read')}
               isMuted={!isActive('read')}
-              {...(isActive('read') ? { title: 'Reading your project' } : {})}
+              {...(isActive('read')
+                ? { title: 'Reading your project' }
+                : { summary: <ScanStep isDone startedAt={startedAt} state={state} /> })}
             >
-              {state.phase === 'failed' ? (
+              {!isActive('read') ? undefined : state.phase === 'failed' ? (
                 <div className="flex flex-col gap-4">
                   <Alert tone="danger" title="What stopped it">
                     {state.error ?? 'The agent stopped before it produced anything.'} Nothing was changed, and nothing
@@ -184,7 +199,7 @@ export function App() {
                   </div>
                 </div>
               ) : (
-                <ScanStep isDone={!isActive('read')} startedAt={startedAt} state={state} />
+                <ScanStep isDone={false} startedAt={startedAt} state={state} />
               )}
             </Section>
           )}
@@ -194,11 +209,20 @@ export function App() {
               eyebrow="Review"
               id="review"
               isActive={isActive('review')}
+              isExpanded={reviewOpen}
               isMuted={!isActive('review')}
-              {...(isActive('review') && !nothingFound(state) ? { title: 'What Stacktape will create' } : {})}
+              onToggle={() => setReviewOpen(!reviewOpen)}
+              hideLabel="Hide the review"
+              toggleLabel="Show the review"
+              {...(isActive('review')
+                ? nothingFound(state)
+                  ? {}
+                  : { title: 'What Stacktape will create' }
+                : { summary: <ReviewSummary state={state} /> })}
             >
               <ReviewStep
                 busy={busy}
+                isLocked={deploying}
                 onChangeDecision={(id, value) =>
                   void run(id, () => session.answer(id, value), 'That change could not be applied.')
                 }
@@ -216,7 +240,7 @@ export function App() {
           )}
 
           {isReached('deploy') && (
-            <Section eyebrow="Deploy" id="deploy" isActive={isActive('deploy')}>
+            <Section eyebrow="Deploy" id="deploy" isActive={isActive('deploy')} scrollKey={deploymentStatus ?? 'ready'}>
               <DeployStep
                 isBusy={
                   busy === 'deploy' || busy === 'pipeline' || busy === 'recheck' || busy === 'verify' ? busy : undefined
@@ -224,6 +248,10 @@ export function App() {
                 onDeploy={(stage, region, expected) =>
                   void run('deploy', () => session.deploy(stage, region, expected), 'The deploy could not be started.')
                 }
+                onRegionChange={(region) => {
+                  // A price is a convenience: a failed request leaves the old one out of the sentence, nothing else.
+                  session.setPriceRegion(region).catch(() => {});
+                }}
                 onDismissVerification={() =>
                   void run('dismiss-verify', () => session.dismissVerification(), 'Could not set the result aside.')
                 }
@@ -240,6 +268,19 @@ export function App() {
         </div>
       </div>
     </main>
+  );
+}
+
+/** The saved review in one line: what was written and what it holds. */
+function ReviewSummary({ state }: { state: WizardState }) {
+  const count = Object.keys(state.composition?.resources ?? {}).length;
+  const price = state.composition?.price?.monthly;
+  return (
+    <p className="wizard-recap">
+      Saved <strong>{state.configFile?.filename ?? 'the configuration'}</strong> with{' '}
+      {count === 1 ? 'one resource' : `${count} resources`}
+      {price === undefined ? '' : `, about ${price}`}.
+    </p>
   );
 }
 
