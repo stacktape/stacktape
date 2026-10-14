@@ -30,13 +30,12 @@ type StatusBadgeProps = {
   /** A live dot before the word, for states that are happening now. */
   dot?: boolean;
   /** Status words are capitals; a result with a count in it reads better as written. */
-  caps?: boolean;
   children: ReactNode;
 };
 
-export function StatusBadge({ tone, dot = false, caps = true, children }: StatusBadgeProps) {
+export function StatusBadge({ tone, dot = false, children }: StatusBadgeProps) {
   return (
-    <Badge caps={caps} className={dot ? 'rm-badge rm-badge--dot' : 'rm-badge'} tone={tone}>
+    <Badge className={dot ? 'rm-badge rm-badge--dot' : 'rm-badge'} tone={tone}>
       {dot ? <i aria-hidden="true" className="rm-badge__dot" /> : null}
       {children}
     </Badge>
