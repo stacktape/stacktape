@@ -1,11 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import {
-  buildDotnetArtifactDockerfile,
-  buildEsDevDockerfile,
-  buildEsDockerfile,
-  buildRustArtifactDockerfile,
-  CARGO_LAMBDA_IMAGE
-} from './dockerfiles';
+import { buildDotnetArtifactDockerfile, buildEsDevDockerfile, buildEsDockerfile } from './dockerfiles';
 
 describe('Stacktape Dockerfile contracts', () => {
   test('builds glibc dependencies with full tooling but ships them in the slim runtime image', () => {
@@ -66,23 +60,5 @@ describe('Stacktape Dockerfile contracts', () => {
     expect(deno).toStartWith('FROM docker.io/denoland/deno:debian-2.9.7');
     expect(deno).toContain('CMD ["deno", "run", "--allow-all", "index.js"]');
     expect(bunDev).toContain('CMD ["bun", "dist/index.js"]');
-  });
-
-  test('cross-compiles Rust Lambda bootstraps with cargo-lambda and quotes the binary name', () => {
-    const arm = buildRustArtifactDockerfile({
-      packageName: 'my-app',
-      binaryName: "my app's api",
-      architecture: 'arm64'
-    });
-    const x86 = buildRustArtifactDockerfile({ packageName: 'api', binaryName: 'api', architecture: 'x86_64' });
-
-    expect(arm).toStartWith(`FROM ${CARGO_LAMBDA_IMAGE} AS build`);
-    expect(arm).toContain(
-      `cargo lambda build --release --arm64 --package 'my-app' --bin 'my app'"'"'s api' --lambda-dir /out`
-    );
-    expect(arm).toContain(`cp /out/'my app'"'"'s api'/bootstrap /artifact/bootstrap`);
-    expect(arm).toContain('--mount=type=cache,target=/src/target');
-    expect(x86).toContain("--x86-64 --package 'api' --bin 'api'");
-    expect(x86).toContain('FROM scratch AS artifact');
   });
 });

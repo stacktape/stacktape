@@ -747,11 +747,11 @@ export const lanes: readonly Lane[] = [
     command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:image-builders:ministack'],
     level: 'process',
     tier: 'change',
-    tests: ['apps/cli/tests/image-builders/ecr.spec.ts'],
+    tests: ['apps/cli/tests/image-builders/docker-build.spec.ts', 'apps/cli/tests/image-builders/ecr.spec.ts'],
     requires: ['docker'],
     release: 'every-candidate',
     proves:
-      'Real ECR metadata is listed and deleted across batches and registry authorization is decoded on MiniStack.',
+      'Real ECR metadata is listed and deleted across batches, registry authorization is decoded on MiniStack, and the CLI Docker runner builds for the requested platform with secrets and arguments off the command line.',
     selections: ['packaging-images']
   },
   {
@@ -4254,6 +4254,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/packaging-manager/railpack-command.spec.ts',
       'apps/cli/src/utils/__tests__/docker-secret-handling.test.ts',
       'apps/cli/tests/characterization/aws-ecr.spec.ts',
+      'apps/cli/tests/image-builders/docker-build.spec.ts',
       'apps/cli/tests/image-builders/ecr.spec.ts',
       'packages/packaging/scripts/dockerfile-image-e2e.ts',
       'packages/packaging/scripts/synthetic-docker-smoke.ts',

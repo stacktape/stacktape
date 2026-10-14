@@ -55,7 +55,8 @@ const buildDockerImage: BuildDockerImage = async ({
 const build = (
   label: string,
   existingDigests: string[] = [],
-  selected = '../Dockerfile',
+  /** `null` omits `dockerfilePath`, as most configurations do: the context's own `Dockerfile` must be used. */
+  selected: string | null = '../Dockerfile',
   buildArgs = [
     { argName: 'FIRST', value: 'one' },
     { argName: 'SECOND', value: 'two' }
@@ -65,7 +66,7 @@ const build = (
     name: `${prefix}:${label}`,
     cwd: root,
     buildContextPath: 'service',
-    dockerfilePath: selected,
+    ...(selected === null ? {} : { dockerfilePath: selected }),
     dockerBuildOutputArchitecture: 'linux/amd64',
     progressLogger,
     existingDigests,
@@ -145,8 +146,27 @@ console.log(JSON.stringify({ values: ['dist/output', 'node_modules/runtime/value
   ]);
   assert.equal(argsChanged.outcome, 'bundled');
   assert.equal((await response(argsChanged.imageName!)).args, 'changed:two');
+
+  // The usual configuration names no Dockerfile at all: the context's own `Dockerfile` is built, and it is part of
+  // the context, so its identity differs from the identical file selected by path above.
+  await write(join(context, 'Dockerfile'), dockerfile);
+  const unnamed = await build('unnamed', [argsChanged.digest], null, [
+    { argName: 'FIRST', value: 'changed' },
+    { argName: 'SECOND', value: 'two' }
+  ]);
+  assert.equal(unnamed.outcome, 'bundled', 'an omitted dockerfilePath must build the context Dockerfile');
+  assert.deepEqual(await response(unnamed.imageName!), {
+    values: ['two', 'two', 'two'],
+    args: 'changed:two',
+    instruction: null
+  });
+  const unnamedAgain = await build('unnamed-again', [unnamed.digest], null, [
+    { argName: 'FIRST', value: 'changed' },
+    { argName: 'SECOND', value: 'two' }
+  ]);
+  assert.equal(unnamedAgain.outcome, 'skipped', 'an unchanged context Dockerfile must reuse the image');
   console.log(
-    'Authored Dockerfile image passed: instructions, selected file, build outputs, vendored dependency, VCS, ignores, arguments and linux/amd64 runtime.'
+    'Authored Dockerfile image passed: instructions, selected and default file, build outputs, vendored dependency, VCS, ignores, arguments and linux/amd64 runtime.'
   );
 } finally {
   try {
