@@ -32,7 +32,7 @@ If provided, the command will not execute and will instead print help informatio
 
 export const awsAccount = z.string().describe(`#### AWS Account
 ---
-The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).`);
+The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).`);
 
 export const projectName = z.string().describe(`#### Project Name
 ---

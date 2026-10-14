@@ -135,7 +135,7 @@ Use the concise index below to locate the canonical documentation page for a tas
 - [Alert History](/observability/alert-history) - source: apps/docs/content/observability/alert-history.mdx
 - [AI Assessment, Investigation and Fixes](/observability/incident-ai) - source: apps/docs/content/observability/incident-ai.mdx
 - [Incidents](/observability/incidents) - source: apps/docs/content/observability/incidents.mdx
-- [Issues](/observability/issues) - source: apps/docs/content/observability/issues.mdx
+- [Error tracking](/observability/issues) - source: apps/docs/content/observability/issues.mdx
 - [Log Forwarding](/observability/log-forwarding) - source: apps/docs/content/observability/log-forwarding.mdx
 - [Logs](/observability/logs) - source: apps/docs/content/observability/logs.mdx
 - [Metrics](/observability/metrics) - source: apps/docs/content/observability/metrics.mdx

@@ -1863,6 +1863,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-first-run.test.ts',
       'apps/console/ui/e2e/isolated-organization.test.ts',
       'apps/console/ui/e2e/isolated-alerting.test.ts',
+      'apps/console/ui/e2e/isolated-consistency.test.ts',
       'apps/console/ui/e2e/isolated-overview.test.ts',
       'apps/console/ui/e2e/isolated-first-run-links.test.ts'
     ],
@@ -2385,6 +2386,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-first-run.test.ts',
       'apps/console/ui/e2e/isolated-organization.test.ts',
       'apps/console/ui/e2e/isolated-alerting.test.ts',
+      'apps/console/ui/e2e/isolated-consistency.test.ts',
       'apps/console/ui/e2e/isolated-overview.test.ts',
       'apps/console/ui/e2e/isolated-first-run-links.test.ts',
       'apps/console/ui/e2e/issues.spec.ts',
@@ -5588,14 +5590,27 @@ export const slices: readonly Slice[] = [
     paths: [
       'packages/design-tokens/**',
       'packages/ui-react/src/styles.css',
-      'apps/console/ui/src/dev/design-preview/variants.ts'
+      'apps/console/ui/src/dev/design-preview/variants.ts',
+      'apps/console/ui/src/components/Misc/QueryStates.tsx',
+      'apps/console/ui/src/components/Misc/Status.tsx',
+      'apps/console/ui/src/components/Misc/EmptyState.tsx',
+      'apps/console/ui/src/components/Misc/ElevatedTable.tsx',
+      'apps/console/ui/src/components/FormHelpers/ModalForm.tsx',
+      'apps/console/ui/src/components/Misc/ConfirmationModal.tsx'
     ],
     tests: [
       'apps/console/ui/e2e/ui-review-controls.spec.ts',
       'apps/console/ui/src/dev/design-preview/variants.test.ts',
-      'packages/design-tokens/src/tokens.test.ts'
+      'packages/design-tokens/src/tokens.test.ts',
+      'apps/console/ui/e2e/isolated-consistency.test.ts'
     ],
-    lanes: ['design-tokens-test', 'ui-react-test', 'console-browser-offline', 'console-ui-test-e2e-offline'],
+    lanes: [
+      'design-tokens-test',
+      'ui-react-test',
+      'console-browser-offline',
+      'console-ui-test-e2e-offline',
+      'console-browser-isolated'
+    ],
     contributors: ['S39']
   },
   {

@@ -180,7 +180,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   const securityAssessment = assessAndPrintSecurityPosture({ config, tui });
 
   const issueDetectionPolicy = config.issueDetectionPolicy;
-  tui.info(`Issues: ${issueDetectionPolicy.enabled ? 'on' : 'off'} (${issueDetectionPolicy.reason}).`);
+  tui.info(`Error tracking: ${issueDetectionPolicy.enabled ? 'on' : 'off'} (${issueDetectionPolicy.reason}).`);
 
   const uptimeChecks = config.uptimeChecks;
   if (uptimeChecks.length) {

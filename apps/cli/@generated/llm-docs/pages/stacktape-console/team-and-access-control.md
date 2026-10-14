@@ -1,136 +1,132 @@
 # Team and Access Control
 
-The Stacktape Console Users page controls who has access to your organization and what they can do. Invite team members, assign roles that determine each person's permissions, revoke API keys, and remove members when they leave. The Users page hides row actions when your role lacks the required permissions and disables the Invite new member button when inviting is not allowed.
+The **Members** page in the Organization group of the Stacktape Console controls who has access to your organization and what they can do. Invite members, assign roles that determine each person's permissions, resend or cancel invitations, revoke API keys, and remove members when they leave. The page requires the `members:view` permission.
 
 ## Overview
 
-The Users page displays all human members of your organization in a table with columns for Name, E-mail, Role (color-coded badge), Created, Status, MFA, and an actions column. Internal service accounts are filtered out automatically, so you only see real team members. Admin-role users cannot perform any actions on Owner-role members.
+The Members page lists the human members of your organization in a table with the columns Name, Email, Role, Status, Two-factor and Added, plus a row actions menu. Internal service accounts are filtered out, so you only see real members.
 
 ## Roles and permissions
 
-Every organization member has a role that determines which actions they can perform. The Users page displays each member's role as a color-coded badge. The only role-specific behavioral constraint enforced directly on the Users page is that Admin-role users cannot perform actions on Owner-role members — the edit, revoke-key, and remove buttons are hidden entirely for those rows.
-
-The Users page checks your current permissions before showing action buttons. Four specific permission gates control the actions on this page:
+Every member has a role that determines which actions they can perform. The Members page shows each member's role as a colored badge. Four permissions control the actions on this page:
 
 | Permission | Controls |
 |-----------|----------|
-| `members:invite` | Ability to invite new members |
-| `members:remove` | Ability to remove existing members |
-| `members:update-role` | Ability to edit a member's role |
-| `api-keys:revoke-all` | Ability to revoke all of a member's API keys |
+| `members:invite` | Inviting new members and resending invitations |
+| `members:remove` | Removing members and cancelling invitations |
+| `members:update-role` | Editing a member's role |
+| `api-keys:revoke-all` | Revoking all of a member's API keys |
 
-When your role lacks one of these permissions, the corresponding action button does not appear. The Admin-on-Owner constraint is enforced separately — even if an Admin has the `members:update-role` permission, the edit, revoke, and remove buttons are hidden for Owner-role members.
+When your role has none of these permissions, the row actions menu does not appear. When it has some of them, the menu appears and the actions you lack are disabled. Admins never see the row actions menu on Owner rows, whatever their permissions.
 
+## Walkthrough: inviting a member
 
-> **Info:** The four permissions above are the action gates visible on the Users page. Your role determines which of these permissions you have.
-
-
-## Walkthrough: inviting a team member
-
-Adding a new person to your organization is the most common task on the Users page. Here is how to do it.
-
-1. In the Stacktape Console, navigate to the **Users** page for your organization.
-2. Click the **Invite new member** button in the top-right area to open the invite form.
+1. In the Stacktape Console, open **Members** in the Organization group.
+2. Click **Invite member** in the top-right corner to open the invite form.
 3. Complete the form and submit the invitation.
 
-The new member appears in the Users table with status **Invited** until they confirm their account. Once confirmed, the Users table displays their Cognito-derived account state instead of "Invited."
+The new member appears in the table with the status **Invited** and, when known, who invited them. Once they accept, the table shows their account status instead.
 
-The **Invite new member** button is disabled in three situations, each with its own tooltip message:
+The **Invite member** button is disabled in three situations, each with its own tooltip:
 
-- **Your role lacks the `members:invite` permission** — the tooltip reads "You do not have permission to invite members."
-- **You are on a personal organization** — the tooltip explains that personal organizations do not support additional members and directs you to create a named organization.
-- **Your organization has reached its member limit** — the tooltip directs you to upgrade your subscription plan.
+- **Your role lacks the `members:invite` permission.** The tooltip reads "You do not have permission to invite members."
+- **You are in a personal organization.** The tooltip explains that personal organizations do not support additional members and asks you to create another organization.
+- **Your organization has reached its member limit.** The tooltip asks you to upgrade your plan.
 
 
-> **Warning:** You cannot invite members to a personal (default) organization. Personal organizations are limited to a single member. Create a named organization first, then invite your team there.
+> **Warning:** You cannot invite members to a personal (default) organization. Create another organization first, then invite your team there.
 
 
 ## Common tasks
 
 ### Editing a member's role
 
-When your role includes the `members:update-role` permission, an edit button (pencil icon) appears next to eligible members in the Users table. Clicking it opens the update form where you can change the member's role. Admin users do not see the edit button on Owner-role members.
+Open the member's row actions menu and choose **Edit member** to change their role. The action requires `members:update-role`.
 
 ### Removing a member
 
-When your role includes the `members:remove` permission, a delete button (trash icon) appears next to eligible members. Clicking it opens a confirmation dialog showing the member's name and current role. Confirming immediately removes the member from the organization.
+Open the member's row actions menu and choose **Remove member**. The confirmation dialog warns that the member loses access to the organization's projects immediately. For a pending invitation the action is **Cancel invitation**, which stops the invitation link from working. Both require `members:remove`.
+
+### Resending an invitation
+
+For a member who has not accepted yet, open the row actions menu and choose **Resend invitation**. The Added column then shows when the invitation was last sent again. The action requires `members:invite`.
 
 ### Revoking a member's API keys
 
-When your role includes the `api-keys:revoke-all` permission, a key-revoke button appears next to eligible members. The confirmation dialog states: "This will immediately invalidate all their active API keys in this organization." Once confirmed, all of that member's [API keys](/stacktape-console/api-keys) in the organization are revoked.
+Open the member's row actions menu and choose **Revoke all API keys**. The confirmation dialog states: "This will immediately invalidate all their active API keys in this organization." Once confirmed, all of that member's [API keys](/stacktape-console/api-keys) in the organization are revoked. The action requires `api-keys:revoke-all` and is not available for pending invitations.
 
 
-> **Tip:** The Users page exposes member removal and API key revocation as separate actions with separate confirmation dialogs. When offboarding a team member, use the revoke action when you want to explicitly invalidate programmatic credentials.
+> **Tip:** Removing a member and revoking their API keys are separate actions with separate confirmation dialogs. When offboarding a member, revoke their API keys to invalidate programmatic credentials, then remove them.
 
 
-### Checking member status and MFA
+### Checking member status and two-factor authentication
 
-The Users table shows two status-related columns that help you understand each member's account state:
+Two columns describe each member's account:
 
-- **Status** — shows "Invited" for members who have not yet confirmed their account. Confirmed members display their Cognito-derived account state: Confirmed, External provider, Reset required, Force change password, Archived, Compromised, or Unknown.
-- **MFA** — shows "External" for members authenticated solely through an external identity provider, "Enabled" for members with multi-factor authentication configured, or "Disabled" otherwise. Unconfirmed (invited) members always show "Disabled."
+- **Status** shows "Invited" for members who have not accepted their invitation. Other members show their account status: Active, Active (Google), Email not confirmed, Invitation pending, Password reset required, Archived, Compromised or Unknown.
+- **Two-factor** shows "On" when the member has multi-factor authentication configured, "Off" otherwise, and "Via Google" for members who sign in only with Google. It is empty for pending invitations.
 
-Each member manages their own MFA and password settings. See [Account Settings](/stacktape-console/account-settings) for per-user account management.
+Each member manages their own password and two-factor settings. See [Account Settings](/stacktape-console/account-settings).
 
 ## Member limits
 
-The maximum number of members your organization can have depends on its type and subscription plan. The Console computes this limit based on whether the organization is personal and the subscription plan type, then disables the **Invite new member** button when the current member count reaches that maximum.
+The maximum number of members depends on the organization type and subscription plan. The Console disables the **Invite member** button when the member count reaches that maximum.
 
-Personal organizations cannot invite additional members — they are limited to the account owner. For named organizations, the member limit varies by subscription plan. Visit [Billing and Subscription](/stacktape-console/billing-and-subscription) to see your current plan's limits and upgrade options.
+Personal organizations cannot invite additional members. For other organizations, the limit depends on the subscription plan. See [Billing and Subscription](/stacktape-console/billing-and-subscription) for your plan's limits and upgrade options.
 
 ## Troubleshooting
 
 ### "You do not have permission to invite members"
 
-Your role does not include the `members:invite` permission. Ask someone with the `members:invite` permission to invite the member for you, or someone with `members:update-role` to change your role.
+Your role does not include the `members:invite` permission. Ask someone with that permission to invite the member, or someone with `members:update-role` to change your role.
 
-### Invite button disabled on a named organization
+### Invite button disabled in a non-personal organization
 
-Your organization has reached the maximum member count for its subscription plan. Check [Billing and Subscription](/stacktape-console/billing-and-subscription) to see your current plan and upgrade options.
+Your organization has reached the maximum member count for its subscription plan. Check [Billing and Subscription](/stacktape-console/billing-and-subscription) for your current plan and upgrade options.
 
-### No action buttons visible for a member
+### No row actions for a member
 
-Two possible causes: your role lacks the relevant permissions (`members:update-role`, `members:remove`, `api-keys:revoke-all`), or you hold the Admin role and the target member is an Owner. The Users page hides edit, revoke, and remove actions from Admin users on Owner-role rows.
+Either your role has none of the four member permissions, or you hold the Admin role and the member is an Owner.
 
-### Member shows "Invited" status indefinitely
+### Member shows "Invited" for a long time
 
-The invited member has not confirmed their account. The invitation email may have been missed or filtered. The Users page does not expose a resend-invitation action from this view.
+The member has not accepted the invitation. The email may have been missed or filtered. Use **Resend invitation** from the row actions menu.
 
-### Member shows "External provider" status
+### Member shows "Active (Google)"
 
-This member authenticated through an external identity provider rather than a direct email/password account. Their MFA column shows "External" because authentication — including any second factor — is managed by the external provider.
+The member signs in with Google rather than an email and password. Their Two-factor column shows "Via Google" because Google handles the second factor.
 
 ## Related features
 
-- [Account Settings](/stacktape-console/account-settings) — manage your personal account: name, password, and MFA.
-- [API Keys](/stacktape-console/api-keys) — create and manage API keys for CLI and CI/CD authentication.
-- [Organizations, Projects, and Stages](/stacktape-console/organizations-projects-and-stages) — understand how projects and stages are organized within an organization.
-- [Billing and Subscription](/stacktape-console/billing-and-subscription) — manage your subscription plan and member limits.
-- [Guardrails](/guardrails/overview) — set organization-wide deployment rules.
-- [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) — configure automated deployments from your repositories.
+- [Account Settings](/stacktape-console/account-settings): manage your personal account, password and two-factor authentication
+- [API Keys](/stacktape-console/api-keys): create and manage API keys for CLI and CI/CD authentication
+- [Organizations, Projects, and Stages](/stacktape-console/organizations-projects-and-stages): how projects and stages are organized within an organization
+- [Billing and Subscription](/stacktape-console/billing-and-subscription): subscription plan and member limits
+- [Guardrails](/guardrails/overview): organization-wide deployment rules
+- [GitOps with Console](/ci-cd-and-gitops/gitops-with-console): automated deployments from your repositories
 
 ## FAQ
 
 ### Can an Admin remove or edit an Owner?
 
-No. The Users page hides the edit, revoke, and remove buttons entirely from Admin-role users on Owner-role rows. This constraint is enforced in the UI independently of the four permission gates.
+No. Admins do not see the row actions menu on Owner rows, regardless of their permissions.
 
 ### Is removing a member the same as revoking their API keys?
 
-No. The Users page exposes them as two independent actions, each with its own confirmation dialog. Removing a member removes them from the organization. Revoking API keys invalidates their programmatic credentials. For a complete offboarding, use both actions — revoke API keys to invalidate programmatic credentials, then remove the member.
+No. They are two independent actions, each with its own confirmation dialog. Removing a member removes them from the organization. Revoking API keys invalidates their programmatic credentials. For a complete offboarding, revoke the API keys, then remove the member.
 
-### Can I enforce MFA for all organization members?
+### Can I enforce two-factor authentication for all members?
 
-The Users page displays each member's MFA status but does not offer an organization-wide MFA enforcement toggle. Each member enables MFA individually through their own [Account Settings](/stacktape-console/account-settings). Members authenticated via an external identity provider show MFA as "External" because their provider handles authentication.
+No. The Members page shows each member's two-factor status but has no organization-wide enforcement setting. Each member turns it on in their own [Account Settings](/stacktape-console/account-settings).
 
-### Why is a member stuck on "Invited" status?
+### Why is a member stuck on "Invited"?
 
-The member appears with status "Invited" until they confirm their account; only then does the table show their Cognito-derived state (such as "Confirmed"). If they stay "Invited" indefinitely, the invitation email was likely missed or filtered — and note the Users page does not expose a resend-invitation action from this view. Unconfirmed members always show "Disabled" for MFA until they complete account setup.
+The member has not accepted the invitation yet; the table shows their account status only after they do. If the email was missed, choose **Resend invitation** in the row actions menu.
 
 ### Why can't I invite members to my organization?
 
-If the **Invite new member** button is disabled, it is one of three reasons, each with its own tooltip: your role lacks the `members:invite` permission, you are on a personal organization (which is limited to a single member — create a named organization instead), or your organization has reached its member limit for the current subscription plan. See [Billing and Subscription](/stacktape-console/billing-and-subscription) for upgrade options.
+If the **Invite member** button is disabled, its tooltip names one of three reasons: your role lacks `members:invite`, you are in a personal organization, or your organization has reached its member limit. See [Billing and Subscription](/stacktape-console/billing-and-subscription) for upgrade options.
 
-### How do I choose the right role for a team member?
+### How do I choose the right role for a member?
 
-Assign the least-privileged role that lets the member do their job. A member's role determines which of the four permission gates they hold — `members:invite`, `members:remove`, `members:update-role`, and `api-keys:revoke-all` — and an Admin can never edit, remove, or revoke keys for an Owner regardless of permissions. To change a role, click the edit (pencil) button for the member and pick a new role in the update form.
+Assign the least-privileged role that lets the member do their job. Owners have every permission. Admins have everything except deleting the organization. Developers can deploy, delete non-production stages and manage secrets and parameters. Viewers have read-only access. To change a role, choose **Edit member** in the member's row actions menu.
