@@ -450,8 +450,8 @@ export function DeployStep({
         )}
         {verification?.status === 'completed' && (verification.services ?? []).length === 0 && (
           <p className="m-0 text-[var(--stp-text-muted)]">
-            The try-out starts web and worker services, and this app has none, so there is nothing to start on this
-            machine. AWS will be its first full run.
+            The try-out only starts services that run as containers, and this configuration has none, so there was
+            nothing to start here. AWS will be its first full run.
           </p>
         )}
         {(verification?.status === 'completed' || verification?.status === 'dismissed') &&
@@ -544,7 +544,7 @@ export function DeployStep({
         </p>
         <p className="wizard-lede mb-4">
           It is one CloudFormation stack of plain AWS resources in your own account; it keeps working if you stop using
-          Stacktape. If a first deploy fails, AWS rolls it back and removes the stack.
+          Stacktape.
         </p>
         {checkedTarget === undefined && (
           <Alert className="mb-4" tone="info" title="No AWS change happens on the first click">

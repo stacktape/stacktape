@@ -14,7 +14,7 @@ type StackCommandTarget = {
   awsAccount?: string | undefined;
 };
 
-const quoteArgument = (argument: string): string => (argument.includes(' ') ? `"${argument}"` : argument);
+export const quoteArgument = (argument: string): string => (argument.includes(' ') ? `"${argument}"` : argument);
 
 export const stackCommand = (action: 'deploy' | 'delete' | 'cf:rollback', target: StackCommandTarget): string =>
   [
