@@ -211,7 +211,11 @@ describe('security posture through authored configuration', () => {
         ['iam-statement-wildcard-service-on-any-resource', 'MEDIUM']
       ]);
     }
-    expect(ruleIds(roles)).toContain('container-single-instance-in-production');
+    // The finding names the web service the developer wrote, not the container workload it generates.
+    expect(roles.findings.find(({ ruleId }) => ruleId === 'container-single-instance-in-production')).toMatchObject({
+      resourceName: 'api',
+      resourceType: 'web-service'
+    });
     expect(roles.exposure.find(({ resourceName }) => resourceName === 'api')).toMatchObject({
       protectedByFirewall: true
     });
@@ -225,6 +229,19 @@ describe('security posture through authored configuration', () => {
       { stage: 'production', config: { deploymentConfig: { terminationProtection: true } } }
     );
     expect(convex.findings).toEqual([]);
+    // Without protection the finding names the Convex resource, which holds the setting.
+    const unprotected = assess(
+      { backend: { type: 'convex', properties: { appDirectory: './convex' } } },
+      { stage: 'production', config: { deploymentConfig: { terminationProtection: true } } }
+    );
+    expect(unprotected.findings).toEqual([
+      expect.objectContaining({
+        ruleId: 'database-deletion-protection-disabled',
+        resourceName: 'backend',
+        resourceType: 'convex',
+        remediation: 'Set `deletionProtection: true` on `backend`.'
+      })
+    ]);
     // Convex does not expose configurable WAF or replica controls. Its generated ALB still serves public traffic.
     expect(
       convex.exposure.filter(

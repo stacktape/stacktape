@@ -1744,6 +1744,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Environment/environment.test.ts',
       'apps/console/ui/src/pages/UsersPage/organization-member-limit.test.ts',
       'apps/console/ui/src/pages/BudgetsPage/budget-status.test.ts',
+      'apps/console/ui/src/pages/SecurityPage/config-fix.test.ts',
       'apps/console/ui/src/utils/auth-redirect.test.ts',
       'apps/console/ui/src/utils/dates.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/repository-option.test.tsx',
@@ -5285,8 +5286,13 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/pages/SecurityPage/**',
       'apps/console/api/src/security/grader.ts'
     ],
-    tests: ['apps/console/ui/e2e/isolated-security.test.ts', 'apps/console/ui/e2e/security.spec.ts'],
+    tests: [
+      'apps/console/ui/e2e/isolated-security.test.ts',
+      'apps/console/ui/e2e/security.spec.ts',
+      'apps/console/ui/src/pages/SecurityPage/config-fix.test.ts'
+    ],
     lanes: [
+      'console-ui',
       'console-browser-isolated',
       'console-database-security',
       'console-database-insights',
