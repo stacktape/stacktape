@@ -136,8 +136,8 @@ export function Dialog({
             </header>
           ) : null}
           {children}
-          {actions ? <footer className="stp-ui-dialog__actions">{actions}</footer> : null}
         </div>
+        {actions ? <footer className="stp-ui-dialog__actions">{actions}</footer> : null}
       </dialog>
     </div>,
     document.body

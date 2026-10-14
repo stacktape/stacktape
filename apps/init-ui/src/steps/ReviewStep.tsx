@@ -149,14 +149,7 @@ function PreferenceCards<Key extends DeploymentPreferenceKey>({
         <h4 className="m-0 text-[0.95rem] font-semibold">{copy.title}</h4>
         <p className="wizard-lede mt-1">{copy.description}</p>
       </div>
-      <SelectionCardGroup
-        ariaLabel={copy.title}
-        className="wizard-choice-cards"
-        direction="row"
-        onValueChange={choose}
-        value={value}
-        values={values}
-      >
+      <SelectionCardGroup ariaLabel={copy.title} direction="row" onValueChange={choose} value={value} values={values}>
         {copy.options.map((option) => (
           <SelectionCard
             description={option.description}
