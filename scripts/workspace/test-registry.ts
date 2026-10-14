@@ -1861,6 +1861,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-security.test.ts',
       'apps/console/ui/e2e/isolated-first-run.test.ts',
       'apps/console/ui/e2e/isolated-organization.test.ts',
+      'apps/console/ui/e2e/isolated-alerting.test.ts',
       'apps/console/ui/e2e/isolated-overview.test.ts',
       'apps/console/ui/e2e/isolated-first-run-links.test.ts'
     ],
@@ -2382,6 +2383,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-security.test.ts',
       'apps/console/ui/e2e/isolated-first-run.test.ts',
       'apps/console/ui/e2e/isolated-organization.test.ts',
+      'apps/console/ui/e2e/isolated-alerting.test.ts',
       'apps/console/ui/e2e/isolated-overview.test.ts',
       'apps/console/ui/e2e/isolated-first-run-links.test.ts',
       'apps/console/ui/e2e/issues.spec.ts',
@@ -5331,10 +5333,13 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/lambdas/webhook-delivery.ts',
       'apps/console/api/src/lambdas/slack-app/index.ts',
       'apps/console/api/src/messages/email-messages.ts',
-      'apps/console/api/src/model-helpers/index.ts'
+      'apps/console/api/src/model-helpers/index.ts',
+      'apps/console/ui/src/pages/AlertChannels/**',
+      'apps/console/ui/src/pages/AlertHistoryPage/**'
     ],
     tests: [
       'apps/console/api/scripts/alerts-database.test.ts',
+      'apps/console/ui/e2e/isolated-alerting.test.ts',
       'apps/console/api/scripts/smoke-test-slack-secret-notifications.ts',
       'apps/console/api/src/messages/email-messages.test.ts',
       'apps/console/api/src/model-helpers/index.test.ts',
@@ -5352,6 +5357,7 @@ export const slices: readonly Slice[] = [
     lanes: [
       'console-alert-rules',
       'console-database-alerts',
+      'console-browser-isolated',
       'console-api',
       'console-api-2',
       'console-database-incident-journey',
