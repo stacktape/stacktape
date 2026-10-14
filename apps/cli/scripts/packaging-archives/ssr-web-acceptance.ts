@@ -7,14 +7,16 @@
  * resolves exactly the committed versions; the framework version installed must equal the lockfile's. The source CLI
  * runs `package` as a child process in an isolated home with every AWS and Stacktape request routed to the offline
  * guard; the CLI installs the dependencies and runs the framework's build itself. The server function ZIP is
- * extracted with `unzip` and invoked in the official Lambda Node.js image for its deployed runtime (22 for Next, 24 for the other adapters) as an unprivileged user that owns none of
- * the files, with HTTP API v2 events as the gateway sends them: the index page must be HTML, the starter's dynamic
+ * extracted with `unzip` and invoked in the official Lambda Node.js 22 image, the runtime every SSR server function
+ * deploys with, as an unprivileged user that owns none of the files, with HTTP API v2 events as the gateway sends them: the index page must be HTML, the starter's dynamic
  * API route must answer with its message, and an unknown path must get the framework's not-found status. The index
  * request carries a cookie as a browser would. Temporary Next, Nuxt and Remix routes exercise two response cookies
  * and feed them back into the next request; a temporary TanStack route reads a dynamic path parameter. Next also
- * executes its image optimizer ZIP. The build must leave hashed static assets for the hosting bucket.
+ * executes its image optimizer ZIP and must inline the resource's `NEXT_PUBLIC_` environment at build time. The build
+ * must leave hashed static assets for the hosting bucket (for Next, under the `_assets` prefix its CDN route reads) and
+ * no temporary files in the application.
  *
- * It needs Docker, `unzip`, the local Lambda Node.js 22/24 images (pulled when missing) and network access for the
+ * It needs Docker, `unzip`, the local Lambda Node.js 22 image (pulled when missing) and network access for the
  * starters' dependency installs; it contacts no AWS service.
  *
  *   bun scripts/packaging-archives/ssr-web-acceptance.ts [--starter <id>[,<id>...]] [--out <new or empty directory>]
@@ -29,12 +31,16 @@ import { outputTail } from '../qualification/process';
 import { writeJsonAtomic } from '../qualification/report';
 import { cliDirectory, ensureDevCliArtifacts, packageWithSourceCli } from '../qualification/source-cli-packaging';
 import { replacePlaceholdersInStacktapeConfig } from '../starter-projects/utils';
+import { parseDocument } from 'yaml';
 import { ensureLambdaImage, extractZip, invokeInLambdaRuntime, listLeftoverContainers } from './lambda-runtime';
 
 type Adapter = {
   starter: string;
+  /** The case name when one starter runs in more than one configuration. */
+  name?: string;
+  /** Deploy the Next.js server as a CloudFront origin-request function (`useEdgeLambda`). */
+  edge?: boolean;
   resourceType: string;
-  runtimeImage?: string;
   /** A route rendered by server code, not a static file. */
   dynamicRoute?: { path: string; expectedText: string };
   /**
@@ -99,7 +105,15 @@ const ADAPTERS: Adapter[] = [
     starter: 'nextjs-serverless',
     frameworkPackage: 'next',
     resourceType: 'nextjs-web',
-    runtimeImage: 'public.ecr.aws/lambda/nodejs:22',
+    dynamicRoute: { path: '/api/hello', expectedText: 'Hello from Next.js API route on Lambda!' },
+    expectsAssets: true
+  },
+  {
+    starter: 'nextjs-serverless',
+    name: 'nextjs-edge',
+    edge: true,
+    frameworkPackage: 'next',
+    resourceType: 'nextjs-web',
     dynamicRoute: { path: '/api/hello', expectedText: 'Hello from Next.js API route on Lambda!' },
     expectsAssets: true
   },
@@ -107,12 +121,12 @@ const ADAPTERS: Adapter[] = [
     starter: 'nextjs-saas',
     frameworkPackage: 'next',
     resourceType: 'nextjs-web',
-    runtimeImage: 'public.ecr.aws/lambda/nodejs:22',
     dynamicRoute: { path: '/api/health', expectedText: 'healthy' },
     expectsAssets: true
   }
 ];
 
+const caseName = (adapter: Adapter) => adapter.name ?? adapter.starter;
 const keep = process.argv.includes('--keep');
 const outIndex = process.argv.indexOf('--out');
 const out = resolve(
@@ -121,12 +135,13 @@ const out = resolve(
     : process.argv[outIndex + 1]!
 );
 const starterIndex = process.argv.indexOf('--starter');
-const selectedStarters =
-  starterIndex === -1 ? ADAPTERS.map((adapter) => adapter.starter) : process.argv[starterIndex + 1]!.split(',');
-const unknown = selectedStarters.filter((starter) => !ADAPTERS.some((adapter) => adapter.starter === starter));
+const selectedStarters = starterIndex === -1 ? ADAPTERS.map(caseName) : process.argv[starterIndex + 1]!.split(',');
+const unknown = selectedStarters.filter((starter) => !ADAPTERS.some((adapter) => caseName(adapter) === starter));
 if (unknown.length > 0) throw new Error(`Unknown SSR starter(s): ${unknown.join(', ')}.`);
 
-const LAMBDA_IMAGE = 'public.ecr.aws/lambda/nodejs:24';
+/** `nodejs22.x`, the runtime `ssr-webs.ts` and `nextjs-webs.ts` give every SSR server and image function. */
+const LAMBDA_IMAGE = 'public.ecr.aws/lambda/nodejs:22';
+const NEXT_PUBLIC_PROBE = 'inlined-at-build-t13';
 
 const checks: { starter: string; check: string; ok: boolean; detail: string }[] = [];
 const check = (starter: string, name: string, ok: boolean, detail: string) => {
@@ -230,13 +245,27 @@ const lockedVersion = async ({ project, lockfile, name }: { project: string; loc
 };
 
 /** Add probes only to the materialized copy; the shipped starter and its pinned dependencies stay intact. */
-const addRuntimeProbes = async (starter: string, project: string) => {
+const addRuntimeProbes = async ({ starter, edge }: Adapter, project: string) => {
   const write = async (path: string, contents: string | Buffer) => {
     await mkdir(dirname(join(project, path)), { recursive: true });
     await writeFile(join(project, path), contents);
   };
   if (starter === 'nextjs-serverless' || starter === 'nextjs-saas') {
+    // Next inlines NEXT_PUBLIC_ values when it builds; the Lambda invocation below does not set them.
+    const config = parseDocument(await readFile(join(project, 'stacktape.yml'), 'utf8'));
+    config.setIn(
+      ['resources', 'web', 'properties', 'environment'],
+      [{ name: 'NEXT_PUBLIC_STP_PROBE', value: NEXT_PUBLIC_PROBE }]
+    );
+    if (edge) config.setIn(['resources', 'web', 'properties', 'useEdgeLambda'], true);
+    await writeFile(join(project, 'stacktape.yml'), config.toString());
     if (starter === 'nextjs-saas') {
+      // Prisma reads prisma.config.ts before it generates. env() throws without DATABASE_URL, which a build machine
+      // usually lacks, so packaging must supply a placeholder (Prisma 7 configs always look like this).
+      await write(
+        'prisma.config.ts',
+        `import { defineConfig, env } from 'prisma/config';\nexport default defineConfig({ schema: 'prisma/schema.prisma', datasource: { url: env('DATABASE_URL') } });\n`
+      );
       // Force sharp's host lifecycle script to fail regardless of download/cache availability. OpenNext swallows
       // that error and emits no sharp package. Stacktape must skip host scripts and build it for Lambda instead.
       await write(
@@ -253,7 +282,7 @@ const addRuntimeProbes = async (starter: string, project: string) => {
       `import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export function GET(request: NextRequest) {
-  const response = NextResponse.json({ session: request.cookies.get('session')?.value ?? 'missing', theme: request.cookies.get('theme')?.value ?? 'missing' });
+  const response = NextResponse.json({ session: request.cookies.get('session')?.value ?? 'missing', theme: request.cookies.get('theme')?.value ?? 'missing', build: process.env.NEXT_PUBLIC_STP_PROBE ?? 'missing' });
   response.cookies.set('session', 't13', { path: '/', httpOnly: true, secure: true, sameSite: 'lax' });
   response.cookies.set('theme', 'dark', { path: '/', secure: true, sameSite: 'lax' });
   return response;
@@ -301,21 +330,21 @@ export const Route = createFileRoute('/probe/$value')({
 };
 
 const runAdapter = async ({ adapter, work }: { adapter: Adapter; work: string }) => {
-  const { starter } = adapter;
-  const runtimeImage = adapter.runtimeImage ?? LAMBDA_IMAGE;
+  const starter = caseName(adapter);
+  const runtimeImage = LAMBDA_IMAGE;
   const caseWork = join(work, starter);
-  const project = join(caseWork, starter);
+  const project = join(caseWork, adapter.starter);
   const report: Record<string, unknown> = { starter, resourceType: adapter.resourceType };
   const invocationDirectories: string[] = [];
   let functionDirectory: string | undefined;
   try {
     await mkdir(caseWork, { recursive: true });
-    await generateStarterProject({ starterProjectId: starter, outputDirPath: caseWork, mode: 'app' });
+    await generateStarterProject({ starterProjectId: adapter.starter, outputDirPath: caseWork, mode: 'app' });
     const configPath = join(project, 'stacktape.yml');
     await replacePlaceholdersInStacktapeConfig({ configPath });
-    const lockfile = await restoreCommittedLockfile({ starter, project });
+    const lockfile = await restoreCommittedLockfile({ starter: adapter.starter, project });
     report.lockfile = lockfile;
-    await addRuntimeProbes(starter, project);
+    await addRuntimeProbes(adapter, project);
     check(starter, 'the starter commits a lockfile to pin its build', lockfile !== undefined, lockfile ?? 'none');
 
     console.log(`${starter}: packaging with the source CLI...`);
@@ -334,6 +363,13 @@ const runAdapter = async ({ adapter, work }: { adapter: Adapter; work: string })
     } finally {
       await offlineServer.close();
     }
+    const leftovers = (await readdir(project)).filter((entry) => entry.startsWith('stp-'));
+    check(
+      starter,
+      'packaging leaves no temporary file in the application',
+      leftovers.length === 0,
+      leftovers.join(', ') || 'none'
+    );
     const installed = await installedVersion(join(project, 'node_modules', adapter.frameworkPackage));
     const locked =
       lockfile === undefined ? undefined : await lockedVersion({ project, lockfile, name: adapter.frameworkPackage });
@@ -391,6 +427,14 @@ const runAdapter = async ({ adapter, work }: { adapter: Adapter; work: string })
         `${assetFiles.length} file(s) under bucket-content: ${assetFiles.slice(0, 5).join(', ')}`
       );
     }
+    if (adapter.resourceType === 'nextjs-web') {
+      check(
+        starter,
+        'Next static files are under the _assets prefix its CDN route reads',
+        assetFiles.some((file) => file.startsWith('_assets/_next/static/')),
+        assetFiles.slice(0, 5).join(', ')
+      );
+    }
 
     functionDirectory = await extractZip(serverFunction.artifactPath);
     const invoke = async (event: unknown) => {
@@ -407,6 +451,48 @@ const runAdapter = async ({ adapter, work }: { adapter: Adapter; work: string })
       }
       return response;
     };
+
+    if (adapter.edge) {
+      // CloudFront invokes an edge server with an origin-request record, not an HTTP API event.
+      const edge = await invoke({
+        Records: [
+          {
+            cf: {
+              config: {
+                distributionDomainName: 'd111.cloudfront.net',
+                distributionId: 'E1',
+                eventType: 'origin-request',
+                requestId: 'r1'
+              },
+              request: {
+                clientIp: '203.0.113.10',
+                method: 'GET',
+                uri: adapter.dynamicRoute!.path,
+                querystring: '',
+                headers: {
+                  host: [{ key: 'Host', value: 'public.example.com' }],
+                  'x-forwarded-host': [{ key: 'X-Forwarded-Host', value: 'public.example.com' }],
+                  accept: [{ key: 'Accept', value: 'application/json' }]
+                }
+              }
+            }
+          }
+        ]
+      });
+      const edgeResponse = edge as HttpResponse & { status?: string; bodyEncoding?: string };
+      const edgeBody =
+        edgeResponse.bodyEncoding === 'base64'
+          ? Buffer.from(edgeResponse.body ?? '', 'base64').toString('utf8')
+          : (edgeResponse.body ?? '');
+      report.edge = { status: edgeResponse.status, body: edgeBody.slice(0, 300) };
+      check(
+        starter,
+        `a CloudFront origin request for ${adapter.dynamicRoute!.path} answers from the edge server`,
+        edgeResponse.status === '200' && edgeBody.includes(adapter.dynamicRoute!.expectedText),
+        JSON.stringify(edge).slice(0, 400)
+      );
+      return report;
+    }
 
     const index = await invoke(httpEvent({ path: '/', cookies: ['j3-session=present'] }));
     const indexBody = decodeBody(index);
@@ -459,7 +545,7 @@ const runAdapter = async ({ adapter, work }: { adapter: Adapter; work: string })
       const second = await invoke(
         httpEvent({ path: '/api/session', cookies: cookies.map((cookie) => cookie.split(';')[0]!) })
       );
-      const body = JSON.parse(decodeBody(second)) as { session?: string; theme?: string };
+      const body = JSON.parse(decodeBody(second)) as { session?: string; theme?: string; build?: string };
       check(
         starter,
         'the next request reads both response cookies',
@@ -467,6 +553,14 @@ const runAdapter = async ({ adapter, work }: { adapter: Adapter; work: string })
         JSON.stringify(second)
       );
       report.session = { first, second };
+      if (adapter.resourceType === 'nextjs-web') {
+        check(
+          starter,
+          'the build inlined the resource NEXT_PUBLIC_ environment',
+          body.build === NEXT_PUBLIC_PROBE,
+          JSON.stringify(body)
+        );
+      }
     }
 
     if (adapter.resourceType === 'nextjs-web') {
@@ -550,19 +644,11 @@ const main = async () => {
   await mkdir(out, { recursive: true });
   if ((await readdir(out)).length > 0) throw new Error(`Refusing to write into ${out}: it is not empty.`);
   await ensureDevCliArtifacts();
-  const images = Object.fromEntries(
-    [
-      ...new Set(
-        ADAPTERS.filter((adapter) => selectedStarters.includes(adapter.starter)).map(
-          (adapter) => adapter.runtimeImage ?? LAMBDA_IMAGE
-        )
-      )
-    ].map((image) => [image, ensureLambdaImage(image)])
-  );
+  const images = { [LAMBDA_IMAGE]: ensureLambdaImage(LAMBDA_IMAGE) };
   const work = await mkdtemp(join(tmpdir(), 'stacktape-ssr-web-acceptance-'));
   const reports: unknown[] = [];
   try {
-    for (const adapter of ADAPTERS.filter((candidate) => selectedStarters.includes(candidate.starter))) {
+    for (const adapter of ADAPTERS.filter((candidate) => selectedStarters.includes(caseName(candidate)))) {
       reports.push(await runAdapter({ adapter, work }));
       await writeJsonAtomic(join(out, 'report.json'), { out, images, work, starters: reports, checks });
     }

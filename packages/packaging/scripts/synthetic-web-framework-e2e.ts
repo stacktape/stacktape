@@ -268,7 +268,7 @@ try {
     astroImage.isBase64Encoded !== true ||
     Buffer.from(astroImage.body, 'base64').byteLength === 0
   ) {
-    throw new Error(`Astro image optimization failed in Lambda Node 24: ${JSON.stringify(astroImage)}`);
+    throw new Error(`Astro image optimization failed in Lambda Node 22: ${JSON.stringify(astroImage)}`);
   }
 
   console.log('Building, zipping, and invoking nested pnpm SvelteKit with a runtime-selected dependency...');
@@ -331,7 +331,7 @@ try {
       zippedMiB: svelteOutput.zippedSize
     }
   ]);
-  console.log('Synthetic framework E2E passed with real builds, real ZIPs, and official Lambda Node 24 execution.');
+  console.log('Synthetic framework E2E passed with real builds, real ZIPs, and official Lambda Node 22 execution.');
 } finally {
   await rm(root, { recursive: true, force: true });
 }

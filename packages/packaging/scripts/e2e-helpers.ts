@@ -342,7 +342,8 @@ export const invokeNodeHandlerInLambdaImage = async ({
     '--env',
     `STP_EVENT=${encodedEvent}`,
     ...Object.entries(environment).flatMap(([key, value]) => ['--env', `${key}=${value}`]),
-    'public.ecr.aws/lambda/nodejs:24',
+    // SSR server functions deploy with nodejs22.x.
+    'public.ecr.aws/lambda/nodejs:22',
     '--input-type=module',
     '--eval',
     script
