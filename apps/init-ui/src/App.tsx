@@ -212,6 +212,7 @@ export function App() {
               isExpanded={reviewOpen}
               isMuted={!isActive('review')}
               onToggle={() => setReviewOpen(!reviewOpen)}
+              hideLabel="Hide the review"
               toggleLabel="Show the review"
               {...(isActive('review')
                 ? nothingFound(state)

@@ -244,9 +244,17 @@
 
   .wizard-section-summary {
     display: grid;
-    grid-template-columns: 96px minmax(0, 1fr) auto;
+    grid-template-columns: 96px minmax(0, 1fr);
     align-items: baseline;
     gap: 16px;
+  }
+
+  /* The way back in follows the sentence it belongs to, as the Analyze line's own disclosure does. */
+  .wizard-section-summary-text {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 16px;
   }
 
   .wizard-section-summary .wizard-step-label {
@@ -669,10 +677,11 @@
     font-size: 0.85rem;
   }
 
+  /* Names in one column and where the code reads them in the next, so both line up. */
   .wizard-setting-list {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 4px 16px;
     margin: 8px 0 0;
     padding: 0;
     list-style: none;
@@ -680,10 +689,7 @@
   }
 
   .wizard-setting-list li {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 4px 12px;
+    display: contents;
   }
 
   .wizard-setting-where {

@@ -877,7 +877,7 @@ export const composeConfig = ({
         if (!dependency.consumedBy.includes(migration.serviceName) || migration.runsAt === 'service-startup') continue;
         gaps.push({
           subject: `${migration.serviceName}.migrations`,
-          message: `Run "${migration.command}" when ${migration.serviceName} starts, before the server: the SQLite file is only reachable from inside the app.`
+          message: `Make ${migration.serviceName} run "${migration.command}" before it starts its server, for example at the start of its start command. The SQLite file is only reachable from inside the running app, so the deploy cannot migrate it for you.`
         });
       }
       continue;

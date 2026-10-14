@@ -643,7 +643,8 @@ export function ReviewStep({
               </p>
               <p className="wizard-checklist-detail">
                 Your app reads {secretVariables.length === 1 ? 'it' : 'them'} from Stacktape secrets, so the values
-                never go in the file. The Deploy step gives you the command that creates each one.
+                never go in the file. Each secret has the variable's name in lowercase, and the Deploy step gives you
+                the command that creates it.
               </p>
               <p className="wizard-variable-list">
                 {secretVariables.map((name) => (
@@ -684,13 +685,18 @@ export function ReviewStep({
             </div>
           )}
           {gaps.length > 0 && (
-            <ul className="wizard-checklist-item m-0 flex list-none flex-col gap-1.5 p-0">
-              {gaps.map((gap) => (
-                <li className="wizard-checklist-detail" key={`${gap.subject}-${gap.message}`}>
-                  {gap.message}
-                </li>
-              ))}
-            </ul>
+            <div className="wizard-checklist-item">
+              <p className="wizard-checklist-title">
+                {gaps.length === 1 ? 'One more thing' : `${gaps.length} more things`}
+              </p>
+              <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
+                {gaps.map((gap) => (
+                  <li className="wizard-checklist-detail" key={`${gap.subject}-${gap.message}`}>
+                    {gap.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </section>
       )}

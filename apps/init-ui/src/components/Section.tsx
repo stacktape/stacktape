@@ -23,6 +23,7 @@ export function Section({
   isExpanded = false,
   onToggle,
   toggleLabel,
+  hideLabel,
   scrollKey
 }: {
   id: string;
@@ -40,8 +41,9 @@ export function Section({
   isExpanded?: boolean;
   /** Opens or closes the content of a collapsed band. Without it, the summary is all there is. */
   onToggle?: () => void;
-  /** What the toggle says while the content is closed. */
+  /** What the toggle says while the content is closed, and while it is open. */
   toggleLabel?: string;
+  hideLabel?: string;
   /** Brings an active band back into view whenever this changes, such as when a deploy starts or ends. */
   scrollKey?: string;
 }) {
@@ -74,18 +76,20 @@ export function Section({
       {collapsed ? (
         <header className="wizard-section-summary">
           <p className="wizard-step-label">{eyebrow}</p>
-          <div className="wizard-section-summary-text">{summary}</div>
-          {onToggle !== undefined && (
-            <button
-              aria-controls={`section-${id}-content`}
-              aria-expanded={isExpanded}
-              className="wizard-disclosure"
-              onClick={onToggle}
-              type="button"
-            >
-              {isExpanded ? 'Hide' : (toggleLabel ?? 'Show')}
-            </button>
-          )}
+          <div className="wizard-section-summary-text">
+            {summary}
+            {onToggle !== undefined && (
+              <button
+                aria-controls={`section-${id}-content`}
+                aria-expanded={isExpanded}
+                className="wizard-disclosure"
+                onClick={onToggle}
+                type="button"
+              >
+                {isExpanded ? (hideLabel ?? 'Hide') : (toggleLabel ?? 'Show')}
+              </button>
+            )}
+          </div>
         </header>
       ) : (
         <header className="wizard-section-header">

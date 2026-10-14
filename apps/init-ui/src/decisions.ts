@@ -103,11 +103,11 @@ export const DECISION_COPY: Record<string, DecisionCopy> = {
   'sqlite-persistence': {
     summary: (_parameters, chosen) =>
       chosen === 'accept-ephemeral'
-        ? 'Keeping your SQLite file only until the next deploy'
+        ? 'Starting your SQLite file empty on every deploy'
         : 'Keeping your SQLite file on a disk that survives deploys',
     detail: (parameters, chosen) =>
       chosen === 'accept-ephemeral'
-        ? `Your app starts with an empty file at ${text(parameters, 'filePath', 'its usual path')} on every deploy and restart.`
+        ? `The file lives at ${text(parameters, 'filePath', 'its usual path')} on the app's own disk, which is replaced on every deploy and restart.`
         : `Your app is replaced on every deploy, so its SQLite file goes on an attached disk at ${text(parameters, 'filePath', '/data')}. One copy of the app runs, so only one writes to the file. Switching to PostgreSQL would need code changes.`,
     option: (value) =>
       value === 'persistent-volume' ? 'Keep the file on a disk that survives' : 'It is only a cache, losing it is fine',
