@@ -37,20 +37,20 @@ export function ScanStep({ state, startedAt, isDone }: { state: WizardState; sta
 
   if (isDone) {
     return (
-      <div className="flex flex-col gap-6">
-        <p className="wizard-recap">
-          {filesRead === 0
-            ? 'Read straight from your project files, without an agent.'
-            : `Opened ${filesRead} ${filesRead === 1 ? 'file' : 'files'}${elapsed > 0 ? ` in ${elapsed}s` : ''}, all on this machine.`}
-        </p>
-        {state.timeline.length > 0 && (
-          <div className="flex flex-col items-start gap-4">
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+          <p className="wizard-recap">
+            {filesRead === 0
+              ? 'Read straight from your project files, without an agent.'
+              : `Opened ${filesRead} ${filesRead === 1 ? 'file' : 'files'}${elapsed > 0 ? ` in ${elapsed}s` : ''}, all on this machine.`}
+          </p>
+          {state.timeline.length > 0 && (
             <button className="wizard-disclosure" onClick={() => setShowFeed(!showFeed)} type="button">
-              {showFeed ? 'Hide what it opened' : 'Show everything it opened'}
+              {showFeed ? 'Hide what it opened' : 'Show what it opened'}
             </button>
-            {showFeed && <ol className="wizard-feed">{state.timeline.map(renderEntry)}</ol>}
-          </div>
-        )}
+          )}
+        </div>
+        {showFeed && <ol className="wizard-feed">{state.timeline.map(renderEntry)}</ol>}
       </div>
     );
   }

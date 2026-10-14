@@ -15,9 +15,11 @@
 import { composeConfig, type CompositionResult } from '@stacktape/config-inference/compose';
 import versionJson from '@generated/db-engine-versions/versions.json' with { type: 'json' };
 import type { InfrastructureMode } from '@stacktape/config-inference/compose/modes';
-import type {
-  DeploymentPreferenceChange,
-  DeploymentPreferences
+import {
+  DEPLOYMENT_PREFERENCE_OPTIONS,
+  type DeploymentPreferenceChange,
+  type DeploymentPreferenceKey,
+  type DeploymentPreferences
 } from '@stacktape/config-inference/compose/preferences';
 import type { ProjectFacts } from '@stacktape/config-inference/facts';
 import type { AgentEvent } from '../agent/transport';
@@ -26,7 +28,7 @@ import { summariseFailure, type DeployFailure } from '../deploy/failure';
 import type { JsonlEvent } from '@application-services/tui-manager/output/jsonl-types';
 import { getStackName } from '@stacktape/naming/stacks';
 import type { DeployTargetExpectation, DeployTargetObservation } from '../deploy/stack-expectation';
-import { estimateMonthlyCost, type PriceEstimate } from '../pricing';
+import { DEFAULT_PRICING_REGION, estimateMonthlyCost, formatMonthlyDelta, type PriceEstimate } from '../pricing';
 import { renderTypeScript, renderYaml } from '../write-config';
 import type { PreflightResult } from '../preflight/preflight';
 import { createWizardSignIn, type WizardSignInDependencies, type WizardSignInFlow } from './wizard-sign-in';
@@ -239,6 +241,8 @@ export const startWizardSession = async ({
   let facts = result?.facts;
   let composition = result?.composition;
   let price: PriceEstimate | undefined;
+  /** Where the price is quoted. The Deploy step's region, once the user picks one there. */
+  let priceRegion: string | undefined;
   /** The configuration as text, exactly as writing it would produce. Shown on the Review step. */
   let configText: { yaml: string; typescript?: string } | undefined =
     composition === undefined ? undefined : { yaml: renderYaml(composition) };
@@ -253,13 +257,59 @@ export const startWizardSession = async ({
   const repriceInBackground = (): void => {
     const current = composition;
     if (current === undefined) return;
+    const region = priceRegion;
     price = undefined;
-    void estimateMonthlyCost(renderYaml(current)).then((estimate) => {
-      // Another recomposition may have happened while this was in flight. Its own call will publish.
-      if (composition !== current) return;
+    void priceWithOptions(current, region).then((estimate) => {
+      // Another recomposition or region may have come in while this was in flight. Its own call publishes.
+      if (composition !== current || priceRegion !== region) return;
       price = estimate;
       publish(buildState());
     });
+  };
+
+  /**
+   * The price, and what every other answer to each infrastructure choice would change it by.
+   *
+   * A choice card that says "Roughly doubles them" makes the developer guess. Each alternative is
+   * the same facts and decisions composed with one choice changed, priced the same way. An
+   * alternative that composes to the same file costs the same and needs no request, so a project
+   * without a database never prices the database choices.
+   */
+  const priceWithOptions = async (
+    current: CompositionResult,
+    region: string | undefined
+  ): Promise<PriceEstimate | undefined> => {
+    const baseYaml = renderYaml(current);
+    const base = await estimateMonthlyCost(baseYaml, region);
+    if (base?.flatMonthly === undefined || facts === undefined) return base;
+    const baseFlat = base.flatMonthly;
+    const currentFacts = facts;
+    const alternatives = (Object.keys(DEPLOYMENT_PREFERENCE_OPTIONS) as DeploymentPreferenceKey[]).flatMap((key) =>
+      DEPLOYMENT_PREFERENCE_OPTIONS[key]
+        .filter((value) => value !== current.preferences[key])
+        .map((value) => ({ key, value }))
+    );
+    const priced = await Promise.all(
+      alternatives.map(async ({ key, value }) => {
+        const alternative = composeConfig({
+          facts: currentFacts,
+          projectName,
+          preferences: { ...current.preferences, [key]: value },
+          decisions: answers,
+          engineVersions: versionJson.rds
+        });
+        const yaml = renderYaml(alternative);
+        if (yaml === baseYaml) return { key, value, delta: 0 };
+        const estimate = await estimateMonthlyCost(yaml, region);
+        return { key, value, delta: estimate?.flatMonthly === undefined ? undefined : estimate.flatMonthly - baseFlat };
+      })
+    );
+    const options: Record<string, Record<string, string>> = {};
+    for (const { key, value, delta } of priced) {
+      if (delta === undefined) continue;
+      options[key] = { ...options[key], [value]: formatMonthlyDelta(delta) };
+    }
+    return { ...base, options };
   };
 
   /**
@@ -481,6 +531,7 @@ export const startWizardSession = async ({
             resources: composition.config.resources,
             provenance: composition.provenance,
             gaps: composition.gaps,
+            unsetSettings: composition.unsetSettings,
             deployable: composition.deployable,
             ...(price === undefined ? {} : { price }),
             // The file exactly as writing it would produce it, so the page shows the real artifact
@@ -491,6 +542,8 @@ export const startWizardSession = async ({
     answers,
     ...(failure === undefined ? {} : { error: failure })
   });
+
+  const deploymentInFlight = (): boolean => deployment?.status === 'running' || deployment?.status === 'repairing';
 
   /** Set once the server exists, so the mission can push progress after the start request returns. */
   let publish: (state: WizardState) => void = () => {};
@@ -901,6 +954,7 @@ export const startWizardSession = async ({
         publish(buildState());
       },
       onMode: (nextMode) => {
+        if (deploymentInFlight()) return buildState();
         mode = nextMode;
         // Same shape as a changed decision: recomposed from the original facts plus everything the
         // user has said so far, so switching back restores exactly what was there before.
@@ -911,8 +965,15 @@ export const startWizardSession = async ({
         }
         return buildState();
       },
+      onPriceRegion: (region) => {
+        // A region already quoted, or being quoted, is not asked for twice. A failed quote for another region is.
+        if (region === (priceRegion ?? DEFAULT_PRICING_REGION)) return buildState();
+        priceRegion = region;
+        repriceInBackground();
+        return buildState();
+      },
       onPreference: (change: DeploymentPreferenceChange) => {
-        if (facts === undefined || composition === undefined) return buildState();
+        if (facts === undefined || composition === undefined || deploymentInFlight()) return buildState();
         mode = undefined;
         const preferences = { ...composition.preferences, [change.key]: change.value } as DeploymentPreferences;
         adoptComposition(
@@ -923,7 +984,7 @@ export const startWizardSession = async ({
       onWrite: async (format) => {
         // Nothing composed means nothing to write. Not an error: a page that asks early is a page
         // that raced the run, and the state it gets back says plainly that there is no file.
-        if (write === undefined || composition === undefined) return;
+        if (write === undefined || composition === undefined || deploymentInFlight()) return;
         const written = await write({ composition, format });
         configFile = { ...written, format };
         deployTarget = undefined;
@@ -946,8 +1007,9 @@ export const startWizardSession = async ({
         return buildState();
       },
       onAnswer: (decisionId, value) => {
-        // Nothing to change before the mission has produced anything.
-        if (facts === undefined || composition === undefined) {
+        // Nothing to change before the mission has produced anything. During a deploy, a new
+        // composition would drop the file the deploy is reading; the page locks these controls too.
+        if (facts === undefined || composition === undefined || deploymentInFlight()) {
           return buildState();
         }
         answers[decisionId] = value;

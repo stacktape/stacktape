@@ -60,6 +60,36 @@ const expectValid = (config: unknown): void => {
 };
 
 describe('composed configuration conforms to the Stacktape schema', () => {
+  it('a service that keeps its SQLite file on a mounted disk', () => {
+    expectValid(
+      composeFrom({
+        services: [
+          service({
+            environmentVariables: [
+              {
+                name: 'DATABASE_URL',
+                role: 'infra-dependency',
+                dependencyName: 'localDatabase',
+                required: true,
+                evidence: []
+              }
+            ]
+          })
+        ],
+        dependencies: [
+          {
+            name: 'localDatabase',
+            kind: 'sqlite',
+            consumedBy: ['app'],
+            addressedBy: ['DATABASE_URL'],
+            evidence: [],
+            source: 'probe'
+          }
+        ]
+      })
+    );
+  });
+
   it('an HTTP service with a database and a cache', () => {
     expectValid(
       composeFrom({

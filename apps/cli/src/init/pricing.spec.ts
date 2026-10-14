@@ -7,8 +7,9 @@ mock.module('@stacktape-api/public', () => ({
 }));
 import { getResourceCostLabel, getStackCostLabel } from '../commands/init/utils/output-formatting';
 let estimateMonthlyCost: typeof import('./pricing').estimateMonthlyCost;
+let formatMonthlyDelta: typeof import('./pricing').formatMonthlyDelta;
 beforeAll(async () => {
-  ({ estimateMonthlyCost } = await import('./pricing'));
+  ({ estimateMonthlyCost, formatMonthlyDelta } = await import('./pricing'));
 });
 
 describe('pricing presentation', () => {
@@ -68,7 +69,8 @@ describe('pricing presentation', () => {
     expect(await estimateMonthlyCost('resources: {}')).toEqual({
       monthly: '$0/mo + pay-per-use costs',
       byResource: { api: 'pay-per-use' },
-      region: 'eu-west-1'
+      region: 'eu-west-1',
+      flatMonthly: 0
     });
   });
 
@@ -76,5 +78,15 @@ describe('pricing presentation', () => {
     response = { success: true, costs: { flatMonthlyCost: 3.6, resourcesBreakdown: {} } };
     expect((await estimateMonthlyCost('resources: {}'))?.monthly).toBe('Estimate incomplete');
     expect(getStackCostLabel(response.costs!)).toContain('Estimate incomplete');
+  });
+
+  test('a choice shows what it adds or saves, and rounding noise reads as the same price', () => {
+    expect([15.33, -3.8, 0.2, -0.4, 120.6].map(formatMonthlyDelta)).toEqual([
+      '+$15/mo',
+      '-$3.80/mo',
+      'Same price',
+      'Same price',
+      '+$121/mo'
+    ]);
   });
 });

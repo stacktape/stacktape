@@ -230,6 +230,46 @@
     margin-bottom: 20px;
   }
 
+  /* A finished band: its name, what came of it, and a way back in, on one row. The bands behind you
+   * stack tightly so the one you are on starts near the top of the screen. */
+  .wizard-section.is-collapsed {
+    padding-bottom: 20px;
+  }
+
+  .wizard-section.is-collapsed.is-expanded {
+    padding-bottom: 56px;
+  }
+
+  .wizard-section-summary {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    align-items: baseline;
+    gap: 16px;
+  }
+
+  /* The way back in follows the sentence it belongs to, as the Analyze line's own disclosure does. */
+  .wizard-section-summary-text {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 16px;
+  }
+
+  .wizard-section-summary .wizard-step-label {
+    line-height: 1.55;
+  }
+
+  .wizard-section-reopened {
+    margin-top: 24px;
+  }
+
+  /* Said once, above a review that cannot be changed right now, instead of disabling it silently. */
+  .wizard-locked-note {
+    margin: 0;
+    color: var(--stp-text-subtle);
+    font-size: 0.9rem;
+  }
+
   .wizard-section-title {
     margin: 8px 0 0;
     font-size: 1.35rem;
@@ -573,6 +613,61 @@
       opacity: 1;
       transform: none;
     }
+  }
+
+  /* ── Before you deploy ───────────────────────────────────────────────────────────────────────── */
+
+  .wizard-checklist {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px;
+  }
+
+  .wizard-checklist-item + .wizard-checklist-item {
+    padding-top: 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .wizard-checklist-title {
+    margin: 0;
+    font-size: 0.92rem;
+    font-weight: 600;
+  }
+
+  .wizard-checklist-detail {
+    margin: 2px 0 0;
+    max-width: var(--wizard-measure);
+    color: var(--stp-text-muted);
+    font-size: 0.9rem;
+  }
+
+  .wizard-variable-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    margin: 8px 0 0;
+    font-size: 0.85rem;
+  }
+
+  /* Names in one column and where the code reads them in the next, so both line up. */
+  .wizard-setting-list {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 4px 16px;
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.85rem;
+  }
+
+  .wizard-setting-list li {
+    display: contents;
+  }
+
+  .wizard-setting-where {
+    color: var(--stp-text-subtle);
+    overflow-wrap: anywhere;
   }
 
   /* ── Shared surfaces ───────────────────────────────────────────────────────────────────────── */

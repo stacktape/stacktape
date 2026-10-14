@@ -128,11 +128,12 @@ const ALL_REAL_PROJECT_APPLICATION_CASES = [
     source: 'real-application',
     exercises: ['php', 'symfony', 'buildpack', 'sqlite'],
     expect: {
-      resourceTypes: { 'web-service': 1 },
+      // The SQLite file is kept on an attached disk, in Doctrine's URL form.
+      resourceTypes: { 'efs-filesystem': 1, 'web-service': 1 },
       dependencyKinds: { sqlite: 1 },
       serviceCount: 1,
       httpServiceCount: 1,
-      requiredConfig: ['type: buildpack'],
+      requiredConfig: ['type: buildpack', 'value: sqlite:////data/data.db', 'mountPath: /data'],
       forbidCurrentlyHostedDependencies: true
     }
   },

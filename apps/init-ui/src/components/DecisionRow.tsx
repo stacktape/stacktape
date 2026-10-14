@@ -16,11 +16,14 @@ import { Evidence } from './Evidence';
 export function DecisionRow({
   decision,
   onChange,
-  isBusy
+  isBusy,
+  isLocked = false
 }: {
   decision: WizardDecision;
   onChange: (value: string) => void;
   isBusy: boolean;
+  /** Read-only while a deploy uses the saved file. */
+  isLocked?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const copy = DECISION_COPY[decision.kind];
@@ -40,7 +43,7 @@ export function DecisionRow({
           <p className="wizard-decision-summary">{copy.summary(decision.parameters, decision.chosen)}</p>
           <p className="wizard-decision-detail">{copy.detail(decision.parameters, decision.chosen)}</p>
         </div>
-        {others.length > 0 && (
+        {others.length > 0 && !isLocked && (
           <button
             aria-expanded={isOpen}
             className="wizard-decision-toggle"
@@ -52,7 +55,7 @@ export function DecisionRow({
         )}
       </div>
 
-      {isOpen && (
+      {isOpen && !isLocked && (
         <div className="wizard-decision-options">
           {others.map((value) => {
             const consequence = copy.consequence?.(value, decision.parameters);
