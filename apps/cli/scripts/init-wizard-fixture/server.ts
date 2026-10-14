@@ -222,8 +222,10 @@ const main = async () => {
           type: 'result',
           ts: at(),
           ok: false,
-          code: 'DEPLOY_FAILED',
-          message: `Service ${failedResource} failed to start. The stack was rolled back.`
+          // The result message the CLI emits for a container that cannot start: the CloudFormation summary with the
+          // container's exit and its last log lines.
+          code: 'STACK_ERROR',
+          message: `Stack action create failed.\n\n1. ${failedResource}\n   Service ${failedResource} failed to start\n\n   Exited with code 1 (Essential container in task exited)\n\n   Last logs before exit:\n     12:00:01 Error: connect ECONNREFUSED 127.0.0.1:5432\n     12:00:01     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n`
         }
       ]
     };

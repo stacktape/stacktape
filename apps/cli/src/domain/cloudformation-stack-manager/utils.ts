@@ -226,10 +226,7 @@ export const cfFailedEventHandlers: {
       return {
         errorMessage: `Resource ${tuiManager.colorize('red', event.LogicalResourceId)}${
           parentResourceName ? ` (part of ${tuiManager.colorize('red', parentResourceName)})` : ''
-        }: ${cleanedMessage}`,
-        hints: [
-          'You seem to have gotten AWS quota error. You can ask for quota increase in AWS console: https://console.aws.amazon.com/servicequotas/home/services'
-        ]
+        }: ${cleanedMessage}`
       };
     }
   },
