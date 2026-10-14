@@ -150,7 +150,6 @@ export function DeployStep({
       <div className="flex flex-col gap-8">
         <DeployProgress
           commandLine={deployment.commandLine}
-          isUpdate={retryTarget?.status === 'updateable'}
           model={model}
           outcome={deployment.outcome}
           status={deployment.status}
@@ -193,9 +192,7 @@ export function DeployStep({
                     {stackStatusWords(retryTarget.stackStatus)}.
                   </Alert>
                 )}
-                {retryTarget?.status === 'blocked' && (
-                  <BlockedTargetAlert deleteCommand={stackCommand('delete', target)} target={retryTarget} />
-                )}
+                {retryTarget?.status === 'blocked' && <BlockedTargetAlert command={target} target={retryTarget} />}
                 {retryTarget?.status === 'unverified' && (
                   <Alert tone="warning" title="The target could not be checked">
                     {retryTarget.detail} Fix the AWS credentials or the connected account, then check again.
@@ -203,12 +200,11 @@ export function DeployStep({
                 )}
                 {deployment.keptPartialProgress === true && (
                   <section>
-                    <h3 className="wizard-section-heading">Or clean up instead</h3>
+                    <h3 className="wizard-section-heading">Or put it back</h3>
                     <p className="wizard-lede mb-3">
-                      Removes everything this deploy created, so nothing sits in your account billing while you
-                      investigate.
+                      Rolls the stack back to the version that worked before this deploy.
                     </p>
-                    <CopyableCommand command={deleteCommand} />
+                    <CopyableCommand command={stackCommand('cf:rollback', target)} />
                   </section>
                 )}
               </div>
@@ -574,12 +570,7 @@ export function DeployStep({
         {checkedTarget?.status === 'blocked' && (
           <BlockedTargetAlert
             className="mb-4"
-            deleteCommand={stackCommand('delete', {
-              configPath: file.filename,
-              projectName: state.projectName,
-              stage,
-              region
-            })}
+            command={{ configPath: file.filename, projectName: state.projectName, stage, region }}
             target={checkedTarget}
           />
         )}
@@ -685,14 +676,14 @@ export function DeployStep({
   );
 }
 
-/** Why the stack cannot be deployed to, and the way out: the delete command where deleting is the fix. */
+/** Why the stack cannot be deployed to, and the way out: the command that is the fix, where there is one. */
 function BlockedTargetAlert({
   target,
-  deleteCommand,
+  command,
   className
 }: {
   target: Extract<NonNullable<WizardState['deployTarget']>, { status: 'blocked' }>;
-  deleteCommand: string;
+  command: Parameters<typeof stackCommand>[1];
   className?: string;
 }) {
   const copy = blockedTargetCopy(target);
@@ -701,7 +692,9 @@ function BlockedTargetAlert({
       <Alert tone="warning" title={copy.title}>
         {copy.body}
       </Alert>
-      {copy.canDelete && <CopyableCommand command={deleteCommand} />}
+      {copy.fix !== undefined && (
+        <CopyableCommand command={stackCommand(copy.fix === 'delete' ? 'delete' : 'cf:rollback', command)} />
+      )}
     </div>
   );
 }

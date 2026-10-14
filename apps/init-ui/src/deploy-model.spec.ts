@@ -52,6 +52,8 @@ describe('the deploy model', () => {
       []
     );
 
+    // Nothing said create or update yet, so the model does not guess.
+    expect(model.stackAction).toBeUndefined();
     const deploy = model.phases.find((phase) => phase.id === 'DEPLOY');
     expect(deploy?.cloudformation).toEqual({
       percent: 42,
@@ -78,5 +80,15 @@ describe('the deploy model', () => {
     // Everything is still in the log, including the unparsed output.
     expect(model.log).toContain('Using profile default');
     expect(model.log).toContain('a line straight from stderr');
+  });
+
+  it('remembers whether CloudFormation was updating a stack that already existed', () => {
+    const model = buildDeployModel(
+      [event({ phase: 'DEPLOY', detail: { kind: 'cloudformation-progress', percent: 10, stackAction: 'update' } })],
+      [],
+      'failed'
+    );
+    // A failed update leaves the earlier version running; the page must not call it a failed first deploy.
+    expect(model.stackAction).toBe('update');
   });
 });

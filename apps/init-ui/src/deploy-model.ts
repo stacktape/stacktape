@@ -31,6 +31,7 @@ export type DeployEvent = {
     totalPlanned?: number;
     inProgressResources?: string[];
     changeCounts?: { created: number; updated: number; deleted: number };
+    stackAction?: string;
   };
 };
 
@@ -76,6 +77,8 @@ export type DeployModel = {
   notices: Array<{ level: string; message: string }>;
   /** Everything the CLI said, for the disclosure at the bottom. */
   log: string[];
+  /** Whether CloudFormation was creating the stack or updating one that existed, once it said so. */
+  stackAction?: 'create' | 'update';
 };
 
 export const buildDeployModel = (
@@ -91,6 +94,7 @@ export const buildDeployModel = (
   const notices: Array<{ level: string; message: string }> = [];
   const log: string[] = [];
   let latestPhaseId: string | undefined;
+  let stackAction: DeployModel['stackAction'];
 
   for (const event of events) {
     if (event.type === 'log') {
@@ -124,6 +128,9 @@ export const buildDeployModel = (
     // CloudFormation is the long part, and the only part with a real percentage. Everything else is
     // "started" and then "completed", which is a spinner, not a bar.
     if (event.detail?.kind === 'cloudformation-progress') {
+      if (event.detail.stackAction === 'create' || event.detail.stackAction === 'update') {
+        stackAction = event.detail.stackAction;
+      }
       existing.cloudformation = {
         percent: Number(event.detail.percent ?? 0),
         completed: Number(event.detail.completedCount ?? 0),
@@ -156,5 +163,5 @@ export const buildDeployModel = (
             : 'pending';
   }
 
-  return { phases: ordered, notices, log: [...log, ...lines] };
+  return { phases: ordered, notices, log: [...log, ...lines], ...(stackAction === undefined ? {} : { stackAction }) };
 };

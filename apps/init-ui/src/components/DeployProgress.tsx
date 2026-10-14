@@ -27,7 +27,6 @@ export function DeployProgress({
   urls,
   commandLine,
   keptPartialProgress,
-  isUpdate = false,
   actions
 }: {
   model: DeployModel;
@@ -39,8 +38,6 @@ export function DeployProgress({
   repairs?: Array<{ attempt: number; applied: boolean; changedResources?: string[] }>;
   /** The failed attempt left its progress standing — resources that exist are resources that bill. */
   keptPartialProgress?: boolean;
-  /** The deploy was updating a stack that existed before it, so a rollback restores that version. */
-  isUpdate?: boolean;
   /** What to do next, right under the outcome rather than after the log. */
   actions?: ReactNode;
 }) {
@@ -62,6 +59,10 @@ export function DeployProgress({
         ? rewritten[0]
         : `${rewritten.slice(0, -1).join(', ')} and ${rewritten.at(-1)}`;
   const anyRepairApplied = (repairs ?? []).some((entry) => entry.applied);
+  // A step after CloudFormation finished cannot roll anything back: the resources are deployed.
+  const failedAfterResources = model.phases.some(
+    (phase) => phase.status === 'failed' && (phase.id === 'POST_DEPLOY' || phase.id === 'SUMMARY')
+  );
   // The deploy's own message is raw AWS or container text more often than not; lead with what it means.
   const explanations = outcome?.ok === false ? explainFailure(outcome.message) : [];
   const failureText =
@@ -93,11 +94,13 @@ export function DeployProgress({
               ? ` We changed ${rewrittenLabel} and tried again, and it still did not work.`
               : ' We looked at your code again and found nothing to change, so we stopped rather than repeat the same deploy.'
             : ''}
-          {keptPartialProgress === true
-            ? ' What was created before the failure is still in your account, and it bills until you remove it. The clean-up command below removes it.'
-            : isUpdate
-              ? ' AWS put the stack back to the version that was running before, and that version keeps running.'
-              : ' AWS rolls a failed first deploy back and removes what it created; that can take a few more minutes.'}
+          {failedAfterResources
+            ? ' The AWS resources were deployed; a step after that did not finish.'
+            : keptPartialProgress === true
+              ? ' The stack was left as the failed attempt changed it, and it runs and bills like that until you deploy again or roll it back with the command below.'
+              : model.stackAction === 'update'
+                ? ' AWS put the stack back to the version that was running before, and that version keeps running.'
+                : ' AWS rolls a failed first deploy back and removes what it created; that can take a few more minutes.'}
         </Alert>
       )}
 

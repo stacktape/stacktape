@@ -14,7 +14,7 @@ type StackCommandTarget = {
 
 const quoteArgument = (argument: string): string => (argument.includes(' ') ? `"${argument}"` : argument);
 
-export const stackCommand = (action: 'deploy' | 'delete', target: StackCommandTarget): string =>
+export const stackCommand = (action: 'deploy' | 'delete' | 'cf:rollback', target: StackCommandTarget): string =>
   [
     'stacktape',
     action,

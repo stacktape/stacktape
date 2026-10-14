@@ -200,7 +200,7 @@ const main = async () => {
         `${completed}/${total} resources (${Math.round((completed / total) * 100)}%)`,
         {
           kind: 'cloudformation-progress',
-          stackAction: 'create',
+          stackAction: scenario.target === 'updateable' ? 'update' : 'create',
           status: 'active',
           completedCount: completed,
           totalPlanned: total,

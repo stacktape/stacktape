@@ -17,20 +17,20 @@ const blocked = (
 
 describe('a blocked deploy target', () => {
   it.each([
-    ['unsafe-status', 'ROLLBACK_COMPLETE', 'A failed first deploy left this stack behind', true],
-    ['unsafe-status', 'CREATE_FAILED', 'A failed first deploy left this stack behind', true],
-    ['unsafe-status', 'DELETE_FAILED', 'An earlier delete of this stack did not finish', true],
-    ['unsafe-status', 'DELETE_IN_PROGRESS', 'AWS is still removing this stack', false],
-    ['unsafe-status', 'UPDATE_IN_PROGRESS', 'Another change to this stack is still running', false],
-    ['unsafe-status', 'UPDATE_ROLLBACK_FAILED', 'This stack is stuck after a failed update', false],
-    ['foreign-stack', 'CREATE_COMPLETE', 'Another tool owns a stack with this name', false],
-    ['identity-mismatch', 'UPDATE_COMPLETE', 'This stack belongs to another project or stage', false],
-    ['incomplete-stack-data', undefined, 'AWS did not fully describe this stack', false]
-  ] as const)('%s %s reads "%s"', (reason, status, title, canDelete) => {
+    ['unsafe-status', 'ROLLBACK_COMPLETE', 'A failed first deploy left this stack behind', 'delete'],
+    ['unsafe-status', 'CREATE_FAILED', 'A failed first deploy left this stack behind', 'delete'],
+    ['unsafe-status', 'DELETE_FAILED', 'An earlier delete of this stack did not finish', 'delete'],
+    ['unsafe-status', 'DELETE_IN_PROGRESS', 'AWS is still removing this stack', undefined],
+    ['unsafe-status', 'UPDATE_IN_PROGRESS', 'Another change to this stack is still running', undefined],
+    ['unsafe-status', 'UPDATE_ROLLBACK_FAILED', 'This stack is stuck after a failed update', 'rollback'],
+    ['foreign-stack', 'CREATE_COMPLETE', 'Another tool owns a stack with this name', undefined],
+    ['identity-mismatch', 'UPDATE_COMPLETE', 'This stack belongs to another project or stage', undefined],
+    ['incomplete-stack-data', undefined, 'AWS did not fully describe this stack', undefined]
+  ] as const)('%s %s reads "%s"', (reason, status, title, fix) => {
     const copy = blockedTargetCopy(blocked(reason, status));
     expect(copy.title).toBe(title);
     // Deleting is offered only where it is the fix, never for a stack that may hold a working app.
-    expect(copy.canDelete).toBe(canDelete);
+    expect(copy.fix).toBe(fix);
     expect(copy.body).not.toMatch(/foreign|mismatch|StackId/);
   });
 
@@ -38,9 +38,7 @@ describe('a blocked deploy target', () => {
     expect(blockedTargetCopy(blocked('unsafe-status', 'REVIEW_IN_PROGRESS')).title).toBe(
       'Another change to this stack is still running'
     );
-    expect(blockedTargetCopy(blocked('unsafe-status', 'IMPORT_ROLLBACK_FAILED')).body).toContain(
-      'IMPORT_ROLLBACK_FAILED'
-    );
+    expect(blockedTargetCopy(blocked('unsafe-status', 'SOME_FUTURE_STATE')).body).toContain('SOME_FUTURE_STATE');
   });
 });
 
