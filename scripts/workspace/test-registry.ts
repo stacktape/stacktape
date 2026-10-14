@@ -4145,7 +4145,13 @@ export const slices: readonly Slice[] = [
       'packages/packaging/scripts/lambda-e2e/python-pipfile.test.ts',
       'packages/packaging/src/bundlers/py/utils.test.ts'
     ],
-    lanes: ['packaging-test', 'language-lambdas', 'project-qualification', 'project-qualification-2'],
+    lanes: [
+      'packaging-test',
+      'language-lambdas',
+      'packaging-images-2',
+      'project-qualification',
+      'project-qualification-2'
+    ],
     contributors: ['S27']
   },
   {
