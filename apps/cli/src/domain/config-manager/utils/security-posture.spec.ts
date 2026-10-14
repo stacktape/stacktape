@@ -229,6 +229,19 @@ describe('security posture through authored configuration', () => {
       { stage: 'production', config: { deploymentConfig: { terminationProtection: true } } }
     );
     expect(convex.findings).toEqual([]);
+    // Without protection the finding names the Convex resource, which holds the setting.
+    const unprotected = assess(
+      { backend: { type: 'convex', properties: { appDirectory: './convex' } } },
+      { stage: 'production', config: { deploymentConfig: { terminationProtection: true } } }
+    );
+    expect(unprotected.findings).toEqual([
+      expect.objectContaining({
+        ruleId: 'database-deletion-protection-disabled',
+        resourceName: 'backend',
+        resourceType: 'convex',
+        remediation: 'Set `deletionProtection: true` on `backend`.'
+      })
+    ]);
     // Convex does not expose configurable WAF or replica controls. Its generated ALB still serves public traffic.
     expect(
       convex.exposure.filter(

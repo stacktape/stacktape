@@ -78,37 +78,47 @@ const resourceTypeOf = (resource: NamedResource, fallback: string) =>
     ? resource.configParentResourceType
     : (resource.type ?? fallback);
 
+/**
+ * The resource as the developer wrote it. A database that a `convex` resource creates is named after the Convex
+ * resource, which holds its settings, instead of the generated `<name>Database`.
+ */
+const configResourceOf = (resource: NamedResource, fallback: string) =>
+  resource.configParentResourceType === 'convex' && resource.nameChain?.[0]
+    ? { name: resource.nameChain[0], type: 'convex' }
+    : { name: resource.name, type: resourceTypeOf(resource, fallback) };
+
 const databaseRules = ({ configManager, isProduction }: RuleContext): SecurityReportFinding[] => {
   const findings: SecurityReportFinding[] = [];
   for (const db of configManager.databases as (StpRelationalDatabase & NamedResource)[]) {
+    const { name, type } = configResourceOf(db, 'relational-database');
     const mode = db.accessibility?.accessibilityMode || 'internet';
     if (mode === 'internet') {
       findings.push(
         createFinding('database-reachable-from-internet', {
-          resourceName: db.name,
-          resourceType: resourceTypeOf(db, 'relational-database'),
-          message: `Database \`${db.name}\` uses accessibility mode \`internet\`, so any address on the internet can open a connection to it.`,
-          remediation: `Set \`accessibility.accessibilityMode\` on \`${db.name}\` to \`scoping-workloads-in-vpc\` (or \`vpc\`) and connect your workloads through \`connectTo\`.`
+          resourceName: name,
+          resourceType: type,
+          message: `Database \`${name}\` uses accessibility mode \`internet\`, so any address on the internet can open a connection to it.`,
+          remediation: `Set \`accessibility.accessibilityMode\` on \`${name}\` to \`scoping-workloads-in-vpc\` (or \`vpc\`) and connect your workloads through \`connectTo\`.`
         })
       );
     }
     if (isProduction && !db.deletionProtection) {
       findings.push(
         createFinding('database-deletion-protection-disabled', {
-          resourceName: db.name,
-          resourceType: resourceTypeOf(db, 'relational-database'),
-          message: `Production database \`${db.name}\` can be deleted without a second confirmation.`,
-          remediation: `Set \`deletionProtection: true\` on \`${db.name}\`.`
+          resourceName: name,
+          resourceType: type,
+          message: `Production database \`${name}\` can be deleted without a second confirmation.`,
+          remediation: `Set \`deletionProtection: true\` on \`${name}\`.`
         })
       );
     }
     if (isProduction && db.automatedBackupRetentionDays === 0) {
       findings.push(
         createFinding('database-backups-disabled', {
-          resourceName: db.name,
-          resourceType: resourceTypeOf(db, 'relational-database'),
-          message: `Production database \`${db.name}\` disables automated backups (\`automatedBackupRetentionDays: 0\`).`,
-          remediation: `Set \`automatedBackupRetentionDays\` on \`${db.name}\` to at least \`7\`.`
+          resourceName: name,
+          resourceType: type,
+          message: `Production database \`${name}\` disables automated backups (\`automatedBackupRetentionDays: 0\`).`,
+          remediation: `Set \`automatedBackupRetentionDays\` on \`${name}\` to at least \`7\`.`
         })
       );
     }
