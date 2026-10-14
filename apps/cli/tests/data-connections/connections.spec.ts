@@ -3,6 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
+import { AURORA_DSQL_REGIONS } from '@stacktape/config/dsql-databases';
 import { synthesizeFixture } from '../characterization/synthesis-fixture';
 
 let directory: string;
@@ -286,7 +287,7 @@ test('DSQL in a region without Aurora DSQL fails before synthesis with the suppo
   await expect(result).rejects.toMatchObject({
     code: 'CONFIG_DSQL_REGION_UNSUPPORTED',
     message: 'Amazon Aurora DSQL is not available in region `eu-south-1`.',
-    hints: [expect.stringContaining('eu-west-1')]
+    hints: [`Choose one of: ${AURORA_DSQL_REGIONS.join(', ')}.`]
   });
 });
 
