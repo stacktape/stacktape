@@ -214,6 +214,13 @@ export type WizardState = {
     resources: Record<string, { type: string; properties: Record<string, unknown> }>;
     provenance: Record<string, { reason: string; evidence: Array<{ file: string; line: number; quote: string }> }>;
     gaps: Array<{ subject: string; message: string }>;
+    /** Settings the code reads with no fallback that nothing in the file sets, by service. */
+    unsetSettings: Array<{
+      serviceName: string;
+      resourceName: string;
+      variableName: string;
+      evidence: Array<{ file: string; line: number; quote: string }>;
+    }>;
     deployable: boolean;
     /**
      * What this would cost per month, once the estimate comes back.
@@ -221,7 +228,13 @@ export type WizardState = {
      * Absent until then, and absent for good if the machine is offline. The review screen renders
      * without it rather than waiting for it.
      */
-    price?: { monthly: string; byResource: Record<string, string>; region: string };
+    price?: {
+      monthly: string;
+      byResource: Record<string, string>;
+      region: string;
+      /** What each other answer to a choice changes the monthly price by, by choice and answer. */
+      options?: Record<string, Record<string, string>>;
+    };
     /**
      * The configuration file exactly as saving it will write it.
      *
@@ -266,6 +279,8 @@ export type Session = {
   pipeline: (stage: string, region: string) => Promise<WizardState>;
   /** Re-check AWS credentials and the Stacktape sign-in, after the user fixed one in a terminal. */
   recheck: () => Promise<WizardState>;
+  /** Price the configuration for the region picked on the Deploy step. The new price is published when it arrives. */
+  setPriceRegion: (region: string) => Promise<WizardState>;
   /** Take one step of signing in to Stacktape. What it led to is in the returned state's `signIn`. */
   signIn: (request: SignInRequest) => Promise<WizardState>;
   answer: (questionId: string, value: string) => Promise<WizardState>;
@@ -418,6 +433,18 @@ export const connect = async (): Promise<Session> => {
         throw new SessionError('Could not re-check the sign-ins.');
       }
       publish((await checked.json()) as WizardState);
+      return current;
+    },
+    setPriceRegion: async (region) => {
+      const priced = await fetch('/api/price-region', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
+        body: JSON.stringify({ region })
+      });
+      if (!priced.ok) {
+        throw new SessionError('The price for that region could not be requested.');
+      }
+      publish((await priced.json()) as WizardState);
       return current;
     },
     signIn: async ({ route, ...body }) => {

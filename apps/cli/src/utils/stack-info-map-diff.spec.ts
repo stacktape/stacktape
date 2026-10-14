@@ -72,6 +72,12 @@ const statefulReplacementCases: {
     after: { ReplicationGroupId: 'cache-b', ReplicationGroupDescription: 'cache' }
   },
   {
+    stpResourceType: 'dynamo-db-table',
+    cfResourceType: 'AWS::DynamoDB::GlobalTable',
+    before: { TableName: 'orders-a' },
+    after: { TableName: 'orders-b' }
+  },
+  {
     stpResourceType: 'sqs-queue',
     cfResourceType: 'AWS::SQS::Queue',
     before: { QueueName: 'jobs-a' },

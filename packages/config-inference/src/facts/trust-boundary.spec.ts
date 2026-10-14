@@ -112,7 +112,7 @@ describe('an agent cannot claim probe provenance', () => {
 
     expect(raised.blocksDeploy).toBe(true);
     expect(raised.id).toBe('sqlite-persistence:api');
-    expect(raised).toMatchObject({ recommended: 'migrate-to-managed-database' });
+    expect(raised).toMatchObject({ recommended: 'persistent-volume' });
     // No free prose from something that reads untrusted files reaches the user at all.
     expect(merged.notes).toEqual([]);
     expect(JSON.stringify(merged)).not.toContain('AWS secret key');

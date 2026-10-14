@@ -31,6 +31,13 @@ export type PriceEstimate = {
   byResource: Record<string, string>;
   /** The region it was priced for, since prices differ and the user has not chosen one yet. */
   region: string;
+  /** The fixed monthly part as a number, for comparing two estimates. Absent when incomplete. */
+  flatMonthly?: number;
+  /**
+   * What each other answer to an infrastructure choice would change, keyed by choice and then
+   * by answer: `+$15/mo`, `-$4/mo`, or `Same price`. Only for answers that could be priced.
+   */
+  options?: Record<string, Record<string, string>>;
 };
 
 /**
@@ -39,7 +46,7 @@ export type PriceEstimate = {
  * Prices differ by region, so quoting a number without saying where it applies would be the same
  * class of mistake as the invented figures this replaced. This one is stated in the interface.
  */
-const DEFAULT_PRICING_REGION = 'eu-west-1';
+export const DEFAULT_PRICING_REGION = 'eu-west-1';
 
 /**
  * Price a configuration, or return nothing.
@@ -77,7 +84,8 @@ export const estimateMonthlyCost = async (
           ? 'Estimate incomplete'
           : `${formatMonthly(result.costs.flatMonthlyCost)}${hasUsageCosts ? ' + pay-per-use costs' : ''}`,
       byResource,
-      region
+      region,
+      ...(result.costs.incomplete !== false ? {} : { flatMonthly: result.costs.flatMonthlyCost })
     };
   } catch {
     // Offline, blocked, rate-limited, or the API changed under us. All the same answer here.
@@ -89,4 +97,10 @@ export const estimateMonthlyCost = async (
 const formatMonthly = (amount: number): string => {
   if (amount >= 10) return `$${Math.round(amount)}/mo`;
   return `$${amount.toFixed(2).replace(/\.00$/, '')}/mo`;
+};
+
+/** The difference a choice makes to the fixed monthly cost, as a card would show it. */
+export const formatMonthlyDelta = (delta: number): string => {
+  if (Math.abs(delta) < 0.5) return 'Same price';
+  return `${delta > 0 ? '+' : '-'}${formatMonthly(Math.abs(delta))}`;
 };

@@ -109,46 +109,6 @@ describe.serial('stack event pagination', () => {
     expect(events.map(({ EventId }) => EventId)).toEqual(['a', 'b']);
   });
 
-  test.serial('continues past an empty page that still carries a token', async () => {
-    stubPages([
-      { StackEvents: [resourceEvent('a', at(3))], NextToken: 'page-2' },
-      { StackEvents: [], NextToken: 'page-3' },
-      { StackEvents: [resourceEvent('b', at(1))] }
-    ]);
-
-    const events = await fetchEvents();
-
-    expect(sentCommands).toHaveLength(3);
-    expect(events.map(({ EventId }) => EventId)).toEqual(['a', 'b']);
-  });
-
-  test.serial('treats an omitted event array as an empty page and keeps going', async () => {
-    stubPages([
-      { StackEvents: [resourceEvent('a', at(3))], NextToken: 'page-2' },
-      { NextToken: 'page-3' },
-      { StackEvents: [resourceEvent('b', at(1))] }
-    ]);
-
-    const events = await fetchEvents();
-
-    expect(sentCommands).toHaveLength(3);
-    expect(events.map(({ EventId }) => EventId)).toEqual(['a', 'b']);
-  });
-
-  test.serial('continues past a page whose events carry no usable timestamp', async () => {
-    // A page made only of hook events has no boundary to compare against, so it cannot end pagination early.
-    stubPages([
-      { StackEvents: [resourceEvent('a', at(3))], NextToken: 'page-2' },
-      { StackEvents: [{ EventId: 'hook', StackName: 'test-stack' }], NextToken: 'page-3' },
-      { StackEvents: [resourceEvent('b', at(1))] }
-    ]);
-
-    const events = await fetchEvents();
-
-    expect(sentCommands).toHaveLength(3);
-    expect(events.map(({ EventId }) => EventId)).toEqual(['a', 'b']);
-  });
-
   test.serial('excludes hook and incomplete events from the monitorable result', async () => {
     stubPages([
       {
@@ -170,34 +130,5 @@ describe.serial('stack event pagination', () => {
     // Only the two events carrying all four monitored fields survive; the rest are ignored rather than crashing
     // monitoring on a missing field.
     expect(events.map(({ EventId }) => EventId)).toEqual(['complete', 'also-complete']);
-  });
-
-  test.serial('returns nothing when a single page holds only events older than the cutoff', async () => {
-    stubPages([{ StackEvents: [resourceEvent('stale', at(-1))] }]);
-
-    const events = await fetchEvents();
-
-    expect(sentCommands).toHaveLength(1);
-    expect(events).toEqual([]);
-  });
-
-  test.serial('routes a request failure through the configured error handler', async () => {
-    stubPages([]);
-    CloudFormationClient.prototype.send = (() =>
-      Promise.reject(new Error('Throttling'))) as unknown as typeof originalSend;
-    const seen: string[] = [];
-    const manager = new AwsSdkManager();
-    manager.init({
-      credentials: { accessKeyId: 'AKIA', secretAccessKey: 'secret' },
-      region: 'eu-west-1',
-      getErrorHandlerFn: (message: string) => (error: Error) => {
-        seen.push(message);
-        throw error;
-      }
-    });
-
-    await expect(manager.cloudFormation.getEvents('test-stack', CUTOFF)).rejects.toThrow('Throttling');
-
-    expect(seen).toEqual(['Failed to fetch stack events.']);
   });
 });

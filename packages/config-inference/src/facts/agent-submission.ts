@@ -166,7 +166,7 @@ const UNKNOWN_POLICY: Record<AgentUnknown['kind'], { blocksDeploy: boolean; reco
   },
   'sqlite-persistence': {
     blocksDeploy: true,
-    recommended: 'migrate-to-managed-database'
+    recommended: 'persistent-volume'
   },
   'migration-timing-unknown': {
     blocksDeploy: true,
@@ -249,7 +249,7 @@ const toUncertainty = (unknown: AgentUnknown): Uncertainty => {
         kind: 'sqlite-persistence',
         serviceName: unknown.serviceName,
         paths: unknown.paths,
-        recommended: 'migrate-to-managed-database'
+        recommended: 'persistent-volume'
       };
     case 'migration-timing-unknown':
       return {

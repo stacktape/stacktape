@@ -48,6 +48,30 @@ describe('CloudFormation stack operations', () => {
     });
   });
 
+  /** Answers the change-set requests with a FAILED set; a regression that keeps polling fails instead of hanging. */
+  const failedChangeSet = (StatusReason: string) => {
+    let describeCalls = 0;
+    return capabilityWith((async (command: { input: object }) => {
+      if ('TemplateBody' in command.input) return { Id: 'change-set', StackId: 'stack' };
+      if (++describeCalls > 3) throw new Error('Still polling a failed change set.');
+      return { Status: 'FAILED', StatusReason };
+    }) as Send);
+  };
+  const preview = { StackName: 'example', ChangeSetName: 'preview', TemplateBody: '{}' };
+
+  test.each([
+    "The submitted information didn't contain changes. Submit different information to create a change set.",
+    'No updates are to be performed.'
+  ])('treats a change set CloudFormation failed for having no changes as an empty preview: %s', async (reason) => {
+    await expect(failedChangeSet(reason).createChangeSet(preview)).resolves.toMatchObject({ changes: [] });
+  });
+
+  test('reports why CloudFormation failed a change set instead of waiting for it', async () => {
+    await expect(failedChangeSet('No export named shared-vpc-id found.').createChangeSet(preview)).rejects.toThrow(
+      'No export named shared-vpc-id found.'
+    );
+  });
+
   test('follows every stack-resource page in service order', async () => {
     const pages = [
       {
