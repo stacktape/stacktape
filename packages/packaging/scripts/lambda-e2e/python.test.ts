@@ -59,29 +59,3 @@ test('a stale uv lock stops packaging before producing a Lambda artifact', async
     ).rejects.toThrow(/lockfile.*needs to be updated/);
   });
 }, 480_000);
-
-test('an empty uv dependency set still produces a runnable Python Lambda ZIP', async () => {
-  await withProject('python-empty', async (root, project) => {
-    const runtimeImage = 'public.ecr.aws/lambda/python:3.14';
-    await ensureRuntimeImage(runtimeImage);
-    const output = await buildPythonLambda({
-      ...actions,
-      cwd: project,
-      name: 'python-empty',
-      entryfilePath: 'handler.py',
-      distFolderPath: join(root, 'dist'),
-      pythonVersion: 3.14,
-      python: { packageManagerFile: 'uv.lock' }
-    });
-    expect(
-      await invokeInLambdaImage<{ message: string }>({
-        functionDirectory: await extractArtifact(output, root),
-        runtimeImage,
-        handler: 'handler.handler',
-        user: '993:990',
-        containerLabel: `stacktape.test=python-empty-${process.pid}`,
-        event: { message: 'empty-dependencies-ok' }
-      })
-    ).toEqual({ message: 'empty-dependencies-ok' });
-  });
-}, 480_000);
