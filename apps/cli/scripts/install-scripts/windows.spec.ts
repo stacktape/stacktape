@@ -56,6 +56,14 @@ function Invoke-WebRequest {
   }
   Copy-Item (Join-Path $env:INSTALLER_DOWNLOADS ($Uri.Split('/')[-1])) $OutFile
 }
+# PowerShell outside Windows has no registry. Answer the installer's architecture read the way this machine's would.
+if (-not $IsWindows) {
+  function Get-ItemProperty {
+    param([string] $Path)
+    if ($Path -ne 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment') { throw "Unexpected registry read: $Path" }
+    return [pscustomobject]@{ PROCESSOR_ARCHITECTURE = '${process.arch === 'arm64' ? 'ARM64' : 'AMD64'}' }
+  }
+}
 & $env:INSTALLER_SCRIPT
 `
       );

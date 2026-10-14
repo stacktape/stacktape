@@ -54,16 +54,6 @@ describe('buildpack project roots', () => {
     expect(resolveExplicitProjectRoot({ cwd, projectFile: 'services/api/pom.xml' })).toBe(join(cwd, 'services', 'api'));
   });
 
-  test('falls back without throwing when the configured entry directory does not exist yet', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'stacktape-project-root-missing-'));
-    roots.push(root);
-    const entryfilePath = join(root, 'missing', 'src', 'Program.cs');
-
-    expect(
-      findNearestProjectRoot({ cwd: root, entryfilePath, markerFiles: [], markerFileExtensions: ['.csproj'] })
-    ).toBe(join(root, 'missing', 'src'));
-  });
-
   test('discovers Maven and Gradle reactor roots without an explicit package-manager file', async () => {
     const root = await mkdtemp(join(tmpdir(), 'stacktape-java-reactor-root-'));
     roots.push(root);

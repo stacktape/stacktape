@@ -25,15 +25,24 @@ export const extractArtifact = async (output: PackagingOutput, root: string) => 
   return directory;
 };
 
-export const withProject = async (language: string, scenario: (root: string, project: string) => Promise<void>) => {
+/**
+ * Copies a fixture into a fresh repository. With `directory`, the fixture becomes a service inside a larger
+ * repository (`<repository>/<directory>`), the monorepo layout where `cwd` is not the language project root.
+ */
+export const withProject = async (
+  language: string,
+  scenario: (root: string, repository: string, project: string) => Promise<void>,
+  { directory }: { directory?: string } = {}
+) => {
   const root = await mkdtemp(join(tmpdir(), `stacktape-${language}-lambda-`));
   try {
-    const project = join(root, 'project');
+    const repository = join(root, 'project');
+    const project = directory ? join(repository, directory) : repository;
     await cp(join(import.meta.dir, 'fixtures', language), project, { recursive: true });
     if (language.startsWith('java-')) {
       await cp(join(import.meta.dir, 'fixtures', 'java-shared'), join(project, 'app'), { recursive: true });
     }
-    await scenario(root, project);
+    await scenario(root, repository, project);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

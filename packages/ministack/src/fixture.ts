@@ -193,25 +193,57 @@ const synthetic = (accessKeyId: string): MiniStackCredentials => ({
   secretAccessKey: SYNTHETIC_SECRET_ACCESS_KEY
 });
 
+/**
+ * Docker Desktop sometimes publishes a port that nothing listens on in a WSL distro: Docker reports the mapping and a
+ * healthy container, and every host connection is refused. Only a new container with a new port recovers.
+ */
+class UnreachablePublishedPort extends MiniStackError {}
+
+/** How long host connections may be refused after Docker reports the container healthy before the port counts as lost. */
+const UNREACHABLE_AFTER_HEALTHY_MS = 5_000;
+
 /** Waits until the emulator answers its health endpoint, failing fast when the container dies first. */
 const waitForHealth = async (endpoint: string, containerName: string, deadline: number) => {
+  let lastProblem = 'no request completed';
+  let refusedWhileHealthySince: number | undefined;
   while (Date.now() < deadline) {
-    const state = docker(['inspect', '--format', '{{.State.Running}}', containerName], { allowFailure: true });
-    if (state.exitCode !== 0 || state.stdout !== 'true') {
+    const state = docker(
+      ['inspect', '--format', '{{.State.Running}} {{if .State.Health}}{{.State.Health.Status}}{{end}}', containerName],
+      { allowFailure: true }
+    );
+    const [running, health] = state.stdout.split(' ');
+    if (state.exitCode !== 0 || running !== 'true') {
       const logs = docker(['logs', '--tail', '40', containerName], { allowFailure: true });
       throw new MiniStackError(`MiniStack exited before becoming ready.\n${logs.stdout}\n${logs.stderr}`);
     }
+    let refused = false;
     try {
       // oxlint-disable-next-line no-await-in-loop -- polling one listener until it answers.
       const response = await fetch(`${endpoint}/_ministack/health`, { signal: AbortSignal.timeout(500) });
       if (response.ok) return;
-    } catch {
-      // The listener is still starting.
+      lastProblem = `HTTP ${response.status}`;
+    } catch (error) {
+      // The listener is still starting. Node's fetch keeps the socket error in `cause`; Bun puts it on the error.
+      const { code, cause } = (error ?? {}) as { code?: string; cause?: { code?: string } };
+      const errorCode = cause?.code ?? code;
+      refused = errorCode === 'ECONNREFUSED' || errorCode === 'ConnectionRefused';
+      lastProblem =
+        error instanceof Error ? `${error.name}: ${error.message} ${errorCode ?? ''}`.trim() : String(error);
+    }
+    refusedWhileHealthySince = refused && health === 'healthy' ? (refusedWhileHealthySince ?? Date.now()) : undefined;
+    if (
+      refusedWhileHealthySince !== undefined &&
+      Date.now() - refusedWhileHealthySince >= UNREACHABLE_AFTER_HEALTHY_MS
+    ) {
+      throw new UnreachablePublishedPort(`Docker reports ${containerName} healthy, but nothing accepts ${endpoint}.`);
     }
     // oxlint-disable-next-line no-await-in-loop -- the poll interval.
     await delay(100);
   }
-  throw new MiniStackError(`MiniStack did not answer its health check within the start timeout (${containerName}).`);
+  throw new MiniStackError(
+    `MiniStack did not answer its health check at ${endpoint} within the start timeout (${containerName}). ` +
+      `Last host request: ${lastProblem}.`
+  );
 };
 
 /**
@@ -226,7 +258,9 @@ export const startMiniStack = async ({
   environment = {}
 }: StartMiniStackOptions = {}): Promise<MiniStack> => {
   const started = performance.now();
-  const containerName = `${CONTAINER_NAME_PREFIX}${label.replace(/[^a-zA-Z0-9_.-]/g, '-')}-${randomBytes(6).toString('hex')}`;
+  const newContainerName = () =>
+    `${CONTAINER_NAME_PREFIX}${label.replace(/[^a-zA-Z0-9_.-]/g, '-')}-${randomBytes(6).toString('hex')}`;
+  let containerName = newContainerName();
   let stopped = false;
   let volumes: string[] = [];
   const stop = async () => {
@@ -246,64 +280,76 @@ export const startMiniStack = async ({
         `MiniStack needs a Docker daemon that runs Linux containers; this one runs ${daemonOs.stdout}.`
       );
     }
-    docker(
-      [
-        'run',
-        '--detach',
-        '--name',
-        containerName,
-        '--publish',
-        `127.0.0.1::${CONTAINER_PORT}`,
-        ...(blockEgress ? ['--sysctl', 'net.ipv6.conf.all.disable_ipv6=1'] : []),
-        // Code the emulator runs locally (Lambda functions, custom resources) must find the emulator and must never
-        // hold anything but synthetic credentials.
-        '--env',
-        `AWS_ENDPOINT_URL=http://127.0.0.1:${CONTAINER_PORT}`,
-        '--env',
-        `AWS_ACCESS_KEY_ID=${MINISTACK_DEFAULT_ACCOUNT_ID}`,
-        '--env',
-        `AWS_SECRET_ACCESS_KEY=${SYNTHETIC_SECRET_ACCESS_KEY}`,
-        '--env',
-        'AWS_EC2_METADATA_DISABLED=true',
-        ...Object.entries(environment).flatMap(([name, value]) => ['--env', `${name}=${value}`]),
-        MINISTACK_IMAGE
-      ],
-      { timeoutMs: 180_000 }
-    );
-    volumes = (
-      JSON.parse(docker(['inspect', '--format', '{{json .Mounts}}', containerName]).stdout) as Array<{
-        Type: string;
-        Name?: string;
-      }>
-    )
-      .filter((mount) => mount.Type === 'volume' && mount.Name)
-      .map((mount) => mount.Name!);
-    if (blockEgress) {
-      // The helper shares the emulator's network namespace and is the only process that ever holds NET_ADMIN.
-      const routeTables = docker(
+    let endpoint = '';
+    for (let attempt = 1; ; attempt += 1) {
+      docker(
         [
           'run',
-          '--rm',
-          '--network',
-          `container:${containerName}`,
-          '--cap-add',
-          'NET_ADMIN',
-          '--entrypoint',
-          'python',
-          MINISTACK_IMAGE,
-          '-c',
-          DELETE_DEFAULT_ROUTES
+          '--detach',
+          '--name',
+          containerName,
+          '--publish',
+          `127.0.0.1::${CONTAINER_PORT}`,
+          ...(blockEgress ? ['--sysctl', 'net.ipv6.conf.all.disable_ipv6=1'] : []),
+          // Code the emulator runs locally (Lambda functions, custom resources) must find the emulator and must never
+          // hold anything but synthetic credentials.
+          '--env',
+          `AWS_ENDPOINT_URL=http://127.0.0.1:${CONTAINER_PORT}`,
+          '--env',
+          `AWS_ACCESS_KEY_ID=${MINISTACK_DEFAULT_ACCOUNT_ID}`,
+          '--env',
+          `AWS_SECRET_ACCESS_KEY=${SYNTHETIC_SECRET_ACCESS_KEY}`,
+          '--env',
+          'AWS_EC2_METADATA_DISABLED=true',
+          ...Object.entries(environment).flatMap(([name, value]) => ['--env', `${name}=${value}`]),
+          MINISTACK_IMAGE
         ],
-        { timeoutMs: 120_000 }
-      ).stdout;
-      if (hasDefaultRoute(routeTables)) {
-        throw new MiniStackError(`The container still has a default route:\n${routeTables}`);
+        { timeoutMs: 180_000 }
+      );
+      volumes = (
+        JSON.parse(docker(['inspect', '--format', '{{json .Mounts}}', containerName]).stdout) as Array<{
+          Type: string;
+          Name?: string;
+        }>
+      )
+        .filter((mount) => mount.Type === 'volume' && mount.Name)
+        .map((mount) => mount.Name!);
+      if (blockEgress) {
+        // The helper shares the emulator's network namespace and is the only process that ever holds NET_ADMIN.
+        const routeTables = docker(
+          [
+            'run',
+            '--rm',
+            '--network',
+            `container:${containerName}`,
+            '--cap-add',
+            'NET_ADMIN',
+            '--entrypoint',
+            'python',
+            MINISTACK_IMAGE,
+            '-c',
+            DELETE_DEFAULT_ROUTES
+          ],
+          { timeoutMs: 120_000 }
+        ).stdout;
+        if (hasDefaultRoute(routeTables)) {
+          throw new MiniStackError(`The container still has a default route:\n${routeTables}`);
+        }
+      }
+      const port = /127\.0\.0\.1:(\d+)/.exec(docker(['port', containerName, `${CONTAINER_PORT}/tcp`]).stdout)?.[1];
+      if (!port) throw new MiniStackError('MiniStack did not publish a loopback port.');
+      endpoint = assertLocalAwsEndpoint(`http://127.0.0.1:${port}`);
+      try {
+        // oxlint-disable-next-line no-await-in-loop -- a lost port is retried with a new container.
+        await waitForHealth(endpoint, containerName, Date.now() + startTimeoutMs);
+        break;
+      } catch (error) {
+        if (!(error instanceof UnreachablePublishedPort) || attempt === 3) throw error;
+        removeMiniStackContainer(docker, containerName, volumes);
+        containerName = newContainerName();
+        volumes = [];
       }
     }
-    const port = /127\.0\.0\.1:(\d+)/.exec(docker(['port', containerName, `${CONTAINER_PORT}/tcp`]).stdout)?.[1];
-    if (!port) throw new MiniStackError('MiniStack did not publish a loopback port.');
-    const endpoint = assertLocalAwsEndpoint(`http://127.0.0.1:${port}`);
-    await waitForHealth(endpoint, containerName, Date.now() + startTimeoutMs);
     const imageId = docker(['inspect', '--format', '{{.Image}}', containerName]).stdout;
     // The access key is the account ID itself: MiniStack scopes S3 by the raw key when it is not a known account, and
     // credentials it gives Lambda workers are the function's account, so every path must name the same tenant.

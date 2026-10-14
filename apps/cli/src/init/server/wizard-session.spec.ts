@@ -347,6 +347,24 @@ describe('startWizardSession', () => {
       expect(running.deployment?.commandLine).toBe('stacktape deploy --stage dev');
       expect(requestedUrlResources).toEqual(['api']);
 
+      // A changed choice would drop the file the deploy is reading, so nothing changes until it ends.
+      await fetch(`${origin}/api/preferences`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ key: 'availability', value: 'redundant' })
+      });
+      await fetch(`${origin}/api/answer`, { method: 'POST', headers, body: JSON.stringify({ id: 'x', value: 'y' }) });
+      const locked = (await (
+        await fetch(`${origin}/api/state`, { headers: { Origin: origin, Cookie: cookie } })
+      ).json()) as {
+        configFile?: unknown;
+        answers: Record<string, string>;
+        preferences?: { availability?: string };
+      };
+      expect(locked.configFile).toBeDefined();
+      expect(locked.answers).toEqual({});
+      expect(locked.preferences?.availability).toBe('single');
+
       emit!({ type: 'event', phase: 'DEPLOY', message: 'Creating resources' });
       emit!({ type: 'result', ok: true, code: 'OK', message: 'Done', data: { secret: 'do-not-publish' } });
       // Progress publishing is coalesced, so the page sees this a beat later rather than instantly.

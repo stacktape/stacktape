@@ -21,9 +21,17 @@ afterEach(async () => {
  * installed with npm gets no `workspace:` links, and the bundle of a package that imports its sibling fails.
  */
 describe('getLockFileData', () => {
-  test('a lockfile names the package manager', async () => {
-    const root = await project({ 'package.json': '{}', 'pnpm-lock.yaml': 'lockfileVersion: 9\n' });
-    expect(await getLockFileData(root)).toEqual({ lockfilePath: join(root, 'pnpm-lock.yaml'), packageManager: 'pnpm' });
+  test.each([
+    ['package-lock.json', 'npm'],
+    ['yarn.lock', 'yarn'],
+    ['pnpm-lock.yaml', 'pnpm'],
+    ['bun.lockb', 'bun'],
+    ['bun.lock', 'bun'],
+    // Deno writes `deno.lock`; it never had a binary lockfile.
+    ['deno.lock', 'deno']
+  ] as const)('%s names %s, which then installs native dependencies in Docker', async (lockfile, packageManager) => {
+    const root = await project({ 'package.json': '{}', [lockfile]: '' });
+    expect(await getLockFileData(root)).toEqual({ lockfilePath: join(root, lockfile), packageManager });
   });
 
   test('a pnpm workspace without a lockfile is a pnpm project', async () => {

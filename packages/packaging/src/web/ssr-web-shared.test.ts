@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createServerWrapper } from './ssr-web-shared';
 
@@ -18,67 +18,112 @@ const createRoot = async () => {
   return root;
 };
 
-describe('SSR Lambda wrappers', () => {
-  test('adapts API Gateway v1 path, query, request headers, body, and repeated response cookies', async () => {
-    const root = await createRoot();
-    const serverFunctionPath = join(root, 'server-function');
-    await mkdir(serverFunctionPath, { recursive: true });
-    await writeFile(
-      join(serverFunctionPath, 'server.mjs'),
-      `export default (request, response) => {
+// The application at the framework boundary echoes what it received; `/pixel` answers with binary bytes. Remix's
+// `createRequestHandler` is the one framework call the web-fetch wrapper makes, so the fixture supplies it.
+const pixel = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0xff, 0x00]);
+const echoApplications = {
+  'node-http': {
+    handlerFileName: 'server.mjs',
+    files: {
+      'server.mjs': `export default (request, response) => {
         const chunks = [];
         request.on("data", (chunk) => chunks.push(chunk));
         request.on("end", () => {
-          response.statusCode = 201;
-          response.setHeader("content-type", "application/json; charset=utf-8");
-          response.setHeader("set-cookie", ["first=one; Path=/", "second=two; Path=/"]);
+          if (request.url === "/pixel") {
+            response.setHeader("content-type", "image/png");
+            return response.end(Buffer.from(${JSON.stringify([...pixel])}));
+          }
+          response.setHeader("content-type", "application/json");
+          response.setHeader("set-cookie", ["session=new; Path=/; HttpOnly", "theme=dark; Path=/"]);
           response.end(JSON.stringify({
             method: request.method,
-            url: request.url,
+            url: (request.socket.encrypted ? "https" : "http") + "://" + request.headers.host + request.url,
             cookie: request.headers.cookie,
-            repeated: request.headers["x-repeated"],
             body: Buffer.concat(chunks).toString("utf8")
           }));
         });
       };`
-    );
-    await createServerWrapper({
-      distFolderPath: root,
-      handlerFileName: 'server.mjs',
-      wrapperType: 'node-http'
-    });
-    const wrapperUrl = `${pathToFileURL(join(serverFunctionPath, 'index-wrap.mjs')).href}?test=${Date.now()}`;
-    const { handler } = await import(wrapperUrl);
+    }
+  },
+  'web-fetch': {
+    handlerFileName: 'index.js',
+    files: {
+      'node_modules/@remix-run/node/package.json': '{"name":"@remix-run/node","type":"module","main":"index.js"}',
+      'node_modules/@remix-run/node/index.js':
+        'export const createRequestHandler = (build) => (request) => build.default(request);',
+      'index.js': `export default async (request) => {
+        if (new URL(request.url).pathname === "/pixel") {
+          return new Response(Buffer.from(${JSON.stringify([...pixel])}), { headers: { "content-type": "image/png" } });
+        }
+        const headers = new Headers({ "content-type": "application/json" });
+        headers.append("set-cookie", "session=new; Path=/; HttpOnly");
+        headers.append("set-cookie", "theme=dark; Path=/");
+        return new Response(JSON.stringify({
+          method: request.method,
+          url: request.url,
+          cookie: request.headers.get("cookie"),
+          body: await request.text()
+        }), { headers });
+      };`
+    }
+  }
+} as const;
 
-    const response = await handler({
-      version: '1.0',
-      httpMethod: 'POST',
-      path: '/orders',
-      queryStringParameters: { search: 'ignored', single: 'one' },
-      multiValueQueryStringParameters: { search: ['red apple', 'green apple'] },
-      headers: {
-        cookie: 'session=abc',
-        'content-type': 'text/plain',
-        'x-repeated': 'duplicate'
-      },
-      multiValueHeaders: { 'x-repeated': ['one', 'two'] },
-      body: 'payload',
-      isBase64Encoded: false
-    });
+// What a function URL or HTTP API sends: the method only in requestContext, cookies outside the headers, the
+// body base64-encoded and the public host in x-forwarded-host.
+const httpApiEvent = (method: string, rawPath: string, body?: string) => ({
+  version: '2.0',
+  rawPath,
+  rawQueryString: 'q=red%20apple',
+  cookies: ['session=abc', 'theme=light'],
+  headers: {
+    host: 'internal.lambda-url.example',
+    'x-forwarded-host': 'public.example.com',
+    'x-forwarded-proto': 'https',
+    'content-type': 'application/x-www-form-urlencoded'
+  },
+  requestContext: { http: { method } },
+  ...(body === undefined ? {} : { body: Buffer.from(body).toString('base64'), isBase64Encoded: true })
+});
 
-    expect(response.statusCode).toBe(201);
-    expect(response.multiValueHeaders['set-cookie']).toEqual(['first=one; Path=/', 'second=two; Path=/']);
-    expect(response.cookies).toBeUndefined();
-    expect(JSON.parse(response.body)).toEqual({
-      method: 'POST',
-      url: '/orders?search=red+apple&search=green+apple&single=one',
-      cookie: 'session=abc',
-      repeated: 'one, two',
-      body: 'payload'
-    });
-  });
+describe('SSR Lambda wrappers', () => {
+  test.each(['node-http', 'web-fetch'] as const)(
+    '%s passes an HTTP API v2 request through intact and answers in the v2 shape',
+    async (wrapperType) => {
+      const root = await createRoot();
+      const application = echoApplications[wrapperType];
+      await Promise.all(
+        Object.entries(application.files).map(async ([path, contents]) => {
+          await mkdir(dirname(join(root, 'server-function', path)), { recursive: true });
+          await writeFile(join(root, 'server-function', path), contents);
+        })
+      );
+      await createServerWrapper({ distFolderPath: root, handlerFileName: application.handlerFileName, wrapperType });
+      const { handler } = await import(
+        `${pathToFileURL(join(root, 'server-function', 'index-wrap.mjs')).href}?test=${Date.now()}`
+      );
+      const response = await handler(httpApiEvent('POST', '/orders/42', 'item=caf%C3%A9&qty=2'));
+      expect(response.statusCode).toBe(200);
+      expect(response.cookies).toEqual(['session=new; Path=/; HttpOnly', 'theme=dark; Path=/']);
+      expect(response.multiValueHeaders).toBeUndefined();
+      expect(JSON.parse(response.body)).toEqual({
+        method: 'POST',
+        url: 'https://public.example.com/orders/42?q=red%20apple',
+        cookie: 'session=abc; theme=light',
+        body: 'item=caf%C3%A9&qty=2'
+      });
 
-  test('normalizes transparently decompressed responses and preserves the public origin', async () => {
+      // Function URLs pass text bodies such as JSON through unencoded.
+      const json = await handler({ ...httpApiEvent('PUT', '/orders/42'), body: '{"qty":3}', isBase64Encoded: false });
+      expect(JSON.parse(json.body)).toMatchObject({ method: 'PUT', body: '{"qty":3}' });
+
+      const image = await handler({ ...httpApiEvent('GET', '/pixel'), rawQueryString: '' });
+      expect(image.isBase64Encoded).toBe(true);
+      expect(Buffer.from(image.body, 'base64')).toEqual(pixel);
+    }
+  );
+
+  test('drops the encoding of a response fetch already decompressed', async () => {
     const root = await createRoot();
     const serverFunctionPath = join(root, 'server-function');
     await mkdir(serverFunctionPath, { recursive: true });
@@ -91,7 +136,6 @@ describe('SSR Lambda wrappers', () => {
          response.setHeader("content-encoding", "gzip");
          response.setHeader("connection", "keep-alive");
          response.setHeader("content-length", String(body.length));
-         response.setHeader("x-observed-origin", (request.socket.encrypted ? "https" : "http") + "://" + request.headers.host);
          response.end(body);
        };`
     );
@@ -108,11 +152,7 @@ describe('SSR Lambda wrappers', () => {
       requestContext: { http: { method: 'GET' } },
       rawPath: '/',
       rawQueryString: '',
-      headers: {
-        host: 'internal.lambda-url.example',
-        'x-forwarded-host': 'public.example.com',
-        'x-forwarded-proto': 'https'
-      }
+      headers: { host: 'internal.lambda-url.example' }
     });
 
     expect(response.body).toBe('compressed body');
@@ -120,6 +160,5 @@ describe('SSR Lambda wrappers', () => {
     expect(response.headers['content-encoding']).toBeUndefined();
     expect(response.headers['content-length']).toBeUndefined();
     expect(response.headers.connection).toBeUndefined();
-    expect(response.headers['x-observed-origin']).toBe('https://public.example.com');
   });
 });

@@ -331,7 +331,8 @@ const invoke = async ({
     const invocation = await invokeInLambdaRuntime({
       functionDirectory,
       layerDirectory: run.optDirectory,
-      handler: 'index.handler',
+      // The handler the CLI deploys for every js-bundle function without `handlerFunction` (`getLambdaHandler`).
+      handler: 'index.default',
       image: RUNTIME_IMAGE[name],
       event,
       environment: { NODE_OPTIONS: '--enable-source-maps' }

@@ -271,7 +271,8 @@ export const lanes: readonly Lane[] = [
     tests: ['apps/cli/tests/data-connections/connections.spec.ts'],
     requires: [],
     release: 'every-candidate',
-    proves: 'Real synthesis wires stream events, filesystem mounts, DSQL metadata and scoped data permissions.',
+    proves:
+      'Real synthesis wires stream events, filesystem mounts, DSQL and database connections and scoped data permissions; invalid container secret sources and unsupported DSQL regions fail early.',
     selections: ['data-connections']
   },
   {
@@ -412,7 +413,7 @@ export const lanes: readonly Lane[] = [
     requires: [],
     release: 'every-candidate',
     proves:
-      'Change plans, replacement risks, ECS mapping contracts, version publication and malformed service responses preserve deployment safety.',
+      'Change plans, replacement risks, ECS mapping contracts, version publication and CloudFormation responses preserve deployment safety.',
     selections: ['deployment-rules']
   },
   {
@@ -746,11 +747,11 @@ export const lanes: readonly Lane[] = [
     command: ['pnpm', '--filter', '@stacktape/cli', 'run', 'test:image-builders:ministack'],
     level: 'process',
     tier: 'change',
-    tests: ['apps/cli/tests/image-builders/ecr.spec.ts'],
+    tests: ['apps/cli/tests/image-builders/docker-build.spec.ts', 'apps/cli/tests/image-builders/ecr.spec.ts'],
     requires: ['docker'],
     release: 'every-candidate',
     proves:
-      'Real ECR metadata is listed and deleted across batches and registry authorization is decoded on MiniStack.',
+      'Real ECR metadata is listed and deleted across batches, registry authorization is decoded on MiniStack, and the CLI Docker runner builds for the requested platform with secrets and arguments off the command line.',
     selections: ['packaging-images']
   },
   {
@@ -760,6 +761,7 @@ export const lanes: readonly Lane[] = [
     tier: 'change',
     tests: [
       'packages/packaging/scripts/lambda-e2e/python.test.ts',
+      'packages/packaging/scripts/lambda-e2e/python-selection.test.ts',
       'packages/packaging/scripts/lambda-e2e/python-pipfile.test.ts',
       'packages/packaging/scripts/lambda-e2e/java.test.ts',
       'packages/packaging/scripts/lambda-e2e/ruby.test.ts'
@@ -1094,7 +1096,7 @@ export const lanes: readonly Lane[] = [
     requires: ['docker', 'network'],
     release: 'every-candidate',
     proves:
-      'The source CLI creates, updates, redeploys unchanged, previews, rolls back and deletes on MiniStack; real SDKs observe runtime, data and artifacts.',
+      'The source CLI creates, updates, redeploys unchanged, refuses unconfirmed data loss, previews, rolls back and deletes on MiniStack; real SDKs observe runtime, data, retention and artifacts.',
     selections: ['ministack-deploy']
   },
   {
@@ -1854,7 +1856,8 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-deployment.test.ts',
       'apps/console/ui/e2e/isolated-security.test.ts',
       'apps/console/ui/e2e/isolated-first-run.test.ts',
-      'apps/console/ui/e2e/isolated-organization.test.ts'
+      'apps/console/ui/e2e/isolated-organization.test.ts',
+      'apps/console/ui/e2e/isolated-overview.test.ts'
     ],
     requires: ['console', 'docker', 'chromium', 'network'],
     release: 'every-candidate',
@@ -2129,14 +2132,8 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/connect-to-helper.spec.ts',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/log-groups.spec.ts',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/role-helpers.spec.ts',
-      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/ssr-web-shared.test.ts',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/agentcore/index.spec.ts',
-      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/appsync-apis/utils.spec.ts',
-      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/dsql-databases/index.spec.ts',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/functions/events/kafka-topic/index.spec.ts',
-      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/kafka-clusters/index.spec.ts',
-      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/websocket-api-gateways/utils.spec.ts',
-      'apps/cli/src/domain/config-manager/container-secrets.spec.ts',
       'apps/cli/src/domain/config-manager/utils/agentcore.spec.ts',
       'apps/cli/src/domain/config-manager/utils/appsync-apis.spec.ts',
       'apps/cli/src/domain/config-manager/utils/email-senders.spec.ts',
@@ -2378,6 +2375,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-security.test.ts',
       'apps/console/ui/e2e/isolated-first-run.test.ts',
       'apps/console/ui/e2e/isolated-organization.test.ts',
+      'apps/console/ui/e2e/isolated-overview.test.ts',
       'apps/console/ui/e2e/issues.spec.ts',
       'apps/console/ui/e2e/privacy-probe.spec.ts',
       'apps/console/ui/e2e/project-access.spec.ts',
@@ -2501,9 +2499,8 @@ export const lanes: readonly Lane[] = [
       'packages/packaging/src/bundlers/digest.test.ts',
       'packages/packaging/src/bundlers/es/decorator-metadata.test.ts',
       'packages/packaging/src/bundlers/es/docker-dependency-plan.test.ts',
-      'packages/packaging/src/bundlers/es/file-selection.test.ts',
+      'packages/packaging/src/bundlers/es/lambda-package.test.ts',
       'packages/packaging/src/bundlers/es/minify.test.ts',
-      'packages/packaging/src/bundlers/es/module-resolution.test.ts',
       'packages/packaging/src/bundlers/es/prisma.test.ts',
       'packages/packaging/src/bundlers/es/raw-code.test.ts',
       'packages/packaging/src/bundlers/es/require-condition.test.ts',
@@ -2676,7 +2673,7 @@ export const lanes: readonly Lane[] = [
   },
   {
     id: 'docs-test',
-    command: ['pnpm', '--filter', '@stacktape/docs', 'run', 'test'],
+    command: ['pnpm', 'exec', 'turbo', 'run', 'test', '--filter=@stacktape/docs'],
     level: 'focused',
     tier: 'change',
     tests: [],
@@ -3660,7 +3657,6 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/role-helpers.spec.ts',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/agentcore/index.spec.ts',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/functions/events/kafka-topic/index.spec.ts',
-      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/kafka-clusters/index.spec.ts',
       'apps/cli/src/domain/config-manager/utils/agentcore.spec.ts',
       'apps/cli/src/domain/config-manager/utils/email-senders.spec.ts',
       'apps/cli/src/domain/config-manager/utils/kafka-events.spec.ts',
@@ -3718,9 +3714,7 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/cli/tests/data-connections/connections.spec.ts',
-      'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/kafka-bootstrap-brokers.spec.ts',
-      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/dsql-databases/index.spec.ts',
-      'apps/cli/src/domain/config-manager/container-secrets.spec.ts'
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/kafka-bootstrap-brokers.spec.ts'
     ],
     lanes: ['data-connections', 'synthesis', 'synthesis-2', 'data-safety', 'config-loading', 'cli-operations-database'],
     contributors: ['S03', 'S09', 'S17']
@@ -3745,8 +3739,6 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/operations/remaining-commands.spec.ts',
       'apps/cli/scripts/packaging-archives/helper-lambda-runtime-acceptance.ts',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/ssr-web-shared.test.ts',
-      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/appsync-apis/utils.spec.ts',
-      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/websocket-api-gateways/utils.spec.ts',
       'apps/cli/src/domain/config-manager/utils/appsync-apis.spec.ts',
       'apps/cli/src/domain/config-manager/utils/nextjs-webs.spec.ts',
       'apps/cli/src/domain/config-manager/utils/websocket-api-gateways.spec.ts',
@@ -4060,9 +4052,8 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/bundlers/digest.test.ts',
       'packages/packaging/src/bundlers/es/decorator-metadata.test.ts',
       'packages/packaging/src/bundlers/es/docker-dependency-plan.test.ts',
-      'packages/packaging/src/bundlers/es/file-selection.test.ts',
+      'packages/packaging/src/bundlers/es/lambda-package.test.ts',
       'packages/packaging/src/bundlers/es/minify.test.ts',
-      'packages/packaging/src/bundlers/es/module-resolution.test.ts',
       'packages/packaging/src/bundlers/es/prisma.test.ts',
       'packages/packaging/src/bundlers/es/raw-code.test.ts',
       'packages/packaging/src/bundlers/es/require-condition.test.ts',
@@ -4114,7 +4105,8 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/split-bundler/error-format.test.ts',
       'packages/packaging/src/split-bundler/function-digest.test.ts',
       'packages/packaging/src/split-bundler/layer-assignment.test.ts',
-      'packages/packaging/src/split-bundler/layer-builder.test.ts'
+      'packages/packaging/src/split-bundler/layer-builder.test.ts',
+      'packages/packaging/src/split-bundler/layered-runtime.test.ts'
     ],
     lanes: [
       'node-lambda-offline',
@@ -4144,7 +4136,6 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/docker/dockerfiles.ts',
       'packages/packaging/scripts/lambda-e2e/fixtures/python/**',
       'packages/packaging/scripts/lambda-e2e/fixtures/python-selection/**',
-      'packages/packaging/scripts/lambda-e2e/fixtures/python-empty/**',
       'packages/packaging/scripts/lambda-e2e/fixtures/python-pipfile/**',
       'packages/packaging/src/bundlers/py/**',
       'packages/packaging/src/buildpacks/py-lambda-buildpack.ts'
@@ -4155,7 +4146,13 @@ export const slices: readonly Slice[] = [
       'packages/packaging/scripts/lambda-e2e/python-pipfile.test.ts',
       'packages/packaging/src/bundlers/py/utils.test.ts'
     ],
-    lanes: ['packaging-test', 'language-lambdas', 'project-qualification', 'project-qualification-2'],
+    lanes: [
+      'packaging-test',
+      'language-lambdas',
+      'packaging-images-2',
+      'project-qualification',
+      'project-qualification-2'
+    ],
     contributors: ['S27']
   },
   {
@@ -4263,6 +4260,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/packaging-manager/railpack-command.spec.ts',
       'apps/cli/src/utils/__tests__/docker-secret-handling.test.ts',
       'apps/cli/tests/characterization/aws-ecr.spec.ts',
+      'apps/cli/tests/image-builders/docker-build.spec.ts',
       'apps/cli/tests/image-builders/ecr.spec.ts',
       'packages/packaging/scripts/dockerfile-image-e2e.ts',
       'packages/packaging/scripts/synthetic-docker-smoke.ts',
@@ -5385,6 +5383,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/pages/SyntheticsPage/synthetics-presentation.test.ts',
       'apps/console/ui/src/pages/OverviewPage/overview-metrics.test.ts',
       'apps/console/ui/e2e/isolated-first-run.test.ts',
+      'apps/console/ui/e2e/isolated-overview.test.ts',
       'apps/console/ui/src/utils/dates.test.ts'
     ],
     lanes: [

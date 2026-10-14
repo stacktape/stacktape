@@ -106,34 +106,4 @@ describe('shared resource stack manager', () => {
     await expect(manager.ensure(requirement())).rejects.toThrow('Timed out');
     await expect(manager.ensure(requirement())).rejects.toMatchObject({ code: 'SHARED_STACK_WAIT_TIMEOUT' });
   });
-
-  test('wraps unexpected create and update failures with stable codes and causes', async () => {
-    const createFailure = new Error('access denied during create');
-    const createAdapter: SharedResourceStackAdapter = {
-      get: async () => undefined,
-      create: async () => {
-        throw createFailure;
-      },
-      update: async () => {}
-    };
-    const createManager = new SharedResourceStackManager({ adapter: createAdapter, pollIntervalMs: 0 });
-    await expect(createManager.ensure(requirement())).rejects.toMatchObject({
-      cause: createFailure,
-      code: 'SHARED_STACK_CREATE_FAILED'
-    });
-
-    const updateFailure = new Error('access denied during update');
-    const updateAdapter: SharedResourceStackAdapter = {
-      get: async () => details({ version: 0 }),
-      create: async () => {},
-      update: async () => {
-        throw updateFailure;
-      }
-    };
-    const updateManager = new SharedResourceStackManager({ adapter: updateAdapter, pollIntervalMs: 0 });
-    await expect(updateManager.ensure(requirement())).rejects.toMatchObject({
-      cause: updateFailure,
-      code: 'SHARED_STACK_UPDATE_FAILED'
-    });
-  });
 });

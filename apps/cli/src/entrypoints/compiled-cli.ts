@@ -1,14 +1,20 @@
 import { markTiming, startTiming } from '@utils/timings';
 import { runUsingCli } from './cli';
 
+// Bun reports `writableLength` 0 for a pipe while writes are still queued, and `process.exit` discards them. An MCP
+// server or CI reading `--agent` output would then lose the final result record whenever it reads slower than the
+// CLI writes. Ending the stream resolves once everything is written. Terminal writes are synchronous, and the exit
+// handler still writes the cursor reset there.
 const drainStream = async (stream: NodeJS.WriteStream) => {
-  if (stream.writableLength === 0) {
+  if (stream.isTTY || stream.writableEnded) {
     return;
   }
 
   await new Promise<void>((resolve) => {
-    stream.once('drain', resolve);
-    setTimeout(resolve, 300);
+    stream.once('error', () => resolve());
+    stream.end(resolve);
+    // A reader that stops reading without closing the pipe must not keep the CLI alive.
+    setTimeout(resolve, 10_000).unref();
   });
 };
 

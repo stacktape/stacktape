@@ -12,6 +12,7 @@
     "./local-development/**/*.ts",
     "./static-sites/*.ts",
     "./data-connections/**/*.ts",
-    "./generated-access/**/*.ts"
+    "./generated-access/**/*.ts",
+    "./image-builders/**/*.ts"
   ]
 }

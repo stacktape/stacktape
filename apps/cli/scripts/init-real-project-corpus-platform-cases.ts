@@ -78,12 +78,13 @@ const ALL_REAL_PROJECT_PLATFORM_CASES = [
     source: 'official-starter',
     exercises: ['fly', 'remix', 'prisma', 'litefs', 'monorepo'],
     expect: {
-      resourceTypes: { bucket: 1, 'web-service': 1 },
+      resourceTypes: { bucket: 1, 'efs-filesystem': 1, 'web-service': 1 },
       dependencyKinds: { 'object-storage': 1, sqlite: 1 },
       serviceCount: 1,
       httpServiceCount: 1,
       existingDeployments: ['fly'],
-      requiredGapPatterns: ['SQLite runs inside|Fly\.io deployment config'],
+      requiredConfig: ['value: file:/data/data.db', 'maxInstances: 1'],
+      requiredGapPatterns: ['Fly\.io deployment config', 'npx prisma migrate deploy'],
       forbidCurrentlyHostedDependencies: true
     }
   },
