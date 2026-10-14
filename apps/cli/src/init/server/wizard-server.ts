@@ -128,6 +128,8 @@ export type WizardState = {
    * — being told afterwards that the file is not the one you expected is a bad way to find out.
    */
   existingConfig?: string;
+  /** The `--awsAccount` this run was started with; copyable commands name it. */
+  awsAccount?: string;
   /** How the project can be read, best first. Offered before anything runs. */
   agents?: WizardAgentOption[];
   /** What the user picked on the first screen. */

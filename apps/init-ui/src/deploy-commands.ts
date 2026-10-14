@@ -10,6 +10,8 @@ type StackCommandTarget = {
   projectName: string;
   stage: string;
   region: string;
+  /** The connected AWS account the wizard was started with, when it was named. */
+  awsAccount?: string | undefined;
 };
 
 const quoteArgument = (argument: string): string => (argument.includes(' ') ? `"${argument}"` : argument);
@@ -25,7 +27,8 @@ export const stackCommand = (action: 'deploy' | 'delete' | 'cf:rollback', target
     '--stage',
     target.stage,
     '--region',
-    target.region
+    target.region,
+    ...(target.awsAccount === undefined ? [] : ['--awsAccount', target.awsAccount])
   ]
     .map(quoteArgument)
     .join(' ');

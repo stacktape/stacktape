@@ -41,8 +41,8 @@ export const requiredSecrets = (resources: Record<string, unknown>): string[] =>
 };
 
 /** The command that creates one secret. The value is prompted for, so it never lands in shell history. */
-export const secretCommand = (name: string, region: string): string =>
-  `stacktape secret:set --secretName ${name} --region ${region}`;
+export const secretCommand = (name: string, region: string, awsAccount?: string): string =>
+  `stacktape secret:set --secretName ${name} --region ${region}${awsAccount === undefined ? '' : ` --awsAccount ${awsAccount}`}`;
 
 /**
  * The variables those secrets reach the app as, for a reader who knows `SESSION_SECRET` and not `session_secret`.

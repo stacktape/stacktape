@@ -138,7 +138,8 @@ export function DeployStep({
       configPath: file.filename,
       projectName: state.projectName,
       stage: deployment.stage,
-      region: deployment.region
+      region: deployment.region,
+      awsAccount: state.awsAccount
     };
     const redeployCommand = stackCommand('deploy', target);
     const deleteCommand = stackCommand('delete', target);
@@ -449,8 +450,8 @@ export function DeployStep({
         )}
         {verification?.status === 'completed' && (verification.services ?? []).length === 0 && (
           <p className="m-0 text-[var(--stp-text-muted)]">
-            Nothing in this app runs as a container, so there is nothing to start on this machine. AWS will be its first
-            full run.
+            The try-out starts web and worker services, and this app has none, so there is nothing to start on this
+            machine. AWS will be its first full run.
           </p>
         )}
         {(verification?.status === 'completed' || verification?.status === 'dismissed') &&
@@ -543,7 +544,7 @@ export function DeployStep({
         </p>
         <p className="wizard-lede mb-4">
           It is one CloudFormation stack of plain AWS resources in your own account; it keeps working if you stop using
-          Stacktape. A failed first deploy is rolled back and leaves nothing behind in your account.
+          Stacktape. If a first deploy fails, AWS rolls it back and removes the stack.
         </p>
         {checkedTarget === undefined && (
           <Alert className="mb-4" tone="info" title="No AWS change happens on the first click">
@@ -570,7 +571,13 @@ export function DeployStep({
         {checkedTarget?.status === 'blocked' && (
           <BlockedTargetAlert
             className="mb-4"
-            command={{ configPath: file.filename, projectName: state.projectName, stage, region }}
+            command={{
+              configPath: file.filename,
+              projectName: state.projectName,
+              stage,
+              region,
+              awsAccount: state.awsAccount
+            }}
             target={checkedTarget}
           />
         )}
@@ -587,7 +594,9 @@ export function DeployStep({
               <span className="wizard-code">{region}</span> first. Each command asks for the value; the deploy stops if
               one is missing.
             </p>
-            <CopyableCommand command={secrets.map((name) => secretCommand(name, region)).join('\n')} />
+            <CopyableCommand
+              command={secrets.map((name) => secretCommand(name, region, state.awsAccount)).join('\n')}
+            />
           </div>
         )}
         {(gaps.length > 0 || unsetNames.length > 0) && (
@@ -666,7 +675,8 @@ export function DeployStep({
                 configPath: file.filename,
                 projectName: state.projectName,
                 stage: stage || 'dev',
-                region
+                region,
+                awsAccount: state.awsAccount
               })}
             />
           </section>

@@ -98,6 +98,8 @@ export type WizardState = {
   repositoryPath?: string;
   /** A configuration already in the repository. It is never modified; the new one lands beside it. */
   existingConfig?: string;
+  /** The `--awsAccount` the CLI was started with. Every copyable stack command names it. */
+  awsAccount?: string;
   /** How the project can be read. Chosen on the first screen. */
   agents?: WizardAgentOption[];
   choice?: { agentId: string; modelId: string };
