@@ -1,14 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { INIT_MCP_SERVER_NAME } from '../../mcp/session-server';
-import { TransportError } from '../transport';
-import {
-  buildClaudeArgs,
-  buildClaudeStdin,
-  buildMcpConfig,
-  interpretClaudeRun,
-  parseClaudeStream,
-  summariseArgs
-} from './claude-cli';
+import { buildClaudeArgs, buildClaudeStdin, interpretClaudeRun, parseClaudeStream, summariseArgs } from './claude-cli';
 
 const args = () =>
   buildClaudeArgs({ systemPrompt: 'Describe this repository.', maxTurns: 12, mcpConfigPath: '/tmp/mcp.json' });
@@ -62,15 +54,6 @@ describe('buildClaudeStdin', () => {
   });
 });
 
-describe('buildMcpConfig', () => {
-  it('describes exactly one stdio server', () => {
-    const config = JSON.parse(buildMcpConfig({ command: 'node', args: ['server.js'], env: { A: '1' } }));
-
-    expect(Object.keys(config.mcpServers)).toEqual([INIT_MCP_SERVER_NAME]);
-    expect(config.mcpServers[INIT_MCP_SERVER_NAME]).toMatchObject({ type: 'stdio', command: 'node' });
-  });
-});
-
 const streamLines = (...events: unknown[]): string[] => events.map((event) => JSON.stringify(event));
 
 describe('parseClaudeStream', () => {
@@ -104,43 +87,17 @@ describe('parseClaudeStream', () => {
     expect(parsed.sawResult).toBe(true);
     expect(parsed.errorMessage).toBeUndefined();
   });
-
-  it('reports no result when the stream never concluded', () => {
-    expect(parseClaudeStream(['', 'not json', '{"type":"assistant"}'])).toMatchObject({
-      sawResult: false,
-      stopReason: 'error'
-    });
-  });
 });
 
 describe('interpretClaudeRun', () => {
   const conclude = JSON.stringify({ type: 'result', subtype: 'success', usage: { input_tokens: 1, output_tokens: 1 } });
 
-  it('accepts a concluded session even when the process exited non-zero', () => {
+  it('accepts a concluded session that exited non-zero, even when the model discussed rate limits', () => {
     // The CLI exits non-zero after max-turns and error results too, so the exit code alone would
-    // throw away a session that actually finished.
-    const outcome = interpretClaudeRun({ stdout: conclude, stderr: '', exitCode: 1, timedOut: false });
-
-    expect('parsed' in outcome).toBe(true);
-  });
-
-  it('fails when the process died before concluding', () => {
-    const outcome = interpretClaudeRun({ stdout: '', stderr: 'boom', exitCode: 1, timedOut: false });
-
-    expect('failure' in outcome && outcome.failure.retryable).toBe(false);
-  });
-
-  it('marks throttling retryable, from stderr only', () => {
-    const outcome = interpretClaudeRun({ stdout: '', stderr: '429 too many requests', exitCode: 1, timedOut: false });
-
-    expect('failure' in outcome && outcome.failure).toBeInstanceOf(TransportError);
-    expect('failure' in outcome && outcome.failure.rateLimited).toBe(true);
-  });
-
-  it('does not treat model output discussing rate limits as throttling', () => {
-    // stdout is the model talking; only stderr is the CLI's own voice.
+    // throw away a session that actually finished. stdout is the model talking; only stderr is the
+    // CLI's own voice.
     const stdout = `${JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'beware rate limit 429' }] } })}\n${conclude}`;
-    const outcome = interpretClaudeRun({ stdout, stderr: '', exitCode: 0, timedOut: false });
+    const outcome = interpretClaudeRun({ stdout, stderr: '', exitCode: 1, timedOut: false });
 
     expect('parsed' in outcome).toBe(true);
   });

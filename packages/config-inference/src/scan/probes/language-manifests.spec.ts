@@ -124,6 +124,22 @@ describe('dependency lists in other languages', () => {
     expect(maven.facts.services[0]).toMatchObject({ language: 'java', runtimeVersion: '21' });
   });
 
+  it('recognizes the Spring Boot 4 webmvc starter as an HTTP server', async () => {
+    // Spring Boot 4 renamed the servlet starter; a project on it is a web service, not a worker (042c7400).
+    root = await makeRepo({
+      'pom.xml': [
+        '<project>',
+        '  <parent><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-parent</artifactId></parent>',
+        '  <artifactId>petclinic</artifactId>',
+        '  <dependencies><dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-webmvc</artifactId></dependency></dependencies>',
+        '</project>',
+        ''
+      ].join('\n')
+    });
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+    expect(facts.services[0]).toMatchObject({ language: 'java', exposesHttp: true });
+  });
+
   it('reads go.mod and ignores indirect requirements', async () => {
     expect(
       await kindsIn({

@@ -20,7 +20,7 @@ import {
 import { parseYaml } from '@utils/yaml';
 import { parseDotenv } from '@utils/dotenv';
 import { CliError } from '@utils/errors';
-import { pythonBridge } from '@utils/python-bridge';
+import { pythonBridge, serializePython } from '@utils/python-bridge';
 import fsExtra, { lstatSync, readdirSync, readFileSync } from 'fs-extra';
 
 const formatFilePathForError = (filePath: string) => {
@@ -140,7 +140,9 @@ export const getCallablePythonFunc = (filePath: string, functionName = 'main') =
   return async function (...params: any[]): Promise<any> {
     try {
       await python.ex`exec(${userFileCache[filePath]});`;
-      const functionParams = params.map((param) => (typeof param === 'string' ? `'${param}'` : param)).join(',');
+      // Every argument becomes a Python literal: strings are quoted and escaped, booleans and null become
+      // `True`/`False`/`None`, and objects become dicts. Bare interpolation broke on an apostrophe or a boolean.
+      const functionParams = params.map((param) => serializePython(param)).join(',');
 
       const getResultCode = `${functionName}(${functionParams})`;
       const res = await python`eval(${getResultCode})`;

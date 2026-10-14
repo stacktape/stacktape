@@ -9,6 +9,10 @@ import { TemplateManager } from '@domain-services/template-manager';
 import { startMiniStack, type MiniStack, type MiniStackAccount } from '@stacktape/ministack/fixture';
 import { getStackOutputName } from '@stacktape/naming/stack-output-names';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
+import {
+  escapeCloudformationSecretDynamicReference,
+  locallyResolveSensitiveValue
+} from '@utils/stack-info-map-sensitive-values';
 import { afterAll, afterEach, beforeAll, expect, test } from 'bun:test';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -62,7 +66,7 @@ const loadConfig = async (account: MiniStackAccount, yaml: string, stackOutput: 
   await resolver.loadRawConfig({ context });
   resolver.registerBuiltInDirectives();
   const resolve = (local: boolean) =>
-    resolver.resolveDirectives({
+    resolver.resolveDirectives<Record<string, string>>({
       itemToResolve: resolver.rawConfig.variables,
       resolveRuntime: true,
       useLocalResolve: local
@@ -73,11 +77,12 @@ const loadConfig = async (account: MiniStackAccount, yaml: string, stackOutput: 
 const inputs = `resources: {}
 variables:
   password: $Secret('database.password')
+  secret: $Secret('database')
   host: $SsmParam('/app/host')
   token: $SsmParam('/app/token')
 `;
 
-test('YAML pins secret and parameter versions in templates, while local resolution returns values', async () => {
+test('local directives read current values after rotation while deployed references stay pinned', async () => {
   const account = ministack.account();
   const secrets = new SecretsManagerClient(ministack.clientConfig(account));
   const ssm = new SSMClient(ministack.clientConfig(account));
@@ -91,6 +96,7 @@ test('YAML pins secret and parameter versions in templates, while local resoluti
     const references = await loaded.resolve(false);
     expect(references).toEqual({
       password: `{{resolve:secretsmanager:database:SecretString:password::${first.VersionId}}}`,
+      secret: `{{resolve:secretsmanager:database:SecretString:::${first.VersionId}}}`,
       host: '{{resolve:ssm:/app/host:1}}',
       token: '{{resolve:ssm-secure:/app/token:1}}'
     });
@@ -103,6 +109,7 @@ test('YAML pins secret and parameter versions in templates, while local resoluti
     expect(JSON.stringify(loaded.template.getTemplate())).not.toContain('synthetic-token');
     expect(await loaded.resolve(true)).toEqual({
       password: 'synthetic-first',
+      secret: '{"password":"synthetic-first"}',
       host: 'database.internal',
       token: 'synthetic-token'
     });
@@ -113,17 +120,41 @@ test('YAML pins secret and parameter versions in templates, while local resoluti
     await ssm.send(
       new PutParameterCommand({ Name: '/app/host', Value: 'new-database.internal', Type: 'String', Overwrite: true })
     );
-    const deployed = await loadConfig(
-      account,
-      "resources: {}\nvariables:\n  password: $Secret('database.password')\n",
-      { [getStackOutputName('database', 'CurrentSecretVersionId')]: first.VersionId! }
+    await ssm.send(
+      new PutParameterCommand({
+        Name: '/app/token',
+        Value: 'synthetic-new-token',
+        Type: 'SecureString',
+        Overwrite: true
+      })
     );
-    expect(await deployed.resolve(true)).toEqual({ password: 'synthetic-first' });
+    const deployed = await loadConfig(account, inputs, {
+      [getStackOutputName('database', 'CurrentSecretVersionId')]: first.VersionId!
+    });
+    expect(await deployed.resolve(true)).toEqual({
+      password: 'synthetic-second',
+      secret: '{"password":"synthetic-second"}',
+      host: 'new-database.internal',
+      token: 'synthetic-new-token'
+    });
+    // Query commands resolve the password embedded in the deployed connection string, not the local directive.
+    await ssm.send(
+      new PutParameterCommand({
+        Name: '/app/deployed-connection',
+        Type: 'String',
+        Value: `postgres://app:${escapeCloudformationSecretDynamicReference(references.password)}@database.example/app`
+      })
+    );
+    expect(await locallyResolveSensitiveValue({ ssmParameterName: '/app/deployed-connection' })).toBe(
+      'postgres://app:synthetic-first@database.example/app'
+    );
+    expect(outputs[getStackOutputName('database', 'CurrentSecretVersionId')].Value).toBe(first.VersionId);
     const nextDeployment = await loadConfig(account, inputs);
     expect(await nextDeployment.resolve(false)).toEqual({
       password: `{{resolve:secretsmanager:database:SecretString:password::${second.VersionId}}}`,
+      secret: `{{resolve:secretsmanager:database:SecretString:::${second.VersionId}}}`,
       host: '{{resolve:ssm:/app/host:2}}',
-      token: '{{resolve:ssm-secure:/app/token:1}}'
+      token: '{{resolve:ssm-secure:/app/token:2}}'
     });
   } finally {
     secrets.destroy();

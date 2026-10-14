@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import {
-  classifyFileAccess,
-  extractEnvironmentVariableNames,
-  isSkippedDirectoryName,
-  isWithinRoots
-} from './file-access';
+import { classifyFileAccess, extractEnvironmentVariableNames, isSkippedDirectoryName } from './file-access';
 
 describe('classifyFileAccess', () => {
   it("reads a Rust crate's binaries in src/bin but still skips build output named bin", () => {
@@ -147,24 +142,5 @@ describe('classifyFileAccess is not defeated by a rename or by letter case', () 
     // skipping the `.docker` directory instead.
     expect(classifyFileAccess('src/config.json')).toBe('read');
     expect(classifyFileAccess('.docker/config.json')).toBe('blocked');
-  });
-});
-
-describe('isWithinRoots', () => {
-  it('treats the repository root as containing everything', () => {
-    expect(isWithinRoots('apps/api/src/index.ts', ['.'])).toBe(true);
-  });
-
-  it('matches a root exactly and by directory prefix', () => {
-    expect(isWithinRoots('apps/api', ['apps/api'])).toBe(true);
-    expect(isWithinRoots('apps/api/src/index.ts', ['apps/api'])).toBe(true);
-  });
-
-  it('does not let a sibling with a shared prefix pass', () => {
-    expect(isWithinRoots('apps/api-internal/src/index.ts', ['apps/api'])).toBe(false);
-  });
-
-  it('rejects paths outside every declared root', () => {
-    expect(isWithinRoots('packages/ui/index.ts', ['apps/api', 'apps/web'])).toBe(false);
   });
 });

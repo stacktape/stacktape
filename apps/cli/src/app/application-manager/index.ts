@@ -18,6 +18,8 @@ import { deleteTempFolder } from '@utils/temp-files';
 import { timeAsync } from '@utils/timings';
 import { tuiDebug } from '@application-services/tui-manager/debug';
 import { shouldWriteTerminalControlSequences } from '@application-services/tui-manager/output/mode';
+import { explainFailure, failureExplanationText } from '@stacktape/console-api/failure-explanations';
+import stripAnsi from 'strip-ansi';
 import kill from 'tree-kill';
 
 export const normalizeCliError = (value: unknown): HandledError => {
@@ -27,6 +29,13 @@ export const normalizeCliError = (value: unknown): HandledError => {
   } else {
     const originalError = value instanceof Error ? value : new Error(String(value));
     error = attemptToGetUsefulExpectedError(originalError) || new UnexpectedError({ error: originalError });
+  }
+  if (error instanceof CliError) {
+    // Raw AWS, CloudFormation and container text gets its plain explanation first; the message itself stays as it was.
+    const explanations = explainFailure(stripAnsi(error.message))
+      .map((explanation) => failureExplanationText(explanation))
+      .filter((hint) => !error.hints.includes(hint));
+    error.hints.unshift(...explanations);
   }
   error.details = getErrorDetails(error);
   return error;

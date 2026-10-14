@@ -6,6 +6,7 @@ import {
   $Stage,
   defineConfig,
   DynamoDbTable,
+  HostingBucket,
   HttpApiGateway,
   HttpApiIntegration,
   JsBundleLambdaPackaging,
@@ -17,8 +18,10 @@ const stages: Record<string, { memory: number }> = { production: { memory: 1024 
 export default defineConfig(({ stage, region }) => {
   const gateway = new HttpApiGateway({});
   const records = new DynamoDbTable({ primaryKey: { partitionKey: { name: 'id', type: 'string' } } });
+  const site = new HostingBucket({ uploadDirectoryPath: './src' });
   const api = new LambdaFunction({
     packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/api.ts' }),
+    runtime: 'nodejs22.x',
     memory: stages[stage].memory,
     logging: { retentionDays: 7 },
     environment: {
@@ -35,7 +38,7 @@ export default defineConfig(({ stage, region }) => {
       GATEWAY_URL: $ResourceParam('gateway', 'url')
     },
     events: [new HttpApiIntegration({ httpApiGatewayName: gateway, method: 'GET', path: '/' })],
-    connectTo: [records]
+    connectTo: [records, site]
   });
-  return { projectName: 'directive-project', resources: { gateway, api, records } };
+  return { projectName: 'directive-project', resources: { gateway, api, records, site } };
 });
