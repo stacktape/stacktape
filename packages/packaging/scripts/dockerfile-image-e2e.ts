@@ -33,8 +33,8 @@ const buildDockerImage: BuildDockerImage = async ({
       dockerBuildOutputArchitecture!,
       '--tag',
       imageTag,
-      '--file',
-      join(buildContextPath, dockerfilePath!),
+      // No `--file` when none is selected: Docker then reads the context's own Dockerfile, as the CLI's runner does.
+      ...(dockerfilePath ? ['--file', join(buildContextPath, dockerfilePath)] : []),
       ...Object.keys(buildArgs).flatMap((name) => ['--build-arg', name]),
       buildContextPath
     ],
