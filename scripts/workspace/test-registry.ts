@@ -1260,6 +1260,7 @@ export const lanes: readonly Lane[] = [
     tests: [
       'apps/console/api/src/messages/email-messages.test.ts',
       'apps/console/api/src/model-helpers/index.test.ts',
+      'apps/console/api/src/services/alert-channel-test.test.ts',
       'apps/console/api/src/services/slack-app/actions.test.ts',
       'apps/console/api/src/services/slack-app/budget-card.test.ts',
       'apps/console/api/src/services/slack-app/client.test.ts',
@@ -1855,6 +1856,7 @@ export const lanes: readonly Lane[] = [
     tier: 'change',
     tests: [
       'apps/console/ui/e2e/isolated-console.test.ts',
+      'apps/console/ui/e2e/isolated-incident-triage.test.ts',
       'apps/console/ui/e2e/isolated-deployment.test.ts',
       'apps/console/ui/e2e/isolated-security.test.ts',
       'apps/console/ui/e2e/isolated-first-run.test.ts',
@@ -2322,6 +2324,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/security/inventory-grading.test.ts',
       'apps/console/api/src/security/osv-client.test.ts',
       'apps/console/api/src/services/alarm-event-counts.test.ts',
+      'apps/console/api/src/services/alert-channel-test.test.ts',
       'apps/console/api/src/services/api-key-security.test.ts',
       'apps/console/api/src/services/bitbucket-forge.test.ts',
       'apps/console/api/src/services/budget-alert-polling.test.ts',
@@ -2374,6 +2377,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/incident-investigate-ui.spec.ts',
       'apps/console/ui/e2e/incident-run-live.spec.ts',
       'apps/console/ui/e2e/isolated-console.test.ts',
+      'apps/console/ui/e2e/isolated-incident-triage.test.ts',
       'apps/console/ui/e2e/isolated-deployment.test.ts',
       'apps/console/ui/e2e/isolated-security.test.ts',
       'apps/console/ui/e2e/isolated-first-run.test.ts',
@@ -5149,7 +5153,8 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/incidents-watch/watch-incident.spec.ts',
       'apps/console/api/scripts/incident-journey.test.ts',
       'apps/console/api/scripts/incidents-database.test.ts',
-      'apps/console/api/src/services/incident-engine.test.ts'
+      'apps/console/api/src/services/incident-engine.test.ts',
+      'apps/console/ui/e2e/isolated-incident-triage.test.ts'
     ],
     lanes: [
       'cli-issue-incident-rules',
@@ -5158,7 +5163,8 @@ export const slices: readonly Slice[] = [
       'console-api-2',
       'console-database-incidents',
       'console-database-incident-journey',
-      'console-browser-offline'
+      'console-browser-offline',
+      'console-browser-isolated'
     ]
   },
   {
@@ -5332,6 +5338,7 @@ export const slices: readonly Slice[] = [
       'apps/console/api/scripts/smoke-test-slack-secret-notifications.ts',
       'apps/console/api/src/messages/email-messages.test.ts',
       'apps/console/api/src/model-helpers/index.test.ts',
+      'apps/console/api/src/services/alert-channel-test.test.ts',
       'apps/console/api/src/services/slack-app/actions.test.ts',
       'apps/console/api/src/services/slack-app/budget-card.test.ts',
       'apps/console/api/src/services/slack-app/client.test.ts',
