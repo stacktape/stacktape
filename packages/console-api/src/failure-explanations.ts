@@ -283,8 +283,8 @@ export const FAILURE_RULES: FailureRule[] = [
     explain: () => ({
       cause: 'Stacktape could not read the repository from your Git provider, so the deploy did not start.',
       action:
-        'In Git integrations, check that the connection is active and can access this repository (on GitHub, the Stacktape GitHub App needs access to it). Then push again.',
-      link: { label: 'Git integrations', url: '/git-integrations' }
+        'In Git connections, check that the connection is active and can read this repository. On GitHub, the Stacktape GitHub App must be given access to it.',
+      link: { label: 'Git connections', url: '/git-integrations' }
     })
   }
 ];

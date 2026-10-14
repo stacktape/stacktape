@@ -149,6 +149,6 @@ test('a caller adds rules for failures only it produces; a fallback shows only w
 test('a link to a Console page becomes a full address in plain text', () => {
   const [explanation] = explainFailure('remote: Repository not found.');
   assert.ok(
-    failureExplanationText(explanation!).endsWith('Git integrations: https://console.stacktape.com/git-integrations')
+    failureExplanationText(explanation!).endsWith('Git connections: https://console.stacktape.com/git-integrations')
   );
 });
