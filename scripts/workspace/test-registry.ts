@@ -3386,6 +3386,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/utils/environment.ts'
     ],
     tests: [
+      'apps/cli/src/commands/dev/workload-environment.spec.ts',
       'apps/cli/src/domain/config-manager/utils/resource-references.spec.ts',
       'apps/cli/src/utils/directives.spec.ts',
       'apps/cli/src/utils/environment.test.ts',
@@ -3407,7 +3408,8 @@ export const slices: readonly Slice[] = [
       'synthesis-2',
       'config-authoring-test',
       'init-e2e',
-      'cli-test-config-unit'
+      'cli-test-config-unit',
+      'local-dev'
     ],
     contributors: ['S04']
   },

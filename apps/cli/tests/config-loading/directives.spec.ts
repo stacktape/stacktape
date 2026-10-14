@@ -10,7 +10,9 @@
  * problem (the directive, the resource, the file) and never carries secret values.
  */
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
-import { killPythonBridge } from '@utils/file-loaders';
+import { globalStateManager } from '@application-services/global-state-manager';
+import { ConfigResolver } from '@domain-services/config-manager/config-resolver';
+import { getConfigPath, killPythonBridge } from '@utils/file-loaders';
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test';
 import { cp, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -45,12 +47,15 @@ const synthesizeYaml = (stage: string, workingDir = directivesFixture) =>
 // `.gitignore` excludes every `.env*` file and `$File` accepts dotenv files only under that name, so the fixture's
 // dotenv file is written here instead of being committed.
 const dotenvFixture = join(directivesFixture, 'data', '.env');
+const dotenvVariantFixture = join(directivesFixture, 'data', '.env.production');
 beforeAll(async () => {
   await writeFile(dotenvFixture, 'FEATURE_FLAG=enabled\nSTAGE_SUFFIX=-env\n');
+  await writeFile(dotenvVariantFixture, 'VARIANT=from-production-dotenv\n');
 });
 afterAll(async () => {
   killPythonBridge();
   await rm(dotenvFixture, { force: true });
+  await rm(dotenvVariantFixture, { force: true });
 });
 
 const temporaryDirectories: string[] = [];
@@ -94,7 +99,13 @@ describe('a YAML config with directives, references and stage-specific values sy
     expect(environment.LOG_LEVEL).toBe('debug');
     expect(String(environment.RETENTION)).toBe('14');
     expect(environment.FEATURE_FLAG).toBe('enabled');
+    // Any `.env*` file is dotenv, not an unsupported file type.
+    expect(environment.ENV_VARIANT).toBe('from-production-dotenv');
     expect(environment.BANNER).toBe('raw file content\n');
+    // Node 22 is the first runtime that needs the CJS/ESM interop flags; the build ships maps, so Node reads them.
+    expect(String(environment.NODE_OPTIONS).split(' ')).toEqual(
+      expect.arrayContaining(['--enable-source-maps', '--experimental-require-module', '--experimental-detect-module'])
+    );
     // Formatting and a TypeScript user directive receiving resolved arguments.
     expect(environment.GREETING).toBe('hello platform-team from production');
     expect(environment.SHOUTED).toBe('PLATFORM-TEAM-env');
@@ -125,6 +136,14 @@ describe('a YAML config with directives, references and stage-specific values sy
     );
     expect(tableStatement?.Action).toEqual(expect.arrayContaining(['dynamodb:Get*', 'dynamodb:DescribeTable']));
     expect(tableStatement?.Action.some((action) => /^dynamodb:(Put|Update|Delete|BatchWrite)/.test(action))).toBe(true);
+    // Connecting to a hosting bucket grants access to the S3 bucket it synthesizes, not to the parent resource.
+    const s3Resources = JSON.stringify(
+      statements
+        .filter((statement) => statement.Action.some((action) => action.startsWith('s3:')))
+        .map((s) => s.Resource)
+    );
+    expect(s3Resources).toContain('"SiteBucket"');
+    expect(template.Resources.SiteBucket?.Type).toBe('AWS::S3::Bucket');
     const integration = Object.values(template.Resources).find(
       (resource) => resource.Type === 'AWS::ApiGatewayV2::Integration'
     ) as { Properties: { IntegrationUri: unknown } };
@@ -220,6 +239,8 @@ export default defineConfig(() => ({
 directives:
   - name: shoutPy
     filePath: ./directives/custom.py:shout
+  - name: tagPy
+    filePath: ./directives/custom.py:tag
 resources:
   api:
     type: function
@@ -233,13 +254,95 @@ resources:
           value: $shoutPy($Stage())
         - name: SHOUTED_REGION
           value: $shoutPy($Region())
+        - name: TAGGED
+          value: $tagPy(true, "it's")
 `);
     const template = await synthesizeYaml('production', dir);
     expect(functionEnvironment(template, 'ApiFunction')).toMatchObject({
       SHOUTED_PY: 'PRODUCTION',
-      SHOUTED_REGION: 'US-EAST-1'
+      SHOUTED_REGION: 'US-EAST-1',
+      // Arguments cross into Python as Python literals: a boolean is `True`, a quote inside a string stays a quote.
+      TAGGED: "on:it's"
     });
   }, 60_000);
+
+  test('a project with both stacktape.ts and stacktape.yml loads the TypeScript one', async () => {
+    const dir = await fixtureWithConfig(`projectName: directive-project
+resources:
+  onlyInYaml:
+    type: bucket
+`);
+    await writeFile(
+      join(dir, 'stacktape.ts'),
+      "import { Bucket, defineConfig } from '@stacktape/config-authoring';\nexport default defineConfig(() => ({ projectName: 'directive-project', resources: { onlyInTypescript: new Bucket({}) } }));\n"
+    );
+    const originalArgs = globalStateManager.rawArgs;
+    globalStateManager.rawArgs = { currentWorkingDirectory: dir } as typeof originalArgs;
+    let configPath: string;
+    try {
+      configPath = getConfigPath();
+    } finally {
+      globalStateManager.rawArgs = originalArgs;
+    }
+    expect(configPath).toBe(join(dir, 'stacktape.ts'));
+    const template = await synthesizeFixture({
+      configPath,
+      workingDir: dir,
+      identity: { ...identity, stage: 'production' }
+    });
+    expect(template.Resources.OnlyInTypescriptBucket?.Type).toBe('AWS::S3::Bucket');
+    expect(template.Resources).not.toHaveProperty('OnlyInYamlBucket');
+  });
+
+  test('a secret interpolated into a TypeScript string stays a deployment-time directive', async () => {
+    const dir = await fixtureWithConfig('projectName: directive-project\nresources: {}\n');
+    await writeFile(
+      join(dir, 'stacktape.ts'),
+      `
+import { defineConfig, $Secret } from '@stacktape/config-authoring';
+export default defineConfig(() => ({
+  projectName: 'directive-project',
+  resources: {},
+  variables: { databaseUrl: \`postgres://app:\${$Secret('db.password')}@db.internal/app\` }
+}));
+`
+    );
+    // Loading resolves every directive that does not need the deployed stack. The interpolated secret must survive
+    // that pass as a runtime \`$CfFormat\` so nothing tries to read Secrets Manager here, and nothing rejects it.
+    const resolver = new ConfigResolver();
+    const context = {
+      configPath: join(dir, 'stacktape.ts'),
+      workingDir: dir,
+      authoringParams: { stage: 'production', region: 'us-east-1', cliArgs: {}, command: 'synth', awsProfile: '' },
+      builtInDirectives: {
+        runtime: {
+          calculatedStackOverviewManager: { getStpResource: () => undefined },
+          deployedStackOverviewManager: { getStpResource: () => undefined },
+          stackManager: { getExistingResourceDetails: () => undefined, existingStackDetails: undefined },
+          templateManager: {
+            template: { Resources: {} },
+            addFinalTemplateOverrideFn: () => {},
+            addStackOutput: () => {}
+          }
+        },
+        accountId: identity.accountId,
+        additionalArgs: {},
+        awsProfile: '',
+        cliArgs: {},
+        command: 'synth' as const,
+        disableEmulation: false,
+        region: identity.region,
+        stage: 'production',
+        workingDir: dir
+      }
+    } as unknown as Parameters<ConfigResolver['loadRawConfig']>[0]['context'];
+    await resolver.loadRawConfig({ context });
+    resolver.registerBuiltInDirectives();
+    await resolver.loadResolvedConfig();
+    expect(resolver.resolvedConfig.variables).toEqual({
+      databaseUrl: "$CfFormat('postgres://app:{}@db.internal/app', $Secret('db.password'))"
+    });
+  });
 
   test('the TypeScript form of the same resources synthesizes the same references', async () => {
     const yamlTemplate = await synthesizeYaml('production');
@@ -259,7 +362,8 @@ resources:
       'TABLE_ARN',
       'GATEWAY_URL',
       'GREETING',
-      'FORMATTED_REFERENCE'
+      'FORMATTED_REFERENCE',
+      'NODE_OPTIONS'
     ]) {
       expect(typescriptEnvironment[name]).toEqual(yamlEnvironment[name]);
     }
@@ -322,6 +426,52 @@ ${resources}
         properties:
           entryfilePath: ./src/api.ts
 ${properties}`);
+
+  test('a $Format whose argument is only known at deployment time names the directive to use instead', async () => {
+    const dir = await fixtureWithConfig(
+      functionWith(`      environment:
+        - name: TABLE_URL
+          value: $Format('https://{}.example.com', $ResourceParam('records', 'name'))`)
+    );
+    const error = await captureError(() => synthesizeYaml('production', dir));
+    expect(error.code).toBe('DIRECTIVE_RUNTIME_DEPENDENCY_INVALID');
+    expect(error.message).toContain('Format');
+    expect(error.message).toContain('ResourceParam');
+    expect((error.hints ?? []).join('\n')).toContain('$CfFormat');
+  });
+
+  test('a TypeScript config importing a package that is not installed names the package', async () => {
+    const dir = await fixtureWithConfig('projectName: directive-project\nresources: {}\n');
+    await writeFile(
+      join(dir, 'stacktape.ts'),
+      "import { defineConfig } from '@stacktape/config-authoring';\nimport { value } from 'not-installed-config-helper';\nexport default defineConfig(() => ({ projectName: 'directive-project', resources: {}, variables: { value } }));\n"
+    );
+    const error = await captureError(() =>
+      synthesizeFixture({
+        configPath: join(dir, 'stacktape.ts'),
+        workingDir: dir,
+        identity: { ...identity, stage: 'production' }
+      })
+    );
+    expect(error.code).toBe('CONFIG_DEPENDENCY_MISSING');
+    expect(error.message).toContain('not-installed-config-helper');
+    expect((error.hints ?? []).join('\n')).toContain('not-installed-config-helper');
+  });
+
+  test('a js-bundle function without an entry file is rejected by the schema, not by packaging later', async () => {
+    const dir = await fixtureWithConfig(
+      baseConfig(`  api:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties: {}`)
+    );
+    const error = await captureError(() => synthesizeYaml('production', dir));
+    expect(error.code).toBe('CONFIG_SCHEMA_INVALID');
+    expect(error.message).toContain('entryfilePath');
+    expect(error.message).toContain('api');
+  });
 
   test('a $ResourceParam of a resource that does not exist', async () => {
     const dir = await fixtureWithConfig(
