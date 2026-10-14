@@ -212,9 +212,13 @@ const elfMachine = async (path: string) => {
   return bytes[18]! | (bytes[19]! << 8);
 };
 
+// Generated Dockerfiles are written alone in an stp-image-/stp-artifact- directory and removed with it.
+const isGeneratedBuildFile = (name: string) =>
+  name.endsWith('.Dockerfile') || name === 'Dockerfile' || /^stp-(image|artifact)-/.test(name);
+
 const assertNoGeneratedDockerfile = async (directory: string) => {
   const names = await readdir(directory);
-  if (names.some((name) => name.endsWith('.Dockerfile') || name === 'Dockerfile')) {
+  if (names.some(isGeneratedBuildFile)) {
     throw new Error(`Generated Dockerfile leaked into ${directory}: ${names.join(', ')}`);
   }
 };

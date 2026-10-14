@@ -2672,7 +2672,7 @@ export const lanes: readonly Lane[] = [
   },
   {
     id: 'docs-test',
-    command: ['pnpm', '--filter', '@stacktape/docs', 'run', 'test'],
+    command: ['pnpm', 'exec', 'turbo', 'run', 'test', '--filter=@stacktape/docs'],
     level: 'focused',
     tier: 'change',
     tests: [],

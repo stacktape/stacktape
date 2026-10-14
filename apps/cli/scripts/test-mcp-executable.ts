@@ -700,6 +700,40 @@ const verify = async () => {
     assert.deepEqual(items[0].signals, { total: 12, active: 8, kinds: signalKinds.slice(0, 5) });
     assert(JSON.stringify(page).length < 30_000);
     assert(!JSON.stringify(page).includes('signal-evidence-'));
+    // The same command read by a loaded MCP server: the CLI writes far more than a pipe holds and exits before the
+    // reader catches up. The final result record must still arrive. The shell pipe has no Bun reader in between,
+    // because Bun.spawn drains the pipe eagerly and would hide the loss.
+    if (!isWindowsPlatform(platform)) {
+      const slowReader = Bun.spawn(
+        [
+          'sh',
+          '-c',
+          '"$0" "$@" | { sleep 1.5; cat; }',
+          binary,
+          'incidents',
+          '--agent',
+          '--projectName',
+          'shop',
+          '--stage',
+          'production',
+          '--incidentStatus',
+          'ALL',
+          '--limit',
+          '100'
+        ],
+        { cwd: project, env, stdout: 'pipe', stderr: 'ignore' }
+      );
+      const slowOutput = await new Response(slowReader.stdout).text();
+      let slowResult: Record<string, unknown> = {};
+      try {
+        slowResult = JSON.parse(slowOutput.trimEnd().split('\n').at(-1) ?? '') as Record<string, unknown>;
+      } catch {
+        // A cut line is reported below.
+      }
+      assert.equal(slowResult.type, 'result', `CLI output was cut at ${slowOutput.length} bytes`);
+      assert.equal(slowResult.ok, true);
+      assert.equal((slowResult.data as { result?: unknown[] } | undefined)?.result?.length, 100);
+    }
     console.info('PASS executable MCP incident listing, bounded evidence and denied lookup');
 
     // Use a harmless loopback organization to exercise the actual destructive CLI child.

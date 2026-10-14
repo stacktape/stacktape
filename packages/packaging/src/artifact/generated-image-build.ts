@@ -1,7 +1,7 @@
 import type { BuildDockerImage } from '../runtime-contracts';
 import { dirname, relative } from 'node:path';
 import { remove } from 'fs-extra';
-import { createTemporaryBuildFile } from '../fs/temporary-file';
+import { createPrivateBuildFile } from '../fs/temporary-file';
 
 /**
  * Builds an image from a generated Dockerfile without placing that Dockerfile in the image context.
@@ -26,11 +26,11 @@ export const buildGeneratedDockerImage = async ({
    */
   buildFileDirectoryPath?: string | undefined;
 }) => {
-  const { filePath } = await createTemporaryBuildFile({
+  const { directoryPath, filePath } = await createPrivateBuildFile({
     contents: dockerfileContents,
-    directoryPath: buildFileDirectoryPath ?? dirname(buildContextPath),
+    parentDirectoryPath: buildFileDirectoryPath ?? dirname(buildContextPath),
     prefix: 'stp-image-',
-    suffix: '.Dockerfile'
+    fileName: 'Dockerfile'
   });
   let buildResult:
     | { succeeded: true; value: Awaited<ReturnType<BuildDockerImage>> }
@@ -48,7 +48,7 @@ export const buildGeneratedDockerImage = async ({
     buildResult = { succeeded: false, error };
   }
   try {
-    await remove(filePath);
+    await remove(directoryPath);
   } catch (cleanupError) {
     if (buildResult.succeeded) {
       throw cleanupError;

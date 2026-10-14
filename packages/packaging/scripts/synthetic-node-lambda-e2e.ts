@@ -52,63 +52,73 @@ const invokeLambdaRuntime = async ({
   /** Lambda Node runtime to invoke in. Split output is version-independent; the matrix proves it. */
   nodeVersion?: number;
 }) => {
-  const name = `stp-node-e2e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  containers.add(name);
-  try {
-    await run('docker', [
-      'run',
-      '--platform',
-      'linux/amd64',
-      '--detach',
-      '--rm',
-      '--name',
-      name,
-      '--publish',
-      '127.0.0.1::8080',
-      '--mount',
-      `type=bind,source=${functionPath},target=/var/task,readonly`,
-      ...layerMounts.flatMap(({ source, target }) => [
+  // Docker Desktop on WSL sometimes publishes a port that nothing listens on: every host connection is refused while
+  // the runtime waits inside. The emulator listens within a second, and before that Docker's proxies reset connections
+  // rather than refuse them. A refused request never reached the function, so a new container is safe.
+  runtimes: for (let container = 1; ; container += 1) {
+    const name = `stp-node-e2e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    containers.add(name);
+    try {
+      await run('docker', [
+        'run',
+        '--platform',
+        'linux/amd64',
+        '--detach',
+        '--rm',
+        '--name',
+        name,
+        '--publish',
+        '127.0.0.1::8080',
         '--mount',
-        `type=bind,source=${source},target=${target},readonly`
-      ]),
-      ...Object.entries(environment).flatMap(([key, value]) => ['--env', `${key}=${value}`]),
-      `public.ecr.aws/lambda/nodejs:${nodeVersion}`,
-      handler
-    ]);
+        `type=bind,source=${functionPath},target=/var/task,readonly`,
+        ...layerMounts.flatMap(({ source, target }) => [
+          '--mount',
+          `type=bind,source=${source},target=${target},readonly`
+        ]),
+        ...Object.entries(environment).flatMap(([key, value]) => ['--env', `${key}=${value}`]),
+        `public.ecr.aws/lambda/nodejs:${nodeVersion}`,
+        handler
+      ]);
 
-    let invocationUrl: string | undefined;
-    let lastError: unknown;
-    for (let attempt = 0; attempt < 120; attempt += 1) {
-      try {
-        const portOutput = await run('docker', ['port', name, '8080/tcp']);
-        const port = portOutput.stdout.trim().match(/:(\d+)$/)?.[1];
-        if (port) {
-          invocationUrl = `http://127.0.0.1:${port}/2015-03-31/functions/function/invocations`;
-          const response = await fetch(invocationUrl, {
-            method: 'POST',
-            body: JSON.stringify(event)
-          });
-          const body = await response.text();
-          if (!response.ok) {
-            throw new Error(`Lambda runtime returned HTTP ${response.status}: ${body}`);
+      let invocationUrl: string | undefined;
+      let lastError: unknown;
+      let refusedSince: number | undefined;
+      for (let attempt = 0; attempt < 120; attempt += 1) {
+        let refused = false;
+        try {
+          const portOutput = await run('docker', ['port', name, '8080/tcp']);
+          const port = portOutput.stdout.trim().match(/:(\d+)$/)?.[1];
+          if (port) {
+            invocationUrl = `http://127.0.0.1:${port}/2015-03-31/functions/function/invocations`;
+            const response = await fetch(invocationUrl, {
+              method: 'POST',
+              body: JSON.stringify(event)
+            });
+            const body = await response.text();
+            if (!response.ok) {
+              throw new Error(`Lambda runtime returned HTTP ${response.status}: ${body}`);
+            }
+            return body;
           }
-          return body;
+        } catch (error) {
+          lastError = error;
+          refused = (error as { code?: string }).code === 'ConnectionRefused';
         }
-      } catch (error) {
-        lastError = error;
+        refusedSince = refused ? (refusedSince ?? Date.now()) : undefined;
+        if (refusedSince !== undefined && Date.now() - refusedSince >= 10_000 && container < 3) continue runtimes;
+        await Bun.sleep(250);
       }
-      await Bun.sleep(250);
+      const logs = await run('docker', ['logs', name]).catch((error) => ({
+        stdout: '',
+        stderr: String(error)
+      }));
+      throw new Error(
+        `Lambda runtime at ${invocationUrl ?? 'an unpublished port'} did not become ready: ${String(lastError)}\n${logs.stdout}\n${logs.stderr}`
+      );
+    } finally {
+      await run('docker', ['rm', '--force', name]).catch(() => undefined);
+      containers.delete(name);
     }
-    const logs = await run('docker', ['logs', name]).catch((error) => ({
-      stdout: '',
-      stderr: String(error)
-    }));
-    throw new Error(
-      `Lambda runtime at ${invocationUrl ?? 'an unpublished port'} did not become ready: ${String(lastError)}\n${logs.stdout}\n${logs.stderr}`
-    );
-  } finally {
-    await run('docker', ['rm', '--force', name]).catch(() => undefined);
-    containers.delete(name);
   }
 };
 
