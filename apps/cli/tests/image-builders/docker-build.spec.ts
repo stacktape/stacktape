@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from 'bun:test';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -73,6 +73,10 @@ test('passes build arguments and secrets through the environment and redacts the
     [
       `FROM ${BASE_IMAGE}`,
       'ARG GREETING',
+      // BuildKit does not key a layer on the secret it mounts. The product passes a hash of the secret values as a
+      // build argument so a changed value rebuilds the layers that read it; this build does the same, so a warm
+      // cache from an earlier run cannot hand back a layer holding a previous token.
+      'ARG SECRETS_HASH',
       // The secret is read where a package manager would read a token, and echoed as a careless build step might.
       'RUN --mount=type=secret,id=NPM_TOKEN sh -c \'cat /run/secrets/NPM_TOKEN > /token && echo "token=$(cat /run/secrets/NPM_TOKEN) greeting=$GREETING" >&2\'',
       'RUN echo "$GREETING" > /greeting',
@@ -84,7 +88,7 @@ test('passes build arguments and secrets through the environment and redacts the
   const details = await buildDockerImage({
     buildContextPath: context,
     imageTag,
-    buildArgs: { GREETING: 'hello-from-arg' },
+    buildArgs: { GREETING: 'hello-from-arg', SECRETS_HASH: createHash('sha256').update(SECRET_VALUE).digest('hex') },
     secrets: { NPM_TOKEN: SECRET_VALUE }
   });
 

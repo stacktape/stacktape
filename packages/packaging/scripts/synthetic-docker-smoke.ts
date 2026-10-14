@@ -764,15 +764,23 @@ async function buildpackScenarios() {
         runDocker: probeRunDocker
       })
     );
-    await expectRebuild('switching the Rust function to arm64', () =>
-      buildRustLambda({
-        ...rustProbe,
-        distFolderPath: `${rustDist}-probe`,
-        existingDigests: [rustOutput.digest],
-        dockerBuildOutputArchitecture: 'linux/arm64',
-        runDocker: probeRunDocker
-      })
+    // An arm64 function cross-compiles on this machine (cargo-lambda never emulates); only the header is checked,
+    // since running it needs an emulator this scenario does not assume.
+    const rustArmDist = `${rustDist}-arm64`;
+    const rustArmOutput = await buildRustLambda({
+      ...rustProbe,
+      name: 'synthetic-rust-arm64',
+      distFolderPath: rustArmDist,
+      existingDigests: [rustOutput.digest],
+      dockerBuildOutputArchitecture: 'linux/arm64'
+    });
+    assert.equal(rustArmOutput.outcome, 'bundled', 'switching the Rust function to arm64 must rebuild');
+    assert.equal(
+      await elfMachine(join(rustArmDist, 'bootstrap')),
+      0xb7,
+      'the arm64 Rust bootstrap must be an aarch64 executable'
     );
+    record('rust-workspace-binary-lambda-arm64', rustArmOutput);
     await ensureImage('public.ecr.aws/lambda/provided:al2023');
     const rustResponse = await invokeInLambdaImage<{ message?: string }>({
       functionDirectory: rustDist,
