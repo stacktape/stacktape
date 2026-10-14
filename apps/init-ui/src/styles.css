@@ -77,8 +77,6 @@
     margin: 0;
     font-size: 0.76rem;
     font-weight: 600;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
     color: var(--stp-color-brand);
   }
 
@@ -458,31 +456,6 @@
   /* Choice cards carry a trailing fact ("Lower cost"). Beside the text it takes the width the
    * description needs, and a three-wide row squeezed the description to one word per line, so here
    * the fact sits under the description instead. */
-  .wizard-choice-cards {
-    /* Two options share the column like three do, so stacked groups end on the same right edge. */
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  }
-
-  .wizard-choice-cards .stp-ui-selection-card {
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  /* The badge always on its own line: inline after a short title and wrapped after a long one, the
-   * descriptions in one row started at different heights. */
-  .wizard-choice-cards .stp-ui-selection-card__heading {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .wizard-choice-cards .stp-ui-selection-card__body {
-    min-width: 0;
-  }
-
-  .wizard-choice-cards .stp-ui-selection-card__meta {
-    margin-top: auto;
-  }
-
   /* Four models fit one row of the column; the shared 200 px basis wrapped the fourth alone. */
   .wizard-model-cards {
     --stp-selection-card-basis: 170px;
