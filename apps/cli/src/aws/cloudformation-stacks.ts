@@ -54,6 +54,9 @@ const isMonitoredStackEvent = (event: StackEvent): event is MonitoredStackEvent 
   typeof event.LogicalResourceId === 'string' &&
   typeof event.ResourceStatus === 'string';
 
+/** The reasons CloudFormation gives when it fails a change set only because nothing would change. */
+const NO_CHANGE_REASONS = ["didn't contain changes", 'No updates are to be performed'];
+
 const findOldestUsableTimestamp = (events: StackEvent[]): Date | undefined => {
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index];
@@ -271,7 +274,7 @@ export class AwsCloudFormationStacks {
     while (changeSet.Status !== 'CREATE_COMPLETE') {
       if (changeSet.Status === 'FAILED') {
         // CloudFormation fails a change set that contains no changes instead of completing it empty.
-        if (changeSet.StatusReason?.includes("didn't contain changes")) {
+        if (NO_CHANGE_REASONS.some((reason) => changeSet.StatusReason?.includes(reason))) {
           return { changes: [], changeSetId: Id, stackId: StackId };
         }
         throw new CliError({
