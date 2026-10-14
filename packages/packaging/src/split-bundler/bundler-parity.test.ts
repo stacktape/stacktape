@@ -233,28 +233,35 @@ test('single and split artifacts load their SDK from the promised runtime or fro
 }, 30_000);
 
 test('dependency rules select bundled bytes or runtime modules on both build paths', async () => {
-  for (const [label, manifest, options, expected, packageName] of [
+  // The specifier is the package name unless a row says otherwise: a rule names the package, the import may name a
+  // file inside it, and a scoped package's name has two segments.
+  for (const [label, manifest, options, expected, packageName, specifier = packageName] of [
     ['pure', {}, {}, 'build-copy', 'fixture-dep'],
     ['native', { gypfile: true }, {}, 'runtime-copy', 'fixture-dep'],
     ['authored-external', {}, { dependenciesToExcludeFromBundle: ['fixture-dep'] }, 'runtime-copy', 'fixture-dep'],
     ['excluded', {}, { excludeDependencies: ['fixture-dep'] }, 'runtime-copy', 'fixture-dep'],
     ['wildcard', {}, { dependenciesToExcludeFromBundle: ['*'] }, 'runtime-copy', 'fixture-dep'],
     ['ignored', {}, {}, 'runtime-copy', 'pnpapi'],
-    ['missing-manifest', undefined, {}, 'build-copy', 'fixture-dep']
+    ['missing-manifest', undefined, {}, 'build-copy', 'fixture-dep'],
+    [
+      'scoped-subpath',
+      {},
+      { dependenciesToExcludeFromBundle: ['@acme/tools'] },
+      'runtime-copy',
+      '@acme/tools',
+      '@acme/tools/deep.js'
+    ]
   ] as const) {
     const root = await createRoot();
     const packageRoot = await writePackage({
       root,
       name: packageName,
       packageJson: manifest ?? {},
-      files: { 'index.js': "module.exports = 'build-copy';" }
+      files: { 'index.js': "module.exports = 'build-copy';", 'deep.js': "module.exports = 'build-copy';" }
     });
     if (manifest === undefined) await rm(join(packageRoot, 'package.json'));
     await mkdir(join(root, 'src'));
-    await writeFile(
-      join(root, 'src/api.ts'),
-      `import value from '${packageName}'; export const handler = () => value;`
-    );
+    await writeFile(join(root, 'src/api.ts'), `import value from '${specifier}'; export const handler = () => value;`);
     const buildOptions = {
       excludeDependencies: 'excludeDependencies' in options ? [...options.excludeDependencies] : [],
       dependenciesToExcludeFromBundle:
@@ -280,7 +287,7 @@ test('dependency rules select bundled bytes or runtime modules on both build pat
       await writePackage({
         root: runtime,
         name: packageName,
-        files: { 'index.js': "module.exports = 'runtime-copy';" }
+        files: { 'index.js': "module.exports = 'runtime-copy';", 'deep.js': "module.exports = 'runtime-copy';" }
       });
       const execution = spawnSync(
         process.env.npm_node_execpath || 'node',
