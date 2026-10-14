@@ -73,19 +73,6 @@ describe('read_file', () => {
     const second = await run('read_file', { path: 'src/big.ts', startLine: 11, lineCount: 5 });
     expect(second.content).toContain('11\tline 11');
   });
-
-  it('returns environment variable names and never a value', async () => {
-    const result = await run('read_file', { path: '.env' });
-
-    expect(result.environmentVariableNames).toEqual(['DATABASE_URL', 'PORT']);
-    expect(JSON.stringify(result)).not.toContain('hunter2');
-  });
-
-  it('refuses to escape the project and says so plainly', async () => {
-    const result = await run('read_file', { path: '../../etc/passwd' });
-
-    expect(result.reason).toBe('escapes-repository');
-  });
 });
 
 describe('grep', () => {

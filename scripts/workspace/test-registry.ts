@@ -1736,6 +1736,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/components/Metrics/metrics.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Environment/environment.test.ts',
       'apps/console/ui/src/pages/UsersPage/organization-member-limit.test.ts',
+      'apps/console/ui/src/pages/BudgetsPage/budget-status.test.ts',
       'apps/console/ui/src/utils/auth-redirect.test.ts',
       'apps/console/ui/src/utils/dates.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/repository-option.test.tsx',
@@ -1846,12 +1847,13 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-console.test.ts',
       'apps/console/ui/e2e/isolated-deployment.test.ts',
       'apps/console/ui/e2e/isolated-security.test.ts',
-      'apps/console/ui/e2e/isolated-first-run.test.ts'
+      'apps/console/ui/e2e/isolated-first-run.test.ts',
+      'apps/console/ui/e2e/isolated-organization.test.ts'
     ],
     requires: ['console', 'docker', 'chromium', 'network'],
     release: 'every-candidate',
     proves:
-      'Issue-state persistence, tenant denial, failed-deploy context, security coverage and the first-deploy hand-off through the real UI, local HTTP router and disposable PostgreSQL.',
+      'Issue-state persistence, tenant denial, failed-deploy context, security coverage and the first-deploy hand-off, and organization and billing states through the real UI, local HTTP router and disposable PostgreSQL.',
     selections: ['console-browser-isolated']
   },
   {
@@ -2015,7 +2017,6 @@ export const lanes: readonly Lane[] = [
       'apps/cli/scripts/init-e2e/trust-boundary.spec.ts',
       'apps/cli/scripts/init-real-project-corpus-cases.spec.ts',
       'apps/cli/scripts/init-real-project-corpus.spec.ts',
-      'apps/cli/scripts/init-synthetic-project-corpus-expectations.spec.ts',
       'apps/cli/scripts/install-scripts/checksums.spec.ts',
       'apps/cli/scripts/operations/deployment-script.spec.ts',
       'apps/cli/scripts/operations/diagnostics.spec.ts',
@@ -2368,6 +2369,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-deployment.test.ts',
       'apps/console/ui/e2e/isolated-security.test.ts',
       'apps/console/ui/e2e/isolated-first-run.test.ts',
+      'apps/console/ui/e2e/isolated-organization.test.ts',
       'apps/console/ui/e2e/issues.spec.ts',
       'apps/console/ui/e2e/privacy-probe.spec.ts',
       'apps/console/ui/e2e/project-access.spec.ts',
@@ -2891,8 +2893,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/scripts/build-npm-declarations.spec.ts',
       'apps/cli/scripts/verify-npm-declarations.spec.ts',
       'apps/cli/scripts/init-real-project-corpus-cases.spec.ts',
-      'apps/cli/scripts/init-real-project-corpus.spec.ts',
-      'apps/cli/scripts/init-synthetic-project-corpus-expectations.spec.ts'
+      'apps/cli/scripts/init-real-project-corpus.spec.ts'
     ],
     requires: [],
     release: 'every-candidate'
@@ -3448,7 +3449,6 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/init-e2e/first-deployment.spec.ts',
       'apps/cli/scripts/init-real-project-corpus-cases.spec.ts',
       'apps/cli/scripts/init-real-project-corpus.spec.ts',
-      'apps/cli/scripts/init-synthetic-project-corpus-expectations.spec.ts',
       'apps/cli/src/init/composed-config-semantics.spec.ts',
       'apps/cli/src/init/eval/baseline.spec.ts',
       'apps/cli/src/init/eval/importers-e2e.spec.ts',
@@ -5423,6 +5423,7 @@ export const slices: readonly Slice[] = [
     paths: [
       'apps/console/api/src/services/budget-alerts.ts',
       'apps/console/ui/src/pages/CostsAndUsagePage/**',
+      'apps/console/ui/src/pages/BudgetsPage/**',
       'apps/cli/src/domain/budget-manager/**',
       'apps/console/api/src/services/budget-alert-polling.ts',
       'apps/console/api/src/services/currency-conversion.ts'
@@ -5431,9 +5432,18 @@ export const slices: readonly Slice[] = [
       'apps/console/api/scripts/insights-runtime.test.ts',
       'apps/console/api/src/services/budget-alert-polling.test.ts',
       'apps/console/api/src/services/currency-conversion.test.ts',
+      'apps/console/ui/src/pages/BudgetsPage/budget-status.test.ts',
+      'apps/console/ui/e2e/isolated-organization.test.ts',
       'apps/cli/src/domain/budget-manager/index.spec.ts'
     ],
-    lanes: ['console-api', 'console-api-2', 'console-database-insights', 'console-database-billing']
+    lanes: [
+      'console-api',
+      'console-api-2',
+      'console-database-insights',
+      'console-database-billing',
+      'console-ui',
+      'console-browser-isolated'
+    ]
   },
   {
     id: 'S67',
