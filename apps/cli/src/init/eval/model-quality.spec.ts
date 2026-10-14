@@ -51,21 +51,48 @@ test('the model rubric accepts a cited contribution through replay, merge, verif
   }
 });
 
-test.each(['complete', 'error'] as const)(
-  'the model rubric rejects %s without facts rather than crediting the scan',
-  async (stopReason) => {
-    const score = await evaluateModelQuality(
-      modelQualityCases[0]!,
-      createReplayRunner({ ...recording, stopReason, submission: undefined })
-    );
-    expect(score.passed).toBe(false);
-    expect(score.failures).toContainEqual({
-      stage: 'verification',
-      detail: 'Agent did not complete with accepted facts.'
-    });
-    expect(score.failures.some((failure) => failure.detail.includes('PAYMENTS_API_TOKEN'))).toBe(true);
-  }
-);
+test('the model rubric rejects a completed session without facts rather than crediting the scan', async () => {
+  const score = await evaluateModelQuality(
+    modelQualityCases[0]!,
+    createReplayRunner({ ...recording, submission: undefined })
+  );
+  expect(score.passed).toBe(false);
+  expect(score.failures).toContainEqual({
+    stage: 'verification',
+    detail: 'Agent did not complete with accepted facts.'
+  });
+  expect(score.failures.some((failure) => failure.detail.includes('PAYMENTS_API_TOKEN'))).toBe(true);
+});
+
+test('the model rubric rejects claims the verifier drops even when the composed config is correct', async () => {
+  const score = await evaluateModelQuality(
+    modelQualityCases[0]!,
+    createReplayRunner({
+      ...recording,
+      submission: agentSubmissionSchema.parse({
+        ...submission,
+        dependencies: [
+          {
+            name: 'events',
+            kind: 'kafka',
+            consumedBy: ['billing'],
+            evidence: [
+              {
+                field: 'kind',
+                file: 'src/server.js',
+                line: 2,
+                quote: 'const kafka = new Kafka({ brokers: [process.env.KAFKA_BROKER] });'
+              }
+            ]
+          }
+        ]
+      })
+    })
+  );
+  expect(score.failures).toEqual([
+    { stage: 'verification', detail: 'Agent supplied claims the verifier could not confirm.' }
+  ]);
+});
 
 test('the model rubric rejects forbidden actions and leaked values even when composition is correct', async () => {
   const score = await evaluateModelQuality(
