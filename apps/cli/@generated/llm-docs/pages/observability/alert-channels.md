@@ -107,7 +107,7 @@ Yes, but you create a separate alert channel for each Slack channel you want to 
 
 ### How do I tell whether an alert was actually delivered?
 
-Check [alert history](/observability/alert-history) in the Console — a unified log across notifications, alarms, and budgets. The notification and alarm history views include delivery status, so you can confirm an alert was sent. If history shows it was sent but the destination never received it, open the channel details in the Console and check the receiving system's own logs.
+Check [Alert history](/observability/alert-history) in the Console. It lists every alert sent to a channel with its delivery status, so you can confirm an alert was sent. If history shows it was sent but the destination never received it, open the channel details in the Console and check the receiving system's own logs.
 
 ### Why can't I delete a channel?
 

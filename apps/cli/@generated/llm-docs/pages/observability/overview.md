@@ -75,11 +75,11 @@ For event types and scoping, see [Notifications](/observability/notifications).
 
 ## Alert history
 
-The Console keeps a unified log of alerts across notifications, alarms, and budgets. Use alert history to see a complete picture of every alert your organization has received, or check the focused histories below to verify delivery.
+The Console keeps one log of the alerts it sends: incident pages, deploy and change notifications, and budget alerts. Use Alert history to see every alert your organization was sent and whether it reached its channels.
 
 Stacktape also maintains separate focused histories:
 
-- **Alarm history**: alarm events (triggered and resolved) with delivery status, opened from an alarm on the Alarms page
+- **Alarm history**: an alarm's state changes in CloudWatch (when it fired and recovered), opened from an alarm on the Alarms page
 - **Budget history**: budget threshold alerts, under **Budgets → History**
 
 Notification rule alerts are listed in [Alert history](/observability/alert-history) itself; the old `/notifications/history` address redirects there.

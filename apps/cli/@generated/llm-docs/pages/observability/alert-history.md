@@ -4,7 +4,7 @@ The Stacktape Console's alert history page displays alert events for the selecte
 
 ## What alert history tracks
 
-Alert history displays **alert event** rows returned for the selected organization. These events can come from notifications, alarms, budgets, and issues. The table displays each event as a row with the following columns:
+Alert history displays **alert event** rows returned for the selected organization. It lists the alerts the Console sent to channels: incident pages, deploy and change notifications, and budget alerts. The table displays each event as a row with the following columns:
 
 | Column | Description |
 |---|---|
@@ -82,7 +82,7 @@ Alert history is paginated and loads on demand. You can control the number of ev
 
 If no alert events have been recorded yet, the table shows the message: *"No alert events yet. Events will appear here when alarms trigger, issues are detected, or notifications are sent."*
 
-Alert history displays alert events returned for the selected organization. Events appear after alarms trigger, issues are detected, or notifications are sent. Configure [alarm rules](/observability/alarms) for metric-based monitoring, [notification rules](/observability/notifications) for deployment and lifecycle events, [budget alerts](/managing-costs/budgets) for cost thresholds, and enable [issues](/observability/issues) for runtime error detection. Alert history can display Notification, Alarm, Budget, and Issue source kinds. Delivery information appears when delivery records exist for an event.
+Alert history displays alert events returned for the selected organization. Events appear when an incident pages a channel, a [notification rule](/observability/notifications) sends a deploy or change notification, or a [budget alert](/managing-costs/budgets) fires. The source filter offers Incident pages, Deploys and changes, and Budgets. Delivery information appears when delivery records exist for an event.
 
 ## Alert history vs. individual history views
 
@@ -98,7 +98,7 @@ Use **alert history** when you need a cross-cutting view — for example, correl
 
 ### When should I use alert history vs. the source-specific history pages?
 
-Alert history is a unified view combining events from all four sources — alarms, notifications, budgets, and issues — into a single paginated table. The separate notification, alarm, and budget history pages each show only one source. Use alert history for a cross-cutting picture (for example, correlating a failed deploy notification with an alarm that fired shortly after); use a source-specific page when troubleshooting a single alert category in isolation.
+Alert history combines incident pages, deploy and change notifications, and budget alerts in one table. Budget history (under Budgets) shows only budget alerts, and an alarm's own history shows its CloudWatch state changes. Use Alert history to see everything that was sent and whether it was delivered.
 
 ### Can I filter alert history by project or stage?
 
