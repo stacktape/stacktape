@@ -11,7 +11,8 @@ import {
   DeleteBucketCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
-  ListObjectsV2Command,
+  ListObjectVersionsCommand,
+  PutBucketVersioningCommand,
   PutObjectCommand,
   S3Client
 } from '@aws-sdk/client-s3';
@@ -99,6 +100,7 @@ type StackBuckets = {
   keys: (bucket?: string) => Promise<string[]>;
   object: (key: string) => Promise<string>;
   put: (bucket: string, key: string, body: string) => Promise<void>;
+  enableVersioning: (bucket: string) => Promise<void>;
   remove: (key: string) => Promise<void>;
   close: () => Promise<void>;
 };
@@ -113,10 +115,15 @@ const createStackBuckets = async (objects: Record<string, string>, create = true
   for (const [key, body] of Object.entries(objects)) {
     await client.send(new PutObjectCommand({ Bucket: deploymentBucketName, Key: key, Body: body }));
   }
-  const keys = async (bucket = deploymentBucketName) =>
-    ((await client.send(new ListObjectsV2Command({ Bucket: bucket }))).Contents ?? [])
-      .map(({ Key }) => Key ?? '')
-      .toSorted();
+  // Every object version and delete marker: a versioned bucket is empty only when these are gone as well.
+  const versions = async (Bucket: string) => {
+    const listed = await client.send(new ListObjectVersionsCommand({ Bucket }));
+    return [...(listed.Versions ?? []), ...(listed.DeleteMarkers ?? [])].map(({ Key, VersionId }) => ({
+      Key: Key ?? '',
+      ...(VersionId && VersionId !== 'null' ? { VersionId } : {})
+    }));
+  };
+  const keys = async (bucket = deploymentBucketName) => (await versions(bucket)).map(({ Key }) => Key).toSorted();
   return {
     account,
     keys,
@@ -124,6 +131,9 @@ const createStackBuckets = async (objects: Record<string, string>, create = true
       (await client.send(new GetObjectCommand({ Bucket: deploymentBucketName, Key: key }))).Body!.transformToString(),
     put: async (bucket, key, body) => {
       await client.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: body }));
+    },
+    enableVersioning: async (Bucket) => {
+      await client.send(new PutBucketVersioningCommand({ Bucket, VersioningConfiguration: { Status: 'Enabled' } }));
     },
     remove: async (key) => {
       await client.send(
@@ -133,11 +143,9 @@ const createStackBuckets = async (objects: Record<string, string>, create = true
     close: async () => {
       // The next scenario needs these names again in the same fixture account.
       for (const Bucket of Object.values(bucketPhysicalIds)) {
-        const remaining = await keys(Bucket).catch(() => []);
+        const remaining = await versions(Bucket).catch(() => []);
         if (remaining.length > 0) {
-          await client.send(
-            new DeleteObjectsCommand({ Bucket, Delete: { Objects: remaining.map((Key) => ({ Key })) } })
-          );
+          await client.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: remaining } }));
         }
         await client.send(new DeleteBucketCommand({ Bucket })).catch(() => undefined);
       }
@@ -439,11 +447,13 @@ describe('delete', () => {
     expect(aws.stack?.status).toBe('CREATE_COMPLETE');
   });
 
-  test('confirmed deletion empties customer and deployment buckets before CloudFormation removes them', async () => {
+  test('confirmed deletion empties customer and deployment buckets, including old versions, before CloudFormation removes them', async () => {
     const { controlPlane, aws, bucket } = await startFakes(await deployedStack('UPDATE_COMPLETE'), {
       [getCfTemplateS3Key('v000002')]: 'template'
     });
+    await bucket.enableVersioning(filesBucketName);
     await bucket.put(filesBucketName, 'uploads/customer-file.txt', 'customer-data');
+    await bucket.put(filesBucketName, 'uploads/customer-file.txt', 'customer-data-v2');
     const run = await runCli({ args: ['delete', '--autoConfirmOperation'], controlPlane, aws, bucket });
     expect(printable(run)).toBe('');
     expect(run.exitCode).toBe(0);
@@ -567,13 +577,18 @@ describe('diff', () => {
 });
 
 describe('cf:rollback', () => {
-  for (const failure of [false, true]) {
+  for (const { status, failure, action } of [
+    { status: 'UPDATE_ROLLBACK_FAILED', failure: false, action: 'ContinueUpdateRollback' },
+    { status: 'UPDATE_ROLLBACK_FAILED', failure: true, action: 'ContinueUpdateRollback' },
+    // A stack deployed with automatic rollback disabled stops in UPDATE_FAILED.
+    { status: 'UPDATE_FAILED', failure: false, action: 'RollbackStack' }
+  ]) {
     test(
       failure
         ? 'failed recovery retains every deployment artifact'
-        : 'recovery continues a failed rollback and removes only failed-version artifacts',
+        : `recovery from ${status} rolls back and removes only failed-version artifacts`,
       async () => {
-        const stack = await deployedStack('UPDATE_ROLLBACK_FAILED');
+        const stack = await deployedStack(status);
         stack.outputs.StpDeploymentVersion = 'v000002';
         stack.rollbackFailure = failure;
         const objects = {
@@ -587,17 +602,11 @@ describe('cf:rollback', () => {
           aws,
           bucket
         });
-        expect(aws.mutations.filter(({ action }) => action === 'ContinueUpdateRollback')).toHaveLength(1);
-        expect(
-          aws.mutations.find(({ action }) => action === 'ContinueUpdateRollback')?.parameters[
-            'ResourcesToSkip.member.1'
-          ]
-        ).toBe('ApiFunction');
-        expect(
-          aws.mutations.find(({ action }) => action === 'ContinueUpdateRollback')?.parameters[
-            'ResourcesToSkip.member.2'
-          ]
-        ).toBeUndefined();
+        expect(aws.mutations.map((mutation) => mutation.action)).toEqual([action]);
+        if (action === 'ContinueUpdateRollback') {
+          expect(aws.mutations[0].parameters['ResourcesToSkip.member.1']).toBe('ApiFunction');
+          expect(aws.mutations[0].parameters['ResourcesToSkip.member.2']).toBeUndefined();
+        }
         if (failure) {
           expect(run.exitCode).not.toBe(0);
           expect(printable(run)).toContain('Injected rollback refusal');

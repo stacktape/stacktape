@@ -44,6 +44,8 @@ export type CliStepResult = {
   timedOut: boolean;
   ms: number;
   changeSummary: ChangeSummary | undefined;
+  /** The planned Stacktape resource changes, with CloudFormation's replacement verdicts after a diff. */
+  resourceChanges: Array<{ resourceName: string; action: string; willReplace: string[] }> | undefined;
   packagedWorkloads: Array<{ skipped?: boolean }> | undefined;
   /** The last part of stdout and stderr, for failure messages; the whole output is in `logPath`. */
   tail: string;
@@ -128,13 +130,19 @@ export const runSourceCli = async ({
   step,
   ministack,
   logName = step,
-  scannerPath
+  scannerPath,
+  confirm = true,
+  rollbackTarget = ['--targetVersion', 'v000001']
 }: {
   project: FamilyProject;
   step: DeployStep;
   ministack: MiniStack;
   logName?: string;
   scannerPath?: string;
+  /** False runs a deploy or delete without `--autoConfirmOperation`, as a CI job that did not accept data loss. */
+  confirm?: boolean;
+  /** How the rollback step selects its version. */
+  rollbackTarget?: string[];
 }): Promise<CliStepResult> => {
   const invocationId = `${project.projectName}-${step}-${randomUUID().slice(0, 8)}`;
   const account = ministack.defaultAccount;
@@ -169,8 +177,8 @@ export const runSourceCli = async ({
     'cli-process-account',
     '--currentWorkingDirectory',
     project.directory,
-    ...(step === 'diff' || step === 'rollback' ? [] : ['--autoConfirmOperation']),
-    ...(step === 'rollback' ? ['--targetVersion', 'v000001'] : []),
+    ...(step === 'diff' || step === 'rollback' || !confirm ? [] : ['--autoConfirmOperation']),
+    ...(step === 'rollback' ? rollbackTarget : []),
     '--outputFormat',
     'jsonl'
   ];
@@ -197,6 +205,8 @@ export const runSourceCli = async ({
     timedOut,
     ms,
     changeSummary: (result?.changePlan as { summary?: ChangeSummary } | undefined)?.summary,
+    resourceChanges: (result?.changePlan as { stacktapeResourceChanges?: CliStepResult['resourceChanges'] } | undefined)
+      ?.stacktapeResourceChanges,
     packagedWorkloads: result?.packagedWorkloads as CliStepResult['packagedWorkloads'],
     tail: `${stdout}\n${stderr}`.slice(-3_000),
     logPath

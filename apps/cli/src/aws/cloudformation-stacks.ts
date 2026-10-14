@@ -269,6 +269,17 @@ export class AwsCloudFormationStacks {
       .send(new DescribeChangeSetCommand({ ChangeSetName: Id, IncludePropertyValues: includePropertyValues }))
       .catch(handleError);
     while (changeSet.Status !== 'CREATE_COMPLETE') {
+      if (changeSet.Status === 'FAILED') {
+        // CloudFormation fails a change set that contains no changes instead of completing it empty.
+        if (changeSet.StatusReason?.includes("didn't contain changes")) {
+          return { changes: [], changeSetId: Id, stackId: StackId };
+        }
+        throw new CliError({
+          category: 'CLOUDFORMATION',
+          code: 'CLOUDFORMATION_CHANGE_SET_FAILED',
+          message: `CloudFormation could not calculate the changes: ${changeSet.StatusReason}`
+        });
+      }
       await wait(750);
       changeSet = await this.#createClient()
         .send(new DescribeChangeSetCommand({ ChangeSetName: Id, IncludePropertyValues: includePropertyValues }))

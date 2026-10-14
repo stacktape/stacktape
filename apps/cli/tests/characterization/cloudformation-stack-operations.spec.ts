@@ -48,6 +48,20 @@ describe('CloudFormation stack operations', () => {
     });
   });
 
+  test('reports why CloudFormation failed a change set instead of waiting for it', async () => {
+    let describeCalls = 0;
+    const cloudFormation = capabilityWith((async (command: { input: object }) => {
+      if ('TemplateBody' in command.input) return { Id: 'change-set', StackId: 'stack' };
+      // Bounds a regression to a failed test instead of an endless poll.
+      if (++describeCalls > 3) throw new Error('Still polling a failed change set.');
+      return { Status: 'FAILED', StatusReason: 'No export named shared-vpc-id found.' };
+    }) as Send);
+
+    await expect(
+      cloudFormation.createChangeSet({ StackName: 'example', ChangeSetName: 'preview', TemplateBody: '{}' })
+    ).rejects.toThrow('No export named shared-vpc-id found.');
+  });
+
   test('follows every stack-resource page in service order', async () => {
     const pages = [
       {
