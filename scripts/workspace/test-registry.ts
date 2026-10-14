@@ -761,6 +761,7 @@ export const lanes: readonly Lane[] = [
     tier: 'change',
     tests: [
       'packages/packaging/scripts/lambda-e2e/python.test.ts',
+      'packages/packaging/scripts/lambda-e2e/python-selection.test.ts',
       'packages/packaging/scripts/lambda-e2e/python-pipfile.test.ts',
       'packages/packaging/scripts/lambda-e2e/java.test.ts',
       'packages/packaging/scripts/lambda-e2e/ruby.test.ts'
@@ -4134,7 +4135,6 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/docker/dockerfiles.ts',
       'packages/packaging/scripts/lambda-e2e/fixtures/python/**',
       'packages/packaging/scripts/lambda-e2e/fixtures/python-selection/**',
-      'packages/packaging/scripts/lambda-e2e/fixtures/python-empty/**',
       'packages/packaging/scripts/lambda-e2e/fixtures/python-pipfile/**',
       'packages/packaging/src/bundlers/py/**',
       'packages/packaging/src/buildpacks/py-lambda-buildpack.ts'
@@ -4145,7 +4145,13 @@ export const slices: readonly Slice[] = [
       'packages/packaging/scripts/lambda-e2e/python-pipfile.test.ts',
       'packages/packaging/src/bundlers/py/utils.test.ts'
     ],
-    lanes: ['packaging-test', 'language-lambdas', 'project-qualification', 'project-qualification-2'],
+    lanes: [
+      'packaging-test',
+      'language-lambdas',
+      'packaging-images-2',
+      'project-qualification',
+      'project-qualification-2'
+    ],
     contributors: ['S27']
   },
   {
