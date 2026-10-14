@@ -268,6 +268,10 @@ const createDenseConfig = ({
           eventPattern: {
             source: ['characterization'],
             'detail-type': ['RecordChanged']
+          },
+          inputTransformer: {
+            inputPathsMap: { recordId: '$.detail.recordId' },
+            inputTemplate: { recordId: '<recordId>' }
           }
         })
       ]
@@ -1311,6 +1315,12 @@ describe('full synthesis contract', () => {
       ToPort: 9098,
       IpProtocol: 'tcp'
     });
+    const inlineIngress = (resources[clusterSecurityGroupId].Properties.SecurityGroupIngress ?? []) as {
+      SourceSecurityGroupId?: unknown;
+    }[];
+    expect(inlineIngress.map(({ SourceSecurityGroupId }) => SourceSecurityGroupId)).not.toContainEqual({
+      Ref: clusterSecurityGroupId
+    });
     expect(mapping.Properties).toMatchObject({
       EventSourceArn: { Ref: expect.any(String) },
       StartingPosition: 'LATEST',
@@ -1954,6 +1964,10 @@ describe('full synthesis contract', () => {
       },
       EventBusName: { 'Fn::GetAtt': ['EventsEventBus', 'Arn'] }
     });
+    // A valid input transformer reaches the target with its paths map and templated input.
+    const [auditTarget] = resources.AuditEvent0Rule.Properties.Targets;
+    expect(auditTarget.InputTransformer.InputPathsMap).toEqual({ recordId: '$.detail.recordId' });
+    expect(JSON.stringify(auditTarget.InputTransformer.InputTemplate)).toContain('<recordId>');
 
     const apiPolicyStatements = resources.ApiRole.Properties.Policies.flatMap(
       ({ PolicyDocument }: { PolicyDocument: { Statement: any[] } }) => PolicyDocument.Statement

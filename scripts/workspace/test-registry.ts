@@ -3740,6 +3740,7 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/cli/scripts/operations/remaining-commands.spec.ts',
       'apps/cli/scripts/packaging-archives/helper-lambda-runtime-acceptance.ts',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/ssr-web-shared.test.ts',
       'apps/cli/src/domain/config-manager/utils/appsync-apis.spec.ts',
       'apps/cli/src/domain/config-manager/utils/nextjs-webs.spec.ts',
       'apps/cli/src/domain/config-manager/utils/websocket-api-gateways.spec.ts',

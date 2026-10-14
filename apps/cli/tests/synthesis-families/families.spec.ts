@@ -248,6 +248,30 @@ describe('AgentCore family', () => {
     expect(allActions.some((action) => /^bedrock-agentcore:.*Browser|bedrock-agentcore:\*/.test(action))).toBe(true);
     expect(allActions.some((action) => /CodeInterpreter|bedrock-agentcore:\*/.test(action))).toBe(true);
   });
+
+  test('a runtime without a `default` endpoint references its first configured endpoint', async () => {
+    const template = await synthesizeFamily(
+      'agentcore-no-default-endpoint',
+      defineConfig(() => ({
+        resources: {
+          reviewAgent: new AgentCoreRuntime({
+            packaging: new DockerfilePackaging({ buildContextPath: './agent' }),
+            endpoints: ['preview', 'stable']
+          })
+        }
+      }))
+    );
+    expectReferencesResolve(template);
+    const previewId = cfLogicalNames.agentCoreRuntimeEndpoint('reviewAgent', 'preview');
+    expect(
+      resourcesOfType(template, 'AWS::BedrockAgentCore::RuntimeEndpoint')
+        .map(([id]) => id)
+        .sort()
+    ).toEqual([previewId, cfLogicalNames.agentCoreRuntimeEndpoint('reviewAgent', 'stable')].sort());
+    expect(
+      calculatedStackOverviewManager.stackInfoMap.resources.reviewAgent.referencableParams.endpointArn.value
+    ).toEqual({ Ref: previewId });
+  });
 });
 
 describe('Convex family', () => {

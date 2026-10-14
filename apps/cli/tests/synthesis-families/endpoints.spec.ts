@@ -4,7 +4,12 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { ENDPOINT_CUSTOM_CERTIFICATE_ARN, ENDPOINT_CUSTOM_DOMAIN, synthesizeAppSyncEndpoint } from './endpoint-fixture';
+import {
+  ENDPOINT_API_KEY_EXPIRES_AT,
+  ENDPOINT_CUSTOM_CERTIFICATE_ARN,
+  ENDPOINT_CUSTOM_DOMAIN,
+  synthesizeAppSyncEndpoint
+} from './endpoint-fixture';
 
 test('an authored GraphQL field invokes its Lambda through a scoped data source after its schema exists', async () => {
   const template = await synthesizeAppSyncEndpoint();
@@ -119,4 +124,25 @@ test('a custom domain uses its us-east-1 certificate and publishes both endpoint
   expect(params.url.value).toBe(`https://${ENDPOINT_CUSTOM_DOMAIN}/graphql`);
   expect(params.customDomainUrl.value).toBe(`https://${ENDPOINT_CUSTOM_DOMAIN}/graphql`);
   expect(params.realtimeUrl.value).toBe(`wss://${ENDPOINT_CUSTOM_DOMAIN}/graphql/realtime`);
+});
+
+test('an API-key endpoint publishes the key value, not its identifier, with an hour-rounded expiry', async () => {
+  const template = await synthesizeAppSyncEndpoint({ authentication: 'api-key' });
+  const resources = template.Resources;
+  expect(resources.GraphqlAppSyncGraphQlApi).toMatchObject({ Properties: { AuthenticationType: 'API_KEY' } });
+  const apiKeyLogicalId = cfLogicalNames.appsyncApiKey('graphql');
+  expect(resources[apiKeyLogicalId]).toMatchObject({
+    Type: 'AWS::AppSync::ApiKey',
+    Properties: {
+      ApiId: { 'Fn::GetAtt': ['GraphqlAppSyncGraphQlApi', 'ApiId'] },
+      Expires: Math.floor(Date.parse(ENDPOINT_API_KEY_EXPIRES_AT) / 3600000) * 3600
+    }
+  });
+  // Connected workloads read the secret key value (`ApiKey`) through SSM; the resource's Ref is only its identifier.
+  const params = calculatedStackOverviewManager.stackInfoMap.resources.graphql.referencableParams;
+  expect(params.apiKey).toMatchObject({
+    value: { 'Fn::GetAtt': [apiKeyLogicalId, 'ApiKey'] },
+    ssmParameterName: expect.stringMatching(/\/graphql\/apiKey$/),
+    showDuringPrint: false
+  });
 });

@@ -10,6 +10,10 @@ import { join } from 'node:path';
 import { synthesizeFixture } from '../characterization/synthesis-fixture';
 
 export const ENDPOINT_CUSTOM_DOMAIN = 'api.example.com';
+/** An absolute RFC 3339 timestamp 30 days out, without milliseconds; AppSync rounds key expiry down to the hour. */
+export const ENDPOINT_API_KEY_EXPIRES_AT = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+  .toISOString()
+  .replace(/\.\d{3}Z$/, 'Z');
 export const ENDPOINT_CUSTOM_CERTIFICATE_ARN = 'arn:aws:acm:us-east-1:123456789999:certificate/endpoint-fixture';
 
 /**
@@ -19,18 +23,23 @@ export const ENDPOINT_CUSTOM_CERTIFICATE_ARN = 'arn:aws:acm:us-east-1:1234567899
  */
 export const synthesizeAppSyncEndpoint = async ({
   accountId = '123456789999',
+  authentication = 'aws-iam',
   customDomain = false,
   projectName = 'endpoint',
   region = 'eu-west-1'
 }: {
   accountId?: string;
+  authentication?: 'aws-iam' | 'api-key';
   customDomain?: boolean;
   projectName?: string;
   region?: 'eu-west-1';
 } = {}): Promise<CloudFormationTemplate> => {
   const config = defineConfig(() => {
     const graphql = new AppSyncApi({
-      authentication: { type: 'aws-iam' },
+      authentication:
+        authentication === 'api-key'
+          ? { type: 'api-key', properties: { expiresAt: ENDPOINT_API_KEY_EXPIRES_AT } }
+          : { type: 'aws-iam' },
       schemaFilePath: 'schema.graphql',
       ...(customDomain
         ? {
