@@ -91,11 +91,19 @@ export const listExtractedEntries = async (root: string) => {
 export type Invocation = { status: number; body: string; logs: { stdout: string; stderr: string } };
 
 /**
+ * Docker Desktop on WSL sometimes publishes a port that nothing listens on: every host connection is refused while the
+ * runtime waits inside. The emulator listens within a second of starting, and before that Docker's proxies reset
+ * connections rather than refuse them. A refused request never reached the function, so a new container is safe.
+ */
+export class LostPublishedPort extends Error {}
+
+/**
  * Posts `body` to `url` and reads the whole answer before `deadline` (epoch milliseconds). Refused connections, while
  * the emulator starts, are retried; a request that is accepted but never answered, or an answer that never finishes, is
- * aborted at the deadline instead of hanging.
+ * aborted at the deadline instead of hanging. Connections refused for 10 s throw `LostPublishedPort`.
  */
 export const postBeforeDeadline = async ({ url, body, deadline }: { url: string; body: string; deadline: number }) => {
+  let refusedSince: number | undefined;
   for (;;) {
     const remaining = deadline - Date.now();
     if (remaining <= 0) {
@@ -110,6 +118,11 @@ export const postBeforeDeadline = async ({ url, body, deadline }: { url: string;
         throw new Error(`${url} did not answer before the deadline.`, { cause: error });
       }
       // Not listening yet: try again shortly, within the same deadline.
+      refusedSince =
+        (error as { code?: string }).code === 'ConnectionRefused' ? (refusedSince ?? Date.now()) : undefined;
+      if (refusedSince !== undefined && Date.now() - refusedSince >= 10_000) {
+        throw new LostPublishedPort(`${url} refused every connection for 10 s.`, { cause: error });
+      }
       await Bun.sleep(Math.min(200, Math.max(0, deadline - Date.now())));
     }
   }
@@ -153,48 +166,57 @@ export const invokeInLambdaRuntime = async ({
   /** Environment variables of the function, as its configuration would set them. */
   environment?: Record<string, string>;
 }): Promise<Invocation> => {
-  const name = `stp-lambda-archive-${randomUUID().slice(0, 12)}`;
-  let outcome: { invocation: Invocation } | { error: unknown };
-  try {
-    runOrThrow([
-      'docker',
-      'run',
-      '--detach',
-      '--name',
-      name,
-      '--label',
-      CONTAINER_LABEL,
-      '--user',
-      LAMBDA_USER,
-      '--publish',
-      '127.0.0.1::8080',
-      '--mount',
-      `type=bind,source=${functionDirectory},target=/var/task,readonly`,
-      ...(layerDirectory ? ['--mount', `type=bind,source=${layerDirectory},target=/opt,readonly`] : []),
-      ...Object.entries(environment).flatMap(([key, value]) => ['--env', `${key}=${value}`]),
-      ...(handler ? [image, handler] : ['--entrypoint', '/usr/local/bin/aws-lambda-rie', image, '/var/task/bootstrap'])
-    ]);
-    const port = runOrThrow(['docker', 'port', name, '8080/tcp']).trim().split('\n')[0]!.split(':').at(-1);
-    const answer = await postBeforeDeadline({
-      url: `http://127.0.0.1:${port}/2015-03-31/functions/function/invocations`,
-      body: JSON.stringify(event),
-      deadline: Date.now() + timeoutMs
-    });
-    const logs = run(['docker', 'logs', name]);
-    outcome = { invocation: { ...answer, logs: { stdout: logs.stdout, stderr: logs.stderr } } };
-  } catch (error) {
-    const logs = run(['docker', 'logs', name]);
-    outcome = {
-      error: new Error(`${error instanceof Error ? error.message : String(error)}\n${logs.stdout}${logs.stderr}`, {
-        cause: error
-      })
-    };
+  const deadline = Date.now() + timeoutMs;
+  for (let attempt = 1; ; attempt += 1) {
+    const name = `stp-lambda-archive-${randomUUID().slice(0, 12)}`;
+    let outcome: { invocation: Invocation } | { error: unknown };
+    try {
+      runOrThrow([
+        'docker',
+        'run',
+        '--detach',
+        '--name',
+        name,
+        '--label',
+        CONTAINER_LABEL,
+        '--user',
+        LAMBDA_USER,
+        '--publish',
+        '127.0.0.1::8080',
+        '--mount',
+        `type=bind,source=${functionDirectory},target=/var/task,readonly`,
+        ...(layerDirectory ? ['--mount', `type=bind,source=${layerDirectory},target=/opt,readonly`] : []),
+        ...Object.entries(environment).flatMap(([key, value]) => ['--env', `${key}=${value}`]),
+        ...(handler
+          ? [image, handler]
+          : ['--entrypoint', '/usr/local/bin/aws-lambda-rie', image, '/var/task/bootstrap'])
+      ]);
+      const port = runOrThrow(['docker', 'port', name, '8080/tcp']).trim().split('\n')[0]!.split(':').at(-1);
+      const answer = await postBeforeDeadline({
+        url: `http://127.0.0.1:${port}/2015-03-31/functions/function/invocations`,
+        body: JSON.stringify(event),
+        deadline
+      });
+      const logs = run(['docker', 'logs', name]);
+      outcome = { invocation: { ...answer, logs: { stdout: logs.stdout, stderr: logs.stderr } } };
+    } catch (error) {
+      const logs = run(['docker', 'logs', name]);
+      outcome = {
+        error:
+          error instanceof LostPublishedPort
+            ? error
+            : new Error(`${error instanceof Error ? error.message : String(error)}\n${logs.stdout}${logs.stderr}`, {
+                cause: error
+              })
+      };
+    }
+    removeContainer(name);
+    if ('error' in outcome && outcome.error instanceof LostPublishedPort && attempt < 3) continue;
+    if ('error' in outcome) {
+      throw outcome.error;
+    }
+    return outcome.invocation;
   }
-  removeContainer(name);
-  if ('error' in outcome) {
-    throw outcome.error;
-  }
-  return outcome.invocation;
 };
 
 /** Containers this acceptance started that still exist; always expected to be none. */
