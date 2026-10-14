@@ -31,7 +31,6 @@ export type DeployEvent = {
     totalPlanned?: number;
     inProgressResources?: string[];
     changeCounts?: { created: number; updated: number; deleted: number };
-    stackAction?: string;
   };
 };
 
@@ -77,13 +76,6 @@ export type DeployModel = {
   notices: Array<{ level: string; message: string }>;
   /** Everything the CLI said, for the disclosure at the bottom. */
   log: string[];
-  /** Whether CloudFormation was creating the stack or updating one that existed, once it said so. */
-  stackAction?: 'create' | 'update';
-  /**
-   * For a failed deploy, where it stopped: before anything on AWS changed, while CloudFormation was
-   * changing the stack (so AWS rolls it back), or after every resource was deployed.
-   */
-  stoppedAt?: 'before-aws' | 'during-aws' | 'after-aws';
 };
 
 export const buildDeployModel = (
@@ -99,7 +91,6 @@ export const buildDeployModel = (
   const notices: Array<{ level: string; message: string }> = [];
   const log: string[] = [];
   let latestPhaseId: string | undefined;
-  let stackAction: DeployModel['stackAction'];
 
   for (const event of events) {
     if (event.type === 'log') {
@@ -133,9 +124,6 @@ export const buildDeployModel = (
     // CloudFormation is the long part, and the only part with a real percentage. Everything else is
     // "started" and then "completed", which is a spinner, not a bar.
     if (event.detail?.kind === 'cloudformation-progress') {
-      if (event.detail.stackAction === 'create' || event.detail.stackAction === 'update') {
-        stackAction = event.detail.stackAction;
-      }
       existing.cloudformation = {
         percent: Number(event.detail.percent ?? 0),
         completed: Number(event.detail.completedCount ?? 0),
@@ -168,27 +156,5 @@ export const buildDeployModel = (
             : 'pending';
   }
 
-  const failed = ordered.find((phase) => phase.status === 'failed');
-  const deployIndex = PHASE_ORDER.indexOf('DEPLOY');
-  const stoppedAt: DeployModel['stoppedAt'] =
-    failed === undefined
-      ? undefined
-      : PHASE_ORDER.indexOf(failed.id) >= 0 && PHASE_ORDER.indexOf(failed.id) < deployIndex
-        ? 'before-aws'
-        : failed.id === 'DEPLOY' &&
-            !(
-              failed.cloudformation !== undefined &&
-              failed.cloudformation.total > 0 &&
-              failed.cloudformation.completed >= failed.cloudformation.total
-            )
-          ? 'during-aws'
-          : 'after-aws';
-
-  return {
-    phases: ordered,
-    notices,
-    log: [...log, ...lines],
-    ...(stackAction === undefined ? {} : { stackAction }),
-    ...(stoppedAt === undefined ? {} : { stoppedAt })
-  };
+  return { phases: ordered, notices, log: [...log, ...lines] };
 };

@@ -90,15 +90,9 @@ export function DeployProgress({
               ? ` We changed ${rewrittenLabel} and tried again, and it still did not work.`
               : ' We looked at your code again and found nothing to change, so we stopped rather than repeat the same deploy.'
             : ''}
-          {model.stoppedAt === 'before-aws'
-            ? ' It stopped before anything on AWS changed.'
-            : model.stoppedAt === 'after-aws'
-              ? ' The AWS resources were deployed; a step after that did not finish.'
-              : keptPartialProgress === true
-                ? ' The stack was left as the failed attempt changed it, and it runs and bills like that until you deploy again or roll it back with the command below.'
-                : model.stackAction === 'update'
-                  ? ' AWS put the stack back to the version that was running before, and that version keeps running.'
-                  : ' AWS rolls a failed first deploy back and removes what it created; that can take a few more minutes.'}
+          {keptPartialProgress === true
+            ? ' This retry ran without automatic rollback, so the stack can be left the way the attempt changed it. The command below rolls it back to the version that worked.'
+            : ' When a deploy fails while AWS is changing the stack, AWS undoes that change: a new stack is removed, and an existing one goes back to the version that was running.'}
         </Alert>
       )}
 
