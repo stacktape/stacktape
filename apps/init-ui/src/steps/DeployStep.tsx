@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert } from '@stacktape/ui-react/alert';
 import { Button } from '@stacktape/ui-react/button';
 import { Spinner } from '@stacktape/ui-react/spinner';
@@ -52,6 +52,7 @@ export function DeployStep({
   onSignIn,
   onVerify,
   onDismissVerification,
+  onRegionChange,
   isBusy
 }: {
   state: WizardState;
@@ -69,6 +70,8 @@ export function DeployStep({
   onVerify: () => void;
   /** Sets a failed try-out aside: results stay visible, the deploy button comes back. */
   onDismissVerification: () => void;
+  /** The price follows the region picked here. */
+  onRegionChange: (region: string) => void;
   /** Which action is in flight, so only the button that was pressed shows a spinner. */
   isBusy: 'deploy' | 'pipeline' | 'recheck' | 'verify' | undefined;
 }) {
@@ -94,6 +97,15 @@ export function DeployStep({
   const [region, setRegion] = useState(
     identity !== undefined && identity.available && identity.region !== undefined ? identity.region : 'eu-west-1'
   );
+  const priceRegion = state.composition?.price?.region;
+  /** The last region a price was asked for, so a slow or failed answer is not asked for again on every render. */
+  const requestedPriceRegion = useRef<string | undefined>(undefined);
+  // The price was quoted before a region was picked; the region on screen is the one to quote.
+  useEffect(() => {
+    if (file === undefined || priceRegion === region || requestedPriceRegion.current === region) return;
+    requestedPriceRegion.current = region;
+    onRegionChange(region);
+  }, [file, priceRegion, region, onRegionChange]);
 
   const model = useMemo(
     () =>
@@ -246,6 +258,7 @@ export function DeployStep({
   const hasDatabase = resources.some(([, resource]) => resource.type === 'relational-database');
   const gaps = gapsToList(state.composition?.gaps ?? [], state.facts?.existingDeployments ?? []);
   const secrets = requiredSecrets(state.composition?.resources ?? {});
+  const unsetNames = [...new Set((state.composition?.unsetSettings ?? []).map((setting) => setting.variableName))];
   const monthly = state.composition?.price?.monthly;
   const checkedTarget =
     state.deployTarget?.stage === stage && state.deployTarget.region === region ? state.deployTarget : undefined;
@@ -259,18 +272,12 @@ export function DeployStep({
 
   return (
     <div className="flex flex-col gap-8">
-      <section>
-        <h3 className="wizard-section-heading">Written</h3>
-        <p className="m-0 text-[var(--stp-text-muted)]">
-          <span className="wizard-code text-[var(--stp-text-primary)]">{file.path}</span>
+      {file.existingPath !== undefined && (
+        <p className="m-0 text-[0.9rem] text-[var(--stp-text-subtle)]">
+          Your existing <span className="wizard-code">{file.existingPath}</span> was not touched. The deploy below uses{' '}
+          <span className="wizard-code">{file.filename}</span>.
         </p>
-        {file.existingPath !== undefined && (
-          <p className="mt-2 mb-0 text-[0.9rem] text-[var(--stp-text-subtle)]">
-            Your existing <span className="wizard-code">{file.existingPath}</span> was not touched. The deploy below
-            uses <span className="wizard-code">{file.filename}</span>.
-          </p>
-        )}
-      </section>
+      )}
 
       <section>
         <h3 className="wizard-section-heading">AWS access</h3>
@@ -486,13 +493,9 @@ export function DeployStep({
         <p className="wizard-lede mb-2">
           Creates or updates one stack containing{' '}
           {resources.length === 1 ? 'one resource' : `${resources.length} resources`}
-          {monthly === undefined
+          {monthly === undefined || priceRegion !== region
             ? ''
-            : `, about ${monthly} at the sizes you picked${
-                state.composition?.price?.region !== undefined && state.composition.price.region !== region
-                  ? ` (priced for ${state.composition.price.region}; ${region} can differ a little)`
-                  : ''
-              }`}
+            : `, about ${monthly} in ${region} at the sizes you picked`}
           .
           {publicNames.length > 0 && (
             <>
@@ -554,9 +557,16 @@ export function DeployStep({
             <CopyableCommand command={secrets.map((name) => secretCommand(name, region)).join('\n')} />
           </div>
         )}
-        {gaps.length > 0 && (
+        {(gaps.length > 0 || unsetNames.length > 0) && (
           <Alert className="mb-4" tone="warning" title="Check these before deploying">
             <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
+              {unsetNames.length > 0 && (
+                <li>
+                  Nothing sets {listNames(unsetNames)} yet. Add the ones your app needs under{' '}
+                  <span className="wizard-code">environment</span> in{' '}
+                  <span className="wizard-code">{file.filename}</span>; the deploy uses the file as it is on disk.
+                </li>
+              )}
               {gaps.map((gap) => (
                 <li key={`${gap.subject}-${gap.message}`}>{gap.message}</li>
               ))}

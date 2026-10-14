@@ -84,7 +84,7 @@ export const uncertaintySchema = z.discriminatedUnion('kind', [
     kind: z.literal('sqlite-persistence'),
     serviceName: z.string().min(1),
     paths: z.array(z.string()).min(1),
-    recommended: z.enum(['migrate-to-managed-database', 'persistent-volume', 'accept-ephemeral'])
+    recommended: z.enum(['persistent-volume', 'accept-ephemeral'])
   }),
 
   /** The application writes something else to local disk — uploads, generated files, a cache. */
