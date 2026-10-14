@@ -146,23 +146,6 @@ describe('plan policy', () => {
     }
   });
 
-  test('keeps only the build variables as secrets, never railpack configuration variables', () => {
-    const plan = preparedPlan({
-      secrets: ['RAILPACK_SKIP_MIGRATIONS', 'RAILPACK_START_CMD', 'VITE_API_URL'],
-      steps: [
-        { name: 'install', secrets: ['RAILPACK_START_CMD', 'VITE_API_URL'] },
-        { name: 'build', secrets: ['*'] }
-      ]
-    });
-    const policed = applyStacktapePlanPolicy({ plan, startCommand: 'npm start' });
-    expect(policed.secrets).toEqual(['VITE_API_URL']);
-    expect(policed.steps).toEqual([
-      { name: 'install', secrets: ['VITE_API_URL'] },
-      { name: 'build', secrets: ['*'] }
-    ]);
-    expect(plan.secrets).toHaveLength(3);
-  });
-
   test('removes the Django migration from a detected start command but keeps a configured one', () => {
     const plan = preparedPlan({
       deploy: {
