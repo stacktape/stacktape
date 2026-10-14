@@ -301,7 +301,7 @@ export const buildNextjsWebNestedResources = ({
             value: ref(cfLogicalNames.bucket(nestedResourceInfo.bucket.stpResourceName)) as unknown as string
           },
           {
-            name: 'CACHE_BUCKET_PREFIX',
+            name: 'CACHE_BUCKET_KEY_PREFIX',
             value: '_cache'
           },
           {

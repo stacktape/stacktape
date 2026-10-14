@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test';
+import { afterAll, expect, test } from 'bun:test';
 import { chmod, mkdtemp, readFile, readdir, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -33,7 +33,13 @@ const setup = async (root: string) => {
     })
   );
   await write(join(root, 'node_modules/plugin/package.json'), '{"name":"plugin","type":"module","main":"index.js"}');
-  await write(join(root, 'node_modules/plugin/index.js'), 'export default "runtime-plugin";');
+  // Only a runtime-selected import reaches the plugin, so static tracing cannot find it or the file it reads.
+  await write(
+    join(root, 'node_modules/plugin/index.js'),
+    `import { readFileSync } from 'node:fs';
+export default "runtime-plugin";
+export const asset = readFileSync(new URL('./runtime.txt', import.meta.url), 'utf8');`
+  );
   await write(join(root, 'node_modules/plugin/runtime.txt'), 'runtime-asset');
   await write(
     join(root, 'node_modules/framework/package.json'),
@@ -60,14 +66,13 @@ try {
   await rm('output', { recursive: true, force: true });
   await mkdir(process.env.SERVER_OUTPUT_PATH, { recursive: true });
   await mkdir(process.env.STATIC_OUTPUT_PATH, { recursive: true });
+  if (process.env.REMOVED_ROUTE === 'yes') await writeFile(process.env.SERVER_OUTPUT_PATH + '/removed-route.mjs', '');
   await writeFile(process.env.STATIC_OUTPUT_PATH + '/asset.txt', process.env.MARKER);
   await writeFile(process.env.SERVER_OUTPUT_PATH + '/entry.mjs', \`
     import framework from 'framework';
     import { readFile } from 'node:fs/promises';
     export default async (req, res) => {
-      const pluginName = req.headers['x-plugin'];
-      const plugin = (await import(pluginName)).default;
-      const asset = await readFile(new URL('./runtime.txt', import.meta.resolve('plugin')), 'utf8');
+      const { default: plugin, asset } = await import(req.headers['x-plugin']);
       const clientAsset = \${process.env.PRESERVE_LAYOUT === 'yes'}
         ? '|' + await readFile(new URL('../client/asset.txt', import.meta.url), 'utf8') : '';
       res.setHeader('content-type', 'text/plain');
@@ -99,7 +104,6 @@ const packageApp = (
       workingDir: root,
       buildCommand: 'ssr-fixture-build',
       buildEnv: {
-        MARKER: name,
         SERVER_OUTPUT_PATH: layout.serverOutputPath ?? 'output/public/server',
         STATIC_OUTPUT_PATH: layout.staticOutputPath ?? 'output/public',
         ...buildEnv
@@ -114,13 +118,19 @@ const packageApp = (
       wrapperType: 'node-http',
       ...layout
     },
-    environmentVars: [],
+    // The resource environment reaches the framework build, as public build-time values must.
+    environmentVars: [{ name: 'MARKER', value: name }],
     archiveItem,
     createPackagingError,
     executeProcess
   });
 
-const invokeArtifact = async (artifactPath: string, extracted: string) => {
+// Extracted outside the fixture project: Node must not resolve a missing package from the fixture's node_modules.
+const lambdaRoots: string[] = [];
+afterAll(() => Promise.all(lambdaRoots.map((root) => rm(root, { recursive: true, force: true }))));
+const invokeArtifact = async (artifactPath: string) => {
+  const extracted = await mkdtemp(join(tmpdir(), 'stacktape-ssr-lambda-'));
+  lambdaRoots.push(extracted);
   await run('unzip', ['-q', artifactPath, '-d', extracted]);
   const child = Bun.spawn(
     [
@@ -140,7 +150,12 @@ const invokeArtifact = async (artifactPath: string, extracted: string) => {
     child.exited
   ]);
   if (exitCode !== 0) throw new Error(`Packaged handler failed (${exitCode}): ${stderr}`);
-  return JSON.parse(stdout) as { cookies?: string[]; multiValueHeaders?: Record<string, string[]>; body: string };
+  const response = JSON.parse(stdout) as {
+    cookies?: string[];
+    multiValueHeaders?: Record<string, string[]>;
+    body: string;
+  };
+  return { response, extracted };
 };
 
 test('concurrent SSR applications keep runnable ZIPs without serializing independent builds', async () => {
@@ -164,8 +179,7 @@ test('concurrent SSR applications keep runnable ZIPs without serializing indepen
       ['first', 'second', 'peer'].map(async (name, index) => {
         const artifactPath = outputs[index]?.[0]?.artifactPath;
         expect(artifactPath).toBeString();
-        const extracted = join(root, `extracted-${name}`);
-        const response = await invokeArtifact(artifactPath!, extracted);
+        const { response, extracted } = await invokeArtifact(artifactPath!);
         expect(response.cookies).toEqual(['first=one; Path=/', 'second=two; Path=/']);
         expect(response.multiValueHeaders).toBeUndefined();
         expect(response.body).toBe(`${name}|traced-framework|runtime-plugin|runtime-asset`);
@@ -185,6 +199,8 @@ test('a failed SSR build explains the cause and a corrected retry emits a runnab
   const root = await mkdtemp(join(tmpdir(), 'stacktape-ssr-retry-'));
   try {
     await setup(root);
+    // A route present in an earlier build of the same resource (dev repackaging) must not survive into later ZIPs.
+    await packageApp(root, 'retry', { REMOVED_ROUTE: 'yes' });
     await expect(packageApp(root, 'retry', { FAIL_BUILD: 'yes' })).rejects.toThrow(
       'Framework configuration is invalid'
     );
@@ -193,8 +209,9 @@ test('a failed SSR build explains the cause and a corrected retry emits a runnab
     await setup(root);
     const output = await packageApp(root, 'retry');
     expect(output[0]?.artifactPath).toBeString();
-    const response = await invokeArtifact(output[0]!.artifactPath!, join(root, 'extracted-retry'));
+    const { response, extracted } = await invokeArtifact(output[0]!.artifactPath!);
     expect(response.body).toBe('retry|traced-framework|runtime-plugin|runtime-asset');
+    expect(await Bun.file(join(extracted, 'removed-route.mjs')).exists()).toBe(false);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -215,7 +232,7 @@ test('the SSR artifact preserves server-relative client files required by Astro'
         copyStaticAssetsToServerDirectory: 'client'
       }
     );
-    const response = await invokeArtifact(output[0]!.artifactPath!, join(root, 'extracted-layout'));
+    const { response } = await invokeArtifact(output[0]!.artifactPath!);
     expect(response.body).toBe('layout|traced-framework|runtime-plugin|runtime-asset|layout');
     expect(await readdir(join(root, 'layout/bucket-content'))).toEqual(['asset.txt']);
   } finally {
