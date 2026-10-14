@@ -198,7 +198,7 @@ export function DeployStep({
                     {retryTarget.detail} Fix the AWS credentials or the connected account, then check again.
                   </Alert>
                 )}
-                {deployment.keptPartialProgress === true && (
+                {deployment.keptPartialProgress === true && model.stoppedAt === 'during-aws' && (
                   <section>
                     <h3 className="wizard-section-heading">Or put it back</h3>
                     <p className="wizard-lede mb-3">

@@ -3,6 +3,8 @@ import { buildDeployModel, type DeployEvent } from './deploy-model';
 
 const event = (overrides: Partial<DeployEvent>): DeployEvent => ({ type: 'event', status: 'started', ...overrides });
 
+const stoppedAt = (events: DeployEvent[]) => buildDeployModel(events, [], 'failed').stoppedAt;
+
 describe('the deploy model', () => {
   it('marks a phase done only once the next one starts', () => {
     const model = buildDeployModel(
@@ -90,5 +92,20 @@ describe('the deploy model', () => {
     );
     // A failed update leaves the earlier version running; the page must not call it a failed first deploy.
     expect(model.stackAction).toBe('update');
+  });
+
+  it('says where a failed deploy stopped, which decides what AWS did about it', () => {
+    const cloudformation = (completedCount: number) =>
+      event({
+        phase: 'DEPLOY',
+        detail: { kind: 'cloudformation-progress', percent: 50, completedCount, totalPlanned: 10 }
+      });
+
+    expect(stoppedAt([event({ phase: 'INITIALIZE' }), event({ phase: 'BUILD_AND_PACKAGE' })])).toBe('before-aws');
+    expect(stoppedAt([event({ phase: 'UPLOAD' }), cloudformation(4)])).toBe('during-aws');
+    // Every resource done, then the deploy failed (for example cleaning up old artifacts): nothing rolls back.
+    expect(stoppedAt([event({ phase: 'UPLOAD' }), cloudformation(10)])).toBe('after-aws');
+    expect(stoppedAt([cloudformation(10), event({ phase: 'POST_DEPLOY' })])).toBe('after-aws');
+    expect(buildDeployModel([cloudformation(4)], [], 'succeeded').stoppedAt).toBeUndefined();
   });
 });

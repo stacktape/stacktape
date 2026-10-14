@@ -59,10 +59,6 @@ export function DeployProgress({
         ? rewritten[0]
         : `${rewritten.slice(0, -1).join(', ')} and ${rewritten.at(-1)}`;
   const anyRepairApplied = (repairs ?? []).some((entry) => entry.applied);
-  // A step after CloudFormation finished cannot roll anything back: the resources are deployed.
-  const failedAfterResources = model.phases.some(
-    (phase) => phase.status === 'failed' && (phase.id === 'POST_DEPLOY' || phase.id === 'SUMMARY')
-  );
   // The deploy's own message is raw AWS or container text more often than not; lead with what it means.
   const explanations = outcome?.ok === false ? explainFailure(outcome.message) : [];
   const failureText =
@@ -94,13 +90,15 @@ export function DeployProgress({
               ? ` We changed ${rewrittenLabel} and tried again, and it still did not work.`
               : ' We looked at your code again and found nothing to change, so we stopped rather than repeat the same deploy.'
             : ''}
-          {failedAfterResources
-            ? ' The AWS resources were deployed; a step after that did not finish.'
-            : keptPartialProgress === true
-              ? ' The stack was left as the failed attempt changed it, and it runs and bills like that until you deploy again or roll it back with the command below.'
-              : model.stackAction === 'update'
-                ? ' AWS put the stack back to the version that was running before, and that version keeps running.'
-                : ' AWS rolls a failed first deploy back and removes what it created; that can take a few more minutes.'}
+          {model.stoppedAt === 'before-aws'
+            ? ' It stopped before anything on AWS changed.'
+            : model.stoppedAt === 'after-aws'
+              ? ' The AWS resources were deployed; a step after that did not finish.'
+              : keptPartialProgress === true
+                ? ' The stack was left as the failed attempt changed it, and it runs and bills like that until you deploy again or roll it back with the command below.'
+                : model.stackAction === 'update'
+                  ? ' AWS put the stack back to the version that was running before, and that version keeps running.'
+                  : ' AWS rolls a failed first deploy back and removes what it created; that can take a few more minutes.'}
         </Alert>
       )}
 
