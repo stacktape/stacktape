@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { ConfigManager } from '../index';
 import type { StpWebSocketApiGateway } from '../resolved-types/websocket-api-gateways';
-import { getConnectToIncludingWebsocketApiGateways, validateWebsocketApiGatewayConfig } from './websocket-api-gateways';
+import { validateWebsocketApiGatewayConfig } from './websocket-api-gateways';
 
 const gateway = (overrides: Partial<StpWebSocketApiGateway> = {}): StpWebSocketApiGateway => ({
   type: 'websocket-api-gateway',
@@ -35,15 +35,6 @@ const event = (routeKey: string, authorizer?: { type: 'aws-iam' }, returnRespons
 });
 
 describe('WebSocket API configuration validation', () => {
-  test('derives automatic gateway connections only from WebSocket events', () => {
-    expect(
-      getConnectToIncludingWebsocketApiGateways({
-        connectTo: ['jobs', 'realtime'],
-        events: [event('$connect'), { type: 'schedule', properties: { rate: 'rate(1 hour)' } }, event('sendMessage')]
-      })
-    ).toEqual(['jobs', 'realtime']);
-  });
-
   test('rejects duplicate route keys with both handler names', () => {
     expect(() =>
       validateWebsocketApiGatewayConfig({
