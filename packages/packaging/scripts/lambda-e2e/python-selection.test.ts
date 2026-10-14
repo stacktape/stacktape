@@ -25,7 +25,7 @@ for (const manifest of ['pyproject.toml', 'uv.lock'] as const) {
             ...(onlyGroup
               ? { uvOnlyGroups: ['prod'], ...(selection === 'excluded-only' && { uvWithoutGroups: ['prod'] }) }
               : {
-                  uvOptionalDependencies: ['native'],
+                  uvOptionalDependencies: ['native', 'config'],
                   uvWithGroups: ['prod', 'excluded'],
                   uvWithoutGroups: ['excluded']
                 })
@@ -41,6 +41,7 @@ for (const manifest of ['pyproject.toml', 'uv.lock'] as const) {
         expect(response).toEqual({
           idna: !onlyGroup,
           markupsafe: !onlyGroup,
+          iniconfig: !onlyGroup,
           sniffio: selection !== 'excluded-only',
           charset_normalizer: false,
           ...(!onlyGroup && { native: true })
