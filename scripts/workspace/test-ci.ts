@@ -15,32 +15,41 @@ export const ciLanes = (root: string, registry: readonly Lane[] = lanes): readon
       throw new Error(`PR lane ${lane.id} requires ${lane.requires.join(', ')}. Move it to change/release.`);
   return selected;
 };
+const runPnpm = (args: readonly string[]) => {
+  // Invoke pnpm's JS entrypoint on Windows too; no shell expansion or .cmd quoting.
+  const command = process.env.npm_execpath;
+  if (!command) throw new Error('Run this runner through pnpm test:ci.');
+  return new Promise<number>((resolveExit, reject) => {
+    const child = spawn(process.env.npm_node_execpath || 'node', [command, ...args], {
+      cwd: workspaceRoot,
+      stdio: 'inherit',
+      windowsHide: true
+    });
+    const timer = setTimeout(() => child.kill('SIGTERM'), 120_000);
+    child.once('error', (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.once('close', (status) => {
+      clearTimeout(timer);
+      resolveExit(status ?? 1);
+    });
+  });
+};
 const main = async () => {
   const started = performance.now();
-  for (const lane of ciLanes(workspaceRoot)) {
+  const selected = ciLanes(workspaceRoot);
+  // Lanes run package scripts directly, outside Turbo's task graph, and some import generated sources such as the
+  // Prisma client. Generate them first so a fresh checkout passes without an earlier typecheck or build.
+  console.info('\ngenerate: pnpm exec turbo run generate');
+  if (await runPnpm(['exec', 'turbo', 'run', 'generate', '--output-logs=errors-only']))
+    throw new Error('Generating workspace sources failed.');
+  for (const lane of selected) {
     console.info(`\n${lane.id} [${lane.level} · pr]: ${lane.command.join(' ')}`);
     const laneStarted = performance.now();
-    // Invoke pnpm's JS entrypoint on Windows too; no shell expansion or .cmd quoting.
-    const command = process.env.npm_execpath;
-    if (!command) throw new Error('Run this runner through pnpm test:ci.');
     // Lanes run sequentially so the measured tier bounds CPU and memory on CI runners.
     // eslint-disable-next-line no-await-in-loop
-    const code = await new Promise<number>((resolveExit, reject) => {
-      const child = spawn(process.env.npm_node_execpath || 'node', [command, ...lane.command.slice(1)], {
-        cwd: workspaceRoot,
-        stdio: 'inherit',
-        windowsHide: true
-      });
-      const timer = setTimeout(() => child.kill('SIGTERM'), 120_000);
-      child.once('error', (error) => {
-        clearTimeout(timer);
-        reject(error);
-      });
-      child.once('close', (status) => {
-        clearTimeout(timer);
-        resolveExit(status ?? 1);
-      });
-    });
+    const code = await runPnpm(lane.command.slice(1));
     if (code) throw new Error(`${lane.id} failed (exit ${code}).`);
     console.info(`${lane.id}: ${((performance.now() - laneStarted) / 1000).toFixed(1)} s`);
   }

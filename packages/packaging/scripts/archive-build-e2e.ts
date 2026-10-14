@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from 'bun:test';
 import { access, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { runDockerArtifactBuild } from '../src/artifact/docker-artifact-build';
 import { buildGeneratedDockerImage } from '../src/artifact/generated-image-build';
 
@@ -59,7 +59,10 @@ test('Docker exports the selected artifact tree, removes stale files and cleans 
       distFolderPath: output,
       dockerfileContents,
       runDocker: async (args) => {
-        temporaryPaths.push(args[args.indexOf('--file') + 1]!, args.at(-1)!);
+        const dockerfile = args[args.indexOf('--file') + 1]!;
+        temporaryPaths.push(dockerfile, dirname(dockerfile), args.at(-1)!);
+        // Docker sends a Dockerfile by syncing its directory; a neighbour vanishing meanwhile loses the file.
+        expect(await readdir(dirname(dockerfile))).toEqual([basename(dockerfile)]);
         return docker(args);
       }
     });
@@ -94,6 +97,7 @@ test('generated image copies only customer files and removes its Dockerfile afte
       buildDockerImage: async ({ dockerfilePath }) => {
         dockerfile = resolve(source, dockerfilePath!);
         temporaryPaths.push(dockerfile);
+        expect(await readdir(dirname(dockerfile))).toEqual([basename(dockerfile)]);
         docker(['build', '--file', dockerfile, '--tag', tag, source]);
         if (!resources.some((resource) => resource.name === tag)) resources.push({ kind: 'image', name: tag });
         return { size: 0, id: tag, created: 0, dockerOutput: '', duration: 0 };

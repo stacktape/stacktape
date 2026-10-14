@@ -50,62 +50,81 @@ export const invokeInLambdaImage = async <Response = unknown>({
   user?: string;
   timeoutMs?: number;
 }): Promise<Response> => {
-  const name = `stp-e2e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  try {
-    await run('docker', [
-      'run',
-      '--pull',
-      'never',
-      '--platform',
-      'linux/amd64',
-      '--detach',
-      '--name',
-      name,
-      '--label',
-      containerLabel,
-      ...(user ? ['--user', user] : []),
-      '--publish',
-      '127.0.0.1::8080',
-      '--mount',
-      `type=bind,source=${functionDirectory},target=/var/task,readonly`,
-      ...(layerDirectory ? ['--mount', `type=bind,source=${layerDirectory},target=/opt,readonly`] : []),
-      ...Object.entries(environment).flatMap(([key, value]) => ['--env', `${key}=${value}`]),
-      runtimeImage,
-      handler
-    ]);
-    const deadline = Date.now() + timeoutMs;
-    let lastError: unknown;
-    while (Date.now() < deadline) {
-      try {
-        // oxlint-disable-next-line no-await-in-loop -- Polls the runtime until it answers.
-        const port = (await run('docker', ['port', name, '8080/tcp'], undefined, undefined, 5_000)).stdout
-          .trim()
-          .match(/:(\d+)$/)?.[1];
-        if (port) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError: unknown;
+  // Docker Desktop on WSL sometimes publishes a port that nothing listens on: every host connection is refused while
+  // the runtime waits inside. The emulator listens within a second of starting, and before that Docker's proxies reset
+  // connections rather than refuse them. A refused request never reached the function, so a new container is safe.
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const name = `stp-e2e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    let portLost = false;
+    try {
+      // oxlint-disable-next-line no-await-in-loop -- one runtime container per attempt.
+      await run('docker', [
+        'run',
+        '--pull',
+        'never',
+        '--platform',
+        'linux/amd64',
+        '--detach',
+        '--name',
+        name,
+        '--label',
+        containerLabel,
+        ...(user ? ['--user', user] : []),
+        '--publish',
+        '127.0.0.1::8080',
+        '--mount',
+        `type=bind,source=${functionDirectory},target=/var/task,readonly`,
+        ...(layerDirectory ? ['--mount', `type=bind,source=${layerDirectory},target=/opt,readonly`] : []),
+        ...Object.entries(environment).flatMap(([key, value]) => ['--env', `${key}=${value}`]),
+        runtimeImage,
+        handler
+      ]);
+      let refusedSince: number | undefined;
+      while (Date.now() < deadline) {
+        let refused = false;
+        try {
           // oxlint-disable-next-line no-await-in-loop -- Polls the runtime until it answers.
-          const response = await fetch(`http://127.0.0.1:${port}/2015-03-31/functions/function/invocations`, {
-            method: 'POST',
-            body: JSON.stringify(event),
-            signal: AbortSignal.timeout(Math.max(1, deadline - Date.now()))
-          });
-          // oxlint-disable-next-line no-await-in-loop -- Reads the response within the invocation deadline.
-          const body = await response.text();
-          if (response.ok) return JSON.parse(body) as Response;
-          // The runtime answered: an invocation error is terminal, not a readiness retry.
-          lastError = new Error(`HTTP ${response.status}: ${body}`);
+          const port = (await run('docker', ['port', name, '8080/tcp'], undefined, undefined, 5_000)).stdout
+            .trim()
+            .match(/:(\d+)$/)?.[1];
+          if (port) {
+            // oxlint-disable-next-line no-await-in-loop -- Polls the runtime until it answers.
+            const response = await fetch(`http://127.0.0.1:${port}/2015-03-31/functions/function/invocations`, {
+              method: 'POST',
+              body: JSON.stringify(event),
+              signal: AbortSignal.timeout(Math.max(1, deadline - Date.now()))
+            });
+            // oxlint-disable-next-line no-await-in-loop -- Reads the response within the invocation deadline.
+            const body = await response.text();
+            if (response.ok) return JSON.parse(body) as Response;
+            // The runtime answered: an invocation error is terminal, not a readiness retry.
+            lastError = new Error(`HTTP ${response.status}: ${body}`);
+            break;
+          }
+        } catch (error) {
+          lastError = error;
+          refused = (error as { code?: string }).code === 'ConnectionRefused';
+        }
+        refusedSince = refused ? (refusedSince ?? Date.now()) : undefined;
+        if (refusedSince !== undefined && Date.now() - refusedSince >= 10_000 && attempt < 3) {
+          portLost = true;
           break;
         }
-      } catch (error) {
-        lastError = error;
+        // oxlint-disable-next-line no-await-in-loop -- Polls the runtime until it answers.
+        await Bun.sleep(Math.min(250, Math.max(0, deadline - Date.now())));
       }
-      // oxlint-disable-next-line no-await-in-loop -- Polls the runtime until it answers.
-      await Bun.sleep(Math.min(250, Math.max(0, deadline - Date.now())));
+      if (portLost) continue;
+      // oxlint-disable-next-line no-await-in-loop -- the logs of the failed attempt.
+      const logs = await run('docker', ['logs', name], undefined, undefined, 5_000);
+      throw new Error(`The Lambda runtime did not answer: ${String(lastError)}\n${logs.stdout}${logs.stderr}`);
+    } finally {
+      // oxlint-disable-next-line no-await-in-loop -- each attempt's container is gone before the next starts.
+      await removeLambdaContainer(name);
     }
-    const logs = await run('docker', ['logs', name], undefined, undefined, 5_000);
-    throw new Error(`The Lambda runtime did not answer: ${String(lastError)}\n${logs.stdout}${logs.stderr}`);
-  } finally {
-    await removeLambdaContainer(name);
   }
+  throw new Error(`The Lambda runtime's host port was refused in three containers: ${String(lastError)}`);
 };
 
 /**

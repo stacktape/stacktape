@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { existsSync } from 'node:fs';
-import { extractZip, postBeforeDeadline, removeContainer } from './lambda-runtime';
+import { extractZip, LostPublishedPort, postBeforeDeadline, removeContainer } from './lambda-runtime';
 
 const servers: { stop: (closeActiveConnections?: boolean) => void }[] = [];
 
@@ -59,6 +59,21 @@ describe('invoking the Lambda runtime emulator', () => {
       3000
     );
   });
+
+  test('reports a port that refuses for 10 s as lost, so the caller can start a new container', async () => {
+    const server = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: () => new Response('unused') });
+    const { port } = server;
+    server.stop(true);
+    const startedAt = Date.now();
+
+    const error = await postBeforeDeadline({
+      url: `http://127.0.0.1:${port}/`,
+      body: '{}',
+      deadline: startedAt + 30_000
+    }).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(LostPublishedPort);
+    expect(Date.now() - startedAt).toBeLessThan(15_000);
+  }, 20_000);
 
   test('returns the status and complete body of an answer', async () => {
     const server = Bun.serve({

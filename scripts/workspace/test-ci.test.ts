@@ -16,7 +16,7 @@ const lane = (id: string, tier: Lane['tier'], requires: Lane['requires'] = []): 
   release: 'every-candidate'
 });
 
-test('the actual CI runner executes only available PR lanes and stops on the first failed command', async (context) => {
+test('the actual CI runner generates sources, executes only available PR lanes and stops on the first failed command', async (context) => {
   const root = await mkdtemp(join(tmpdir(), 'stacktape-ci-runner-'));
   context.after(() => rm(root, { recursive: true, force: true }));
   await mkdir(join(root, 'scripts/workspace'), { recursive: true });
@@ -27,7 +27,7 @@ test('the actual CI runner executes only available PR lanes and stops on the fir
   await writeFile(
     shim,
     `const fs = require('node:fs');
-    const [id] = process.argv.slice(2);
+    const id = process.argv.slice(2).join(' ');
     fs.appendFileSync(${JSON.stringify(record)}, JSON.stringify({ id, cwd: process.cwd() }) + '\\n');
     if (id === process.env.STP_CI_FAIL_LANE) process.exitCode = 7;
   `
@@ -57,7 +57,7 @@ test('the actual CI runner executes only available PR lanes and stops on the fir
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(
     (await results()).map(({ id }) => id),
-    ['public', 'last']
+    ['exec turbo run generate --output-logs=errors-only', 'public', 'last']
   );
   const expectedDirectory = await realpath(root);
   const directories = await Promise.all((await results()).map(({ cwd }) => realpath(cwd)));
@@ -69,7 +69,7 @@ test('the actual CI runner executes only available PR lanes and stops on the fir
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(
     (await results()).map(({ id }) => id),
-    ['public', 'private', 'last']
+    ['exec turbo run generate --output-logs=errors-only', 'public', 'private', 'last']
   );
   await rm(record);
   result = run('private');
@@ -77,7 +77,16 @@ test('the actual CI runner executes only available PR lanes and stops on the fir
   assert.match(result.stderr, /private failed \(exit 7\)/);
   assert.deepEqual(
     (await results()).map(({ id }) => id),
-    ['public', 'private']
+    ['exec turbo run generate --output-logs=errors-only', 'public', 'private']
+  );
+  await rm(record);
+  // Lanes read generated sources, so a failed generation stops the tier before any lane runs.
+  result = run('exec turbo run generate --output-logs=errors-only');
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Generating workspace sources failed/);
+  assert.deepEqual(
+    (await results()).map(({ id }) => id),
+    ['exec turbo run generate --output-logs=errors-only']
   );
   await rm(record);
   await writeFile(registryPath, `export const lanes = ${JSON.stringify([lane('heavy', 'pr', ['docker'])])};`);
