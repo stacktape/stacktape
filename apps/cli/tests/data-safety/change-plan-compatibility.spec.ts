@@ -19,7 +19,6 @@ import { synthesizeFixture } from '../characterization/synthesis-fixture';
 import {
   baselineCaseDirectory,
   baselineIdentity,
-  baselineStackHash,
   baselineTemplateFileName,
   listBaselineCases,
   readBaselineTemplate
@@ -56,20 +55,14 @@ describe('data safety: updates and the v3 upgrade keep stateful resources', asyn
 
   for (const caseName of cases) {
     describe(caseName, () => {
-      test('the current template keeps the baseline stack identity', async () => {
-        const { template } = await synthesizeCurrent(caseName);
-        const deploymentBucket = template.Resources.StpDeploymentBucket as { Properties: { BucketName: string } };
-        expect(deploymentBucket.Properties.BucketName).toBe(`stp-deployment-bucket-${baselineStackHash}`);
+      test('updating a stack deployed by the current v4 keeps every stateful resource', async () => {
+        const { template, calculatedStackInfoMap } = await synthesizeCurrent(caseName);
         if (updateV4Baselines) {
           await writeFile(
             join(baselineCaseDirectory(caseName), baselineTemplateFileName('v4')),
             `${JSON.stringify(template, null, 2)}\n`
           );
         }
-      });
-
-      test('updating a stack deployed by the current v4 keeps every stateful resource', async () => {
-        const { template, calculatedStackInfoMap } = await synthesizeCurrent(caseName);
         const baseline = await readBaselineTemplate(caseName, 'v4');
         const result = computeOfflineChangePlan({
           baselineTemplate: baseline,

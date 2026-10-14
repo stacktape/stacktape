@@ -394,6 +394,60 @@ test('container secrets synthesize scoped runtime selectors and rotation changes
   }
 }, 30_000);
 
+test('a secret referenced by ARN and a parameter named without a slash get matching selectors and grants', async () => {
+  const config = clientContext();
+  const sdk = manager(config);
+  const secret = await sdk.secrets.create({ name: 'arn-token', value: 'synthetic-private-arn' });
+  await sdk.parameterStore.put({ name: 'service-token', value: 'synthetic-ssm-service', encrypted: true });
+  await writeFile(
+    join(directory, 'stacktape.yml'),
+    `resources:
+  app:
+    type: multi-container-workload
+    properties:
+      resources: { cpu: 0.25, memory: 512 }
+      containers:
+        - name: api
+          packaging:
+            type: prebuilt-image
+            properties:
+              image: example.invalid/image:tag
+          secrets:
+            - name: TOKEN
+              valueFrom: $Secret('${secret.ARN}')
+            - name: SERVICE
+              valueFrom: $SsmParam('service-token')
+`
+  );
+  const template = await synthesizeFixture({
+    configPath: join(directory, 'stacktape.yml'),
+    workingDir: directory,
+    identity: { accountId: config.credentials.accessKeyId },
+    localAws: config
+  });
+  const parameterArn = {
+    'Fn::Sub': 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/service-token'
+  };
+  expect(
+    (template.Resources.AppTaskDefinition as { Properties: { ContainerDefinitions: { Secrets: unknown }[] } })
+      .Properties.ContainerDefinitions[0].Secrets
+  ).toEqual([
+    { Name: 'TOKEN', ValueFrom: `${secret.ARN}:::${secret.VersionId}` },
+    { Name: 'SERVICE', ValueFrom: parameterArn }
+  ]);
+  const execution = template.Resources.StpEcsExecutionRole as {
+    Properties: { Policies: { PolicyDocument: { Statement: { Action: string[]; Resource: unknown }[] } }[] };
+  };
+  expect(
+    execution.Properties.Policies.flatMap(({ PolicyDocument }) => PolicyDocument.Statement).filter(({ Action }) =>
+      Action.some((action) => /^(ssm|secretsmanager):/.test(action))
+    )
+  ).toEqual([
+    { Effect: 'Allow', Action: ['secretsmanager:GetSecretValue'], Resource: [secret.ARN] },
+    { Effect: 'Allow', Action: ['ssm:GetParameters'], Resource: [parameterArn] }
+  ]);
+}, 30_000);
+
 // MiniStack stores IAM metadata but does not validate deleted AWS principals. Inject only that provider failure.
 test('a rejected deleted principal is removed while the requested principal is committed once', async () => {
   const config = clientContext();

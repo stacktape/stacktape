@@ -34,8 +34,15 @@ const resolveAgainstMsk = async (response: Record<string, string>, operation: 'C
 };
 
 describe('Kafka bootstrap-brokers custom resource', () => {
-  test('returns the real IAM broker response field', async () => {
-    const result = await resolveAgainstMsk({ bootstrapBrokerStringSaslIam: 'broker-1:9098,broker-2:9098' }, 'Create');
+  test('returns the IAM brokers of a cluster that also enables TLS and plaintext listeners', async () => {
+    const result = await resolveAgainstMsk(
+      {
+        bootstrapBrokerString: 'broker-1:9092,broker-2:9092',
+        bootstrapBrokerStringTls: 'broker-1:9094,broker-2:9094',
+        bootstrapBrokerStringSaslIam: 'broker-1:9098,broker-2:9098'
+      },
+      'Create'
+    );
 
     expect(result).toEqual({
       data: { BootstrapServers: 'broker-1:9098,broker-2:9098' },

@@ -221,3 +221,109 @@ test('DSQL defaults and advanced settings reach the cluster and its connection m
     }
   ]);
 });
+
+test('a scoped database admits only its connected workloads on the engine port', async () => {
+  const template = await synthesize(`resources:
+  orders:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: synthetic-password
+      engine:
+        type: mysql
+        properties:
+          version: '8.4.3'
+          primaryInstance:
+            instanceSize: db.t4g.micro
+      accessibility:
+        accessibilityMode: scoping-workloads-in-vpc
+  api:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: handler.ts
+      joinDefaultVpc: true
+      connectTo: [orders]
+  unrelated:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: handler.ts
+      joinDefaultVpc: true
+`);
+  const database = Object.values(template.Resources).find(({ Type }) => Type === 'AWS::RDS::DBInstance') as {
+    Properties: { VPCSecurityGroups: { Ref: string }[] };
+  };
+  expect(database.Properties.VPCSecurityGroups).toHaveLength(1);
+  expect(template.Resources[database.Properties.VPCSecurityGroups[0].Ref]).toMatchObject({
+    Properties: {
+      SecurityGroupIngress: [
+        { SourceSecurityGroupId: { Ref: 'ApiSecurityGroup' }, FromPort: 3306, ToPort: 3306, IpProtocol: 'tcp' }
+      ]
+    }
+  });
+  expect(
+    (template.Resources.ApiFunction as { Properties: { Environment: { Variables: Record<string, unknown> } } })
+      .Properties.Environment.Variables.STP_ORDERS_CONNECTION_STRING
+  ).toBeDefined();
+});
+
+test('DSQL in a region without Aurora DSQL fails before synthesis with the supported regions', async () => {
+  const config = `resources:
+  primary:
+    type: dsql-database
+`;
+  await writeFile(join(directory, 'stacktape.yml'), config);
+  const result = synthesizeFixture({
+    configPath: join(directory, 'stacktape.yml'),
+    workingDir: directory,
+    identity: { projectName: 'data', stage: 'test', region: 'eu-south-1' }
+  });
+  await expect(result).rejects.toMatchObject({
+    code: 'CONFIG_DSQL_REGION_UNSUPPORTED',
+    message: 'Amazon Aurora DSQL is not available in region `eu-south-1`.',
+    hints: [expect.stringContaining('eu-west-1')]
+  });
+});
+
+test('container secret sources that would inject the wrong value are rejected before any AWS read', async () => {
+  const workload = (secret: string, environment = '') => `resources:
+  app:
+    type: multi-container-workload
+    properties:
+      resources: { cpu: 0.25, memory: 512 }
+      containers:
+        - name: api
+          packaging:
+            type: prebuilt-image
+            properties:
+              image: example.invalid/image:tag
+${environment}          secrets:
+            - name: TOKEN
+              valueFrom: ${secret}
+`;
+  for (const source of [
+    "$Secret('app-secret').token",
+    "prefix-$SsmParam('/app/token')",
+    "$ResourceParam('db', 'host')"
+  ]) {
+    await expect(synthesize(workload(`"${source}"`))).rejects.toMatchObject({
+      code: 'CONFIG_CONTAINER_SECRET_SOURCE_INVALID'
+    });
+  }
+  await expect(
+    synthesize(
+      workload(
+        "$Secret('app-secret.token')",
+        `          environment:
+            - name: TOKEN
+              value: plain
+`
+      )
+    )
+  ).rejects.toMatchObject({ code: 'CONFIG_CONTAINER_SECRET_ENVIRONMENT_CONFLICT' });
+});
