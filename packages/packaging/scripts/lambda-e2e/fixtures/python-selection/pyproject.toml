@@ -6,6 +6,7 @@ dependencies = ["idna==3.10"]
 
 [project.optional-dependencies]
 native = ["markupsafe==3.0.3"]
+config = ["iniconfig==2.1.0"]
 
 [dependency-groups]
 prod = ["sniffio==1.3.1"]

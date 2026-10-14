@@ -761,6 +761,7 @@ export const lanes: readonly Lane[] = [
     tier: 'change',
     tests: [
       'packages/packaging/scripts/lambda-e2e/python.test.ts',
+      'packages/packaging/scripts/lambda-e2e/python-selection.test.ts',
       'packages/packaging/scripts/lambda-e2e/python-pipfile.test.ts',
       'packages/packaging/scripts/lambda-e2e/java.test.ts',
       'packages/packaging/scripts/lambda-e2e/ruby.test.ts'
@@ -2497,9 +2498,8 @@ export const lanes: readonly Lane[] = [
       'packages/packaging/src/bundlers/digest.test.ts',
       'packages/packaging/src/bundlers/es/decorator-metadata.test.ts',
       'packages/packaging/src/bundlers/es/docker-dependency-plan.test.ts',
-      'packages/packaging/src/bundlers/es/file-selection.test.ts',
+      'packages/packaging/src/bundlers/es/lambda-package.test.ts',
       'packages/packaging/src/bundlers/es/minify.test.ts',
-      'packages/packaging/src/bundlers/es/module-resolution.test.ts',
       'packages/packaging/src/bundlers/es/prisma.test.ts',
       'packages/packaging/src/bundlers/es/raw-code.test.ts',
       'packages/packaging/src/bundlers/es/require-condition.test.ts',
@@ -4051,9 +4051,8 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/bundlers/digest.test.ts',
       'packages/packaging/src/bundlers/es/decorator-metadata.test.ts',
       'packages/packaging/src/bundlers/es/docker-dependency-plan.test.ts',
-      'packages/packaging/src/bundlers/es/file-selection.test.ts',
+      'packages/packaging/src/bundlers/es/lambda-package.test.ts',
       'packages/packaging/src/bundlers/es/minify.test.ts',
-      'packages/packaging/src/bundlers/es/module-resolution.test.ts',
       'packages/packaging/src/bundlers/es/prisma.test.ts',
       'packages/packaging/src/bundlers/es/raw-code.test.ts',
       'packages/packaging/src/bundlers/es/require-condition.test.ts',
@@ -4105,7 +4104,8 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/split-bundler/error-format.test.ts',
       'packages/packaging/src/split-bundler/function-digest.test.ts',
       'packages/packaging/src/split-bundler/layer-assignment.test.ts',
-      'packages/packaging/src/split-bundler/layer-builder.test.ts'
+      'packages/packaging/src/split-bundler/layer-builder.test.ts',
+      'packages/packaging/src/split-bundler/layered-runtime.test.ts'
     ],
     lanes: [
       'node-lambda-offline',
@@ -4135,7 +4135,6 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/docker/dockerfiles.ts',
       'packages/packaging/scripts/lambda-e2e/fixtures/python/**',
       'packages/packaging/scripts/lambda-e2e/fixtures/python-selection/**',
-      'packages/packaging/scripts/lambda-e2e/fixtures/python-empty/**',
       'packages/packaging/scripts/lambda-e2e/fixtures/python-pipfile/**',
       'packages/packaging/src/bundlers/py/**',
       'packages/packaging/src/buildpacks/py-lambda-buildpack.ts'
@@ -4146,7 +4145,13 @@ export const slices: readonly Slice[] = [
       'packages/packaging/scripts/lambda-e2e/python-pipfile.test.ts',
       'packages/packaging/src/bundlers/py/utils.test.ts'
     ],
-    lanes: ['packaging-test', 'language-lambdas', 'project-qualification', 'project-qualification-2'],
+    lanes: [
+      'packaging-test',
+      'language-lambdas',
+      'packaging-images-2',
+      'project-qualification',
+      'project-qualification-2'
+    ],
     contributors: ['S27']
   },
   {

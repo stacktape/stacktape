@@ -109,7 +109,8 @@ describe('native dependency packaging', () => {
       ...input,
       installationRootPath: secondWorkspace.installationRootPath,
       layerBasePath: secondWorkspace.layerBasePath,
-      runDocker: createFakeDocker({ contents: () => 'second-native-binary' }).runDocker
+      // The same length as the first: only the bytes differ.
+      runDocker: createFakeDocker({ contents: () => 'other-native-binary' }).runDocker
     });
 
     expect(first?.contentHash).toMatch(/^[a-f0-9]{12}$/);

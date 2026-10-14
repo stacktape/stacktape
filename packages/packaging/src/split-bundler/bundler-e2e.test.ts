@@ -1,7 +1,7 @@
 /* eslint-disable no-await-in-loop -- These fixtures intentionally build and inspect each sequential generation. */
 import { afterEach, describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
-import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -199,36 +199,119 @@ describe('split bundler end-to-end regressions', () => {
     expect(execution.status, execution.stderr).toBe(0);
     expect(execution.stdout.trim()).toBe('absent');
 
-    // The project's own missing import is still an error.
+    // The project's own missing import is still an error, whether it is written as an import or a require().
     await writeFile(
       join(root, 'b.ts'),
       "import missing from 'not-installed-anywhere'; export const handler = () => missing;"
     );
-    await expect(
-      buildEsCode({
-        sourcePath: join(root, 'b.ts'),
-        distPath: join(root, 'single-b/index.js'),
-        cwd: root,
-        externals: [],
-        outputModuleFormat: 'esm',
-        sourceMaps: 'disabled',
-        sourceMapBannerType: 'disabled',
-        createPackagingError
-      })
-    ).rejects.toThrow('not-installed-anywhere');
-    await expect(
-      buildSplitBundle({
-        entrypoints: [
-          { name: 'b', jobName: 'b', entryfilePath: join(root, 'b.ts'), distFolderPath: join(root, 'dist', 'b') }
-        ],
-        sharedOutdir: join(root, 'shared-b'),
-        cwd: root,
-        minify: false,
-        sourceMaps: 'disabled',
-        sourceMapBannerType: 'disabled',
-        installDependencies: async () => {},
-        createPackagingError
-      })
-    ).rejects.toThrow('not-installed-anywhere');
+    await writeFile(
+      join(root, 'c.ts'),
+      "const missing = require('not-installed-anywhere'); export const handler = () => missing;"
+    );
+    for (const name of ['b', 'c']) {
+      await expect(
+        buildEsCode({
+          sourcePath: join(root, `${name}.ts`),
+          distPath: join(root, `single-${name}/index.js`),
+          cwd: root,
+          externals: [],
+          outputModuleFormat: 'esm',
+          sourceMaps: 'disabled',
+          sourceMapBannerType: 'disabled',
+          createPackagingError
+        })
+      ).rejects.toThrow('not-installed-anywhere');
+      await expect(
+        buildSplitBundle({
+          entrypoints: [
+            { name, jobName: name, entryfilePath: join(root, `${name}.ts`), distFolderPath: join(root, 'dist', name) }
+          ],
+          sharedOutdir: join(root, `shared-${name}`),
+          cwd: root,
+          minify: false,
+          sourceMaps: 'disabled',
+          sourceMapBannerType: 'disabled',
+          installDependencies: async () => {},
+          createPackagingError
+        })
+      ).rejects.toThrow('not-installed-anywhere');
+    }
+  });
+
+  test("a native package's pure dependency still bundles for a function that never imports the native package", async () => {
+    // The per-Lambda bundler externalizes a native package's dependency tree with it, because that artifact has one
+    // installed tree. A split build serves several functions from one pass: externalizing `pure-dep` for everyone
+    // would leave `orders`, which has no native layer, resolving it at run time from nothing.
+    const root = await createRoot();
+    await writeFile(join(root, 'package.json'), JSON.stringify({ name: 'fixture', private: true }));
+    for (const [name, packageJson, code] of [
+      [
+        'native-pkg',
+        { gypfile: true, dependencies: { 'pure-dep': '1.0.0' } },
+        "module.exports = { native: true, pure: require('pure-dep') };"
+      ],
+      ['pure-dep', {}, "module.exports = 'pure-build-copy';"]
+    ] as const) {
+      const packageRoot = join(root, 'node_modules', name);
+      await mkdir(packageRoot, { recursive: true });
+      await writeFile(
+        join(packageRoot, 'package.json'),
+        JSON.stringify({ name, version: '1.0.0', main: 'index.js', ...packageJson })
+      );
+      await writeFile(join(packageRoot, 'index.js'), code);
+    }
+    // The pure dependency sits several modules deep, so the native package is classified first, as in a real
+    // project where the framework is imported at the entry and its helpers deep in the application.
+    await mkdir(join(root, 'src', 'lib', 'deep'), { recursive: true });
+    await writeFile(
+      join(root, 'src', 'lib', 'deep', 'pure.ts'),
+      "import pure from 'pure-dep'; export const value = pure;"
+    );
+    await writeFile(join(root, 'src', 'lib', 'deep', 'index.ts'), "export { value } from './pure';");
+    await writeFile(join(root, 'src', 'lib', 'orders.ts'), "export { value } from './deep';");
+    await writeFile(
+      join(root, 'src', 'images.ts'),
+      "import native from 'native-pkg'; import { value } from './lib/orders'; export const handler = () => [native.native, value];"
+    );
+    await writeFile(
+      join(root, 'src', 'orders.ts'),
+      "import { value } from './lib/orders'; export const handler = () => value;"
+    );
+
+    const result = await buildSplitBundle({
+      entrypoints: ['images', 'orders'].map((name) => ({
+        name,
+        jobName: name,
+        entryfilePath: join(root, 'src', `${name}.ts`),
+        distFolderPath: join(root, 'dist', name)
+      })),
+      sharedOutdir: join(root, 'shared'),
+      cwd: root,
+      minify: false,
+      sourceMaps: 'disabled',
+      sourceMapBannerType: 'disabled',
+      installDependencies: async () => {},
+      createPackagingError
+    });
+
+    expect(result.lambdaOutputs.get('images')?.dependenciesToInstallInDocker.map(({ name }) => name)).toEqual([
+      'native-pkg'
+    ]);
+    expect(result.lambdaOutputs.get('orders')?.dependenciesToInstallInDocker).toEqual([]);
+    // `orders` runs from a copy with no node_modules at all: its pure dependency has to be in its own bytes.
+    const runtime = await mkdtemp(join(tmpdir(), 'stacktape-split-pure-'));
+    temporaryDirectories.push(runtime);
+    await cp(join(root, 'dist', 'orders'), runtime, { recursive: true });
+    const execution = spawnSync(
+      process.env.npm_node_execpath || 'node',
+      [
+        '--input-type=module',
+        '--eval',
+        `import { handler } from ${JSON.stringify(pathToFileURL(join(runtime, 'index.js')).href)}; console.log(handler());`
+      ],
+      { cwd: runtime, encoding: 'utf8', timeout: 10_000, env: { ...process.env, NODE_PATH: '' } }
+    );
+    expect(execution.status, execution.stderr).toBe(0);
+    expect(execution.stdout.trim()).toBe('pure-build-copy');
   });
 });
