@@ -538,7 +538,8 @@ export class ConfigResolver {
           throw new CliError({
             category: 'DIRECTIVE',
             code: 'DIRECTIVE_RUNTIME_DEPENDENCY_INVALID',
-            message: `Non-runtime directive \`${directive.name}\` cannot depend on runtime directive \`${param.name}\`.`
+            message: `Non-runtime directive \`${directive.name}\` cannot depend on runtime directive \`${param.name}\`.`,
+            hints: `\`$${param.name}\` resolves during deployment. Use \`$CfFormat\` instead of \`$Format\` to combine it with other values, or pass it directly.`
           });
         }
       }

@@ -1,8 +1,4 @@
-import {
-  getDirectivePropertyPath,
-  getEmbeddedDirectives as scanEmbeddedDirectives,
-  isDirectiveExpression
-} from '@stacktape/config-authoring/directive-expressions';
+import { getDirectivePropertyPath, isDirectiveExpression } from '@stacktape/config-authoring/directive-expressions';
 
 // A quote after an even run of backslashes closes the string; an odd run escapes it.
 const isEscapedCharacter = (input: string, index: number) => {
@@ -13,10 +9,6 @@ const isEscapedCharacter = (input: string, index: number) => {
 
 export const startsLikeDirective = (str: string) => {
   return /^\$(.*)\(/.test(str);
-};
-
-export const startsLikeDirectiveNotUsableInSub = (str: string) => {
-  return str.startsWith('$CfFormat');
 };
 
 export const startsLikeGetParamDirective = (str: string) => {
@@ -39,55 +31,6 @@ export const getDirectiveWithoutPath = (rawDirective: string): string => {
 
 export const getDirectiveName = (str: string) => {
   return str.match(/(?<=\$)(.*?)(?=\()/)[0];
-};
-
-export const getEmbeddedDirectiveNames = (value: string): string[] => {
-  if (getIsDirective(value)) {
-    return [];
-  }
-  const names = getEmbeddedDirectives(value).map(({ name }) => name);
-  return Array.from(new Set(names));
-};
-
-export const getEmbeddedDirectives = (value: string): Array<{ definition: string; name: string }> => {
-  if (getIsDirective(value)) {
-    return [];
-  }
-
-  return scanEmbeddedDirectives(value).map(({ definition, name }) => ({ definition, name }));
-};
-
-const escapeForSingleQuotedDirectiveParam = (value: string) => {
-  return value
-    .replace(/\\/g, '\\\\')
-    .replace(/'/g, "\\'")
-    .replace(/\r/g, '\\r')
-    .replace(/\n/g, '\\n')
-    .replace(/\t/g, '\\t');
-};
-
-export const rewriteEmbeddedDirectivesToCfFormat = (
-  value: string,
-  directiveNamesToRewrite?: string[]
-): string | null => {
-  if (getIsDirective(value)) {
-    return null;
-  }
-
-  const embeddedDirectives = getEmbeddedDirectives(value).filter(
-    ({ name }) => !directiveNamesToRewrite || directiveNamesToRewrite.includes(name)
-  );
-  if (embeddedDirectives.length === 0) {
-    return null;
-  }
-
-  let interpolatedString = value;
-  embeddedDirectives.forEach(({ definition }) => {
-    interpolatedString = interpolatedString.replace(definition, '{}');
-  });
-
-  const escapedInterpolatedString = escapeForSingleQuotedDirectiveParam(interpolatedString);
-  return `$CfFormat('${escapedInterpolatedString}', ${embeddedDirectives.map(({ definition }) => definition).join(', ')})`;
 };
 
 export type DirectiveParam = { name?: string; isDirective?: true; definition?: string; value: any };
@@ -300,5 +243,3 @@ export const getDirectiveParams = (directiveName: string, str: string): Directiv
 
   return result;
 };
-
-export const getIsValidDirectiveName = (directiveName: string) => /^[$A-Z_][\w$]*$/i.test(directiveName);

@@ -1698,7 +1698,11 @@ export const lanes: readonly Lane[] = [
     command: ['pnpm', '--filter', '@stacktape/ui-react', 'test:e2e'],
     level: 'browser',
     tier: 'release',
-    tests: ['packages/ui-react/e2e/dialog.spec.ts', 'packages/ui-react/e2e/gallery.spec.ts'],
+    tests: [
+      'packages/ui-react/e2e/controls.spec.ts',
+      'packages/ui-react/e2e/dialog.spec.ts',
+      'packages/ui-react/e2e/gallery.spec.ts'
+    ],
     requires: ['chromium', 'aws', 'network', 'reservation'],
     release: 'affected-external-contract',
     proves:
@@ -2530,6 +2534,7 @@ export const lanes: readonly Lane[] = [
       'packages/stack-info/src/metric-targets.test.ts',
       'packages/stack-info/src/normalize.test.ts',
       'packages/stack-info/src/selectors.test.ts',
+      'packages/ui-react/e2e/controls.spec.ts',
       'packages/ui-react/e2e/dialog.spec.ts',
       'packages/ui-react/e2e/gallery.spec.ts',
       'packages/ui-react/src/alert/Alert.test.tsx',
@@ -3382,6 +3387,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/utils/environment.ts'
     ],
     tests: [
+      'apps/cli/src/commands/dev/workload-environment.spec.ts',
       'apps/cli/src/domain/config-manager/utils/resource-references.spec.ts',
       'apps/cli/src/utils/directives.spec.ts',
       'apps/cli/src/utils/environment.test.ts',
@@ -3403,7 +3409,8 @@ export const slices: readonly Slice[] = [
       'synthesis-2',
       'config-authoring-test',
       'init-e2e',
-      'cli-test-config-unit'
+      'cli-test-config-unit',
+      'local-dev'
     ],
     contributors: ['S04']
   },
@@ -4545,6 +4552,7 @@ export const slices: readonly Slice[] = [
     journeys: ['J12'],
     paths: ['packages/ui-react/src/**'],
     tests: [
+      'packages/ui-react/e2e/controls.spec.ts',
       'packages/ui-react/e2e/dialog.spec.ts',
       'packages/ui-react/e2e/gallery.spec.ts',
       'packages/ui-react/src/alert/Alert.test.tsx',
@@ -5337,6 +5345,9 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/components/Observability/**',
       'apps/console/ui/src/components/Metrics/**',
       'apps/console/ui/src/components/CompoundViews/**',
+      'apps/console/ui/src/components/Logs/**',
+      'apps/console/ui/src/components/Misc/ExpandableLogLine.tsx',
+      'apps/console/ui/src/components/Misc/log-parsing-utils.ts',
       'apps/console/ui/src/aws/logs*.ts',
       'apps/console/ui/src/aws/traces*.ts',
       'apps/console/api/src/utils/observability-inventory.ts',
@@ -5355,6 +5366,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/components/Metrics/metrics.test.ts',
       'apps/console/ui/src/components/Observability/inventory.test.ts',
       'apps/console/ui/src/components/Observability/time-range.test.ts',
+      'apps/console/ui/src/components/Misc/log-parsing-utils.test.ts',
       'apps/console/ui/src/pages/MetricsPage/org-metrics.test.ts',
       'apps/console/ui/src/pages/SyntheticsPage/synthetics-presentation.test.ts',
       'apps/console/ui/src/pages/OverviewPage/overview-metrics.test.ts',
