@@ -132,6 +132,7 @@ describe('offline deploy loop against MiniStack', () => {
             if (step === 'delete' && family.beforeDelete && previous) {
               await family.beforeDelete({
                 endpoint: ministack.endpoint,
+                stackName: project.stackName,
                 resources: previous,
                 clients,
                 ...lookups(previous)
@@ -216,10 +217,42 @@ describe('offline deploy loop against MiniStack', () => {
               }
             }
             if (step === 'diff') {
-              const proposed = family.config(1);
+              // A CI deploy that would delete the table must stop for confirmation before anything is uploaded.
+              const withoutTable = family.config(2) as {
+                resources: Record<string, { properties?: { connectTo?: string[] } }>;
+              };
+              delete withoutTable.resources.table;
+              const handler = withoutTable.resources.handler.properties!;
+              handler.connectTo = handler.connectTo!.filter((name) => name !== 'table');
+              await writeProjectFiles(project, { 'stacktape.yml': withoutTable });
+              const unconfirmed = await runSourceCli({
+                project,
+                step: 'update',
+                ministack,
+                confirm: false,
+                logName: 'unconfirmed-table-removal'
+              });
+              assert.notEqual(unconfirmed.exitCode, 0, 'an unconfirmed deploy deleted the table');
+              assert.ok(!unconfirmed.timedOut, 'the unconfirmed deploy hung');
+              assert.match(unconfirmed.tail, /CONFIRMATION_REQUIRED/);
+              assert.match(unconfirmed.tail, /table/);
+              assert.equal(
+                await getStackTemplate(cloudFormation, project.stackName),
+                previousTemplate,
+                'the unconfirmed deploy changed the stack'
+              );
+              // Version 1 plus a FIFO queue: SQS can only create a FIFO queue under a new name.
+              const proposed = family.config(1) as { resources: { queue: { properties: Record<string, unknown> } } };
+              proposed.resources.queue.properties.fifoEnabled = true;
               await writeProjectFiles(project, { 'stacktape.yml': proposed });
             }
-            const result = await runSourceCli({ project, step, ministack });
+            // The final rollback counts back from v000004 (the partial rollback below) to v000001.
+            const result = await runSourceCli({
+              project,
+              step,
+              ministack,
+              ...(step === 'rollback' ? { rollbackTarget: ['--rollbackSteps', '3'] } : {})
+            });
             const checks: string[] = [];
             familyReport.steps.push({ step, ms: result.ms, checks });
             if (result.exitCode !== 0 || result.timedOut) {
@@ -264,6 +297,12 @@ describe('offline deploy loop against MiniStack', () => {
                 (result.changeSummary?.updates ?? 0) > 0,
                 'diff did not report the proposed configuration update'
               );
+              assert.ok(
+                result.resourceChanges
+                  ?.find(({ resourceName }) => resourceName === 'queue')
+                  ?.willReplace.some((label) => label.endsWith('(SQS::Queue)')),
+                `diff did not report the queue replacement CloudFormation planned: ${JSON.stringify(result.resourceChanges)}`
+              );
               assert.equal(template, previousTemplate, 'diff changed the deployed template');
               assert.deepEqual(resourceSnapshot(resources), resourceSnapshot(previous ?? []), 'diff changed resources');
               checks.push('diff leaves the deployed template and resources untouched');
@@ -304,6 +343,7 @@ describe('offline deploy loop against MiniStack', () => {
               step,
               version,
               endpoint: ministack.endpoint,
+              stackName: project.stackName,
               resources,
               clients,
               checks,
@@ -590,6 +630,43 @@ test('shared-stack upgrades preserve ownership, customer data and newer contract
   } finally {
     await cf.delete(`${stackName}-role`, {});
     await cf.delete(`${stackName}-foreign`, {});
+    await cf.delete(stackName, {});
+    sdk.destroy();
+  }
+}, 60_000);
+
+// CloudFormation fails a change set that contains no changes instead of completing it empty.
+test('a preview without changes is empty rather than an endless wait', async () => {
+  const { AwsCloudFormationStacks } = await import('../../src/aws/cloudformation-stacks');
+  const sdk = new CloudFormationClient(ministack.clientConfig());
+  // Each poll asks for a client, so a regression ends in a failed test instead of an endless wait.
+  let pollUntil = Infinity;
+  const cf = new AwsCloudFormationStacks({
+    createClient: () => {
+      if (Date.now() > pollUntil) throw new Error('Still polling the change set.');
+      return sdk;
+    },
+    getErrorHandler: () => (error) => {
+      throw error;
+    }
+  });
+  const stackName = `t06-preview-${Date.now()}`;
+  const template = { Resources: { Queue: { Type: 'AWS::SQS::Queue' as const } } };
+  try {
+    await cf.create(template, { StackName: stackName });
+    for (const deadline = Date.now() + 20_000; (await cf.getDetails(stackName))?.StackStatus !== 'CREATE_COMPLETE';) {
+      assert.ok(Date.now() < deadline, 'the preview stack was not created');
+      await Bun.sleep(100);
+    }
+    pollUntil = Date.now() + 15_000;
+    const preview = await cf.createChangeSet({
+      StackName: stackName,
+      ChangeSetName: `${stackName}-unchanged`,
+      TemplateBody: JSON.stringify(template)
+    });
+    expect(preview.changes).toEqual([]);
+  } finally {
+    pollUntil = Infinity;
     await cf.delete(stackName, {});
     sdk.destroy();
   }
