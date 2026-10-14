@@ -21,11 +21,11 @@ importers:
   .:
     devDependencies:
       '@aws-cdk/aws-service-spec':
-        specifier: 0.1.199
-        version: 0.1.199
+        specifier: 0.1.220
+        version: 0.1.220
       '@aws-cdk/service-spec-types':
-        specifier: 0.0.265
-        version: 0.0.265
+        specifier: 0.0.286
+        version: 0.0.286
       '@types/bun':
         specifier: 'catalog:'
         version: 1.4.0
@@ -38,11 +38,11 @@ importers:
 
 packages:
 
-  '@aws-cdk/aws-service-spec@0.1.199':
-    resolution: {integrity: sha512-g6/7x15nVNPrexCe6rOV0h96L+7Wf2kQizZvh4JulmcwTcwiNEjJXi1UVNZFmChmNzJYsB3sMykJzB68+7i31g==}
+  '@aws-cdk/aws-service-spec@0.1.220':
+    resolution: {integrity: sha512-N5LNn0cOXfzImkf4RH8JV6kAxLmgEZ/owlxA6UvHS821VywbTHLTM714kP162KF6Nsp1KHtGHlpxw0M13qIX5Q==}
 
-  '@aws-cdk/service-spec-types@0.0.265':
-    resolution: {integrity: sha512-dFK0jfxz4QL6KTJxRypXT9C0wxVdbcGqZJ4TSTVyh4CtmM3ssYjJc0y9wrtsVPJgyTapWRoCYglhQrTVLQMCyA==}
+  '@aws-cdk/service-spec-types@0.0.286':
+    resolution: {integrity: sha512-u27P+VcC6v42FPpV6e2a/jE6/SaHRwruznVCbWky2sn36i3ATOI0EOnFwniK6UGgsOtTmW923Bif63PTC99/XA==}
 
   '@cdklabs/tskb@0.0.4':
     resolution: {integrity: sha512-NFx1X0l7p5DyHtLLEyNeh1hPN4UN9hTkZkzFs/Mp+kFk7dpdINGmGVpCfRDjJ2DrcNSNENUmT+w8g73TvmBbTw==}
@@ -72,12 +72,12 @@ packages:
 
 snapshots:
 
-  '@aws-cdk/aws-service-spec@0.1.199':
+  '@aws-cdk/aws-service-spec@0.1.220':
     dependencies:
-      '@aws-cdk/service-spec-types': 0.0.265
+      '@aws-cdk/service-spec-types': 0.0.286
       '@cdklabs/tskb': 0.0.4
 
-  '@aws-cdk/service-spec-types@0.0.265':
+  '@aws-cdk/service-spec-types@0.0.286':
     dependencies:
       '@cdklabs/tskb': 0.0.4
 

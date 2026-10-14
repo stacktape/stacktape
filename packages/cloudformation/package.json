@@ -17,8 +17,8 @@
     "typecheck": "tsc -p tsconfig.json && tsc -p tests/tsconfig.json"
   },
   "devDependencies": {
-    "@aws-cdk/aws-service-spec": "0.1.199",
-    "@aws-cdk/service-spec-types": "0.0.265",
+    "@aws-cdk/aws-service-spec": "0.1.220",
+    "@aws-cdk/service-spec-types": "0.0.286",
     "@types/bun": "catalog:",
     "@types/node": "catalog:",
     "typescript": "catalog:"
