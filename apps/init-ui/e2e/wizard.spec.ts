@@ -25,6 +25,9 @@ test('a first deploy goes from analysis to a live URL, and a reload keeps the se
   // The fact under each choice card must leave the description its width (it once squeezed it to one word a line).
   const card = page.getByRole('radio', { name: /Stay online/ });
   expect((await card.boundingBox())!.height).toBeLessThan(200);
+  // Each other option says what it changes the monthly price by, priced the same way as the total.
+  await expect(card).toContainText(/\+\$\d+\/mo/);
+  await expect(page.getByRole('radio', { name: /Restart it/ })).toContainText('Current choice');
 
   // A changed choice is recomposed by the CLI and lands in the file that will be saved.
   await page.getByRole('radio', { name: /Only this private network/ }).click();
@@ -35,13 +38,30 @@ test('a first deploy goes from analysis to a live URL, and a reload keeps the se
   await page.reload();
   await expect(page.getByRole('button', { name: /^Save .* & continue$/ })).toBeVisible();
 
-  await saveAndCheckTarget(page);
+  await page.getByRole('button', { name: /^Save .* & continue$/ }).click();
+  await expect(page.getByRole('heading', { name: 'Ready to deploy' })).toBeVisible();
+  // The price follows the region picked for the deploy (the stand-in prices us-east-1 10% lower).
+  await expect(page.getByText(/about \$\d+\/mo \+ pay-per-use costs in eu-west-1/)).toBeVisible();
+  await page.getByRole('combobox', { name: 'Region' }).click();
+  await page.getByRole('option', { name: /us-east-1/ }).click();
+  await expect(page.getByText(/about \$\d+\/mo \+ pay-per-use costs in us-east-1/)).toBeVisible();
+  await page.getByRole('button', { name: 'Check exact AWS target' }).click();
+  await page.getByRole('button', { name: 'Create new stack' }).click();
   await expect(page.getByRole('heading', { name: 'Deploying' })).toBeVisible();
   await expect(page.getByText(/of \d+ AWS resources/)).toBeVisible();
+  // Finished steps are one line each, and the rail follows the deploy rather than the top line.
+  await expect(page.getByText(/^Saved stacktape\.yml with 3 resources/)).toBeVisible();
+  await expect(page.getByRole('radio', { name: /Only this private network/ })).toHaveCount(0);
+  await expect(page.locator('.wizard-rail [aria-current="step"]')).toContainText('Deploy');
+  // Opened again during the deploy, the review reads but does not change the file the deploy uses.
+  await page.getByRole('button', { name: 'Show the review' }).click();
+  await expect(page.getByText('these choices are locked until it finishes')).toBeVisible();
+  await expect(page.getByRole('radio', { name: /Internet reachable/ })).toHaveAttribute('aria-disabled', 'true');
+  await expect(page.getByRole('button', { name: /^Save/ })).toHaveCount(0);
   wizard.release('deploy');
   await expect(page.getByRole('heading', { name: 'It’s live' })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole('link', { name: /stacktape-app\.com/ })).toBeVisible();
-  await expect(page.locator('.wizard-command code').first()).toContainText('--region eu-west-1');
+  await expect(page.locator('.wizard-command code').first()).toContainText('--region us-east-1');
 });
 
 test('a failed deploy, a link opened twice and a stopped CLI each say what to do next', async ({
@@ -61,11 +81,28 @@ test('a failed deploy, a link opened twice and a stopped CLI each say what to do
   await second.close();
 
   await analyzeAndReview(page);
+  // The SQLite answer is real infrastructure: a disk for the file, and the app pointed at it.
+  await expect(page.getByText('Keeping your SQLite file on a disk that survives deploys')).toBeVisible();
+  await page.getByRole('tab', { name: /stacktape\.yml|File/ }).click();
+  await expect(page.locator('.wizard-source')).toContainText('type: efs-filesystem');
+  await expect(page.locator('.wizard-source')).toContainText('file:/data/data.db');
+  // What the app reads and nobody sets is listed before deploying, not discovered by a crash.
+  await expect(page.getByText('8 values only you have')).toBeVisible();
+  await expect(page.locator('.wizard-setting-list')).toContainText('CACHE_DATABASE_PATH');
+  await expect(page.locator('.wizard-setting-list')).not.toContainText('VITEST');
+  await page.getByRole('button', { name: 'Change' }).click();
+  await page.getByRole('button', { name: /only a cache/ }).click();
+  await expect(page.locator('.wizard-source')).not.toContainText('efs-filesystem');
+  await expect(page.locator('.wizard-source')).toContainText('file:/tmp/data.db');
   await saveAndCheckTarget(page);
   await expect(page.getByRole('heading', { name: 'The deploy stopped' })).toBeVisible({ timeout: 15_000 });
   // The container's last lines keep their line breaks.
   const reported = page.locator('li', { hasText: 'Essential container in task exited' });
   await expect(reported).toHaveCSS('white-space', 'pre-wrap');
+  // The cause in plain words first; the CLI's own message one click away.
+  await expect(page.getByText('The app tried to reach PostgreSQL at 127.0.0.1:5432')).toBeVisible();
+  await page.getByRole('button', { name: 'Show the original error' }).click();
+  await expect(page.locator('pre', { hasText: 'Stack action create failed.' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Deploy again' })).toBeEnabled();
 
   await wizard.stop();

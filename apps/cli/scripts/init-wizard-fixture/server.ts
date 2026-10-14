@@ -75,44 +75,66 @@ const main = async () => {
       const chunks: Buffer[] = [];
       for await (const chunk of request) chunks.push(chunk as Buffer);
       const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
-      if (request.method !== 'POST' || path !== '/stackPriceEstimation' || scenario.price === false) {
+      // The client batches concurrent calls into one request: `/a,a,a` with inputs keyed "0", "1", ...
+      const procedures = path.slice(1).split(',');
+      if (
+        request.method !== 'POST' ||
+        procedures.some((procedure) => procedure !== 'stackPriceEstimation') ||
+        scenario.price === false
+      ) {
         response.writeHead(404, { 'content-type': 'application/json' });
         response.end('[]');
         return;
       }
-      const { stackConfig } = (
-        JSON.parse(Buffer.concat(chunks).toString('utf8')) as Record<string, { stackConfig: string }>
-      )['0']!;
+      const inputs = JSON.parse(Buffer.concat(chunks).toString('utf8')) as Record<
+        string,
+        { stackConfig: string; region: string }
+      >;
       const { parse } = await import('yaml');
-      const resources = (parse(stackConfig) as { resources?: Record<string, { type: string }> }).resources ?? {};
-      const resourcesBreakdown: NonNullable<StackPriceEstimationResponse['costs']>['resourcesBreakdown'] = {};
-      let flatMonthlyCost = 0;
-      for (const [name, resource] of Object.entries(resources)) {
-        const flat = FLAT_MONTHLY_BY_TYPE[resource.type];
-        flatMonthlyCost += flat ?? 0;
-        resourcesBreakdown[name] = {
-          priceInfo: {
-            totalMonthlyFlat: flat ?? 0,
+      const estimateFor = ({ stackConfig, region }: { stackConfig: string; region: string }) => {
+        const resources =
+          (parse(stackConfig) as { resources?: Record<string, { type: string; properties?: Record<string, any> }> })
+            .resources ?? {};
+        // Enough of the real estimator's shape for the wizard's comparisons: size, copies, a standby and the region.
+        const regionFactor = region === 'us-east-1' ? 0.9 : 1;
+        const resourcesBreakdown: NonNullable<StackPriceEstimationResponse['costs']>['resourcesBreakdown'] = {};
+        let flatMonthlyCost = 0;
+        for (const [name, resource] of Object.entries(resources)) {
+          const base = FLAT_MONTHLY_BY_TYPE[resource.type];
+          const described = JSON.stringify(resource.properties ?? {});
+          const instanceSize = /"instanceSize":"[a-z0-9]+\.[a-z0-9]+\.([a-z0-9]+)"/.exec(described)?.[1];
+          const size =
+            ({ micro: 1, small: 2, medium: 4, large: 8 } as Record<string, number>)[instanceSize ?? ''] ??
+            (resource.properties?.resources?.cpu ?? 0.5) / 0.5;
+          const copies =
+            (resource.properties?.scaling?.minInstances ?? 1) * (described.includes('"multiAz":true') ? 2 : 1) * size;
+          const flat = base === undefined ? undefined : Math.round(base * copies * regionFactor * 100) / 100;
+          flatMonthlyCost += flat ?? 0;
+          resourcesBreakdown[name] = {
+            priceInfo: {
+              totalMonthlyFlat: flat ?? 0,
+              incomplete: false,
+              costBreakdown: [
+                flat === undefined
+                  ? { name: 'Requests', description: 'Billed per request', priceModel: 'pay-per-use' }
+                  : { name: 'Compute', description: 'Always on', priceModel: 'flat', pricePerMonth: flat }
+              ]
+            }
+          };
+        }
+        const estimate: StackPriceEstimationResponse = {
+          success: true,
+          costs: {
+            flatMonthlyCost: Math.round(flatMonthlyCost * 100) / 100,
             incomplete: false,
-            costBreakdown: [
-              flat === undefined
-                ? { name: 'Requests', description: 'Billed per request', priceModel: 'pay-per-use' }
-                : { name: 'Compute', description: 'Always on', priceModel: 'flat', pricePerMonth: flat }
-            ]
+            unpricedResources: [],
+            resourcesBreakdown
           }
         };
-      }
-      const estimate: StackPriceEstimationResponse = {
-        success: true,
-        costs: {
-          flatMonthlyCost: Math.round(flatMonthlyCost * 100) / 100,
-          incomplete: false,
-          unpricedResources: [],
-          resourcesBreakdown
-        }
+        return { result: { data: estimate } };
       };
       response.writeHead(200, { 'content-type': 'application/json' });
-      response.end(JSON.stringify([{ result: { data: estimate } }]));
+      response.end(JSON.stringify(procedures.map((_, index) => estimateFor(inputs[String(index)]!))));
     });
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     const address = server.address();
@@ -222,8 +244,10 @@ const main = async () => {
           type: 'result',
           ts: at(),
           ok: false,
-          code: 'DEPLOY_FAILED',
-          message: `Service ${failedResource} failed to start. The stack was rolled back.`
+          // The result message the CLI emits for a container that cannot start: the CloudFormation summary with the
+          // container's exit and its last log lines.
+          code: 'STACK_ERROR',
+          message: `Stack action create failed.\n\n1. ${failedResource}\n   Service ${failedResource} failed to start\n\n   Exited with code 1 (Essential container in task exited)\n\n   Last logs before exit:\n     12:00:01 Error: connect ECONNREFUSED 127.0.0.1:5432\n     12:00:01     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n`
         }
       ]
     };

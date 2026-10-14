@@ -32,6 +32,9 @@ importers:
       '@stacktape/config-inference':
         specifier: workspace:*
         version: link:../../packages/config-inference
+      '@stacktape/console-api':
+        specifier: workspace:*
+        version: link:../../packages/console-api
       '@stacktape/design-tokens':
         specifier: workspace:*
         version: link:../../packages/design-tokens

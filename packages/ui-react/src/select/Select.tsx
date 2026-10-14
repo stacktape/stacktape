@@ -46,6 +46,8 @@ export type SelectProps<Value> = {
   placeholder?: string;
   noOptionsMessage?: ReactNode;
   message?: ReactNode;
+  /** Help text reads neutral; validation errors pass `error`, the same tones as `TextField`. */
+  messageTone?: 'error' | 'success' | 'neutral';
   reserveMessageSpace?: boolean;
   className?: string;
   style?: CSSProperties;
@@ -127,7 +129,7 @@ export function Select<Value>({
   breakOptionWord = false,
   className,
   closeMenuOnSelect,
-  controlHeight = 40,
+  controlHeight = 35,
   cursor = 'pointer',
   defaultValue,
   disabled = false,
@@ -147,6 +149,7 @@ export function Select<Value>({
   menuIsOpen,
   menuPlacement = 'auto',
   message,
+  messageTone = 'error',
   minMenuHeight,
   multiple = false,
   name,
@@ -231,7 +234,9 @@ export function Select<Value>({
       </SelectPresentationContext.Provider>
       {reserveMessageSpace || message ? (
         <div className="stp-ui-select__message-slot">
-          {message ? <span className="stp-ui-select__message">{message}</span> : null}
+          {message ? (
+            <span className={`stp-ui-select__message stp-ui-select__message--${messageTone}`}>{message}</span>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -257,8 +262,11 @@ function createStyles<Value>({
       minHeight: controlHeight,
       height: multiple ? undefined : controlHeight,
       padding: '0 6px',
-      marginTop: 5,
-      border: 'var(--stp-field-border, 1px solid transparent)',
+      // One border recipe with `TextField`: `--stp-field-border` is a colour there, so it is one here.
+      // Longhands, because react-select's base already holds `borderColor` and spreading it first keeps
+      // that key's position, so a `border` shorthand written here would land after it and reset it.
+      borderStyle: 'solid',
+      borderWidth: 1,
       borderColor: state.isFocused
         ? 'var(--stp-field-border-focus, var(--stp-field-focus-border))'
         : 'var(--stp-field-border, var(--stp-border-subtle))',
@@ -270,7 +278,8 @@ function createStyles<Value>({
       cursor: state.isDisabled ? 'not-allowed' : cursor,
       transition:
         'border-color var(--stp-motion-duration-fast) var(--stp-motion-easing), box-shadow var(--stp-motion-duration-fast) var(--stp-motion-easing)',
-      ':hover': { borderColor: 'var(--stp-field-border-hover, var(--stp-border-strong))' }
+      // Hover never replaces the focus border: a focused control keeps its ring under the pointer.
+      ':hover': state.isFocused ? {} : { borderColor: 'var(--stp-field-border-hover, var(--stp-border-strong))' }
     }),
     dropdownIndicator: (base) => ({
       ...base,
@@ -319,6 +328,8 @@ function createStyles<Value>({
           ? 'rgba(255, 255, 255, 0.05)'
           : 'transparent',
       color: 'var(--stp-text-primary)',
+      // The chosen option differs from the hovered one by weight as well as by fill.
+      fontWeight: state.isSelected ? 700 : undefined,
       cursor: state.isDisabled ? 'not-allowed' : 'pointer'
     }),
     placeholder: (base) => ({ ...base, color: 'var(--stp-text-faint)' }),

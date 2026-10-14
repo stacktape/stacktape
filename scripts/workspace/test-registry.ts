@@ -439,6 +439,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/aws/fetch-handler.spec.ts',
       'apps/cli/src/commands/logs/infrequent-access.spec.ts',
       'apps/cli/src/app/tui-manager/dev/__tests__/log-normalize.test.ts',
+      'apps/cli/src/app/application-manager/index.spec.ts',
       'apps/cli/src/app/tui-manager/format/text.spec.ts',
       'apps/cli/src/app/tui-manager/launcher/__tests__/data.test.ts',
       'apps/cli/src/app/tui-manager/progress/__tests__/sink.test.ts',
@@ -1698,7 +1699,11 @@ export const lanes: readonly Lane[] = [
     command: ['pnpm', '--filter', '@stacktape/ui-react', 'test:e2e'],
     level: 'browser',
     tier: 'release',
-    tests: ['packages/ui-react/e2e/dialog.spec.ts', 'packages/ui-react/e2e/gallery.spec.ts'],
+    tests: [
+      'packages/ui-react/e2e/controls.spec.ts',
+      'packages/ui-react/e2e/dialog.spec.ts',
+      'packages/ui-react/e2e/gallery.spec.ts'
+    ],
     requires: ['chromium', 'aws', 'network', 'reservation'],
     release: 'affected-external-contract',
     proves:
@@ -1737,6 +1742,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/components/Metrics/metrics.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Environment/environment.test.ts',
       'apps/console/ui/src/pages/UsersPage/organization-member-limit.test.ts',
+      'apps/console/ui/src/pages/BudgetsPage/budget-status.test.ts',
       'apps/console/ui/src/utils/auth-redirect.test.ts',
       'apps/console/ui/src/utils/dates.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/repository-option.test.tsx',
@@ -1847,12 +1853,14 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-console.test.ts',
       'apps/console/ui/e2e/isolated-deployment.test.ts',
       'apps/console/ui/e2e/isolated-security.test.ts',
-      'apps/console/ui/e2e/isolated-first-run.test.ts'
+      'apps/console/ui/e2e/isolated-first-run.test.ts',
+      'apps/console/ui/e2e/isolated-organization.test.ts',
+      'apps/console/ui/e2e/isolated-overview.test.ts'
     ],
     requires: ['console', 'docker', 'chromium', 'network'],
     release: 'every-candidate',
     proves:
-      'Issue-state persistence, tenant denial, failed-deploy context, security coverage and the first-deploy hand-off through the real UI, local HTTP router and disposable PostgreSQL.',
+      'Issue-state persistence, tenant denial, failed-deploy context, security coverage and the first-deploy hand-off, and organization and billing states through the real UI, local HTTP router and disposable PostgreSQL.',
     selections: ['console-browser-isolated']
   },
   {
@@ -2075,6 +2083,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/app/stacktape-trpc-api-manager/index.spec.ts',
       'apps/cli/src/app/tui-manager/dev/__tests__/log-normalize.test.ts',
       'apps/cli/src/app/tui-manager/dev/views/__tests__/dashboard.test.tsx',
+      'apps/cli/src/app/application-manager/index.spec.ts',
       'apps/cli/src/app/tui-manager/format/text.spec.ts',
       'apps/cli/src/app/tui-manager/launcher/__tests__/data.test.ts',
       'apps/cli/src/app/tui-manager/progress/__tests__/sink.test.ts',
@@ -2157,10 +2166,10 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/domain/shared-resource-stack-manager/index.spec.ts',
       'apps/cli/src/domain/template-manager/index.spec.ts',
       'apps/cli/src/domain/template-manager/log-group-class.spec.ts',
+      'apps/cli/src/init/agent/models.spec.ts',
       'apps/cli/src/init/agent/session-runner.spec.ts',
       'apps/cli/src/init/agent/transports/claude-cli.spec.ts',
       'apps/cli/src/init/agent/transports/codex-cli.spec.ts',
-      'apps/cli/src/init/agent/transports/replay.spec.ts',
       'apps/cli/src/init/cicd/cicd.spec.ts',
       'apps/cli/src/init/composed-config-semantics.spec.ts',
       'apps/cli/src/init/deploy/failure.spec.ts',
@@ -2287,6 +2296,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/database/rds-tls.test.ts',
       'apps/console/api/src/deployments/invocation-id.test.ts',
       'apps/console/api/src/deployments/operation-description.test.ts',
+      'apps/console/api/src/deployments/failure-explanations.test.ts',
       'apps/console/api/src/http-server.test.ts',
       'apps/console/api/src/integrations/git/bitbucket-forge-events.test.ts',
       'apps/console/api/src/integrations/git/connection-authorization.test.ts',
@@ -2366,6 +2376,8 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-deployment.test.ts',
       'apps/console/ui/e2e/isolated-security.test.ts',
       'apps/console/ui/e2e/isolated-first-run.test.ts',
+      'apps/console/ui/e2e/isolated-organization.test.ts',
+      'apps/console/ui/e2e/isolated-overview.test.ts',
       'apps/console/ui/e2e/issues.spec.ts',
       'apps/console/ui/e2e/privacy-probe.spec.ts',
       'apps/console/ui/e2e/project-access.spec.ts',
@@ -2468,6 +2480,7 @@ export const lanes: readonly Lane[] = [
       'packages/config/tests/config-import.test.ts',
       'packages/config/tests/leaf-capabilities.test.ts',
       'packages/console-api/src/api-key.test.ts',
+      'packages/console-api/src/failure-explanations.test.ts',
       'packages/console-api/src/guardrails.test.ts',
       'packages/console-api/src/permissions.test.ts',
       'packages/console-api/src/privacy.test.ts',
@@ -2526,6 +2539,7 @@ export const lanes: readonly Lane[] = [
       'packages/stack-info/src/metric-targets.test.ts',
       'packages/stack-info/src/normalize.test.ts',
       'packages/stack-info/src/selectors.test.ts',
+      'packages/ui-react/e2e/controls.spec.ts',
       'packages/ui-react/e2e/dialog.spec.ts',
       'packages/ui-react/e2e/gallery.spec.ts',
       'packages/ui-react/src/alert/Alert.test.tsx',
@@ -3378,6 +3392,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/utils/environment.ts'
     ],
     tests: [
+      'apps/cli/src/commands/dev/workload-environment.spec.ts',
       'apps/cli/src/domain/config-manager/utils/resource-references.spec.ts',
       'apps/cli/src/utils/directives.spec.ts',
       'apps/cli/src/utils/environment.test.ts',
@@ -3399,7 +3414,8 @@ export const slices: readonly Slice[] = [
       'synthesis-2',
       'config-authoring-test',
       'init-e2e',
-      'cli-test-config-unit'
+      'cli-test-config-unit',
+      'local-dev'
     ],
     contributors: ['S04']
   },
@@ -3607,10 +3623,10 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/init-e2e/codex-import.spec.ts',
       'apps/cli/scripts/init-model-quality.ts',
       'apps/cli/src/init/eval/model-quality.spec.ts',
+      'apps/cli/src/init/agent/models.spec.ts',
       'apps/cli/src/init/agent/session-runner.spec.ts',
       'apps/cli/src/init/agent/transports/claude-cli.spec.ts',
-      'apps/cli/src/init/agent/transports/codex-cli.spec.ts',
-      'apps/cli/src/init/agent/transports/replay.spec.ts'
+      'apps/cli/src/init/agent/transports/codex-cli.spec.ts'
     ],
     lanes: ['init-agent-rules', 'init-codex-process', 'init-model-quality', 'cli', 'cli-2', 'cli-3', 'init-e2e'],
     contributors: ['S04', 'S05']
@@ -4005,6 +4021,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/utils/aws-config.spec.ts',
       'apps/cli/tests/characterization/trpc-auth-surfaces.spec.ts',
       'packages/console-api/src/api-key.test.ts',
+      'packages/console-api/src/failure-explanations.test.ts',
       'packages/console-api/src/guardrails.test.ts',
       'packages/console-api/src/permissions.test.ts',
       'packages/console-api/src/privacy.test.ts',
@@ -4542,6 +4559,7 @@ export const slices: readonly Slice[] = [
     journeys: ['J12'],
     paths: ['packages/ui-react/src/**'],
     tests: [
+      'packages/ui-react/e2e/controls.spec.ts',
       'packages/ui-react/e2e/dialog.spec.ts',
       'packages/ui-react/e2e/gallery.spec.ts',
       'packages/ui-react/src/alert/Alert.test.tsx',
@@ -4753,6 +4771,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/utils/cli.ts',
       'apps/console/api/src/deployments/invocation-id.ts',
       'apps/console/api/src/deployments/operation-description.ts',
+      'apps/console/api/src/deployments/failure-explanations.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/cloudformation-resources.ts'
     ],
     tests: [
@@ -4761,6 +4780,7 @@ export const slices: readonly Slice[] = [
       'apps/console/api/scripts/cli-console-database.test.ts',
       'apps/console/api/src/deployments/invocation-id.test.ts',
       'apps/console/api/src/deployments/operation-description.test.ts',
+      'apps/console/api/src/deployments/failure-explanations.test.ts',
       'apps/console/ui/e2e/isolated-deployment.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/cloudformation-resources.test.ts',
       'packages/stack-info/src/metric-targets.test.ts',
@@ -5332,6 +5352,9 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/components/Observability/**',
       'apps/console/ui/src/components/Metrics/**',
       'apps/console/ui/src/components/CompoundViews/**',
+      'apps/console/ui/src/components/Logs/**',
+      'apps/console/ui/src/components/Misc/ExpandableLogLine.tsx',
+      'apps/console/ui/src/components/Misc/log-parsing-utils.ts',
       'apps/console/ui/src/aws/logs*.ts',
       'apps/console/ui/src/aws/traces*.ts',
       'apps/console/api/src/utils/observability-inventory.ts',
@@ -5350,10 +5373,12 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/components/Metrics/metrics.test.ts',
       'apps/console/ui/src/components/Observability/inventory.test.ts',
       'apps/console/ui/src/components/Observability/time-range.test.ts',
+      'apps/console/ui/src/components/Misc/log-parsing-utils.test.ts',
       'apps/console/ui/src/pages/MetricsPage/org-metrics.test.ts',
       'apps/console/ui/src/pages/SyntheticsPage/synthetics-presentation.test.ts',
       'apps/console/ui/src/pages/OverviewPage/overview-metrics.test.ts',
       'apps/console/ui/e2e/isolated-first-run.test.ts',
+      'apps/console/ui/e2e/isolated-overview.test.ts',
       'apps/console/ui/src/utils/dates.test.ts'
     ],
     lanes: [
@@ -5415,6 +5440,7 @@ export const slices: readonly Slice[] = [
     paths: [
       'apps/console/api/src/services/budget-alerts.ts',
       'apps/console/ui/src/pages/CostsAndUsagePage/**',
+      'apps/console/ui/src/pages/BudgetsPage/**',
       'apps/cli/src/domain/budget-manager/**',
       'apps/console/api/src/services/budget-alert-polling.ts',
       'apps/console/api/src/services/currency-conversion.ts'
@@ -5423,9 +5449,18 @@ export const slices: readonly Slice[] = [
       'apps/console/api/scripts/insights-runtime.test.ts',
       'apps/console/api/src/services/budget-alert-polling.test.ts',
       'apps/console/api/src/services/currency-conversion.test.ts',
+      'apps/console/ui/src/pages/BudgetsPage/budget-status.test.ts',
+      'apps/console/ui/e2e/isolated-organization.test.ts',
       'apps/cli/src/domain/budget-manager/index.spec.ts'
     ],
-    lanes: ['console-api', 'console-api-2', 'console-database-insights', 'console-database-billing']
+    lanes: [
+      'console-api',
+      'console-api-2',
+      'console-database-insights',
+      'console-database-billing',
+      'console-ui',
+      'console-browser-isolated'
+    ]
   },
   {
     id: 'S67',
@@ -5642,13 +5677,15 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/operations/terminal-driver.ts',
       'apps/cli/src/app/tui-manager/**',
       'apps/cli/src/app/tui-manager/output/**',
-      'apps/cli/src/app/command-lifecycle/**'
+      'apps/cli/src/app/command-lifecycle/**',
+      'apps/cli/src/app/application-manager/**'
     ],
     tests: [
       'apps/cli/scripts/operations/output.spec.ts',
       'apps/cli/scripts/operations/terminal-ownership.spec.ts',
       'apps/cli/src/app/tui-manager/dev/__tests__/log-normalize.test.ts',
       'apps/cli/src/app/tui-manager/dev/views/__tests__/dashboard.test.tsx',
+      'apps/cli/src/app/application-manager/index.spec.ts',
       'apps/cli/src/app/tui-manager/format/text.spec.ts',
       'apps/cli/src/app/tui-manager/launcher/__tests__/data.test.ts',
       'apps/cli/src/app/tui-manager/progress/__tests__/sink.test.ts',

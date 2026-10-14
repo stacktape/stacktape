@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@stacktape/config-inference": "workspace:*",
+    "@stacktape/console-api": "workspace:*",
     "@stacktape/design-tokens": "workspace:*",
     "@stacktape/ui-react": "workspace:*",
     "react": "catalog:",

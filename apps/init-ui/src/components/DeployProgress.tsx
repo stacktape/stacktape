@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert } from '@stacktape/ui-react/alert';
 import { Spinner } from '@stacktape/ui-react/spinner';
+import { explainFailure } from '@stacktape/console-api/failure-explanations';
 import type { DeployModel } from '../deploy-model';
 import { CopyableCommand } from './CopyableCommand';
+import { FailureExplanationText } from './FailureExplanation';
 
 /**
  * A deploy, while it happens.
@@ -37,6 +39,7 @@ export function DeployProgress({
   keptPartialProgress?: boolean;
 }) {
   const [showLog, setShowLog] = useState(false);
+  const [showOriginalError, setShowOriginalError] = useState(false);
   const logRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => {
@@ -53,6 +56,10 @@ export function DeployProgress({
         ? rewritten[0]
         : `${rewritten.slice(0, -1).join(', ')} and ${rewritten.at(-1)}`;
   const anyRepairApplied = (repairs ?? []).some((entry) => entry.applied);
+  // The deploy's own message is raw AWS or container text more often than not; lead with what it means.
+  const explanations = outcome?.ok === false ? explainFailure(outcome.message) : [];
+  const failureText =
+    explanations.length > 0 ? <FailureExplanationText explanations={explanations} /> : outcome?.message;
 
   return (
     <div className="flex flex-col gap-6">
@@ -66,15 +73,15 @@ export function DeployProgress({
 
       {status === 'repairing' && (
         <Alert tone="info" title="That did not work. Looking at your code again.">
-          {outcome?.message ?? 'The deploy failed.'} A failed deploy tells us something we believed about your project
-          is wrong, so the agent is reading it again to find out what. If it finds something, we rewrite the
-          configuration, save the file, and try once more. You will see exactly what changed.
+          {failureText ?? 'The deploy failed.'} A failed deploy tells us something we believed about your project is
+          wrong, so the agent is reading it again to find out what. If it finds something, we rewrite the configuration,
+          save the file, and try once more. You will see exactly what changed.
         </Alert>
       )}
 
       {status === 'failed' && (
         <Alert tone="danger" title="The deploy did not finish">
-          {outcome?.message ?? 'Something went wrong.'}
+          {failureText ?? 'Something went wrong.'}
           {repairs !== undefined && repairs.length > 0
             ? anyRepairApplied
               ? ` We changed ${rewrittenLabel} and tried again, and it still did not work.`
@@ -84,6 +91,15 @@ export function DeployProgress({
             ? ' What was created before the failure is still in your account, and it bills until you remove it. The clean-up command below removes it.'
             : ' CloudFormation rolls a failed deploy back and removes what the attempt created; it can still be finishing that for a few minutes.'}
         </Alert>
+      )}
+
+      {(status === 'failed' || status === 'repairing') && explanations.length > 0 && (
+        <section>
+          <button className="wizard-disclosure" onClick={() => setShowOriginalError(!showOriginalError)} type="button">
+            {showOriginalError ? 'Hide' : 'Show'} the original error
+          </button>
+          {showOriginalError && <pre className="wizard-log">{outcome?.message}</pre>}
+        </section>
       )}
 
       {urls.length > 0 && (

@@ -27,7 +27,6 @@ export function RegionPicker({ value, onChange }: { value: string; onChange: (re
 
   return (
     <Select
-      controlHeight={35}
       label="Region"
       name="region"
       onChange={(selected) => {

@@ -11,8 +11,6 @@ export type BadgeProps = {
   size?: BadgeSize;
   /** Fully round. Reserved for counts and other single-glyph values. */
   pill?: boolean;
-  /** Status words use caps by default; names and identifiers generally should not. */
-  caps?: boolean;
   title?: string;
   className?: string;
   style?: CSSProperties;
@@ -28,7 +26,6 @@ export function Badge({
   variant = 'soft',
   size = 'medium',
   pill = false,
-  caps = true,
   title,
   className,
   style,
@@ -42,7 +39,6 @@ export function Badge({
         `stp-ui-badge--${variant}`,
         `stp-ui-badge--${size}`,
         pill && 'stp-ui-badge--pill',
-        caps && 'stp-ui-badge--caps',
         className
       )}
       style={style}
@@ -56,7 +52,6 @@ export function Badge({
 export function CountBadge({ value, isCompact = false }: { value: number; isCompact?: boolean }) {
   return (
     <Badge
-      caps={false}
       className={isCompact ? 'stp-ui-count-badge stp-ui-count-badge--compact' : 'stp-ui-count-badge'}
       pill
       size="small"

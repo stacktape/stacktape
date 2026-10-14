@@ -16,6 +16,7 @@ resources:
         type: js-bundle
         properties:
           entryfilePath: ./src/api.ts
+      runtime: nodejs22.x
       memory: $File($Format('./data/stages/{}.yml', $Stage())).memory
       logging:
         retentionDays: $Var().retentionDays
@@ -38,6 +39,8 @@ resources:
           value: $File('./data/settings.json').nested.retention
         - name: FEATURE_FLAG
           value: $File('./data/.env').FEATURE_FLAG
+        - name: ENV_VARIANT
+          value: $File('./data/.env.production').VARIANT
         - name: BANNER
           value: $FileRaw('./data/banner.txt')
         - name: GREETING
@@ -60,6 +63,11 @@ resources:
             path: /
       connectTo:
         - records
+        - site
+  site:
+    type: hosting-bucket
+    properties:
+      uploadDirectoryPath: ./src
   records:
     type: dynamo-db-table
     properties:
