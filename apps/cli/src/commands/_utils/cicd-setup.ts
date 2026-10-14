@@ -113,7 +113,7 @@ export const promptCiCdSetupAfterDeploy = async (): Promise<void> => {
   });
 
   if (!setupCiCd) {
-    tuiManager.hint('You can set up CI/CD later in the Stacktape console.');
+    tuiManager.hint('You can set up Git deployments later in the Stacktape Console.');
     return;
   }
 
@@ -155,7 +155,7 @@ export const promptCiCdSetupAfterDeploy = async (): Promise<void> => {
             status: 'warning',
             finalMessage: `${providerName} connection not completed`
           });
-          tuiManager.hint('You can set up CI/CD later in the Stacktape console.');
+          tuiManager.hint('You can set up Git deployments later in the Stacktape Console.');
           return;
         }
       } else {
@@ -164,7 +164,7 @@ export const promptCiCdSetupAfterDeploy = async (): Promise<void> => {
           status: 'warning',
           finalMessage: 'Skipped - provider not connected'
         });
-        tuiManager.hint('You can set up CI/CD later in the Stacktape console.');
+        tuiManager.hint('You can set up Git deployments later in the Stacktape Console.');
         return;
       }
     }
@@ -214,6 +214,6 @@ export const promptCiCdSetupAfterDeploy = async (): Promise<void> => {
       status: 'error',
       finalMessage: `CI/CD setup failed: ${message}`
     });
-    tuiManager.hint('You can set up CI/CD later in the Stacktape console.');
+    tuiManager.hint('You can set up Git deployments later in the Stacktape Console.');
   }
 };

@@ -86,7 +86,7 @@ Alert history displays alert events returned for the selected organization. Even
 
 ## Alert history vs. individual history views
 
-The Console includes separate notification history, alarm history, and budget history pages — each a narrower log focused on a single source. Alert history is the unified table that combines events from all sources — including issues — on a single page.
+The Console also has an alarm history page for each alarm and a budget history page (**Budgets → History**), each focused on a single source. Notification rule alerts have no separate page: `/notifications/history` redirects to Alert history filtered to notifications. Alert history is the unified table that combines events from all sources on a single page.
 
 Use **alert history** when you need a cross-cutting view — for example, correlating a failed deploy notification with the alarm that fired shortly after, or reviewing all alert activity over the last hour regardless of source. Use the source-specific history pages when investigating a single alert category in isolation.
 

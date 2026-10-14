@@ -12,7 +12,7 @@ import { isAgentMode } from './agent-mode';
  * Missing parameters are handled based on the execution context:
  * - **Interactive (TTY)**: prompts user to create each missing parameter (value + type).
  * - **Non-interactive / agent**: aborts with an actionable error listing missing params
- *   and a link to the Stacktape console SSM Params page.
+ *   and a link to the Stacktape Console SSM parameters page.
  */
 export const ensureMissingSsmParamsCreated = async () => {
   const paramRefs = configManager.allSsmParamReferencesUsedInConfig;
@@ -44,7 +44,7 @@ export const ensureMissingSsmParamsCreated = async () => {
     throw new ExpectedError(
       'CONFIG',
       `Missing ${missingParams.length} SSM parameter(s): ${missingParams.join(', ')}`,
-      `Create the parameters in the Stacktape console: ${linksMap.ssmParams}`
+      `Create the parameters in the Stacktape Console: ${linksMap.ssmParams}`
     );
   }
 };

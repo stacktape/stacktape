@@ -1,39 +1,41 @@
-# Issues
+# Error tracking
 
-Stacktape Issues is a built-in error inbox available in the [Stacktape Console](/stacktape-console/console-overview) and the [CLI](/cli/issues-list). It displays recorded runtime errors with each issue's status, error message, error type, occurrence count, function name, and originating project and stage. Manage issues without integrating a third-party error tracking service.
+Stacktape error tracking is a built-in error inbox available on the **Error tracking** page of the [Stacktape Console](/stacktape-console/console-overview) and in the [CLI](/cli/issues-list). It displays recorded runtime errors with each issue's status, error message, error type, occurrence count, function name, and originating project and stage. Manage issues without integrating a third-party error tracking service.
+
+The CLI commands (`stacktape issues:list`, `issues:resolve`, `issues:ignore`, `issues:reopen`) and the configuration key `deploymentConfig.issues` keep the name `issues`; each recorded error is called an issue.
 
 ## When to use
 
-Stacktape Issues gives you structured error tracking with no additional SDK or external service. It is on by default and fits when:
+Stacktape error tracking gives you structured error tracking with no additional SDK or external service. It is on by default and fits when:
 
 - You want to see which runtime errors are recurring across projects and stages without scanning raw log lines.
 - You need a lightweight triage workflow — open, resolve, or ignore issues — without leaving Stacktape.
 - You want occurrence counts and error classification grouped per issue, not scattered across individual log entries.
 
-Issues works well as a first line of error visibility. For most teams shipping APIs and background workers on Stacktape, it replaces the need for a separate error tracking tool during early and mid-stage development.
+Error tracking works well as a first line of error visibility. For most teams shipping APIs and background workers on Stacktape, it replaces the need for a separate error tracking tool during early and mid-stage development.
 
 
-> **Info:** Resources configured with `logging.logClass: infrequent-access` do not feed Stacktape Issues because AWS does not support the required log subscription filters. Their logs remain available through bounded Logs Insights snapshots in the Console and CLI.
+> **Info:** Resources configured with `logging.logClass: infrequent-access` do not feed error tracking because AWS does not support the required log subscription filters. Their logs remain available through bounded Logs Insights snapshots in the Console and CLI.
 
 
 ## When NOT to use
 
-Stacktape Issues displays recorded runtime errors in the Console and CLI without requiring you to add an SDK to your application. It does not instrument your application process directly. If you need breadcrumbs, custom tags, user session tracking, release tracking, or performance profiling, use a dedicated APM tool like Sentry or Datadog alongside or instead of Issues. Issues is best for triaging recurring runtime failures — not for full-stack observability.
+Stacktape error tracking displays recorded runtime errors in the Console and CLI without requiring you to add an SDK to your application. It does not instrument your application process directly. If you need breadcrumbs, custom tags, user session tracking, release tracking, or performance profiling, use a dedicated APM tool like Sentry or Datadog alongside or instead of it. Error tracking is best for triaging recurring runtime failures — not for full-stack observability.
 
-## Turning Issues off or limiting stages
+## Turning error tracking off or limiting stages
 
-Issues are on for every stage of every stack by default. Nothing needs to be set up: each deployment subscribes the stack's function and container log groups to Stacktape's error detector, and errors appear on the Issues page within a minute of being logged.
+Error tracking is on for every stage of every stack by default. Nothing needs to be set up: each deployment subscribes the stack's function and container log groups to Stacktape's error detector, and errors appear on the Error tracking page within a minute of being logged.
 
-The stack's configuration decides. Turn Issues off for a stack, or limit them to some stages, in `deploymentConfig.issues`; the change takes effect at the stack's next deployment.
+The stack's configuration decides. Turn error tracking off for a stack, or limit it to some stages, in `deploymentConfig.issues`; the change takes effect at the stack's next deployment.
 
 ```yaml
 deploymentConfig:
   issues:
-    enabled: true                    # default; false turns Issues off for this stack
+    enabled: true                    # default; false turns error tracking off for this stack
     stages: [production, staging]    # omitted or empty means every stage
 ```
 
-The Console has one organization-wide switch as well (**Issues settings** on the Issues page, for organization admins). While it is off, no error events are recorded for any stack. The same panel lists the deployed stacks and whether their last successful deployment wired Issues, so you can see which stacks still run an older CLI.
+The Console has one organization-wide switch as well. Click **Settings** on the Error tracking page to open **Error tracking settings**; organization owners and admins can turn error tracking off and on there. While it is off, no error events are recorded for any stack. The same dialog lists the deployed stacks and whether their last successful deployment wired error tracking, so you can see which stacks still run an older CLI.
 
 ## What leaves your AWS account
 
@@ -45,22 +47,22 @@ During an error storm the detector reports each distinct error once per log batc
 
 ## Error types
 
-The Console and CLI display error type labels for recorded issues. The Console maps known error types to the friendly labels listed below, while the CLI includes the raw `errorType` value. Known labels displayed in the Console:
+The detector classifies each error. The Console shows the classification as a plain label on the issue's detail page, while the CLI prints the raw `errorType` value:
 
-| Error type label |
-|---|
-| **Uncaught** |
-| **Caught** |
-| **Unhandled Rejection** |
-| **Exit Error** |
-| **Handler Not Found** |
-| **Panic** |
+| `errorType` | Console label |
+|---|---|
+| `uncaught` | **Uncaught exception** |
+| `caught` | **Logged error** |
+| `unhandled_rejection` | **Unhandled promise rejection** |
+| `exit_error` | **Process exited** |
+| `handler_not_found` | **Handler not found** |
+| `panic` | **Panic** |
 
-If an error type does not match one of these known labels, the Console and CLI display the raw `errorType` value as-is. Use the label to recognize similar errors at a glance. The Console supports filtering by status, search text, project, and stage; the CLI [`issues:list`](/cli/issues-list) command supports filtering by project name, stage, issue status, and result limit.
+If an error type is not in this table, the Console also displays the raw `errorType` value. Use the label to recognize similar errors at a glance. The Console supports filtering by status, search text, project, and stage; the CLI [`issues:list`](/cli/issues-list) command supports filtering by project name, stage, issue status, and result limit.
 
 ## Issue statuses
 
-Every issue has one of three statuses. The Console displays summary cards at the top of the Issues page with the count for each:
+Every issue has one of three statuses. The Console displays summary cards at the top of the Error tracking page with the count for each:
 
 | Status | Color in Console | Meaning |
 |---|---|---|
@@ -72,21 +74,19 @@ The CLI has separate commands for resolving, ignoring, and reopening issues: [`i
 
 ## Viewing issues in the Console
 
-The Issues page in the Stacktape Console provides a filterable, paginated view of all recorded issues across your organization. Three summary cards at the top show the count of Open, Resolved, and Ignored issues at a glance.
+The Error tracking page in the Stacktape Console provides a filterable, paginated view of all recorded issues across your organization. Three summary cards at the top show the count of Open, Resolved, and Ignored issues at a glance.
 
 ### Issue table
 
-Below the summary cards, a table lists issues with these columns:
+Below the summary cards and filters, a table lists issues with these columns:
 
 | Column | Shows |
 |---|---|
-| **Last seen** | Timestamp of the most recent occurrence |
-| **Error** | The error message (truncated in the table row) |
-| **Type** | The error type label |
-| **Resource** | The function name that produced the error, when available |
-| **Project / Stage** | The originating project and stage |
-| **Count** | Total occurrences of this error |
-| **Status** | Current status with color coding |
+| **Error** | The error message, with the project, stage and function name (when available) below it |
+| **Events** | Total occurrences of this error |
+| **Last seen** | Time of the most recent occurrence |
+| **First seen** | Time the issue was first recorded |
+| **Status** | Open, Resolved or Ignored |
 
 Clicking a row navigates to the selected issue.
 
@@ -102,7 +102,7 @@ The Console provides four combinable filters that let you narrow the issue list:
 The table shows 20 items per page by default and uses Last seen as the default sort column. Changing any filter resets to the first page.
 
 
-> Screenshot: Stacktape Console Issues page showing three summary cards for Open, Resolved, and Ignored counts, filter controls for status, search, project, and stage, and a paginated table listing runtime errors with columns for last seen, error, type, function, project/stage, count, and status Caption: Issues page with summary cards, filters, and the error table
+> Screenshot: Stacktape Console Error tracking page showing three summary cards for Open, Resolved, and Ignored counts, filter controls for status, search, project, and stage, and a paginated table listing runtime errors with columns for error, events, last seen, first seen, and status Caption: Error tracking page with summary cards, filters, and the error table
 
 
 ## Managing issues from the CLI
@@ -139,41 +139,41 @@ The CLI has separate commands for changing issue status:
 - [`stacktape issues:ignore`](/cli/issues-ignore)
 - [`stacktape issues:reopen`](/cli/issues-reopen)
 
-## Issues vs logs vs alarms
+## Error tracking vs logs vs alarms
 
-Issues, [logs](/observability/logs), and [alarms](/observability/alarms) serve different observability purposes. See the dedicated pages for full details on each; the summary below highlights how they complement each other:
+Error tracking, [logs](/observability/logs), and [alarms](/observability/alarms) serve different observability purposes. See the dedicated pages for full details on each; the summary below highlights how they complement each other:
 
-| | Issues | [Logs](/observability/logs) | [Alarms](/observability/alarms) |
+| | Error tracking | [Logs](/observability/logs) | [Alarms](/observability/alarms) |
 |---|---|---|---|
 | **Purpose** | Track and triage runtime errors | View raw output from functions and workloads | Alert on metric thresholds |
 | **Grouping** | Errors grouped with occurrence counts | Individual log lines | One alarm per rule |
 | **Action model** | Resolve, ignore, or reopen | Search and filter via [`logs`](/cli/logs) | Triggers [notifications](/observability/notifications) |
 | **Best for** | Error triage and regression tracking | Debugging specific requests | Proactive threshold monitoring |
 
-Issues complement [alarms](/observability/alarms): alarms tell you *something is wrong* (high error rate, elevated latency), while issues tell you *what specific errors are happening*. Configure [alert channels](/observability/alert-channels) for alarm notifications, then use the Issues page to diagnose which errors are driving the spike.
+Error tracking complements [alarms](/observability/alarms): alarms tell you *something is wrong* (high error rate, elevated latency), while issues tell you *what specific errors are happening*. Configure [alert channels](/observability/alert-channels) for alarm notifications, then use the Error tracking page to diagnose which errors are driving the spike.
 
 ## Limitations
 
-- **No in-process instrumentation.** Stacktape Issues does not use an in-process SDK. Errors that are silently swallowed, produce no output, or result in silent data corruption are not captured.
+- **No in-process instrumentation.** Stacktape error tracking does not use an in-process SDK. Errors that are silently swallowed, produce no output, or result in silent data corruption are not captured.
 - **False positives possible.** Log lines that match error patterns but aren't actual application errors (for example, error messages logged at info level for diagnostic purposes) may be recorded as issues. Review unexpected entries before acting on them.
 
 ## FAQ
 
-### How do I turn Issues off for a stack?
+### How do I turn error tracking off for a stack?
 
-Set `deploymentConfig.issues.enabled: false` in the stack's configuration and deploy. To keep only some stages, list them in `deploymentConfig.issues.stages`. Organization admins can also turn Issues off for every stack at once in **Issues settings** on the Issues page.
+Set `deploymentConfig.issues.enabled: false` in the stack's configuration and deploy. To keep only some stages, list them in `deploymentConfig.issues.stages`. Organization owners and admins can also turn error tracking off for every stack at once in **Error tracking settings** (the **Settings** button on the Error tracking page).
 
 ### Why aren't my issues showing up?
 
-The log subscriptions that report errors are added during deployment, so a stack reports only after it has been deployed with Stacktape v4. Open **Issues settings** on the Issues page: it lists each deployed stack and whether its last deployment wired Issues. Also check that the organization switch is on and that the resource does not use `logging.logClass: infrequent-access`.
+The log subscriptions that report errors are added during deployment, so a stack reports only after it has been deployed with Stacktape v4. Open **Error tracking settings** with the **Settings** button on the Error tracking page: it lists each deployed stack and whether its last deployment wired error tracking. Also check that the organization switch is on and that the resource does not use `logging.logClass: infrequent-access`.
 
 ### Does issue monitoring add cost?
 
 Very little. The detector is a Lambda function in your account that runs only when a log line matches an error pattern, and it reports each distinct error once per log batch. See [Managing Costs](/managing-costs/overview) for broader cost guidance across Stacktape features.
 
-### How is Stacktape Issues different from Sentry or Datadog?
+### How is Stacktape error tracking different from Sentry or Datadog?
 
-Stacktape Issues is built in and does not require adding a Sentry or Bugsnag SDK to your application. Because it does not use in-process instrumentation, it provides less context than a dedicated APM tool — no breadcrumbs, no custom tags, no user session tracking, no performance traces. It also can't capture errors that are silently swallowed or produce no log output. Use Issues for straightforward error triage; consider a dedicated APM tool if you need deep debugging context, release tracking, or performance monitoring.
+Stacktape error tracking is built in and does not require adding a Sentry or Bugsnag SDK to your application. Because it does not use in-process instrumentation, it provides less context than a dedicated APM tool — no breadcrumbs, no custom tags, no user session tracking, no performance traces. It also can't capture errors that are silently swallowed or produce no log output. Use error tracking for straightforward error triage; consider a dedicated APM tool if you need deep debugging context, release tracking, or performance monitoring.
 
 ### What happens to existing issues when I disable monitoring?
 
@@ -181,4 +181,4 @@ Existing issues remain visible in the Console after monitoring is turned off —
 
 ### When should I use issues vs alarms for error monitoring?
 
-Use both — they answer different questions. [Alarms](/observability/alarms) fire when a metric crosses a threshold (e.g., error rate above 5%), telling you *something is wrong*. Issues tell you *what specific errors are happening* and how often. Set up alarms with [alert channels](/observability/alert-channels) for real-time notification, then use the Issues page to identify which errors caused the spike and decide how to fix them.
+Use both — they answer different questions. [Alarms](/observability/alarms) fire when a metric crosses a threshold (e.g., error rate above 5%), telling you *something is wrong*. Error tracking tells you *what specific errors are happening* and how often. Set up alarms with [alert channels](/observability/alert-channels) for real-time notification, then use the Error tracking page to identify which errors caused the spike and decide how to fix them.

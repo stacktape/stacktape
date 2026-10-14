@@ -205,6 +205,8 @@ export function Select<Value>({
           {...(form === undefined ? {} : { form })}
           {...(hideSelectedOptions === undefined ? {} : { hideSelectedOptions })}
           inputId={`${name}-input`}
+          // A select whose visible label is hidden (a page header's account picker) still announces its name.
+          {...(hideLabel && typeof label === 'string' ? { 'aria-label': label } : {})}
           {...(inputValue === undefined ? {} : { inputValue })}
           isDisabled={disabled || loading}
           isLoading={loading}

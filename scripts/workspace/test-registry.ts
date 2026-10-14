@@ -1863,6 +1863,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-first-run.test.ts',
       'apps/console/ui/e2e/isolated-organization.test.ts',
       'apps/console/ui/e2e/isolated-alerting.test.ts',
+      'apps/console/ui/e2e/isolated-consistency.test.ts',
       'apps/console/ui/e2e/isolated-overview.test.ts',
       'apps/console/ui/e2e/isolated-first-run-links.test.ts'
     ],
@@ -2385,6 +2386,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-first-run.test.ts',
       'apps/console/ui/e2e/isolated-organization.test.ts',
       'apps/console/ui/e2e/isolated-alerting.test.ts',
+      'apps/console/ui/e2e/isolated-consistency.test.ts',
       'apps/console/ui/e2e/isolated-overview.test.ts',
       'apps/console/ui/e2e/isolated-first-run-links.test.ts',
       'apps/console/ui/e2e/issues.spec.ts',
