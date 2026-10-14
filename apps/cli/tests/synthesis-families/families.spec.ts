@@ -11,6 +11,8 @@ import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource'
 import { describe, expect, test } from 'bun:test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import {
   AgentCoreBrowser,
   AgentCoreCodeInterpreter,
@@ -18,6 +20,7 @@ import {
   AgentCoreMemory,
   AgentCoreRuntime,
   AwsCdkConstruct,
+  Bucket,
   Convex,
   CustomResourceDefinition,
   CustomResourceInstance,
@@ -106,6 +109,7 @@ describe('AgentCore family', () => {
       });
       const agentMemory = new AgentCoreMemory({ expirationDays: 30 });
       const agentGateway = new AgentCoreGateway({
+        searchType: 'SEMANTIC',
         tools: [
           {
             name: 'lookupOrder',
@@ -114,13 +118,21 @@ describe('AgentCore family', () => {
               {
                 name: 'lookupOrder',
                 description: 'Looks up an order',
-                inputSchema: { type: 'object', properties: { orderId: { type: 'string' } }, required: ['orderId'] }
+                inputSchema: {
+                  type: 'object',
+                  properties: { orderId: { type: 'string' }, priority: { type: 'string', enum: ['low', 'high'] } },
+                  required: ['orderId'],
+                  additionalProperties: false
+                }
               }
             ]
           }
         ]
       });
-      const agentBrowser = new AgentCoreBrowser({});
+      const recordings = new Bucket({});
+      const agentBrowser = new AgentCoreBrowser({
+        recording: { enabled: true, bucketName: "$ResourceParam('recordings', 'name')", prefix: 'sessions/' }
+      });
       const agentInterpreter = new AgentCoreCodeInterpreter({});
       const supportAgent = new AgentCoreRuntime({
         packaging: new DockerfilePackaging({ buildContextPath: './agent' }),
@@ -129,11 +141,14 @@ describe('AgentCore family', () => {
         useGateway: 'agentGateway',
         useBrowser: 'agentBrowser',
         useCodeInterpreter: 'agentInterpreter',
-        endpoints: ['chat'],
+        // A moving endpoint plus a pinned `default` one, listed second so the default is chosen by name, not position.
+        endpoints: ['chat', { name: 'default', runtimeVersion: '1' }],
         environment: { MODEL: 'anthropic.claude' },
         lifecycle: { maxLifetime: 7200, idleRuntimeSessionTimeout: 300 }
       });
-      return { resources: { tools, agentMemory, agentGateway, agentBrowser, agentInterpreter, supportAgent } };
+      return {
+        resources: { tools, agentMemory, agentGateway, recordings, agentBrowser, agentInterpreter, supportAgent }
+      };
     });
 
   test('runtime references memory, gateway, browser and code interpreter and may use them', async () => {
@@ -145,8 +160,62 @@ describe('AgentCore family', () => {
     const browser = onlyResourceOfType(template, 'AWS::BedrockAgentCore::BrowserCustom');
     const interpreter = onlyResourceOfType(template, 'AWS::BedrockAgentCore::CodeInterpreterCustom');
     const runtime = onlyResourceOfType(template, 'AWS::BedrockAgentCore::Runtime');
-    const endpoint = onlyResourceOfType(template, 'AWS::BedrockAgentCore::RuntimeEndpoint');
     const target = onlyResourceOfType(template, 'AWS::BedrockAgentCore::GatewayTarget');
+
+    // The `chat` endpoint follows the runtime's current version; `default` stays pinned to version 1 and is the
+    // endpoint other resources reference, although it was listed second.
+    const chatEndpointId = cfLogicalNames.agentCoreRuntimeEndpoint('supportAgent', 'chat');
+    const defaultEndpointId = cfLogicalNames.agentCoreRuntimeEndpoint('supportAgent', 'default');
+    expect(
+      resourcesOfType(template, 'AWS::BedrockAgentCore::RuntimeEndpoint')
+        .map(([id]) => id)
+        .sort()
+    ).toEqual([chatEndpointId, defaultEndpointId].sort());
+    const endpoint = { logicalId: chatEndpointId, resource: template.Resources[chatEndpointId] as Resource };
+    expect(endpoint.resource.Properties?.AgentRuntimeVersion).toEqual({
+      'Fn::GetAtt': [runtime.logicalId, 'AgentRuntimeVersion']
+    });
+    expect((template.Resources[defaultEndpointId] as Resource).Properties?.AgentRuntimeVersion).toBe('1');
+    expect(
+      calculatedStackOverviewManager.stackInfoMap.resources.supportAgent.referencableParams.endpointArn.value
+    ).toEqual({
+      Ref: defaultEndpointId
+    });
+
+    // The gateway exposes the tool with its schema in AgentCore's capitalized shape; enum and additionalProperties
+    // have no AgentCore equivalent and are dropped.
+    expect(gateway.resource.Properties).toMatchObject({
+      AuthorizerType: 'NONE',
+      ProtocolType: 'MCP',
+      ProtocolConfiguration: { Mcp: { SearchType: 'SEMANTIC' } }
+    });
+    expect(target.resource.Properties?.TargetConfiguration.Mcp.Lambda.ToolSchema.InlinePayload).toEqual([
+      {
+        Name: 'lookupOrder',
+        Description: 'Looks up an order',
+        InputSchema: {
+          Type: 'object',
+          Properties: { orderId: { Type: 'string' }, priority: { Type: 'string' } },
+          Required: ['orderId']
+        }
+      }
+    ]);
+
+    // Browser sessions record into the stack's own bucket, and the browser role may write exactly that prefix.
+    const recordingsBucket = resourcesOfType(template, 'AWS::S3::Bucket').find(([id]) => id.startsWith('Recordings'));
+    expect(recordingsBucket).toBeDefined();
+    const bucketName = { Ref: recordingsBucket![0] };
+    expect(browser.resource.Properties?.RecordingConfig).toEqual({
+      Enabled: true,
+      S3Location: { Bucket: bucketName, Prefix: 'sessions/' }
+    });
+    const browserStatements = roleStatements(template, browser.resource.Properties?.ExecutionRoleArn['Fn::GetAtt'][0]);
+    expect(browserStatements.find(({ actions }) => actions.includes('s3:ListBucket'))?.resource).toBe(
+      json([{ 'Fn::Join': ['', ['arn:aws:s3:::', bucketName]] }])
+    );
+    expect(browserStatements.find(({ actions }) => actions.includes('s3:PutObject'))?.resource).toBe(
+      json([{ 'Fn::Join': ['', ['arn:aws:s3:::', bucketName, '/', 'sessions/', '*']] }])
+    );
 
     // The runtime learns the IDs and URL of what it uses through its environment.
     const environment = json(runtime.resource.Properties?.EnvironmentVariables);
@@ -178,6 +247,30 @@ describe('AgentCore family', () => {
     expect(allActions.some((action) => /^bedrock-agentcore:.*Gateway|bedrock-agentcore:\*/.test(action))).toBe(true);
     expect(allActions.some((action) => /^bedrock-agentcore:.*Browser|bedrock-agentcore:\*/.test(action))).toBe(true);
     expect(allActions.some((action) => /CodeInterpreter|bedrock-agentcore:\*/.test(action))).toBe(true);
+  });
+
+  test('a runtime without a `default` endpoint references its first configured endpoint', async () => {
+    const template = await synthesizeFamily(
+      'agentcore-no-default-endpoint',
+      defineConfig(() => ({
+        resources: {
+          reviewAgent: new AgentCoreRuntime({
+            packaging: new DockerfilePackaging({ buildContextPath: './agent' }),
+            endpoints: ['preview', 'stable']
+          })
+        }
+      }))
+    );
+    expectReferencesResolve(template);
+    const previewId = cfLogicalNames.agentCoreRuntimeEndpoint('reviewAgent', 'preview');
+    expect(
+      resourcesOfType(template, 'AWS::BedrockAgentCore::RuntimeEndpoint')
+        .map(([id]) => id)
+        .sort()
+    ).toEqual([previewId, cfLogicalNames.agentCoreRuntimeEndpoint('reviewAgent', 'stable')].sort());
+    expect(
+      calculatedStackOverviewManager.stackInfoMap.resources.reviewAgent.referencableParams.endpointArn.value
+    ).toEqual({ Ref: previewId });
   });
 });
 

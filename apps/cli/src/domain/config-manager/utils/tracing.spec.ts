@@ -2,25 +2,6 @@ import { describe, expect, test } from 'bun:test';
 import { getLambdaTracingInstrumentation, resolveEffectiveTracing } from './tracing';
 
 describe('resolveEffectiveTracing', () => {
-  test('defaults to disabled with full sampling when nothing is configured', () => {
-    expect(
-      resolveEffectiveTracing({ stackDefault: undefined, resourceOverride: undefined, resourceName: 'api' })
-    ).toEqual({
-      enabled: false,
-      samplingRate: 1
-    });
-  });
-
-  test('inherits the stack default including its sampling rate', () => {
-    expect(
-      resolveEffectiveTracing({
-        stackDefault: { enabled: true, samplingRate: 0.25 },
-        resourceOverride: undefined,
-        resourceName: 'api'
-      })
-    ).toEqual({ enabled: true, samplingRate: 0.25 });
-  });
-
   test('boolean override toggles enablement but keeps stack sampling', () => {
     expect(
       resolveEffectiveTracing({

@@ -268,6 +268,10 @@ const createDenseConfig = ({
           eventPattern: {
             source: ['characterization'],
             'detail-type': ['RecordChanged']
+          },
+          inputTransformer: {
+            inputPathsMap: { recordId: '$.detail.recordId' },
+            inputTemplate: { recordId: '<recordId>' }
           }
         })
       ]
@@ -1297,6 +1301,26 @@ describe('full synthesis contract', () => {
 
     expect(cluster.Properties.ClientAuthentication).toEqual({ Sasl: { Iam: { Enabled: true } } });
     expect(cluster.Properties.VpcConfigs[0].SecurityGroups).toHaveLength(1);
+    // Brokers talk to each other through a standalone self-ingress; an inline self-reference would be a
+    // CloudFormation circular dependency, and an open CIDR would expose the IAM port.
+    const clusterSecurityGroupId = cluster.Properties.VpcConfigs[0].SecurityGroups[0].Ref;
+    const selfIngress = Object.values(resources).find(
+      ({ Type, Properties }: any) =>
+        Type === 'AWS::EC2::SecurityGroupIngress' && Properties.GroupId?.Ref === clusterSecurityGroupId
+    ) as any;
+    expect(selfIngress.Properties).toEqual({
+      GroupId: { Ref: clusterSecurityGroupId },
+      SourceSecurityGroupId: { Ref: clusterSecurityGroupId },
+      FromPort: 9098,
+      ToPort: 9098,
+      IpProtocol: 'tcp'
+    });
+    const inlineIngress = (resources[clusterSecurityGroupId].Properties.SecurityGroupIngress ?? []) as {
+      SourceSecurityGroupId?: unknown;
+    }[];
+    expect(inlineIngress.map(({ SourceSecurityGroupId }) => SourceSecurityGroupId)).not.toContainEqual({
+      Ref: clusterSecurityGroupId
+    });
     expect(mapping.Properties).toMatchObject({
       EventSourceArn: { Ref: expect.any(String) },
       StartingPosition: 'LATEST',
@@ -1354,6 +1378,23 @@ describe('full synthesis contract', () => {
     }
     expect(statements.some(({ Action }: any) => Action?.includes?.('kafka-cluster:CreateTopic'))).toBe(false);
     expect(statements.some(({ Action }: any) => Action?.includes?.('kafka-cluster:WriteData'))).toBe(false);
+    // Reads are scoped to the one topic on this cluster, never to every topic in the account.
+    const clusterArn = { Ref: cfLogicalNames.kafkaServerlessCluster('kafkaCluster') };
+    const topicRead = statements.find(({ Action }: any) => Action?.includes?.('kafka-cluster:ReadData'));
+    expect(topicRead.Resource).toEqual([
+      {
+        'Fn::Join': [
+          '',
+          [
+            'arn:aws:kafka:eu-west-1:123456789999:topic/',
+            { 'Fn::Select': [1, { 'Fn::Split': ['/', clusterArn] }] },
+            '/',
+            { 'Fn::Select': [2, { 'Fn::Split': ['/', clusterArn] }] },
+            '/orders'
+          ]
+        ]
+      }
+    ]);
   });
 
   test('keeps costly Kafka resources out of dev unless remote use is explicit', async () => {
@@ -1480,10 +1521,16 @@ describe('full synthesis contract', () => {
       }
     });
     const handler = resources[cfLogicalNames.lambda('realtimeHandler')];
+    // Clients connect to the `default` stage and the handler posts to connections through the same stage.
     expect(handler.Properties.Environment.Variables).toMatchObject({
       STP_REALTIME_API_ID: { Ref: apiLogicalName },
-      STP_REALTIME_MANAGEMENT_ENDPOINT: expect.any(Object),
-      STP_REALTIME_URL: expect.any(Object)
+      STP_REALTIME_MANAGEMENT_ENDPOINT: {
+        'Fn::Sub': [
+          'https://${ApiId}.execute-api.${AWS::Region}.${AWS::URLSuffix}/default',
+          { ApiId: { Ref: apiLogicalName } }
+        ]
+      },
+      STP_REALTIME_URL: { 'Fn::Join': ['', [{ 'Fn::GetAtt': [apiLogicalName, 'ApiEndpoint'] }, '/default']] }
     });
     const role = resources[cfLogicalNames.lambdaRole('realtimeHandler')];
     expect(
@@ -1770,6 +1817,13 @@ describe('full synthesis contract', () => {
     ).json();
 
     expect(createSynthesisIdentityManifest(synthesizedTemplate)).toEqual(expectedManifest);
+    // A resource without dependencies carries no DependsOn at all. An empty list is harmless to CloudFormation, but
+    // v3 templates never carried it, so it made the change plan report an update on almost every resource.
+    expect(
+      Object.entries(synthesizedTemplate.Resources)
+        .filter(([, resource]) => Array.isArray(resource.DependsOn) && resource.DependsOn.length === 0)
+        .map(([logicalId]) => logicalId)
+    ).toEqual([]);
   });
 
   test('applies the shared EventBridge target contract to an SQS queue', () => {
@@ -1910,6 +1964,10 @@ describe('full synthesis contract', () => {
       },
       EventBusName: { 'Fn::GetAtt': ['EventsEventBus', 'Arn'] }
     });
+    // A valid input transformer reaches the target with its paths map and templated input.
+    const [auditTarget] = resources.AuditEvent0Rule.Properties.Targets;
+    expect(auditTarget.InputTransformer.InputPathsMap).toEqual({ recordId: '$.detail.recordId' });
+    expect(JSON.stringify(auditTarget.InputTransformer.InputTemplate)).toContain('<recordId>');
 
     const apiPolicyStatements = resources.ApiRole.Properties.Policies.flatMap(
       ({ PolicyDocument }: { PolicyDocument: { Statement: any[] } }) => PolicyDocument.Statement
@@ -2075,8 +2133,8 @@ describe('load balancer and CDN synthesis contract', () => {
 });
 
 describe('enabled-CDN predicate', () => {
-  // `hasEnabledCdn` is the branch the resolvers above already took, written so that it also narrows the resource for
-  // the CloudFront helpers it guards. These pin the three configurations it has to tell apart.
+  // `hasEnabledCdn` is the branch the resolvers above already took. The dense fixture covers an enabled CDN and
+  // resources without a CDN block; only the switched-off block has no synthesized counterpart.
 
   const bucketWith = (cdn?: StpBucket['cdn']): StpBucket => ({
     name: 'assets',
@@ -2086,16 +2144,8 @@ describe('enabled-CDN predicate', () => {
     ...(cdn ? { cdn } : {})
   });
 
-  test('rejects a resource that authored no CDN block at all', () => {
-    expect(hasEnabledCdn(bucketWith())).toBe(false);
-  });
-
   test('rejects a CDN block that is present but switched off', () => {
     // A disabled block is authored, so absence alone is not the question the resolvers ask.
     expect(hasEnabledCdn(bucketWith({ enabled: false }))).toBe(false);
-  });
-
-  test('accepts a CDN block that is switched on', () => {
-    expect(hasEnabledCdn(bucketWith({ enabled: true }))).toBe(true);
   });
 });
