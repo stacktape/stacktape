@@ -436,7 +436,9 @@ test('a secret referenced by ARN and a parameter named without a slash get match
     { Name: 'SERVICE', ValueFrom: parameterArn }
   ]);
   const execution = template.Resources.StpEcsExecutionRole as {
-    Properties: { Policies: { PolicyDocument: { Statement: { Action: string[]; Resource: unknown }[] } }[] };
+    Properties: {
+      Policies: { PolicyDocument: { Statement: { Effect: string; Action: string[]; Resource: unknown }[] } }[];
+    };
   };
   expect(
     execution.Properties.Policies.flatMap(({ PolicyDocument }) => PolicyDocument.Statement).filter(({ Action }) =>
