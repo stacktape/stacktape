@@ -26,7 +26,7 @@ module.exports = {
       to: {
         path: '^apps/console/api/',
         pathNot:
-          '^apps/console/api/((dist/)?src/(console-router|controllers/stacks|services/config-gen/ai-config-generator|utils/(aws|cloudformation)|integrations/git/repository-url|organizations/personal-organization|deployments/operation-description|aws/(region|browser-capabilities)|product-config)|(dist/)?@generated/prisma/(client|enums))\\.(d\\.)?ts$'
+          '^apps/console/api/((dist/)?src/(console-router|controllers/stacks|services/config-gen/ai-config-generator|utils/(aws|cloudformation)|integrations/git/repository-url|organizations/personal-organization|deployments/(operation-description|failure-explanations)|aws/(region|browser-capabilities)|product-config)|(dist/)?@generated/prisma/(client|enums))\\.(d\\.)?ts$'
       }
     },
     {
@@ -46,7 +46,7 @@ module.exports = {
       to: {
         path: '^apps/console/api/',
         pathNot:
-          '^apps/console/api/src/(integrations/git/repository-url|organizations/personal-organization|deployments/operation-description)\\.ts$'
+          '^apps/console/api/src/(integrations/git/repository-url|organizations/personal-organization|deployments/(operation-description|failure-explanations))\\.ts$'
       }
     },
     {
