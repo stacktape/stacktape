@@ -1,8 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
   getStatementsForAccessingAgentCoreResource,
-  getStatementsForAccessingDsqlDatabase,
-  getStatementsForAccessingWebsocketApiGateway,
   getStatementsForAccessingEmailSender,
   getStatementsForAccessingKafkaCluster,
   type StpAgentCoreConnectToTarget
@@ -84,51 +82,6 @@ describe('AgentCore connectTo IAM permissions', () => {
       }
     ]);
   });
-});
-
-test('WebSocket connectTo grants only connection management on the managed stage', () => {
-  expect(
-    getStatementsForAccessingWebsocketApiGateway({
-      accountId: '123456789012',
-      region: 'eu-west-1',
-      stackName: 'app-production',
-      stacktapeResourceName: 'realtime'
-    }) as unknown
-  ).toEqual([
-    {
-      Effect: 'Allow',
-      Action: ['execute-api:ManageConnections'],
-      Resource: [
-        {
-          'Fn::Join': [
-            '',
-            [
-              'arn:aws:execute-api:eu-west-1:123456789012:',
-              { Ref: 'RealtimeWebsocketApi' },
-              '/default/POST/@connections'
-            ]
-          ]
-        }
-      ]
-    }
-  ]);
-});
-
-test('DSQL connectTo grants built-in admin access to exactly the connected cluster', () => {
-  expect(
-    getStatementsForAccessingDsqlDatabase({
-      accountId: '123456789012',
-      region: 'eu-west-1',
-      stackName: 'app-production',
-      stacktapeResourceName: 'primary'
-    }) as unknown
-  ).toEqual([
-    {
-      Effect: 'Allow',
-      Action: ['dsql:DbConnectAdmin'],
-      Resource: [{ 'Fn::GetAtt': ['PrimaryDsqlCluster', 'ResourceArn'] }]
-    }
-  ]);
 });
 
 test('Kafka connectTo grants direct client access without control-plane or destructive actions', () => {

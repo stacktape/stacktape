@@ -2,7 +2,9 @@ import type { KnownCloudFormationResource } from '@stacktape/cloudformation/reso
 import { expect, test } from 'bun:test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { synthesizeAppSyncEndpoint } from './endpoint-fixture';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
+import { ENDPOINT_CUSTOM_CERTIFICATE_ARN, ENDPOINT_CUSTOM_DOMAIN, synthesizeAppSyncEndpoint } from './endpoint-fixture';
 
 test('an authored GraphQL field invokes its Lambda through a scoped data source after its schema exists', async () => {
   const template = await synthesizeAppSyncEndpoint();
@@ -17,7 +19,36 @@ test('an authored GraphQL field invokes its Lambda through a scoped data source 
     resources.GraphqlHandlerAppSyncDataSource as KnownCloudFormationResource<'AWS::AppSync::DataSource'>;
   const resolver = resources.GraphqlQueryUserAppSyncResolver as KnownCloudFormationResource<'AWS::AppSync::Resolver'>;
   const role = resources.GraphqlHandlerAppSyncDataSourceRole;
-  expect(api).toMatchObject({ Type: 'AWS::AppSync::GraphQLApi', Properties: { AuthenticationType: 'AWS_IAM' } });
+  const logRoleLogicalId = cfLogicalNames.appsyncApiLogRole('graphql');
+  expect(api).toMatchObject({
+    Type: 'AWS::AppSync::GraphQLApi',
+    Properties: {
+      AuthenticationType: 'AWS_IAM',
+      LogConfig: { CloudWatchLogsRoleArn: { 'Fn::GetAtt': [logRoleLogicalId, 'Arn'] } }
+    }
+  });
+  // Field logs land under /aws/appsync/apis/<apiId>; the log role must be allowed to write exactly there.
+  expect(resources[logRoleLogicalId]).toMatchObject({
+    Type: 'AWS::IAM::Role',
+    Properties: {
+      AssumeRolePolicyDocument: {
+        Statement: [{ Effect: 'Allow', Principal: { Service: 'appsync.amazonaws.com' }, Action: 'sts:AssumeRole' }]
+      },
+      Policies: [
+        {
+          PolicyDocument: {
+            Statement: [
+              {
+                Effect: 'Allow',
+                Action: ['logs:CreateLogGroup', 'logs:CreateLogStream', 'logs:PutLogEvents'],
+                Resource: ['arn:aws:logs:eu-west-1:123456789999:log-group:/aws/appsync/apis/*']
+              }
+            ]
+          }
+        }
+      ]
+    }
+  });
   expect(dataSource).toMatchObject({
     Type: 'AWS::AppSync::DataSource',
     Properties: {
@@ -58,4 +89,34 @@ test('an authored GraphQL field invokes its Lambda through a scoped data source 
   const schema = resources.GraphqlAppSyncGraphQlSchema as KnownCloudFormationResource<'AWS::AppSync::GraphQLSchema'>;
   if (schema.Type !== 'AWS::AppSync::GraphQLSchema') throw new Error('Missing schema');
   expect(schema.Properties.Definition).toContain('user(id: ID!): User');
+  // Without a custom domain the published URLs are the AppSync defaults and no domain resources exist.
+  const params = calculatedStackOverviewManager.stackInfoMap.resources.graphql.referencableParams;
+  expect(params.url.value).toEqual({ 'Fn::GetAtt': ['GraphqlAppSyncGraphQlApi', 'GraphQLUrl'] });
+  expect(params.realtimeUrl.value).toEqual({ 'Fn::GetAtt': ['GraphqlAppSyncGraphQlApi', 'RealtimeUrl'] });
+  expect(resources[cfLogicalNames.appsyncApiDomain(ENDPOINT_CUSTOM_DOMAIN)]).toBeUndefined();
+});
+
+test('a custom domain uses its us-east-1 certificate and publishes both endpoint URLs under that domain', async () => {
+  const template = await synthesizeAppSyncEndpoint({ customDomain: true });
+  const resources = template.Resources;
+  const domainLogicalId = cfLogicalNames.appsyncApiDomain(ENDPOINT_CUSTOM_DOMAIN);
+  expect(resources[domainLogicalId]).toMatchObject({
+    Type: 'AWS::AppSync::DomainName',
+    Properties: { DomainName: ENDPOINT_CUSTOM_DOMAIN, CertificateArn: ENDPOINT_CUSTOM_CERTIFICATE_ARN }
+  });
+  expect(resources[cfLogicalNames.appsyncApiDomainAssociation(ENDPOINT_CUSTOM_DOMAIN)]).toMatchObject({
+    Type: 'AWS::AppSync::DomainNameApiAssociation',
+    Properties: {
+      ApiId: { 'Fn::GetAtt': ['GraphqlAppSyncGraphQlApi', 'ApiId'] },
+      DomainName: { Ref: domainLogicalId }
+    }
+  });
+  // DNS record creation was disabled, so the customer keeps managing the record.
+  expect(resources[cfLogicalNames.appsyncApiDnsRecord(ENDPOINT_CUSTOM_DOMAIN)]).toBeUndefined();
+  // Connected workloads and the stack overview receive the custom-domain URLs, including the realtime path AppSync
+  // serves subscriptions on.
+  const params = calculatedStackOverviewManager.stackInfoMap.resources.graphql.referencableParams;
+  expect(params.url.value).toBe(`https://${ENDPOINT_CUSTOM_DOMAIN}/graphql`);
+  expect(params.customDomainUrl.value).toBe(`https://${ENDPOINT_CUSTOM_DOMAIN}/graphql`);
+  expect(params.realtimeUrl.value).toBe(`wss://${ENDPOINT_CUSTOM_DOMAIN}/graphql/realtime`);
 });

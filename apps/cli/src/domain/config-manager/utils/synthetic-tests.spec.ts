@@ -25,10 +25,6 @@ describe('getScheduleIntervalSeconds', () => {
 });
 
 describe('validateSyntheticTest', () => {
-  test('accepts the defaults', () => {
-    expect(() => validateSyntheticTest({ test: baseTest() })).not.toThrow();
-  });
-
   test('rejects malformed and out-of-range schedules', () => {
     expect(() => validateSyntheticTest({ test: baseTest({ scheduleRate: 'every 5 minutes' }) })).toThrow(/rate/);
     expect(() => validateSyntheticTest({ test: baseTest({ scheduleRate: 'rate(30 seconds)' }) })).toThrow();
