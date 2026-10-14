@@ -235,6 +235,10 @@ export type WizardState = {
       /** What each other answer to a choice changes the monthly price by, by choice and answer. */
       options?: Record<string, Record<string, string>>;
     };
+    /** The price service did not answer for this configuration; nothing else depends on it. */
+    priceUnavailable?: boolean;
+    /** Infrastructure choices whose every answer composes the same file, so the page does not ask them. */
+    inertChoices?: string[];
     /**
      * The configuration file exactly as saving it will write it.
      *

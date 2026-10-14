@@ -74,7 +74,7 @@ const PREFERENCE_COPY: {
         value: 'redundant',
         title: 'Stay online',
         description: 'Two copies of container apps and a standby SQL database in another location, when those exist.',
-        meta: 'Roughly doubles them'
+        meta: 'About twice the app and database cost'
       }
     ]
   },
@@ -324,7 +324,10 @@ export const summarise = (state: WizardState): string => {
     search: 'a search index',
     email: 'email sending',
     kafka: 'an event stream',
-    sqlite: 'a SQLite database'
+    sqlite: 'a SQLite database',
+    amqp: 'a RabbitMQ broker',
+    nats: 'a NATS server',
+    topic: 'a notification topic'
   };
   const dependencyPhrases = dependencies.map((entry) => DEPENDENCY_PHRASES[entry.kind] ?? entry.kind);
   const list =
@@ -352,7 +355,7 @@ export function ReviewStep({
   onChangeDecision,
   onChangePreference,
   busy,
-  isLocked = false
+  lock
 }: {
   state: WizardState;
   onWrite: (format: 'yaml' | 'typescript') => void;
@@ -360,9 +363,13 @@ export function ReviewStep({
   onChangePreference: (change: DeploymentPreferenceChange) => void;
   /** Which action is in flight. Decisions use their own id, so only the row being changed spins. */
   busy: string | undefined;
-  /** A deploy is reading the saved file: the review can be read, not changed. */
-  isLocked?: boolean;
+  /**
+   * Why the review can be read but not changed: a deploy is reading the saved file, or the page has
+   * lost the CLI that would apply a change.
+   */
+  lock?: 'deploying' | 'disconnected' | undefined;
 }) {
+  const isLocked = lock !== undefined;
   const [view, setView] = useState<ConfigEditorViewId>('diagram');
   const [format, setFormat] = useState<'yaml' | 'typescript'>('yaml');
   const [showAll, setShowAll] = useState(false);
@@ -387,7 +394,10 @@ export function ReviewStep({
   const written = state.configFile !== undefined;
   const preferences = state.preferences;
   const recommendedPreferences = state.recommendedPreferences ?? preferences;
-  const preferenceKeys = deploymentPreferenceKeysFor(resources.map(([, resource]) => resource.type));
+  const inertChoices = new Set(state.composition?.inertChoices ?? []);
+  const preferenceKeys = deploymentPreferenceKeysFor(resources.map(([, resource]) => resource.type)).filter(
+    (key) => !inertChoices.has(key)
+  );
   const automaticAlarmCount = resources.reduce((count, [, resource]) => {
     const alarms = resource.properties.alarms;
     return count + (Array.isArray(alarms) ? alarms.length : 0);
@@ -413,7 +423,9 @@ export function ReviewStep({
           If your app lives in a subdirectory, run <span className="wizard-code">stacktape init</span> there.
           {usedAgent
             ? ''
-            : ' If it is here, run it again and choose a coding agent under Options: an agent reads source code, not only manifests and Dockerfiles.'}
+            : (state.agents ?? []).some((agent) => agent.id !== 'none')
+              ? ' If it is here, run it again and choose a coding agent under Options: an agent reads source code, not only manifests and Dockerfiles.'
+              : ' If it is here, install a coding agent such as Claude Code or Codex and run it again: an agent reads source code, not only manifests and Dockerfiles.'}
         </p>
       </div>
     );
@@ -425,7 +437,9 @@ export function ReviewStep({
     <div className="flex flex-col gap-8">
       {isLocked && (
         <p className="wizard-locked-note">
-          The deploy is using the saved file, so these choices are locked until it finishes.
+          {lock === 'disconnected'
+            ? 'This page lost its connection to stacktape init, so these choices are locked until it reconnects.'
+            : 'The deploy is using the saved file, so these choices are locked until it finishes.'}
         </p>
       )}
       <p className="wizard-summary">
@@ -547,6 +561,12 @@ export function ReviewStep({
         </ConfigEditor>
       </div>
 
+      {price === undefined && state.composition?.priceUnavailable === true && (
+        <p className="wizard-total-cost">
+          The monthly price could not be estimated right now. Nothing else depends on it: the file and the deploy work
+          the same.
+        </p>
+      )}
       {price !== undefined && (
         <p className="wizard-total-cost">
           <strong>{price.monthly}</strong>, at AWS list prices in{' '}
@@ -584,7 +604,7 @@ export function ReviewStep({
           {automaticAlarmCount === 1
             ? 'One alarm watches for a sustained production problem. It ignores a single noisy sample.'
             : `${automaticAlarmCount} alarms watch for sustained production problems. They ignore a single noisy sample.`}{' '}
-          Their history is in the Stacktape Console; connect a Slack or email channel there to get notified.
+          Alerts are listed in the Stacktape Console; connect a Slack or email channel there to get notified.
         </Alert>
       )}
 
@@ -631,8 +651,8 @@ export function ReviewStep({
             <div className="wizard-checklist-item">
               <p className="wizard-checklist-title">
                 {secretVariables.length === 1
-                  ? 'One value only you have'
-                  : `${secretVariables.length} values only you have`}
+                  ? 'One secret only you have'
+                  : `${secretVariables.length} secrets only you have`}
               </p>
               <p className="wizard-checklist-detail">
                 Your app reads {secretVariables.length === 1 ? 'it' : 'them'} from Stacktape secrets, so the values

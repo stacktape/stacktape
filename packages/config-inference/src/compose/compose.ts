@@ -622,12 +622,13 @@ const composeDependency = (
       };
     case 'nats':
       return {
-        unsupported: 'This application requires a NATS-compatible broker; substituting SQS would not be compatible.'
+        unsupported:
+          'Your app needs a NATS server, which Stacktape does not create. Use a hosted NATS service and give the app its address through the secret below.'
       };
     case 'amqp':
       return {
         unsupported:
-          'This application requires a RabbitMQ-compatible AMQP broker; substituting SQS would not be compatible.'
+          'Your app needs a RabbitMQ broker, which Stacktape does not create. Use a hosted one (Amazon MQ runs RabbitMQ) and give the app its URL through the secret below.'
       };
     case 'mongodb':
       return {

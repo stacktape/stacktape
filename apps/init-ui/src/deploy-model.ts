@@ -37,7 +37,7 @@ export type DeployEvent = {
 type DeployPhase = {
   id: string;
   label: string;
-  status: 'pending' | 'running' | 'done';
+  status: 'pending' | 'running' | 'done' | 'failed';
   /** The most recent thing this phase said it was doing. */
   message: string;
   /** CloudFormation's own progress, when this phase is the one talking to it. */
@@ -81,8 +81,11 @@ export type DeployModel = {
 export const buildDeployModel = (
   events: readonly DeployEvent[],
   lines: readonly string[],
-  /** True once the deploy has stopped, which is the only way to know the last phase is over. */
-  finished = false
+  /**
+   * How the deploy stopped, once it has: the only way to know the last phase is over, and whether
+   * it is where the deploy broke.
+   */
+  stopped?: 'succeeded' | 'failed'
 ): DeployModel => {
   const phases = new Map<string, DeployPhase>();
   const notices: Array<{ level: string; message: string }> = [];
@@ -144,7 +147,13 @@ export const buildDeployModel = (
 
   for (const [index, phase] of ordered.entries()) {
     phase.status =
-      finished || (currentIndex >= 0 && index < currentIndex) ? 'done' : index === currentIndex ? 'running' : 'pending';
+      stopped === 'failed' && index === currentIndex
+        ? 'failed'
+        : stopped !== undefined || (currentIndex >= 0 && index < currentIndex)
+          ? 'done'
+          : index === currentIndex
+            ? 'running'
+            : 'pending';
   }
 
   return { phases: ordered, notices, log: [...log, ...lines] };

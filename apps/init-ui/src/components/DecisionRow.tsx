@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Button } from '@stacktape/ui-react/button';
 import { DECISION_COPY } from '../decisions';
 import type { WizardDecision } from '../session';
 import { Evidence } from './Evidence';
@@ -44,14 +45,9 @@ export function DecisionRow({
           <p className="wizard-decision-detail">{copy.detail(decision.parameters, decision.chosen)}</p>
         </div>
         {others.length > 0 && !isLocked && (
-          <button
-            aria-expanded={isOpen}
-            className="wizard-decision-toggle"
-            onClick={() => setIsOpen(!isOpen)}
-            type="button"
-          >
+          <Button aria-expanded={isOpen} className="flex-none" onClick={() => setIsOpen(!isOpen)} variant="secondary">
             {isOpen ? 'Close' : 'Change'}
-          </button>
+          </Button>
         )}
       </div>
 

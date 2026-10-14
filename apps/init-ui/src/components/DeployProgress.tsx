@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Alert } from '@stacktape/ui-react/alert';
 import { Spinner } from '@stacktape/ui-react/spinner';
 import { explainFailure } from '@stacktape/console-api/failure-explanations';
@@ -26,7 +26,9 @@ export function DeployProgress({
   outcome,
   urls,
   commandLine,
-  keptPartialProgress
+  keptPartialProgress,
+  isUpdate = false,
+  actions
 }: {
   model: DeployModel;
   status: 'running' | 'repairing' | 'succeeded' | 'failed';
@@ -37,6 +39,10 @@ export function DeployProgress({
   repairs?: Array<{ attempt: number; applied: boolean; changedResources?: string[] }>;
   /** The failed attempt left its progress standing — resources that exist are resources that bill. */
   keptPartialProgress?: boolean;
+  /** The deploy was updating a stack that existed before it, so a rollback restores that version. */
+  isUpdate?: boolean;
+  /** What to do next, right under the outcome rather than after the log. */
+  actions?: ReactNode;
 }) {
   const [showLog, setShowLog] = useState(false);
   const [showOriginalError, setShowOriginalError] = useState(false);
@@ -89,9 +95,13 @@ export function DeployProgress({
             : ''}
           {keptPartialProgress === true
             ? ' What was created before the failure is still in your account, and it bills until you remove it. The clean-up command below removes it.'
-            : ' CloudFormation rolls a failed deploy back and removes what the attempt created; it can still be finishing that for a few minutes.'}
+            : isUpdate
+              ? ' AWS put the stack back to the version that was running before, and that version keeps running.'
+              : ' AWS rolls a failed first deploy back and removes what it created; that can take a few more minutes.'}
         </Alert>
       )}
+
+      {actions}
 
       {(status === 'failed' || status === 'repairing') && explanations.length > 0 && (
         <section>
@@ -121,14 +131,14 @@ export function DeployProgress({
         {model.phases.map((phase) => (
           <li className={`wizard-phase is-${phase.status}`} key={phase.id}>
             <span className="wizard-phase-marker" aria-hidden>
-              {phase.status === 'done' ? '✓' : phase.status === 'running' && status === 'running' ? '' : ''}
+              {phase.status === 'done' ? '✓' : phase.status === 'failed' ? '✕' : ''}
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex items-baseline justify-between gap-4">
                 <span className="wizard-phase-label">{phase.label}</span>
                 {phase.cloudformation !== undefined && phase.cloudformation.total > 0 && (
                   <span className="text-[0.8rem] text-[var(--stp-text-subtle)]">
-                    {phase.cloudformation.completed} of {phase.cloudformation.total} AWS resources
+                    {phase.cloudformation.completed} of {phase.cloudformation.total}
                   </span>
                 )}
               </div>
@@ -181,13 +191,14 @@ export function DeployProgress({
         </div>
       )}
 
-      {model.notices.length > 0 && (
+      {/* Once the deploy has failed, its error is in the outcome above and in the full log. */}
+      {model.notices.length > 0 && status !== 'failed' && (
         <section>
           <h3 className="wizard-section-heading">What the deploy reported</h3>
           <ul className="m-0 flex list-none flex-col gap-2 p-0">
             {model.notices.slice(-6).map((notice, index) => (
               <li
-                className={`wizard-output ${notice.level === 'error' ? 'text-[var(--stp-status-danger-text)]' : ''}`}
+                className={`wizard-output ${notice.level === 'error' ? 'text-[var(--stp-status-error)]' : ''}`}
                 // oxlint-disable-next-line react/no-array-index-key -- an append-only feed of notices.
                 key={index}
               >
