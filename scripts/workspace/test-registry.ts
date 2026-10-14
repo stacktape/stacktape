@@ -1739,7 +1739,6 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/components/StacktapeEditor/monaco-yaml.test.ts',
       'apps/console/ui/src/components/StacktapeEditor/resolved-config-display.test.ts',
       'apps/console/ui/src/components/StacktapeEditor/yaml-schema-associations.test.ts',
-      'apps/console/ui/src/dev/design-preview/variants.test.ts',
       'apps/console/ui/src/pages/3rdPartyProviders/provider-credentials.test.ts',
       'apps/console/ui/src/pages/AlarmsPage/cloudwatch-alarms.test.ts',
       'apps/console/ui/src/pages/DomainsPage/domains.test.ts',
@@ -1756,12 +1755,24 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/scripts/copy-stacktape-config-schema.test.ts',
       'apps/console/ui/scripts/dev-api-url.test.ts',
       'apps/console/ui/scripts/browser-target.test.ts',
-      'apps/console/ui/scripts/e2e-credentials.test.ts'
+      'apps/console/ui/scripts/e2e-credentials.test.ts',
+      'apps/console/ui/scripts/feedback-inbox.test.ts'
     ],
     requires: ['console'],
     release: 'every-candidate',
     proves: 'Console UI helpers compile and the production bundle is valid.',
     selections: ['console-ui']
+  },
+  {
+    id: 'console-ui-production-bundle',
+    command: ['pnpm', '--filter', '@stacktape/console-ui', 'test:bundle'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/console/ui/scripts/production-bundle.test.ts'],
+    requires: ['console'],
+    release: 'every-candidate',
+    proves:
+      'A production Console build contains none of the development feedback tool, its endpoint or its capture library.'
   },
   {
     id: 'console-observability-readers',
@@ -1993,6 +2004,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/resolved-config-ui.spec.ts',
       'apps/console/ui/e2e/auth-pages.spec.ts',
       'apps/console/ui/e2e/console-smoke.spec.ts',
+      'apps/console/ui/e2e/feedback-tool.spec.ts',
       'apps/console/ui/e2e/region-select-ui.spec.ts',
       'apps/console/ui/e2e/git-connections-ui.spec.ts',
       'apps/console/ui/e2e/incident-investigate-ui.spec.ts',
@@ -2374,6 +2386,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/auth-pages.spec.ts',
       'apps/console/ui/e2e/authenticated.spec.ts',
       'apps/console/ui/e2e/console-smoke.spec.ts',
+      'apps/console/ui/e2e/feedback-tool.spec.ts',
       'apps/console/ui/e2e/git-connections-ui.spec.ts',
       'apps/console/ui/e2e/git-provider-writes-live.spec.ts',
       'apps/console/ui/e2e/incident-assessment-live.spec.ts',
@@ -2420,7 +2433,6 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/components/StacktapeEditor/monaco-yaml.test.ts',
       'apps/console/ui/src/components/StacktapeEditor/resolved-config-display.test.ts',
       'apps/console/ui/src/components/StacktapeEditor/yaml-schema-associations.test.ts',
-      'apps/console/ui/src/dev/design-preview/variants.test.ts',
       'apps/console/ui/src/pages/3rdPartyProviders/provider-credentials.test.ts',
       'apps/console/ui/src/pages/AlarmsPage/cloudwatch-alarms.test.ts',
       'apps/console/ui/src/pages/DomainsPage/domains.test.ts',
@@ -3176,6 +3188,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/resolved-config-ui.spec.ts',
       'apps/console/ui/e2e/auth-pages.spec.ts',
       'apps/console/ui/e2e/console-smoke.spec.ts',
+      'apps/console/ui/e2e/feedback-tool.spec.ts',
       'apps/console/ui/e2e/region-select-ui.spec.ts',
       'apps/console/ui/e2e/git-connections-ui.spec.ts',
       'apps/console/ui/e2e/incident-investigate-ui.spec.ts',
@@ -5590,7 +5603,6 @@ export const slices: readonly Slice[] = [
     paths: [
       'packages/design-tokens/**',
       'packages/ui-react/src/styles.css',
-      'apps/console/ui/src/dev/design-preview/variants.ts',
       'apps/console/ui/src/components/Misc/QueryStates.tsx',
       'apps/console/ui/src/components/Misc/Status.tsx',
       'apps/console/ui/src/components/Misc/EmptyState.tsx',
@@ -5600,7 +5612,6 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/console/ui/e2e/ui-review-controls.spec.ts',
-      'apps/console/ui/src/dev/design-preview/variants.test.ts',
       'packages/design-tokens/src/tokens.test.ts',
       'apps/console/ui/e2e/isolated-consistency.test.ts'
     ],
@@ -5747,6 +5758,23 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/characterization/error-contract.spec.ts'
     ],
     lanes: ['cli-operation-rules', 'cli-terminal-ownership', 'cli', 'cli-2', 'cli-3', 'cli-operations']
+  },
+  {
+    id: 'S75',
+    promise: 'The development feedback tool saves a boxed note with its code context and never ships.',
+    status: 'active',
+    journeys: ['J12'],
+    paths: [
+      'apps/console/ui/src/dev/feedback/**',
+      'apps/console/ui/scripts/feedback-inbox.ts',
+      'apps/console/ui/src/main.tsx'
+    ],
+    tests: [
+      'apps/console/ui/e2e/feedback-tool.spec.ts',
+      'apps/console/ui/scripts/feedback-inbox.test.ts',
+      'apps/console/ui/scripts/production-bundle.test.ts'
+    ],
+    lanes: ['console-ui', 'console-browser-offline', 'console-ui-production-bundle']
   }
 ];
 

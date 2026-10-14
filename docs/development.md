@@ -66,6 +66,13 @@ for an SSM tunnel to the shared dev database, and then starts the local API and 
 process. The small `console-app-devlocal` support stack is refreshed only when its resolved configuration changes, so
 IAM changes are applied without making ordinary warm starts redeploy.
 
+The Console dev server includes a feedback tool for reviewing the running UI. Press the key left of 1 (`Backquote`)
+outside a text field, drag a box or click an element, type a note and press Enter. The dev server writes a screenshot
+and `item.json` (route, viewport, box, selector, React components with source lines) to the main checkout's ignored
+`.stacktape/feedback/inbox/`; `.stacktape/feedback/README.md` there describes how agents process the inbox. The tool and
+its Vite plugin exist only in `vite serve`, and `pnpm --filter @stacktape/console-ui test:bundle` proves that production
+builds exclude them.
+
 Console deployments also use the source-built workspace CLI:
 
 ```sh
