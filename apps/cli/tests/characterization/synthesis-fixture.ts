@@ -173,7 +173,7 @@ export const synthesizeFixture = async ({
     }
 
     deploymentArtifactManager.setPackagingSource(packagingManager);
-    deploymentArtifactManager.deploymentBucketName = `stp-deployment-bucket-${globallyUniqueStackHash}`;
+    deploymentArtifactManager.deploymentBucketName = awsResourceNames.deploymentBucket(globallyUniqueStackHash);
     deploymentArtifactManager.repositoryName = identityOverride
       ? awsResourceNames.deploymentEcrRepo(globallyUniqueStackHash)
       : 'xxxxxxxx-stp-container-repository';

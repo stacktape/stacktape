@@ -271,7 +271,8 @@ export const lanes: readonly Lane[] = [
     tests: ['apps/cli/tests/data-connections/connections.spec.ts'],
     requires: [],
     release: 'every-candidate',
-    proves: 'Real synthesis wires stream events, filesystem mounts, DSQL metadata and scoped data permissions.',
+    proves:
+      'Real synthesis wires stream events, filesystem mounts, DSQL and database connections and scoped data permissions; invalid container secret sources and unsupported DSQL regions fail early.',
     selections: ['data-connections']
   },
   {
@@ -2130,9 +2131,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/log-groups.spec.ts',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/role-helpers.spec.ts',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/agentcore/index.spec.ts',
-      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/dsql-databases/index.spec.ts',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/functions/events/kafka-topic/index.spec.ts',
-      'apps/cli/src/domain/config-manager/container-secrets.spec.ts',
       'apps/cli/src/domain/config-manager/utils/agentcore.spec.ts',
       'apps/cli/src/domain/config-manager/utils/appsync-apis.spec.ts',
       'apps/cli/src/domain/config-manager/utils/email-senders.spec.ts',
@@ -3714,9 +3713,7 @@ export const slices: readonly Slice[] = [
     ],
     tests: [
       'apps/cli/tests/data-connections/connections.spec.ts',
-      'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/kafka-bootstrap-brokers.spec.ts',
-      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/dsql-databases/index.spec.ts',
-      'apps/cli/src/domain/config-manager/container-secrets.spec.ts'
+      'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/kafka-bootstrap-brokers.spec.ts'
     ],
     lanes: ['data-connections', 'synthesis', 'synthesis-2', 'data-safety', 'config-loading', 'cli-operations-database'],
     contributors: ['S03', 'S09', 'S17']

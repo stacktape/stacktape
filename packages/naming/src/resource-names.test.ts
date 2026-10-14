@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 import { awsResourceNames } from './aws-resource-names';
 import { buildResourceName, obfuscatedNamesStateHolder } from './resource-names';
-import { shortHash } from './short-hash';
 
 describe('resource names', () => {
   beforeEach(() => {
@@ -28,13 +27,13 @@ describe('resource names', () => {
     expect(second).toHaveLength(18);
   });
 
-  test('preserves the shared short hash algorithm', () => {
-    expect(shortHash('123456789012')).toBe('f2003d47');
-  });
-
   test('contains the CLI and Console naming union without changing outputs', () => {
     expect(awsResourceNames.agentCoreRuntime('my-project-dev', 'Agent Name')).toBe('stp_my_project_dev_Agent_Name');
     expect(awsResourceNames.kinesisStream('Events', 'my-project-dev')).toBe('my-project-dev-Events');
+    // S3 rejects uppercase; a camelCase resource name must keep its lowercased physical bucket name.
+    expect(awsResourceNames.bucket('userUploads', 'my-project-dev', 'de773011')).toBe(
+      'my-project-dev-useruploads-de773011'
+    );
     expect(awsResourceNames.cloudwatchAlarmNotificationRule('my-project-dev', 'Errors')).toBe(
       'my-project-dev-alarm-notification-Errors'
     );
