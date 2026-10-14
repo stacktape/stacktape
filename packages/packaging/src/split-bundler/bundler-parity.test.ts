@@ -17,7 +17,7 @@ import { cp, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'n
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { buildEsCode } from '../bundlers/es';
 import { buildSplitBundle } from './bundler';
 import type { PackagingErrorDetails } from './types';
@@ -320,7 +320,8 @@ test('aliased sources and Node builtins execute from portable single and split a
     for (const name of ['api', 'worker']) {
       await writeFile(
         join(root, `src/${name}.ts`),
-        "import { marker, payload } from '@app/shared'; import { basename } from 'node:path'; export const handler = () => ({ marker, size: payload.length, file: basename('/runtime/value') });"
+        // `__dirname` must name the directory the function runs from, not the one it was built in.
+        "import { marker, payload } from '@app/shared'; import { basename } from 'node:path'; export const handler = () => ({ marker, size: payload.length, file: basename('/runtime/value'), directory: basename(__dirname) });"
       );
     }
     await buildEsCode({
@@ -331,7 +332,7 @@ test('aliased sources and Node builtins execute from portable single and split a
       externals: [],
       outputModuleFormat: 'esm',
       sourceMaps: 'external',
-      sourceMapBannerType: 'disabled',
+      sourceMapBannerType: 'pre-compiled',
       createPackagingError
     });
     await splitBundle({ root, entries: ['api', 'worker'], tsConfigPath });
@@ -359,7 +360,12 @@ test('aliased sources and Node builtins execute from portable single and split a
         { cwd: runtime, encoding: 'utf8', timeout: 10_000 }
       );
       expect(execution.status, `${kind}: ${execution.stderr}`).toBe(0);
-      expect(JSON.parse(execution.stdout)).toEqual({ marker: 'aliased-source', size: 24576, file: 'value' });
+      expect(JSON.parse(execution.stdout)).toEqual({
+        marker: 'aliased-source',
+        size: 24576,
+        file: 'value',
+        directory: basename(runtime)
+      });
     }
     artifacts.push(bytes);
   }

@@ -21,7 +21,7 @@ const PACKAGE_LOCKS = {
   'pnpm-lock.yaml': 'pnpm',
   'bun.lockb': 'bun',
   'bun.lock': 'bun',
-  'deno.lockb': 'deno'
+  'deno.lock': 'deno'
 } as const;
 
 /**
