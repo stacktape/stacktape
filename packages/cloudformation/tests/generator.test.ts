@@ -8,10 +8,11 @@ const artifacts = generateArtifacts();
 
 describe('CloudFormation type generation', () => {
   test('generates one stable module per pinned resource type', () => {
-    expect(artifacts.size).toBe(1_723);
+    expect(artifacts.size).toBe(1_868);
     expect(artifacts.has('resources/aws-lambda-function.ts')).toBe(true);
     expect(artifacts.has('resources/aws-iam-role.ts')).toBe(true);
     expect(artifacts.has('resources/aws-s3-bucket.ts')).toBe(true);
+    expect(artifacts.has('resources/aws-lambda-webfunctionrevision.ts')).toBe(true);
   });
 
   test('includes writable nested definitions but excludes read-only attributes', () => {
