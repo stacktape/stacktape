@@ -60,7 +60,7 @@ const alternativesFor = (uncertainty: Uncertainty): string[] => {
     case 'external-database-disposition':
       return ['point-at-existing', 'create-new'];
     case 'sqlite-persistence':
-      return ['migrate-to-managed-database', 'persistent-volume', 'accept-ephemeral'];
+      return ['persistent-volume', 'accept-ephemeral'];
     case 'local-filesystem-writes':
       return ['object-storage', 'persistent-volume', 'accept-ephemeral'];
     case 'service-deployment-intent':

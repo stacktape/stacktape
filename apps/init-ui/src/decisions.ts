@@ -101,21 +101,20 @@ export const DECISION_COPY: Record<string, DecisionCopy> = {
   },
 
   'sqlite-persistence': {
-    summary: () => 'Moving your SQLite data to a real database',
-    detail: () =>
-      'SQLite keeps everything in a file next to your app. On AWS your app is replaced on every deploy, and the file goes with it, so this moves that data somewhere it survives.',
+    summary: (_parameters, chosen) =>
+      chosen === 'accept-ephemeral'
+        ? 'Keeping your SQLite file only until the next deploy'
+        : 'Keeping your SQLite file on a disk that survives deploys',
+    detail: (parameters, chosen) =>
+      chosen === 'accept-ephemeral'
+        ? `Your app starts with an empty file at ${text(parameters, 'filePath', 'its usual path')} on every deploy and restart.`
+        : `Your app is replaced on every deploy, so its SQLite file goes on an attached disk at ${text(parameters, 'filePath', '/data')}. One copy of the app runs, so only one writes to the file. Switching to PostgreSQL would need code changes.`,
     option: (value) =>
-      value === 'migrate-to-managed-database'
-        ? 'Move it to a managed database'
-        : value === 'persistent-volume'
-          ? 'Keep the file on a disk that survives'
-          : 'It is only a cache, losing it is fine',
+      value === 'persistent-volume' ? 'Keep the file on a disk that survives' : 'It is only a cache, losing it is fine',
     consequence: (value) =>
-      value === 'migrate-to-managed-database'
-        ? 'You point your app at it once, and it survives every deploy after that.'
-        : value === 'persistent-volume'
-          ? 'Closest to how it works today, but only one copy of your app can run.'
-          : 'Nothing is created. The file is gone on every deploy.'
+      value === 'persistent-volume'
+        ? 'Works without code changes. One copy of your app, a few cents a month for the disk.'
+        : 'Nothing is created. The file is empty after every deploy.'
   },
 
   'local-filesystem-writes': {

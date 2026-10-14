@@ -17,6 +17,7 @@ import type { WizardState } from '../session';
 import { DecisionRow } from '../components/DecisionRow';
 import { Evidence } from '../components/Evidence';
 import { gapsToList } from '../gaps';
+import { requiredSecretVariables } from '../required-secrets';
 
 /** Heavy on purpose, light on arrival: the diagram and its icon catalogue load after the page. */
 const Diagram = lazy(() => import('../components/Diagram'));
@@ -123,18 +124,23 @@ function PreferenceCards<Key extends DeploymentPreferenceKey>({
   value,
   recommended,
   isBusy,
+  isLocked,
+  priceDeltas,
   onChange
 }: {
   preference: Key;
   value: DeploymentPreferences[Key];
   recommended: DeploymentPreferences[Key];
   isBusy: boolean;
+  isLocked: boolean;
+  /** What switching to each other option changes the monthly price by, once priced. */
+  priceDeltas: Record<string, string> | undefined;
   onChange: (change: DeploymentPreferenceChange) => void;
 }) {
   const copy = PREFERENCE_COPY[preference];
   const values = copy.options.map((option) => option.value);
   const choose = (next: string) => {
-    if (isBusy) return;
+    if (isBusy || isLocked) return;
     onChange({ key: preference, value: next as DeploymentPreferences[Key] } as DeploymentPreferenceChange);
   };
   return (
@@ -154,11 +160,17 @@ function PreferenceCards<Key extends DeploymentPreferenceKey>({
         {copy.options.map((option) => (
           <SelectionCard
             description={option.description}
-            isDisabled={isBusy}
+            isDisabled={isBusy || (isLocked && option.value !== value)}
             isRecommended={option.value === recommended}
             isSelected={option.value === value}
             key={option.value}
-            meta={option.meta}
+            meta={
+              priceDeltas === undefined
+                ? option.meta
+                : option.value === value
+                  ? 'Current choice'
+                  : (priceDeltas[option.value] ?? option.meta)
+            }
             onSelect={choose}
             title={option.title}
             value={option.value}
@@ -346,7 +358,8 @@ export function ReviewStep({
   onWrite,
   onChangeDecision,
   onChangePreference,
-  busy
+  busy,
+  isLocked = false
 }: {
   state: WizardState;
   onWrite: (format: 'yaml' | 'typescript') => void;
@@ -354,6 +367,8 @@ export function ReviewStep({
   onChangePreference: (change: DeploymentPreferenceChange) => void;
   /** Which action is in flight. Decisions use their own id, so only the row being changed spins. */
   busy: string | undefined;
+  /** A deploy is reading the saved file: the review can be read, not changed. */
+  isLocked?: boolean;
 }) {
   const [view, setView] = useState<ConfigEditorViewId>('diagram');
   const [format, setFormat] = useState<'yaml' | 'typescript'>('yaml');
@@ -364,6 +379,9 @@ export function ReviewStep({
   // The alert about another platform already says this; repeating it under "Before you deploy" made
   // one fact look like two things to do.
   const gaps = gapsToList(state.composition?.gaps ?? [], existingDeployments);
+  const secretVariables = requiredSecretVariables(state.composition?.resources ?? {});
+  const unsetSettings = state.composition?.unsetSettings ?? [];
+  const severalServices = new Set(unsetSettings.map((setting) => setting.resourceName)).size > 1;
   const decisions = state.facts?.decisions ?? [];
   // With nothing notable, a "Show 1 smaller one" link under an empty list hides the only content.
   const notable = decisions.some((decision) => decision.notable)
@@ -412,6 +430,11 @@ export function ReviewStep({
 
   return (
     <div className="flex flex-col gap-8">
+      {isLocked && (
+        <p className="wizard-locked-note">
+          The deploy is using the saved file, so these choices are locked until it finishes.
+        </p>
+      )}
       <p className="wizard-summary">
         {summarise(state)}
         {price !== undefined && (
@@ -550,7 +573,9 @@ export function ReviewStep({
             {preferenceKeys.map((preference) => (
               <PreferenceCards
                 isBusy={busy === `preference-${preference}`}
+                isLocked={isLocked}
                 key={preference}
+                priceDeltas={price?.options?.[preference]}
                 onChange={onChangePreference}
                 preference={preference}
                 recommended={recommendedPreferences[preference]}
@@ -574,13 +599,15 @@ export function ReviewStep({
         <section>
           <h3 className="wizard-section-heading">Decided for you</h3>
           <p className="wizard-lede mb-4">
-            Your code did not say, so we picked. Every one of these can be changed, and the file changes with it.
+            Your code did not say, so we picked.
+            {isLocked ? '' : ' Every one of these can be changed, and the file changes with it.'}
           </p>
           <div className="flex flex-col gap-2">
             {notable.map((decision) => (
               <DecisionRow
                 decision={decision}
                 isBusy={busy === decision.id}
+                isLocked={isLocked}
                 key={decision.id}
                 onChange={(value) => onChangeDecision(decision.id, value)}
               />
@@ -590,6 +617,7 @@ export function ReviewStep({
                 <DecisionRow
                   decision={decision}
                   isBusy={busy === decision.id}
+                  isLocked={isLocked}
                   key={decision.id}
                   onChange={(value) => onChangeDecision(decision.id, value)}
                 />
@@ -603,18 +631,71 @@ export function ReviewStep({
         </section>
       )}
 
-      {gaps.length > 0 && (
-        <section className="wizard-panel p-4">
-          <h3 className="m-0 mb-2 text-[0.95rem] font-semibold">Before you deploy</h3>
-          <ul className="m-0 flex list-none flex-col gap-1.5 p-0 text-[0.9rem] text-[var(--stp-text-muted)]">
-            {gaps.map((gap) => (
-              <li key={`${gap.subject}-${gap.message}`}>{gap.message}</li>
-            ))}
-          </ul>
+      {(secretVariables.length > 0 || unsetSettings.length > 0 || gaps.length > 0) && (
+        <section className="wizard-panel wizard-checklist">
+          <h3 className="m-0 text-[0.95rem] font-semibold">Before you deploy</h3>
+          {secretVariables.length > 0 && (
+            <div className="wizard-checklist-item">
+              <p className="wizard-checklist-title">
+                {secretVariables.length === 1
+                  ? 'One value only you have'
+                  : `${secretVariables.length} values only you have`}
+              </p>
+              <p className="wizard-checklist-detail">
+                Your app reads {secretVariables.length === 1 ? 'it' : 'them'} from Stacktape secrets, so the values
+                never go in the file. The Deploy step gives you the command that creates each one.
+              </p>
+              <p className="wizard-variable-list">
+                {secretVariables.map((name) => (
+                  <code className="wizard-code" key={name}>
+                    {name}
+                  </code>
+                ))}
+              </p>
+            </div>
+          )}
+          {unsetSettings.length > 0 && (
+            <div className="wizard-checklist-item">
+              <p className="wizard-checklist-title">
+                {unsetSettings.length === 1
+                  ? 'One setting nothing sets yet'
+                  : `${unsetSettings.length} settings nothing sets yet`}
+              </p>
+              <p className="wizard-checklist-detail">
+                Your code reads {unsetSettings.length === 1 ? 'this' : 'these'} with no fallback. If your app needs{' '}
+                {unsetSettings.length === 1 ? 'it' : 'one'} to start, add it under{' '}
+                <span className="wizard-code">environment</span> in{' '}
+                <span className="wizard-code">{written ? (state.configFile?.filename ?? filename) : filename}</span>{' '}
+                {written ? 'before deploying' : 'once it is saved'}.
+              </p>
+              <ul className="wizard-setting-list">
+                {unsetSettings.map((setting) => (
+                  <li key={`${setting.resourceName}-${setting.variableName}`}>
+                    <code className="wizard-code">{setting.variableName}</code>
+                    <span className="wizard-setting-where">
+                      {severalServices ? `${setting.resourceName}, ` : ''}
+                      {setting.evidence[0] === undefined
+                        ? 'read in your code'
+                        : `read in ${setting.evidence[0].file}:${setting.evidence[0].line}`}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {gaps.length > 0 && (
+            <ul className="wizard-checklist-item m-0 flex list-none flex-col gap-1.5 p-0">
+              {gaps.map((gap) => (
+                <li className="wizard-checklist-detail" key={`${gap.subject}-${gap.message}`}>
+                  {gap.message}
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
 
-      {written ? (
+      {isLocked ? null : written ? (
         <p className="m-0 text-[0.9rem] text-[var(--stp-text-muted)]">
           Saved <span className="wizard-code text-[var(--stp-text-primary)]">{state.configFile?.filename}</span> to your
           project.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { requiredSecrets, secretCommand } from './required-secrets';
+import { requiredSecrets, requiredSecretVariables, secretCommand } from './required-secrets';
 
 describe('requiredSecrets', () => {
   it('lists secrets the user must create and skips database passwords the deploy generates', () => {
@@ -31,6 +31,8 @@ describe('requiredSecrets', () => {
       }
     };
     expect(requiredSecrets(resources)).toEqual(['payments', 'rmq_url']);
+    // Named as the app reads them, once each, and never the generated password.
+    expect(requiredSecretVariables(resources)).toEqual(['RMQ_URL', 'STRIPE']);
   });
 
   it('finds nothing in a configuration without secret references', () => {

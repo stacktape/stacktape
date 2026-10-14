@@ -65,11 +65,27 @@ export type CompositionGap = {
   message: string;
 };
 
+/** A setting the code reads with no fallback, which nothing in the configuration sets. */
+export type UnsetSetting = {
+  serviceName: string;
+  /** The resource whose `environment` would set it. */
+  resourceName: string;
+  variableName: string;
+  evidence: Citation[];
+};
+
 export type CompositionResult = {
   config: ComposedConfig;
   /** Keyed by resource name. */
   provenance: Record<string, Provenance>;
   gaps: CompositionGap[];
+  /**
+   * Settings the app may need to start, for the user to fill in before deploying.
+   *
+   * Kept apart from `gaps` because the page lists them by name, next to where the code reads them.
+   * Without this, the first time anyone heard of them was a container exiting on AWS.
+   */
+  unsetSettings: UnsetSetting[];
   /**
    * Decisions taken on the user's behalf, with what else they could have been.
    *
@@ -155,6 +171,55 @@ const DEPENDENCY_LABELS: Partial<Record<DependencyFact['kind'], string>> = {
 };
 
 const dependencyLabel = (kind: DependencyFact['kind']): string => DEPENDENCY_LABELS[kind] ?? kind;
+
+/**
+ * Where a SQLite file lives for each answer to the SQLite decision.
+ *
+ * A container's own disk is replaced on every deploy and restart. `persistent-volume` mounts one EFS
+ * filesystem at this directory in every service that uses the file; `accept-ephemeral` keeps the
+ * file on the container's disk. Moving the data to a managed database is not offered: every SQLite
+ * driver and Prisma schema we have seen needs code changes for that, which a configuration cannot make.
+ */
+const SQLITE_DIRECTORIES = {
+  'persistent-volume': '/data',
+  'accept-ephemeral': '/tmp'
+} as const;
+type SqliteChoice = keyof typeof SQLITE_DIRECTORIES;
+
+/** Variables a web app reads for its own public address, wired to the URL Stacktape gives it. */
+const SELF_URL_VARIABLE = /^(?:APP|APPLICATION|SITE|NEXTAUTH|BASE|PUBLIC)_URL$/i;
+
+/**
+ * Variables that are not the app's own settings: test runners, CI, the platforms a project came from,
+ * and what the runtime or Stacktape sets. Reported as unset, they would bury the real ones.
+ */
+const TOOLING_VARIABLE =
+  /^(?:CI|NODE_ENV|PORT|HOST|HOSTNAME|PWD|HOME|TZ|DEBUG|VITEST|JEST_WORKER_ID|GITHUB_ACTIONS|AWS_REGION|AWS_DEFAULT_REGION|K_SERVICE|DYNO|(?:PLAYWRIGHT|CYPRESS|FLY|RENDER|VERCEL|NETLIFY|RAILWAY|HEROKU|AWS_LAMBDA|STP|STACKTAPE)_\w+|RENDER|VERCEL|NETLIFY)$/;
+
+/** Files that run while building or testing, never in the deployed app. */
+const TOOLING_FILE =
+  /(?:^|\/)(?:[\w.-]+\.config\.[cm]?[jt]s|[\w.-]+[._](?:test|spec)\.\w+|[\w-]+_test\.go|tests?\/|__tests__\/|e2e\/|remix\.init\/|scripts\/)/;
+
+/** Resource types that can mount an EFS volume and be held to a single running copy. */
+const VOLUME_RESOURCE_TYPES: ReadonlySet<ServiceResourceType> = new Set([
+  'web-service',
+  'worker-service',
+  'private-service'
+]);
+
+/**
+ * The value for a variable that tells the app where its SQLite file is.
+ *
+ * A `*_URL`-style variable is a connection string whose scheme depends on the driver: Prisma and
+ * libsql read `file:`, SQLAlchemy and dj-database-url read `sqlite:///` followed by an absolute
+ * path, Rails reads `sqlite3:`. Any other name is taken to hold a plain path.
+ */
+const sqliteVariableValue = (variableName: string, language: string | undefined, filePath: string): string => {
+  if (!/(?:URL|URI|DSN)$/i.test(variableName)) return filePath;
+  if (language === 'python') return `sqlite:///${filePath}`;
+  if (language === 'ruby') return `sqlite3:${filePath}`;
+  return `file:${filePath}`;
+};
 
 const RDS_ENGINE_TYPES: Partial<Record<DependencyFact['kind'], string>> = {
   postgres: 'postgres',
@@ -311,16 +376,26 @@ const environmentFor = (
     serviceResourceNames: ReadonlyMap<string, string>;
     /** Dependencies we are creating: fact name → its kind and the resource name it composed into. */
     composedDependencies: ReadonlyMap<string, { kind: DependencyFact['kind']; resourceName: string }>;
+    /** Where each SQLite dependency's file is, by dependency name. */
+    sqliteFiles: ReadonlyMap<string, string>;
     projectName: string | undefined;
   }
 ): Array<{ name: string; value: unknown }> => {
-  const { serviceResourceNames, composedDependencies, projectName } = context;
+  const { serviceResourceNames, composedDependencies, sqliteFiles, projectName } = context;
   const variables: Array<{ name: string; value: unknown }> = [];
 
   for (const variable of service.environmentVariables) {
     if (variable.role === 'infra-dependency') {
       if (variable.dependencyName === undefined) continue;
       const composed = composedDependencies.get(variable.dependencyName);
+      const sqliteFile = sqliteFiles.get(variable.dependencyName);
+      if (sqliteFile !== undefined) {
+        variables.push({
+          name: variable.name,
+          value: sqliteVariableValue(variable.name, service.language, sqliteFile)
+        });
+        continue;
+      }
       if (composed === undefined) {
         const secretName = secretNameFor(variable.name);
         if (secretName !== undefined) {
@@ -358,11 +433,7 @@ const environmentFor = (
       }
       continue;
     }
-    if (
-      variable.role === 'runtime-config' &&
-      service.exposesHttp &&
-      /^(?:APP|APPLICATION|SITE|NEXTAUTH)_URL$/i.test(variable.name)
-    ) {
+    if (variable.role === 'runtime-config' && service.exposesHttp && SELF_URL_VARIABLE.test(variable.name)) {
       const self = serviceResourceNames.get(service.name);
       if (self !== undefined)
         variables.push({
@@ -534,12 +605,6 @@ const composeDependency = (
         resource: { type: 'open-search-domain', properties: {} },
         reason: 'Your code queries a search index.'
       };
-    case 'sqlite':
-      // Not a resource at all. A SQLite file on a container filesystem disappears on the next
-      // deploy, so this has to reach the user as a decision rather than as infrastructure.
-      return {
-        unsupported: 'SQLite runs inside your application, so there is nothing to create for it.'
-      };
     case 'email':
       return {
         unsupported: 'Sending email uses SES, which is configured on your domain rather than created as a resource.'
@@ -638,6 +703,7 @@ export const composeConfig = ({
   const resources: Record<string, ComposedResource> = {};
   const provenance: Record<string, Provenance> = {};
   const gaps: CompositionGap[] = [];
+  const unsetSettings: UnsetSetting[] = [];
   const taken = new Set<string>();
 
   const dependencyResourceNames = new Map<string, string>();
@@ -649,9 +715,51 @@ export const composeConfig = ({
   const privateDatabaseResourceNames = new Set<string>();
   /** Variables a service needs because we decided *not* to create what they address, by service name. */
   const externalVariables = new Map<string, Array<{ name: string; value: unknown }>>();
+  /** Where each SQLite dependency's file is, by dependency name. */
+  const sqliteFiles = new Map<string, string>();
+  /** The one disk every kept SQLite file shares, and the services that mount it. */
+  let sqliteVolumeName: string | undefined;
+  const sqliteVolumeServices = new Set<string>();
+  // An agent reports a SQLite file as a question about a service, and the scan may report the same
+  // file as a dependency. Both become one dependency, so the user sees one decision per file and the
+  // answer always reaches the configuration.
+  const agentSqliteFiles = new Map<string, { chosen: string; path: string }>();
+  for (let index = assumptions.length - 1; index >= 0; index -= 1) {
+    const assumption = assumptions[index]!;
+    if (assumption.kind !== 'sqlite-persistence') continue;
+    const { serviceName, paths } = assumption.parameters as { serviceName?: unknown; paths?: unknown };
+    if (typeof serviceName === 'string') {
+      agentSqliteFiles.set(serviceName, {
+        chosen: assumption.chosen,
+        path: Array.isArray(paths) && typeof paths[0] === 'string' ? paths[0] : ''
+      });
+    }
+    assumptions.splice(index, 1);
+  }
+  const dependencies: DependencyFact[] = [
+    ...facts.dependencies,
+    ...[...agentSqliteFiles.keys()]
+      .filter(
+        (serviceName) =>
+          !facts.dependencies.some(
+            (dependency) => dependency.kind === 'sqlite' && dependency.consumedBy.includes(serviceName)
+          )
+      )
+      .map(
+        (serviceName): DependencyFact => ({
+          name: `${serviceName}Sqlite`,
+          kind: 'sqlite',
+          extensions: [],
+          consumedBy: [serviceName],
+          addressedBy: [],
+          evidence: [],
+          source: 'agent'
+        })
+      )
+  ];
   const unresolvedPulumiCompute =
     facts.services.length === 0 && facts.existingDeployments.some((deployment) => deployment.tool === 'pulumi');
-  for (const dependency of facts.dependencies) {
+  for (const dependency of dependencies) {
     // SDK clients in a Pulumi program can identify S3/SQS/etc. without identifying the functions
     // that use them. Creating those weak, unconsumed findings alone leaves orphaned infrastructure
     // and a dangerously convincing success. Concrete Pulumi resource declarations carry
@@ -721,21 +829,64 @@ export const composeConfig = ({
       // They asked for their own: compose it as though it had never been hosted anywhere.
     }
 
+    if (dependency.kind === 'sqlite') {
+      // Nothing to create for SQLite itself, but its file has to be somewhere. The answer decides
+      // where, and the variables, mounts and scaling below follow from it.
+      const decisionId = `sqlite:${dependency.name}`;
+      const reported = dependency.consumedBy
+        .map((serviceName) => agentSqliteFiles.get(serviceName))
+        .find((file) => file !== undefined);
+      const requested = decisions[decisionId] ?? reported?.chosen;
+      const chosen: SqliteChoice = requested === 'accept-ephemeral' ? 'accept-ephemeral' : 'persistent-volume';
+      const reportedName = reported === undefined ? '' : posix.basename(reported.path);
+      let fileName = reportedName === '' ? 'data.db' : reportedName;
+      if ([...sqliteFiles.values()].some((path) => posix.basename(path) === fileName)) {
+        fileName = `${dependency.name}-${fileName}`;
+      }
+      const filePath = `${SQLITE_DIRECTORIES[chosen]}/${fileName}`;
+      sqliteFiles.set(dependency.name, filePath);
+      assumptions.push({
+        id: decisionId,
+        kind: 'sqlite-persistence',
+        chosen,
+        alternatives: ['persistent-volume', 'accept-ephemeral'],
+        parameters: { serviceName: dependency.consumedBy[0] ?? 'app', filePath },
+        evidence: [...dependency.evidence],
+        notable: true
+      });
+      if (chosen === 'persistent-volume') {
+        sqliteVolumeName ??= uniqueName('sqliteData', taken);
+        if (resources[sqliteVolumeName] === undefined) {
+          resources[sqliteVolumeName] = { type: 'efs-filesystem', properties: { backupEnabled: true } };
+          provenance[sqliteVolumeName] = {
+            reason: `Your app keeps its data in a SQLite file. This disk is mounted at ${SQLITE_DIRECTORIES['persistent-volume']} and keeps the file through deploys and restarts.`,
+            evidence: dependency.evidence.slice(0, 3)
+          };
+        }
+        for (const serviceName of dependency.consumedBy) sqliteVolumeServices.add(serviceName);
+        if (dependency.addressedBy.length === 0) {
+          gaps.push({
+            subject: `${dependency.name}.path`,
+            message: `Your code opens its SQLite file at a path that no setting controls. Change it to ${filePath} so the file is kept on the disk.`
+          });
+        }
+      }
+      // A release-time migration cannot reach a file inside the app, and an empty file on a fresh
+      // container needs its tables too, so the app has to migrate itself when it starts.
+      for (const migration of facts.migrations) {
+        if (!dependency.consumedBy.includes(migration.serviceName) || migration.runsAt === 'service-startup') continue;
+        gaps.push({
+          subject: `${migration.serviceName}.migrations`,
+          message: `Run "${migration.command}" when ${migration.serviceName} starts, before the server: the SQLite file is only reachable from inside the app.`
+        });
+      }
+      continue;
+    }
+
     const privateDatabase = preferences.databaseAccess === 'private' && RDS_ENGINE_TYPES[dependency.kind] !== undefined;
     const composed = composeDependency(dependency, profile, projectName, engineVersions, privateDatabase);
     if ('unsupported' in composed) {
       gaps.push({ subject: dependency.name, message: composed.unsupported });
-      if (dependency.kind === 'sqlite') {
-        assumptions.push({
-          id: `sqlite:${dependency.name}`,
-          kind: 'sqlite-persistence',
-          chosen: 'migrate-to-managed-database',
-          alternatives: ['migrate-to-managed-database', 'persistent-volume', 'accept-ephemeral'],
-          parameters: { serviceName: dependency.consumedBy[0] ?? 'app' },
-          evidence: [...dependency.evidence],
-          notable: true
-        });
-      }
       continue;
     }
     const name = uniqueName(dependency.name, taken);
@@ -850,6 +1001,7 @@ export const composeConfig = ({
     const environment = environmentFor(service, {
       serviceResourceNames,
       composedDependencies,
+      sqliteFiles,
       projectName
     });
     // The agent path may already have written the same variable from the service's own facts, so the
@@ -865,7 +1017,7 @@ export const composeConfig = ({
           variable.hasDeclaredValue &&
           variable.safeLiteralValue === undefined &&
           variable.required &&
-          !(service.exposesHttp && /^(?:APP|APPLICATION|SITE|NEXTAUTH)_URL$/i.test(variable.name))
+          !(service.exposesHttp && SELF_URL_VARIABLE.test(variable.name))
       )
       .map((variable) => ({
         name: variable.name,
@@ -879,6 +1031,7 @@ export const composeConfig = ({
         variable.role === 'infra-dependency' &&
         variable.dependencyName !== undefined &&
         !composedDependencyNames.has(variable.dependencyName) &&
+        !sqliteFiles.has(variable.dependencyName) &&
         // The kept-external branch above says this better, naming the provider it is leaving alone.
         !gaps.some((gap) => gap.subject === `${service.name}.${variable.name}`)
       ) {
@@ -904,6 +1057,20 @@ export const composeConfig = ({
         });
       }
     }
+    for (const variable of service.environmentVariables) {
+      if (variable.role !== 'runtime-config' || !variable.required || variable.hasDeclaredValue) continue;
+      if (environment.some((entry) => entry.name === variable.name) || TOOLING_VARIABLE.test(variable.name)) continue;
+      if (variable.evidence.length > 0 && variable.evidence.every((citation) => TOOLING_FILE.test(citation.file))) {
+        continue;
+      }
+      unsetSettings.push({
+        serviceName: service.name,
+        resourceName: name,
+        variableName: variable.name,
+        evidence: variable.evidence.filter((citation) => !TOOLING_FILE.test(citation.file)).slice(0, 2)
+      });
+    }
+
     if (declaredRuntimeSettings.length === 1) {
       const [setting] = declaredRuntimeSettings;
       gaps.push({
@@ -933,6 +1100,25 @@ export const composeConfig = ({
       reason: classification.reason,
       evidence: classification.evidence
     };
+    if (sqliteVolumeName !== undefined && sqliteVolumeServices.has(service.name)) {
+      if (VOLUME_RESOURCE_TYPES.has(classification.resourceType)) {
+        const properties = resources[name]!.properties;
+        properties.volumeMounts = [
+          {
+            type: 'efs',
+            properties: { efsFilesystemName: sqliteVolumeName, mountPath: SQLITE_DIRECTORIES['persistent-volume'] }
+          }
+        ];
+        // SQLite allows one writer, and a second copy of the app on a network disk risks corrupting
+        // the file. One copy is the price of keeping it without code changes.
+        properties.scaling = { minInstances: 1, maxInstances: 1 };
+      } else {
+        gaps.push({
+          subject: `${service.name}.sqlite`,
+          message: `${service.name} does not run as a long-running container, so it cannot keep a SQLite file on a disk. Move its data to a database before deploying.`
+        });
+      }
+    }
 
     // Root-context builds can carry a stated limitation; the packaging itself is emitted inside
     // `buildServiceResource`, and the caveat belongs next to the other honest omissions. Only the
@@ -1044,6 +1230,7 @@ export const composeConfig = ({
     },
     provenance,
     gaps: uniqueGaps,
+    unsetSettings,
     assumptions,
     // Anything `resolveAssumptions` could not decide. Normally none.
     unresolved: facts.uncertainties,

@@ -30,6 +30,14 @@ const facts = (overrides: Partial<ProjectFactsInput> = {}): ProjectFacts =>
     ...overrides
   });
 
+/** A runtime setting the scan saw the code read, in one file. */
+const readSetting = (name: string, file: string, required = true) => ({
+  name,
+  role: 'runtime-config' as const,
+  required,
+  evidence: [{ file, line: 1, quote: `process.env.${name}` }]
+});
+
 describe('classifyService', () => {
   it('uses the dedicated framework resource when there is one', () => {
     expect(
@@ -842,29 +850,136 @@ describe('composeConfig', () => {
     expect(gaps.find((gap) => gap.subject === 'frontend.API_HOST')?.message).toContain('expects a service host');
   });
 
-  it('states SQLite as a decision rather than creating nothing and saying nothing', () => {
-    const { gaps, assumptions, config } = composeConfig({
-      facts: facts({
+  describe('SQLite', () => {
+    const sqliteFacts = (overrides: Partial<ProjectFactsInput> = {}) =>
+      facts({
+        services: [
+          service({
+            environmentVariables: [
+              {
+                name: 'DATABASE_URL',
+                role: 'infra-dependency',
+                dependencyName: 'localDatabase',
+                required: true,
+                evidence: []
+              }
+            ]
+          })
+        ],
         dependencies: [
           {
             name: 'localDatabase',
             kind: 'sqlite',
             extensions: [],
             consumedBy: ['web'],
+            addressedBy: ['DATABASE_URL'],
             evidence: [],
             source: 'probe'
           }
+        ],
+        migrations: [
+          { serviceName: 'web', tool: 'prisma', command: 'npx prisma migrate deploy', runsAt: 'unknown', evidence: [] }
+        ],
+        ...overrides
+      });
+
+    it('keeps the file on a mounted disk by default and points the app at it', () => {
+      const { config, gaps, assumptions } = composeConfig({ facts: sqliteFacts() });
+
+      expect(config.resources.sqliteData).toEqual({ type: 'efs-filesystem', properties: { backupEnabled: true } });
+      expect(config.resources.web!.properties).toMatchObject({
+        volumeMounts: [{ type: 'efs', properties: { efsFilesystemName: 'sqliteData', mountPath: '/data' } }],
+        // One writer: a second copy on the network disk would risk the file.
+        scaling: { minInstances: 1, maxInstances: 1 },
+        environment: [{ name: 'DATABASE_URL', value: 'file:/data/data.db' }]
+      });
+      expect(assumptions.find((assumption) => assumption.kind === 'sqlite-persistence')).toMatchObject({
+        id: 'sqlite:localDatabase',
+        chosen: 'persistent-volume',
+        alternatives: ['persistent-volume', 'accept-ephemeral'],
+        notable: true
+      });
+      // No secret to set for a file the app owns, and the migration has to run where the file is.
+      expect(gaps.map((gap) => gap.subject)).toEqual(['web.migrations']);
+      expect(JSON.stringify(config)).not.toContain('$Secret');
+    });
+
+    it('creates no disk when the user says the file is only a cache', () => {
+      const { config, assumptions } = composeConfig({
+        facts: sqliteFacts(),
+        decisions: { 'sqlite:localDatabase': 'accept-ephemeral' }
+      });
+
+      expect(config.resources.sqliteData).toBeUndefined();
+      expect(config.resources.web!.properties.volumeMounts).toBeUndefined();
+      expect(config.resources.web!.properties.environment).toEqual([
+        { name: 'DATABASE_URL', value: 'file:/tmp/data.db' }
+      ]);
+      expect(assumptions.find((assumption) => assumption.kind === 'sqlite-persistence')?.chosen).toBe(
+        'accept-ephemeral'
+      );
+    });
+
+    it('turns a SQLite file only the agent reported into the same single decision', () => {
+      const { config, gaps, assumptions } = composeConfig({
+        facts: sqliteFacts({
+          dependencies: [],
+          migrations: [],
+          services: [service()],
+          uncertainties: [
+            {
+              id: 'sqlite-persistence:web',
+              kind: 'sqlite-persistence',
+              serviceName: 'web',
+              paths: ['storage/app.sqlite'],
+              recommended: 'persistent-volume',
+              blocksDeploy: true,
+              evidence: [],
+              source: 'agent'
+            }
+          ]
+        })
+      });
+
+      expect(assumptions.filter((assumption) => assumption.kind === 'sqlite-persistence')).toHaveLength(1);
+      expect(config.resources.web!.properties.volumeMounts).toBeDefined();
+      // No variable controls the path, so the user is told where the file has to go.
+      expect(gaps.find((gap) => gap.subject === 'webSqlite.path')?.message).toContain('/data/app.sqlite');
+    });
+  });
+
+  it('lists the settings the app reads without a default that nothing sets, and not test or platform ones', () => {
+    const { unsetSettings, config } = composeConfig({
+      facts: facts({
+        services: [
+          service({
+            environmentVariables: [
+              readSetting('CACHE_DATABASE_PATH', 'app/utils/cache.server.ts'),
+              readSetting('BASE_URL', 'lib/payments/stripe.ts'),
+              readSetting('LOG_LEVEL', 'src/log.ts', false),
+              readSetting('VITEST', 'src/server.ts'),
+              readSetting('FLY_REGION', 'src/server.ts'),
+              readSetting('SENTRY_ORG', 'vite.config.ts'),
+              readSetting('SKIP_SETUP', 'remix.init/index.mjs'),
+              readSetting('LOGGER_FATAL', 'pkg/logger/logger_test.go')
+            ]
+          })
         ]
       })
     });
 
-    expect(config.resources.localDatabase).toBeUndefined();
-    expect(gaps.some((gap) => gap.subject === 'localDatabase')).toBe(true);
-    // Decided, not asked: a SQLite file on a container disk disappears on the next deploy, so the
-    // assumption is to move it — and the review screen says so, with the option to change it.
-    expect(assumptions.find((assumption) => assumption.kind === 'sqlite-persistence')).toMatchObject({
-      chosen: 'migrate-to-managed-database',
-      notable: true
+    expect(unsetSettings).toEqual([
+      {
+        serviceName: 'web',
+        resourceName: 'web',
+        variableName: 'CACHE_DATABASE_PATH',
+        evidence: [{ file: 'app/utils/cache.server.ts', line: 1, quote: 'process.env.CACHE_DATABASE_PATH' }]
+      }
+    ]);
+    // A web app's own address is known, so it is set rather than asked for.
+    expect(config.resources.web!.properties.environment).toContainEqual({
+      name: 'BASE_URL',
+      value: "$ResourceParam('web', 'url')"
     });
   });
 

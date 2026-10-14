@@ -43,3 +43,26 @@ export const requiredSecrets = (resources: Record<string, unknown>): string[] =>
 /** The command that creates one secret. The value is prompted for, so it never lands in shell history. */
 export const secretCommand = (name: string, region: string): string =>
   `stacktape secret:set --secretName ${name} --region ${region}`;
+
+/**
+ * The variables those secrets reach the app as, for a reader who knows `SESSION_SECRET` and not `session_secret`.
+ * A secret referenced outside an `environment` list keeps its own name.
+ */
+export const requiredSecretVariables = (resources: Record<string, unknown>): string[] => {
+  const secrets = new Set(requiredSecrets(resources));
+  const variables = new Set<string>();
+  const covered = new Set<string>();
+  for (const resource of Object.values(resources)) {
+    const environment = (resource as { properties?: { environment?: unknown } }).properties?.environment;
+    if (!Array.isArray(environment)) continue;
+    for (const entry of environment as Array<{ name?: unknown; value?: unknown }>) {
+      if (typeof entry.name !== 'string' || typeof entry.value !== 'string') continue;
+      for (const match of entry.value.matchAll(SECRET_REFERENCE)) {
+        if (!secrets.has(match[1]!)) continue;
+        variables.add(entry.name);
+        covered.add(match[1]!);
+      }
+    }
+  }
+  return [...[...variables].toSorted(), ...[...secrets].filter((name) => !covered.has(name))];
+};
