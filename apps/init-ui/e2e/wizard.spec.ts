@@ -48,7 +48,7 @@ test('a first deploy goes from analysis to a live URL, and a reload keeps the se
   await page.getByRole('button', { name: 'Check exact AWS target' }).click();
   await page.getByRole('button', { name: 'Create new stack' }).click();
   await expect(page.getByRole('heading', { name: 'Deploying' })).toBeVisible();
-  await expect(page.getByText(/of \d+ AWS resources/)).toBeVisible();
+  await expect(page.getByText(/^\d+ of \d+$/)).toBeVisible();
   // Finished steps are one line each, and the rail follows the deploy rather than the top line.
   await expect(page.getByText(/^Saved stacktape\.yml with 3 resources/)).toBeVisible();
   await expect(page.getByRole('radio', { name: /Only this private network/ })).toHaveCount(0);
@@ -81,13 +81,15 @@ test('a failed deploy, a link opened twice and a stopped CLI each say what to do
   await second.close();
 
   await analyzeAndReview(page);
+  // One app copy is all a SQLite disk allows, so the availability question changes nothing and is not asked.
+  await expect(page.getByRole('radiogroup', { name: 'What should happen when one machine fails?' })).toHaveCount(0);
   // The SQLite answer is real infrastructure: a disk for the file, and the app pointed at it.
   await expect(page.getByText('Keeping your SQLite file on a disk that survives deploys')).toBeVisible();
   await page.getByRole('tab', { name: /stacktape\.yml|File/ }).click();
   await expect(page.locator('.wizard-source')).toContainText('type: efs-filesystem');
   await expect(page.locator('.wizard-source')).toContainText('file:/data/data.db');
   // What the app reads and nobody sets is listed before deploying, not discovered by a crash.
-  await expect(page.getByText('8 values only you have')).toBeVisible();
+  await expect(page.getByText('8 secrets only you have')).toBeVisible();
   await expect(page.locator('.wizard-setting-list')).toContainText('CACHE_DATABASE_PATH');
   await expect(page.locator('.wizard-setting-list')).not.toContainText('VITEST');
   await page.getByRole('button', { name: 'Change' }).click();
@@ -96,14 +98,16 @@ test('a failed deploy, a link opened twice and a stopped CLI each say what to do
   await expect(page.locator('.wizard-source')).toContainText('file:/tmp/data.db');
   await saveAndCheckTarget(page);
   await expect(page.getByRole('heading', { name: 'The deploy stopped' })).toBeVisible({ timeout: 15_000 });
-  // The container's last lines keep their line breaks.
-  const reported = page.locator('li', { hasText: 'Essential container in task exited' });
-  await expect(reported).toHaveCSS('white-space', 'pre-wrap');
-  // The cause in plain words first; the CLI's own message one click away.
+  // The cause in plain words first, then the way forward; the CLI's own message one click away.
   await expect(page.getByText('The app tried to reach PostgreSQL at 127.0.0.1:5432')).toBeVisible();
-  await page.getByRole('button', { name: 'Show the original error' }).click();
+  const retry = page.getByRole('button', { name: 'Deploy again' });
+  await expect(retry).toBeEnabled();
+  const original = page.getByRole('button', { name: 'Show the original error' });
+  expect((await retry.boundingBox())!.y).toBeLessThan((await original.boundingBox())!.y);
+  await original.click();
   await expect(page.locator('pre', { hasText: 'Stack action create failed.' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Deploy again' })).toBeEnabled();
+  // The step where it broke is marked failed, not ticked like the ones that finished.
+  await expect(page.locator('.wizard-phase.is-failed')).toHaveText(/Creating AWS resources/);
 
   await wizard.stop();
   await expect(page.getByText('Lost the connection to stacktape init')).toBeVisible({ timeout: 10_000 });
@@ -125,4 +129,19 @@ test('secrets the deploy needs are listed with their commands, and an empty repo
   await page.getByRole('button', { name: 'Analyze my project' }).click();
   await expect(page.getByRole('heading', { name: 'Found nothing to deploy' })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole('button', { name: /^Save/ })).toHaveCount(0);
+});
+
+test('a stack left behind by a failed first deploy says how to clear it, and can be checked again', async ({
+  page,
+  startWizard
+}) => {
+  const wizard = await startWizard({ project: 'saas-starter', target: 'blocked' });
+  await page.goto(wizard.url);
+  await analyzeAndReview(page);
+  await page.getByRole('button', { name: /^Save .* & continue$/ }).click();
+  await page.getByRole('button', { name: 'Check exact AWS target' }).click();
+  await expect(page.getByText('A failed first deploy left this stack behind')).toBeVisible();
+  await expect(page.getByText('stacktape delete --configPath stacktape.yml')).toBeVisible();
+  // After cleaning up, the developer checks again from the same button; it is never a dead end.
+  await expect(page.getByRole('button', { name: 'Check again' })).toBeEnabled();
 });

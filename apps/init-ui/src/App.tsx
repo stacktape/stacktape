@@ -222,7 +222,7 @@ export function App() {
             >
               <ReviewStep
                 busy={busy}
-                isLocked={deploying}
+                lock={deploying ? 'deploying' : connectionState === 'reconnecting' ? 'disconnected' : undefined}
                 onChangeDecision={(id, value) =>
                   void run(id, () => session.answer(id, value), 'That change could not be applied.')
                 }

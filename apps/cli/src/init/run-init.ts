@@ -374,6 +374,7 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
     projectName,
     repositoryPath: repositoryRoot,
     ...(existingConfig === undefined ? {} : { existingConfig }),
+    ...(options.awsAccount === undefined ? {} : { awsAccount: options.awsAccount }),
     agents: agentOptions(available, agent),
     ...(mode === undefined ? {} : { mode }),
     ...(options.preferences === undefined ? {} : { preferences: options.preferences }),

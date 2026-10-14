@@ -25,9 +25,11 @@ describe('the deploy model', () => {
       event({ phase: 'DEPLOY', message: 'Creating resources' })
     ];
 
-    expect(buildDeployModel(events, [], false).phases.map((phase) => phase.status)).toEqual(['done', 'running']);
+    expect(buildDeployModel(events, []).phases.map((phase) => phase.status)).toEqual(['done', 'running']);
     // Nothing in the stream says a phase ended — only the deploy ending does.
-    expect(buildDeployModel(events, [], true).phases.map((phase) => phase.status)).toEqual(['done', 'done']);
+    expect(buildDeployModel(events, [], 'succeeded').phases.map((phase) => phase.status)).toEqual(['done', 'done']);
+    // A failed deploy broke in the phase it last reported, not after every phase finished.
+    expect(buildDeployModel(events, [], 'failed').phases.map((phase) => phase.status)).toEqual(['done', 'failed']);
   });
 
   it('keeps CloudFormation progress on the phase that reported it', () => {

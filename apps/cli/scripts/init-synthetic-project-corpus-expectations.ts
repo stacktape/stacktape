@@ -30,7 +30,7 @@ export const SYNTHETIC_PROJECT_EXPECTATIONS = {
     services: ['Orders.Api', 'worker'],
     httpServices: ['Orders.Api'],
     deployments: [],
-    requiredGapFragments: ['RabbitMQ-compatible AMQP broker']
+    requiredGapFragments: ['needs a RabbitMQ broker']
   },
   'bun-hono-drizzle': {
     resources: {
@@ -137,7 +137,7 @@ export const SYNTHETIC_PROJECT_EXPECTATIONS = {
     services: ['api', 'worker'],
     httpServices: ['api'],
     deployments: [],
-    requiredGapFragments: ['NATS-compatible broker'],
+    requiredGapFragments: ['needs a NATS server'],
     forbiddenGapFragments: ['SQS-compatible broker']
   },
   'helm-payments-platform': {
@@ -261,7 +261,7 @@ export const SYNTHETIC_PROJECT_EXPECTATIONS = {
     services: ['web', 'worker'],
     httpServices: ['web'],
     deployments: [],
-    requiredGapFragments: ['NATS-compatible broker'],
+    requiredGapFragments: ['needs a NATS server'],
     forbiddenGapFragments: ['SQS-compatible broker']
   },
   'sam-media-pipeline': {
@@ -314,7 +314,7 @@ export const SYNTHETIC_PROJECT_EXPECTATIONS = {
     services: ['web', 'worker'],
     httpServices: ['web'],
     deployments: [],
-    requiredGapFragments: ['RabbitMQ-compatible AMQP broker']
+    requiredGapFragments: ['needs a RabbitMQ broker']
   },
   'sst-support-platform': {
     resources: { bucket: 1, 'dynamo-db-table': 1, function: 1, 'sqs-queue': 1 },

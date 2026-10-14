@@ -105,6 +105,7 @@ export const startWizardSession = async ({
   projectName,
   repositoryPath,
   existingConfig,
+  awsAccount,
   agents = [],
   result,
   start,
@@ -129,6 +130,8 @@ export const startWizardSession = async ({
   repositoryPath?: string;
   /** A configuration already in the repository. Never modified; the page names it before writing. */
   existingConfig?: string;
+  /** The `--awsAccount` this run was started with, so commands the page hands out target the same account. */
+  awsAccount?: string;
   /** Ways of reading the project, best first. Offered before anything runs. */
   agents?: WizardAgentOption[];
   /** A finished mission. Supplied instead of `start` when there is nothing left to run. */
@@ -241,6 +244,8 @@ export const startWizardSession = async ({
   let facts = result?.facts;
   let composition = result?.composition;
   let price: PriceEstimate | undefined;
+  /** The last price request came back empty, so the page says so instead of waiting for it. */
+  let priceUnavailable = false;
   /** Where the price is quoted. The Deploy step's region, once the user picks one there. */
   let priceRegion: string | undefined;
   /** The configuration as text, exactly as writing it would produce. Shown on the Review step. */
@@ -259,10 +264,12 @@ export const startWizardSession = async ({
     if (current === undefined) return;
     const region = priceRegion;
     price = undefined;
+    priceUnavailable = false;
     void priceWithOptions(current, region).then((estimate) => {
       // Another recomposition or region may have come in while this was in flight. Its own call publishes.
       if (composition !== current || priceRegion !== region) return;
       price = estimate;
+      priceUnavailable = estimate === undefined;
       publish(buildState());
     });
   };
@@ -310,6 +317,39 @@ export const startWizardSession = async ({
       options[key] = { ...options[key], [value]: formatMonthlyDelta(delta) };
     }
     return { ...base, options };
+  };
+
+  /**
+   * Infrastructure choices that change nothing in this app: every other answer composes the same
+   * file. The page does not ask them (an app pinned to one copy by its SQLite disk has no second
+   * copy to keep online).
+   */
+  const choicesWithoutEffect = (current: CompositionResult): DeploymentPreferenceKey[] => {
+    if (facts === undefined) return [];
+    const currentFacts = facts;
+    const baseYaml = renderYaml(current);
+    return (Object.keys(DEPLOYMENT_PREFERENCE_OPTIONS) as DeploymentPreferenceKey[]).filter((key) =>
+      DEPLOYMENT_PREFERENCE_OPTIONS[key]
+        .filter((value) => value !== current.preferences[key])
+        .every(
+          (value) =>
+            renderYaml(
+              composeConfig({
+                facts: currentFacts,
+                projectName,
+                preferences: { ...current.preferences, [key]: value },
+                decisions: answers,
+                engineVersions: versionJson.rds
+              })
+            ) === baseYaml
+        )
+    );
+  };
+  /** Worked out once per composition: each answer is a full composition, and state is built often. */
+  let inertChoices: { of: CompositionResult; keys: DeploymentPreferenceKey[] } | undefined;
+  const inertChoicesOf = (current: CompositionResult): DeploymentPreferenceKey[] => {
+    if (inertChoices?.of !== current) inertChoices = { of: current, keys: choicesWithoutEffect(current) };
+    return inertChoices.keys;
   };
 
   /**
@@ -490,6 +530,7 @@ export const startWizardSession = async ({
     projectName,
     ...(repositoryPath === undefined ? {} : { repositoryPath }),
     ...(existingConfig === undefined ? {} : { existingConfig }),
+    ...(awsAccount === undefined ? {} : { awsAccount }),
     ...(agents.length === 0 ? {} : { agents }),
     ...(choice === undefined ? {} : { choice }),
     ...(configFile === undefined ? {} : { configFile }),
@@ -534,6 +575,8 @@ export const startWizardSession = async ({
             unsetSettings: composition.unsetSettings,
             deployable: composition.deployable,
             ...(price === undefined ? {} : { price }),
+            ...(priceUnavailable ? { priceUnavailable } : {}),
+            ...(inertChoicesOf(composition).length === 0 ? {} : { inertChoices: inertChoicesOf(composition) }),
             // The file exactly as writing it would produce it, so the page shows the real artifact
             // rather than a re-rendering that could disagree with it.
             ...(configText === undefined ? {} : { configText })

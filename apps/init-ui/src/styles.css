@@ -544,26 +544,6 @@
     color: var(--stp-text-muted);
   }
 
-  .wizard-decision-toggle {
-    flex: none;
-    padding: 4px 10px;
-    border: 0;
-    border-radius: var(--stp-radius-medium);
-    background: rgba(255, 255, 255, 0.05);
-    color: var(--stp-text-muted);
-    font: inherit;
-    font-size: 0.82rem;
-    cursor: pointer;
-    transition:
-      background var(--stp-motion-duration-base) var(--stp-motion-easing),
-      color var(--stp-motion-duration-base) var(--stp-motion-easing);
-  }
-
-  .wizard-decision-toggle:hover {
-    background: rgba(255, 255, 255, 0.09);
-    color: var(--stp-text-primary);
-  }
-
   .wizard-decision-options {
     display: flex;
     flex-direction: column;
@@ -891,6 +871,11 @@
 
   .wizard-phase.is-done .wizard-phase-marker {
     background: var(--stp-color-brand);
+    box-shadow: none;
+  }
+
+  .wizard-phase.is-failed .wizard-phase-marker {
+    background: var(--stp-status-error);
     box-shadow: none;
   }
 

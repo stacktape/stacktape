@@ -608,7 +608,7 @@ const ALL_REAL_PROJECT_APPLICATION_CASES = [
       serviceCount: 1,
       httpServiceCount: 1,
       existingDeployments: [],
-      requiredGapPatterns: ['RabbitMQ-compatible AMQP broker', 'NATS-compatible broker'],
+      requiredGapPatterns: ['needs a RabbitMQ broker', 'needs a NATS server'],
       forbidCurrentlyHostedDependencies: true
     }
   },
@@ -727,7 +727,7 @@ const ALL_REAL_PROJECT_APPLICATION_CASES = [
       serviceCount: 9,
       httpServiceCount: 8,
       existingDeployments: [],
-      requiredGapPatterns: ['RabbitMQ-compatible AMQP broker'],
+      requiredGapPatterns: ['needs a RabbitMQ broker'],
       forbidCurrentlyHostedDependencies: true
     }
   },

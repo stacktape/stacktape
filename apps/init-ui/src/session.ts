@@ -98,6 +98,8 @@ export type WizardState = {
   repositoryPath?: string;
   /** A configuration already in the repository. It is never modified; the new one lands beside it. */
   existingConfig?: string;
+  /** The `--awsAccount` the CLI was started with. Every copyable stack command names it. */
+  awsAccount?: string;
   /** How the project can be read. Chosen on the first screen. */
   agents?: WizardAgentOption[];
   choice?: { agentId: string; modelId: string };
@@ -235,6 +237,10 @@ export type WizardState = {
       /** What each other answer to a choice changes the monthly price by, by choice and answer. */
       options?: Record<string, Record<string, string>>;
     };
+    /** The price service did not answer for this configuration; nothing else depends on it. */
+    priceUnavailable?: boolean;
+    /** Infrastructure choices whose every answer composes the same file, so the page does not ask them. */
+    inertChoices?: string[];
     /**
      * The configuration file exactly as saving it will write it.
      *

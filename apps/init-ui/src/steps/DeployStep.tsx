@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { explainFailure } from '@stacktape/console-api/failure-explanations';
 import { Alert } from '@stacktape/ui-react/alert';
 import { Button } from '@stacktape/ui-react/button';
 import { Spinner } from '@stacktape/ui-react/spinner';
@@ -6,6 +7,7 @@ import { TextField } from '@stacktape/ui-react/text-field';
 import { buildDeployModel, type DeployEvent } from '../deploy-model';
 import { CopyableCommand } from '../components/CopyableCommand';
 import { DeployProgress } from '../components/DeployProgress';
+import { FailureExplanationText } from '../components/FailureExplanation';
 import { PipelineCard } from '../components/PipelineCard';
 import { RegionPicker } from '../components/RegionPicker';
 import { SignInPanel } from '../components/SignInPanel';
@@ -14,6 +16,7 @@ import type { SignInRequest, WizardState } from '../session';
 import { gapsToList } from '../gaps';
 import { requiredSecrets, secretCommand } from '../required-secrets';
 import { organizationLabel } from '../sign-in';
+import { blockedTargetCopy, stackStatusWords } from '../target-copy';
 
 /**
  * The last step: put it on AWS.
@@ -111,9 +114,16 @@ export function DeployStep({
     () =>
       deployment === undefined
         ? undefined
-        : buildDeployModel(deployment.events as DeployEvent[], deployment.lines, deployment.status !== 'running'),
+        : buildDeployModel(
+            deployment.events as DeployEvent[],
+            deployment.lines,
+            deployment.status === 'running' ? undefined : deployment.status === 'succeeded' ? 'succeeded' : 'failed'
+          ),
     [deployment]
   );
+
+  const resources = Object.entries(state.composition?.resources ?? {});
+  const hasDatabase = resources.some(([, resource]) => resource.type === 'relational-database');
 
   if (file === undefined) {
     return (
@@ -128,7 +138,8 @@ export function DeployStep({
       configPath: file.filename,
       projectName: state.projectName,
       stage: deployment.stage,
-      region: deployment.region
+      region: deployment.region,
+      awsAccount: state.awsAccount
     };
     const redeployCommand = stackCommand('deploy', target);
     const deleteCommand = stackCommand('delete', target);
@@ -148,65 +159,59 @@ export function DeployStep({
           {...(deployment.keptPartialProgress === undefined
             ? {}
             : { keptPartialProgress: deployment.keptPartialProgress })}
+          actions={
+            deployment.status === 'failed' && (
+              <div className="flex flex-col gap-5">
+                <div className="flex items-center gap-4">
+                  <Button
+                    isLoading={isBusy === 'deploy'}
+                    onClick={() =>
+                      onDeploy(
+                        deployment.stage,
+                        deployment.region,
+                        retryTarget?.status === 'absent'
+                          ? { kind: 'create' }
+                          : retryTarget?.status === 'updateable'
+                            ? { kind: 'update', stackId: retryTarget.stackId }
+                            : { kind: 'check' }
+                      )
+                    }
+                    variant="primary"
+                  >
+                    {retryTarget?.status === 'absent' || retryTarget?.status === 'updateable'
+                      ? 'Deploy again'
+                      : 'Check the target again'}
+                  </Button>
+                  <span className="text-[0.9rem] text-[var(--stp-text-subtle)]">
+                    Fix the cause first: the deploy reads your code and{' '}
+                    <span className="wizard-code">{file.filename}</span> from disk.
+                  </span>
+                </div>
+                {retryTarget?.status === 'updateable' && (
+                  <Alert tone="info" title="Deploying again updates the existing stack">
+                    <span className="wizard-code">{retryTarget.stackName}</span> exists, and{' '}
+                    {stackStatusWords(retryTarget.stackStatus)}.
+                  </Alert>
+                )}
+                {retryTarget?.status === 'blocked' && <BlockedTargetAlert command={target} target={retryTarget} />}
+                {retryTarget?.status === 'unverified' && (
+                  <Alert tone="warning" title="The target could not be checked">
+                    {retryTarget.detail} Fix the AWS credentials or the connected account, then check again.
+                  </Alert>
+                )}
+                {deployment.keptPartialProgress === true && (
+                  <section>
+                    <h3 className="wizard-section-heading">Or put it back</h3>
+                    <p className="wizard-lede mb-3">
+                      Rolls the stack back to the version that worked before this deploy.
+                    </p>
+                    <CopyableCommand command={stackCommand('cf:rollback', target)} />
+                  </section>
+                )}
+              </div>
+            )
+          }
         />
-
-        {deployment.status === 'failed' && (
-          <div className="flex flex-col gap-5">
-            <div className="flex items-center gap-4">
-              <Button
-                disabled={retryTarget?.status === 'blocked'}
-                isLoading={isBusy === 'deploy'}
-                onClick={() =>
-                  onDeploy(
-                    deployment.stage,
-                    deployment.region,
-                    retryTarget?.status === 'absent'
-                      ? { kind: 'create' }
-                      : retryTarget?.status === 'updateable'
-                        ? { kind: 'update', stackId: retryTarget.stackId }
-                        : { kind: 'check' }
-                  )
-                }
-                variant="primary"
-              >
-                {retryTarget?.status === 'absent'
-                  ? 'Deploy again'
-                  : retryTarget?.status === 'updateable'
-                    ? 'Deploy again as an update'
-                    : 'Check the target again'}
-              </Button>
-              <span className="text-[0.9rem] text-[var(--stp-text-subtle)]">
-                Same stage and region. Fix what it reported first, or it will fail the same way.
-              </span>
-            </div>
-            {retryTarget?.status === 'updateable' && (
-              <Alert tone="warning" title="The retry is now an update">
-                Stack <span className="wizard-code">{retryTarget.stackName}</span> exists with status{' '}
-                <span className="wizard-code">{retryTarget.stackStatus}</span>. The retry confirmation is bound to its
-                exact StackId.
-              </Alert>
-            )}
-            {retryTarget?.status === 'blocked' && (
-              <Alert tone="warning" title="This target is not safe to retry">
-                Stacktape will not modify the stack in its current state. Clean it up or recover it outside this wizard.
-              </Alert>
-            )}
-            {retryTarget?.status === 'unverified' && (
-              <Alert tone="warning" title="The retry target could not be verified">
-                {retryTarget.detail} Check again after fixing the account selection or credentials.
-              </Alert>
-            )}
-            {deployment.keptPartialProgress === true && (
-              <section>
-                <h3 className="wizard-section-heading">Or clean up instead</h3>
-                <p className="wizard-lede mb-3">
-                  Removes everything this deploy created, so nothing sits in your account billing while you investigate.
-                </p>
-                <CopyableCommand command={deleteCommand} />
-              </section>
-            )}
-          </div>
-        )}
 
         {deployment.status === 'succeeded' && (
           <>
@@ -233,7 +238,8 @@ export function DeployStep({
                   </div>
                 </li>
                 <li>
-                  <strong>Done experimenting?</strong> One command removes everything this created:
+                  <strong>Done experimenting?</strong> One command removes everything this created
+                  {hasDatabase ? ', including the database and its data' : ''}:
                   <div className="mt-2">
                     <CopyableCommand command={deleteCommand} />
                   </div>
@@ -253,9 +259,7 @@ export function DeployStep({
     );
   }
 
-  const resources = Object.entries(state.composition?.resources ?? {});
   const publicNames = resources.filter(([, resource]) => PUBLIC_TYPES.has(resource.type)).map(([name]) => name);
-  const hasDatabase = resources.some(([, resource]) => resource.type === 'relational-database');
   const gaps = gapsToList(state.composition?.gaps ?? [], state.facts?.existingDeployments ?? []);
   const secrets = requiredSecrets(state.composition?.resources ?? {});
   const unsetNames = [...new Set((state.composition?.unsetSettings ?? []).map((setting) => setting.variableName))];
@@ -326,6 +330,13 @@ export function DeployStep({
                   </a>
                   , or set up credentials on this machine with <span className="wizard-code">aws configure</span>. Then
                   check again; nothing on this page is lost.
+                </>
+              ) : explainFailure(identity.detail).length > 0 ? (
+                <>
+                  <FailureExplanationText explanations={explainFailure(identity.detail)} />
+                  <span className="block text-[0.9rem] text-[var(--stp-text-muted)]">
+                    AWS said: {identity.detail} Check again when that is done; nothing on this page is lost.
+                  </span>
                 </>
               ) : (
                 <>
@@ -429,63 +440,81 @@ export function DeployStep({
         {verification?.status === 'unavailable' && (
           <Alert tone="info" title="The local try-out did not run">
             <p className="m-0 mb-3">
-              Docker was not available on this machine, so there is no local startup evidence. Deploy is still available
-              because this check is optional; AWS would be the app's first full run.
+              It needs Docker, and Docker is not running on this machine. Start Docker (or install Docker Desktop) and
+              try again, or skip it: the try-out is optional, and AWS will be the app's first full run.
             </p>
             <Button isLoading={isBusy === 'verify'} onClick={onVerify} variant="secondary">
               Try again
             </Button>
           </Alert>
         )}
-        {(verification?.status === 'completed' || verification?.status === 'dismissed') && (
-          <div className="flex flex-col gap-3">
-            <ul className="m-0 flex list-none flex-col gap-2.5 p-0 text-[0.95rem]">
-              {(verification.services ?? []).map((entry) => (
-                <li key={entry.serviceName}>
-                  <span className="font-medium">
-                    {entry.serviceName}
-                    {entry.status === 'passed' && ': passed'}
-                    {entry.status === 'failed' && ': failed'}
-                    {entry.status === 'inconclusive' && ': inconclusive'}
-                    {entry.status === 'skipped' && ': not checked'}
-                  </span>
-                  <span className="block text-[var(--stp-text-muted)]">{entry.reason}</span>
-                  {entry.status === 'failed' && entry.observations.logTail.length > 0 && (
-                    <pre className="wizard-output mt-2 max-h-40 overflow-auto">
-                      {entry.observations.logTail.slice(-8).join('\n')}
-                    </pre>
-                  )}
-                </li>
-              ))}
-            </ul>
-            {verification.status === 'completed' && hasUnverifiedServices && !verificationBlocks && (
-              <Alert tone="info" title="Some services were not proven locally">
-                Deploy is still available because the local try-out is optional. AWS will be the first complete build or
-                startup check for the services marked above.
-              </Alert>
-            )}
-            {verification.status === 'completed' && verificationBlocks && (
-              <Alert tone="warning" title="The local try-out found a startup failure">
-                <p className="m-0 mb-3">
-                  The same failure is likely on AWS, so deploy is paused. Fix what it reported (a decision above, a
-                  setting or the code) and try again. Or, if this machine is the problem rather than the app, set the
-                  result aside and deploy anyway.
-                </p>
-                <div className="flex items-center gap-3">
-                  <Button isLoading={isBusy === 'verify'} onClick={onVerify} variant="secondary">
-                    Try again
-                  </Button>
-                  <Button onClick={onDismissVerification} variant="plain">
-                    Set aside and deploy anyway
-                  </Button>
-                </div>
-              </Alert>
-            )}
-            {verification.status === 'dismissed' && (
-              <p className="m-0 text-[0.9rem] text-[var(--stp-text-subtle)]">Set aside. Deploying is enabled again.</p>
-            )}
-          </div>
+        {verification?.status === 'completed' && (verification.services ?? []).length === 0 && (
+          <p className="m-0 text-[var(--stp-text-muted)]">
+            The try-out only starts services that run as containers, and this configuration has none, so there was
+            nothing to start here. AWS will be its first full run.
+          </p>
         )}
+        {(verification?.status === 'completed' || verification?.status === 'dismissed') &&
+          (verification.services ?? []).length > 0 && (
+            <div className="flex flex-col gap-3">
+              <ul className="m-0 flex list-none flex-col gap-2.5 p-0 text-[0.95rem]">
+                {(verification.services ?? []).map((entry) => (
+                  <li key={entry.serviceName}>
+                    <span className="font-medium">
+                      {entry.serviceName}
+                      {entry.status === 'passed' && ': passed'}
+                      {entry.status === 'failed' && ': failed'}
+                      {entry.status === 'inconclusive' && ': inconclusive'}
+                      {entry.status === 'skipped' && ': not checked'}
+                    </span>
+                    <span className="block text-[var(--stp-text-muted)]">{entry.reason}</span>
+                    {entry.status === 'failed' && entry.observations.missingEnvironmentVariables.length > 0 && (
+                      <span className="block text-[var(--stp-text-muted)]">
+                        It read {listNames(entry.observations.missingEnvironmentVariables)}, and nothing sets{' '}
+                        {entry.observations.missingEnvironmentVariables.length === 1 ? 'it' : 'them'}. Add{' '}
+                        {entry.observations.missingEnvironmentVariables.length === 1 ? 'it' : 'them'} under{' '}
+                        <span className="wizard-code">environment</span> in{' '}
+                        <span className="wizard-code">{file.filename}</span>, or as a secret.
+                      </span>
+                    )}
+                    {entry.status === 'failed' && entry.observations.logTail.length > 0 && (
+                      <pre className="wizard-output mt-2 max-h-40 overflow-auto">
+                        {entry.observations.logTail.slice(-8).join('\n')}
+                      </pre>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              {verification.status === 'completed' && hasUnverifiedServices && !verificationBlocks && (
+                <Alert tone="info" title="Some services were not proven locally">
+                  Deploy is still available because the local try-out is optional. AWS will be the first complete build
+                  or startup check for the services marked above.
+                </Alert>
+              )}
+              {verification.status === 'completed' && verificationBlocks && (
+                <Alert tone="warning" title="The local try-out found a startup failure">
+                  <p className="m-0 mb-3">
+                    The same failure is likely on AWS, so deploy is paused. Fix what it reported (a decision above, a
+                    setting or the code) and try again. Or, if this machine is the problem rather than the app, set the
+                    result aside and deploy anyway.
+                  </p>
+                  <div className="flex items-center gap-3">
+                    <Button isLoading={isBusy === 'verify'} onClick={onVerify} variant="secondary">
+                      Try again
+                    </Button>
+                    <Button onClick={onDismissVerification} variant="plain">
+                      Set aside and deploy anyway
+                    </Button>
+                  </div>
+                </Alert>
+              )}
+              {verification.status === 'dismissed' && (
+                <p className="m-0 text-[0.9rem] text-[var(--stp-text-subtle)]">
+                  Set aside. Deploying is enabled again.
+                </p>
+              )}
+            </div>
+          )}
       </section>
 
       <section>
@@ -500,7 +529,13 @@ export function DeployStep({
           {publicNames.length > 0 && (
             <>
               {' '}
-              {listNames(publicNames)} {publicNames.length === 1 ? 'gets' : 'get'} a public HTTPS address.
+              {publicNames.map((name, index) => (
+                <span key={name}>
+                  {index === 0 ? '' : index === publicNames.length - 1 ? ' and ' : ', '}
+                  <span className="wizard-code">{name}</span>
+                </span>
+              ))}{' '}
+              {publicNames.length === 1 ? 'gets' : 'get'} a public HTTPS address.
             </>
           )}
           {publicNames.length === 0 && resources.length > 0 && (
@@ -509,8 +544,7 @@ export function DeployStep({
         </p>
         <p className="wizard-lede mb-4">
           It is one CloudFormation stack of plain AWS resources in your own account; it keeps working if you stop using
-          Stacktape. A failed first deploy is rolled back, and this page gives you the command that removes the stack
-          again.
+          Stacktape.
         </p>
         {checkedTarget === undefined && (
           <Alert className="mb-4" tone="info" title="No AWS change happens on the first click">
@@ -526,25 +560,31 @@ export function DeployStep({
           </Alert>
         )}
         {checkedTarget?.status === 'updateable' && (
-          <Alert className="mb-4" tone="warning" title="This will update an existing stack">
-            <span className="wizard-code">{checkedTarget.stackName}</span> already exists in account{' '}
+          <Alert className="mb-4" tone="warning" title="This will update a stack that already exists">
+            <span className="wizard-code">{checkedTarget.stackName}</span> is in account{' '}
             <span className="wizard-code">{checkedTarget.accountId}</span>, region{' '}
-            <span className="wizard-code">{checkedTarget.region}</span>, with status{' '}
-            <span className="wizard-code">{checkedTarget.stackStatus}</span>. The confirmation below is bound to its
-            exact StackId; if it is replaced or changes state, deploy stops before modifying AWS.
+            <span className="wizard-code">{checkedTarget.region}</span>, and{' '}
+            {stackStatusWords(checkedTarget.stackStatus)}. Deploying makes it match the file you saved: anything in it
+            that the file does not define is removed. If the stack changes before you confirm, nothing is deployed.
           </Alert>
         )}
         {checkedTarget?.status === 'blocked' && (
-          <Alert className="mb-4" tone="warning" title="Stacktape will not modify this target">
-            The name <span className="wizard-code">{checkedTarget.stackName}</span> is already occupied by a stack that
-            is foreign, mismatched, incomplete, or not in a safe update state. Choose another stage or handle that stack
-            outside this wizard.
-          </Alert>
+          <BlockedTargetAlert
+            className="mb-4"
+            command={{
+              configPath: file.filename,
+              projectName: state.projectName,
+              stage,
+              region,
+              awsAccount: state.awsAccount
+            }}
+            target={checkedTarget}
+          />
         )}
         {checkedTarget?.status === 'unverified' && (
-          <Alert className="mb-4" tone="warning" title="The target could not be verified">
-            {checkedTarget.detail} Nothing was created or updated. Fix the account selection or credentials, then check
-            again.
+          <Alert className="mb-4" tone="warning" title="The target could not be checked">
+            {checkedTarget.detail} Nothing was created or updated. Fix the AWS credentials or the connected account,
+            then check again.
           </Alert>
         )}
         {secrets.length > 0 && (
@@ -554,7 +594,9 @@ export function DeployStep({
               <span className="wizard-code">{region}</span> first. Each command asks for the value; the deploy stops if
               one is missing.
             </p>
-            <CopyableCommand command={secrets.map((name) => secretCommand(name, region)).join('\n')} />
+            <CopyableCommand
+              command={secrets.map((name) => secretCommand(name, region, state.awsAccount)).join('\n')}
+            />
           </div>
         )}
         {(gaps.length > 0 || unsetNames.length > 0) && (
@@ -575,7 +617,7 @@ export function DeployStep({
         )}
         <div className="flex items-center gap-4">
           <Button
-            disabled={stage === '' || verificationBlocks || compositionBlocks || signInBlocks || targetBlocked}
+            disabled={stage === '' || verificationBlocks || compositionBlocks || signInBlocks}
             isLoading={isBusy === 'deploy'}
             onClick={() => onDeploy(stage, region, targetExpectation)}
             variant="primary"
@@ -584,7 +626,9 @@ export function DeployStep({
               ? 'Create new stack'
               : checkedTarget?.status === 'updateable'
                 ? 'Update existing stack'
-                : 'Check exact AWS target'}
+                : targetBlocked
+                  ? 'Check again'
+                  : 'Check exact AWS target'}
           </Button>
           <span className="text-[0.9rem] text-[var(--stp-text-subtle)]">
             {verificationBlocks
@@ -596,14 +640,16 @@ export function DeployStep({
                 : signInBlocks
                   ? 'Sign in to Stacktape above before deploying.'
                   : targetBlocked
-                    ? 'No AWS change is allowed for this observed target.'
+                    ? 'Read-only. Nothing is deployed to this stack until the check passes.'
                     : checkedTarget === undefined
                       ? 'Read-only check first; creation or update needs a separate confirmation.'
-                      : hasDatabase
-                        ? 'First deploys with a new database take 10–15 minutes.'
-                        : hasUnverifiedServices
-                          ? 'Some services were not checked locally; AWS will be their first full run.'
-                          : 'Usually a few minutes.'}
+                      : checkedTarget.status === 'updateable'
+                        ? 'Updates usually take a few minutes.'
+                        : hasDatabase
+                          ? 'First deploys with a new database take 10–15 minutes.'
+                          : hasUnverifiedServices
+                            ? 'Some services were not checked locally; AWS will be their first full run.'
+                            : 'Usually a few minutes.'}
           </span>
         </div>
       </section>
@@ -629,11 +675,35 @@ export function DeployStep({
                 configPath: file.filename,
                 projectName: state.projectName,
                 stage: stage || 'dev',
-                region
+                region,
+                awsAccount: state.awsAccount
               })}
             />
           </section>
         </>
+      )}
+    </div>
+  );
+}
+
+/** Why the stack cannot be deployed to, and the way out: the command that is the fix, where there is one. */
+function BlockedTargetAlert({
+  target,
+  command,
+  className
+}: {
+  target: Extract<NonNullable<WizardState['deployTarget']>, { status: 'blocked' }>;
+  command: Parameters<typeof stackCommand>[1];
+  className?: string;
+}) {
+  const copy = blockedTargetCopy(target);
+  return (
+    <div className={`flex flex-col gap-3 ${className ?? ''}`}>
+      <Alert tone="warning" title={copy.title}>
+        {copy.body}
+      </Alert>
+      {copy.fix !== undefined && (
+        <CopyableCommand command={stackCommand(copy.fix === 'delete' ? 'delete' : 'cf:rollback', command)} />
       )}
     </div>
   );

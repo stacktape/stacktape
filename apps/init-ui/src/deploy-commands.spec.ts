@@ -28,4 +28,18 @@ describe('stackCommand', () => {
       })
     ).toContain('--configPath "generated config/stacktape.yml"');
   });
+
+  it('names the AWS account the wizard was started with, so a delete cannot reach another account', () => {
+    expect(
+      stackCommand('cf:rollback', {
+        configPath: 'stacktape.yml',
+        projectName: 'orders-api',
+        stage: 'dev',
+        region: 'eu-west-1',
+        awsAccount: 'development'
+      })
+    ).toBe(
+      'stacktape cf:rollback --configPath stacktape.yml --projectName orders-api --stage dev --region eu-west-1 --awsAccount development'
+    );
+  });
 });

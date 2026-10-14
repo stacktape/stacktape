@@ -56,14 +56,15 @@ export function PipelineCard({
         )}
 
         <p className="m-0 mb-2 text-[0.9rem] text-[var(--stp-text-muted)]">
-          It will not run until you add {written.requiredSecrets.length === 1 ? 'this' : 'these'} on{' '}
-          {HOST_LABELS[written.host] ?? written.host}:
+          Commit and push it, and add {written.requiredSecrets.length === 1 ? 'this secret' : 'these secrets'} in{' '}
+          {HOST_LABELS[written.host] ?? written.host}. From then on it deploys{' '}
+          <span className="wizard-code">{stage}</span> on every push to the default branch.
         </p>
-        <ul className="m-0 flex list-none flex-col gap-2 p-0">
+        <ul className="m-0 flex list-none flex-col gap-3 p-0">
           {written.requiredSecrets.map((secret) => (
             <li key={secret.name}>
-              <span className="wizard-code text-[var(--stp-text-primary)]">{secret.name}</span>
-              <span className="ml-2 text-[0.9rem] text-[var(--stp-text-subtle)]">{secret.description}</span>
+              <span className="wizard-code block text-[var(--stp-text-primary)]">{secret.name}</span>
+              <span className="block text-[0.9rem] text-[var(--stp-text-subtle)]">{secret.description}</span>
             </li>
           ))}
         </ul>
