@@ -113,6 +113,10 @@ describe('SSR Lambda wrappers', () => {
         body: 'item=caf%C3%A9&qty=2'
       });
 
+      // Function URLs pass text bodies such as JSON through unencoded.
+      const json = await handler({ ...httpApiEvent('PUT', '/orders/42'), body: '{"qty":3}', isBase64Encoded: false });
+      expect(JSON.parse(json.body)).toMatchObject({ method: 'PUT', body: '{"qty":3}' });
+
       const image = await handler({ ...httpApiEvent('GET', '/pixel'), rawQueryString: '' });
       expect(image.isBase64Encoded).toBe(true);
       expect(Buffer.from(image.body, 'base64')).toEqual(pixel);

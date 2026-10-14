@@ -36,6 +36,10 @@ import { ensureLambdaImage, extractZip, invokeInLambdaRuntime, listLeftoverConta
 
 type Adapter = {
   starter: string;
+  /** The case name when one starter runs in more than one configuration. */
+  name?: string;
+  /** Deploy the Next.js server as a CloudFront origin-request function (`useEdgeLambda`). */
+  edge?: boolean;
   resourceType: string;
   /** A route rendered by server code, not a static file. */
   dynamicRoute?: { path: string; expectedText: string };
@@ -105,6 +109,15 @@ const ADAPTERS: Adapter[] = [
     expectsAssets: true
   },
   {
+    starter: 'nextjs-serverless',
+    name: 'nextjs-edge',
+    edge: true,
+    frameworkPackage: 'next',
+    resourceType: 'nextjs-web',
+    dynamicRoute: { path: '/api/hello', expectedText: 'Hello from Next.js API route on Lambda!' },
+    expectsAssets: true
+  },
+  {
     starter: 'nextjs-saas',
     frameworkPackage: 'next',
     resourceType: 'nextjs-web',
@@ -113,6 +126,7 @@ const ADAPTERS: Adapter[] = [
   }
 ];
 
+const caseName = (adapter: Adapter) => adapter.name ?? adapter.starter;
 const keep = process.argv.includes('--keep');
 const outIndex = process.argv.indexOf('--out');
 const out = resolve(
@@ -121,9 +135,8 @@ const out = resolve(
     : process.argv[outIndex + 1]!
 );
 const starterIndex = process.argv.indexOf('--starter');
-const selectedStarters =
-  starterIndex === -1 ? ADAPTERS.map((adapter) => adapter.starter) : process.argv[starterIndex + 1]!.split(',');
-const unknown = selectedStarters.filter((starter) => !ADAPTERS.some((adapter) => adapter.starter === starter));
+const selectedStarters = starterIndex === -1 ? ADAPTERS.map(caseName) : process.argv[starterIndex + 1]!.split(',');
+const unknown = selectedStarters.filter((starter) => !ADAPTERS.some((adapter) => caseName(adapter) === starter));
 if (unknown.length > 0) throw new Error(`Unknown SSR starter(s): ${unknown.join(', ')}.`);
 
 /** `nodejs22.x`, the runtime `ssr-webs.ts` and `nextjs-webs.ts` give every SSR server and image function. */
@@ -232,7 +245,7 @@ const lockedVersion = async ({ project, lockfile, name }: { project: string; loc
 };
 
 /** Add probes only to the materialized copy; the shipped starter and its pinned dependencies stay intact. */
-const addRuntimeProbes = async (starter: string, project: string) => {
+const addRuntimeProbes = async ({ starter, edge }: Adapter, project: string) => {
   const write = async (path: string, contents: string | Buffer) => {
     await mkdir(dirname(join(project, path)), { recursive: true });
     await writeFile(join(project, path), contents);
@@ -244,8 +257,15 @@ const addRuntimeProbes = async (starter: string, project: string) => {
       ['resources', 'web', 'properties', 'environment'],
       [{ name: 'NEXT_PUBLIC_STP_PROBE', value: NEXT_PUBLIC_PROBE }]
     );
+    if (edge) config.setIn(['resources', 'web', 'properties', 'useEdgeLambda'], true);
     await writeFile(join(project, 'stacktape.yml'), config.toString());
     if (starter === 'nextjs-saas') {
+      // Prisma reads prisma.config.ts before it generates. env() throws without DATABASE_URL, which a build machine
+      // usually lacks, so packaging must supply a placeholder (Prisma 7 configs always look like this).
+      await write(
+        'prisma.config.ts',
+        `import { defineConfig, env } from 'prisma/config';\nexport default defineConfig({ schema: 'prisma/schema.prisma', datasource: { url: env('DATABASE_URL') } });\n`
+      );
       // Force sharp's host lifecycle script to fail regardless of download/cache availability. OpenNext swallows
       // that error and emits no sharp package. Stacktape must skip host scripts and build it for Lambda instead.
       await write(
@@ -310,21 +330,21 @@ export const Route = createFileRoute('/probe/$value')({
 };
 
 const runAdapter = async ({ adapter, work }: { adapter: Adapter; work: string }) => {
-  const { starter } = adapter;
+  const starter = caseName(adapter);
   const runtimeImage = LAMBDA_IMAGE;
   const caseWork = join(work, starter);
-  const project = join(caseWork, starter);
+  const project = join(caseWork, adapter.starter);
   const report: Record<string, unknown> = { starter, resourceType: adapter.resourceType };
   const invocationDirectories: string[] = [];
   let functionDirectory: string | undefined;
   try {
     await mkdir(caseWork, { recursive: true });
-    await generateStarterProject({ starterProjectId: starter, outputDirPath: caseWork, mode: 'app' });
+    await generateStarterProject({ starterProjectId: adapter.starter, outputDirPath: caseWork, mode: 'app' });
     const configPath = join(project, 'stacktape.yml');
     await replacePlaceholdersInStacktapeConfig({ configPath });
-    const lockfile = await restoreCommittedLockfile({ starter, project });
+    const lockfile = await restoreCommittedLockfile({ starter: adapter.starter, project });
     report.lockfile = lockfile;
-    await addRuntimeProbes(starter, project);
+    await addRuntimeProbes(adapter, project);
     check(starter, 'the starter commits a lockfile to pin its build', lockfile !== undefined, lockfile ?? 'none');
 
     console.log(`${starter}: packaging with the source CLI...`);
@@ -431,6 +451,48 @@ const runAdapter = async ({ adapter, work }: { adapter: Adapter; work: string })
       }
       return response;
     };
+
+    if (adapter.edge) {
+      // CloudFront invokes an edge server with an origin-request record, not an HTTP API event.
+      const edge = await invoke({
+        Records: [
+          {
+            cf: {
+              config: {
+                distributionDomainName: 'd111.cloudfront.net',
+                distributionId: 'E1',
+                eventType: 'origin-request',
+                requestId: 'r1'
+              },
+              request: {
+                clientIp: '203.0.113.10',
+                method: 'GET',
+                uri: adapter.dynamicRoute!.path,
+                querystring: '',
+                headers: {
+                  host: [{ key: 'Host', value: 'public.example.com' }],
+                  'x-forwarded-host': [{ key: 'X-Forwarded-Host', value: 'public.example.com' }],
+                  accept: [{ key: 'Accept', value: 'application/json' }]
+                }
+              }
+            }
+          }
+        ]
+      });
+      const edgeResponse = edge as HttpResponse & { status?: string; bodyEncoding?: string };
+      const edgeBody =
+        edgeResponse.bodyEncoding === 'base64'
+          ? Buffer.from(edgeResponse.body ?? '', 'base64').toString('utf8')
+          : (edgeResponse.body ?? '');
+      report.edge = { status: edgeResponse.status, body: edgeBody.slice(0, 300) };
+      check(
+        starter,
+        `a CloudFront origin request for ${adapter.dynamicRoute!.path} answers from the edge server`,
+        edgeResponse.status === '200' && edgeBody.includes(adapter.dynamicRoute!.expectedText),
+        JSON.stringify(edge).slice(0, 400)
+      );
+      return report;
+    }
 
     const index = await invoke(httpEvent({ path: '/', cookies: ['j3-session=present'] }));
     const indexBody = decodeBody(index);
@@ -586,7 +648,7 @@ const main = async () => {
   const work = await mkdtemp(join(tmpdir(), 'stacktape-ssr-web-acceptance-'));
   const reports: unknown[] = [];
   try {
-    for (const adapter of ADAPTERS.filter((candidate) => selectedStarters.includes(candidate.starter))) {
+    for (const adapter of ADAPTERS.filter((candidate) => selectedStarters.includes(caseName(candidate)))) {
       reports.push(await runAdapter({ adapter, work }));
       await writeJsonAtomic(join(out, 'report.json'), { out, images, work, starters: reports, checks });
     }
