@@ -211,7 +211,11 @@ describe('security posture through authored configuration', () => {
         ['iam-statement-wildcard-service-on-any-resource', 'MEDIUM']
       ]);
     }
-    expect(ruleIds(roles)).toContain('container-single-instance-in-production');
+    // The finding names the web service the developer wrote, not the container workload it generates.
+    expect(roles.findings.find(({ ruleId }) => ruleId === 'container-single-instance-in-production')).toMatchObject({
+      resourceName: 'api',
+      resourceType: 'web-service'
+    });
     expect(roles.exposure.find(({ resourceName }) => resourceName === 'api')).toMatchObject({
       protectedByFirewall: true
     });

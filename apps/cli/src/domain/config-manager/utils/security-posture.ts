@@ -68,8 +68,15 @@ const createFinding = (ruleId: SecurityRuleId, params: FindingParams): SecurityR
   };
 };
 
-type NamedResource = { name: string; type?: string };
-const resourceTypeOf = (resource: NamedResource, fallback: string) => resource.type ?? fallback;
+type NamedResource = { name: string; type?: string; nameChain?: string[]; configParentResourceType?: string };
+/**
+ * The type the developer wrote. A web, private or worker service creates a container workload and a load balancer
+ * under its own name, so a finding on one of them names the service and its type, which is where the fix goes.
+ */
+const resourceTypeOf = (resource: NamedResource, fallback: string) =>
+  resource.configParentResourceType && resource.nameChain?.[0] === resource.name
+    ? resource.configParentResourceType
+    : (resource.type ?? fallback);
 
 const databaseRules = ({ configManager, isProduction }: RuleContext): SecurityReportFinding[] => {
   const findings: SecurityReportFinding[] = [];
