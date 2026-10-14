@@ -198,7 +198,12 @@ const TOOLING_VARIABLE =
 
 /** Files that run while building or testing, never in the deployed app. */
 const TOOLING_FILE =
-  /(?:^|\/)(?:[\w.-]+\.config\.[cm]?[jt]s|[\w.-]+[._](?:test|spec)\.\w+|[\w-]+_test\.go|tests?\/|__tests__\/|e2e\/|remix\.init\/|scripts\/)/;
+  /(?:^|\/)(?:(?:vite|vitest|playwright|jest|cypress|webpack|rollup|tsup|eslint|prettier|tailwind|postcss|babel|react-router|remix|drizzle|knip|commitlint)\.config\.[cm]?[jt]s|[\w.-]+[._](?:test|spec)\.\w+|[\w-]+_test\.go|tests?\/|__tests__\/|e2e\/|remix\.init\/|scripts\/)/;
+
+/** A variable only tests, build tools or another platform read: never a setting or secret the deployed app needs. */
+const isToolingVariable = (variable: { name: string; evidence: readonly Citation[] }): boolean =>
+  TOOLING_VARIABLE.test(variable.name) ||
+  (variable.evidence.length > 0 && variable.evidence.every((citation) => TOOLING_FILE.test(citation.file)));
 
 /** Resource types that can mount an EFS volume and be held to a single running copy. */
 const VOLUME_RESOURCE_TYPES: ReadonlySet<ServiceResourceType> = new Set([
@@ -423,7 +428,8 @@ const environmentFor = (
       continue;
     }
     if (variable.role === 'third-party-secret') {
-      if (!variable.required) continue;
+      // A token only a test or build tool reads would make the deploy stop on a secret the app never uses.
+      if (!variable.required || isToolingVariable(variable)) continue;
       const secretName = secretNameFor(variable.name);
       if (secretName !== undefined) {
         variables.push({
@@ -837,7 +843,14 @@ export const composeConfig = ({
         .map((serviceName) => agentSqliteFiles.get(serviceName))
         .find((file) => file !== undefined);
       const requested = decisions[decisionId] ?? reported?.chosen;
-      const chosen: SqliteChoice = requested === 'accept-ephemeral' ? 'accept-ephemeral' : 'persistent-volume';
+      // A disk mounts only into a long-running container. Functions and framework apps on Lambda have
+      // nowhere to keep the file, so the only honest answer for them is the one that keeps nothing.
+      const consumers = facts.services.filter((service) => dependency.consumedBy.includes(service.name));
+      const mountable =
+        consumers.length > 0 &&
+        consumers.every((service) => VOLUME_RESOURCE_TYPES.has(classifyService(service).resourceType));
+      const chosen: SqliteChoice =
+        !mountable || requested === 'accept-ephemeral' ? 'accept-ephemeral' : 'persistent-volume';
       const reportedName = reported === undefined ? '' : posix.basename(reported.path);
       let fileName = reportedName === '' ? 'data.db' : reportedName;
       if ([...sqliteFiles.values()].some((path) => posix.basename(path) === fileName)) {
@@ -849,7 +862,7 @@ export const composeConfig = ({
         id: decisionId,
         kind: 'sqlite-persistence',
         chosen,
-        alternatives: ['persistent-volume', 'accept-ephemeral'],
+        alternatives: mountable ? ['persistent-volume', 'accept-ephemeral'] : ['accept-ephemeral'],
         parameters: { serviceName: dependency.consumedBy[0] ?? 'app', filePath },
         evidence: [...dependency.evidence],
         notable: true
@@ -864,12 +877,24 @@ export const composeConfig = ({
           };
         }
         for (const serviceName of dependency.consumedBy) sqliteVolumeServices.add(serviceName);
+        // ECS starts the new copy before it stops the old one, and two services can share the file.
+        // SQLite's default journal handles writers on two machines through file locks; WAL does not.
+        gaps.push({
+          subject: `${dependency.name}.journal`,
+          message: `SQLite on the attached disk needs its default journal mode. If your code turns on WAL (PRAGMA journal_mode = WAL), turn it off: during a deploy the new copy of the app starts before the old one stops, and WAL cannot be shared between two machines.`
+        });
         if (dependency.addressedBy.length === 0) {
           gaps.push({
             subject: `${dependency.name}.path`,
             message: `Your code opens its SQLite file at a path that no setting controls. Change it to ${filePath} so the file is kept on the disk.`
           });
         }
+      }
+      if (!mountable && consumers.length > 0) {
+        gaps.push({
+          subject: `${dependency.name}.ephemeral`,
+          message: `${consumers.map((service) => service.name).join(', ')} cannot mount a disk, so its SQLite file starts empty on every deploy and is not shared between requests. Move this data to a database before you rely on it.`
+        });
       }
       // A release-time migration cannot reach a file inside the app, and an empty file on a fresh
       // container needs its tables too, so the app has to migrate itself when it starts.
@@ -1059,10 +1084,7 @@ export const composeConfig = ({
     }
     for (const variable of service.environmentVariables) {
       if (variable.role !== 'runtime-config' || !variable.required || variable.hasDeclaredValue) continue;
-      if (environment.some((entry) => entry.name === variable.name) || TOOLING_VARIABLE.test(variable.name)) continue;
-      if (variable.evidence.length > 0 && variable.evidence.every((citation) => TOOLING_FILE.test(citation.file))) {
-        continue;
-      }
+      if (environment.some((entry) => entry.name === variable.name) || isToolingVariable(variable)) continue;
       unsetSettings.push({
         serviceName: service.name,
         resourceName: name,
@@ -1100,24 +1122,19 @@ export const composeConfig = ({
       reason: classification.reason,
       evidence: classification.evidence
     };
+    // Only container services reach this set: the SQLite decision falls back to the container's own
+    // disk when any consumer cannot mount one.
     if (sqliteVolumeName !== undefined && sqliteVolumeServices.has(service.name)) {
-      if (VOLUME_RESOURCE_TYPES.has(classification.resourceType)) {
-        const properties = resources[name]!.properties;
-        properties.volumeMounts = [
-          {
-            type: 'efs',
-            properties: { efsFilesystemName: sqliteVolumeName, mountPath: SQLITE_DIRECTORIES['persistent-volume'] }
-          }
-        ];
-        // SQLite allows one writer, and a second copy of the app on a network disk risks corrupting
-        // the file. One copy is the price of keeping it without code changes.
-        properties.scaling = { minInstances: 1, maxInstances: 1 };
-      } else {
-        gaps.push({
-          subject: `${service.name}.sqlite`,
-          message: `${service.name} does not run as a long-running container, so it cannot keep a SQLite file on a disk. Move its data to a database before deploying.`
-        });
-      }
+      const properties = resources[name]!.properties;
+      properties.volumeMounts = [
+        {
+          type: 'efs',
+          properties: { efsFilesystemName: sqliteVolumeName, mountPath: SQLITE_DIRECTORIES['persistent-volume'] }
+        }
+      ];
+      // SQLite has one writer at a time, and every extra copy of the app is another machine contending
+      // for the file over a network disk. One copy is the price of keeping it without code changes.
+      properties.scaling = { minInstances: 1, maxInstances: 1 };
     }
 
     // Root-context builds can carry a stated limitation; the packaging itself is emitted inside

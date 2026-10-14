@@ -87,7 +87,7 @@ test('a failed deploy, a link opened twice and a stopped CLI each say what to do
   await expect(page.locator('.wizard-source')).toContainText('type: efs-filesystem');
   await expect(page.locator('.wizard-source')).toContainText('file:/data/data.db');
   // What the app reads and nobody sets is listed before deploying, not discovered by a crash.
-  await expect(page.getByText('9 values only you have')).toBeVisible();
+  await expect(page.getByText('8 values only you have')).toBeVisible();
   await expect(page.locator('.wizard-setting-list')).toContainText('CACHE_DATABASE_PATH');
   await expect(page.locator('.wizard-setting-list')).not.toContainText('VITEST');
   await page.getByRole('button', { name: 'Change' }).click();

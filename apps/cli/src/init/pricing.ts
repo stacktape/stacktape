@@ -46,7 +46,7 @@ export type PriceEstimate = {
  * Prices differ by region, so quoting a number without saying where it applies would be the same
  * class of mistake as the invented figures this replaced. This one is stated in the interface.
  */
-const DEFAULT_PRICING_REGION = 'eu-west-1';
+export const DEFAULT_PRICING_REGION = 'eu-west-1';
 
 /**
  * Price a configuration, or return nothing.

@@ -28,7 +28,7 @@ import { summariseFailure, type DeployFailure } from '../deploy/failure';
 import type { JsonlEvent } from '@application-services/tui-manager/output/jsonl-types';
 import { getStackName } from '@stacktape/naming/stacks';
 import type { DeployTargetExpectation, DeployTargetObservation } from '../deploy/stack-expectation';
-import { estimateMonthlyCost, formatMonthlyDelta, type PriceEstimate } from '../pricing';
+import { DEFAULT_PRICING_REGION, estimateMonthlyCost, formatMonthlyDelta, type PriceEstimate } from '../pricing';
 import { renderTypeScript, renderYaml } from '../write-config';
 import type { PreflightResult } from '../preflight/preflight';
 import { createWizardSignIn, type WizardSignInDependencies, type WizardSignInFlow } from './wizard-sign-in';
@@ -966,7 +966,8 @@ export const startWizardSession = async ({
         return buildState();
       },
       onPriceRegion: (region) => {
-        if (region === (priceRegion ?? price?.region)) return buildState();
+        // A region already quoted, or being quoted, is not asked for twice. A failed quote for another region is.
+        if (region === (priceRegion ?? DEFAULT_PRICING_REGION)) return buildState();
         priceRegion = region;
         repriceInBackground();
         return buildState();

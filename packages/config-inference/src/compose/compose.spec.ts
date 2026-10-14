@@ -900,7 +900,8 @@ describe('composeConfig', () => {
         notable: true
       });
       // No secret to set for a file the app owns, and the migration has to run where the file is.
-      expect(gaps.map((gap) => gap.subject)).toEqual(['web.migrations']);
+      // WAL cannot be shared between the two copies a deploy briefly runs.
+      expect(gaps.map((gap) => gap.subject)).toEqual(['localDatabase.journal', 'web.migrations']);
       expect(JSON.stringify(config)).not.toContain('$Secret');
     });
 
@@ -918,6 +919,38 @@ describe('composeConfig', () => {
       expect(assumptions.find((assumption) => assumption.kind === 'sqlite-persistence')?.chosen).toBe(
         'accept-ephemeral'
       );
+    });
+
+    it('keeps the file on the app disk for a framework app that cannot mount one, and says the data does not last', () => {
+      const { config, gaps, assumptions } = composeConfig({
+        facts: sqliteFacts({
+          services: [
+            service({
+              framework: 'nextjs',
+              environmentVariables: [
+                {
+                  name: 'DATABASE_URL',
+                  role: 'infra-dependency',
+                  dependencyName: 'localDatabase',
+                  required: true,
+                  evidence: []
+                }
+              ]
+            })
+          ],
+          migrations: []
+        })
+      });
+
+      expect(config.resources.sqliteData).toBeUndefined();
+      expect(config.resources.web!.properties.environment).toEqual([
+        { name: 'DATABASE_URL', value: 'file:/tmp/data.db' }
+      ]);
+      expect(assumptions.find((assumption) => assumption.kind === 'sqlite-persistence')).toMatchObject({
+        chosen: 'accept-ephemeral',
+        alternatives: ['accept-ephemeral']
+      });
+      expect(gaps.find((gap) => gap.subject === 'localDatabase.ephemeral')?.message).toContain('cannot mount a disk');
     });
 
     it('turns a SQLite file only the agent reported into the same single decision', () => {
@@ -961,21 +994,32 @@ describe('composeConfig', () => {
               readSetting('FLY_REGION', 'src/server.ts'),
               readSetting('SENTRY_ORG', 'vite.config.ts'),
               readSetting('SKIP_SETUP', 'remix.init/index.mjs'),
-              readSetting('LOGGER_FATAL', 'pkg/logger/logger_test.go')
+              readSetting('LOGGER_FATAL', 'pkg/logger/logger_test.go'),
+              readSetting('TENANT_DOMAIN', 'src/app.config.ts'),
+              { ...readSetting('E2E_API_TOKEN', 'playwright.config.ts'), role: 'third-party-secret' },
+              { ...readSetting('VERCEL_TOKEN', 'src/deploy-hook.ts'), role: 'third-party-secret' },
+              { ...readSetting('STRIPE_SECRET_KEY', 'src/billing.ts'), role: 'third-party-secret' }
             ]
           })
         ]
       })
     });
 
-    expect(unsetSettings).toEqual([
-      {
-        serviceName: 'web',
-        resourceName: 'web',
-        variableName: 'CACHE_DATABASE_PATH',
-        evidence: [{ file: 'app/utils/cache.server.ts', line: 1, quote: 'process.env.CACHE_DATABASE_PATH' }]
-      }
-    ]);
+    // An application's own `*.config.ts` is not a tool's config file.
+    expect(unsetSettings.map((setting) => setting.variableName)).toEqual(['CACHE_DATABASE_PATH', 'TENANT_DOMAIN']);
+    expect(unsetSettings[0]).toEqual({
+      serviceName: 'web',
+      resourceName: 'web',
+      variableName: 'CACHE_DATABASE_PATH',
+      evidence: [{ file: 'app/utils/cache.server.ts', line: 1, quote: 'process.env.CACHE_DATABASE_PATH' }]
+    });
+    // A test runner's or another platform's token is not a secret the deploy should stop for.
+    const secrets = (config.resources.web!.properties.environment as Array<{ name: string }>).map(
+      (entry) => entry.name
+    );
+    expect(secrets).toContain('STRIPE_SECRET_KEY');
+    expect(secrets).not.toContain('E2E_API_TOKEN');
+    expect(secrets).not.toContain('VERCEL_TOKEN');
     // A web app's own address is known, so it is set rather than asked for.
     expect(config.resources.web!.properties.environment).toContainEqual({
       name: 'BASE_URL',

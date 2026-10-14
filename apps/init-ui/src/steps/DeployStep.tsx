@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert } from '@stacktape/ui-react/alert';
 import { Button } from '@stacktape/ui-react/button';
 import { Spinner } from '@stacktape/ui-react/spinner';
@@ -98,11 +98,14 @@ export function DeployStep({
     identity !== undefined && identity.available && identity.region !== undefined ? identity.region : 'eu-west-1'
   );
   const priceRegion = state.composition?.price?.region;
-  const hasPrice = state.composition?.price !== undefined;
+  /** The last region a price was asked for, so a slow or failed answer is not asked for again on every render. */
+  const requestedPriceRegion = useRef<string | undefined>(undefined);
   // The price was quoted before a region was picked; the region on screen is the one to quote.
   useEffect(() => {
-    if (file !== undefined && hasPrice && priceRegion !== region) onRegionChange(region);
-  }, [file, hasPrice, priceRegion, region, onRegionChange]);
+    if (file === undefined || priceRegion === region || requestedPriceRegion.current === region) return;
+    requestedPriceRegion.current = region;
+    onRegionChange(region);
+  }, [file, priceRegion, region, onRegionChange]);
 
   const model = useMemo(
     () =>
