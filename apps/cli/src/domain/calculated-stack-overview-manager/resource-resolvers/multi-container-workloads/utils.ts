@@ -381,6 +381,7 @@ const getContainerWorkloadContainerDefinitions = (workload: StpContainerWorkload
           workload.configParentResourceType === 'multi-container-workload'
             ? `${workload.name}-${container.name}`
             : workload.name,
+        resourceName: workload.name,
         samplingRate: workloadTracing.samplingRate,
         userEnvironment: Object.fromEntries(
           (container.environment || []).map(({ name: varName, value }) => [varName, value])

@@ -83,7 +83,12 @@ export type LambdaTracingInstrumentation = {
 };
 
 /** Keys of OTEL_RESOURCE_ATTRIBUTES that Stacktape owns; user-supplied values for them are dropped. */
-const RESERVED_RESOURCE_ATTRIBUTE_KEYS = ['stacktape.project', 'stacktape.stage', 'deployment.environment.name'];
+const RESERVED_RESOURCE_ATTRIBUTE_KEYS = [
+  'stacktape.project',
+  'stacktape.stage',
+  'stacktape.resource',
+  'deployment.environment.name'
+];
 
 const mergeResourceAttributes = ({
   userValue,
@@ -143,7 +148,8 @@ export const getLambdaTracingInstrumentation = ({
     samplingRate,
     userEnvironment,
     projectName,
-    stage
+    stage,
+    resourceName
   });
 
   if (runtimeFamily === 'nodejs') {
@@ -206,12 +212,15 @@ export const getReservedOtelEnvironment = ({
   samplingRate,
   userEnvironment,
   projectName,
-  stage
+  stage,
+  resourceName
 }: {
   samplingRate: number;
   userEnvironment: Record<string, unknown>;
   projectName: string;
   stage: string;
+  /** The config resource, which the service name may not be: users may set their own OTEL_SERVICE_NAME. */
+  resourceName: string;
 }): { environmentOverrides: Record<string, string>; warnings: string[] } => {
   const warnings: string[] = [];
   const samplerValue = 'parentbased_traceidratio';
@@ -235,6 +244,7 @@ export const getReservedOtelEnvironment = ({
         stacktapeAttributes: {
           'stacktape.project': projectName,
           'stacktape.stage': stage,
+          'stacktape.resource': resourceName,
           'deployment.environment.name': stage
         }
       }),

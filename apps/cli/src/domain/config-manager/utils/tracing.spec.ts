@@ -60,7 +60,8 @@ describe('getLambdaTracingInstrumentation', () => {
       expect(instrumentation!.layerArn).toBeUndefined();
       expect(instrumentation!.environmentDefaults).toEqual({ OTEL_SERVICE_NAME: 'api' });
       expect(instrumentation!.environmentOverrides).toEqual({
-        OTEL_RESOURCE_ATTRIBUTES: 'stacktape.project=shop,stacktape.stage=prod,deployment.environment.name=prod',
+        OTEL_RESOURCE_ATTRIBUTES:
+          'stacktape.project=shop,stacktape.stage=prod,stacktape.resource=api,deployment.environment.name=prod',
         OTEL_TRACES_SAMPLER: 'parentbased_traceidratio',
         OTEL_TRACES_SAMPLER_ARG: '1'
       });
@@ -124,12 +125,13 @@ describe('getLambdaTracingInstrumentation', () => {
     const { instrumentation } = getLambdaTracingInstrumentation(
       instrumentationInput({
         userEnvironment: {
-          OTEL_RESOURCE_ATTRIBUTES: 'team=payments,stacktape.project=spoofed, custom.key = spaced '
+          OTEL_RESOURCE_ATTRIBUTES:
+            'team=payments,stacktape.project=spoofed,stacktape.resource=spoofed, custom.key = spaced '
         }
       })
     );
     expect(instrumentation!.environmentOverrides.OTEL_RESOURCE_ATTRIBUTES).toBe(
-      'team=payments,custom.key=spaced,stacktape.project=shop,stacktape.stage=prod,deployment.environment.name=prod'
+      'team=payments,custom.key=spaced,stacktape.project=shop,stacktape.stage=prod,stacktape.resource=api,deployment.environment.name=prod'
     );
   });
 

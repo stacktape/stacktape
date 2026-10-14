@@ -1260,6 +1260,7 @@ export const lanes: readonly Lane[] = [
     tests: [
       'apps/console/api/src/messages/email-messages.test.ts',
       'apps/console/api/src/model-helpers/index.test.ts',
+      'apps/console/api/src/services/alert-channel-test.test.ts',
       'apps/console/api/src/services/slack-app/actions.test.ts',
       'apps/console/api/src/services/slack-app/budget-card.test.ts',
       'apps/console/api/src/services/slack-app/client.test.ts',
@@ -1731,6 +1732,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/components/Observability/inventory.test.ts',
       'apps/console/ui/src/pages/MetricsPage/org-metrics.test.ts',
       'apps/console/ui/src/pages/SyntheticsPage/synthetics-presentation.test.ts',
+      'apps/console/ui/src/pages/TracesPage/traces-presentation.test.ts',
       'apps/console/ui/src/components/CompoundViews/ActivityList.helpers.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/DeploymentDetailPage/deploy-recovery.test.ts',
       'apps/console/ui/src/components/StacktapeEditor/monaco-yaml.test.ts',
@@ -1854,10 +1856,12 @@ export const lanes: readonly Lane[] = [
     tier: 'change',
     tests: [
       'apps/console/ui/e2e/isolated-console.test.ts',
+      'apps/console/ui/e2e/isolated-incident-triage.test.ts',
       'apps/console/ui/e2e/isolated-deployment.test.ts',
       'apps/console/ui/e2e/isolated-security.test.ts',
       'apps/console/ui/e2e/isolated-first-run.test.ts',
       'apps/console/ui/e2e/isolated-organization.test.ts',
+      'apps/console/ui/e2e/isolated-alerting.test.ts',
       'apps/console/ui/e2e/isolated-overview.test.ts',
       'apps/console/ui/e2e/isolated-first-run-links.test.ts'
     ],
@@ -2321,6 +2325,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/security/inventory-grading.test.ts',
       'apps/console/api/src/security/osv-client.test.ts',
       'apps/console/api/src/services/alarm-event-counts.test.ts',
+      'apps/console/api/src/services/alert-channel-test.test.ts',
       'apps/console/api/src/services/api-key-security.test.ts',
       'apps/console/api/src/services/bitbucket-forge.test.ts',
       'apps/console/api/src/services/budget-alert-polling.test.ts',
@@ -2373,10 +2378,12 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/incident-investigate-ui.spec.ts',
       'apps/console/ui/e2e/incident-run-live.spec.ts',
       'apps/console/ui/e2e/isolated-console.test.ts',
+      'apps/console/ui/e2e/isolated-incident-triage.test.ts',
       'apps/console/ui/e2e/isolated-deployment.test.ts',
       'apps/console/ui/e2e/isolated-security.test.ts',
       'apps/console/ui/e2e/isolated-first-run.test.ts',
       'apps/console/ui/e2e/isolated-organization.test.ts',
+      'apps/console/ui/e2e/isolated-alerting.test.ts',
       'apps/console/ui/e2e/isolated-overview.test.ts',
       'apps/console/ui/e2e/isolated-first-run-links.test.ts',
       'apps/console/ui/e2e/issues.spec.ts',
@@ -2416,6 +2423,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/pages/DomainsPage/domains.test.ts',
       'apps/console/ui/src/pages/MetricsPage/org-metrics.test.ts',
       'apps/console/ui/src/pages/SyntheticsPage/synthetics-presentation.test.ts',
+      'apps/console/ui/src/pages/TracesPage/traces-presentation.test.ts',
       'apps/console/ui/src/pages/OverviewPage/overview-metrics.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/repository-option.test.tsx',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Environment/environment.test.ts',
@@ -5147,7 +5155,8 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/incidents-watch/watch-incident.spec.ts',
       'apps/console/api/scripts/incident-journey.test.ts',
       'apps/console/api/scripts/incidents-database.test.ts',
-      'apps/console/api/src/services/incident-engine.test.ts'
+      'apps/console/api/src/services/incident-engine.test.ts',
+      'apps/console/ui/e2e/isolated-incident-triage.test.ts'
     ],
     lanes: [
       'cli-issue-incident-rules',
@@ -5156,7 +5165,8 @@ export const slices: readonly Slice[] = [
       'console-api-2',
       'console-database-incidents',
       'console-database-incident-journey',
-      'console-browser-offline'
+      'console-browser-offline',
+      'console-browser-isolated'
     ]
   },
   {
@@ -5323,13 +5333,17 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/lambdas/webhook-delivery.ts',
       'apps/console/api/src/lambdas/slack-app/index.ts',
       'apps/console/api/src/messages/email-messages.ts',
-      'apps/console/api/src/model-helpers/index.ts'
+      'apps/console/api/src/model-helpers/index.ts',
+      'apps/console/ui/src/pages/AlertChannels/**',
+      'apps/console/ui/src/pages/AlertHistoryPage/**'
     ],
     tests: [
       'apps/console/api/scripts/alerts-database.test.ts',
+      'apps/console/ui/e2e/isolated-alerting.test.ts',
       'apps/console/api/scripts/smoke-test-slack-secret-notifications.ts',
       'apps/console/api/src/messages/email-messages.test.ts',
       'apps/console/api/src/model-helpers/index.test.ts',
+      'apps/console/api/src/services/alert-channel-test.test.ts',
       'apps/console/api/src/services/slack-app/actions.test.ts',
       'apps/console/api/src/services/slack-app/budget-card.test.ts',
       'apps/console/api/src/services/slack-app/client.test.ts',
@@ -5343,6 +5357,7 @@ export const slices: readonly Slice[] = [
     lanes: [
       'console-alert-rules',
       'console-database-alerts',
+      'console-browser-isolated',
       'console-api',
       'console-api-2',
       'console-database-incident-journey',
@@ -5389,6 +5404,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/components/Misc/log-parsing-utils.test.ts',
       'apps/console/ui/src/pages/MetricsPage/org-metrics.test.ts',
       'apps/console/ui/src/pages/SyntheticsPage/synthetics-presentation.test.ts',
+      'apps/console/ui/src/pages/TracesPage/traces-presentation.test.ts',
       'apps/console/ui/src/pages/OverviewPage/overview-metrics.test.ts',
       'apps/console/ui/e2e/isolated-first-run.test.ts',
       'apps/console/ui/e2e/isolated-overview.test.ts',

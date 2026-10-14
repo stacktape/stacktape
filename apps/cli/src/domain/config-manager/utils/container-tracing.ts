@@ -70,9 +70,12 @@ export const getContainerTracingEnvironment = ({
   samplingRate,
   userEnvironment,
   projectName,
-  stage
+  stage,
+  resourceName
 }: {
   serviceName: string;
+  /** The config resource the container belongs to (the workload, not the container). */
+  resourceName: string;
   samplingRate: number;
   userEnvironment: Record<string, unknown>;
   projectName: string;
@@ -86,7 +89,8 @@ export const getContainerTracingEnvironment = ({
     samplingRate,
     userEnvironment,
     projectName,
-    stage
+    stage,
+    resourceName
   });
   return {
     environmentDefaults: {
