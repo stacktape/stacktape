@@ -989,7 +989,7 @@ describe('full synthesis contract', () => {
       OTEL_TRACES_SAMPLER: 'parentbased_traceidratio',
       OTEL_TRACES_SAMPLER_ARG: '0.3',
       OTEL_RESOURCE_ATTRIBUTES:
-        'stacktape.project=characterization,stacktape.stage=baseline,deployment.environment.name=baseline'
+        'stacktape.project=characterization,stacktape.stage=baseline,stacktape.resource=worker,deployment.environment.name=baseline'
     });
     expect(workerFn.DependsOn).toContain(cfLogicalNames.customResourceTransactionSearch());
     // Active tracing is what gives the OTel distro its UDP export path in traces-only mode; without
