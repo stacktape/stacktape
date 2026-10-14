@@ -216,13 +216,14 @@ const VOLUME_RESOURCE_TYPES: ReadonlySet<ServiceResourceType> = new Set([
  * The value for a variable that tells the app where its SQLite file is.
  *
  * A `*_URL`-style variable is a connection string whose scheme depends on the driver: Prisma and
- * libsql read `file:`, SQLAlchemy and dj-database-url read `sqlite:///` followed by an absolute
- * path, Rails reads `sqlite3:`. Any other name is taken to hold a plain path.
+ * libsql read `file:`, SQLAlchemy, dj-database-url and Doctrine read `sqlite:///` followed by an
+ * absolute path, Rails reads `sqlite3:`, JDBC reads `jdbc:sqlite:`. Any other name is taken to hold a plain path.
  */
 const sqliteVariableValue = (variableName: string, language: string | undefined, filePath: string): string => {
   if (!/(?:URL|URI|DSN)$/i.test(variableName)) return filePath;
-  if (language === 'python') return `sqlite:///${filePath}`;
+  if (language === 'python' || language === 'php') return `sqlite:///${filePath}`;
   if (language === 'ruby') return `sqlite3:${filePath}`;
+  if (language === 'java') return `jdbc:sqlite:${filePath}`;
   return `file:${filePath}`;
 };
 

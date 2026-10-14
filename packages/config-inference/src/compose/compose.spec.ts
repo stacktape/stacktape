@@ -905,6 +905,37 @@ describe('composeConfig', () => {
       expect(JSON.stringify(config)).not.toContain('$Secret');
     });
 
+    it('writes the SQLite address in the form each ecosystem reads', () => {
+      const addressFor = (language: string) =>
+        (
+          composeConfig({
+            facts: sqliteFacts({
+              services: [
+                service({
+                  language,
+                  environmentVariables: [
+                    {
+                      name: 'DATABASE_URL',
+                      role: 'infra-dependency',
+                      dependencyName: 'localDatabase',
+                      required: true,
+                      evidence: []
+                    }
+                  ]
+                })
+              ]
+            })
+          }).config.resources.web!.properties.environment as Array<{ value: string }>
+        )[0]!.value;
+      expect(['javascript', 'python', 'php', 'ruby', 'java'].map(addressFor)).toEqual([
+        'file:/data/data.db',
+        'sqlite:////data/data.db',
+        'sqlite:////data/data.db',
+        'sqlite3:/data/data.db',
+        'jdbc:sqlite:/data/data.db'
+      ]);
+    });
+
     it('creates no disk when the user says the file is only a cache', () => {
       const { config, assumptions } = composeConfig({
         facts: sqliteFacts(),
