@@ -761,6 +761,7 @@ export const lanes: readonly Lane[] = [
     tier: 'change',
     tests: [
       'packages/packaging/scripts/lambda-e2e/python.test.ts',
+      'packages/packaging/scripts/lambda-e2e/python-selection.test.ts',
       'packages/packaging/scripts/lambda-e2e/python-pipfile.test.ts',
       'packages/packaging/scripts/lambda-e2e/java.test.ts',
       'packages/packaging/scripts/lambda-e2e/ruby.test.ts'
