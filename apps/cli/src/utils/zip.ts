@@ -186,12 +186,14 @@ const writeTarWithArchiver = ({
 };
 
 /**
- * Default levels, measured on real Lambda trees: a native tool writes a directory at 1, as it always has, because 6 was
- * 2–3× slower for 12–22 % less; archiver writing such a directory instead uses 6, which was 22–37 % smaller than
- * its level 1 for little extra time. Every other archive keeps 9.
+ * The level a directory ZIP uses unless the caller names one, from `scripts/perf/zip-levels.ts` on a 17 MB function
+ * with sharp's binaries, a 20 MB bundle with its source map, a 14 MB shared layer and 144 MB of node_modules. Level 3
+ * took 1.1-1.5x the time of level 1 for files 5-30% smaller, and level 6 took 1.6-2.7x longer again for files 4-11%
+ * smaller still, so 3 gave the shortest compression plus upload at 50 Mbit/s with both backends. Release tarballs keep
+ * level 1 and every other archive keeps 9.
  */
-const NATIVE_DIRECTORY_LEVEL = 1;
-const ARCHIVER_DIRECTORY_LEVEL = 6;
+const DIRECTORY_LEVEL = 3;
+const TARBALL_DIRECTORY_LEVEL = 1;
 const DEFAULT_LEVEL = 9;
 
 const writeZip = async ({
@@ -217,7 +219,7 @@ const writeZip = async ({
         tool: nativeTool,
         sourceDirectory: root,
         outputPath,
-        compressionLevel: compressionLevel ?? NATIVE_DIRECTORY_LEVEL
+        compressionLevel: compressionLevel ?? DIRECTORY_LEVEL
       });
       await applyArchivePolicy({ zipPath: outputPath, entries });
       return { backend: nativeTool };
@@ -229,7 +231,7 @@ const writeZip = async ({
   await writeZipWithArchiver({
     entries,
     outputPath,
-    compressionLevel: compressionLevel ?? (useNativeZip && isDirectory ? ARCHIVER_DIRECTORY_LEVEL : DEFAULT_LEVEL)
+    compressionLevel: compressionLevel ?? (useNativeZip && isDirectory ? DIRECTORY_LEVEL : DEFAULT_LEVEL)
   });
   return { backend: 'archiver', ...(nativeFailure && { nativeFailure }) };
 };
@@ -312,7 +314,7 @@ export const createArchive = async ({
             outputPath: temporaryPath,
             executablePatterns,
             // Release tarballs, the only tar archives, keep the level they always had.
-            compressionLevel: explicitLevel ?? (useNativeZip && isDirectory ? NATIVE_DIRECTORY_LEVEL : DEFAULT_LEVEL),
+            compressionLevel: explicitLevel ?? (useNativeZip && isDirectory ? TARBALL_DIRECTORY_LEVEL : DEFAULT_LEVEL),
             store
           }),
           { backend: 'archiver' as const });

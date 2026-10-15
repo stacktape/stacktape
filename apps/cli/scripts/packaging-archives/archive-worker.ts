@@ -143,7 +143,7 @@ const main = async () => {
     byDefault: await levelArchive('default', { useNativeZip: true }),
     override9: await levelArchive('override 9', { useNativeZip: true, compressionLevel: 9 }),
     direct1: await levelArchive('archiver 1', { useNativeZip: false, compressionLevel: 1 }),
-    direct6: await levelArchive('archiver 6', { useNativeZip: false, compressionLevel: 6 }),
+    direct3: await levelArchive('archiver 3', { useNativeZip: false, compressionLevel: 3 }),
     direct9: await levelArchive('archiver 9', { useNativeZip: false, compressionLevel: 9 })
   };
 
