@@ -62,10 +62,10 @@ export class AwsLambda {
       .catch(errorHandler);
   };
 
-  getFunction = async ({ lambdaResourceName }: { lambdaResourceName: string }) => {
+  getFunction = async ({ lambdaResourceName, qualifier }: { lambdaResourceName: string; qualifier?: string }) => {
     const errorHandler = this.#getErrorHandler(`Failed to get configuration of function ${lambdaResourceName}.`);
     return this.#createClient()
-      .send(new GetFunctionConfigurationCommand({ FunctionName: lambdaResourceName }))
+      .send(new GetFunctionConfigurationCommand({ FunctionName: lambdaResourceName, Qualifier: qualifier }))
       .catch(errorHandler);
   };
 

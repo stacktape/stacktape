@@ -4533,6 +4533,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/scripts/packaging-archives/layer-upload-ministack-acceptance.ts',
       'apps/cli/src/aws/s3-upload-options.spec.ts',
       'apps/cli/src/domain/deployment-artifact-manager/retention.test.ts',
+      'apps/cli/src/commands/_utils/source-map-manifest.test.ts',
       'apps/cli/src/domain/deployment-artifact-manager/source-maps.test.ts',
       'apps/cli/src/domain/deployment-artifact-manager/template-url.spec.ts',
       'apps/cli/src/domain/deployment-artifact-manager/utils.spec.ts'

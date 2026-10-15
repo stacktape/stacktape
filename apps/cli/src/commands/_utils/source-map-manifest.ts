@@ -39,6 +39,37 @@ export const recordSourceMapsBeforeSwitch = async (
 };
 
 /**
+ * The version the alias serves, if it was published from the code `$LATEST` runs now. A published version keeps the
+ * `CodeSha256` and `LastModified` of the `$LATEST` it was published from, so both must match: a failed publication
+ * leaves the alias on an older version, possibly with byte-identical code but other maps. Anything else, a read error
+ * included, gives no version, and the Console leaves that version's errors unmapped.
+ */
+export const getPublishedVersionOfLatest = async ({
+  lambdaName,
+  aliasName,
+  latest,
+  lambda = awsSdkManager.lambda
+}: {
+  lambdaName: string;
+  aliasName: string;
+  latest: { CodeSha256?: string | undefined; LastModified?: string | undefined };
+  lambda?: Pick<typeof awsSdkManager.lambda, 'getAlias' | 'getFunction'>;
+}): Promise<string | undefined> => {
+  try {
+    const { FunctionVersion: version } = await lambda.getAlias({ lambdaResourceName: lambdaName, aliasName });
+    if (!version || !/^\d+$/.test(version)) return undefined;
+    const published = await lambda.getFunction({ lambdaResourceName: lambdaName, qualifier: version });
+    const sameCode =
+      Boolean(latest.CodeSha256) &&
+      published.CodeSha256 === latest.CodeSha256 &&
+      published.LastModified === latest.LastModified;
+    return sameCode ? version : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+/**
  * Records, for each function that now runs the code its maps describe, when Lambda started running it (its
  * `LastModified`) and, behind an alias, which published version runs it. An execution environment runs the code that
  * was current when it started, or its published version's, so the Console picks the maps of the code that threw.
@@ -53,18 +84,16 @@ export const recordSourceMapActivation = async (recorded: RecordedSourceMaps | u
   await processConcurrently(
     functions.map((entry, index) => async () => {
       try {
-        const { LastModified, FunctionArn } = await awsSdkManager.lambda.getFunction({
-          lambdaResourceName: entry.lambdaName
-        });
-        const tags = await awsSdkManager.lambda.listTags({ lambdaArn: FunctionArn! });
+        const latest = await awsSdkManager.lambda.getFunction({ lambdaResourceName: entry.lambdaName });
+        const tags = await awsSdkManager.lambda.listTags({ lambdaArn: latest.FunctionArn! });
         if (tags[tagNames.codeDigest()] !== entry.digest) return;
-        const activeSince = parseLambdaTimestamp(LastModified);
+        const activeSince = parseLambdaTimestamp(latest.LastModified);
         if (!Number.isFinite(activeSince)) return;
         const aliasName = recorded.aliases[entry.lambdaName];
         const version = aliasName
-          ? (await awsSdkManager.lambda.getAlias({ lambdaResourceName: entry.lambdaName, aliasName })).FunctionVersion
+          ? await getPublishedVersionOfLatest({ lambdaName: entry.lambdaName, aliasName, latest })
           : undefined;
-        functions[index] = { ...entry, activeSince, ...(version && /^\d+$/.test(version) ? { version } : {}) };
+        functions[index] = { ...entry, activeSince, ...(version ? { version } : {}) };
       } catch (error) {
         tuiManager.debug(`Could not read whether ${entry.lambdaName} runs the new code: ${error}`);
       }
