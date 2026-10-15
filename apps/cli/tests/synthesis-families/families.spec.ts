@@ -28,6 +28,7 @@ import {
   JsBundleImagePackaging,
   JsBundleLambdaPackaging,
   LambdaFunction,
+  PrivateService,
   WebService,
   WorkerService,
   defineConfig
@@ -539,5 +540,121 @@ describe('log forwarding family', () => {
     expect(logGroups.some((name) => name.includes('WebServiceContainerLogGroup'))).toBe(true);
     expect(logGroups.some((name) => name.includes('WebLogGroup'))).toBe(true);
     expect(logGroups.some((name) => name.includes('WorkerServiceContainerLogGroup'))).toBe(true);
+  });
+});
+
+describe('container rolling deployment family', () => {
+  const packaging = new JsBundleImagePackaging({ entryfilePath: './src/web.ts' });
+  const resources = { cpu: 0.25, memory: 512 } as const;
+  const healthCheck = { healthCheckCommand: ['CMD-SHELL', 'exit 0'] };
+  const config = ({ overrides }: { overrides?: Record<string, Record<string, unknown>> } = {}) =>
+    defineConfig(() => ({
+      resources: {
+        albWeb: new WebService({
+          packaging,
+          resources,
+          loadBalancing: { type: 'application-load-balancer' },
+          ...(overrides ? { overrides } : {})
+        }),
+        apiWeb: new WebService({ packaging, resources }),
+        checkedApiWeb: new WebService({ packaging, resources, internalHealthCheck: healthCheck }),
+        internal: new PrivateService({ packaging, resources }),
+        worker: new WorkerService({ packaging, resources, stopTimeout: 10 })
+      }
+    }));
+
+  const earlySuccess = { Enable: true, HealthyPercent: 100, SourceServiceRevisionCleanup: 'DEFERRED' };
+  const deploymentConfiguration = (template: CloudFormationTemplate, workloadName: string, blueGreen = false) => {
+    const service = template.Resources[cfLogicalNames.ecsService(workloadName, blueGreen)] as Resource;
+    return (blueGreen ? service.Properties?.ECSService : service.Properties)?.DeploymentConfiguration;
+  };
+  const deregistrationDelays = (template: CloudFormationTemplate, workloadName: string, blueGreen = false) => {
+    const service = template.Resources[cfLogicalNames.ecsService(workloadName, blueGreen)] as Resource;
+    const loadBalancers = (blueGreen ? service.Properties?.ECSService : service.Properties)?.LoadBalancers as {
+      TargetGroupArn: { Ref: string };
+    }[];
+    return loadBalancers.map(
+      ({ TargetGroupArn }) =>
+        (template.Resources[TargetGroupArn.Ref] as Resource).Properties?.TargetGroupAttributes.find(
+          ({ Key }: { Key: string }) => Key === 'deregistration_delay.timeout_seconds'
+        ).Value
+    );
+  };
+  const stopTimeouts = (template: CloudFormationTemplate, workloadName: string) =>
+    (
+      (template.Resources[cfLogicalNames.ecsTaskDefinition(workloadName)] as Resource).Properties
+        ?.ContainerDefinitions as { StopTimeout: number }[]
+    ).map(({ StopTimeout }) => StopTimeout);
+
+  test('a deploy succeeds once new tasks pass a health check and old tasks drain afterwards', async () => {
+    const template = await synthesizeFamily('container-rolling-deployment', config());
+    expectReferencesResolve(template);
+
+    // Load balancer health checks tell ECS when a task serves traffic.
+    expect(deploymentConfiguration(template, 'albWeb')).toEqual({
+      DeploymentCircuitBreaker: { Enable: true, Rollback: true },
+      EarlySuccessCriteria: earlySuccess,
+      MaximumPercent: 200,
+      MinimumHealthyPercent: 100
+    });
+    expect(deregistrationDelays(template, 'albWeb')).toEqual(['30']);
+    expect(stopTimeouts(template, 'albWeb')).toEqual([30]);
+
+    // Cloud Map and Service Connect count a task healthy once it runs; only a container health check says more.
+    expect(deploymentConfiguration(template, 'apiWeb').EarlySuccessCriteria).toBeUndefined();
+    expect(deploymentConfiguration(template, 'internal').EarlySuccessCriteria).toBeUndefined();
+    expect(deploymentConfiguration(template, 'checkedApiWeb').EarlySuccessCriteria).toEqual(earlySuccess);
+
+    // A worker receives no traffic, and its configured stop timeout wins over the default.
+    expect(deploymentConfiguration(template, 'worker').EarlySuccessCriteria).toEqual(earlySuccess);
+    expect(stopTimeouts(template, 'worker')).toEqual([10]);
+  });
+
+  test('a blue/green service keeps the CodeDeploy rollout and the short drain', async () => {
+    // Not written for cfn-lint: it does not know the Stacktape blue/green resource type.
+    const template = await synthesizeFixture({
+      compiledConfig: defineConfig(() => ({
+        resources: {
+          gradualWeb: new WebService({
+            packaging,
+            resources,
+            loadBalancing: { type: 'application-load-balancer' },
+            deployment: { strategy: 'AllAtOnce' }
+          })
+        }
+      }))(authoringParams),
+      workingDir: fixturesDir
+    });
+    expect(deploymentConfiguration(template, 'gradualWeb', true)).toEqual({
+      MaximumPercent: 200,
+      MinimumHealthyPercent: 100
+    });
+    expect(new Set(deregistrationDelays(template, 'gradualWeb', true))).toEqual(new Set(['5']));
+  });
+
+  test('overrides replace the deployment and drain defaults', async () => {
+    const service = (await synthesizeFamily('container-rolling-deployment', config())).Resources[
+      cfLogicalNames.ecsService('albWeb', false)
+    ] as Resource;
+    const targetGroupLogicalId = (service.Properties?.LoadBalancers as { TargetGroupArn: { Ref: string } }[])[0]
+      .TargetGroupArn.Ref;
+    const template = await synthesizeFamily(
+      'container-rolling-deployment-overrides',
+      config({
+        overrides: {
+          [cfLogicalNames.ecsService('albWeb', false)]: {
+            'DeploymentConfiguration.EarlySuccessCriteria.SourceServiceRevisionCleanup': 'BLOCKING'
+          },
+          [targetGroupLogicalId]: {
+            TargetGroupAttributes: [{ Key: 'deregistration_delay.timeout_seconds', Value: '120' }]
+          }
+        }
+      })
+    );
+    expect(deploymentConfiguration(template, 'albWeb').EarlySuccessCriteria).toEqual({
+      ...earlySuccess,
+      SourceServiceRevisionCleanup: 'BLOCKING'
+    });
+    expect(deregistrationDelays(template, 'albWeb')).toEqual(['120']);
   });
 });

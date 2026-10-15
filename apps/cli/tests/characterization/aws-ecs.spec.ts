@@ -1,7 +1,13 @@
 import { describe, expect, test } from 'bun:test';
 import type { CodeDeployClient } from '@aws-sdk/client-codedeploy';
 import type { ECSClient } from '@aws-sdk/client-ecs';
-import { DescribeServicesCommand, DescribeTasksCommand, DesiredStatus, ListTasksCommand } from '@aws-sdk/client-ecs';
+import {
+  DescribeServicesCommand,
+  DescribeTasksCommand,
+  DesiredStatus,
+  ListServiceDeploymentsCommand,
+  ListTasksCommand
+} from '@aws-sdk/client-ecs';
 import { AwsEcs } from '../../src/aws/ecs';
 
 type EcsSend = ECSClient['send'];
@@ -51,8 +57,13 @@ describe('AWS ECS operations', () => {
     const serviceArn = 'arn:aws:ecs:eu-west-1:123456789999:service/application/api';
     const rolloutStates = ['IN_PROGRESS', 'IN_PROGRESS', 'COMPLETED'];
     let polls = 0;
+    let serviceDeploymentReads = 0;
     const ecs = ecsWith({
-      ecsSend: (async (command: DescribeServicesCommand) => {
+      ecsSend: (async (command: DescribeServicesCommand | ListServiceDeploymentsCommand) => {
+        if (command instanceof ListServiceDeploymentsCommand) {
+          serviceDeploymentReads += 1;
+          return { serviceDeployments: [] };
+        }
         expect(command.input).toEqual({ services: [serviceArn], cluster: 'application' });
         const rolloutState = rolloutStates[Math.min(polls, rolloutStates.length - 1)];
         polls += 1;
@@ -70,6 +81,79 @@ describe('AWS ECS operations', () => {
     await ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn });
 
     expect(polls).toBe(rolloutStates.length);
+    // Without early success the service deployment status is not consulted.
+    expect(serviceDeploymentReads).toBe(0);
+  }, 30_000);
+
+  test('finishes when the service deployment meets early success while old tasks still drain', async () => {
+    // With deferred cleanup, ECS marks the service deployment SUCCESSFUL once the new tasks are healthy. The legacy
+    // rolloutState stays IN_PROGRESS until the old tasks have stopped, which is the wait early success removes.
+    const serviceArn = 'arn:aws:ecs:eu-west-1:123456789999:service/application/api';
+    const revision = (id: string) => `arn:aws:ecs:eu-west-1:123456789999:service-revision/application/api/${id}`;
+    const statuses = ['IN_PROGRESS', 'SUCCESSFUL'];
+    let listCalls = 0;
+    const ecs = ecsWith({
+      ecsSend: (async (command: DescribeServicesCommand | ListServiceDeploymentsCommand) => {
+        if (command instanceof ListServiceDeploymentsCommand) {
+          expect(command.input).toEqual({ service: serviceArn, cluster: 'application' });
+          const status = statuses[Math.min(listCalls, statuses.length - 1)];
+          listCalls += 1;
+          return {
+            serviceDeployments: [
+              { targetServiceRevisionArn: revision('2'), status },
+              { targetServiceRevisionArn: revision('1'), status: 'SUCCESSFUL' }
+            ]
+          };
+        }
+        return {
+          services: [
+            {
+              status: 'ACTIVE',
+              deploymentConfiguration: { earlySuccessCriteria: { enable: true } },
+              deployments: [
+                { id: 'ecs-svc/2', status: 'PRIMARY', desiredCount: 1, runningCount: 1, rolloutState: 'IN_PROGRESS' },
+                { id: 'ecs-svc/1', status: 'ACTIVE', desiredCount: 0, runningCount: 1, rolloutState: 'COMPLETED' }
+              ]
+            }
+          ]
+        };
+      }) as EcsSend
+    });
+
+    await ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn });
+
+    expect(listCalls).toBe(statuses.length);
+  }, 30_000);
+
+  test('keeps waiting for the rollout when service deployments cannot be read', async () => {
+    const serviceArn = 'arn:aws:ecs:eu-west-1:123456789999:service/application/api';
+    const rolloutStates = ['IN_PROGRESS', 'COMPLETED'];
+    let polls = 0;
+    let listCalls = 0;
+    const ecs = ecsWith({
+      ecsSend: (async (command: DescribeServicesCommand | ListServiceDeploymentsCommand) => {
+        if (command instanceof ListServiceDeploymentsCommand) {
+          listCalls += 1;
+          throw new Error('AccessDeniedException: not authorized to perform ecs:ListServiceDeployments');
+        }
+        const rolloutState = rolloutStates[Math.min(polls, rolloutStates.length - 1)];
+        polls += 1;
+        return {
+          services: [
+            {
+              status: 'ACTIVE',
+              deploymentConfiguration: { earlySuccessCriteria: { enable: true } },
+              deployments: [{ id: 'ecs-svc/1', status: 'PRIMARY', rolloutState }]
+            }
+          ]
+        };
+      }) as EcsSend
+    });
+
+    await ecs.waitForRollingUpdate({ ecsServiceArn: serviceArn });
+
+    expect(polls).toBe(rolloutStates.length);
+    expect(listCalls).toBe(1);
   }, 30_000);
 
   test('fails a rolling deployment the circuit breaker rolled back, and accepts a converged scale to zero', async () => {

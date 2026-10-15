@@ -30,7 +30,7 @@ import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { tagNames } from '@stacktape/naming/tag-names';
 import { getJobName } from '@stacktape/naming/workload-names';
 import { NOT_YET_KNOWN_IDENTIFIER } from 'src/config/constants';
-import { lowerCaseFirstCharacterOfEveryWord, serialize } from '@utils/misc';
+import { lowerCaseFirstCharacterOfEveryWord, lowerCaseFirstCharacterOfObjectKeys, serialize } from '@utils/misc';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { replaceCloudformationRefFunctionsWithCfPhysicalIds } from '@utils/cloudformation';
 import { getAwsSynchronizedTime } from '@utils/time';
@@ -323,8 +323,9 @@ export const updateEcsService = async ({
         });
         await awsSdkManager.ecs.waitForCodeDeployUpdate({ deploymentId });
       } else {
-        const serviceRegistriesFromTemplate = (getEcsService({ workload, blueGreen: false }) as any).Properties
-          ?.ServiceRegistries;
+        const { ServiceRegistries: serviceRegistriesFromTemplate, DeploymentConfiguration } = (
+          getEcsService({ workload, blueGreen: false }) as KnownCloudFormationResource<'AWS::ECS::Service'>
+        ).Properties;
 
         const updateServiceInput: UpdateServiceCommandInput = {
           service: ecsServiceArn,
@@ -337,14 +338,9 @@ export const updateEcsService = async ({
               )
             : undefined,
           forceNewDeployment: true,
-          deploymentConfiguration: {
-            // if set to 0, it can be a bit faster but there is downtime during deployment
-            minimumHealthyPercent: 100,
-            deploymentCircuitBreaker: {
-              enable: true,
-              rollback: true
-            }
-          }
+          // The template's deployment configuration (overrides are applied below), so a hotswap rolls out exactly
+          // like a CloudFormation deploy, including early success.
+          deploymentConfiguration: lowerCaseFirstCharacterOfObjectKeys(serialize(DeploymentConfiguration))
         };
 
         // we have to take overrides from the upmost parent

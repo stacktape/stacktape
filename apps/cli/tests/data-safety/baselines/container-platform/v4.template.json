@@ -1735,7 +1735,7 @@
                 }
               }
             ],
-            "StopTimeout": 2,
+            "StopTimeout": 30,
             "LogConfiguration": {
               "LogDriver": "awslogs",
               "Options": {
@@ -1977,6 +1977,11 @@
             "Enable": true,
             "Rollback": true
           },
+          "EarlySuccessCriteria": {
+            "Enable": true,
+            "HealthyPercent": 100,
+            "SourceServiceRevisionCleanup": "DEFERRED"
+          },
           "MaximumPercent": 200,
           "MinimumHealthyPercent": 100
         },
@@ -2195,7 +2200,7 @@
                 }
               }
             ],
-            "StopTimeout": 2,
+            "StopTimeout": 30,
             "LogConfiguration": {
               "LogDriver": "awslogs",
               "Options": {
