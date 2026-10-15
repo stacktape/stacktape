@@ -20,6 +20,7 @@ import { scriptFunction } from './resolvers/script-function';
 import { sensitiveData } from './resolvers/sensitive-data';
 import { ssmParameterRetrieve } from './resolvers/ssm-parameter-retrieve';
 import { kafkaBootstrapBrokers } from './resolvers/kafka-bootstrap-brokers';
+import { natRoutes } from './resolvers/nat-routes';
 import { transactionSearch } from './resolvers/transaction-search';
 import { uptimeMonitoring } from './resolvers/uptime-monitoring';
 import { userPoolDetails } from './resolvers/user-pool-details';
@@ -50,6 +51,7 @@ const resolversMap: {
   userPoolDetails,
   ssmParameterRetrieve,
   kafkaBootstrapBrokers,
+  natRoutes,
   uptimeMonitoring,
   transactionSearch
 };

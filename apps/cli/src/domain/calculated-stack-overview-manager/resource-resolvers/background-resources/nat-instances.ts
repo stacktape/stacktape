@@ -12,6 +12,7 @@ import { tagNames } from '@stacktape/naming/tag-names';
 import { transformIntoCloudformationSubstitutedString } from '@utils/cloudformation';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
 import { getEventBusRuleLambdaPermission } from '../functions/events/utils';
+import { getStpServiceCustomResource } from '../_utils/custom-resource';
 
 /**
  * NAT instances (`stackConfig.nat: ec2 | ha-ec2`): one small arm64 Amazon Linux 2023 instance per availability
@@ -150,7 +151,7 @@ const getHeartbeatParameter = (azIndex: number) => {
  * interface and the address. The script ends with the CloudFormation signal, so a launch that cannot reach the
  * internet through the NAT path fails the stack update instead of silently serving nothing.
  */
-const getUserData = ({ azIndex, availabilityZones }: { azIndex: number; availabilityZones: number }) => {
+const getUserData = (azIndex: number) => {
   const { stackName, region } = calculatedStackOverviewManager.context;
   const script = `#!/bin/bash
 set -uo pipefail
@@ -333,7 +334,7 @@ echo "stacktape-nat: outbound traffic leaves as $EGRESS_IP"
 systemctl daemon-reload
 systemctl enable --now stacktape-nat-heartbeat.timer
 signal SUCCESS
-echo "stacktape-nat: ready (zone ${azIndex} of ${availabilityZones})"
+echo "stacktape-nat: ready (zone ${azIndex})"
 (dnf -y -q upgrade --security >/dev/null 2>&1 || true) &
 `;
   return base64(
@@ -346,7 +347,7 @@ echo "stacktape-nat: ready (zone ${azIndex} of ${availabilityZones})"
   );
 };
 
-const getLaunchTemplate = ({ azIndex, availabilityZones }: { azIndex: number; availabilityZones: number }) =>
+const getLaunchTemplate = (azIndex: number) =>
   cfnResource('AWS::EC2::LaunchTemplate', {
     LaunchTemplateData: {
       ImageId: `{{resolve:ssm:${AL2023_ARM64_IMAGE_PARAMETER}}}`,
@@ -354,7 +355,7 @@ const getLaunchTemplate = ({ azIndex, availabilityZones }: { azIndex: number; av
       IamInstanceProfile: { Arn: getAtt(cfLogicalNames.natInstanceProfile(), 'Arn') },
       SecurityGroupIds: [ref(cfLogicalNames.natInstanceSecurityGroup())],
       MetadataOptions: { HttpTokens: 'required', HttpPutResponseHopLimit: 1 },
-      UserData: getUserData({ azIndex, availabilityZones }),
+      UserData: getUserData(azIndex),
       TagSpecifications: [
         { ResourceType: 'instance', Tags: natTags(azIndex) },
         { ResourceType: 'volume', Tags: natTags(azIndex) },
@@ -451,6 +452,31 @@ const getFailoverRuleInput = ({
   };
 };
 
+const getRouteReconcileCustomResource = ({
+  availabilityZones,
+  privateSubnetCount
+}: {
+  availabilityZones: number;
+  privateSubnetCount: number;
+}) => {
+  const resource = getStpServiceCustomResource<'natRoutes'>({
+    natRoutes: {
+      routes: Array.from({ length: privateSubnetCount }, (_, subnetIndex) => ({
+        routeTableId: ref(cfLogicalNames.routeTable(false, subnetIndex)),
+        networkInterfaceId: ref(
+          cfLogicalNames.natInstanceNetworkInterface(Math.min(subnetIndex, availabilityZones - 1))
+        )
+      })),
+      deployment: calculatedStackOverviewManager.context.invocationId
+    }
+  });
+  resource.DependsOn = [
+    ...Array.from({ length: availabilityZones }, (_, azIndex) => cfLogicalNames.natInstanceAutoscalingGroup(azIndex)),
+    ...Array.from({ length: privateSubnetCount }, (_, subnetIndex) => cfLogicalNames.natRoute(subnetIndex))
+  ];
+  return resource;
+};
+
 const getProbeRule = (input: NatFailoverRuleInput) =>
   cfnResource('AWS::Events::Rule', {
     State: 'ENABLED',
@@ -510,12 +536,20 @@ export const resolveNatInstances = ({
     add(cfLogicalNames.natInstanceElasticIp(azIndex), getElasticIp(azIndex));
     add(cfLogicalNames.natInstanceNetworkInterface(azIndex), getNetworkInterface(azIndex));
     add(cfLogicalNames.natInstanceHeartbeatParameter(azIndex), getHeartbeatParameter(azIndex));
-    add(cfLogicalNames.natInstanceLaunchTemplate(azIndex), getLaunchTemplate({ azIndex, availabilityZones }));
+    add(cfLogicalNames.natInstanceLaunchTemplate(azIndex), getLaunchTemplate(azIndex));
     add(cfLogicalNames.natInstanceAutoscalingGroup(azIndex), getAutoscalingGroup(azIndex));
     if (availabilityZones > 1) {
       add(cfLogicalNames.natInstanceTerminationLifecycleHook(azIndex), getTerminationLifecycleHook(azIndex));
     }
   }
+
+  // After every deploy, once the zones' instances have signalled, every private route table is put back on its home
+  // interface: the failover handler may have moved it during the deploy, and CloudFormation only rewrites routes whose
+  // template changed.
+  add(
+    cfLogicalNames.customResourceNatRoutes(),
+    getRouteReconcileCustomResource({ availabilityZones, privateSubnetCount })
+  );
 
   if (availabilityZones > 1) {
     const input = getFailoverRuleInput({ availabilityZones, privateSubnetCount });

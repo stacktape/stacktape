@@ -109,6 +109,19 @@ describe('NAT configuration', () => {
       });
       expect(natRouteTarget(instance, subnetIndex).NatGatewayId).toBeUndefined();
     }
+    // Every deploy ends by putting the routes back home, after the zones have signalled and the routes exist.
+    const reconcile = instance.Resources[cfLogicalNames.customResourceNatRoutes()] as {
+      DependsOn: string[];
+      Properties: { natRoutes: { routes: unknown[]; deployment: string } };
+    };
+    expect(reconcile.Properties.natRoutes.routes).toHaveLength(3);
+    expect(reconcile.DependsOn).toEqual(
+      expect.arrayContaining([
+        cfLogicalNames.natInstanceAutoscalingGroup(0),
+        cfLogicalNames.natInstanceAutoscalingGroup(1),
+        cfLogicalNames.natRoute(2)
+      ])
+    );
     // The second zone waits for the first: a bad image never takes both zones down at once.
     const secondGroup = instance.Resources[cfLogicalNames.natInstanceAutoscalingGroup(1)] as { DependsOn: string[] };
     expect(secondGroup.DependsOn).toContain(cfLogicalNames.natInstanceAutoscalingGroup(0));

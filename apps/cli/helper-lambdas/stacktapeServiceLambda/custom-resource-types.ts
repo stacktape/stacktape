@@ -144,7 +144,14 @@ type StpServiceCustomResourceTransactionSearchProps = {
   version: number;
 };
 
+/** The home default-route target of each private route table; `deployment` changes every deploy so the check reruns. */
+export type StpServiceCustomResourceNatRoutesProps = {
+  routes: { routeTableId: string | Intrinsic; networkInterfaceId: string | Intrinsic }[];
+  deployment: string;
+};
+
 export type StpServiceCustomResourceProperties = {
+  natRoutes?: StpServiceCustomResourceNatRoutesProps;
   s3Events?: StpServiceCustomResourceEventProps<S3IntegrationProps>[];
   // @deprecated - use edgeLambda instead
   edgeFunctions?: StpServiceCustomResourceEdgeFunctionProps[];

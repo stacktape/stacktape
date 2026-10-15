@@ -1528,6 +1528,12 @@ export const cfLogicalNames = {
       suffix: { cloudformationResourceType: 'AWS::CloudFormation::CustomResource' }
     });
   },
+  customResourceNatRoutes() {
+    return buildCfLogicalName({
+      specifier: { type: 'NatRoutes' },
+      suffix: { cloudformationResourceType: 'AWS::CloudFormation::CustomResource' }
+    });
+  },
   customResourceAcceptVpcPeerings() {
     return buildCfLogicalName({
       specifier: { type: 'AcceptVpcPeerings' },
