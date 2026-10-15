@@ -2568,7 +2568,6 @@ export const lanes: readonly Lane[] = [
       'packages/packaging/src/buildpacks/project-root.test.ts',
       'packages/packaging/src/bundlers/digest.test.ts',
       'packages/packaging/src/bundlers/es/decorator-metadata.test.ts',
-      'packages/packaging/src/bundlers/es/docker-dependency-plan.test.ts',
       'packages/packaging/src/bundlers/es/lambda-package.test.ts',
       'packages/packaging/src/bundlers/es/minify.test.ts',
       'packages/packaging/src/bundlers/es/prisma.test.ts',
@@ -2584,6 +2583,7 @@ export const lanes: readonly Lane[] = [
       'packages/packaging/src/es/bundler-helpers.test.ts',
       'packages/packaging/src/es/import-classification.test.ts',
       'packages/packaging/src/es/native-dependencies.test.ts',
+      'packages/packaging/src/es/project-root.test.ts',
       'packages/packaging/src/es/package-manager-install.test.ts',
       'packages/packaging/src/fs/files-hashing.test.ts',
       'packages/packaging/src/fs/files.test.ts',
@@ -4128,7 +4128,6 @@ export const slices: readonly Slice[] = [
       'packages/packaging/scripts/synthetic-node-lambda-e2e.ts',
       'packages/packaging/src/bundlers/digest.test.ts',
       'packages/packaging/src/bundlers/es/decorator-metadata.test.ts',
-      'packages/packaging/src/bundlers/es/docker-dependency-plan.test.ts',
       'packages/packaging/src/bundlers/es/lambda-package.test.ts',
       'packages/packaging/src/bundlers/es/minify.test.ts',
       'packages/packaging/src/bundlers/es/prisma.test.ts',
@@ -4140,6 +4139,7 @@ export const slices: readonly Slice[] = [
       'packages/packaging/src/es/bundler-helpers.test.ts',
       'packages/packaging/src/es/import-classification.test.ts',
       'packages/packaging/src/es/native-dependencies.test.ts',
+      'packages/packaging/src/es/project-root.test.ts',
       'packages/packaging/src/es/package-manager-install.test.ts'
     ],
     lanes: [
