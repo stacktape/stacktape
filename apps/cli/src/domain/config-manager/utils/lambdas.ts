@@ -629,7 +629,9 @@ export const getStacktapeServiceLambdaNatFailoverStatements = ({
   stackContext: StackContext;
 }): StpIamRoleStatement[] => {
   const { kind, availabilityZones } = activeConfig.natSettings;
-  if (kind !== 'instance' || availabilityZones < 2 || !activeConfig.allResourcesRequiringPrivateSubnets.length) {
+  // Kept for a single zone too: while a stack moves from `ha-ec2` to `ec2`, the probe rule still fires until
+  // CloudFormation removes it, after the role has already lost these statements otherwise.
+  if (kind !== 'instance' || !activeConfig.allResourcesRequiringPrivateSubnets.length) {
     return [];
   }
   const { stackName, region, accountId } = stackContext;
