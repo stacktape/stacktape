@@ -25,7 +25,7 @@ const allows = (values: string[] | undefined, value: string) =>
   !values?.length ||
   (values.some((allowed) => !allowed.startsWith('!')) ? values.includes(value) : !values.includes(`!${value}`));
 
-const declaresPlatform = (manifest: PackageManifest) =>
+export const declaresPlatform = (manifest: PackageManifest) =>
   Boolean(manifest.os?.length || manifest.cpu?.length || manifest.libc?.length);
 
 /** Whether a package that declares a platform can run on Lambda (Linux with glibc) with this architecture. */
@@ -39,29 +39,40 @@ const hostIsGlibc = () =>
 const hostMatchesLambda = (architecture: LambdaArchitecture) =>
   process.platform === 'linux' && process.arch === architecture && hostIsGlibc();
 
+/** What a compiled file was built for, from its header: Linux on one architecture, or another operating system. */
+type CompiledFormat = 'linux-x64' | 'linux-arm64' | 'linux-other' | 'other-os';
+
+type CompiledFile = { path: string; format: CompiledFormat };
+
 type NativeFiles = {
   /** Compiled addons (`*.node`), relative to the package directory. */
   addons: string[];
-  /** Executables and shared libraries for some operating system, such as a downloaded `ffmpeg`. */
-  binaries: string[];
+  /** Every compiled file, addons included, such as an `ffmpeg` an install script downloaded, outside `prebuilds/`. */
+  compiled: CompiledFile[];
   hasBindingGyp: boolean;
   /** Platform directories under `prebuilds/`, such as `linux-x64`. */
   prebuildPlatforms: string[];
 };
 
-/** The file names a compiled program or library has: no extension on Linux and macOS, or a library extension. */
-const mayBeBinary = (fileName: string) =>
-  !extname(fileName) || ['.exe', '.dll', '.so', '.dylib'].includes(extname(fileName));
+/** Source, text and asset files, whose headers are not worth reading. Every other file may be compiled. */
+const TEXT_EXTENSIONS = new Set(
+  '.js .cjs .mjs .jsx .ts .cts .mts .tsx .json .map .md .markdown .txt .css .scss .less .html .htm .yml .yaml .xml .svg .png .jpg .jpeg .gif .ico .webp .flow .coffee .vue .svelte .astro .graphql .gql .proto .sql .csv .lock .wasm .woff .woff2 .ttf .eot .c .cc .cpp .h .hpp .gyp .gypi .py .sh .cmd .ps1 .bat'.split(
+    ' '
+  )
+);
 
-/** The first bytes of ELF (Linux), Mach-O (macOS) and PE (Windows) files. */
-const BINARY_HEADERS = new Set(['7f454c46', 'feedface', 'feedfacf', 'cefaedfe', 'cffaedfe', 'cafebabe']);
+/** ELF (Linux), Mach-O (macOS) and PE (Windows) headers; an ELF header also names its machine at byte 18. */
+const MACH_O_HEADERS = new Set(['feedface', 'feedfacf', 'cefaedfe', 'cffaedfe', 'cafebabe']);
+const ELF_MACHINES: Record<number, CompiledFormat> = { 0x3e: 'linux-x64', 0xb7: 'linux-arm64' };
 
-const isBinary = async (path: string) => {
+const readCompiledFormat = async (path: string): Promise<CompiledFormat | undefined> => {
   const file = await open(path, 'r');
   try {
-    const { buffer, bytesRead } = await file.read(Buffer.alloc(4), 0, 4, 0);
-    const header = buffer.subarray(0, bytesRead).toString('hex');
-    return BINARY_HEADERS.has(header) || header.startsWith('4d5a');
+    const { buffer, bytesRead } = await file.read(Buffer.alloc(20), 0, 20, 0);
+    const magic = buffer.subarray(0, Math.min(bytesRead, 4)).toString('hex');
+    if (magic === '7f454c46') return ELF_MACHINES[buffer.readUInt16LE(18)] ?? 'linux-other';
+    if (MACH_O_HEADERS.has(magic) || magic.startsWith('4d5a')) return 'other-os';
+    return undefined;
   } finally {
     await file.close();
   }
@@ -75,7 +86,7 @@ const findNativeFiles = (packageRoot: string): Promise<NativeFiles> => {
   if (!found) {
     found = (async () => {
       const addons: string[] = [];
-      const binaries: string[] = [];
+      const compiled: CompiledFile[] = [];
       const prebuildPlatforms: string[] = [];
       const visit = async (directory: string): Promise<void> => {
         let entries: Dirent[];
@@ -95,15 +106,16 @@ const findNativeFiles = (packageRoot: string): Promise<NativeFiles> => {
               }
               return visit(path);
             }
-            if (entry.name.endsWith('.node')) addons.push(relative(packageRoot, path));
-            else if (entry.isFile() && mayBeBinary(entry.name) && (await isBinary(path))) {
-              binaries.push(relative(packageRoot, path));
-            }
+            const relativePath = relative(packageRoot, path);
+            if (entry.name.endsWith('.node')) addons.push(relativePath);
+            if (!entry.isFile() || TEXT_EXTENSIONS.has(extname(entry.name).toLowerCase())) return;
+            const format = await readCompiledFormat(path);
+            if (format && relativePath.split(sep)[0] !== 'prebuilds') compiled.push({ path: relativePath, format });
           })
         );
       };
       await visit(packageRoot);
-      return { addons, binaries, hasBindingGyp: existsSync(join(packageRoot, 'binding.gyp')), prebuildPlatforms };
+      return { addons, compiled, hasBindingGyp: existsSync(join(packageRoot, 'binding.gyp')), prebuildPlatforms };
     })();
     nativeFilesByPackage.set(packageRoot, found);
   }
@@ -138,9 +150,9 @@ export const getNativeReason = async (packageRoot: string): Promise<string | und
   if (declaresPlatform(manifest)) return 'built for one platform';
   if (manifest.gypfile || manifest.binary?.module_path) return 'native addon';
   if ((await findPlatformPackages(packageRoot, manifest)).length > 0) return 'platform-specific binaries';
-  const { addons, binaries, hasBindingGyp, prebuildPlatforms } = await findNativeFiles(packageRoot);
+  const { addons, compiled, hasBindingGyp, prebuildPlatforms } = await findNativeFiles(packageRoot);
   if (addons.length > 0 || hasBindingGyp || prebuildPlatforms.length > 0) return 'native addon';
-  if (binaries.length > 0) return 'contains executables';
+  if (compiled.length > 0) return 'contains compiled programs';
   return undefined;
 };
 
@@ -149,24 +161,23 @@ export const getNativeReason = async (packageRoot: string): Promise<string | und
  *
  * An addon under `build/` was compiled on this machine, against its Node.js and its C library, so it is rebuilt in the
  * Lambda build image even when the platforms match. Prebuilds are used when they include Lambda's platform; an install
- * script next to them (node-gyp-build) only compiles into `build/` when they do not. Anything else an install script
- * left behind, and any other addon or executable, was chosen for this machine, so it is used only when this machine is
- * Lambda's platform.
+ * script next to them (node-gyp-build) only compiles into `build/` when they do not. Compiled files that are all Linux
+ * builds for Lambda's architecture are used on any machine. Anything else an install script left behind, and any other
+ * compiled file, was chosen for this machine, so it is used only when this machine is Lambda's platform.
  */
 export const isInstalledForLambda = async (packageRoot: string, architecture: LambdaArchitecture) => {
   const manifest = await readPackageManifest(packageRoot);
-  if (declaresPlatform(manifest)) return runsOnLambda(manifest, architecture);
+  if (declaresPlatform(manifest) && !runsOnLambda(manifest, architecture)) return false;
 
   const platformPackages = await findPlatformPackages(packageRoot, manifest);
   if (platformPackages.length > 0) return platformPackages.some((installed) => runsOnLambda(installed, architecture));
 
-  const { addons, binaries, hasBindingGyp, prebuildPlatforms } = await findNativeFiles(packageRoot);
+  const { addons, compiled, hasBindingGyp, prebuildPlatforms } = await findNativeFiles(packageRoot);
   if (addons.some((addon) => addon.split(sep)[0] === 'build')) return false;
   if ((manifest.gypfile || hasBindingGyp) && addons.length === 0) return false;
   if (prebuildPlatforms.length > 0) return prebuildPlatforms.includes(`linux-${architecture}`);
+  if (compiled.length > 0 && compiled.every(({ format }) => format === `linux-${architecture}`)) return true;
   const hasInstallScript = INSTALL_SCRIPTS.some((script) => manifest.scripts?.[script]);
-  if (hasInstallScript || addons.length > 0 || binaries.length > 0 || manifest.binary?.module_path) {
-    return hostMatchesLambda(architecture);
-  }
+  if (hasInstallScript || compiled.length > 0 || manifest.binary?.module_path) return hostMatchesLambda(architecture);
   return true;
 };

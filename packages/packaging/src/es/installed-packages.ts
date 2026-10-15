@@ -1,22 +1,23 @@
 /* eslint-disable no-await-in-loop -- Package lookup and graph materialization follow dependency order. */
 /**
- * Reads packages the way Node.js finds them on disk, whichever package manager installed them.
+ * Reads packages the way Node.js finds them on disk, whichever package manager installed them, and copies them into an
+ * artifact in the same layout.
  *
  * npm, Yarn's node-modules linker, pnpm and Bun all leave a `node_modules/<name>` entry that Node.js resolves by walking
  * up from the importing package. pnpm and Bun's isolated layout make that entry a link into a store, so every package
- * is identified by its real directory. Copying a package graph writes plain directories, so no link into a store ever
- * reaches an artifact.
+ * is identified by its real directory. An artifact gets each package's real directory once, at the same path relative
+ * to the project, and the `node_modules` entries and links that lead to it. Every package therefore resolves exactly
+ * what it resolved on the build machine, and Node.js, which identifies modules by real path, loads each one once.
  */
 import { createHash } from 'node:crypto';
 import type { Dirent } from 'node:fs';
 import { basename, dirname, join, relative, sep } from 'node:path';
 import { copy, ensureDir, pathExists, readJson } from 'fs-extra';
-import { readdir, readFile, realpath, stat, symlink } from 'node:fs/promises';
+import { lstat, readdir, readFile, realpath, stat, symlink } from 'node:fs/promises';
 
 export type PackageManifest = {
   name?: string | undefined;
   version?: string | undefined;
-  bin?: string | Record<string, string> | undefined;
   dependencies?: Record<string, string> | undefined;
   optionalDependencies?: Record<string, string> | undefined;
   peerDependencies?: Record<string, string> | undefined;
@@ -127,158 +128,261 @@ export const addRuntimeDependencies = async ({
   }
 };
 
-/** The files a package is copied with: everything except its own `node_modules`, in a stable order. */
+/** The files a package is copied with: everything except its own `node_modules`, links followed, in a stable order. */
 const listPackageFiles = async (packageRoot: string): Promise<string[]> => {
   const files: string[] = [];
+  const visited = new Set<string>();
   const visit = async (directory: string) => {
+    // A directory link back into the package would otherwise be walked forever.
+    const realDirectory = await realpath(directory);
+    if (visited.has(realDirectory)) return;
+    visited.add(realDirectory);
     const entries: Dirent[] = await readdir(directory, { withFileTypes: true });
     for (const entry of entries.toSorted((left, right) => (left.name < right.name ? -1 : 1))) {
       const path = join(directory, entry.name);
-      if (entry.isDirectory()) {
-        if (entry.name !== 'node_modules') await visit(path);
-      } else {
-        files.push(path);
-      }
+      const isDirectory = entry.isSymbolicLink() ? (await stat(path)).isDirectory() : entry.isDirectory();
+      if (!isDirectory) files.push(path);
+      else if (entry.name !== 'node_modules') await visit(path);
     }
   };
   await visit(packageRoot);
   return files;
 };
 
-const fingerprints = new Map<string, Promise<string>>();
+const fingerprints = new Map<string, { signature: string; fingerprint: string }>();
 
 /**
  * A hash of what copying the package puts into an artifact: each file's path, bytes and, where the host records it,
- * whether it is executable. A package edited or rebuilt in place keeps its version but changes this.
+ * whether it is executable. A package edited or rebuilt in place keeps its version but changes this. File sizes and
+ * modification times decide whether a hash computed earlier in this process still holds, so a watched rebuild sees
+ * edits.
  */
-export const getPackageFingerprint = (packageRoot: string): Promise<string> => {
-  let fingerprint = fingerprints.get(packageRoot);
-  if (!fingerprint) {
-    fingerprint = (async () => {
-      const files = await listPackageFiles(packageRoot);
-      const records: string[] = [];
-      // Files are hashed a batch at a time: in parallel, but without opening thousands of files at once.
-      for (let start = 0; start < files.length; start += 64) {
-        const batch = files.slice(start, start + 64).map(async (path) => {
-          const [contents, { mode }] = await Promise.all([readFile(path), stat(path)]);
-          // Windows records no execute bit; the Lambda archive decides executability there from the file's header.
-          const executable = process.platform !== 'win32' && (mode & 0o111) !== 0;
-          const contentHash = createHash('sha256').update(contents).digest('hex');
-          return `${relative(packageRoot, path).replaceAll(sep, '/')}\0${executable}\0${contentHash}`;
-        });
-        records.push(...(await Promise.all(batch)));
-      }
-      return createHash('sha256').update(records.join('\n')).digest('hex');
-    })();
-    fingerprints.set(packageRoot, fingerprint);
+export const getPackageFingerprint = async (packageRoot: string): Promise<string> => {
+  const files = await listPackageFiles(packageRoot);
+  const stats = await Promise.all(files.map((path) => stat(path)));
+  const signature = stats.map(({ size, mtimeMs, mode }) => `${size}:${mtimeMs}:${mode}`).join(',');
+  const cached = fingerprints.get(packageRoot);
+  if (cached?.signature === signature) return cached.fingerprint;
+
+  const records: string[] = [];
+  // Files are hashed a batch at a time: in parallel, but without opening thousands of files at once.
+  for (let start = 0; start < files.length; start += 64) {
+    const batch = files.slice(start, start + 64).map(async (path, index) => {
+      // Windows records no execute bit; the Lambda archive decides executability there from the file's header.
+      const executable = process.platform !== 'win32' && (stats[start + index]!.mode & 0o111) !== 0;
+      const contentHash = createHash('sha256')
+        .update(await readFile(path))
+        .digest('hex');
+      return `${relative(packageRoot, path).replaceAll(sep, '/')}\0${executable}\0${contentHash}`;
+    });
+    records.push(...(await Promise.all(batch)));
   }
+  const fingerprint = createHash('sha256').update(records.join('\n')).digest('hex');
+  fingerprints.set(packageRoot, { signature, fingerprint });
   return fingerprint;
 };
 
-/** The `node_modules` directories Node.js searches for a module required from `directory`, nearest first. */
-const getSearchedDirectories = (directory: string, artifactRoot: string) => {
+/** Where a package's files come from when they are not its installed directory, and packages it gets beside them. */
+export type PackageSource = {
+  /** The directory to copy the package's files from, such as a Lambda build image installation. */
+  copyFrom: string;
+  /** Packages to put in the package's own `node_modules`, by name, such as the Lambda build of a napi-rs addon. */
+  nestedPackages: Map<string, string>;
+};
+
+/**
+ * What an artifact's `node_modules` holds, relative to the artifact's root: package directories and the links that lead
+ * to them. Paths use `/`, so the layout of the same installation is the same on every machine.
+ */
+export type PackageLayout = {
+  directories: { path: string; root: string }[];
+  links: { path: string; target: string }[];
+};
+
+const toLayoutPath = (path: string) => path.split(sep).join('/');
+
+/**
+ * The project directory whose layout the artifact repeats: the deepest directory that holds every package's
+ * outermost `node_modules`.
+ */
+const findMirrorRoot = (roots: string[]) => {
+  const bases = roots.map((root) => {
+    const segments = root.split(sep);
+    const nodeModulesIndex = segments.indexOf('node_modules');
+    return nodeModulesIndex === -1 ? dirname(root) : segments.slice(0, nodeModulesIndex).join(sep) || sep;
+  });
+  let mirrorRoot = bases[0]!;
+  while (!bases.every((base) => isInside(mirrorRoot, base))) mirrorRoot = dirname(mirrorRoot);
+  return mirrorRoot;
+};
+
+/** Where a link leads, or `undefined` for a broken link, which no package can load through. */
+const realpathOfLink = (linkPath: string) =>
+  realpath(linkPath).then(
+    (target) => target,
+    () => undefined
+  );
+
+/** The `node_modules` directories Node.js searches from `directory` up to `mirrorRoot`, nearest first. */
+const getSearchedDirectories = (directory: string, mirrorRoot: string) => {
   const searched: string[] = [];
-  for (let current = directory; isInside(artifactRoot, current); current = dirname(current)) {
+  for (let current = directory; isInside(mirrorRoot, current); current = dirname(current)) {
     if (basename(current) !== 'node_modules') searched.push(join(current, 'node_modules'));
-    if (current === artifactRoot) break;
+    if (current === mirrorRoot) break;
   }
   return searched;
 };
 
-/** Links `node_modules/.bin/<command>` to each command of a package copied to `node_modules/<name>`, as npm does. */
-const linkCommands = async (nodeModulesDirectory: string, name: string, manifest: PackageManifest) => {
-  const commands = typeof manifest.bin === 'string' ? { [basename(name)]: manifest.bin } : (manifest.bin ?? {});
-  for (const [command, target] of Object.entries(commands)) {
-    const linkPath = join(nodeModulesDirectory, '.bin', command);
-    if (!(await pathExists(join(nodeModulesDirectory, name, target))) || (await pathExists(linkPath))) continue;
-    await ensureDir(dirname(linkPath));
-    await symlink(join('..', name, target).replaceAll(sep, '/'), linkPath);
+/** The entries of a `node_modules` directory, with scoped packages as `@scope/name`; none when it does not exist. */
+const listNodeModulesEntries = async (nodeModulesDirectory: string): Promise<string[]> => {
+  if (!(await pathExists(nodeModulesDirectory))) return [];
+  const entries: string[] = [];
+  for (const name of await readdir(nodeModulesDirectory)) {
+    if (name.startsWith('@') && (await stat(join(nodeModulesDirectory, name))).isDirectory()) {
+      for (const scopedName of await readdir(join(nodeModulesDirectory, name))) entries.push(`${name}/${scopedName}`);
+    } else {
+      entries.push(name);
+    }
   }
+  return entries;
 };
 
 /**
- * Writes a package graph as a `node_modules` directory in which every package loads exactly the installation it
- * loaded here. A dependency goes to the top-level `node_modules` when nothing there has its name yet, and under the
- * package that requires it when a different installation would be found first, as npm installs conflicting versions.
- * Installations are compared by real directory, so pnpm's copies of one version with different peers stay apart, and
- * each dependency keeps the name it is required by, so an npm alias still resolves.
+ * The layout that gives every package in `packages` the resolution it has here, plus a top-level entry for each package
+ * the artifact's own code requires. A package's directory keeps its path relative to the project. Each link in a
+ * `node_modules` directory a package searches is kept when it leads to a copied package, and so is each `.bin`
+ * command that runs a copied file.
+ *
+ * A top-level name the installed layout already uses for another package keeps that package; the artifact's code then
+ * loads it, as it would from the project's root.
  */
-export const copyPackageGraph = async ({
+export const planPackageLayout = async ({
   packages,
-  topLevelPackages,
-  nodeModulesPath
+  topLevelPackages
 }: {
   packages: Map<string, InstalledPackage>;
   /** What the artifact's own code requires: the name it uses and the package's real directory. */
   topLevelPackages: Map<string, string>;
-  nodeModulesPath: string;
-}) => {
-  const artifactRoot = dirname(nodeModulesPath);
-  /** Which installation each `node_modules` directory of the artifact holds under each name. */
-  const contents = new Map<string, Map<string, string>>();
-  const placements: { root: string; nodeModulesDirectory: string; name: string }[] = [];
-  const place = (nodeModulesDirectory: string, name: string, root: string) => {
-    const names = contents.get(nodeModulesDirectory) ?? new Map<string, string>();
-    names.set(name, root);
-    contents.set(nodeModulesDirectory, names);
-    placements.push({ root, nodeModulesDirectory, name });
-    return join(nodeModulesDirectory, name);
-  };
-  const findPlaced = (directory: string, name: string) => {
-    for (const searched of getSearchedDirectories(directory, artifactRoot)) {
-      const root = contents.get(searched)?.get(name);
-      if (root) return root;
-    }
-    return undefined;
-  };
+}): Promise<PackageLayout> => {
+  const roots = [...packages.keys()];
+  if (roots.length === 0) return { directories: [], links: [] };
+  const mirrorRoot = findMirrorRoot(roots);
+  const layoutPath = (path: string) => toLayoutPath(relative(mirrorRoot, path));
+  /**
+   * Whether copying puts this file into the artifact: it is in a package and not in that package's `node_modules`,
+   * and among the package's files when only some of them are copied.
+   */
+  const isCopiedFile = (realPath: string) =>
+    [...packages.values()].some(
+      ({ root, files }) =>
+        isInside(root, realPath) &&
+        !relative(root, realPath).split(sep).includes('node_modules') &&
+        (!files || files.has(realPath))
+    );
 
-  // Breadth first, so packages nearer the code that requires them claim the top-level names.
-  const pending = [...topLevelPackages].map(([name, root]) => ({
-    root,
-    directory: place(nodeModulesPath, name, root)
-  }));
-  while (pending.length > 0) {
-    const { root, directory } = pending.shift()!;
-    for (const [name, dependencyRoot] of packages.get(root)?.dependencies ?? []) {
-      const found = findPlaced(directory, name);
-      if (found === dependencyRoot) continue;
-      const nodeModulesDirectory = found === undefined ? nodeModulesPath : join(directory, 'node_modules');
-      pending.push({ root: dependencyRoot, directory: place(nodeModulesDirectory, name, dependencyRoot) });
+  const directories = roots.map((root) => ({ path: layoutPath(root), root }));
+  const links = new Map<string, string>();
+  const searched = new Set(roots.flatMap((root) => getSearchedDirectories(root, mirrorRoot)));
+  for (const nodeModulesDirectory of searched) {
+    for (const name of await listNodeModulesEntries(nodeModulesDirectory)) {
+      const entryPath = join(nodeModulesDirectory, name);
+      if (!(await lstat(entryPath)).isSymbolicLink()) continue;
+      const target = await realpathOfLink(entryPath);
+      if (target && packages.has(target)) links.set(layoutPath(entryPath), layoutPath(target));
+    }
+    if (process.platform === 'win32') continue;
+    // npm, Yarn and Bun link commands; pnpm and Windows write wrapper scripts with the build machine's paths, which
+    // are left out. A command is kept when it links to a file that is copied.
+    for (const command of await listNodeModulesEntries(join(nodeModulesDirectory, '.bin'))) {
+      const commandPath = join(nodeModulesDirectory, '.bin', command);
+      if (!(await lstat(commandPath)).isSymbolicLink()) continue;
+      const target = await realpathOfLink(commandPath);
+      if (target && isCopiedFile(target)) links.set(layoutPath(commandPath), layoutPath(target));
     }
   }
 
-  const copyPlacement = async ({ root, nodeModulesDirectory, name }: (typeof placements)[number]) => {
-    const installedPackage = packages.get(root)!;
-    const destination = join(nodeModulesDirectory, name);
-    if (installedPackage.files) {
+  const occupied = new Set([...directories.map(({ path }) => path), ...links.keys()]);
+  for (const [name, root] of topLevelPackages) {
+    const entryPath = `node_modules/${name}`;
+    if (!occupied.has(entryPath)) links.set(entryPath, layoutPath(root));
+  }
+
+  return {
+    directories: directories.toSorted((left, right) => (left.path < right.path ? -1 : 1)),
+    links: [...links]
+      .map(([path, target]) => ({ path, target }))
+      .toSorted((left, right) => (left.path < right.path ? -1 : 1))
+  };
+};
+
+const depthOf = (layoutPath: string) => layoutPath.split('/').length;
+
+/** Whether anything, a broken link included, is at `path`. */
+const hasEntry = (path: string) =>
+  lstat(path).then(
+    () => true,
+    () => false
+  );
+
+/**
+ * Writes a layout under `artifactRoot`. A link is written relative to its directory; on Windows a directory link is a
+ * junction, which needs no extra privileges and which the Lambda archive stores as a relative link. Windows cannot
+ * write a file link without extra privileges either, so a Windows-built artifact has no `.bin` commands.
+ */
+export const writePackageLayout = async ({
+  layout,
+  packages,
+  artifactRoot,
+  sources = new Map()
+}: {
+  layout: PackageLayout;
+  packages: Map<string, InstalledPackage>;
+  artifactRoot: string;
+  /** Packages whose files come from somewhere other than their installed directory, by real directory. */
+  sources?: Map<string, PackageSource> | undefined;
+}) => {
+  const copyDirectory = async ({ path, root }: PackageLayout['directories'][number]) => {
+    const destination = join(artifactRoot, path);
+    const { files } = packages.get(root)!;
+    const source = sources.get(root);
+    if (files && !source) {
       await Promise.all(
-        [...installedPackage.files].map(async (sourcePath) => {
+        [...files].map(async (sourcePath) => {
           const destinationPath = join(destination, relative(root, sourcePath));
           await ensureDir(dirname(destinationPath));
           await copy(sourcePath, destinationPath, { dereference: true, overwrite: true });
         })
       );
-      return;
+    } else {
+      const from = source?.copyFrom ?? root;
+      await copy(from, destination, {
+        dereference: true,
+        overwrite: true,
+        filter: (sourcePath) => !relative(from, sourcePath).split(sep).includes('node_modules')
+      });
     }
-    await copy(root, destination, {
-      dereference: true,
-      overwrite: true,
-      filter: (sourcePath) => !relative(root, sourcePath).split(sep).includes('node_modules')
-    });
+    for (const [name, nestedRoot] of source?.nestedPackages ?? []) {
+      await copy(nestedRoot, join(destination, 'node_modules', name), { dereference: true, overwrite: true });
+    }
   };
   // A nested package is copied after the package it sits in, so two copies never create the same directory.
-  const depthOf = ({ nodeModulesDirectory }: (typeof placements)[number]) =>
-    relative(nodeModulesPath, nodeModulesDirectory)
-      .split(sep)
-      .filter((segment) => segment === 'node_modules').length;
-  const depths = [...new Set(placements.map(depthOf))].toSorted((left, right) => left - right);
+  const depths = [...new Set(layout.directories.map(({ path }) => depthOf(path)))].toSorted(
+    (left, right) => left - right
+  );
   for (const depth of depths) {
-    await Promise.all(placements.filter((placement) => depthOf(placement) === depth).map(copyPlacement));
+    await Promise.all(layout.directories.filter(({ path }) => depthOf(path) === depth).map(copyDirectory));
   }
-  // Windows cannot create links without extra privileges, and a command copied from Windows has no execute bit.
-  if (process.platform !== 'win32') {
-    for (const { root, nodeModulesDirectory, name } of placements) {
-      if (!packages.get(root)!.files) await linkCommands(nodeModulesDirectory, name, await readPackageManifest(root));
-    }
+
+  for (const { path, target } of layout.links) {
+    const linkPath = join(artifactRoot, path);
+    const targetPath = join(artifactRoot, target);
+    // An earlier write to the same artifact, such as a framework's traced files, may already have put an entry here.
+    if (await hasEntry(linkPath)) continue;
+    await ensureDir(dirname(linkPath));
+    const isDirectory = (await stat(targetPath)).isDirectory();
+    if (process.platform === 'win32' && !isDirectory) continue;
+    await (process.platform === 'win32'
+      ? symlink(targetPath, linkPath, 'junction')
+      : symlink(relative(dirname(linkPath), targetPath), linkPath, isDirectory ? 'dir' : 'file'));
   }
 };

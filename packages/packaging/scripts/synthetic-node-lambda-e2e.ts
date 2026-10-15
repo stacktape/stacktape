@@ -46,17 +46,9 @@ const countingDocker = () => {
   return { builds, runDocker: counted };
 };
 
-/** Package directories under a `node_modules`, scoped ones as `@scope/name`. */
-const listPackages = async (nodeModulesPath: string) => {
-  const names: string[] = [];
-  for (const entry of (await readdir(nodeModulesPath)).toSorted()) {
-    if (entry.startsWith('.')) continue;
-    if (!entry.startsWith('@')) names.push(entry);
-    else
-      for (const scoped of (await readdir(join(nodeModulesPath, entry))).toSorted()) names.push(`${entry}/${scoped}`);
-  }
-  return names;
-};
+/** The pnpm store directories a function's `node_modules` carries, such as `@hapi+boom@10.0.1`. */
+const listStoreDirectories = async (nodeModulesPath: string) =>
+  (await readdir(join(nodeModulesPath, '.pnpm'))).toSorted();
 
 /** The Lambda Node runtimes the CLI's split-bundling policy admits. Add one there only after adding it here. */
 const SUPPORTED_LAMBDA_NODE_VERSIONS = [18, 20, 22, 24];
@@ -459,9 +451,16 @@ try {
     throw new Error(`The copied-dependency function did not emit an artifact: ${JSON.stringify(copiedOutput)}`);
   }
   await assertZipWithinLambdaLimit(copiedOutput.artifactPath);
-  const copiedPackages = await listPackages(join(copiedDist, 'node_modules'));
-  for (const expected of ['@hapi/boom', '@hapi/hoek', '@node-rs/xxhash', '@node-rs/xxhash-linux-x64-gnu', 'bcrypt']) {
-    if (!copiedPackages.includes(expected)) {
+  // The function repeats the project's pnpm layout: each package once in `.pnpm`, linked where pnpm linked it.
+  const copiedPackages = await listStoreDirectories(join(copiedDist, 'node_modules'));
+  for (const expected of [
+    '@hapi+boom@',
+    '@hapi+hoek@',
+    '@node-rs+xxhash@',
+    '@node-rs+xxhash-linux-x64-gnu@',
+    'bcrypt@'
+  ]) {
+    if (!copiedPackages.some((name) => name.startsWith(expected))) {
       throw new Error(`${expected} is missing from the function's node_modules: ${copiedPackages.join(', ')}`);
     }
   }

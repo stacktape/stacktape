@@ -5,11 +5,12 @@ import { pathExists } from 'fs-extra';
 import { realpath, stat } from 'node:fs/promises';
 import {
   addRuntimeDependencies,
-  copyPackageGraph,
   findInstalledPackage,
   getRuntimeDependencyNames,
   isInside,
+  planPackageLayout,
   readPackageManifest,
+  writePackageLayout,
   type InstalledPackage
 } from '../es/installed-packages';
 
@@ -185,15 +186,18 @@ export const copyTracedNodeRuntimeFiles = async ({
     if (!childPackageRoots.has(packageRoot)) rootDependencies.add(packageRoot);
   }
 
+  // The application's own dependencies keep the names it requires them by; any other package its code reaches keeps
+  // its own name, unless it is one of those dependencies under an alias.
   const topLevelPackages = new Map(directDependencies);
+  const topLevelRoots = new Set(directDependencies.values());
   for (const packageRoot of rootDependencies) {
     const { name } = packages.get(packageRoot)!;
-    if (!topLevelPackages.has(name)) topLevelPackages.set(name, packageRoot);
+    if (!topLevelPackages.has(name) && !topLevelRoots.has(packageRoot)) topLevelPackages.set(name, packageRoot);
   }
-  await copyPackageGraph({
+  await writePackageLayout({
+    layout: await planPackageLayout({ packages, topLevelPackages }),
     packages,
-    topLevelPackages,
-    nodeModulesPath: join(serverFunctionPath, 'node_modules')
+    artifactRoot: serverFunctionPath
   });
 
   return {

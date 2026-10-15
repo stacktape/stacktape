@@ -29,18 +29,6 @@ plugin: two copies of these rules drifted for months and shipped the AWS SDK in 
 holds the plugins both builds install for the same reason. Where the two must genuinely differ, say so at the call site
 and say why.
 
-## Packages the bundle leaves out
-
-Everything is bundled except native packages and packages the configuration excludes. `es/native-packages` decides what
-is native from the installed files (addons, `binding.gyp`, prebuilds, executables, `os`/`cpu`/`libc`, platform optional
-dependencies), never from a list of names; an install script alone does not count. `es/native-dependencies` copies each
-left-out package with everything it loads from the project's `node_modules` (`es/installed-packages`, which reads npm,
-pnpm, Yarn and Bun layouts alike) so that every package loads exactly the installation it loaded on the build machine,
-under the name it requires it by. The digest covers the copied files. Only a native package whose installed files do not
-run on Lambda is installed again, at the same version, with npm in the Lambda build image; it keeps the build machine's
-installations of its dependencies. On a Linux build machine with glibc that is rare, so most builds never start Docker.
-Externalizing a package never externalizes its dependencies: a bundled importer keeps its own copy.
-
 `jscpd` guards this: both files are in `pnpm check:duplicates`. Do not put either back on the ignore list.
 
 `es/minify` decides what "minify" means for both builds: whitespace and syntax, identifiers only when the user asks. The
@@ -48,6 +36,22 @@ Console's issue detector groups runtime errors by message and function name, and
 AWS SDK rule in `es/import-classification` leaves `@aws-sdk/client-*` and `@aws-sdk/lib-*` to the Lambda runtime and
 nothing else; the e2e script's runtime probe is the evidence for that list, and `bundleAwsSdk` is the way out for code
 that needs a newer SDK than the runtime ships.
+
+## Packages the bundle leaves out
+
+Everything is bundled except native packages and packages the configuration excludes. `es/native-packages` decides what
+is native from the installed files (addons, `binding.gyp`, prebuilds, `os`/`cpu`/`libc`, platform optional dependencies,
+and compiled programs, whose headers show what they were built for), never from a list of names; an install script alone
+does not count. `es/native-dependencies` copies each left-out package with everything it loads from the project's
+`node_modules`. `es/installed-packages` reads npm, pnpm, Yarn and Bun layouts alike and repeats the installed layout in
+the artifact: each package's real directory once, at its path relative to the project, with the `node_modules` links
+that lead to it. Resolution is therefore the build machine's by construction; the Lambda archive stores the links, and
+on Windows they are junctions. The digest covers the copied files and the links. Only a native package whose installed
+files do not run on Lambda is installed again, with npm in the Lambda build image, at its version and with its
+dependencies pinned to the installed ones; the artifact keeps the build machine's copies of those dependencies and takes
+only the rebuilt package and its platform packages from the image. On a Linux build machine with glibc that is rare, so
+most builds never start Docker. Externalizing a package never externalizes its dependencies: a bundled importer keeps
+its own copy.
 
 ## Sensitive behavior
 

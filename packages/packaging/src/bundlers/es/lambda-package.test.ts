@@ -6,6 +6,7 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import type { PackagingProgressLogger } from '../../runtime-contracts';
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -184,17 +185,31 @@ describe('the handler the Lambda runtime loads', () => {
 });
 
 describe('packages that included files load', () => {
-  test('are copied with the function, also when an included file reaches them through another', async () => {
+  test('are copied with the function, also through another included file, except excluded ones', async () => {
     const cwd = await createProject({
       'handler.ts': "export const handler = async () => 'handler';",
       'jobs/worker.js': "const { pad } = require('./helper.cjs'); console.log(pad('x'));",
-      'jobs/helper.cjs': "const leftPad = require('left-pad'); exports.pad = (text) => leftPad(text, 3, '.');",
+      'jobs/helper.cjs': [
+        "const leftPad = require('left-pad');",
+        // An optional local module guarded the way Node.js programs do; scanning must not stop at it.
+        "try { require('./not-generated-yet.cjs'); } catch {}",
+        // Excluded from the deployment package, so it must not be copied.
+        "try { require('excluded-dep'); } catch {}",
+        "exports.pad = (text) => leftPad(text, 3, '.');"
+      ].join('\n'),
+      'node_modules/excluded-dep/package.json': JSON.stringify({ name: 'excluded-dep', version: '1.0.0' }),
+      'node_modules/excluded-dep/index.js': 'module.exports = 1;',
       'node_modules/left-pad/package.json': JSON.stringify({ name: 'left-pad', version: '1.3.0', main: 'index.js' }),
       'node_modules/left-pad/index.js':
         'module.exports = (text, length, fill) => fill.repeat(length - text.length) + text;'
     });
 
-    await bundle(cwd, { includeFiles: ['jobs/**'], packageExternalDependencies: true });
+    await bundle(cwd, {
+      includeFiles: ['jobs/**'],
+      excludeDependencies: ['excluded-dep'],
+      packageExternalDependencies: true
+    });
+    expect(existsSync(join(cwd, '.stacktape', 'dist', 'node_modules', 'excluded-dep'))).toBe(false);
 
     const execution = spawnSync(process.env.npm_node_execpath || 'node', ['jobs/worker.js'], {
       cwd: join(cwd, '.stacktape', 'dist'),

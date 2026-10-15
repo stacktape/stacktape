@@ -17,14 +17,23 @@ import { getFolderSizeBytes } from '../fs/files';
 import { IGNORED_MODULES } from './config';
 import {
   addRuntimeDependencies,
-  copyPackageGraph,
   findInstalledPackage,
   getPackageFingerprint,
+  planPackageLayout,
   readPackageManifest,
+  writePackageLayout,
   type InstalledPackage,
-  type PackageManifest
+  type PackageLayout,
+  type PackageManifest,
+  type PackageSource
 } from './installed-packages';
-import { getNativeReason, isInstalledForLambda, runsOnLambda, type LambdaArchitecture } from './native-packages';
+import {
+  declaresPlatform,
+  getNativeReason,
+  isInstalledForLambda,
+  runsOnLambda,
+  type LambdaArchitecture
+} from './native-packages';
 
 export type RunDocker = (commands: string[]) => Promise<unknown>;
 
@@ -36,8 +45,8 @@ export type LambdaDependencyPlan = {
   architecture: LambdaArchitecture;
   /** The packages the bundle leaves out and everything they load, by real directory. */
   packages: Map<string, InstalledPackage>;
-  /** The packages the bundle itself loads: the name it requires each by, and its real directory. */
-  topLevelPackages: Map<string, string>;
+  /** Where those packages and the links to them go in the artifact. */
+  layout: PackageLayout;
   /** Native packages whose installed files do not run on Lambda; the Lambda build image installs them again. */
   packagesToInstallForLambda: InstalledPackage[];
   /** Names left out wherever they are required, as `excludeDependencies` asks. */
@@ -57,11 +66,13 @@ export const planLambdaDependencies = async ({
 }: {
   dependencies: ResolvedPackageDependency[];
   architecture: LambdaArchitecture;
-  /** Packages that must not be in the artifact even when a copied package depends on them; `IGNORED_MODULES` always. */
+  /** Packages that must not be in the artifact, wherever they are required; `IGNORED_MODULES` always. */
   excludedNames?: string[] | undefined;
 }): Promise<LambdaDependencyPlan> => {
-  const topLevelPackages = new Map(dependencies.map(({ name, path }) => [name, path]));
   const excluded = new Set([...IGNORED_MODULES, ...excludedNames]);
+  const topLevelPackages = new Map(
+    dependencies.filter(({ name }) => !excluded.has(name)).map(({ name, path }) => [name, path])
+  );
   const accept = acceptFor({ architecture, excludedNames: excluded });
   const packages = new Map<string, InstalledPackage>();
   await addRuntimeDependencies({ packages, start: [...topLevelPackages.values()], accept });
@@ -70,78 +81,113 @@ export const planLambdaDependencies = async ({
     Boolean(await getNativeReason(root)) && !(await isInstalledForLambda(root, architecture));
   const installedPackages = [...packages.values()];
   const decisions = await Promise.all(installedPackages.map(needsInstall));
-  const packagesToInstallForLambda = installedPackages.filter((_, index) => decisions[index]);
   return {
     architecture,
     packages,
-    topLevelPackages,
-    packagesToInstallForLambda,
+    layout: await planPackageLayout({ packages, topLevelPackages }),
+    packagesToInstallForLambda: installedPackages.filter((_, index) => decisions[index]),
     excludedNames: excluded
   };
 };
 
 /**
- * What the plan copies, for the artifact digest: every package's name, version and file fingerprint, and the names
- * and fingerprints of what it depends on. Nothing in it depends on where the project is on this machine.
+ * The `package.json` the Lambda build image installs from: the packages to install again at their versions, with every
+ * other package they load pinned to the version installed here, so their install scripts build against the same
+ * dependencies the artifact gets. A name installed here in two versions is left to npm.
+ */
+const getInstallationManifest = (plan: LambdaDependencyPlan) => {
+  const reinstalledNames = new Set(plan.packagesToInstallForLambda.map(({ name }) => name));
+  const versionsByName = new Map<string, Set<string>>();
+  const pending = plan.packagesToInstallForLambda.map(({ root }) => root);
+  const visited = new Set<string>();
+  while (pending.length > 0) {
+    const root = pending.pop()!;
+    if (visited.has(root)) continue;
+    visited.add(root);
+    for (const [name, dependencyRoot] of plan.packages.get(root)?.dependencies ?? []) {
+      const dependency = plan.packages.get(dependencyRoot);
+      // An npm alias cannot be pinned by its name.
+      if (!dependency || dependency.name !== name || reinstalledNames.has(name)) continue;
+      versionsByName.set(name, (versionsByName.get(name) ?? new Set()).add(dependency.version));
+      pending.push(dependencyRoot);
+    }
+  }
+  const overrides = [...versionsByName]
+    .filter(([, versions]) => versions.size === 1)
+    .map(([name, [version]]) => [name, version!] as const)
+    .toSorted(([left], [right]) => (left < right ? -1 : 1));
+  return {
+    private: true,
+    dependencies: Object.fromEntries(
+      plan.packagesToInstallForLambda.map(({ name, version }) => [name, version] as const).toSorted()
+    ),
+    overrides: Object.fromEntries(overrides)
+  };
+};
+
+/**
+ * What the plan puts in the artifact, for its digest: each package directory's path and file fingerprint, each link,
+ * and for packages installed again in the Lambda build image, what the image is asked to install. Nothing in it
+ * depends on where the project is on this machine.
  */
 export const getLambdaDependencyIdentity = async (plan: LambdaDependencyPlan) => {
-  const fingerprints = new Map(
-    await Promise.all([...plan.packages.keys()].map(async (root) => [root, await getPackageFingerprint(root)] as const))
+  const directories = await Promise.all(
+    plan.layout.directories.map(async ({ path, root }) => `${path} ${await getPackageFingerprint(root)}`)
   );
-  const packages = [...plan.packages.values()].map(({ name, version, root, dependencies }) => {
-    const edges = [...dependencies].map(([dependencyName, dependencyRoot]) => {
-      return `${dependencyName}=${fingerprints.get(dependencyRoot)}`;
-    });
-    return `${name}@${version} ${fingerprints.get(root)} -> ${edges.toSorted().join(',')}`;
-  });
-  const topLevel = [...plan.topLevelPackages].map(([name, root]) => `${name}=${fingerprints.get(root)}`);
-  return [...topLevel.toSorted(), ...packages.toSorted()];
+  return [
+    ...directories,
+    ...plan.layout.links.map(({ path, target }) => `${path} -> ${target}`),
+    ...(plan.packagesToInstallForLambda.length > 0 ? [JSON.stringify(getInstallationManifest(plan))] : [])
+  ];
 };
 
 const inProgressInstallations = new Map<string, Promise<string>>();
 
 /**
- * Installs exact package versions in the Lambda build image and returns the `node_modules` directory it produced.
- * Concurrent requests for the same installation share one Docker build, and a finished installation is reused.
+ * Installs a `package.json` in the Lambda build image and returns the `node_modules` directory it produced. npm runs
+ * the packages' install scripts there, which build or download each addon for Lambda's platform. Concurrent requests
+ * for the same installation share one Docker build, and a finished installation is reused.
  */
 const installInLambdaBuildImage = async ({
-  packages,
+  manifest,
   installationRootPath,
   lambdaRuntimeVersion,
   architecture,
   runDocker
 }: {
-  packages: { name: string; version: string }[];
+  manifest: Record<string, unknown>;
   installationRootPath: string;
   lambdaRuntimeVersion: number;
   architecture: LambdaArchitecture;
   runDocker: RunDocker;
 }): Promise<string> => {
-  const packageSpecs = packages.map(({ name, version }) => `${name}@${version}`).toSorted();
   const platform = architecture === 'arm64' ? 'linux/arm64' : 'linux/amd64';
-  // npm runs the packages' install scripts, which build or download each addon for the image's platform.
+  const packageJson = `${JSON.stringify(manifest, null, 2)}\n`;
   const dockerfile = `FROM public.ecr.aws/sam/build-nodejs${lambdaRuntimeVersion}.x AS build
 WORKDIR /installation
-RUN npm install --no-audit --no-fund ${packageSpecs.join(' ')}
+COPY package.json ./
+RUN npm install --no-audit --no-fund --no-package-lock
 
 FROM scratch AS artifact
 COPY --from=build /installation/node_modules /node_modules`;
-  const installationPath = join(resolvePath(installationRootPath), objectHash({ dockerfile, platform }));
+  const installationPath = join(resolvePath(installationRootPath), objectHash({ dockerfile, packageJson, platform }));
   const nodeModulesPath = join(installationPath, 'node_modules');
 
   const existing = inProgressInstallations.get(installationPath);
   if (existing) {
-    try {
-      if (await pathExists(await existing)) return nodeModulesPath;
-    } catch {
-      // A failed installation is retried below.
-    }
+    // A failed installation is evicted below; one whose output was deleted since is run again.
+    const finished = await existing.then(
+      (path) => pathExists(path),
+      () => false
+    );
+    if (finished) return nodeModulesPath;
   }
 
   const installation = (async () => {
     await remove(installationPath);
     await ensureDir(installationPath);
     await writeFile(join(installationPath, 'Dockerfile'), dockerfile);
+    await writeFile(join(installationPath, 'package.json'), packageJson);
     await runDocker([
       'image',
       'build',
@@ -159,15 +205,50 @@ COPY --from=build /installation/node_modules /node_modules`;
   try {
     return await installation;
   } catch (error) {
-    if (inProgressInstallations.get(installationPath) === installation)
+    if (inProgressInstallations.get(installationPath) === installation) {
       inProgressInstallations.delete(installationPath);
+    }
     throw error;
   }
 };
 
 /**
- * Writes the plan's packages to `nodeModulesPath`. Packages the plan marks are taken from a Lambda build image
- * installation, together with what that installation gives them, such as the platform package of a napi-rs addon.
+ * The platform packages a reinstalled package gets from the Lambda build image, such as the Linux build of a napi-rs
+ * addon and the library it loads: its optional dependencies, and theirs, that are builds for Lambda's platform. Its
+ * other dependencies stay the ones installed here.
+ */
+const findLambdaPlatformPackages = async ({
+  installedRoot,
+  installationPath,
+  plan
+}: {
+  installedRoot: string;
+  installationPath: string;
+  plan: LambdaDependencyPlan;
+}) => {
+  const platformPackages = new Map<string, string>();
+  const pending = [installedRoot];
+  while (pending.length > 0) {
+    const root = pending.pop()!;
+    // oxlint-disable-next-line no-await-in-loop -- the walk follows what each package declares, a handful at most.
+    for (const name of Object.keys((await readPackageManifest(root)).optionalDependencies ?? {})) {
+      if (platformPackages.has(name)) continue;
+      // oxlint-disable-next-line no-await-in-loop -- see above.
+      const platformRoot = await findInstalledPackage({ name, fromDirectory: root, stopAt: installationPath });
+      // oxlint-disable-next-line no-await-in-loop -- see above.
+      const manifest = platformRoot && (await readPackageManifest(platformRoot));
+      if (!manifest || !declaresPlatform(manifest) || !acceptFor(plan)(name, manifest)) continue;
+      platformPackages.set(name, platformRoot);
+      pending.push(platformRoot);
+    }
+  }
+  return platformPackages;
+};
+
+/**
+ * Writes the plan's packages into the artifact whose `node_modules` is `nodeModulesPath`. A package the plan marks is
+ * installed again in the Lambda build image; its files come from there, in the place of each installation of it here,
+ * so each keeps its own peers.
  */
 export const writeLambdaDependencies = async ({
   plan,
@@ -182,81 +263,36 @@ export const writeLambdaDependencies = async ({
   lambdaRuntimeVersion: number;
   runDocker: RunDocker;
 }) => {
-  if (plan.packagesToInstallForLambda.length === 0) {
-    await copyPackageGraph({ packages: plan.packages, topLevelPackages: plan.topLevelPackages, nodeModulesPath });
-    return;
+  const sources = new Map<string, PackageSource>();
+  if (plan.packagesToInstallForLambda.length > 0) {
+    const installedNodeModulesPath = await installInLambdaBuildImage({
+      manifest: getInstallationManifest(plan),
+      installationRootPath,
+      lambdaRuntimeVersion,
+      architecture: plan.architecture,
+      runDocker
+    });
+    await Promise.all(
+      plan.packagesToInstallForLambda.map(async ({ root, name }) => {
+        const copyFrom = join(installedNodeModulesPath, ...name.split('/'));
+        if (!(await pathExists(join(copyFrom, 'package.json')))) {
+          throw new Error(`The Lambda build image did not install ${name}, which this function needs.`);
+        }
+        const nestedPackages = await findLambdaPlatformPackages({
+          installedRoot: copyFrom,
+          installationPath: dirname(installedNodeModulesPath),
+          plan
+        });
+        sources.set(root, { copyFrom, nestedPackages });
+      })
+    );
   }
-
-  const installedNodeModulesPath = await installInLambdaBuildImage({
-    packages: plan.packagesToInstallForLambda,
-    installationRootPath,
-    lambdaRuntimeVersion,
-    architecture: plan.architecture,
-    runDocker
+  await writePackageLayout({
+    layout: plan.layout,
+    packages: plan.packages,
+    artifactRoot: dirname(nodeModulesPath),
+    sources
   });
-  const installationPath = dirname(installedNodeModulesPath);
-  const packages = new Map(
-    [...plan.packages].map(([root, installedPackage]) => [
-      root,
-      { ...installedPackage, dependencies: new Map(installedPackage.dependencies) }
-    ])
-  );
-  const topLevelPackages = new Map(plan.topLevelPackages);
-  for (const reinstalled of plan.packagesToInstallForLambda) {
-    // oxlint-disable-next-line no-await-in-loop -- one lookup per reinstalled package.
-    await useReinstalledPackage({ packages, topLevelPackages, reinstalled, installationPath, plan });
-  }
-  await copyPackageGraph({ packages, topLevelPackages, nodeModulesPath });
-};
-
-/**
- * Puts the Lambda build image's installation of a native package in place of the one installed here. It keeps the
- * dependencies installed here, at their versions and with any patches; only the binaries the image installed for Lambda,
- * such as a napi-rs platform package, come from the image with what they need.
- */
-const useReinstalledPackage = async ({
-  packages,
-  topLevelPackages,
-  reinstalled,
-  installationPath,
-  plan
-}: {
-  packages: Map<string, InstalledPackage>;
-  topLevelPackages: Map<string, string>;
-  reinstalled: InstalledPackage;
-  installationPath: string;
-  plan: LambdaDependencyPlan;
-}) => {
-  const root = await findInstalledPackage({
-    name: reinstalled.name,
-    fromDirectory: installationPath,
-    stopAt: installationPath
-  });
-  if (!root) throw new Error(`The Lambda build image did not install ${reinstalled.name}, which this function needs.`);
-
-  const replacement: InstalledPackage = { ...reinstalled, root, dependencies: new Map(reinstalled.dependencies) };
-  const accept = acceptFor(plan);
-  for (const name of Object.keys((await readPackageManifest(root)).optionalDependencies ?? {})) {
-    if (replacement.dependencies.has(name)) continue;
-    // oxlint-disable-next-line no-await-in-loop -- a package has a handful of optional dependencies.
-    const binaryRoot = await findInstalledPackage({ name, fromDirectory: root, stopAt: installationPath });
-    // oxlint-disable-next-line no-await-in-loop -- see above.
-    if (!binaryRoot || !accept(name, await readPackageManifest(binaryRoot))) continue;
-    replacement.dependencies.set(name, binaryRoot);
-    // oxlint-disable-next-line no-await-in-loop -- see above.
-    await addRuntimeDependencies({ packages, start: [binaryRoot], accept, stopAt: () => installationPath });
-  }
-
-  packages.delete(reinstalled.root);
-  packages.set(root, replacement);
-  for (const installedPackage of packages.values()) {
-    for (const [name, dependencyRoot] of installedPackage.dependencies) {
-      if (dependencyRoot === reinstalled.root) installedPackage.dependencies.set(name, root);
-    }
-  }
-  for (const [name, topLevelRoot] of topLevelPackages) {
-    if (topLevelRoot === reinstalled.root) topLevelPackages.set(name, root);
-  }
 };
 
 /**
@@ -280,7 +316,10 @@ export const copyDockerInstalledModulesForLambda = async ({
 }) => {
   if (!dependencies.length) return;
   const nodeModulesPath = await installInLambdaBuildImage({
-    packages: dependencies,
+    manifest: {
+      private: true,
+      dependencies: Object.fromEntries(dependencies.map(({ name, version }) => [name, version]))
+    },
     installationRootPath,
     lambdaRuntimeVersion,
     architecture: getLambdaArchitecture(dockerBuildOutputArchitecture),

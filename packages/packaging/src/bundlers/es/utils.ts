@@ -378,6 +378,18 @@ export const resolvePrisma = async ({
 const JAVASCRIPT_EXTENSIONS = new Set(['.js', '.cjs', '.mjs']);
 
 /**
+ * The file a relative import names, or `undefined` when there is none. A file can guard an import of something that
+ * may be missing with try/catch; Node.js reports a missing file when it runs, so scanning does not.
+ */
+const resolveRelativeImport = (specifier: string, importer: string): string | undefined => {
+  try {
+    return Bun.resolveSync(specifier, dirname(importer));
+  } catch {
+    return undefined;
+  }
+};
+
+/**
  * The installed packages that explicitly included JavaScript files load, directly or through the files they import
  * relatively. Those files are copied as they are, so they load these packages from the artifact's `node_modules` at
  * run time.
@@ -398,8 +410,8 @@ export const getDependenciesOfIncludedFiles = async ({
     // oxlint-disable-next-line no-await-in-loop -- included files are few and small.
     for (const { path: specifier } of transpiler.scanImports(await readFile(filePath, 'utf8'))) {
       if (specifier.startsWith('./') || specifier.startsWith('../')) {
-        const importedPath = Bun.resolveSync(specifier, dirname(filePath));
-        if (JAVASCRIPT_EXTENSIONS.has(extname(importedPath))) pending.push(importedPath);
+        const importedPath = resolveRelativeImport(specifier, filePath);
+        if (importedPath && JAVASCRIPT_EXTENSIONS.has(extname(importedPath))) pending.push(importedPath);
         continue;
       }
       if (!isBareImportSpecifier(specifier) || isNodeBuiltinImport(specifier)) continue;

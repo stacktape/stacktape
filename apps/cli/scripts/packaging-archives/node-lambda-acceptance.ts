@@ -29,7 +29,7 @@
  *     [--export <new or empty directory> | --import <directory>]
  */
 import { createHash } from 'node:crypto';
-import { cp, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { startOfflineAwsServer, type OfflineAwsServer } from '../qualification/offline-aws';
@@ -129,6 +129,22 @@ const writeFixture = async (project: string) => {
     `${JSON.stringify({ name: 'fixture-esm-dep', version: '1.0.0', type: 'module', exports: { '.': { import: './index.mjs' } } })}\n`
   );
   await file(join(nodeModules, 'fixture-esm-dep', 'index.mjs'), "export const kind = 'esm-only';\n");
+  // A package as pnpm installs it: its directory in the store, its dependency linked beside it, and a top-level link.
+  // `legacy` leaves it out of the bundle, so its artifact has to carry the links.
+  const linkedStore = join(nodeModules, '.pnpm', 'fixture-linked-dep@1.0.0', 'node_modules');
+  await file(
+    join(linkedStore, 'fixture-linked-dep', 'package.json'),
+    `${JSON.stringify({ name: 'fixture-linked-dep', version: '1.0.0', main: 'index.js', dependencies: { 'fixture-cjs-dep': '1.0.0' } })}\n`
+  );
+  await file(
+    join(linkedStore, 'fixture-linked-dep', 'index.js'),
+    "module.exports = { through: require('fixture-cjs-dep').kind, realPath: __filename };\n"
+  );
+  await symlink('../../../fixture-cjs-dep', join(linkedStore, 'fixture-cjs-dep'));
+  await symlink(
+    '.pnpm/fixture-linked-dep@1.0.0/node_modules/fixture-linked-dep',
+    join(nodeModules, 'fixture-linked-dep')
+  );
   await writeInstallMarker(project);
 
   await file(join(project, 'src', 'assets', 'template.bin'), ASSET);
@@ -198,11 +214,13 @@ const writeFixture = async (project: string) => {
     join(project, 'src', 'legacy.cjs'),
     [
       "const { kind, add } = require('fixture-cjs-dep');",
+      "const linked = require('fixture-linked-dep');",
       "const path = require('node:path');",
       '',
       'module.exports.handler = async () => ({',
       "  function: 'legacy',",
       '  dependency: kind,',
+      '  linked,',
       '  sum: add(20, 22),',
       '  dirname: __dirname,',
       '  filename: path.basename(__filename),',
@@ -239,6 +257,8 @@ const writeFixture = async (project: string) => {
       '          entryfilePath: src/legacy.cjs',
       '          nodeVersion: 22',
       '          outputModuleFormat: cjs',
+      '          dependenciesToExcludeFromBundle:',
+      '            - fixture-linked-dep',
       ''
     ].join('\n')
   );
@@ -454,8 +474,11 @@ const invokeFirst = async ({
     `stack=${JSON.stringify(stack)}`
   );
   check(
-    'legacy: CommonJS entry runs with require, module.exports and __dirname',
+    'legacy: CommonJS entry runs with require, module.exports and __dirname, and loads a left-out pnpm package through the links its ZIP keeps',
     legacy.response.dependency === 'cjs' &&
+      (legacy.response.linked as Response | undefined)?.through === 'cjs' &&
+      (legacy.response.linked as Response | undefined)?.realPath ===
+        '/var/task/node_modules/.pnpm/fixture-linked-dep@1.0.0/node_modules/fixture-linked-dep/index.js' &&
       legacy.response.sum === 42 &&
       legacy.response.dirname === '/var/task' &&
       legacy.response.format === 'cjs',
